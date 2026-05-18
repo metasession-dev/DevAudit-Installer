@@ -13,10 +13,10 @@
 #                            to the issuing user so the four-eyes approval
 #                            control is preserved (the submitter cannot
 #                            approve their own release).
-#   META_COMPLY_API_KEY    — project-scoped API key (existing) used to
+#   DEVAUDIT_API_KEY    — project-scoped API key (existing) used to
 #                            resolve the release id and read its current
 #                            status. Distinct from the PAT.
-#   META_COMPLY_BASE_URL   — DevAudit base URL (e.g. https://devaudit.metasession.co).
+#   DEVAUDIT_BASE_URL   — DevAudit base URL (e.g. https://devaudit.metasession.co).
 #
 # What it does:
 #   1. Verify working tree is clean and develop is up-to-date with origin.
@@ -40,10 +40,10 @@ if [ -z "$PROJECT_SLUG" ] || [ -z "$VERSION_PREFIX" ]; then
 fi
 
 : "${DEVAUDIT_USER_TOKEN:?DEVAUDIT_USER_TOKEN must be set (issue from /settings/tokens)}"
-: "${META_COMPLY_API_KEY:?META_COMPLY_API_KEY must be set (project API key)}"
-: "${META_COMPLY_BASE_URL:?META_COMPLY_BASE_URL must be set (e.g. https://devaudit.metasession.co)}"
+: "${DEVAUDIT_API_KEY:?DEVAUDIT_API_KEY must be set (project API key)}"
+: "${DEVAUDIT_BASE_URL:?DEVAUDIT_BASE_URL must be set (e.g. https://devaudit.metasession.co)}"
 
-BASE_URL="${META_COMPLY_BASE_URL%/}"
+BASE_URL="${DEVAUDIT_BASE_URL%/}"
 
 FAILED=0
 note() { printf '  - %s\n' "$*"; }
@@ -101,7 +101,7 @@ fi
 
 # 5. Resolve release id from (projectSlug, versionPrefix)
 RESOLVE_URL="${BASE_URL}/api/ci/releases/resolve?projectSlug=${PROJECT_SLUG}&versionPrefix=${VERSION_PREFIX}"
-RESOLVE=$(curl -s -H "Authorization: Bearer ${META_COMPLY_API_KEY}" "$RESOLVE_URL")
+RESOLVE=$(curl -s -H "Authorization: Bearer ${DEVAUDIT_API_KEY}" "$RESOLVE_URL")
 RELEASE_ID=$(echo "$RESOLVE" | jq -r '.latest.id // empty')
 RELEASE_STATUS=$(echo "$RESOLVE" | jq -r '.latest.status // empty')
 RELEASE_VERSION=$(echo "$RESOLVE" | jq -r '.latest.version // empty')
@@ -125,7 +125,7 @@ case "$RELEASE_STATUS" in
     echo "Submitting ${RELEASE_VERSION} for UAT review…"
     SUBMIT_URL="${BASE_URL}/api/releases/${RELEASE_ID}/submit-review"
     RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
-      -H "X-Meta-Comply-Token: ${DEVAUDIT_USER_TOKEN}" \
+      -H "X-DevAudit-Token: ${DEVAUDIT_USER_TOKEN}" \
       -H "Content-Type: application/json" \
       "$SUBMIT_URL")
     HTTP_CODE=$(echo "$RESPONSE" | tail -1)

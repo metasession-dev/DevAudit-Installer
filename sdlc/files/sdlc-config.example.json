@@ -46,11 +46,11 @@
     "scripts/check-requirement-jsdoc.sh"
   ],
 
-  "_comment_devaudit": "DevAudit destination. base_url lives in git so URL changes are visible in PR review. Falls back to repo Variable META_COMPLY_BASE_URL if base_url is empty (deprecated in v1.23.0).",
+  "_comment_devaudit": "DevAudit destination. base_url lives in git so URL changes are visible in PR review. Falls back to repo Variable DEVAUDIT_BASE_URL if base_url is empty (deprecated in v1.23.0).",
   "devaudit": {
     "base_url": "https://devaudit.metasession.co",
     "project_slug": "",
-    "api_key_secret": "META_COMPLY_API_KEY"
+    "api_key_secret": "DEVAUDIT_API_KEY"
   },
 
   "_comment_uat": "UAT-environment verification (Stage 3 Step 10). Opt-in: enabled=false skips Step 10 entirely. When enabled, only requirements whose risk class is listed in required_risk_classes go through UAT-env verification.",

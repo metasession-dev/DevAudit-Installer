@@ -12,8 +12,8 @@
 #
 # Auth: project-scoped API key. Issue from DevAudit → Project
 # Settings → API Keys (uploader role). Set as repo Secret
-# META_COMPLY_API_KEY. Base URL is read from sdlc-config.json
-# devaudit.base_url; falls back to repo Variable META_COMPLY_BASE_URL
+# DEVAUDIT_API_KEY. Base URL is read from sdlc-config.json
+# devaudit.base_url; falls back to repo Variable DEVAUDIT_BASE_URL
 # (deprecated, removed in v1.23.0).
 
 name: Release Approval Gate
@@ -28,8 +28,8 @@ jobs:
     name: DevAudit Release Approval
     runs-on: {{RUNNER}}
     env:
-      META_COMPLY_BASE_URL_VAR: ${{ vars.META_COMPLY_BASE_URL }}
-      META_COMPLY_API_KEY: ${{ secrets.META_COMPLY_API_KEY }}
+      DEVAUDIT_BASE_URL_VAR: ${{ vars.DEVAUDIT_BASE_URL }}
+      DEVAUDIT_API_KEY: ${{ secrets.DEVAUDIT_API_KEY }}
       PROJECT_SLUG: {{PROJECT_SLUG}}
 
     steps:
@@ -45,9 +45,9 @@ jobs:
           if [ -n "$CONFIG_URL" ]; then
             BASE="$CONFIG_URL"
             echo "Using devaudit.base_url from sdlc-config.json: $BASE"
-          elif [ -n "$META_COMPLY_BASE_URL_VAR" ]; then
-            BASE="$META_COMPLY_BASE_URL_VAR"
-            echo "::warning::Using repo Variable META_COMPLY_BASE_URL (deprecated in v1.23.0). Move base_url to sdlc-config.json devaudit.base_url for PR-visible config."
+          elif [ -n "$DEVAUDIT_BASE_URL_VAR" ]; then
+            BASE="$DEVAUDIT_BASE_URL_VAR"
+            echo "::warning::Using repo Variable DEVAUDIT_BASE_URL (deprecated in v1.23.0). Move base_url to sdlc-config.json devaudit.base_url for PR-visible config."
           else
             echo "::error::No DevAudit base URL configured. Set devaudit.base_url in sdlc-config.json."
             exit 1
@@ -57,8 +57,8 @@ jobs:
           # secret isn't set yet, fall through with a notice — gate passes,
           # enforcement kicks in once the secret is configured AND the project
           # is auto-created by the first compliance-evidence.yml run.
-          if [ -z "${META_COMPLY_API_KEY}" ]; then
-            echo "::notice::META_COMPLY_API_KEY not set — bootstrap mode. Gate passes. Configure the secret after the first compliance-evidence.yml run initialises ${PROJECT_SLUG} in DevAudit; enforcement starts on the next PR after that."
+          if [ -z "${DEVAUDIT_API_KEY}" ]; then
+            echo "::notice::DEVAUDIT_API_KEY not set — bootstrap mode. Gate passes. Configure the secret after the first compliance-evidence.yml run initialises ${PROJECT_SLUG} in DevAudit; enforcement starts on the next PR after that."
             echo "BOOTSTRAP_MODE=true" >> "$GITHUB_ENV"
             exit 0
           fi
@@ -73,7 +73,7 @@ jobs:
           # means we're on the introducing PR; pass with a notice. 401/403
           # means the API key is invalid → fail (not bootstrap).
           PROJ_CODE=$(curl -s -o /dev/null -w "%{http_code}" -m 10 \
-            -H "Authorization: Bearer ${META_COMPLY_API_KEY}" \
+            -H "Authorization: Bearer ${DEVAUDIT_API_KEY}" \
             "${BASE%/}/api/ci/projects/${PROJECT_SLUG}" || echo "000")
           case "$PROJ_CODE" in
             2*)
@@ -85,7 +85,7 @@ jobs:
               exit 0
               ;;
             401|403)
-              echo "::error::DevAudit returned HTTP ${PROJ_CODE} for project '${PROJECT_SLUG}' — API key is invalid or lacks access. Verify META_COMPLY_API_KEY belongs to the right project."
+              echo "::error::DevAudit returned HTTP ${PROJ_CODE} for project '${PROJECT_SLUG}' — API key is invalid or lacks access. Verify DEVAUDIT_API_KEY belongs to the right project."
               exit 1
               ;;
             *)
@@ -96,8 +96,8 @@ jobs:
           echo "BOOTSTRAP_MODE=false" >> "$GITHUB_ENV"
           # Strip trailing slash so we don't double-up later.
           echo "BASE=${BASE%/}" >> "$GITHUB_ENV"
-          # Export for upload-evidence.sh / any other tool that reads $META_COMPLY_BASE_URL directly.
-          echo "META_COMPLY_BASE_URL=${BASE%/}" >> "$GITHUB_ENV"
+          # Export for upload-evidence.sh / any other tool that reads $DEVAUDIT_BASE_URL directly.
+          echo "DEVAUDIT_BASE_URL=${BASE%/}" >> "$GITHUB_ENV"
 
       - name: Resolve current release
         id: release
@@ -110,7 +110,7 @@ jobs:
           WAIT_SECONDS=10
           RESP=""
           for ATTEMPT in $(seq 1 $MAX_ATTEMPTS); do
-            RESP=$(curl -s -H "Authorization: Bearer ${META_COMPLY_API_KEY}" "${RESOLVE_URL}")
+            RESP=$(curl -s -H "Authorization: Bearer ${DEVAUDIT_API_KEY}" "${RESOLVE_URL}")
             VERSION=$(echo "$RESP" | jq -r '.latest.version // empty')
             if [ -n "$VERSION" ]; then
               break
@@ -151,7 +151,7 @@ jobs:
           PR_NUMBER="${{ github.event.pull_request.number }}"
           curl -s -o /dev/null -w "PR link: HTTP %{http_code}\n" \
             -X PATCH "${BASE}/api/ci/releases/${RELEASE_ID}" \
-            -H "Authorization: Bearer ${META_COMPLY_API_KEY}" \
+            -H "Authorization: Bearer ${DEVAUDIT_API_KEY}" \
             -H "Content-Type: application/json" \
             -d "{\"prInfo\":{\"url\":\"${PR_URL}\",\"number\":${PR_NUMBER}}}"
           echo "Linked PR #${PR_NUMBER} to release ${RELEASE_ID}"

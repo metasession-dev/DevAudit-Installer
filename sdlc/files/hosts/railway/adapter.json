@@ -7,7 +7,7 @@
   "production_url_secret_key": "production_url_secret",
   "wait_for_deploy": "for i in $(seq 1 30); do HTTP_CODE=$(curl -s -o /dev/null -w \"%{http_code}\" \"${PROD_URL}/\" || echo \"000\"); if [ \"$HTTP_CODE\" -ge 200 ] && [ \"$HTTP_CODE\" -lt 400 ]; then echo \"Production is up (HTTP ${HTTP_CODE})\"; break; fi; echo \"Attempt ${i}/30: HTTP ${HTTP_CODE} — waiting 10s...\"; sleep 10; done",
   "required_secrets": [
-    "META_COMPLY_API_KEY"
+    "DEVAUDIT_API_KEY"
   ],
   "config_keys": {
     "required": [

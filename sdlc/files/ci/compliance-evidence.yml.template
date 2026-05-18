@@ -13,8 +13,8 @@
 #
 # Auth: project-scoped API key (uploader role). Issue from
 # DevAudit → Project Settings → API Keys. Set as repo Secret
-# META_COMPLY_API_KEY. Base URL is read from sdlc-config.json
-# devaudit.base_url; falls back to repo Variable META_COMPLY_BASE_URL
+# DEVAUDIT_API_KEY. Base URL is read from sdlc-config.json
+# devaudit.base_url; falls back to repo Variable DEVAUDIT_BASE_URL
 # (deprecated, removed in v1.23.0).
 
 name: Compliance Evidence Upload
@@ -34,8 +34,8 @@ jobs:
     name: Upload Compliance Evidence
     runs-on: {{RUNNER}}
     env:
-      META_COMPLY_BASE_URL_VAR: ${{ vars.META_COMPLY_BASE_URL }}
-      META_COMPLY_API_KEY: ${{ secrets.META_COMPLY_API_KEY }}
+      DEVAUDIT_BASE_URL_VAR: ${{ vars.DEVAUDIT_BASE_URL }}
+      DEVAUDIT_API_KEY: ${{ secrets.DEVAUDIT_API_KEY }}
     steps:
       - uses: actions/checkout@v4
 
@@ -50,16 +50,16 @@ jobs:
           if [ -n "$CONFIG_URL" ]; then
             BASE="$CONFIG_URL"
             echo "Using devaudit.base_url from sdlc-config.json: $BASE"
-          elif [ -n "$META_COMPLY_BASE_URL_VAR" ]; then
-            BASE="$META_COMPLY_BASE_URL_VAR"
-            echo "::warning::Using repo Variable META_COMPLY_BASE_URL (deprecated in v1.23.0). Move base_url to sdlc-config.json devaudit.base_url for PR-visible config."
+          elif [ -n "$DEVAUDIT_BASE_URL_VAR" ]; then
+            BASE="$DEVAUDIT_BASE_URL_VAR"
+            echo "::warning::Using repo Variable DEVAUDIT_BASE_URL (deprecated in v1.23.0). Move base_url to sdlc-config.json devaudit.base_url for PR-visible config."
           else
             echo "::warning::No DevAudit base URL configured — skipping evidence upload. Set devaudit.base_url in sdlc-config.json."
             echo "skip=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          if [ -z "${META_COMPLY_API_KEY}" ]; then
-            echo "::warning::META_COMPLY_API_KEY not set — skipping evidence upload."
+          if [ -z "${DEVAUDIT_API_KEY}" ]; then
+            echo "::warning::DEVAUDIT_API_KEY not set — skipping evidence upload."
             echo "skip=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -70,8 +70,8 @@ jobs:
               echo "DevAudit reachable at ${BASE} (HTTP ${CODE})"
               echo "skip=false" >> "$GITHUB_OUTPUT"
               echo "BASE=${BASE%/}" >> "$GITHUB_ENV"
-              # Export for upload-evidence.sh, which reads $META_COMPLY_BASE_URL directly.
-              echo "META_COMPLY_BASE_URL=${BASE%/}" >> "$GITHUB_ENV"
+              # Export for upload-evidence.sh, which reads $DEVAUDIT_BASE_URL directly.
+              echo "DEVAUDIT_BASE_URL=${BASE%/}" >> "$GITHUB_ENV"
               ;;
             *)
               echo "::error::DevAudit base URL ${BASE} returned HTTP ${CODE}. Likely a stale alias or wrong host. Check sdlc-config.json devaudit.base_url."

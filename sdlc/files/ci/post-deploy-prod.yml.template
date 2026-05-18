@@ -24,8 +24,8 @@ jobs:
     name: Production Evidence
     runs-on: {{RUNNER}}
     env:
-      META_COMPLY_BASE_URL_VAR: ${{ vars.META_COMPLY_BASE_URL }}
-      META_COMPLY_API_KEY: ${{ secrets.META_COMPLY_API_KEY }}
+      DEVAUDIT_BASE_URL_VAR: ${{ vars.DEVAUDIT_BASE_URL }}
+      DEVAUDIT_API_KEY: ${{ secrets.DEVAUDIT_API_KEY }}
       PROD_URL: ${{ secrets.{{PRODUCTION_URL_SECRET}} }}
       PROJECT_SLUG: {{PROJECT_SLUG}}
       GIT_SHA: ${{ github.sha }}
@@ -49,15 +49,15 @@ jobs:
           if [ -n "$CONFIG_URL" ]; then
             BASE="$CONFIG_URL"
             echo "Using devaudit.base_url from sdlc-config.json: $BASE"
-          elif [ -n "$META_COMPLY_BASE_URL_VAR" ]; then
-            BASE="$META_COMPLY_BASE_URL_VAR"
-            echo "::warning::Using repo Variable META_COMPLY_BASE_URL (deprecated in v1.23.0). Move base_url to sdlc-config.json devaudit.base_url."
+          elif [ -n "$DEVAUDIT_BASE_URL_VAR" ]; then
+            BASE="$DEVAUDIT_BASE_URL_VAR"
+            echo "::warning::Using repo Variable DEVAUDIT_BASE_URL (deprecated in v1.23.0). Move base_url to sdlc-config.json devaudit.base_url."
           else
             echo "::error::No DevAudit base URL configured. Set devaudit.base_url in sdlc-config.json."
             exit 1
           fi
-          if [ -z "${META_COMPLY_API_KEY}" ]; then
-            echo "::error::META_COMPLY_API_KEY secret must be set."
+          if [ -z "${DEVAUDIT_API_KEY}" ]; then
+            echo "::error::DEVAUDIT_API_KEY secret must be set."
             exit 1
           fi
           case "$TERMINAL_STATUS" in
@@ -69,15 +69,15 @@ jobs:
           esac
           echo "Post-deploy terminal status: ${TERMINAL_STATUS}"
           echo "BASE=${BASE%/}" >> "$GITHUB_ENV"
-          # Export for upload-evidence.sh, which reads $META_COMPLY_BASE_URL directly.
-          echo "META_COMPLY_BASE_URL=${BASE%/}" >> "$GITHUB_ENV"
+          # Export for upload-evidence.sh, which reads $DEVAUDIT_BASE_URL directly.
+          echo "DEVAUDIT_BASE_URL=${BASE%/}" >> "$GITHUB_ENV"
           echo "TERMINAL_STATUS=${TERMINAL_STATUS}" >> "$GITHUB_ENV"
 
       - name: Resolve current release
         id: release
         run: |
           DATE_PREFIX="v$(date +%Y.%m.%d)"
-          RESP=$(curl -s -H "Authorization: Bearer ${META_COMPLY_API_KEY}" \
+          RESP=$(curl -s -H "Authorization: Bearer ${DEVAUDIT_API_KEY}" \
             "${BASE}/api/ci/releases/resolve?projectSlug=${PROJECT_SLUG}&versionPrefix=${DATE_PREFIX}")
           VERSION=$(echo "$RESP" | jq -r '.latest.version // empty')
           if [ -z "$VERSION" ]; then
@@ -144,7 +144,7 @@ jobs:
           fi
           curl -s -o /dev/null -w "Release status patch: HTTP %{http_code}\n" \
             -X PATCH "${BASE}/api/ci/releases/${RELEASE_ID}" \
-            -H "Authorization: Bearer ${META_COMPLY_API_KEY}" \
+            -H "Authorization: Bearer ${DEVAUDIT_API_KEY}" \
             -H "Content-Type: application/json" \
             -d "{\"status\":\"${TERMINAL_STATUS}\"}"
           case "$TERMINAL_STATUS" in

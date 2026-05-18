@@ -101,7 +101,7 @@ See the step-by-step walkthrough: **[docs/adding-a-host.md](../docs/adding-a-hos
   "deploy_trigger": "ci_step",
   "production_url_from": "api_lookup",
   "wait_for_deploy": "for i in $(seq 1 30); do flyctl status --app \"${APP_NAME}\" --json | jq -e '.Deployment.Status == \"successful\"' && break; sleep 10; done",
-  "required_secrets": ["FLY_API_TOKEN", "META_COMPLY_API_KEY"],
+  "required_secrets": ["FLY_API_TOKEN", "DEVAUDIT_API_KEY"],
   "required_env": ["APP_NAME"],
   "notes": [
     "Production URL is resolved at deploy time by flyctl — no GitHub Secret to maintain.",

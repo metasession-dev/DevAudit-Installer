@@ -19,8 +19,8 @@
 #                               release_artifact
 #
 # Required environment variables:
-#   META_COMPLY_BASE_URL  e.g. https://meta-comply-production.up.railway.app
-#   META_COMPLY_API_KEY   project-scoped API key (uploader role); format `mc_…`.
+#   DEVAUDIT_BASE_URL  e.g. https://meta-comply-production.up.railway.app
+#   DEVAUDIT_API_KEY   project-scoped API key (uploader role); format `mc_…`.
 #                         Issue from: Project Settings → API Keys in
 #                         META-COMPLY's web UI.
 #
@@ -77,18 +77,18 @@ if [ -n "$RELEASE_VERSION" ] && [ -z "$EVIDENCE_CATEGORY" ]; then
   exit 1
 fi
 
-if [ -z "${META_COMPLY_BASE_URL:-}" ]; then
-  echo "Error: META_COMPLY_BASE_URL environment variable is required"
+if [ -z "${DEVAUDIT_BASE_URL:-}" ]; then
+  echo "Error: DEVAUDIT_BASE_URL environment variable is required"
   exit 1
 fi
-if [ -z "${META_COMPLY_API_KEY:-}" ]; then
-  echo "Error: META_COMPLY_API_KEY environment variable is required (issue from"
+if [ -z "${DEVAUDIT_API_KEY:-}" ]; then
+  echo "Error: DEVAUDIT_API_KEY environment variable is required (issue from"
   echo "       Project Settings → API Keys in META-COMPLY)"
   exit 1
 fi
 
 # Strip any trailing slash so we don't double-up later.
-META_COMPLY_BASE_URL="${META_COMPLY_BASE_URL%/}"
+DEVAUDIT_BASE_URL="${DEVAUDIT_BASE_URL%/}"
 
 # --- Build metadata JSON ---
 METADATA="{}"
@@ -139,7 +139,7 @@ fi
 SUCCEEDED=0
 FAILED=0
 TOTAL_SIZE=0
-UPLOAD_URL="${META_COMPLY_BASE_URL}/api/evidence/upload"
+UPLOAD_URL="${DEVAUDIT_BASE_URL}/api/evidence/upload"
 MAX_ATTEMPTS=${UPLOAD_MAX_ATTEMPTS:-5}
 INITIAL_BACKOFF_SECONDS=${UPLOAD_INITIAL_BACKOFF_SECONDS:-1}
 
@@ -149,7 +149,7 @@ for FILE in "${FILES[@]}"; do
   echo -n "Uploading ${FILENAME}... "
   CURL_ARGS=(
     -X POST "$UPLOAD_URL"
-    -H "Authorization: Bearer ${META_COMPLY_API_KEY}"
+    -H "Authorization: Bearer ${DEVAUDIT_API_KEY}"
     -F "file=@${FILE}"
     -F "projectSlug=${PROJECT_SLUG}"
     -F "requirementId=${REQUIREMENT_ID}"

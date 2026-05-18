@@ -345,8 +345,8 @@ upload-evidence:
           --ci-run-id "${{ github.run_id }}" \
           --path playwright-report/
       env:
-        META_COMPLY_BASE_URL: ${{ vars.META_COMPLY_BASE_URL }}
-        META_COMPLY_API_KEY: ${{ secrets.META_COMPLY_API_KEY }}
+        DEVAUDIT_BASE_URL: ${{ vars.DEVAUDIT_BASE_URL }}
+        DEVAUDIT_API_KEY: ${{ secrets.DEVAUDIT_API_KEY }}
 
     # Upload security evidence
     - name: Upload SAST evidence
@@ -358,8 +358,8 @@ upload-evidence:
           --git-sha "${{ github.sha }}" \
           --path sast-results.json
       env:
-        META_COMPLY_BASE_URL: ${{ vars.META_COMPLY_BASE_URL }}
-        META_COMPLY_API_KEY: ${{ secrets.META_COMPLY_API_KEY }}
+        DEVAUDIT_BASE_URL: ${{ vars.DEVAUDIT_BASE_URL }}
+        DEVAUDIT_API_KEY: ${{ secrets.DEVAUDIT_API_KEY }}
 
 # Sync compliance docs on merge to main
 sync-compliance-docs:
@@ -379,8 +379,8 @@ sync-compliance-docs:
             --path "$doc"
         done
       env:
-        META_COMPLY_BASE_URL: ${{ vars.META_COMPLY_BASE_URL }}
-        META_COMPLY_API_KEY: ${{ secrets.META_COMPLY_API_KEY }}
+        DEVAUDIT_BASE_URL: ${{ vars.DEVAUDIT_BASE_URL }}
+        DEVAUDIT_API_KEY: ${{ secrets.DEVAUDIT_API_KEY }}
 ```
 
 ### .gitignore Updates
@@ -429,8 +429,8 @@ Add these to your GitHub repository (Settings → Secrets and variables → Acti
 
 | Setting | Tab | Value | Source |
 |--------|-----|-------|--------|
-| `META_COMPLY_BASE_URL` | Variables | The deployed DevAudit URL, e.g. `https://devaudit.metasession.co` | The hosting team |
-| `META_COMPLY_API_KEY` | Secrets | Project-scoped API key (`mc_…`) with `uploader` role | DevAudit → Project Settings → API Keys → New key |
+| `DEVAUDIT_BASE_URL` | Variables | The deployed DevAudit URL, e.g. `https://devaudit.metasession.co` | The hosting team |
+| `DEVAUDIT_API_KEY` | Secrets | Project-scoped API key (`mc_…`) with `uploader` role | DevAudit → Project Settings → API Keys → New key |
 
 ### Project Registration
 

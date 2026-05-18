@@ -168,22 +168,22 @@ jobs:
   register-release:
     name: Register Release
     runs-on: {{RUNNER}}
-    if: ${{ vars.META_COMPLY_BASE_URL != '' }}
+    if: ${{ vars.DEVAUDIT_BASE_URL != '' }}
     outputs:
       version: ${{ steps.version.outputs.version }}
     env:
-      META_COMPLY_BASE_URL: ${{ vars.META_COMPLY_BASE_URL }}
-      META_COMPLY_API_KEY: ${{ secrets.META_COMPLY_API_KEY }}
+      DEVAUDIT_BASE_URL: ${{ vars.DEVAUDIT_BASE_URL }}
+      DEVAUDIT_API_KEY: ${{ secrets.DEVAUDIT_API_KEY }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Validate DevAudit env
         run: |
-          if [ -z "${META_COMPLY_BASE_URL}" ] || [ -z "${META_COMPLY_API_KEY}" ]; then
-            echo "::error::META_COMPLY_BASE_URL (variable) and META_COMPLY_API_KEY (secret) must both be set."
+          if [ -z "${DEVAUDIT_BASE_URL}" ] || [ -z "${DEVAUDIT_API_KEY}" ]; then
+            echo "::error::DEVAUDIT_BASE_URL (variable) and DEVAUDIT_API_KEY (secret) must both be set."
             exit 1
           fi
-          echo "BASE=${META_COMPLY_BASE_URL%/}" >> "$GITHUB_ENV"
+          echo "BASE=${DEVAUDIT_BASE_URL%/}" >> "$GITHUB_ENV"
 
       - name: Determine release version
         id: version
@@ -216,7 +216,7 @@ jobs:
               JSON_ARRAY=$(echo "$REQS" | jq -R -s -c 'split("\n") | map(select(length > 0))')
               HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
                 -X PATCH "${BASE}/api/ci/projects/{{PROJECT_SLUG}}/known-requirements" \
-                -H "Authorization: Bearer ${META_COMPLY_API_KEY}" \
+                -H "Authorization: Bearer ${DEVAUDIT_API_KEY}" \
                 -H "Content-Type: application/json" \
                 -d "{\"requirements\": ${JSON_ARRAY}}")
               echo "known_requirements sync: HTTP ${HTTP_CODE}"
@@ -231,10 +231,10 @@ jobs:
     name: Upload Evidence
     runs-on: {{RUNNER}}
     needs: [quality-gates, register-release]
-    if: ${{ !failure() && !cancelled() && vars.META_COMPLY_BASE_URL != '' }}
+    if: ${{ !failure() && !cancelled() && vars.DEVAUDIT_BASE_URL != '' }}
     env:
-      META_COMPLY_BASE_URL: ${{ vars.META_COMPLY_BASE_URL }}
-      META_COMPLY_API_KEY: ${{ secrets.META_COMPLY_API_KEY }}
+      DEVAUDIT_BASE_URL: ${{ vars.DEVAUDIT_BASE_URL }}
+      DEVAUDIT_API_KEY: ${{ secrets.DEVAUDIT_API_KEY }}
     steps:
       - uses: actions/checkout@v4
 
@@ -246,7 +246,7 @@ jobs:
           path: ci-evidence/
 
       - name: Generate and upload gate evidence
-        if: env.META_COMPLY_BASE_URL != ''
+        if: env.DEVAUDIT_BASE_URL != ''
         run: |
           chmod +x scripts/upload-evidence.sh 2>/dev/null || true
           FLAGS="--git-sha ${{ github.sha }} --ci-run-id ${{ github.run_id }} --branch ${{ github.ref_name }}"

@@ -19,10 +19,10 @@
 #      exists for this user).
 #   6. Issues a project-scoped API key, named "Onboarding-issued".
 #   7. Sets repo secrets via `gh secret set`:
-#         META_COMPLY_API_KEY (the just-issued key)
+#         DEVAUDIT_API_KEY (the just-issued key)
 #         DEVAUDIT_USER_TOKEN (the PAT passed in)
 #         <production_url_secret> (prompted)
-#   8. Sets repo variable META_COMPLY_BASE_URL via `gh variable set`.
+#   8. Sets repo variable DEVAUDIT_BASE_URL via `gh variable set`.
 #   9. Bootstraps the stack's hook framework (pre-commit install / husky init).
 #  10. Configures branch protection on main with the right required checks.
 #  11. Runs sync-sdlc.sh against the consumer to populate all framework
@@ -58,7 +58,7 @@ if [ "$#" -lt 1 ]; then
   echo "" >&2
   echo "Environment:" >&2
   echo "  DEVAUDIT_USER_TOKEN  Required. PAT issued at /settings/tokens." >&2
-  echo "  META_COMPLY_BASE_URL    Optional. Defaults to https://devaudit.metasession.co." >&2
+  echo "  DEVAUDIT_BASE_URL    Optional. Defaults to https://devaudit.metasession.co." >&2
   exit 1
 fi
 
@@ -71,7 +71,7 @@ PROJECT_PATH="$(cd "$PROJECT_PATH" && pwd)"
 PROJECT_NAME="$(basename "$PROJECT_PATH")"
 
 : "${DEVAUDIT_USER_TOKEN:?DEVAUDIT_USER_TOKEN must be set (issue at https://devaudit.metasession.co/settings/tokens)}"
-BASE_URL="${META_COMPLY_BASE_URL:-https://devaudit.metasession.co}"
+BASE_URL="${DEVAUDIT_BASE_URL:-https://devaudit.metasession.co}"
 BASE_URL="${BASE_URL%/}"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -108,7 +108,7 @@ section "1/11 · Authenticate with DevAudit"
 # (Routes that accept PAT include /api/projects — listing projects
 # succeeds when the token is valid and returns 401 otherwise.)
 PROBE=$(curl -s -o /dev/null -w "%{http_code}" \
-  -H "X-Meta-Comply-Token: $DEVAUDIT_USER_TOKEN" \
+  -H "X-DevAudit-Token: $DEVAUDIT_USER_TOKEN" \
   "${BASE_URL}/api/projects")
 case "$PROBE" in
   2*) ok "PAT accepted; DevAudit reachable at $BASE_URL" ;;
@@ -238,7 +238,7 @@ jq -n \
   devaudit: {
     base_url: $base_url,
     project_slug: $slug,
-    api_key_secret: "META_COMPLY_API_KEY"
+    api_key_secret: "DEVAUDIT_API_KEY"
   },
   uat: { enabled: false, url: "", required_risk_classes: ["payment", "destructive_migration", "realtime"] },
   approval: { mode: "dual_actor", auto_low_risk_threshold: "LOW" },
@@ -254,7 +254,7 @@ ok "Written to $PROJECT_PATH/sdlc-config.json"
 section "5/11 · Create / find DevAudit project"
 
 EXISTING=$(curl -s \
-  -H "X-Meta-Comply-Token: $DEVAUDIT_USER_TOKEN" \
+  -H "X-DevAudit-Token: $DEVAUDIT_USER_TOKEN" \
   "${BASE_URL}/api/projects" | jq -r --arg slug "$PROJECT_SLUG_VAL" '[.[] | select(.slug == $slug)] | first // empty')
 
 if [ -n "$EXISTING" ] && [ "$EXISTING" != "null" ]; then
@@ -267,7 +267,7 @@ else
     '{name: $name, slug: $slug}')
   CREATE_RESP=$(curl -s -w "\n%{http_code}" \
     -X POST \
-    -H "X-Meta-Comply-Token: $DEVAUDIT_USER_TOKEN" \
+    -H "X-DevAudit-Token: $DEVAUDIT_USER_TOKEN" \
     -H "Content-Type: application/json" \
     -d "$CREATE_BODY" \
     "${BASE_URL}/api/projects")
@@ -288,18 +288,18 @@ fi
 section "6/11 · Issue project API key"
 
 EXISTING_KEY=$(curl -s \
-  -H "X-Meta-Comply-Token: $DEVAUDIT_USER_TOKEN" \
+  -H "X-DevAudit-Token: $DEVAUDIT_USER_TOKEN" \
   "${BASE_URL}/api/projects/${PROJECT_ID}/api-keys" \
   | jq -r '[.[] | select(.name == "Onboarding-issued" and .revoked_at == null)] | first // empty')
 
 if [ -n "$EXISTING_KEY" ] && [ "$EXISTING_KEY" != "null" ]; then
   warn "An 'Onboarding-issued' API key already exists and won't be re-issued automatically."
-  warn "Either revoke it in the DevAudit portal and re-run, OR set META_COMPLY_API_KEY manually."
+  warn "Either revoke it in the DevAudit portal and re-run, OR set DEVAUDIT_API_KEY manually."
   PLAIN_API_KEY=""
 else
   KEY_RESP=$(curl -s -w "\n%{http_code}" \
     -X POST \
-    -H "X-Meta-Comply-Token: $DEVAUDIT_USER_TOKEN" \
+    -H "X-DevAudit-Token: $DEVAUDIT_USER_TOKEN" \
     -H "Content-Type: application/json" \
     -d '{"name":"Onboarding-issued","role":"uploader"}' \
     "${BASE_URL}/api/projects/${PROJECT_ID}/api-keys")
@@ -310,7 +310,7 @@ else
     exit 1
   fi
   PLAIN_API_KEY=$(echo "$KEY_BODY" | jq -r '.plainTextKey')
-  ok "API key issued (will be stored as repo secret META_COMPLY_API_KEY)"
+  ok "API key issued (will be stored as repo secret DEVAUDIT_API_KEY)"
 fi
 
 # ──────────────────────────────────────────────────────────────────────
@@ -322,10 +322,10 @@ section "7/11 · Set GitHub repo secrets and variables"
 cd "$PROJECT_PATH"
 
 if [ -n "$PLAIN_API_KEY" ]; then
-  echo -n "$PLAIN_API_KEY" | gh secret set META_COMPLY_API_KEY 2>&1 | sed 's/^/    /'
-  ok "META_COMPLY_API_KEY (secret)"
+  echo -n "$PLAIN_API_KEY" | gh secret set DEVAUDIT_API_KEY 2>&1 | sed 's/^/    /'
+  ok "DEVAUDIT_API_KEY (secret)"
 else
-  warn "Skipping META_COMPLY_API_KEY — set it manually after revoking the stale key."
+  warn "Skipping DEVAUDIT_API_KEY — set it manually after revoking the stale key."
 fi
 
 echo -n "$DEVAUDIT_USER_TOKEN" | gh secret set DEVAUDIT_USER_TOKEN 2>&1 | sed 's/^/    /'
@@ -338,8 +338,8 @@ else
   warn "$PROD_URL_SECRET_NAME not set — provide the production URL when you have one (post-deploy-prod.yml needs it)."
 fi
 
-gh variable set META_COMPLY_BASE_URL --body "$BASE_URL" 2>&1 | sed 's/^/    /'
-ok "META_COMPLY_BASE_URL (variable) = $BASE_URL"
+gh variable set DEVAUDIT_BASE_URL --body "$BASE_URL" 2>&1 | sed 's/^/    /'
+ok "DEVAUDIT_BASE_URL (variable) = $BASE_URL"
 
 cd "$INSTALLER_ROOT"
 
