@@ -95,9 +95,9 @@ Re-running the script on the same consumer is safe:
 - Branch protection re-applies via PUT (idempotent at the GH API).
 - Template sync is idempotent (same inputs → same outputs).
 
-## Worked example: onboarding META-AGENT
+## Worked example: onboarding META-AGENT (historical trace)
 
-A trace of what `./scripts/sdlc-onboard.sh ../META-AGENT` looked like the first time:
+A trace of what `./scripts/sdlc-onboard.sh ../META-AGENT` looked like the first time. The META-AGENT onboarding has since been reverted (META-AGENT is no longer an active consumer — see [consuming-projects.md](./consuming-projects.md)), but the trace is preserved here as a concrete demonstration of what the script does:
 
 ```text
 ══════════════════════════════════════════════════════════════
