@@ -4,13 +4,13 @@ DevAudit serves as the central compliance hub for all Metasession projects. Each
 
 ## Active consumers
 
-| Project       | Slug                | Stack  | Host    | Status                        | Last synced               |
-| ------------- | ------------------- | ------ | ------- | ----------------------------- | ------------------------- |
-| wawagardenbar | `wawagardenbar-app` | node   | railway | Integrated                    | 2026-05-14 (sdlc-v1.23.0) |
-| META-AGENT    | `meta-agent`        | python | railway | Integrated                    | 2026-05-15 (sdlc-v1.23.x) |
-| META-ATS      | --                  | node   | railway | Onboarding paused (resumable) | --                        |
+| Project       | Slug                | Stack | Host    | Status     | Last synced               |
+| ------------- | ------------------- | ----- | ------- | ---------- | ------------------------- |
+| wawagardenbar | `wawagardenbar-app` | node  | railway | Integrated | 2026-05-14 (sdlc-v1.23.0) |
 
-DevAudit itself does **not** consume the SDLC framework — it would otherwise gate its own releases through itself. See `CLAUDE.md` in DevAudit's repo root for its lightweight development process.
+Only **wawagardenbar** is a live consumer as of 2026-05-18. Previous onboarding attempts for **META-AGENT**, **META-ATS**, and **META-JOBS** were started but stopped or reverted; none of them runs SDLC gates against DevAudit today. If any of those projects return as a live consumer they'll re-onboard from scratch via `scripts/sdlc-onboard.sh` and be added to this table at that time.
+
+The DevAudit portal itself does **not** consume the SDLC framework — it would otherwise gate its own releases through itself. See `CLAUDE.md` in DevAudit's repo root for its lightweight development process.
 
 ## Integrating a new project
 
@@ -88,10 +88,10 @@ The framework uses a **copy-and-customize** model. `_common/` docs define univer
 After framework changes land in DevAudit's `main`:
 
 ```bash
-# Tags DevAudit, copies all templates, updates tag references in CI workflows
-./scripts/sync-sdlc.sh v1.X.Y "../wawagardenbar app" ../META-AGENT
+# Tags DevAudit-Installer, copies all templates, updates tag references in CI workflows
+./scripts/sync-sdlc.sh v1.X.Y "../wawagardenbar app"
 
-# Then in each consuming project:
+# Then in the consuming project:
 cd "../wawagardenbar app"
 git diff                    # Review changes
 git checkout -b chore/sync-sdlc-vX.Y.Z
