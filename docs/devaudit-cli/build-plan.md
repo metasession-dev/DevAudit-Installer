@@ -18,7 +18,11 @@ These were open questions in earlier drafts; the recent repo split settled them:
 | npm package scope | `@metasession-dev/devaudit-cli` (matches GitHub org). |
 | Binary name | `devaudit`. |
 | Bundling strategy | CLI embeds a snapshot of `sdlc/files/` at build time via `tsup`'s asset import. No cross-repo coordination for routine template changes. |
-| User-token env var name | `DEVAUDIT_USER_TOKEN`. Renamed from `META_COMPLY_USER_TOKEN` during the repo split. Migration: each existing consumer rotates its GitHub secret (set the new name, optionally delete the old); operators re-export the variable locally with the new name. |
+| User-token env var name | `DEVAUDIT_USER_TOKEN`. Renamed from `META_COMPLY_USER_TOKEN` during the repo split. |
+| Project API key env var / GitHub secret name | `DEVAUDIT_API_KEY`. Renamed from `META_COMPLY_API_KEY`. CI workflow templates and `sdlc-onboard.sh` already use the new name. |
+| Portal URL env var / GitHub variable name | `DEVAUDIT_BASE_URL`. Renamed from `META_COMPLY_BASE_URL`. |
+| PAT HTTP header name | `X-DevAudit-Token`. Renamed from `X-Meta-Comply-Token`. The portal dual-accepts both during the migration window (`lib/auth/resolve-user-auth.ts` reads either, prefers the new name). The legacy header gets removed in a follow-up PR after the active consumer (WGB) has migrated. |
+| Consumer migration | Per consumer, in order: rotate the GitHub secrets/variable to the new names → re-sync templates from this repo → merge → delete the old secrets. Detailed walkthrough lives in [consuming-projects.md](../consuming-projects.md). Today only WGB is an active consumer; META-AGENT, META-ATS, and META-JOBS onboarding attempts have been reverted. |
 
 ## Goal
 
@@ -106,16 +110,18 @@ DevAudit-Installer/cli/
 
 Portal-side work that must land before the CLI's enterprise features work end-to-end. **All items here are changes to a different repo** — the DevAudit portal codebase. Cross-repo coordination required; whoever takes this workstream needs commit access on `metasession-dev/META-COMPLY` too.
 
-| Item                                                               | Effort  | Why                                             |
-| ------------------------------------------------------------------ | ------- | ----------------------------------------------- |
-| `/cli-auth` OAuth callback endpoint                                | 1 week  | CLI's browser auth flow depends on it           |
-| Org-level `org-config.json` storage + API                          | 2 weeks | Shared configuration across an org's projects   |
-| Policy engine (CRUD policies, evaluation results storage)          | 3 weeks | `devaudit org policy apply` writes results here |
-| RBAC enforcement at portal API layer                               | 2 weeks | CLI commands respect role boundaries            |
-| Plugin registry backend (`/plugins` listing + per-plugin metadata) | 2 weeks | `devaudit plugin install` reads from here       |
-| Org-wide reporting endpoints                                       | 1 week  | `devaudit org report` aggregates from these     |
+| Status | Item | Effort | Why |
+| --- | --- | --- | --- |
+| ✓ done | `X-DevAudit-Token` PAT header dual-accept | shipped | CLI can authenticate against the portal via PAT today; landed in [`devaudit#318`](https://github.com/metasession-dev/devaudit/pull/318) |
+| pending | `/cli-auth` OAuth callback endpoint | 1 week | CLI's browser auth flow depends on it (PAT-paste fallback works today via the dual-accepted header) |
+| pending | Org-level `org-config.json` storage + API | 2 weeks | Shared configuration across an org's projects |
+| pending | Policy engine (CRUD policies, evaluation results storage) | 3 weeks | `devaudit org policy apply` writes results here |
+| pending | RBAC enforcement at portal API layer | 2 weeks | CLI commands respect role boundaries |
+| pending | Plugin registry backend (`/plugins` listing + per-plugin metadata) | 2 weeks | `devaudit plugin install` reads from here |
+| pending | Org-wide reporting endpoints | 1 week | `devaudit org report` aggregates from these |
+| follow-up | Remove `PAT_HEADER_LEGACY` (`x-meta-comply-token`) constant from `lib/auth/resolve-user-auth.ts` | 0.5 days | Tracked in build-plan Open Questions; safe to do once WGB has rotated its secrets and re-synced |
 
-**Effort**: ~11 weeks total. Some items parallelisable across portal subsystems.
+**Remaining effort**: ~11 weeks total for pending items. Some items parallelisable across portal subsystems.
 
 ### C — Framework prerequisites (this repo)
 
@@ -200,7 +206,7 @@ Assuming 2 engineers in parallel, here's a sensible internal sequence (not expos
 
 Before declaring the CLI shipped:
 
-1. **End-to-end onboarding** against every consumer in the portfolio (META-ATS, META-JOBS, WGB, META-AGENT) and against fresh fixtures for each new stack adapter. The DevAudit portal itself (`metasession-dev/META-COMPLY`) is *not* a consumer — per the self-release policy, the portal doesn't gate releases through itself.
+1. **End-to-end onboarding** against the active consumer (`wawagardenbar-app`, the only live SDLC consumer as of 2026-05-18) and against fresh fixtures for each shipped stack adapter (node, python, plus any added during Workstream C). The DevAudit portal itself (`metasession-dev/META-COMPLY`) is *not* a consumer — per the self-release policy, the portal doesn't gate releases through itself. META-AGENT, META-ATS, and META-JOBS onboarding attempts have been reverted; if any of them returns as a live consumer before CLI release, add them to the smoke list at that time.
 2. **Policy round-trip**: define a policy on the portal, run `devaudit org policy apply` against a violating project, fix the violation, verify it passes.
 3. **OAuth flow** on Linux + macOS + Windows. Headless PAT fallback works on each.
 4. **Plugin install** from registry + from private Git URL. Plugin commands appear under `devaudit <plugin> <cmd>`.
@@ -224,6 +230,7 @@ Before declaring the CLI shipped:
 ## What this plan deliberately does not do
 
 - **No incremental external releases.** The CLI ships once, as v1.0, with the enterprise feature set described in the README. No beta channels exposed to consumers, no MVP narrative.
+- **No hard cutover on identifier renames.** The portal already dual-accepts the legacy `X-Meta-Comply-Token` header alongside the new `X-DevAudit-Token`. Consumer GitHub secret/variable rotation is a per-consumer migration window. The CLI itself ships with only the new names — but consumers running pre-rename CI keep working until they re-sync.
 - **No falling back to bash scripts.** Once the CLI ships, `sdlc-onboard.sh` and `sync-sdlc.sh` (currently in `scripts/` of this repo) become deprecated; they remain here for one release cycle then move to `legacy/` or get removed.
 - **No partial stack support.** If Go support isn't ready, Go consumers can't be onboarded with the CLI. We don't ship "Go support is coming soon."
 - **No reliance on `pkg`.** It's deprecated as of 2024. Single binaries come from Node SEA (per [ADR-001](./ADR-001-language-and-distribution.md)) or Bun `--compile`.
@@ -237,3 +244,4 @@ The repo split settled several earlier questions (see "Settled decisions" above)
 | Telemetry vendor (opt-in only): PostHog, Plausible, custom? | PostHog (already in use elsewhere in the portfolio). |
 | Plugin signing / verification model (security). | Defer to first follow-up; v1.0 ships unsigned plugins. |
 | Minimum supported Node version for npm distribution. | Node 22 LTS (Node SEA support; covers builders + npm users). |
+| When to remove the legacy `PAT_HEADER_LEGACY` (`x-meta-comply-token`) constant from `lib/auth/resolve-user-auth.ts` in `metasession-dev/META-COMPLY`. | After WGB completes its `DEVAUDIT_USER_TOKEN` / `DEVAUDIT_API_KEY` / `DEVAUDIT_BASE_URL` rotation and re-syncs. A follow-up PR drops the legacy constant + the `??` fallback in one commit; no CLI code change. |

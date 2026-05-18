@@ -135,14 +135,16 @@ Auto-detected from `git remote -v` URL pattern; override via `--provider`.
 
 ### Authentication
 
-**Browser OAuth** is the default flow:
+The CLI supports two flows, both producing the same `mctok_...` PAT stored at `~/.config/devaudit/auth.json` (mode 0600). The token is sent on portal API calls via the `X-DevAudit-Token` HTTP header.
+
+**Browser OAuth** is the default flow when `/cli-auth` ships on the portal (workstream B in [build-plan.md](./build-plan.md)):
 
 1. `devaudit auth login` opens `https://devaudit.metasession.co/cli-auth` in the user's browser.
 2. User authenticates via the portal's existing NextAuth flow.
 3. Portal generates a CLI token (`mctok_...`) and redirects to `http://127.0.0.1:<random-port>/callback?token=...`.
-4. CLI's local listener captures the token and stores it at `~/.config/devaudit/auth.json` (mode 0600).
+4. CLI's local listener captures the token and stores it at `~/.config/devaudit/auth.json`.
 
-**PAT paste** is the fallback for headless environments (containers, SSH sessions, CI). User pastes a token issued at `/settings/tokens`.
+**PAT paste** is the fallback for headless environments (containers, SSH sessions, CI) and the path that works against the portal today (no `/cli-auth` endpoint required). User pastes a token issued at `/settings/tokens`. As of the latest portal release the `X-DevAudit-Token` header is live and the portal dual-accepts the legacy `X-Meta-Comply-Token`, so a CLI build talking to the portal can use either header during the migration window.
 
 **`DEVAUDIT_USER_TOKEN` env var** takes precedence over both — CI uses this.
 
