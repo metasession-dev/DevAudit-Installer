@@ -8,7 +8,7 @@
 #   ./scripts/submit-for-uat-review.sh wawagardenbar-app v2026.05.14
 #
 # Required environment:
-#   META_COMPLY_USER_TOKEN — Personal Access Token (mctok_…) issued from
+#   DEVAUDIT_USER_TOKEN — Personal Access Token (mctok_…) issued from
 #                            /settings/tokens. Attributes the submission
 #                            to the issuing user so the four-eyes approval
 #                            control is preserved (the submitter cannot
@@ -39,7 +39,7 @@ if [ -z "$PROJECT_SLUG" ] || [ -z "$VERSION_PREFIX" ]; then
   exit 1
 fi
 
-: "${META_COMPLY_USER_TOKEN:?META_COMPLY_USER_TOKEN must be set (issue from /settings/tokens)}"
+: "${DEVAUDIT_USER_TOKEN:?DEVAUDIT_USER_TOKEN must be set (issue from /settings/tokens)}"
 : "${META_COMPLY_API_KEY:?META_COMPLY_API_KEY must be set (project API key)}"
 : "${META_COMPLY_BASE_URL:?META_COMPLY_BASE_URL must be set (e.g. https://devaudit.metasession.co)}"
 
@@ -125,7 +125,7 @@ case "$RELEASE_STATUS" in
     echo "Submitting ${RELEASE_VERSION} for UAT review…"
     SUBMIT_URL="${BASE_URL}/api/releases/${RELEASE_ID}/submit-review"
     RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
-      -H "X-Meta-Comply-Token: ${META_COMPLY_USER_TOKEN}" \
+      -H "X-Meta-Comply-Token: ${DEVAUDIT_USER_TOKEN}" \
       -H "Content-Type: application/json" \
       "$SUBMIT_URL")
     HTTP_CODE=$(echo "$RESPONSE" | tail -1)

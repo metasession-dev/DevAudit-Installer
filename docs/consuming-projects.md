@@ -20,11 +20,11 @@ DevAudit itself does **not** consume the SDLC framework — it would otherwise g
 2. Run the onboarding script:
 
    ```bash
-   export META_COMPLY_USER_TOKEN="mctok_..."
+   export DEVAUDIT_USER_TOKEN="mctok_..."
    ./scripts/sdlc-onboard.sh ../path/to/new-consumer
    ```
 
-The script handles every previously-manual step: DevAudit project creation, API key issuance, GitHub repo secrets/variables (`META_COMPLY_API_KEY`, `META_COMPLY_USER_TOKEN`, the production-URL secret, `META_COMPLY_BASE_URL`), hook framework install (`pre-commit` for Python / `husky` for Node), branch protection on `main`, and the first template sync. ~30 seconds end-to-end.
+The script handles every previously-manual step: DevAudit project creation, API key issuance, GitHub repo secrets/variables (`META_COMPLY_API_KEY`, `DEVAUDIT_USER_TOKEN`, the production-URL secret, `META_COMPLY_BASE_URL`), hook framework install (`pre-commit` for Python / `husky` for Node), branch protection on `main`, and the first template sync. ~30 seconds end-to-end.
 
 **Full walkthrough**: see [docs/onboarding.md](onboarding.md).
 
@@ -102,6 +102,30 @@ gh pr create --base main
 
 The script syncs: `_common/` stage docs, AI agent pointer files, SDLC rules into `INSTRUCTIONS.md`, stack-specific hooks and scripts (`stacks/<name>/`), host-specific config (`hosts/<name>/`), and CI workflow templates (`ci/`).
 
+### One-time migration: rename `META_COMPLY_USER_TOKEN` → `DEVAUDIT_USER_TOKEN`
+
+The user PAT env var was renamed during the META-COMPLY ↔ DevAudit-Installer repo split. Each existing consumer that was onboarded before the rename needs a one-time GitHub secret rotation:
+
+```bash
+# Inside the consumer repo
+gh secret list                                   # confirm META_COMPLY_USER_TOKEN is set
+gh secret set DEVAUDIT_USER_TOKEN < <(gh secret list --json name | jq -r 'empty')
+# (Or, more directly: paste the same mctok_... value)
+gh secret set DEVAUDIT_USER_TOKEN
+# Type or paste the same value previously used for META_COMPLY_USER_TOKEN, then Enter.
+
+# Optionally delete the old secret once nothing references it
+gh secret delete META_COMPLY_USER_TOKEN
+```
+
+Operators also re-export the variable locally with the new name:
+
+```bash
+export DEVAUDIT_USER_TOKEN="mctok_..."
+```
+
+The `META_COMPLY_API_KEY` secret is **not** affected by this rename — it's a different credential (the per-project CI API key).
+
 ### Versioning
 
 The SDLC framework is versioned via git tags on DevAudit (e.g., `sdlc-v1.23.0`). The sync script creates and pushes tags automatically. Consuming projects pin to a tag for `upload-evidence.sh` downloads at runtime.
@@ -119,7 +143,7 @@ The SDLC framework is versioned via git tags on DevAudit (e.g., `sdlc-v1.23.0`).
 | **`upload-evidence.sh`**     | `scripts/upload-evidence.sh` in DevAudit                                                             | Synced into consumer's `scripts/` by sync-sdlc.sh                                                 | Re-sync on every framework version                                                   |
 | **CI job + status names**    | `Quality Gates`, `Compliance Validation`, `DevAudit Release Approval` (renamed in v1.22.0)           | GitHub branch protection references exact names                                                   | Must match — renaming requires updating consumer branch protection rules             |
 | **Project slug**             | `sdlc-config.json` `project_slug`                                                                    | Used to create releases, upload evidence, check approval                                          | Must match `compliance_projects.slug` in DevAudit                                    |
-| **GitHub vars/secrets**      | `META_COMPLY_BASE_URL` (variable), `META_COMPLY_API_KEY` (secret), `META_COMPLY_USER_TOKEN` (secret) | Consuming projects' CI workflows authenticate against DevAudit                                    | Set by `sdlc-onboard.sh`; refresh manually when API keys rotate                      |
+| **GitHub vars/secrets**      | `META_COMPLY_BASE_URL` (variable), `META_COMPLY_API_KEY` (secret), `DEVAUDIT_USER_TOKEN` (secret) | Consuming projects' CI workflows authenticate against DevAudit                                    | Set by `sdlc-onboard.sh`; refresh manually when API keys rotate                      |
 | **Compliance doc filenames** | `RTM.md`, `test-plan.md`, `test-cases.md`, `test-summary-report.md`                                  | CI upload step looks for these exact filenames                                                    | Renaming requires updating all consumer CI workflows                                 |
 | **Release status values**    | `draft`, `uat_review`, `uat_approved`, `uat_rejected`, `prod_review`, `prod_approved`, `released`    | `check-release-approval.yml` checks for specific statuses                                         | Changing status names requires updating all consumer release-approval gate workflows |
 | **Risk tier column**         | `compliance_projects.risk_tier` (`low`, `medium`, `high`)                                            | Controls self-approval rules: LOW allows self-approval, MEDIUM/HIGH requires independent reviewer | Default `medium`; set per project in DevAudit portal                                 |

@@ -492,14 +492,14 @@ The script:
 2. Checks a `RELEASE-TICKET-*.md` exists in `compliance/pending-releases/`.
 3. Checks CI gates are green on the current develop HEAD (via `gh run list`).
 4. Resolves the release id from DevAudit using `META_COMPLY_API_KEY` (existing).
-5. Submits with `META_COMPLY_USER_TOKEN` (Personal Access Token issued from `/settings/tokens` in DevAudit). The submission carries the issuing user's identity, so `isOwnRelease` keeps holding for Step 11b under `dual_actor`.
+5. Submits with `DEVAUDIT_USER_TOKEN` (Personal Access Token issued from `/settings/tokens` in DevAudit). The submission carries the issuing user's identity, so `isOwnRelease` keeps holding for Step 11b under `dual_actor`.
 6. Idempotent — if the release is already in `uat_review` (or later), exits 0 with a note rather than failing.
 
 Required environment variables for the scripted path:
 
 | Var | What it is | Where to set |
 |---|---|---|
-| `META_COMPLY_USER_TOKEN` | Personal Access Token (`mctok_…`) attributed to the running user | Issue at `/settings/tokens`; store as a repo secret for CI or `.env` for local |
+| `DEVAUDIT_USER_TOKEN` | Personal Access Token (`mctok_…`) attributed to the running user | Issue at `/settings/tokens`; store as a repo secret for CI or `.env` for local |
 | `META_COMPLY_API_KEY` | Project-scoped API key (existing) | Already set for evidence uploads |
 | `META_COMPLY_BASE_URL` | DevAudit URL | Resolved by CI templates; locally read from `sdlc-config.json devaudit.base_url` |
 

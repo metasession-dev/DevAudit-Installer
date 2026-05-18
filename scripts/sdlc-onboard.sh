@@ -2,10 +2,10 @@
 # sdlc-onboard.sh — One-shot onboarding of a consumer project to the Metasession SDLC framework.
 #
 # Usage:
-#   META_COMPLY_USER_TOKEN=mctok_xxx... ./scripts/sdlc-onboard.sh <project-path>
+#   DEVAUDIT_USER_TOKEN=mctok_xxx... ./scripts/sdlc-onboard.sh <project-path>
 #
 # Example:
-#   META_COMPLY_USER_TOKEN=mctok_abc123... ./scripts/sdlc-onboard.sh ../META-AGENT
+#   DEVAUDIT_USER_TOKEN=mctok_abc123... ./scripts/sdlc-onboard.sh ../META-AGENT
 #
 # What it does (in order):
 #   1. Validates the PAT against DevAudit and identifies the calling user.
@@ -20,7 +20,7 @@
 #   6. Issues a project-scoped API key, named "Onboarding-issued".
 #   7. Sets repo secrets via `gh secret set`:
 #         META_COMPLY_API_KEY (the just-issued key)
-#         META_COMPLY_USER_TOKEN (the PAT passed in)
+#         DEVAUDIT_USER_TOKEN (the PAT passed in)
 #         <production_url_secret> (prompted)
 #   8. Sets repo variable META_COMPLY_BASE_URL via `gh variable set`.
 #   9. Bootstraps the stack's hook framework (pre-commit install / husky init).
@@ -57,7 +57,7 @@ if [ "$#" -lt 1 ]; then
   echo "Usage: $0 <project-path>" >&2
   echo "" >&2
   echo "Environment:" >&2
-  echo "  META_COMPLY_USER_TOKEN  Required. PAT issued at /settings/tokens." >&2
+  echo "  DEVAUDIT_USER_TOKEN  Required. PAT issued at /settings/tokens." >&2
   echo "  META_COMPLY_BASE_URL    Optional. Defaults to https://devaudit.metasession.co." >&2
   exit 1
 fi
@@ -70,7 +70,7 @@ fi
 PROJECT_PATH="$(cd "$PROJECT_PATH" && pwd)"
 PROJECT_NAME="$(basename "$PROJECT_PATH")"
 
-: "${META_COMPLY_USER_TOKEN:?META_COMPLY_USER_TOKEN must be set (issue at https://devaudit.metasession.co/settings/tokens)}"
+: "${DEVAUDIT_USER_TOKEN:?DEVAUDIT_USER_TOKEN must be set (issue at https://devaudit.metasession.co/settings/tokens)}"
 BASE_URL="${META_COMPLY_BASE_URL:-https://devaudit.metasession.co}"
 BASE_URL="${BASE_URL%/}"
 
@@ -108,7 +108,7 @@ section "1/11 · Authenticate with DevAudit"
 # (Routes that accept PAT include /api/projects — listing projects
 # succeeds when the token is valid and returns 401 otherwise.)
 PROBE=$(curl -s -o /dev/null -w "%{http_code}" \
-  -H "X-Meta-Comply-Token: $META_COMPLY_USER_TOKEN" \
+  -H "X-Meta-Comply-Token: $DEVAUDIT_USER_TOKEN" \
   "${BASE_URL}/api/projects")
 case "$PROBE" in
   2*) ok "PAT accepted; DevAudit reachable at $BASE_URL" ;;
@@ -254,7 +254,7 @@ ok "Written to $PROJECT_PATH/sdlc-config.json"
 section "5/11 · Create / find DevAudit project"
 
 EXISTING=$(curl -s \
-  -H "X-Meta-Comply-Token: $META_COMPLY_USER_TOKEN" \
+  -H "X-Meta-Comply-Token: $DEVAUDIT_USER_TOKEN" \
   "${BASE_URL}/api/projects" | jq -r --arg slug "$PROJECT_SLUG_VAL" '[.[] | select(.slug == $slug)] | first // empty')
 
 if [ -n "$EXISTING" ] && [ "$EXISTING" != "null" ]; then
@@ -267,7 +267,7 @@ else
     '{name: $name, slug: $slug}')
   CREATE_RESP=$(curl -s -w "\n%{http_code}" \
     -X POST \
-    -H "X-Meta-Comply-Token: $META_COMPLY_USER_TOKEN" \
+    -H "X-Meta-Comply-Token: $DEVAUDIT_USER_TOKEN" \
     -H "Content-Type: application/json" \
     -d "$CREATE_BODY" \
     "${BASE_URL}/api/projects")
@@ -288,7 +288,7 @@ fi
 section "6/11 · Issue project API key"
 
 EXISTING_KEY=$(curl -s \
-  -H "X-Meta-Comply-Token: $META_COMPLY_USER_TOKEN" \
+  -H "X-Meta-Comply-Token: $DEVAUDIT_USER_TOKEN" \
   "${BASE_URL}/api/projects/${PROJECT_ID}/api-keys" \
   | jq -r '[.[] | select(.name == "Onboarding-issued" and .revoked_at == null)] | first // empty')
 
@@ -299,7 +299,7 @@ if [ -n "$EXISTING_KEY" ] && [ "$EXISTING_KEY" != "null" ]; then
 else
   KEY_RESP=$(curl -s -w "\n%{http_code}" \
     -X POST \
-    -H "X-Meta-Comply-Token: $META_COMPLY_USER_TOKEN" \
+    -H "X-Meta-Comply-Token: $DEVAUDIT_USER_TOKEN" \
     -H "Content-Type: application/json" \
     -d '{"name":"Onboarding-issued","role":"uploader"}' \
     "${BASE_URL}/api/projects/${PROJECT_ID}/api-keys")
@@ -328,8 +328,8 @@ else
   warn "Skipping META_COMPLY_API_KEY — set it manually after revoking the stale key."
 fi
 
-echo -n "$META_COMPLY_USER_TOKEN" | gh secret set META_COMPLY_USER_TOKEN 2>&1 | sed 's/^/    /'
-ok "META_COMPLY_USER_TOKEN (secret)"
+echo -n "$DEVAUDIT_USER_TOKEN" | gh secret set DEVAUDIT_USER_TOKEN 2>&1 | sed 's/^/    /'
+ok "DEVAUDIT_USER_TOKEN (secret)"
 
 if [ -n "$PROD_URL_VALUE" ]; then
   echo -n "$PROD_URL_VALUE" | gh secret set "$PROD_URL_SECRET_NAME" 2>&1 | sed 's/^/    /'

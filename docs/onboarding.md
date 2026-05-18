@@ -32,7 +32,7 @@ The PAT carries the operator's identity. Project creation, API key issuance, and
 
 ```bash
 cd path/to/DevAudit-Installer
-export META_COMPLY_USER_TOKEN="mctok_…"
+export DEVAUDIT_USER_TOKEN="mctok_…"
 ./scripts/sdlc-onboard.sh ../path/to/new-consumer
 ```
 
@@ -46,7 +46,7 @@ The script will:
 6. **Issue a project-scoped API key** named `Onboarding-issued` (idempotent — won't re-issue if one already exists; will warn).
 7. **Set GitHub secrets** via `gh secret set`:
    - `META_COMPLY_API_KEY` (the just-issued key)
-   - `META_COMPLY_USER_TOKEN` (the PAT)
+   - `DEVAUDIT_USER_TOKEN` (the PAT)
    - The production URL secret (e.g. `META_AGENT_PROD_URL`)
 8. **Set the GitHub variable** `META_COMPLY_BASE_URL`.
 9. **Bootstrap the hook framework** — `pre-commit install` for Python, `npx husky init` for Node.
@@ -134,7 +134,7 @@ A trace of what `./scripts/sdlc-onboard.sh ../META-AGENT` looked like the first 
 
 == 7/11 · Set GitHub repo secrets and variables ==
   ✓ META_COMPLY_API_KEY (secret)
-  ✓ META_COMPLY_USER_TOKEN (secret)
+  ✓ DEVAUDIT_USER_TOKEN (secret)
   ✓ META_AGENT_PROD_URL (secret)
   ✓ META_COMPLY_BASE_URL (variable) = https://devaudit.metasession.co
 

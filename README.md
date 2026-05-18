@@ -44,7 +44,7 @@ The current onboarding flow is the bash installer. A polished CLI (`devaudit`) i
 
 ```bash
 # 1. Issue a DevAudit Personal Access Token at https://devaudit.metasession.co/settings/tokens
-export META_COMPLY_USER_TOKEN="mctok_..."
+export DEVAUDIT_USER_TOKEN="mctok_..."
 
 # 2. Run the installer against your consumer project's repo
 cd path/to/DevAudit-Installer

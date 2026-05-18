@@ -24,7 +24,7 @@ If you're starting a new project from scratch, the DevAudit team maintains a one
 
 ```bash
 # In DevAudit's working copy:
-export META_COMPLY_USER_TOKEN="mctok_..."   # Issued at https://devaudit.metasession.co/settings/tokens
+export DEVAUDIT_USER_TOKEN="mctok_..."   # Issued at https://devaudit.metasession.co/settings/tokens
 ./scripts/sdlc-onboard.sh ../path/to/this-project
 ```
 

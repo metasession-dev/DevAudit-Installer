@@ -144,7 +144,7 @@ Auto-detected from `git remote -v` URL pattern; override via `--provider`.
 
 **PAT paste** is the fallback for headless environments (containers, SSH sessions, CI). User pastes a token issued at `/settings/tokens`.
 
-**`META_COMPLY_USER_TOKEN` env var** takes precedence over both — CI uses this. (The variable name is retained from before the repo split for backward compatibility with the consumers that already have it as a GitHub secret; renaming to `DEVAUDIT_USER_TOKEN` is an explicit open question — see [build-plan.md](./build-plan.md) "Open questions".)
+**`DEVAUDIT_USER_TOKEN` env var** takes precedence over both — CI uses this.
 
 There is no "Account ID" prompt; the token carries the identity.
 

@@ -100,7 +100,7 @@ A proper test harness for `sync-sdlc.sh` is on the roadmap. Until then, every fr
 
 - Never embed credentials in templates. Tokens live in consumer env vars or GitHub secrets, not in shipped files.
 - Adapter manifests are evaluated by `validate-adapter.cjs` — any change to schemas needs explicit review.
-- The `sdlc-onboard.sh` script asks for `META_COMPLY_USER_TOKEN` from env, never from a prompt that gets logged. Keep it that way.
+- The `sdlc-onboard.sh` script asks for `DEVAUDIT_USER_TOKEN` from env, never from a prompt that gets logged. Keep it that way.
 
 ## Related documents
 

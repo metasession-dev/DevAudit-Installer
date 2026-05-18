@@ -18,6 +18,7 @@ These were open questions in earlier drafts; the recent repo split settled them:
 | npm package scope | `@metasession-dev/devaudit-cli` (matches GitHub org). |
 | Binary name | `devaudit`. |
 | Bundling strategy | CLI embeds a snapshot of `sdlc/files/` at build time via `tsup`'s asset import. No cross-repo coordination for routine template changes. |
+| User-token env var name | `DEVAUDIT_USER_TOKEN`. Renamed from `META_COMPLY_USER_TOKEN` during the repo split. Migration: each existing consumer rotates its GitHub secret (set the new name, optionally delete the old); operators re-export the variable locally with the new name. |
 
 ## Goal
 
@@ -205,7 +206,7 @@ Before declaring the CLI shipped:
 4. **Plugin install** from registry + from private Git URL. Plugin commands appear under `devaudit <plugin> <cmd>`.
 5. **Single binary** runs on a machine with no Node installed (Linux + macOS + Windows).
 6. **`devaudit doctor`** correctly identifies a deliberately-broken install.
-7. **CI integration**: `META_COMPLY_USER_TOKEN` env-var auth works in unattended CI.
+7. **CI integration**: `DEVAUDIT_USER_TOKEN` env-var auth works in unattended CI.
 
 ## Risks
 
@@ -233,7 +234,6 @@ The repo split settled several earlier questions (see "Settled decisions" above)
 
 | Question | Default if not decided |
 |---|---|
-| Rename `META_COMPLY_USER_TOKEN` env var to `DEVAUDIT_USER_TOKEN`? Large blast radius — every consumer's GitHub secret. | Keep the existing name for backward compatibility; revisit only if a breaking change ships for another reason. |
 | Telemetry vendor (opt-in only): PostHog, Plausible, custom? | PostHog (already in use elsewhere in the portfolio). |
 | Plugin signing / verification model (security). | Defer to first follow-up; v1.0 ships unsigned plugins. |
 | Minimum supported Node version for npm distribution. | Node 22 LTS (Node SEA support; covers builders + npm users). |
