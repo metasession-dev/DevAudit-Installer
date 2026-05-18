@@ -1,0 +1,9 @@
+name: Other (no SDLC)
+description: Ideas, questions, tracking — not a code change
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+    validations:
+      required: true

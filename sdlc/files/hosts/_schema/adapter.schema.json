@@ -1,0 +1,103 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://devaudit.metasession.co/sdlc/hosts/adapter.schema.json",
+  "title": "Host adapter manifest",
+  "description": "Declares a hosting platform's deploy trigger, production-URL resolution, and post-deploy hooks. One adapter per platform — railway, vercel, fly, kubernetes, self-hosted-docker, etc.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "name",
+    "description",
+    "deploy_trigger",
+    "production_url_from"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Optional self-reference to the schema URL for editor tooling."
+    },
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{0,31}$",
+      "description": "Lowercase identifier — matches the parent directory under sdlc/files/hosts/ and the `host` key in sdlc-config.json."
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "description": "One-line human summary of what this host is and how it deploys."
+    },
+    "deploy_trigger": {
+      "type": "string",
+      "enum": ["push_to_main", "git_tag", "manual", "ci_step"],
+      "description": "What triggers a production deploy on this host. `push_to_main` (Railway), `git_tag` (some Vercel setups), `manual` (operator clicks), `ci_step` (workflow runs an explicit deploy command)."
+    },
+    "production_url_from": {
+      "type": "string",
+      "enum": ["secret", "static", "api_lookup", "env"],
+      "description": "Where the production URL comes from. `secret` — name configured per-project via sdlc-config.json. `static` — hardcoded in adapter. `api_lookup` — resolved by calling the host's API. `env` — read from an env var in the running workflow."
+    },
+    "production_url_secret_key": {
+      "type": "string",
+      "description": "When `production_url_from` is `secret`, the sdlc-config.json key whose value names the GitHub Secret holding the URL. Typically `production_url_secret`."
+    },
+    "production_url_static": {
+      "type": "string",
+      "description": "When `production_url_from` is `static`, the literal URL (or template string)."
+    },
+    "wait_for_deploy": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Optional shell command snippet that blocks until the deploy is live and healthy. Embedded into post-deploy-prod.yml.template at sync time. Omit for hosts where deploy is synchronous (e.g. push-to-main on Railway typically completes by the time CI re-runs)."
+    },
+    "post_deploy_hook": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Optional shell command snippet that runs after a successful deploy — e.g. cache warmup, smoke test, host-specific bookkeeping. Embedded into post-deploy-prod.yml.template."
+    },
+    "required_secrets": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true,
+      "description": "GitHub Secrets the host adapter expects to be set on the consumer repo. Sync may warn if missing; CI workflows will fail at runtime if they're not present."
+    },
+    "required_env": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true,
+      "description": "Environment variables the consumer must set (typically populated from sdlc-config.json fields). Separate from `required_secrets` because env vars are non-sensitive identifiers (app names, region IDs)."
+    },
+    "config_keys": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "required": {
+          "type": "array",
+          "items": { "type": "string" },
+          "uniqueItems": true
+        },
+        "optional": {
+          "type": "array",
+          "items": { "type": "string" },
+          "uniqueItems": true
+        },
+        "defaults": { "type": "object" }
+      },
+      "description": "sdlc-config.json keys this host adapter consumes. `required` keys must be present; `optional` are tolerated; `defaults` provides fallback values."
+    },
+    "notes": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Free-form notes about the host's quirks — backed up here so future maintainers don't have to rediscover them. Not consumed by templates."
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "production_url_from": { "const": "secret" } } },
+      "then": { "required": ["production_url_secret_key"] }
+    },
+    {
+      "if": { "properties": { "production_url_from": { "const": "static" } } },
+      "then": { "required": ["production_url_static"] }
+    }
+  ]
+}

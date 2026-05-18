@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://devaudit.metasession.co/sdlc/skills/skill.schema.json",
+  "title": "Claude Code Skill frontmatter",
+  "description": "Validates the YAML frontmatter at the top of every SKILL.md under sdlc/files/_common/skills/ or sdlc/files/stacks/<name>/skills/. The body of SKILL.md (everything after the frontmatter) is free-form Markdown — Claude reads it as the skill's instructions and isn't validated here.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["name", "description"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{1,63}$",
+      "description": "Lowercase identifier — matches the parent directory under skills/ and is how Claude refers to the skill when invoking it. 2–64 chars, lowercase, kebab-cased."
+    },
+    "description": {
+      "type": "string",
+      "minLength": 50,
+      "description": "What the skill does AND when Claude should invoke it. Both halves matter — without 'when to use' triggers, discovery doesn't fire. Aim for 100–500 characters."
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "description": "Optional semver. Useful when a skill's expected behaviour changes incompatibly; consumers can pin to a known version."
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true,
+      "description": "Optional tags for grouping skills (e.g. 'testing', 'security', 'compliance'). Not consumed by Claude — useful for documentation tooling."
+    },
+    "license": {
+      "type": "string",
+      "description": "Optional SPDX licence identifier or 'proprietary'."
+    }
+  }
+}

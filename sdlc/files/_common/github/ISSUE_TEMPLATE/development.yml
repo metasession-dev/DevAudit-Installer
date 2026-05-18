@@ -1,0 +1,27 @@
+name: Development (feature, bug fix, refactor)
+description: Any code change — follows Metasession SDLC
+body:
+  - type: markdown
+    attributes:
+      value: |
+        > **SDLC Reminder:** Follow the Metasession SDLC process.
+        > Read `SDLC/1-plan-requirement.md` before implementing.
+        > Create test-scope.md and test-plan.md BEFORE writing code.
+        > Review existing tests. Run all gates locally before pushing.
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What needs to be done and why
+    validations:
+      required: true
+  - type: checkboxes
+    id: sdlc-checklist
+    attributes:
+      label: SDLC Checklist (complete before closing)
+      options:
+        - label: "Requirement: RTM entry created (or confirmed trivial — no REQ needed)"
+        - label: "Planning: test-scope.md and test-plan.md created (or confirmed trivial)"
+        - label: "Tests: existing tests reviewed for impact, tests updated/added"
+        - label: "Gates: all pass locally (tsc, semgrep, audit, playwright)"
+        - label: "Evidence: compiled and uploaded (if tracked requirement)"

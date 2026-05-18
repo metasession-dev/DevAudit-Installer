@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Husky pre-commit hook — runs lint-staged on staged files.
+# Catches linting issues before they enter the commit history.
+#
+# Install: cp this file to .husky/pre-commit && chmod +x .husky/pre-commit
+#
+# Requires lint-staged config in package.json:
+#   "lint-staged": {
+#     "*.{ts,tsx}": ["eslint --fix"],
+#     "*.{ts,tsx,js,jsx,json,md}": ["prettier --write"]
+#   }
+
+npx lint-staged

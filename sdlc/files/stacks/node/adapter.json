@@ -1,0 +1,54 @@
+{
+  "$schema": "../_schema/adapter.schema.json",
+  "name": "node",
+  "description": "Node.js / npm / TypeScript stack with husky hooks, commitlint, ESLint, Prettier, Playwright E2E.",
+  "manifest_file": "package.json",
+  "hook_framework": "husky",
+  "hook_install_dir": ".husky",
+  "hooks": ["commit-msg", "pre-commit", "pre-push"],
+  "hook_config_files": ["commitlint.config.mjs", "lint-staged.config.mjs", ".prettierrc.json"],
+  "stack_scripts": ["check-requirement-jsdoc.sh"],
+  "required_dev_dependencies": [
+    "husky",
+    "@commitlint/cli",
+    "@commitlint/config-conventional",
+    "lint-staged",
+    "prettier",
+    "eslint",
+    "typescript",
+    "@playwright/test"
+  ],
+  "install": "npm ci",
+  "type_check": "npx tsc --noEmit",
+  "sast": "npx semgrep scan --config auto --json",
+  "dep_audit": "npm audit --json --audit-level=high",
+  "test": "npm test",
+  "build": "npm run build",
+  "evidence_paths": {
+    "sast": "ci-evidence/sast-results.json",
+    "dep_audit": "ci-evidence/dependency-audit.json",
+    "test": "ci-evidence/e2e-results.json"
+  },
+  "runtime_setup": {
+    "action": "actions/setup-node@v4",
+    "with": { "node-version": "{{NODE_VERSION}}", "cache": "npm" }
+  },
+  "config_keys": {
+    "required": [
+      "node_version",
+      "source_dirs",
+      "sast_baseline",
+      "accepted_dep_risks",
+      "e2e_project",
+      "e2e_start_command"
+    ],
+    "defaults": {
+      "node_version": 20,
+      "source_dirs": "app/ lib/",
+      "sast_baseline": 0,
+      "accepted_dep_risks": "",
+      "e2e_project": "chromium",
+      "e2e_start_command": "npm run dev"
+    }
+  }
+}

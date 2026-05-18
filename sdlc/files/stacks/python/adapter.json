@@ -1,0 +1,36 @@
+{
+  "$schema": "../_schema/adapter.schema.json",
+  "name": "python",
+  "description": "Python stack (3.11+) with pre-commit hooks, ruff (lint + format), mypy --strict, pytest, pip-audit, semgrep.",
+  "manifest_file": "pyproject.toml",
+  "hook_framework": "pre-commit",
+  "hook_install_dir": ".git/hooks",
+  "hooks": [],
+  "hook_config_files": [".pre-commit-config.yaml"],
+  "stack_scripts": [],
+  "required_dev_dependencies": ["pytest", "ruff", "mypy", "pip-audit", "pre-commit"],
+  "install": "pip install -e \".[dev]\"",
+  "type_check": "mypy src/",
+  "sast": "semgrep scan --config auto --json",
+  "dep_audit": "pip-audit --format=json --strict",
+  "test": "pytest --junit-xml=ci-evidence/junit.xml",
+  "build": "python -m build",
+  "evidence_paths": {
+    "sast": "ci-evidence/sast-results.json",
+    "dep_audit": "ci-evidence/dependency-audit.json",
+    "test": "ci-evidence/junit.xml"
+  },
+  "runtime_setup": {
+    "action": "actions/setup-python@v5",
+    "with": { "python-version": "{{PYTHON_VERSION}}", "cache": "pip" }
+  },
+  "config_keys": {
+    "required": ["python_version", "source_dirs", "sast_baseline", "accepted_dep_risks"],
+    "defaults": {
+      "python_version": "3.11",
+      "source_dirs": "src/",
+      "sast_baseline": 0,
+      "accepted_dep_risks": ""
+    }
+  }
+}

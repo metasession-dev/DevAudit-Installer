@@ -1,0 +1,151 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://devaudit.metasession.co/sdlc/stacks/adapter.schema.json",
+  "title": "Stack adapter manifest",
+  "description": "Declares a stack's quality-gate commands, hooks framework, and per-stack scripts. One adapter per language/package-manager combination — e.g. node, python, go.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "name",
+    "description",
+    "manifest_file",
+    "hook_framework",
+    "hook_install_dir",
+    "install",
+    "type_check",
+    "sast",
+    "dep_audit",
+    "test",
+    "build",
+    "evidence_paths",
+    "runtime_setup"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Optional self-reference to the schema URL for editor tooling."
+    },
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{0,31}$",
+      "description": "Lowercase identifier — matches the parent directory under sdlc/files/stacks/ and the `stack` key in sdlc-config.json."
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "description": "One-line human summary of what this stack is."
+    },
+    "manifest_file": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The dependency manifest the consuming project carries — package.json, pyproject.toml, go.mod, Cargo.toml, etc."
+    },
+    "hook_framework": {
+      "type": "string",
+      "enum": ["husky", "pre-commit", "lefthook", "cargo-husky"],
+      "description": "Which git-hooks framework the consuming project uses. Determines which hook files are placed and where."
+    },
+    "hook_install_dir": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Directory the hook framework manages — e.g. .husky, .git/hooks. Sync only writes hooks if this directory exists in the consumer (so projects opt in by bootstrapping the framework first)."
+    },
+    "hooks": {
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "description": "Hook filenames to place under hook_install_dir/. Each must exist at sdlc/files/stacks/<name>/hooks/<filename>."
+    },
+    "hook_config_files": {
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "description": "Hook framework config files placed at the consumer's repo root — e.g. commitlint.config.mjs for husky+commitlint, .pre-commit-config.yaml for pre-commit."
+    },
+    "stack_scripts": {
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "description": "Stack-specific helper scripts copied to the consumer's scripts/ directory. Each must exist at sdlc/files/stacks/<name>/scripts/<filename>."
+    },
+    "required_dev_dependencies": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true,
+      "description": "Dev-time dependencies the adapter assumes are present (e.g. husky for node). Sync may auto-install them or warn if missing — implementation detail of the sync script."
+    },
+    "install": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Command CI runs once to fetch dependencies — `npm ci`, `pip install -e \".[dev]\"`, `go mod download`, etc."
+    },
+    "type_check": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Command that returns non-zero if static type-checking fails. MUST output 0 errors on a green build."
+    },
+    "sast": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Command that runs the SAST scanner and writes results to evidence_paths.sast. MUST exit 0 unless the scanner itself failed (findings above baseline are caught by downstream evaluation, not by this command's exit code)."
+    },
+    "dep_audit": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Command that runs the dependency audit and writes results to evidence_paths.dep_audit. Same exit-code semantics as `sast`."
+    },
+    "test": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Command that runs the full test suite (unit + integration). MUST exit 0 only if every test passes. Should also produce machine-readable output at evidence_paths.test."
+    },
+    "build": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Command that produces the deployable artifact. MUST exit 0 only on a successful build."
+    },
+    "evidence_paths": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sast", "dep_audit", "test"],
+      "properties": {
+        "sast": { "type": "string", "minLength": 1 },
+        "dep_audit": { "type": "string", "minLength": 1 },
+        "test": { "type": "string", "minLength": 1 }
+      },
+      "description": "Repo-relative paths where each gate's machine-readable output lands. The compliance-evidence upload workflow reads these to know what to publish to DevAudit."
+    },
+    "runtime_setup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action", "with"],
+      "properties": {
+        "action": {
+          "type": "string",
+          "pattern": "^[^@]+@v[0-9]+$",
+          "description": "GitHub Actions reference — e.g. actions/setup-node@v4, actions/setup-python@v5."
+        },
+        "with": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        }
+      },
+      "description": "GitHub Actions step that installs the language runtime in CI. Embedded into ci.yml.template at sync time."
+    },
+    "config_keys": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "required": {
+          "type": "array",
+          "items": { "type": "string" },
+          "uniqueItems": true
+        },
+        "defaults": {
+          "type": "object"
+        }
+      },
+      "description": "sdlc-config.json keys this stack consumes. `required` lists keys that must be present; `defaults` provides values the adapter will fall back to when a key is absent."
+    }
+  }
+}

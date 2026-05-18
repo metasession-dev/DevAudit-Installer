@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Husky pre-push hook — runs TypeScript check as a fast gate before push.
+# The full test suite (E2E, SAST, dependency audit) runs in CI.
+#
+# Install: cp this file to .husky/pre-push && chmod +x .husky/pre-push
+
+echo "Pre-push: running TypeScript check..."
+npx tsc --noEmit
+if [ $? -ne 0 ]; then
+  echo ""
+  echo "ERROR: TypeScript check failed. Fix type errors before pushing."
+  echo "Run 'npx tsc --noEmit' to see all errors."
+  exit 1
+fi
+echo "Pre-push: TypeScript check passed."

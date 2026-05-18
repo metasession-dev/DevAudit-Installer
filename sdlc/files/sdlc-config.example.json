@@ -1,0 +1,74 @@
+{
+  "_comment": "SDLC project configuration — used by sync-sdlc.sh to generate CI workflows",
+
+  "project_slug": "your-project-slug",
+  "production_url_secret": "YOUR_PROJECT_PROD_URL",
+  "node_version": 20,
+  "runner": "self-hosted",
+
+  "source_dirs": "app/ lib/ src/",
+  "sast_baseline": 0,
+  "accepted_dep_risks": "",
+
+  "database_service": "mongodb",
+  "database_image": "mongo:7",
+  "database_port": "27017",
+  "database_env": {
+    "MONGODB_URI": "mongodb://localhost:27017",
+    "MONGODB_DB_NAME": "your_test_db"
+  },
+
+  "app_env": {
+    "NODE_ENV": "test",
+    "NEXT_PUBLIC_APP_URL": "http://localhost:3000",
+    "NEXT_PUBLIC_API_URL": "http://localhost:3000/api"
+  },
+
+  "build_env": {
+    "MONGODB_URI": "mongodb://localhost:27017",
+    "MONGODB_DB_NAME": "placeholder"
+  },
+
+  "e2e_project": "chromium",
+  "e2e_start_command": "npm run dev",
+
+  "paths_ignore": [
+    ".github/workflows/**",
+    "SDLC/**",
+    "compliance/**",
+    "*.md",
+    ".cursorrules",
+    ".windsurfrules",
+    "sdlc-config.json",
+    "scripts/upload-evidence.sh",
+    "scripts/validate-compliance-artifacts.sh",
+    "scripts/validate-commits.sh",
+    "scripts/check-requirement-jsdoc.sh"
+  ],
+
+  "_comment_devaudit": "DevAudit destination. base_url lives in git so URL changes are visible in PR review. Falls back to repo Variable META_COMPLY_BASE_URL if base_url is empty (deprecated in v1.23.0).",
+  "devaudit": {
+    "base_url": "https://devaudit.metasession.co",
+    "project_slug": "",
+    "api_key_secret": "META_COMPLY_API_KEY"
+  },
+
+  "_comment_uat": "UAT-environment verification (Stage 3 Step 10). Opt-in: enabled=false skips Step 10 entirely. When enabled, only requirements whose risk class is listed in required_risk_classes go through UAT-env verification.",
+  "uat": {
+    "enabled": false,
+    "url": "",
+    "required_risk_classes": ["payment", "destructive_migration", "realtime", "physical_ux"]
+  },
+
+  "_comment_approval": "Four-eyes release approval policy (Stage 3 Step 11). dual_actor = DevAudit enforces approver ≠ release_creator. solo_with_gap = self-approval allowed with documented control gap in compliance/risk-register.md. auto_low_risk = LOW-risk auto-approved by CI, MEDIUM/HIGH require human.",
+  "approval": {
+    "mode": "dual_actor",
+    "auto_low_risk_threshold": "LOW"
+  },
+
+  "_comment_production_review": "Post-deploy production review gate (Stage 5). terminal_status='prod_review' (default, Option A) means post-deploy-prod.yml stops at prod_review; a human in the portal clicks 'Approve Production' (→ prod_approved) then 'Mark as Released' (→ released) for an explicit two-event audit trail. terminal_status='released' (Option B) preserves the v1.21.x auto-release behaviour — workflow PATCHes straight to released with no human click. Closes #138.",
+  "production_review": {
+    "enabled": true,
+    "terminal_status": "prod_review"
+  }
+}

@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Husky commit-msg hook — runs commitlint to validate commit message format.
+# Enforces Conventional Commits and checks for SDLC trailers.
+#
+# Install: cp this file to .husky/commit-msg && chmod +x .husky/commit-msg
+
+npx commitlint --edit "$1"
