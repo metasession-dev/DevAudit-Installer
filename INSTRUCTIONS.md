@@ -83,7 +83,7 @@ Both are bash, both use `set -euo pipefail`, both are idempotent. When editing:
 
 Changes to `sdlc/files/` propagate to **every consumer** on the next sync. Be deliberate:
 
-- Validate against the existing consumers (META-COMPLY itself, META-ATS, META-JOBS, WGB, META-AGENT) before tagging a release.
+- Validate against the active consumer (wawagardenbar-app) before tagging a release. The portal (META-COMPLY) is not a consumer per the self-release policy; META-AGENT / META-ATS / META-JOBS onboarding attempts were reverted (see [consuming-projects.md](./docs/consuming-projects.md)).
 - Use semver for the `sdlc-vX.Y.Z` tag — breaking changes bump major.
 - Document breaking changes in the release notes / `CHANGELOG.md` (TODO if not yet present).
 

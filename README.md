@@ -98,7 +98,9 @@ The bash installer is being replaced by a single-binary CLI (`devaudit`) that su
 | Repo | Role |
 |---|---|
 | `metasession-dev/META-COMPLY` | DevAudit web portal (the running service at devaudit.metasession.co) |
-| `metasession-dev/META-ATS`, `META-JOBS`, `wawagardenbar-app`, `META-AGENT` | Consumer projects using this framework |
+| `metasession-dev/wawagardenbar-app` | The only active consumer of this framework as of 2026-05-18 |
+
+Earlier onboarding attempts for `metasession-dev/META-AGENT`, `metasession-dev/META-ATS`, and `metasession-dev/META-JOBS` were stopped or reverted. The repos still exist but don't run SDLC gates against DevAudit.
 
 ## Contributing
 
