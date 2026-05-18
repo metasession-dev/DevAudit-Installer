@@ -4,9 +4,20 @@
 
 ## Honest scope assessment
 
-The README describes an enterprise CLI: multi-stack, multi-provider, multi-org, plugin-extensible, single-binary distribution, browser-OAuth authentication. Building this end-state in one shipment is a **3–6 month effort for a small team** (1–2 engineers), or shorter with a larger team. The work spans the CLI itself, the DevAudit portal, the framework's adapter library, and the plugin SDK.
+The README describes an enterprise CLI: multi-stack, multi-provider, multi-org, plugin-extensible, single-binary distribution, browser-OAuth authentication. Building this end-state in one shipment is a **3–6 month effort for a small team** (1–2 engineers), or shorter with a larger team. The work spans the CLI itself (this repo), the DevAudit portal (`metasession-dev/META-COMPLY`), the framework's adapter library (this repo), and the plugin SDK (this repo).
 
 This plan splits the work into four parallelisable workstreams. Sequencing acknowledges the dependencies between them — the CLI can't ship until its prerequisites in the portal and framework land.
+
+## Settled decisions
+
+These were open questions in earlier drafts; the recent repo split settled them:
+
+| Decision | Resolution |
+|---|---|
+| CLI source location | Sub-package inside this repo at `DevAudit-Installer/cli/`. Co-located with the framework templates it bundles so a CLI release and a template release ship from the same commit. |
+| npm package scope | `@metasession-dev/devaudit-cli` (matches GitHub org). |
+| Binary name | `devaudit`. |
+| Bundling strategy | CLI embeds a snapshot of `sdlc/files/` at build time via `tsup`'s asset import. No cross-repo coordination for routine template changes. |
 
 ## Goal
 
@@ -21,11 +32,9 @@ Ship `devaudit` v1.0 as a single, polished, enterprise-ready binary that:
 
 ## Workstreams
 
-### A — CLI engine and command surface
+### A — CLI engine and command surface (this repo)
 
-The Node/TS CLI itself: every command from the README's command surface section, plus the common flags, plus the build pipeline.
-
-**Repo location**: sub-package inside DevAudit-Installer at `DevAudit-Installer/cli/` (the framework templates the CLI bundles live next to it).
+The Node/TS CLI itself: every command from the README's command surface section, plus the common flags, plus the build pipeline. Lives at `DevAudit-Installer/cli/` per the settled decision above.
 
 **Directory layout**:
 
@@ -92,9 +101,9 @@ DevAudit-Installer/cli/
 
 **Effort**: 4–6 weeks for one engineer.
 
-### B — DevAudit portal prerequisites
+### B — DevAudit portal prerequisites (lives in `metasession-dev/META-COMPLY`)
 
-Portal-side work that must land before the CLI's enterprise features work end-to-end.
+Portal-side work that must land before the CLI's enterprise features work end-to-end. **All items here are changes to a different repo** — the DevAudit portal codebase. Cross-repo coordination required; whoever takes this workstream needs commit access on `metasession-dev/META-COMPLY` too.
 
 | Item                                                               | Effort  | Why                                             |
 | ------------------------------------------------------------------ | ------- | ----------------------------------------------- |
@@ -107,9 +116,9 @@ Portal-side work that must land before the CLI's enterprise features work end-to
 
 **Effort**: ~11 weeks total. Some items parallelisable across portal subsystems.
 
-### C — Framework prerequisites
+### C — Framework prerequisites (this repo)
 
-Adapter / abstraction work in the framework that the CLI consumes.
+Adapter and abstraction work in this repo (`sdlc/files/stacks/*`, `sdlc/files/hosts/*`, `sdlc/files/_common/lib/`) that the CLI consumes.
 
 | Item                                                                                        | Effort    | Why                                                                                 |
 | ------------------------------------------------------------------------------------------- | --------- | ----------------------------------------------------------------------------------- |
@@ -190,7 +199,7 @@ Assuming 2 engineers in parallel, here's a sensible internal sequence (not expos
 
 Before declaring the CLI shipped:
 
-1. **End-to-end onboarding** against every consumer in the portfolio (META-ATS, META-COMPLY itself, META-JOBS, WGB, META-AGENT) and against fresh fixtures for each new stack adapter.
+1. **End-to-end onboarding** against every consumer in the portfolio (META-ATS, META-JOBS, WGB, META-AGENT) and against fresh fixtures for each new stack adapter. The DevAudit portal itself (`metasession-dev/META-COMPLY`) is *not* a consumer — per the self-release policy, the portal doesn't gate releases through itself.
 2. **Policy round-trip**: define a policy on the portal, run `devaudit org policy apply` against a violating project, fix the violation, verify it passes.
 3. **OAuth flow** on Linux + macOS + Windows. Headless PAT fallback works on each.
 4. **Plugin install** from registry + from private Git URL. Plugin commands appear under `devaudit <plugin> <cmd>`.
@@ -214,17 +223,17 @@ Before declaring the CLI shipped:
 ## What this plan deliberately does not do
 
 - **No incremental external releases.** The CLI ships once, as v1.0, with the enterprise feature set described in the README. No beta channels exposed to consumers, no MVP narrative.
-- **No falling back to bash scripts.** Once the CLI ships, `sdlc-onboard.sh` and `sync-sdlc.sh` become deprecated; they remain in the repo for one release cycle then move to `legacy/` or get removed.
+- **No falling back to bash scripts.** Once the CLI ships, `sdlc-onboard.sh` and `sync-sdlc.sh` (currently in `scripts/` of this repo) become deprecated; they remain here for one release cycle then move to `legacy/` or get removed.
 - **No partial stack support.** If Go support isn't ready, Go consumers can't be onboarded with the CLI. We don't ship "Go support is coming soon."
 - **No reliance on `pkg`.** It's deprecated as of 2024. Single binaries come from Node SEA (per [ADR-001](./ADR-001-language-and-distribution.md)) or Bun `--compile`.
 
 ## Open questions
 
-| Question                                                                                              | Default if not decided                                             |
-| ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| Single source repo (`DevAudit-Installer/cli/`) vs. dedicated repo (`metasession-dev/devaudit-cli`)           | Sub-package in DevAudit-Installer for shared release cycle with templates |
-| npm package scope: `@metasession-dev/devaudit-cli`, `@metasession/devaudit-cli`, unscoped `devaudit`? | `@metasession-dev/devaudit-cli` (matches GitHub org)               |
-| Binary name confirmed `devaudit` (not `msdlc`)?                                                       | `devaudit`                                                         |
-| Telemetry vendor (opt-in only): PostHog, Plausible, custom?                                           | PostHog (already in use elsewhere in the portfolio)                |
-| Plugin signing / verification model (security)                                                        | Defer to first follow-up; v1.0 ships unsigned plugins              |
-| Minimum supported Node version for npm distribution                                                   | Node 22 LTS (Node SEA support; covers builders + npm users)        |
+The repo split settled several earlier questions (see "Settled decisions" above). What remains open:
+
+| Question | Default if not decided |
+|---|---|
+| Rename `META_COMPLY_USER_TOKEN` env var to `DEVAUDIT_USER_TOKEN`? Large blast radius — every consumer's GitHub secret. | Keep the existing name for backward compatibility; revisit only if a breaking change ships for another reason. |
+| Telemetry vendor (opt-in only): PostHog, Plausible, custom? | PostHog (already in use elsewhere in the portfolio). |
+| Plugin signing / verification model (security). | Defer to first follow-up; v1.0 ships unsigned plugins. |
+| Minimum supported Node version for npm distribution. | Node 22 LTS (Node SEA support; covers builders + npm users). |

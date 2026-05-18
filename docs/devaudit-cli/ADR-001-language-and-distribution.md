@@ -12,7 +12,7 @@ The `devaudit` CLI is built in **Node.js / TypeScript** and distributed **simult
 - **Scoop manifest** (`scoop install devaudit`)
 - **`curl -fsSL https://devaudit.metasession.co/install.sh | sh`** (auto-detect OS/arch)
 - **npm** (`npm i -g @metasession-dev/devaudit-cli`) — for Node-native users
-- **GitHub Releases** — raw binaries for direct download or system-package integration
+- **GitHub Releases** on `metasession-dev/DevAudit-Installer` — raw binaries for direct download or system-package integration
 
 Single-binary builds are produced via **Node SEA (Single Executable Application)** — bundled into Node 22+, no new toolchain needed. The same TypeScript source produces both the npm package and the standalone binaries.
 

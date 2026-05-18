@@ -2,9 +2,19 @@
 
 > Single binary for installing, maintaining, and operating the Metasession SDLC across any engineering organisation. Targets the enterprise end-state: multi-stack, multi-provider, policy-enforced, plugin-extensible.
 
+## Naming glossary
+
+A reader picking this up cold should know:
+
+- **`devaudit`** — the CLI binary itself (what a user types in their terminal).
+- **DevAudit-Installer** — this repository (`metasession-dev/DevAudit-Installer`). Holds the CLI source, the SDLC framework templates the CLI bundles, and the installer scripts the CLI eventually replaces.
+- **DevAudit** — the running compliance portal at `devaudit.metasession.co` (source in `metasession-dev/META-COMPLY`). The CLI authenticates against it and uploads evidence to it.
+
 ## Vision
 
 A single binary — `devaudit` — that lets any engineering organisation adopt the Metasession SDLC across their entire portfolio of projects from one command. Auth links to DevAudit (the compliance portal at `devaudit.metasession.co`). Artefacts upload automatically. Organisation-level policies enforce compliance baselines across every project. Plugins extend the CLI for stack-specific or organisation-specific needs.
+
+The CLI source lives in this repo alongside the templates it bundles, so a CLI release and a template release ship from the same commit. There is no cross-repo coordination for routine template changes — the binary and the templates it embeds move together.
 
 The experience matches what developers already expect from tools like the Vercel CLI, Supabase CLI, Firebase CLI, GitHub CLI, and Railway CLI — but with the depth that compliance-bound organisations need: policy-as-code, RBAC, centralised reporting, multi-provider Git, multi-stack support.
 
@@ -12,7 +22,7 @@ This document describes the **end-state**. No incremental phasing is exposed —
 
 ## Current state — what already exists
 
-This CLI is a **port and expansion** of capabilities that exist today in fragmented forms. The underlying logic mostly exists:
+This CLI is a **port and expansion** of capabilities that already ship as bash scripts and templates in this repo. The underlying logic exists; the CLI wraps it in a polished UX and adds the enterprise features (multi-provider Git, org policy, plugins) that bash can't economically deliver:
 
 | Capability                                          | Implemented today as                                                                                                                                                             |
 | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -134,7 +144,7 @@ Auto-detected from `git remote -v` URL pattern; override via `--provider`.
 
 **PAT paste** is the fallback for headless environments (containers, SSH sessions, CI). User pastes a token issued at `/settings/tokens`.
 
-**`META_COMPLY_USER_TOKEN` env var** takes precedence over both — CI uses this.
+**`META_COMPLY_USER_TOKEN` env var** takes precedence over both — CI uses this. (The variable name is retained from before the repo split for backward compatibility with the consumers that already have it as a GitHub secret; renaming to `DEVAUDIT_USER_TOKEN` is an explicit open question — see [build-plan.md](./build-plan.md) "Open questions".)
 
 There is no "Account ID" prompt; the token carries the identity.
 
