@@ -34,9 +34,15 @@ describe('devaudit doctor', () => {
   }, 30_000);
 });
 
-describe('stubbed commands', () => {
-  it('exits non-zero with a "not implemented yet" message', async () => {
-    const result = await execa('node', [BIN, 'install'], { reject: false });
+describe('stubbed commands (workstream B / D prereqs)', () => {
+  it('org list exits non-zero with a "not implemented yet" message', async () => {
+    const result = await execa('node', [BIN, 'org', 'list'], { reject: false });
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stdout + result.stderr).toContain('not implemented yet');
+  }, 30_000);
+
+  it('plugin list exits non-zero with a "not implemented yet" message', async () => {
+    const result = await execa('node', [BIN, 'plugin', 'list'], { reject: false });
     expect(result.exitCode).not.toBe(0);
     expect(result.stdout + result.stderr).toContain('not implemented yet');
   }, 30_000);

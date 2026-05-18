@@ -30,7 +30,10 @@ function build(opts: LoggerOptions): ConsolaInstance {
       ],
     });
   }
-  return createConsola({ level, fancy: !opts.noColor });
+  if (opts.noColor) {
+    process.env['NO_COLOR'] = '1';
+  }
+  return createConsola({ level });
 }
 
 export function configureLogger(opts: Partial<LoggerOptions>): void {

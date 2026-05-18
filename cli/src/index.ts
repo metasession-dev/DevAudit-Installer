@@ -2,6 +2,13 @@ import { Command, Option } from 'commander';
 import { configureLogger } from './lib/logger.js';
 import { CLI_VERSION } from './lib/version.js';
 import { runDoctor } from './commands/doctor.js';
+import { runAuthLogin } from './commands/auth/login.js';
+import { runAuthLogout } from './commands/auth/logout.js';
+import { runAuthStatus } from './commands/auth/status.js';
+import { runStatus } from './commands/status.js';
+import { runPush } from './commands/push.js';
+import { runInstall } from './commands/install.js';
+import { runUpdate } from './commands/update.js';
 import { makeStub } from './commands/stub.js';
 
 const TRACKING_ISSUE = 'https://github.com/metasession-dev/DevAudit-Installer/issues/1';
@@ -34,33 +41,64 @@ export function main(argv: readonly string[]): void {
   applyCommonFlags(program);
   program
     .command('install [path]')
-    .description('Interactive onboarding for a consumer project (ports sdlc-onboard.sh)')
-    .action(
-      makeStub({
-        command: 'install',
-        summary: 'Port of scripts/sdlc-onboard.sh. The bash script still works in the meantime.',
-        trackedIn: TRACKING_ISSUE,
-      }),
-    );
+    .description('Interactive onboarding for a consumer project (v0: wraps sdlc-onboard.sh)')
+    .action(async (path?: string) => {
+      await runInstall({ path });
+    });
   program
-    .command('update [path]')
-    .description('Sync framework templates into an existing consumer (ports sync-sdlc.sh)')
-    .action(
-      makeStub({
-        command: 'update',
-        summary: 'Port of scripts/sync-sdlc.sh. The bash script still works in the meantime.',
-        trackedIn: TRACKING_ISSUE,
-      }),
-    );
+    .command('update <version> <paths...>')
+    .description('Sync framework templates into existing consumer(s) (v0: wraps sync-sdlc.sh)')
+    .action(async (version: string, paths: string[]) => {
+      await runUpdate({ version, paths });
+    });
   program
-    .command('push <kind>')
-    .description('Upload an artefact to the DevAudit portal (evidence | audit | compliance)')
+    .command('push <project-slug> <requirement-id> <evidence-type> <file>')
+    .description('Upload evidence file(s) to DevAudit (port of scripts/upload-evidence.sh)')
+    .option('--release <version>', 'release version (e.g. v1.0.0)')
+    .option('--create-release-if-missing', "auto-create the release as 'draft' if absent")
+    .option('--environment <env>', 'uat | production')
+    .option('--category <cat>', 'ci_pipeline | local_dev | planning | test_report | security_scan | release_artifact')
+    .option('--git-sha <sha>', 'attached to metadata.gitSha')
+    .option('--ci-run-id <id>', 'attached to metadata.ciRunId')
+    .option('--branch <name>', 'attached to metadata.branch')
+    .option('--base-url <url>', 'override portal URL (defaults to DEVAUDIT_BASE_URL env or production)')
+    .option('--api-key <key>', 'override DEVAUDIT_API_KEY env var')
     .action(
-      makeStub({
-        command: 'push',
-        summary: 'Port of scripts/upload-evidence.sh. The bash script still works in the meantime.',
-        trackedIn: TRACKING_ISSUE,
-      }),
+      async (
+        projectSlug: string,
+        requirementId: string,
+        evidenceType: string,
+        file: string,
+        opts: {
+          release?: string;
+          createReleaseIfMissing?: boolean;
+          environment?: string;
+          category?: string;
+          gitSha?: string;
+          ciRunId?: string;
+          branch?: string;
+          baseUrl?: string;
+          apiKey?: string;
+        },
+      ) => {
+        await runPush({
+          projectSlug,
+          requirementId,
+          evidenceType,
+          filePath: file,
+          ...(opts.release !== undefined ? { release: opts.release } : {}),
+          ...(opts.createReleaseIfMissing !== undefined
+            ? { createReleaseIfMissing: opts.createReleaseIfMissing }
+            : {}),
+          ...(opts.environment !== undefined ? { environment: opts.environment } : {}),
+          ...(opts.category !== undefined ? { category: opts.category } : {}),
+          ...(opts.gitSha !== undefined ? { gitSha: opts.gitSha } : {}),
+          ...(opts.ciRunId !== undefined ? { ciRunId: opts.ciRunId } : {}),
+          ...(opts.branch !== undefined ? { branch: opts.branch } : {}),
+          ...(opts.baseUrl !== undefined ? { baseUrl: opts.baseUrl } : {}),
+          ...(opts.apiKey !== undefined ? { apiKey: opts.apiKey } : {}),
+        });
+      },
     );
   program
     .command('doctor')
@@ -69,13 +107,9 @@ export function main(argv: readonly string[]): void {
   program
     .command('status [path]')
     .description("Show the consumer project's framework state")
-    .action(
-      makeStub({
-        command: 'status',
-        summary: 'Reads sdlc-config.json, prints stack/host, last sync version, pending REQs.',
-        trackedIn: TRACKING_ISSUE,
-      }),
-    );
+    .action(async (path?: string) => {
+      await runStatus({ path });
+    });
   program
     .command('upgrade')
     .description('Update the devaudit CLI itself to the latest release')
@@ -89,30 +123,20 @@ export function main(argv: readonly string[]): void {
   const authCmd = program.command('auth').description('Authentication management');
   authCmd
     .command('login')
-    .option('--provider <name>', 'github | gitlab (default: detect)')
-    .description('Sign in via browser OAuth or PAT paste; stores token in ~/.config/devaudit/')
-    .action(
-      makeStub({
-        command: 'auth login',
-        summary:
-          'PAT paste flow first (works against the portal today). Browser OAuth lands when /cli-auth ships (workstream B).',
-        trackedIn: TRACKING_ISSUE,
-      }),
-    );
+    .option('--token <token>', 'PAT to use (skips the interactive prompt)')
+    .option('--base-url <url>', 'override portal base URL', 'https://devaudit.metasession.co')
+    .description('Sign in via PAT paste; stores token in ~/.config/devaudit/auth.json')
+    .action(async (opts: { token?: string; baseUrl?: string }) => {
+      await runAuthLogin({ token: opts.token, baseUrl: opts.baseUrl });
+    });
   authCmd
     .command('logout')
     .description('Delete the cached token at ~/.config/devaudit/auth.json')
-    .action(makeStub({ command: 'auth logout', summary: 'Wipes the cached PAT.', trackedIn: TRACKING_ISSUE }));
+    .action(runAuthLogout);
   authCmd
     .command('status')
-    .description('Show current auth state (no token logged)')
-    .action(
-      makeStub({
-        command: 'auth status',
-        summary: 'Reads the cached token, calls GET /api/projects to verify, prints user info.',
-        trackedIn: TRACKING_ISSUE,
-      }),
-    );
+    .description('Show current auth state and verify the cached token')
+    .action(runAuthStatus);
   const orgCmd = program.command('org').description('Organisation management (workstream B prereq)');
   orgCmd
     .command('list')

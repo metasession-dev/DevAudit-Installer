@@ -4,23 +4,30 @@
 
 This is the source of `@metasession-dev/devaudit-cli` (binary name: `devaudit`). It is under active development — see [tracking issue #1](https://github.com/metasession-dev/DevAudit-Installer/issues/1) and the full design in [`../docs/devaudit-cli/`](../docs/devaudit-cli/).
 
-## Status — v0.0.1 (skeleton)
+## Status — v0.0.1
 
-Working today:
+### Working
 
-- `devaudit --help` — the command surface is registered (commands listed below)
-- `devaudit --version` — prints the CLI version
+- `devaudit --help` / `--version`
 - `devaudit doctor` — checks `node` (>=22), `git`, `gh`, `jq`, `curl` are on PATH
+- `devaudit status [path]` — reads `sdlc-config.json` from a consumer project, prints stack/host/slug/source-dirs, and reports which framework files are present
+- `devaudit auth login` — interactive PAT paste flow; validates against the portal; stores at `~/.config/devaudit/auth.json` (mode 0600)
+- `devaudit auth logout` — wipes the cached token
+- `devaudit auth status` — verifies the cached token (or `DEVAUDIT_USER_TOKEN` env var) by calling `GET /api/projects`
+- `devaudit push <slug> <req-id> <type> <file>` — uploads evidence to the portal (port of `upload-evidence.sh`; file or directory; retries on 429/5xx with backoff)
+- `devaudit install [path]` — **v0 wrapper** that shells out to `scripts/sdlc-onboard.sh`. Native TS port is workstream A milestone 3.
+- `devaudit update <version> <paths...>` — **v0 wrapper** that shells out to `scripts/sync-sdlc.sh`. Native TS port is workstream A milestone 4.
 
-Stubbed (exit code 1, helpful pointer to the build plan):
+7 vitest tests; all green.
 
-- `devaudit install / update / push` — ports of `sdlc-onboard.sh` / `sync-sdlc.sh` / `upload-evidence.sh` (the bash scripts still work in the meantime)
-- `devaudit auth login / logout / status` — PAT paste first, then browser OAuth
-- `devaudit org list / switch / policy list|apply / report` — org features (workstream B prereq on the portal)
-- `devaudit plugin list / install / remove / update` — plugin registry (workstream B prereq + plugin SDK in workstream D)
-- `devaudit config get / set / list` — CLI configuration
-- `devaudit status` — show a consumer's framework state
-- `devaudit upgrade` — self-update
+### Stubbed (exit code 1 + helpful pointer)
+
+These need workstream B (portal-side) prereqs or workstream D (plugin SDK) before they can do anything real:
+
+- `devaudit org list / switch / policy list|apply / report`
+- `devaudit plugin list / install / remove / update`
+- `devaudit config get / set / list`
+- `devaudit upgrade` (self-update — needs distribution channel established first)
 
 ## Develop locally
 
