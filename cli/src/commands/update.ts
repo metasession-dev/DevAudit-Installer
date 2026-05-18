@@ -1,33 +1,36 @@
-import { execa } from 'execa';
-import { resolve } from 'node:path';
-import { resolveInstallerRoot } from '../lib/installer-root.js';
+import { syncAll } from '../update/index.js';
 import { logger } from '../lib/logger.js';
 
 export interface UpdateOptions {
-  readonly version: string;
+  readonly version?: string;
   readonly paths: readonly string[];
 }
 
 /**
- * v0 implementation: thin wrapper around scripts/sync-sdlc.sh.
+ * Native TypeScript implementation of the SDLC template sync.
  *
- * Native TS port lives in Workstream A milestone 4 of
- * docs/devaudit-cli/build-plan.md.
+ * The bash version (`scripts/sync-sdlc.sh`) tagged DevAudit-Installer before
+ * sync. The CLI omits the tagging step — `devaudit release tag` will own that
+ * concern in a future command. The version argument is accepted for parity
+ * with the bash CLI but is currently used only in summary output.
  */
 export async function runUpdate(options: UpdateOptions): Promise<void> {
   const log = logger();
-  const installerRoot = await resolveInstallerRoot();
-  const script = resolve(installerRoot, 'scripts', 'sync-sdlc.sh');
-  const resolvedPaths = options.paths.map((p) => resolve(p));
-  log.info(`Running ${script} ${options.version} ${resolvedPaths.join(' ')}`);
-  try {
-    await execa('bash', [script, options.version, ...resolvedPaths], {
-      stdio: 'inherit',
-      cwd: installerRoot,
-      env: process.env,
-    });
-  } catch (err) {
-    const exitCode = (err as { exitCode?: number }).exitCode ?? 1;
-    process.exit(exitCode);
+  if (options.version) {
+    log.info(`Version (informational, no tag created): ${options.version}`);
   }
+  if (options.paths.length === 0) {
+    log.error('No project paths provided. Usage: devaudit update <version> <path> [path...]');
+    process.exit(2);
+  }
+  await syncAll(options.paths);
+  log.success('=== Sync Complete ===');
+  log.log('');
+  log.log('Next steps for each consuming project:');
+  log.log('  1. cd into the project directory');
+  log.log('  2. Review the diff: git diff');
+  log.log("  3. Commit: git add -A && git commit -m 'chore: sync SDLC templates from DevAudit'");
+  log.log('  4. Push to develop');
+  log.log('');
+  log.warn('Do NOT auto-commit — review the changes first.');
 }

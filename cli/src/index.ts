@@ -47,7 +47,7 @@ export function main(argv: readonly string[]): void {
     });
   program
     .command('update <version> <paths...>')
-    .description('Sync framework templates into existing consumer(s) (v0: wraps sync-sdlc.sh)')
+    .description('Sync framework templates into existing consumer(s) (native TS implementation)')
     .action(async (version: string, paths: string[]) => {
       await runUpdate({ version, paths });
     });
