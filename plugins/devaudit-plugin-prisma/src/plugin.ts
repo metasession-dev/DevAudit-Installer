@@ -1,0 +1,20 @@
+import type { Plugin } from '@metasession-dev/devaudit-plugin-sdk';
+import { migrateStatus } from './commands/migrate-status.js';
+import { pending } from './commands/pending.js';
+import { afterUpdate } from './hooks/after-update.js';
+import { onDoctor } from './hooks/on-doctor.js';
+
+const plugin: Plugin = {
+  name: 'devaudit-plugin-prisma',
+  apiVersion: '1',
+  hooks: {
+    afterUpdate,
+    onDoctor,
+  },
+  commands: {
+    'migrate-status': migrateStatus,
+    pending,
+  },
+};
+
+export default plugin;
