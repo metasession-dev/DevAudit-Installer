@@ -1,0 +1,52 @@
+{
+  "name": "devaudit-plugin-evidence-export",
+  "version": "0.0.1",
+  "description": "Bulk evidence bundle export for DevAudit consumers — for handing evidence to external auditors.",
+  "type": "module",
+  "main": "./dist/plugin.js",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@metasession-dev/devaudit-plugin-sdk": "file:../../plugin-sdk"
+  },
+  "devDependencies": {
+    "@types/node": "^22.9.0",
+    "msw": "^2.7.0",
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.5"
+  },
+  "devaudit": {
+    "apiVersion": "1",
+    "displayName": "Evidence export",
+    "description": "Bulk export evidence bundles for external auditors",
+    "commands": [
+      { "name": "list", "description": "List requirements + evidence counts for a project" },
+      { "name": "bundle", "description": "Download all evidence for a project into a local directory" }
+    ],
+    "hooks": ["onDoctor"]
+  },
+  "publishConfig": {
+    "access": "restricted"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/metasession-dev/DevAudit-Installer",
+    "directory": "plugins/devaudit-plugin-evidence-export"
+  },
+  "license": "UNLICENSED",
+  "private": true
+}
