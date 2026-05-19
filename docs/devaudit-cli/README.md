@@ -172,7 +172,7 @@ Organisations are first-class entities in DevAudit (the portal already has `/adm
 
 Plugins extend the CLI with org-specific or stack-specific behaviour:
 
-- **Plugin SDK** — _shipped_. TypeScript package (`@metasession/devaudit-plugin-sdk`) defines the plugin contract: `Plugin` / `PluginContext` / `PluginManifest` types, 9 lifecycle hooks (`beforeInstall`, `afterInstall`, `beforeUpdate`, `afterUpdate`, `beforePush`, `afterPush`, `beforeSync`, `afterSync`, `onDoctor`), and a zero-dep `validateManifest()` shape checker.
+- **Plugin SDK** — _shipped_. TypeScript package (`@metasession.co/devaudit-plugin-sdk`) defines the plugin contract: `Plugin` / `PluginContext` / `PluginManifest` types, 9 lifecycle hooks (`beforeInstall`, `afterInstall`, `beforeUpdate`, `afterUpdate`, `beforePush`, `afterPush`, `beforeSync`, `afterSync`, `onDoctor`), and a zero-dep `validateManifest()` shape checker.
 - **Plugin loader** — _shipped_. The CLI scans `~/.config/devaudit/plugins/<name>/` at startup, validates each manifest, dynamic-imports the main module, and registers plugin-contributed commands under `devaudit <plugin-name> <sub-cmd>`. Lifecycle hooks fire in `install` / `update` / `push` / `doctor` with per-plugin error isolation — a misbehaving plugin can't crash the CLI.
 - **Plugin registry** — _planned_. Plugins will be discovered via the DevAudit portal's `/plugins` registry. Org-private plugins will ship from private npm registries or Git URLs. Until the registry lands, plugins must be placed in `~/.config/devaudit/plugins/<name>/` manually.
 - **`devaudit plugin install/list/remove/update`** — _shipped_ for direct Git URL installs. `install <git-url>` clones + npm-installs + validates; `list` discovers + reports; `remove <name>` rm-rfs the dir; `update` git-pulls each plugin dir. Portal-registry-backed name resolution (`devaudit plugin install devaudit-plugin-prisma`) remains _planned_.
@@ -190,7 +190,7 @@ Multiple channels, all from a single source build:
 - **Homebrew tap** (`brew install metasession-dev/tap/devaudit`) — macOS/Linux native binary
 - **Scoop manifest** (`scoop install devaudit`) — Windows native binary
 - **`curl -fsSL https://devaudit.metasession.co/install.sh | sh`** — shell installer that detects OS/arch and grabs the right binary
-- **npm** (`npm i -g @metasession/devaudit-cli`) — for Node users who prefer it
+- **npm** (`npm i -g @metasession.co/devaudit-cli`) — for Node users who prefer it
 - **GitHub Releases** — raw binaries for direct download / system-package management
 
 Single-binary builds compile via **Node SEA** (Single Executable Application — bundled into Node 22+) — same TypeScript source tree, just a different build pipeline. No Go/Rust rewrite needed.

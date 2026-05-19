@@ -1,5 +1,5 @@
 {
-  "name": "@metasession/devaudit-plugin-sdk",
+  "name": "@metasession.co/devaudit-plugin-sdk",
   "version": "0.1.0",
   "description": "DevAudit CLI plugin contract — interfaces, manifest schema, and lifecycle hooks that DevAudit plugins compile against.",
   "type": "module",

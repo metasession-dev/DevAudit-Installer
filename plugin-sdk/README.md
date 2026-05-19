@@ -1,4 +1,4 @@
-# @metasession/devaudit-plugin-sdk
+# @metasession.co/devaudit-plugin-sdk
 
 Contract types, manifest schema, and lifecycle hooks that DevAudit CLI plugins compile against.
 
@@ -7,7 +7,7 @@ Contract types, manifest schema, and lifecycle hooks that DevAudit CLI plugins c
 ## Install
 
 ```sh
-npm install --save-dev @metasession/devaudit-plugin-sdk
+npm install --save-dev @metasession.co/devaudit-plugin-sdk
 ```
 
 ## Author a plugin
@@ -36,7 +36,7 @@ A plugin is an npm package whose `package.json` declares a `devaudit` field, and
 ### `src/plugin.ts`
 
 ```ts
-import type { Plugin } from '@metasession/devaudit-plugin-sdk';
+import type { Plugin } from '@metasession.co/devaudit-plugin-sdk';
 
 const plugin: Plugin = {
   name: 'devaudit-plugin-prisma',
