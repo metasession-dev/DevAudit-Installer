@@ -15,9 +15,9 @@ const TRACKING_ISSUE = 'https://github.com/metasession-dev/DevAudit-Installer/is
 
 function applyCommonFlags(program: Command): void {
   program.addOption(new Option('--json', 'machine-readable output'));
-  program.addOption(new Option('--yes, -y', 'accept all interactive defaults (CI-friendly)'));
+  program.addOption(new Option('-y, --yes', 'accept all interactive defaults (CI-friendly)'));
   program.addOption(new Option('--dry-run', "preview, don't mutate"));
-  program.addOption(new Option('--verbose, -v', 'extra detail'));
+  program.addOption(new Option('-v, --verbose', 'extra detail'));
   program.addOption(new Option('--no-color', 'strip ANSI'));
   program.addOption(new Option('--org <slug>', 'override active org context for this invocation'));
   program.hook('preAction', (cmd) => {
