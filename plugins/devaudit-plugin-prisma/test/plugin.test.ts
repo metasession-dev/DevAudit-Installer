@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest
 import { promises as fs } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import type { PluginContext, PluginEvent } from '@metasession-dev/devaudit-plugin-sdk';
+import type { PluginContext, PluginEvent } from '@metasession/devaudit-plugin-sdk';
 
 interface ExecaCall {
   readonly file: string;

@@ -3,7 +3,7 @@ import type {
   PluginEvent,
   PluginLogger,
   PluginSdlcConfigView,
-} from '@metasession-dev/devaudit-plugin-sdk';
+} from '@metasession/devaudit-plugin-sdk';
 import { readSdlcConfig } from '../sdlc-config.js';
 import { logger } from '../logger.js';
 

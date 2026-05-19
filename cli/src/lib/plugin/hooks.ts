@@ -1,4 +1,4 @@
-import type { LifecycleHookName, PluginContext } from '@metasession-dev/devaudit-plugin-sdk';
+import type { LifecycleHookName, PluginContext } from '@metasession/devaudit-plugin-sdk';
 import { logger } from '../logger.js';
 import type { LoadedPlugin } from './types.js';
 

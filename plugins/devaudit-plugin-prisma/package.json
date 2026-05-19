@@ -1,6 +1,6 @@
 {
-  "name": "devaudit-plugin-prisma",
-  "version": "0.0.1",
+  "name": "@metasession/devaudit-plugin-prisma",
+  "version": "0.1.0",
   "description": "Prisma migration deploy hooks + status commands for DevAudit-onboarded node consumers.",
   "type": "module",
   "main": "./dist/plugin.js",
@@ -20,7 +20,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@metasession-dev/devaudit-plugin-sdk": "file:../../plugin-sdk",
+    "@metasession/devaudit-plugin-sdk": "file:../../plugin-sdk",
     "execa": "^9.5.1"
   },
   "devDependencies": {
@@ -34,19 +34,27 @@
     "displayName": "Prisma helper",
     "description": "Prisma migration deploy hooks for Node consumers",
     "commands": [
-      { "name": "migrate-status", "description": "Show pending Prisma migrations via `npx prisma migrate status`" },
-      { "name": "pending", "description": "List migration directories under prisma/migrations/" }
+      {
+        "name": "migrate-status",
+        "description": "Show pending Prisma migrations via `npx prisma migrate status`"
+      },
+      {
+        "name": "pending",
+        "description": "List migration directories under prisma/migrations/"
+      }
     ],
-    "hooks": ["afterUpdate", "onDoctor"]
+    "hooks": [
+      "afterUpdate",
+      "onDoctor"
+    ]
   },
   "publishConfig": {
-    "access": "restricted"
+    "access": "public"
   },
   "repository": {
     "type": "git",
     "url": "https://github.com/metasession-dev/DevAudit-Installer",
     "directory": "plugins/devaudit-plugin-prisma"
   },
-  "license": "Apache-2.0",
-  "private": true
+  "license": "Apache-2.0"
 }

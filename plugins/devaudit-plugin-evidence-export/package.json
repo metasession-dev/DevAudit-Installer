@@ -1,6 +1,6 @@
 {
-  "name": "devaudit-plugin-evidence-export",
-  "version": "0.0.1",
+  "name": "@metasession/devaudit-plugin-evidence-export",
+  "version": "0.1.0",
   "description": "Bulk evidence bundle export for DevAudit consumers — for handing evidence to external auditors.",
   "type": "module",
   "main": "./dist/plugin.js",
@@ -20,7 +20,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@metasession-dev/devaudit-plugin-sdk": "file:../../plugin-sdk"
+    "@metasession/devaudit-plugin-sdk": "file:../../plugin-sdk"
   },
   "devDependencies": {
     "@types/node": "^22.9.0",
@@ -34,19 +34,26 @@
     "displayName": "Evidence export",
     "description": "Bulk export evidence bundles for external auditors",
     "commands": [
-      { "name": "list", "description": "List requirements + evidence counts for a project" },
-      { "name": "bundle", "description": "Download all evidence for a project into a local directory" }
+      {
+        "name": "list",
+        "description": "List requirements + evidence counts for a project"
+      },
+      {
+        "name": "bundle",
+        "description": "Download all evidence for a project into a local directory"
+      }
     ],
-    "hooks": ["onDoctor"]
+    "hooks": [
+      "onDoctor"
+    ]
   },
   "publishConfig": {
-    "access": "restricted"
+    "access": "public"
   },
   "repository": {
     "type": "git",
     "url": "https://github.com/metasession-dev/DevAudit-Installer",
     "directory": "plugins/devaudit-plugin-evidence-export"
   },
-  "license": "Apache-2.0",
-  "private": true
+  "license": "Apache-2.0"
 }

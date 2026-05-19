@@ -1,6 +1,6 @@
 import { promises as fs } from 'node:fs';
 import { join, resolve } from 'node:path';
-import type { PluginContext } from '@metasession-dev/devaudit-plugin-sdk';
+import type { PluginContext } from '@metasession/devaudit-plugin-sdk';
 import { EvidenceApi, type ComplianceEvidence } from '../api/client.js';
 import { resolveAuth } from '../util/token.js';
 

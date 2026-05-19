@@ -1,6 +1,6 @@
 {
-  "name": "@metasession-dev/devaudit-plugin-sdk",
-  "version": "0.0.1",
+  "name": "@metasession/devaudit-plugin-sdk",
+  "version": "0.1.0",
   "description": "DevAudit CLI plugin contract — interfaces, manifest schema, and lifecycle hooks that DevAudit plugins compile against.",
   "type": "module",
   "main": "./dist/index.js",
@@ -33,13 +33,12 @@
     "vitest": "^4.1.6"
   },
   "publishConfig": {
-    "access": "restricted"
+    "access": "public"
   },
   "repository": {
     "type": "git",
     "url": "https://github.com/metasession-dev/DevAudit-Installer",
     "directory": "plugin-sdk"
   },
-  "license": "Apache-2.0",
-  "private": true
+  "license": "Apache-2.0"
 }

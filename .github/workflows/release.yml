@@ -1,0 +1,91 @@
+name: Release
+
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (e.g. 0.1.0). Used only when manually triggered.'
+        required: true
+
+permissions:
+  contents: write   # for `gh release create`
+  id-token: write   # for `npm publish --provenance` (SLSA)
+
+jobs:
+  publish:
+    name: Publish 4 packages to npmjs.org + create GitHub Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
+      # ----- Step 1: plugin-sdk (no internal deps) -----
+      - name: plugin-sdk — install + build + publish
+        working-directory: plugin-sdk
+        run: |
+          npm install --legacy-peer-deps
+          npm run build
+          npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # ----- Step 2: rewrite file:../plugin-sdk → ^X.Y.Z in dependents -----
+      # The file: ref keeps local dev working from a fresh clone. At publish
+      # time we swap it to the version we just published, so the published
+      # tarballs depend on a real semver range rather than a missing path.
+      # The swap is in-place but never committed back.
+      - name: Pin plugin-sdk version in dependents
+        run: |
+          set -euo pipefail
+          VER=$(jq -r .version plugin-sdk/package.json)
+          echo "Pinning @metasession/devaudit-plugin-sdk to ^$VER in dependents"
+          for dir in cli plugins/devaudit-plugin-prisma plugins/devaudit-plugin-evidence-export; do
+            jq --arg v "^$VER" \
+              '.dependencies["@metasession/devaudit-plugin-sdk"] = $v' \
+              "$dir/package.json" > "$dir/package.json.tmp"
+            mv "$dir/package.json.tmp" "$dir/package.json"
+            echo "  $dir → $(jq -r '.dependencies["@metasession/devaudit-plugin-sdk"]' $dir/package.json)"
+          done
+
+      # ----- Step 3: cli -----
+      - name: cli — install + build + publish
+        working-directory: cli
+        run: |
+          npm install --legacy-peer-deps
+          npm run build
+          npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # ----- Step 4: plugins -----
+      - name: prisma plugin — install + build + publish
+        working-directory: plugins/devaudit-plugin-prisma
+        run: |
+          npm install --legacy-peer-deps
+          npm run build
+          npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: evidence-export plugin — install + build + publish
+        working-directory: plugins/devaudit-plugin-evidence-export
+        run: |
+          npm install --legacy-peer-deps
+          npm run build
+          npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # ----- Step 5: GitHub Release with auto-generated notes -----
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${GITHUB_REF_NAME:-v${{ inputs.version }}}"
+          echo "Creating GitHub Release $TAG"
+          gh release create "$TAG" --generate-notes --title "$TAG"

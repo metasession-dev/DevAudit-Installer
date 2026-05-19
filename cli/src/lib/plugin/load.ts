@@ -1,8 +1,8 @@
 import { promises as fs } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { validateManifest } from '@metasession-dev/devaudit-plugin-sdk';
-import type { Plugin } from '@metasession-dev/devaudit-plugin-sdk';
+import { validateManifest } from '@metasession/devaudit-plugin-sdk';
+import type { Plugin } from '@metasession/devaudit-plugin-sdk';
 import type { LoadedPlugin } from './types.js';
 
 function toFileUrl(absPath: string): string {

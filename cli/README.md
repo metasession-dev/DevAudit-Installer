@@ -2,7 +2,7 @@
 
 > Single-binary, cross-platform tool for installing, maintaining, and operating the Metasession SDLC across consumer projects. Bundled with the framework templates it ships ([`../sdlc/`](../sdlc/)).
 
-This is the source of `@metasession-dev/devaudit-cli` (binary name: `devaudit`). It is under active development — see [tracking issue #1](https://github.com/metasession-dev/DevAudit-Installer/issues/1) and the full design in [`../docs/devaudit-cli/`](../docs/devaudit-cli/).
+This is the source of `@metasession/devaudit-cli` (binary name: `devaudit`). It is under active development — see [tracking issue #1](https://github.com/metasession-dev/DevAudit-Installer/issues/1) and the full design in [`../docs/devaudit-cli/`](../docs/devaudit-cli/).
 
 ## Status — v0.0.1
 
@@ -43,7 +43,7 @@ npm run build                     # tsup → dist/index.js (ESM, bundled)
 
 ```
 cli/
-├── package.json              # @metasession-dev/devaudit-cli, ESM-only, node >=22
+├── package.json              # @metasession/devaudit-cli, ESM-only, node >=22
 ├── tsconfig.json             # strict TS
 ├── tsup.config.ts            # ESM bundle config
 ├── vitest.config.ts          # test runner
