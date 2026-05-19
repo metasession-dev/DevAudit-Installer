@@ -51,16 +51,16 @@ The schema is informational at v0; expect it to stabilise + version when an audi
 
 ## Install
 
-While the portal `/plugins` registry isn't live, install directly from a Git URL:
+```sh
+devaudit plugin install @metasession.co/devaudit-plugin-evidence-export
+```
+
+Published on npm. The CLI resolves the name against the registry and installs into `~/.config/devaudit/plugins/`.
+
+Pre-release / from-source install (against a Git tag or commit) remains available:
 
 ```sh
 devaudit plugin install https://github.com/metasession-dev/DevAudit-Installer.git#plugins/devaudit-plugin-evidence-export
-```
-
-Once the registry ships, the URL collapses to a name:
-
-```sh
-devaudit plugin install devaudit-plugin-evidence-export
 ```
 
 ## Compatibility

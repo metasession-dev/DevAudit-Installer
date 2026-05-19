@@ -28,7 +28,7 @@ export DEVAUDIT_USER_TOKEN="mctok_..."   # Issued at https://devaudit.metasessio
 ./scripts/sdlc-onboard.sh ../path/to/this-project
 ```
 
-See [`docs/onboarding.md` in DevAudit](https://github.com/metasession-dev/devaudit/blob/main/docs/onboarding.md) for the full walkthrough.
+See [`docs/onboarding.md` in DevAudit-Installer](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/onboarding.md) for the full walkthrough.
 
 If you take the fast path, skip to Step 6 (Tier 1 docs reference) — Steps 1–5 are handled automatically. The remaining manual steps in this guide are still relevant: project-specific customisation of `INSTRUCTIONS.md` and `CLAUDE.md`, optional UAT-environment configuration, and verifying the first end-to-end release walks through Stages 1–5 cleanly.
 

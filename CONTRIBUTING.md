@@ -47,7 +47,7 @@ Conventions:
 | Path | Contents |
 |---|---|
 | `cli/` | The `devaudit` CLI source, tests, bin entry |
-| `plugin-sdk/` | The `@metasession-dev/devaudit-plugin-sdk` package — plugin contract types |
+| `plugin-sdk/` | The `@metasession.co/devaudit-plugin-sdk` package — plugin contract types |
 | `plugins/devaudit-plugin-*/` | First-party plugins built against the SDK |
 | `sdlc/` | Framework templates that get synced into consumer projects |
 | `scripts/` | Bash installer scripts (`sdlc-onboard.sh`, `sync-sdlc.sh`, `upload-evidence.sh`) |

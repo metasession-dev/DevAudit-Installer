@@ -5,7 +5,7 @@
 | Status   | Accepted                                                                                                 |
 | Date     | 2026-05-15                                                                                               |
 | Decision | Split SDLC templates into `_common/` + `ci/<stack>/` + `stacks/<name>/` + `hosts/<name>/` adapter layers |
-| Tracked  | [#287](https://github.com/metasession-dev/devaudit/issues/287) (v1.23.0)                                 |
+| Tracked  | portal repo issue #287 (v1.23.0, internal tracker)                                                       |
 | Author   | DevAudit Engineering                                                                                     |
 
 ## Context
@@ -117,7 +117,7 @@ Additional optional config (when applicable):
 
 - **More directory navigation.** A contributor touching the framework needs to know which layer their change belongs in. Mitigated by: STACK_ADAPTER.md and HOST_ADAPTER.md document the layering explicitly; `validate-adapter.cjs --all` runs on every PR.
 
-- **Bootstrap chicken-and-eggs surface.** Some workflows (notably Release Approval Gate) want to enforce against a DevAudit-side project state that doesn't exist until the first compliance-evidence.yml run. Addressed in [#301](https://github.com/metasession-dev/devaudit/issues/301) (bootstrap-safe gate). Future workflows added at the framework level need to consider the same case.
+- **Bootstrap chicken-and-eggs surface.** Some workflows (notably Release Approval Gate) want to enforce against a DevAudit-side project state that doesn't exist until the first compliance-evidence.yml run. Addressed in the portal repo (issue #301, bootstrap-safe gate, internal tracker). Future workflows added at the framework level need to consider the same case.
 
 ### Neutral
 
@@ -156,15 +156,15 @@ Treat the SDLC framework as a templated module rendered by an external tool (Hel
 
 This ADR captures the v1.23.0 design plus the v1.24 onboarding-automation follow-up (`sdlc-onboard.sh`, shipped post-Phase 6). Future work:
 
-- **v1.24 — deprecation tightening.** Convert the legacy-defaults deprecation warning (legacy configs missing `stack` / `host` keys default to `node + railway`) into a hard refusal. Backend enum rename `uat_approved → release_approved` ([#284](https://github.com/metasession-dev/devaudit/issues/284)).
+- **v1.24 — deprecation tightening.** Convert the legacy-defaults deprecation warning (legacy configs missing `stack` / `host` keys default to `node + railway`) into a hard refusal. Backend enum rename `uat_approved → release_approved` (portal repo issue #284, internal tracker).
 - **First non-Railway host adapter** — Fly.io most likely (a sketched example already lives in HOST_ADAPTER.md). Validates the host-adapter contract against a real consumer the same way Phase 4 validated the stack contract against META-AGENT.
 - **`gh sdlc` extension (rather than `scripts/sdlc-onboard.sh`).** The bash script does the job today; promoting it to a proper `gh` extension would give it auto-update via `gh extension upgrade` and a per-repo invocation idiom. Pure operator ergonomics — the underlying workflow is unchanged.
 - **OAuth device flow for first-PAT issuance.** Eliminates the one remaining manual portal click before running `sdlc-onboard.sh`. Larger scope (DevAudit-side auth surface), so not blocking.
 
 ## References
 
-- [#287](https://github.com/metasession-dev/devaudit/issues/287) — SDLC v1.23.0 umbrella issue.
-- [#252](https://github.com/metasession-dev/devaudit/issues/252) — META-AGENT onboarding (closed by [META-AGENT#19](https://github.com/metasession-dev/META-AGENT/pull/19)).
+- Portal repo issue #287 — SDLC v1.23.0 umbrella issue (internal tracker).
+- Portal repo issue #252 — META-AGENT onboarding, closed by [META-AGENT#19](https://github.com/metasession-dev/META-AGENT/pull/19) (internal tracker).
 - [STACK_ADAPTER.md](../../sdlc/STACK_ADAPTER.md) and [HOST_ADAPTER.md](../../sdlc/HOST_ADAPTER.md) — the contracts.
 - [docs/adding-a-stack.md](../adding-a-stack.md) — walkthrough for the next stack.
 - [docs/adding-a-host.md](../adding-a-host.md) — walkthrough for the next host.

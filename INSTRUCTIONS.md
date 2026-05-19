@@ -77,7 +77,7 @@ Both are bash, both use `set -euo pipefail`, both are idempotent. When editing:
 
 - Test against a throwaway fixture first (`/tmp/sync-test-*` is a fine convention).
 - `bash -n` syntax-check after every change.
-- Surface errors clearly. Silently-swallowing `npm install` failures was a real bug ([META-COMPLY #313](https://github.com/metasession-dev/devaudit/issues/313)) — don't reintroduce that pattern.
+- Surface errors clearly. Silently-swallowing `npm install` failures was a real bug (portal repo issue #313, internal tracker) — don't reintroduce that pattern.
 
 ## Cross-repo impact
 
