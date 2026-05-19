@@ -43,13 +43,13 @@ jobs:
         run: |
           set -euo pipefail
           VER=$(jq -r .version plugin-sdk/package.json)
-          echo "Pinning @metasession/devaudit-plugin-sdk to ^$VER in dependents"
+          echo "Pinning @metasession.co/devaudit-plugin-sdk to ^$VER in dependents"
           for dir in cli plugins/devaudit-plugin-prisma plugins/devaudit-plugin-evidence-export; do
             jq --arg v "^$VER" \
-              '.dependencies["@metasession/devaudit-plugin-sdk"] = $v' \
+              '.dependencies["@metasession.co/devaudit-plugin-sdk"] = $v' \
               "$dir/package.json" > "$dir/package.json.tmp"
             mv "$dir/package.json.tmp" "$dir/package.json"
-            echo "  $dir → $(jq -r '.dependencies["@metasession/devaudit-plugin-sdk"]' $dir/package.json)"
+            echo "  $dir → $(jq -r '.dependencies["@metasession.co/devaudit-plugin-sdk"]' $dir/package.json)"
           done
 
       # ----- Step 3: cli -----

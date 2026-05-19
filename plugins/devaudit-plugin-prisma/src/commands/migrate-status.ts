@@ -1,5 +1,5 @@
 import { execa } from 'execa';
-import type { PluginContext } from '@metasession/devaudit-plugin-sdk';
+import type { PluginContext } from '@metasession.co/devaudit-plugin-sdk';
 import { detectPrismaLayout, SCHEMA_FILE } from '../util/prisma-paths.js';
 
 export async function migrateStatus(ctx: PluginContext): Promise<void> {

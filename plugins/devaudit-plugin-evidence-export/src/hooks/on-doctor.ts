@@ -1,4 +1,4 @@
-import type { PluginContext } from '@metasession/devaudit-plugin-sdk';
+import type { PluginContext } from '@metasession.co/devaudit-plugin-sdk';
 
 export async function onDoctor(ctx: PluginContext): Promise<void> {
   if (process.env['DEVAUDIT_USER_TOKEN']) {

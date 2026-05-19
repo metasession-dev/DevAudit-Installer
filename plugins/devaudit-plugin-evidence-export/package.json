@@ -1,5 +1,5 @@
 {
-  "name": "@metasession/devaudit-plugin-evidence-export",
+  "name": "@metasession.co/devaudit-plugin-evidence-export",
   "version": "0.1.0",
   "description": "Bulk evidence bundle export for DevAudit consumers — for handing evidence to external auditors.",
   "type": "module",
@@ -20,7 +20,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@metasession/devaudit-plugin-sdk": "file:../../plugin-sdk"
+    "@metasession.co/devaudit-plugin-sdk": "file:../../plugin-sdk"
   },
   "devDependencies": {
     "@types/node": "^22.9.0",

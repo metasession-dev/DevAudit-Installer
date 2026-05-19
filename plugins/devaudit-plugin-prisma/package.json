@@ -1,5 +1,5 @@
 {
-  "name": "@metasession/devaudit-plugin-prisma",
+  "name": "@metasession.co/devaudit-plugin-prisma",
   "version": "0.1.0",
   "description": "Prisma migration deploy hooks + status commands for DevAudit-onboarded node consumers.",
   "type": "module",
@@ -20,7 +20,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@metasession/devaudit-plugin-sdk": "file:../../plugin-sdk",
+    "@metasession.co/devaudit-plugin-sdk": "file:../../plugin-sdk",
     "execa": "^9.5.1"
   },
   "devDependencies": {

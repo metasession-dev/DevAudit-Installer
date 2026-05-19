@@ -1,4 +1,4 @@
-import type { PluginContext } from '@metasession/devaudit-plugin-sdk';
+import type { PluginContext } from '@metasession.co/devaudit-plugin-sdk';
 import { detectPrismaLayout } from '../util/prisma-paths.js';
 
 export async function afterUpdate(ctx: PluginContext): Promise<void> {

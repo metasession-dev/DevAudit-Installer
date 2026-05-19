@@ -11,7 +11,7 @@ The `devaudit` CLI is built in **Node.js / TypeScript** and distributed **simult
 - **Homebrew tap** (`brew install metasession-dev/tap/devaudit`)
 - **Scoop manifest** (`scoop install devaudit`)
 - **`curl -fsSL https://devaudit.metasession.co/install.sh | sh`** (auto-detect OS/arch)
-- **npm** (`npm i -g @metasession/devaudit-cli`) — for Node-native users
+- **npm** (`npm i -g @metasession.co/devaudit-cli`) — for Node-native users
 - **GitHub Releases** on `metasession-dev/DevAudit-Installer` — raw binaries for direct download or system-package integration
 
 Single-binary builds are produced via **Node SEA (Single Executable Application)** — bundled into Node 22+, no new toolchain needed. The same TypeScript source produces both the npm package and the standalone binaries.
@@ -94,7 +94,7 @@ Cons:
 Three reasons:
 
 1. **Source reuse across portal and CLI.** The portal codebase has working TypeScript implementations of: adapter loaders, JSON-Schema validators, template-substitution logic, the DevAudit REST API surface, RBAC checks, and the policy schema (in progress). Building the CLI in the same language means those pieces port directly instead of being rewritten in Go or Rust.
-2. **Plugin system fits naturally.** Plugins are npm packages with TypeScript types from `@metasession/devaudit-plugin-sdk`. A plugin author who already writes TypeScript for their app gets immediate productivity. Same model for org-private plugins via private npm registries or Git URLs.
+2. **Plugin system fits naturally.** Plugins are npm packages with TypeScript types from `@metasession.co/devaudit-plugin-sdk`. A plugin author who already writes TypeScript for their app gets immediate productivity. Same model for org-private plugins via private npm registries or Git URLs.
 3. **Node SEA closes the historic Node-runtime-dependency gap.** Before Node 22, "build a CLI in Node" meant "users must install Node." Node SEA changed that. The reason teams have historically chosen Go for CLIs (single binary, no runtime) no longer applies cleanly — we get the same outcome from the same TypeScript source.
 
 Trade-off accepted: binary size (~80 MB vs. Go's ~20 MB). Acceptable given the comparables (ripgrep ~5 MB but written in Rust; gh-CLI ~30 MB; AWS CLI v2 ~70 MB).
@@ -113,12 +113,12 @@ Trade-off accepted: binary size (~80 MB vs. Go's ~20 MB). Acceptable given the c
 - `install.sh` (served at `https://devaudit.metasession.co/install.sh`) detects OS/arch, downloads the right binary from GitHub Releases, extracts to `/usr/local/bin/devaudit` (or `~/.local/bin/devaudit` if not root).
 - Homebrew tap (`metasession-dev/homebrew-tap`) gets auto-updated via the release workflow.
 - Scoop manifest similar via `metasession-dev/scoop-bucket`.
-- npm publishes both unscoped `devaudit` (binary path: `node_modules/devaudit/bin/devaudit.js`) and scoped `@metasession/devaudit-cli` (alias) — npm convention.
+- npm publishes both unscoped `devaudit` (binary path: `node_modules/devaudit/bin/devaudit.js`) and scoped `@metasession.co/devaudit-cli` (alias) — npm convention.
 
 ### Plugin distribution
 
 - First-party plugins (`devaudit-plugin-prisma`, etc.) ship as separate npm packages from the same monorepo.
-- Plugin SDK (`@metasession/devaudit-plugin-sdk`) ships as a standalone npm package — third parties depend on it.
+- Plugin SDK (`@metasession.co/devaudit-plugin-sdk`) ships as a standalone npm package — third parties depend on it.
 - Plugin registry on the portal (`/plugins`) lists available plugins with metadata (description, install command, author, source); `devaudit plugin install <name>` resolves against it.
 
 ### Versioning
