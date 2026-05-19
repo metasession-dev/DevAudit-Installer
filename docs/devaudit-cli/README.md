@@ -177,11 +177,11 @@ Plugins extend the CLI with org-specific or stack-specific behaviour:
 - **Plugin registry** — _planned_. Plugins will be discovered via the DevAudit portal's `/plugins` registry. Org-private plugins will ship from private npm registries or Git URLs. Until the registry lands, plugins must be placed in `~/.config/devaudit/plugins/<name>/` manually.
 - **`devaudit plugin install/list/remove/update`** — _shipped_ for direct Git URL installs. `install <git-url>` clones + npm-installs + validates; `list` discovers + reports; `remove <name>` rm-rfs the dir; `update` git-pulls each plugin dir. Portal-registry-backed name resolution (`devaudit plugin install devaudit-plugin-prisma`) remains _planned_.
 
-Initial first-party plugins to ship in-tree:
+First-party plugins shipping in-tree under `plugins/`:
 
-- `devaudit-plugin-prisma` — automate Prisma migration deploy hooks for node consumers.
-- `devaudit-plugin-supabase` — Supabase project / RLS policy linting.
-- `devaudit-plugin-evidence-export` — bulk export evidence bundles for external audits.
+- `devaudit-plugin-prisma` — _shipped_. Prisma migration deploy hooks for Node consumers; `migrate-status` + `pending` commands; `afterUpdate` / `onDoctor` hooks.
+- `devaudit-plugin-evidence-export` — _shipped_. Bulk export evidence bundles for external audits; `list` + `bundle` commands; `onDoctor` hook.
+- `devaudit-plugin-supabase` — _deferred_. No active DevAudit consumer uses Supabase as of 2026-05-19 ([active-consumers memory](#)). Will revisit when a real Supabase-using consumer adopts the framework.
 
 ### Distribution
 
