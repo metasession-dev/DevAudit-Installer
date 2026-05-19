@@ -28,19 +28,19 @@
     "start": "node ./bin/devaudit.js"
   },
   "dependencies": {
-    "commander": "^12.1.0",
     "@clack/prompts": "^0.8.2",
+    "@metasession.co/devaudit-plugin-sdk": "file:../plugin-sdk",
+    "commander": "^12.1.0",
     "consola": "^3.2.3",
-    "execa": "^9.5.1",
     "env-paths": "^3.0.0",
-    "@metasession.co/devaudit-plugin-sdk": "file:../plugin-sdk"
+    "execa": "^9.5.1"
   },
   "devDependencies": {
     "@types/node": "^22.9.0",
     "msw": "^2.7.0",
     "tsup": "^8.3.5",
     "typescript": "^5.7.2",
-    "vitest": "^2.1.5"
+    "vitest": "^4.1.6"
   },
   "publishConfig": {
     "access": "public"
