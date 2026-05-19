@@ -11,6 +11,10 @@ import { runInstallCommand } from './commands/install.js';
 import { runUpdate } from './commands/update.js';
 import { makeStub } from './commands/stub.js';
 import { discoverPlugins, registerPluginCommands } from './lib/plugin/index.js';
+import { runPluginList } from './commands/plugin/list.js';
+import { runPluginInstall } from './commands/plugin/install.js';
+import { runPluginRemove } from './commands/plugin/remove.js';
+import { runPluginUpdate } from './commands/plugin/update.js';
 import { logger } from './lib/logger.js';
 
 const TRACKING_ISSUE = 'https://github.com/metasession-dev/DevAudit-Installer/issues/1';
@@ -194,44 +198,24 @@ export async function main(argv: readonly string[]): Promise<void> {
   const pluginCmd = program.command('plugin').description('Plugin management');
   pluginCmd
     .command('list')
-    .description('List installed and available plugins')
-    .action(
-      makeStub({
-        command: 'plugin list',
-        summary: 'Reads the local plugin set + the portal plugin registry.',
-        trackedIn: TRACKING_ISSUE,
-      }),
-    );
+    .description('List installed plugins in ~/.config/devaudit/plugins/')
+    .action(runPluginList);
   pluginCmd
-    .command('install <name>')
-    .description('Install a plugin from the registry or a Git URL')
-    .action(
-      makeStub({
-        command: 'plugin install',
-        summary: 'Resolves against the portal /plugins registry; supports private Git URLs.',
-        trackedIn: TRACKING_ISSUE,
-      }),
-    );
+    .command('install <source>')
+    .description('Install a plugin from a Git URL (portal registry resolution is pending)')
+    .action(async (source: string) => {
+      await runPluginInstall({ source });
+    });
   pluginCmd
     .command('remove <name>')
-    .description('Remove a locally installed plugin')
-    .action(
-      makeStub({
-        command: 'plugin remove',
-        summary: 'Removes the plugin from ~/.config/devaudit/plugins/.',
-        trackedIn: TRACKING_ISSUE,
-      }),
-    );
+    .description('Remove a locally installed plugin by package or directory name')
+    .action(async (name: string) => {
+      await runPluginRemove({ name });
+    });
   pluginCmd
     .command('update')
-    .description('Update all installed plugins')
-    .action(
-      makeStub({
-        command: 'plugin update',
-        summary: 'Refreshes installed plugins to their latest compatible versions.',
-        trackedIn: TRACKING_ISSUE,
-      }),
-    );
+    .description('Update all installed plugins (git pull + npm install)')
+    .action(runPluginUpdate);
   const configCmd = program.command('config').description('CLI configuration (telemetry, default org, etc.)');
   configCmd
     .command('get <key>')

@@ -41,9 +41,4 @@ describe('stubbed commands (workstream B / D prereqs)', () => {
     expect(result.stdout + result.stderr).toContain('not implemented yet');
   }, 30_000);
 
-  it('plugin list exits non-zero with a "not implemented yet" message', async () => {
-    const result = await execa('node', [BIN, 'plugin', 'list'], { reject: false });
-    expect(result.exitCode).not.toBe(0);
-    expect(result.stdout + result.stderr).toContain('not implemented yet');
-  }, 30_000);
 });
