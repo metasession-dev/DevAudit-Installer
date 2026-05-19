@@ -95,7 +95,9 @@ export async function main(argv: readonly string[]): Promise<void> {
           baseUrl?: string;
           apiKey?: string;
         },
+        cmd,
       ) => {
+        const globals = cmd.optsWithGlobals();
         await runPush({
           projectSlug,
           requirementId,
@@ -112,6 +114,7 @@ export async function main(argv: readonly string[]): Promise<void> {
           ...(opts.branch !== undefined ? { branch: opts.branch } : {}),
           ...(opts.baseUrl !== undefined ? { baseUrl: opts.baseUrl } : {}),
           ...(opts.apiKey !== undefined ? { apiKey: opts.apiKey } : {}),
+          ...(globals.dryRun !== undefined ? { dryRun: Boolean(globals.dryRun) } : {}),
         });
       },
     );
