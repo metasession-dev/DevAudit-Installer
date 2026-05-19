@@ -7,7 +7,7 @@ import { runAuthLogout } from './commands/auth/logout.js';
 import { runAuthStatus } from './commands/auth/status.js';
 import { runStatus } from './commands/status.js';
 import { runPush } from './commands/push.js';
-import { runInstall } from './commands/install.js';
+import { runInstallCommand } from './commands/install.js';
 import { runUpdate } from './commands/update.js';
 import { makeStub } from './commands/stub.js';
 
@@ -41,9 +41,18 @@ export function main(argv: readonly string[]): void {
   applyCommonFlags(program);
   program
     .command('install [path]')
-    .description('Interactive onboarding for a consumer project (v0: wraps sdlc-onboard.sh)')
-    .action(async (path?: string) => {
-      await runInstall({ path });
+    .description('Interactive onboarding for a consumer project (native TS implementation)')
+    .option('--token <token>', 'PAT to use (otherwise reads DEVAUDIT_USER_TOKEN env or ~/.config/devaudit/auth.json)')
+    .option('--base-url <url>', 'override portal URL (defaults to DEVAUDIT_BASE_URL env or production)')
+    .action(async (path: string | undefined, cmdOpts: { token?: string; baseUrl?: string }, cmd) => {
+      const globals = cmd.optsWithGlobals();
+      await runInstallCommand({
+        ...(path !== undefined ? { path } : {}),
+        ...(cmdOpts.token !== undefined ? { token: cmdOpts.token } : {}),
+        ...(cmdOpts.baseUrl !== undefined ? { baseUrl: cmdOpts.baseUrl } : {}),
+        ...(globals.dryRun !== undefined ? { dryRun: Boolean(globals.dryRun) } : {}),
+        ...(globals.yes !== undefined ? { yes: Boolean(globals.yes) } : {}),
+      });
     });
   program
     .command('update <version> <paths...>')

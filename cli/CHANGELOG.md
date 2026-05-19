@@ -4,12 +4,15 @@ All notable changes to `@metasession-dev/devaudit-cli` are documented here. The 
 
 ## [Unreleased]
 
+### Added
+
+- Native TS port of `sdlc-onboard.sh` (workstream A milestone 3). `devaudit install` no longer shells out to bash; each of the 11 onboarding steps lives in its own module under `cli/src/install/`: auth-probe, detect-stack, prompts, write-config, project, api-key, github, hooks-bootstrap, branch-protection, sync-templates, done-report. Orchestrator threads `--dry-run` (planned actions, no mutations) and `--yes` (non-interactive — reads `sdlc-config.json` for defaults). Step 10 reuses the native `syncProject()` so the sync no longer shells out to `sync-sdlc.sh` either. `DevAuditClient.listApiKeys(projectId)` was added so step 6 stays idempotent against a portal-tracked `Onboarding-issued` key. 5 new vitest cases cover dry-run, full-run with mocked HTTP+gh, missing stack, PAT rejection, and the existing-key warn path.
+
 ### Planned for v0.1.0
 
-- Native TS port of `sdlc-onboard.sh` (workstream A milestone 3 — currently a thin wrapper)
-- Native TS port of `sync-sdlc.sh` (workstream A milestone 4 — currently a thin wrapper)
+- Native TS port of `sync-sdlc.sh` (workstream A milestone 4) — landed in #7
 - `--json` output mode tightened on every command, with a versioned event schema
-- `--yes` / `--dry-run` honoured by every mutating command
+- `--yes` / `--dry-run` honoured by every mutating command — `install` honors both; other commands TBD
 - npm publish (private scope first)
 
 ## [0.0.1] — 2026-05-18
