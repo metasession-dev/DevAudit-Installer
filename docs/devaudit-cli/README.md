@@ -26,11 +26,11 @@ This CLI is a **port and expansion** of capabilities that already ship as bash s
 
 | Capability                                          | Implemented today as                                                                                                                                                             |
 | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Onboard a new consumer                              | `DevAudit-Installer/scripts/sdlc-onboard.sh` (11-step interactive bash flow, PR [#305](https://github.com/metasession-dev/devaudit/pull/305))                                           |
+| Onboard a new consumer                              | `DevAudit-Installer/scripts/sdlc-onboard.sh` (11-step interactive bash flow, originally tracked as portal repo PR #305, internal tracker)                                              |
 | Sync framework templates to consumers               | `DevAudit-Installer/scripts/sync-sdlc.sh` (reads `sdlc-config.json`, applies stack + host adapters)                                                                                     |
 | Upload evidence to the portal                       | `DevAudit-Installer/scripts/upload-evidence.sh`                                                                                                                      |
-| Stack/host abstraction (foundation for multi-stack) | `sdlc/files/stacks/{node,python}/adapter.json` + `sdlc/files/hosts/railway/adapter.json` (polyglot architecture, [#287](https://github.com/metasession-dev/devaudit/issues/287)) |
-| Reusable skills                                     | `sdlc/files/_common/skills/` (Claude Code Skills as a first-class SDLC artefact, [#307](https://github.com/metasession-dev/devaudit/pull/307))                                   |
+| Stack/host abstraction (foundation for multi-stack) | `sdlc/files/stacks/{node,python}/adapter.json` + `sdlc/files/hosts/railway/adapter.json` (polyglot architecture, portal repo issue #287, internal tracker)                       |
+| Reusable skills                                     | `sdlc/files/_common/skills/` (Claude Code Skills as a first-class SDLC artefact, portal repo PR #307, internal tracker)                                                          |
 | DevAudit project + API key issuance                 | DevAudit REST API: `GET/POST /api/projects` + `GET/POST /api/projects/{id}/api-keys`                                                                                             |
 | GitHub secrets + branch protection                  | `gh` CLI calls inside `sdlc-onboard.sh`                                                                                                                                          |
 | Org-level groupings (nascent)                       | DevAudit portal: `/admin/organisations`                                                                                                                                          |
@@ -93,15 +93,15 @@ Common flags on every command:
 
 ### Stack support
 
-Stacks are first-class adapters consumed by the CLI from `sdlc/files/stacks/<name>/`. The CLI ships with adapters for:
+Stacks are first-class adapters consumed by the CLI from `sdlc/files/stacks/<name>/`. End-state target — the CLI ships with adapters for:
 
-- **Node** (`adapter.json`) — npm, husky, commitlint, ESLint, Prettier, TypeScript, Playwright
-- **Python** (`adapter.json`) — pip, pre-commit, ruff, mypy, pytest
-- **Go** (`adapter.json`) — lefthook, golangci-lint, go test, go vet, govulncheck
-- **Rust** (`adapter.json`) — cargo-husky, clippy, cargo test, cargo audit
-- **Java** (`adapter.json`) — Maven/Gradle, spotless, spotbugs, JUnit, OWASP dependency-check
-- **.NET** (`adapter.json`) — dotnet-format, Roslyn analyzers, xUnit, security-code-scan
-- **PHP** (`adapter.json`) — Composer, PHP_CodeSniffer, PHPStan, PHPUnit
+- **Node** — _shipped_. npm, husky, commitlint, ESLint, Prettier, TypeScript, Playwright
+- **Python** — _shipped_. pip, pre-commit, ruff, mypy, pytest
+- **Go** — _planned_. lefthook, golangci-lint, go test, go vet, govulncheck
+- **Rust** — _planned_. cargo-husky, clippy, cargo test, cargo audit
+- **Java** — _planned_. Maven/Gradle, spotless, spotbugs, JUnit, OWASP dependency-check
+- **.NET** — _planned_. dotnet-format, Roslyn analyzers, xUnit, security-code-scan
+- **PHP** — _planned_. Composer, PHP_CodeSniffer, PHPStan, PHPUnit
 
 UI frameworks (Next.js, React, Angular, Vue) are **not** stacks — they're choices within a stack. The CLI doesn't ask about them. Monorepos are handled via `working_directory` in `sdlc-config.json`, not a separate stack.
 
@@ -109,9 +109,10 @@ Adding a new stack remains additive — one `adapter.json` + a `hooks/` director
 
 ### Hosts
 
-Host adapters live in `sdlc/files/hosts/<name>/`. Shipped:
+Host adapters live in `sdlc/files/hosts/<name>/`. End-state target:
 
-- **Railway**, **Vercel**, **Fly.io**, **Kubernetes**, **AWS ECS**, **Self-hosted Docker**
+- **Railway** — _shipped_
+- **Vercel**, **Fly.io**, **Kubernetes**, **AWS ECS**, **Self-hosted Docker** — _planned_
 
 Auto-detected from project markers (`railway.toml`, `vercel.json`, `fly.toml`, `Dockerfile`, etc.) with operator override via `--host`.
 
@@ -185,13 +186,13 @@ First-party plugins shipping in-tree under `plugins/`:
 
 ### Distribution
 
-Multiple channels, all from a single source build:
+End-state target — multiple channels, all from a single source build:
 
-- **Homebrew tap** (`brew install metasession-dev/tap/devaudit`) — macOS/Linux native binary
-- **Scoop manifest** (`scoop install devaudit`) — Windows native binary
-- **`curl -fsSL https://devaudit.metasession.co/install.sh | sh`** — shell installer that detects OS/arch and grabs the right binary
-- **npm** (`npm i -g @metasession.co/devaudit-cli`) — for Node users who prefer it
-- **GitHub Releases** — raw binaries for direct download / system-package management
+- **npm** (`npm i -g @metasession.co/devaudit-cli`) — _shipped_. For Node users who prefer it; first published as v0.1.0 on 2026-05-19.
+- **GitHub Releases** — _shipped_ for source tarballs (auto-generated notes per tag). Native-binary attachments are _planned_.
+- **Homebrew tap** (`brew install metasession-dev/tap/devaudit`) — _planned_. macOS/Linux native binary.
+- **Scoop manifest** (`scoop install devaudit`) — _planned_. Windows native binary.
+- **`curl -fsSL https://devaudit.metasession.co/install.sh | sh`** — _planned_. Shell installer that detects OS/arch and grabs the right binary.
 
 Single-binary builds compile via **Node SEA** (Single Executable Application — bundled into Node 22+) — same TypeScript source tree, just a different build pipeline. No Go/Rust rewrite needed.
 
@@ -213,7 +214,7 @@ Single-binary builds compile via **Node SEA** (Single Executable Application —
 - Anything the CLI delegates to existing tools (running tests, building, deploying — those remain the stack's responsibility).
 - Replacing `gh` / `glab` / `git` — the CLI uses them when present, falls back to direct REST when not.
 - Building a DevAudit web-portal replacement — the portal exists at `devaudit.metasession.co` and this CLI is a complement, not a substitute.
-- AI-agent integration — Claude Code Skills already cover that surface ([#307](https://github.com/metasession-dev/devaudit/pull/307)).
+- AI-agent integration — Claude Code Skills already cover that surface (portal repo PR #307, internal tracker).
 
 ## Deliverables expected
 

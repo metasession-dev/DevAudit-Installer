@@ -4,6 +4,22 @@
 
 The DevAudit web portal (the running compliance service at <https://devaudit.metasession.co>) lives in a separate repository (`META-COMPLY`). This repo holds everything a consumer project needs to adopt the Metasession SDLC and to push evidence to the portal.
 
+## Install the CLI
+
+```sh
+npm install -g @metasession.co/devaudit-cli
+devaudit --help
+```
+
+Requires Node ≥ 22. Native binaries (no Node runtime) via brew / scoop / `curl | sh` are on the roadmap — see [`docs/devaudit-cli/`](./docs/devaudit-cli/README.md).
+
+| Package | Purpose |
+|---|---|
+| [`@metasession.co/devaudit-cli`](https://www.npmjs.com/package/@metasession.co/devaudit-cli) | The `devaudit` binary |
+| [`@metasession.co/devaudit-plugin-sdk`](https://www.npmjs.com/package/@metasession.co/devaudit-plugin-sdk) | Plugin contract types |
+| [`@metasession.co/devaudit-plugin-prisma`](https://www.npmjs.com/package/@metasession.co/devaudit-plugin-prisma) | First-party plugin — Prisma migration hooks |
+| [`@metasession.co/devaudit-plugin-evidence-export`](https://www.npmjs.com/package/@metasession.co/devaudit-plugin-evidence-export) | First-party plugin — bulk evidence bundle export |
+
 ## What's in here
 
 ```
@@ -91,7 +107,7 @@ Adding a new stack or host means dropping a new `adapter.json` + supporting file
 
 ## Future direction
 
-The bash installer is being replaced by a single-binary CLI (`devaudit`) that supports multi-stack, multi-provider Git, organisation policy enforcement, and a plugin marketplace. Design and engineering plan: [`docs/devaudit-cli/`](./docs/devaudit-cli/README.md).
+The bash installer is being replaced by the `devaudit` CLI — **v0.1.x is published to npm today** (see "Install the CLI" above) and supports the install / update / push / doctor / status / auth / plugin command surface. End-state goals (multi-provider Git, organisation policy, multi-stack adapters beyond Node + Python, single-binary distribution via brew/scoop/curl) are tracked in the [design brief](./docs/devaudit-cli/README.md) and [build plan](./docs/devaudit-cli/build-plan.md).
 
 ## Related repositories
 

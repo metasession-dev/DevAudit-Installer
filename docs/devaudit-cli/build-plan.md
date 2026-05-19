@@ -112,7 +112,7 @@ Portal-side work that must land before the CLI's enterprise features work end-to
 
 | Status | Item | Effort | Why |
 | --- | --- | --- | --- |
-| ✓ done | `X-DevAudit-Token` PAT header dual-accept | shipped | CLI can authenticate against the portal via PAT today; landed in [`devaudit#318`](https://github.com/metasession-dev/devaudit/pull/318) |
+| ✓ done | `X-DevAudit-Token` PAT header dual-accept | shipped | CLI can authenticate against the portal via PAT today; landed in portal repo PR #318 (internal tracker) |
 | pending | `/cli-auth` OAuth callback endpoint | 1 week | CLI's browser auth flow depends on it (PAT-paste fallback works today via the dual-accepted header) |
 | pending | Org-level `org-config.json` storage + API | 2 weeks | Shared configuration across an org's projects |
 | pending | Policy engine (CRUD policies, evaluation results storage) | 3 weeks | `devaudit org policy apply` writes results here |

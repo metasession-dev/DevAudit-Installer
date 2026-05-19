@@ -18,13 +18,17 @@ When loaded, this plugin contributes:
 
 ## Install
 
-The plugin lives under `plugins/devaudit-plugin-prisma/` in this repo while we settle the contract. To install it into a consumer machine:
+```sh
+devaudit plugin install @metasession.co/devaudit-plugin-prisma
+```
+
+The plugin is published on npm; the CLI installs it from there. The source also lives in-tree under `plugins/devaudit-plugin-prisma/` for first-party development.
+
+Pre-release / from-source install (against a Git tag or commit) remains available:
 
 ```sh
 devaudit plugin install https://github.com/metasession-dev/DevAudit-Installer.git#plugins/devaudit-plugin-prisma
 ```
-
-(Once the portal plugin registry is live, the install will become `devaudit plugin install devaudit-plugin-prisma`.)
 
 ## Compatibility
 

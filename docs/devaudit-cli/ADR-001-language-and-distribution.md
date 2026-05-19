@@ -85,7 +85,7 @@ Cons:
 
 - Cross-platform broken (no Windows native).
 - Poor interactive UX. Hard to JSON-ify cleanly. Hard to test.
-- Errors silent by default (recent example: [#313](https://github.com/metasession-dev/devaudit/issues/313)).
+- Errors silent by default (recent example: portal repo issue #313, internal tracker).
 - No single-binary path. No plugin model.
 - Doesn't scale to the enterprise feature set the README describes.
 
