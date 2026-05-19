@@ -1,0 +1,45 @@
+{
+  "name": "@metasession-dev/devaudit-plugin-sdk",
+  "version": "0.0.1",
+  "description": "DevAudit CLI plugin contract — interfaces, manifest schema, and lifecycle hooks that DevAudit plugins compile against.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.9.0",
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.5"
+  },
+  "publishConfig": {
+    "access": "restricted"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/metasession-dev/DevAudit-Installer",
+    "directory": "plugin-sdk"
+  },
+  "license": "UNLICENSED",
+  "private": true
+}
