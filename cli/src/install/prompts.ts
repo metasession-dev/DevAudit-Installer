@@ -40,6 +40,11 @@ async function planFromConfig(
   }
   const slug = cfg?.project_slug ?? defaultSlug(ctx.projectName);
   const runtimeKey = detected.stack === 'node' ? cfg?.node_version : cfg?.python_version;
+  const cfgRaw = cfg as Record<string, unknown> | null;
+  const existingProdUrlSecret =
+    typeof cfgRaw?.['production_url_secret'] === 'string'
+      ? (cfgRaw['production_url_secret'] as string)
+      : undefined;
   return {
     stack: detected.stack,
     host: 'railway',
@@ -47,7 +52,7 @@ async function planFromConfig(
     runtimeVersion: String(runtimeKey ?? defaults.runtimeVersion),
     sourceDirs: cfg?.source_dirs ?? defaults.sourceDirs,
     workingDirectory: cfg?.working_directory ?? detected.workingDirectory,
-    prodUrlSecretName: prodUrlSecretDefault(slug),
+    prodUrlSecretName: existingProdUrlSecret ?? prodUrlSecretDefault(slug),
     prodUrlValue: '',
   };
 }
