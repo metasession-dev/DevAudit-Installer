@@ -15,6 +15,12 @@ export interface ApiKeyIssued {
   readonly plainTextKey: string;
 }
 
+export interface ApiKeySummary {
+  readonly id: string;
+  readonly name: string;
+  readonly revoked_at: string | null;
+}
+
 export class DevAuditApiError extends Error {
   constructor(
     message: string,
@@ -50,6 +56,13 @@ export class DevAuditClient {
   async createProject(slug: string, name: string): Promise<DevAuditProject> {
     const res = await this.request('POST', '/api/projects', { slug, name });
     return (await res.json()) as DevAuditProject;
+  }
+
+  async listApiKeys(projectId: string): Promise<readonly ApiKeySummary[]> {
+    const res = await this.request('GET', `/api/projects/${projectId}/api-keys`);
+    const json = (await res.json()) as ApiKeySummary[] | { keys?: ApiKeySummary[] };
+    if (Array.isArray(json)) return json;
+    return json.keys ?? [];
   }
 
   async issueApiKey(projectId: string, name: string): Promise<ApiKeyIssued> {
