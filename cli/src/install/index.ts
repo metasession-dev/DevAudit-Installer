@@ -3,6 +3,7 @@ import { resolveToken } from '../lib/auth.js';
 import { resolveInstallerRoot } from '../lib/installer-root.js';
 import { isDir } from '../lib/fs-utils.js';
 import { logger } from '../lib/logger.js';
+import { getGitProvider, type GitProvider } from '../lib/git-provider/index.js';
 import { runAuthProbe } from './auth-probe.js';
 import { detectStack } from './detect-stack.js';
 import { collectPlan } from './prompts.js';
@@ -22,6 +23,7 @@ export interface RunInstallOptions {
   readonly baseUrl?: string;
   readonly dryRun?: boolean;
   readonly nonInteractive?: boolean;
+  readonly provider?: GitProvider;
 }
 
 export interface InstallReport {
@@ -61,15 +63,48 @@ export async function runInstall(options: RunInstallOptions): Promise<InstallRep
   steps.push(await record(log, writeSdlcConfig(ctx, plan)));
   steps.push(await record(log, findOrCreateProject(ctx, plan)));
   steps.push(await record(log, issueApiKey(ctx, plan)));
-  steps.push(await record(log, setGithubSecrets(ctx, plan)));
+  const providerResolution = await resolveProvider(options, ctx);
+  if (providerResolution.provider) {
+    steps.push(await record(log, setGithubSecrets(ctx, plan, providerResolution.provider)));
+  } else {
+    const skipped: StepResult = {
+      step: '7/11 Set GitHub secrets and variables',
+      status: 'skipped',
+      message: providerResolution.reason ?? 'no git provider available',
+    };
+    steps.push(skipped);
+    log.warn(`[${skipped.step}] SKIPPED ${skipped.message}`);
+  }
   steps.push(await record(log, bootstrapHooks(ctx, plan)));
-  steps.push(await record(log, configureBranchProtection(ctx)));
+  if (providerResolution.provider) {
+    steps.push(await record(log, configureBranchProtection(ctx, providerResolution.provider)));
+  } else {
+    const skipped: StepResult = {
+      step: '9/11 Configure branch protection',
+      status: 'skipped',
+      message: providerResolution.reason ?? 'no git provider available',
+    };
+    steps.push(skipped);
+    log.warn(`[${skipped.step}] SKIPPED ${skipped.message}`);
+  }
   steps.push(await record(log, syncTemplates(ctx)));
   const done = doneReport(ctx, plan);
   steps.push(done);
   log.success(`[${done.step}]`);
   log.log(done.message ?? '');
   return { project: projectName, projectPath, dryRun: ctx.dryRun, steps };
+}
+
+async function resolveProvider(
+  options: RunInstallOptions,
+  ctx: InstallContext,
+): Promise<{ provider: GitProvider | null; reason?: string }> {
+  if (options.provider) return { provider: options.provider };
+  try {
+    return { provider: await getGitProvider(ctx.projectPath) };
+  } catch (err) {
+    return { provider: null, reason: (err as Error).message };
+  }
 }
 
 async function resolveTokenForInstall(options: RunInstallOptions): Promise<{ token: string; baseUrl: string }> {

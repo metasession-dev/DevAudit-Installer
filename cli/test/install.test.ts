@@ -17,6 +17,37 @@ interface ExecaCall {
 
 const execaCalls: ExecaCall[] = [];
 
+interface ProviderCall {
+  readonly method: string;
+  readonly args: readonly unknown[];
+}
+
+const providerCalls: ProviderCall[] = [];
+
+function makeFakeProvider() {
+  return {
+    name: 'github' as const,
+    async getRepoMeta(_cwd: string) {
+      providerCalls.push({ method: 'getRepoMeta', args: [] });
+      return { owner: 'metasession-dev', name: 'fixture-app', defaultBranch: 'main' };
+    },
+    async setSecret(_cwd: string, name: string, value: string) {
+      providerCalls.push({ method: 'setSecret', args: [name, value.length] });
+    },
+    async setVariable(_cwd: string, name: string, value: string) {
+      providerCalls.push({ method: 'setVariable', args: [name, value] });
+    },
+    async applyBranchProtection(_cwd: string, branch: string, checks: readonly string[]) {
+      providerCalls.push({ method: 'applyBranchProtection', args: [branch, checks.length] });
+      return { applied: true };
+    },
+    async createPullRequest() {
+      providerCalls.push({ method: 'createPullRequest', args: [] });
+      return { url: 'https://github.com/metasession-dev/fixture-app/pull/1' };
+    },
+  };
+}
+
 vi.mock('execa', () => ({
   execa: async (file: string, args: readonly string[] = [], _opts: unknown = {}) => {
     execaCalls.push({ file, args });
@@ -94,6 +125,7 @@ afterAll(() => {
 
 afterEach(() => {
   execaCalls.length = 0;
+  providerCalls.length = 0;
   server.resetHandlers(...handlers);
 });
 
@@ -102,21 +134,26 @@ describe('runInstall — native TS install against a node fixture', () => {
     const { runInstall } = await import('../src/install/index.js');
     const dir = await buildNodeFixture();
     try {
-      const report = await runInstall({ path: dir, dryRun: true, nonInteractive: true });
+      const report = await runInstall({
+        path: dir,
+        dryRun: true,
+        nonInteractive: true,
+        provider: makeFakeProvider(),
+      });
       expect(report.dryRun).toBe(true);
       expect(report.steps.find((s) => s.step.startsWith('4/'))?.status).toBe('planned');
       expect(report.steps.find((s) => s.step.startsWith('5/'))?.status).toBe('planned');
       expect(report.steps.find((s) => s.step.startsWith('7/'))?.status).toBe('planned');
       // No write of sdlc-config.json in dry run
       await expect(fs.stat(join(dir, 'sdlc-config.json'))).rejects.toThrow();
-      // dry-run may call read-only `gh repo view` but never mutating commands
-      const mutating = execaCalls.filter(
-        (c) =>
-          (c.file === 'gh' && (c.args[0] === 'secret' || c.args[0] === 'variable' || c.args[1] === 'PUT')) ||
-          c.file === 'pre-commit' ||
-          c.file === 'npx',
-      );
+      // dry-run never invokes provider mutating methods
+      const mutating = providerCalls.filter((c) => c.method !== 'getRepoMeta');
       expect(mutating).toHaveLength(0);
+      // and never invokes mutating execa commands
+      const mutatingExeca = execaCalls.filter(
+        (c) => c.file === 'pre-commit' || c.file === 'npx',
+      );
+      expect(mutatingExeca).toHaveLength(0);
     } finally {
       await fs.rm(dir, { recursive: true, force: true });
     }
@@ -131,7 +168,12 @@ describe('runInstall — native TS install against a node fixture', () => {
       JSON.stringify({ project_slug: 'fixture-app', stack: 'node', host: 'railway', node_version: '20' }),
     );
     try {
-      const report = await runInstall({ path: dir, dryRun: false, nonInteractive: true });
+      const report = await runInstall({
+        path: dir,
+        dryRun: false,
+        nonInteractive: true,
+        provider: makeFakeProvider(),
+      });
       expect(report.dryRun).toBe(false);
       const stepByStart = (s: string) => report.steps.find((x) => x.step.startsWith(s));
       expect(stepByStart('1/')?.status).toBe('ok');
@@ -141,20 +183,21 @@ describe('runInstall — native TS install against a node fixture', () => {
       expect(stepByStart('6/')?.status).toBe('ok');
       expect(stepByStart('7/')?.status).toBe('ok');
       expect(stepByStart('8/')?.status).toBe('ok');
+      expect(stepByStart('9/')?.status).toBe('ok');
       expect(stepByStart('10/')?.status).toBe('ok');
       // sdlc-config.json was rewritten by step 4
       const written = JSON.parse(await fs.readFile(join(dir, 'sdlc-config.json'), 'utf-8'));
       expect(written.stack).toBe('node');
       expect(written.project_slug).toBe('fixture-app');
-      // gh secret set + gh variable set were called
-      const ghCalls = execaCalls.filter((c) => c.file === 'gh');
-      const secretNames = ghCalls
-        .filter((c) => c.args[0] === 'secret' && c.args[1] === 'set')
-        .map((c) => c.args[2]);
+      // provider was called for secrets + variable
+      const secretCalls = providerCalls.filter((c) => c.method === 'setSecret');
+      const secretNames = secretCalls.map((c) => c.args[0]);
       expect(secretNames).toContain('DEVAUDIT_API_KEY');
       expect(secretNames).toContain('DEVAUDIT_USER_TOKEN');
-      const variableCall = ghCalls.find((c) => c.args[0] === 'variable' && c.args[1] === 'set');
-      expect(variableCall?.args[2]).toBe('DEVAUDIT_BASE_URL');
+      const variableCall = providerCalls.find((c) => c.method === 'setVariable');
+      expect(variableCall?.args[0]).toBe('DEVAUDIT_BASE_URL');
+      // branch protection applied via provider
+      expect(providerCalls.find((c) => c.method === 'applyBranchProtection')).toBeDefined();
     } finally {
       await fs.rm(dir, { recursive: true, force: true });
     }
@@ -179,7 +222,9 @@ describe('runInstall — native TS install against a node fixture', () => {
       JSON.stringify({ project_slug: 'fixture-app', stack: 'node', host: 'railway', node_version: '20' }),
     );
     try {
-      await expect(runInstall({ path: dir, nonInteractive: true })).rejects.toThrow(/PAT rejected/);
+      await expect(
+        runInstall({ path: dir, nonInteractive: true, provider: makeFakeProvider() }),
+      ).rejects.toThrow(/PAT rejected/);
     } finally {
       await fs.rm(dir, { recursive: true, force: true });
     }
@@ -201,7 +246,11 @@ describe('runInstall — native TS install against a node fixture', () => {
       JSON.stringify({ project_slug: 'fixture-app', stack: 'node', host: 'railway', node_version: '20' }),
     );
     try {
-      const report = await runInstall({ path: dir, nonInteractive: true });
+      const report = await runInstall({
+        path: dir,
+        nonInteractive: true,
+        provider: makeFakeProvider(),
+      });
       const step6 = report.steps.find((s) => s.step.startsWith('6/'));
       expect(step6?.status).toBe('warn');
       expect(step6?.message).toMatch(/already exists/);
