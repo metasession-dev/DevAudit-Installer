@@ -47,6 +47,6 @@
     "url": "https://github.com/metasession-dev/DevAudit-Installer",
     "directory": "plugins/devaudit-plugin-prisma"
   },
-  "license": "UNLICENSED",
+  "license": "Apache-2.0",
   "private": true
 }
