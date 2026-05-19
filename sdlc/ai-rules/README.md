@@ -86,9 +86,11 @@ The AI rules act as guardrails and summaries. The `SDLC/` workflow files contain
 When SDLC templates are updated in DevAudit, propagate changes to consuming projects using the sync script:
 
 ```bash
-# From DevAudit root
-./scripts/sync-sdlc.sh v1.1.0 ../wawagardenbar-app ../META-ATS
+# From DevAudit root. Pass one path per active consumer.
+./scripts/sync-sdlc.sh v1.1.0 ../wawagardenbar-app
 ```
+
+Only `wawagardenbar-app` is an active consumer as of 2026-05-19; META-AGENT / META-ATS / META-JOBS onboarding attempts were reverted (see [docs/consuming-projects.md](../../docs/consuming-projects.md)). The sync command accepts multiple consumer paths when more projects come back online.
 
 This:
 1. Tags DevAudit as `sdlc-v1.1.0` and pushes the tag

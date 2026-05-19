@@ -178,8 +178,9 @@ Plugin extensibility surface.
                               ┌─────────────────────────┐
                               │  Integration + release  │
                               │  smoke tests against    │
-                              │  META-ATS, WGB, META-   │
-                              │  JOBS, META-AGENT       │
+                              │  WGB (only active       │
+                              │  consumer as of         │
+                              │  2026-05-19)            │
                               └─────────────────────────┘
 ```
 

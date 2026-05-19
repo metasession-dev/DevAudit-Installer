@@ -64,7 +64,10 @@ All templates assume these gates: TypeScript (0 errors), SAST/Semgrep (0 high/cr
 After updating SDLC templates, sync to consuming projects:
 
 ```bash
-./scripts/sync-sdlc.sh v1.x.0 ../wawagardenbar-app ../META-ATS
+# Pass one path per active consumer. Only WGB is live as of 2026-05-19.
+./scripts/sync-sdlc.sh v1.x.0 ../wawagardenbar-app
 ```
 
 This tags DevAudit, copies all templates (workflow files, AI rules, hooks, scripts, CI templates), and updates tag references in the consuming project's CI workflows. Review the diff in each project before committing.
+
+META-AGENT / META-ATS / META-JOBS onboarding attempts were reverted (see [docs/consuming-projects.md](../docs/consuming-projects.md)); pass their paths to the same command if and when they return as live consumers.
