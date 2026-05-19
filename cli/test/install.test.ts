@@ -203,6 +203,70 @@ describe('runInstall — native TS install against a node fixture', () => {
     }
   }, 60_000);
 
+  it('preserves rich sdlc-config fields when re-running --yes on an existing consumer', async () => {
+    const { runInstall } = await import('../src/install/index.js');
+    const dir = await buildNodeFixture();
+    // Seed a richly customized config — mirrors WGB's shape (runner: self-hosted,
+    // sast_baseline > 0, mongodb db service, custom build_env, custom prod-url secret)
+    const seeded = {
+      project_slug: 'fixture-app',
+      stack: 'node',
+      host: 'railway',
+      node_version: 20,
+      working_directory: '.',
+      source_dirs: 'app/ lib/ services/',
+      production_url_secret: 'CUSTOM_PROD_URL',
+      runner: 'self-hosted',
+      sast_baseline: 6,
+      accepted_dep_risks: 'xlsx',
+      database_service: 'mongodb',
+      database_image: 'mongo:7',
+      database_port: '27017',
+      database_env: { MONGODB_DB_NAME: 'fixture_test' },
+      app_env: { CUSTOM_APP_FLAG: 'on' },
+      build_env: { CUSTOM_BUILD_FLAG: 'true' },
+      e2e_project: 'chromium',
+      e2e_start_command: 'npm run dev',
+      paths_ignore: ['SDLC/**', 'compliance/**', 'custom/**'],
+      devaudit: { base_url: BASE_URL, project_slug: 'fixture-app', api_key_secret: 'DEVAUDIT_API_KEY' },
+      uat: { enabled: true, url: 'https://uat.example.com', required_risk_classes: ['payment'] },
+      custom_field: { lives_here: true },
+    };
+    await fs.writeFile(join(dir, 'sdlc-config.json'), JSON.stringify(seeded));
+    try {
+      await runInstall({
+        path: dir,
+        dryRun: false,
+        nonInteractive: true,
+        provider: makeFakeProvider(),
+      });
+      const after = JSON.parse(await fs.readFile(join(dir, 'sdlc-config.json'), 'utf-8'));
+      // Wizard-owned fields still come from the plan
+      expect(after.project_slug).toBe('fixture-app');
+      expect(after.stack).toBe('node');
+      expect(after.host).toBe('railway');
+      // Customizations preserved
+      expect(after.runner).toBe('self-hosted');
+      expect(after.sast_baseline).toBe(6);
+      expect(after.accepted_dep_risks).toBe('xlsx');
+      expect(after.database_service).toBe('mongodb');
+      expect(after.database_image).toBe('mongo:7');
+      expect(after.database_env.MONGODB_DB_NAME).toBe('fixture_test');
+      expect(after.app_env.CUSTOM_APP_FLAG).toBe('on');
+      expect(after.build_env.CUSTOM_BUILD_FLAG).toBe('true');
+      expect(after.e2e_project).toBe('chromium');
+      expect(after.e2e_start_command).toBe('npm run dev');
+      expect(after.paths_ignore).toContain('custom/**');
+      expect(after.uat.enabled).toBe(true);
+      expect(after.uat.url).toBe('https://uat.example.com');
+      expect(after.production_url_secret).toBe('CUSTOM_PROD_URL');
+      // Unknown / future fields the wizard doesn't know about are preserved too
+      expect(after.custom_field).toEqual({ lives_here: true });
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
   it('throws when no package.json or pyproject.toml is found', async () => {
     const { runInstall } = await import('../src/install/index.js');
     const dir = await fs.mkdtemp(join(tmpdir(), 'cli-install-empty-'));
