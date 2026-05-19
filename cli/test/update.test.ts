@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { promises as fs } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { dirname, resolve } from 'node:path';
+import { basename, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { syncProject } from '../src/update/index.js';
 
@@ -73,7 +73,7 @@ describe('syncProject — native TS sync against a fixture', () => {
 
   it('runs end-to-end and emits expected files', async () => {
     const report = await syncProject(fixtureDir);
-    expect(report.project).toBe(fixtureDir.split('/').pop());
+    expect(report.project).toBe(basename(fixtureDir));
     expect(report.stack).toBe('node');
     expect(report.host).toBe('railway');
     expect(report.totalFilesSynced).toBeGreaterThan(20);
