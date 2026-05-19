@@ -1,5 +1,11 @@
 import { execa } from 'execa';
+import { resolve } from 'node:path';
 import { logger } from '../lib/logger.js';
+import { discoverPlugins, buildPluginContext, runHook, type LoadedPlugin } from '../lib/plugin/index.js';
+
+export interface DoctorOptions {
+  readonly plugins?: readonly LoadedPlugin[];
+}
 
 interface CheckResult {
   readonly name: string;
@@ -26,7 +32,7 @@ async function checkNodeVersion(): Promise<CheckResult> {
   return { name: 'node', ok, detail: `v${version} (require >=22)` };
 }
 
-export async function runDoctor(): Promise<void> {
+export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
   const log = logger();
   log.info('Running devaudit doctor — checking required tools...\n');
   const checks: readonly CheckResult[] = [
@@ -43,6 +49,11 @@ export async function runDoctor(): Promise<void> {
     log.log(`  ${marker} ${check.name.padEnd(8)} ${check.detail}`);
   }
   log.log('');
+  const plugins = options.plugins ?? (await discoverPlugins()).loaded;
+  if (plugins.length > 0) {
+    const ctx = await buildPluginContext({ projectPath: resolve(process.cwd()) });
+    await runHook(plugins, 'onDoctor', ctx);
+  }
   if (allOk) {
     log.success('All required tools present.');
     process.exit(0);

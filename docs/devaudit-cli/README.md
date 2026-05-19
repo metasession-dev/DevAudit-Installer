@@ -172,9 +172,10 @@ Organisations are first-class entities in DevAudit (the portal already has `/adm
 
 Plugins extend the CLI with org-specific or stack-specific behaviour:
 
-- **Plugin SDK**: TypeScript package (`@metasession-dev/devaudit-plugin-sdk`) defines the plugin contract.
-- **Plugin registry**: Plugins are discovered via the DevAudit portal's `/plugins` registry. Org-private plugins ship from private npm registries or Git URLs.
-- **CLI integration**: `devaudit plugin install/list/remove/update` manages the local plugin set. Plugins register their own commands under `devaudit <plugin-name> <sub-cmd>`.
+- **Plugin SDK** — _shipped_. TypeScript package (`@metasession-dev/devaudit-plugin-sdk`) defines the plugin contract: `Plugin` / `PluginContext` / `PluginManifest` types, 9 lifecycle hooks (`beforeInstall`, `afterInstall`, `beforeUpdate`, `afterUpdate`, `beforePush`, `afterPush`, `beforeSync`, `afterSync`, `onDoctor`), and a zero-dep `validateManifest()` shape checker.
+- **Plugin loader** — _shipped_. The CLI scans `~/.config/devaudit/plugins/<name>/` at startup, validates each manifest, dynamic-imports the main module, and registers plugin-contributed commands under `devaudit <plugin-name> <sub-cmd>`. Lifecycle hooks fire in `install` / `update` / `push` / `doctor` with per-plugin error isolation — a misbehaving plugin can't crash the CLI.
+- **Plugin registry** — _planned_. Plugins will be discovered via the DevAudit portal's `/plugins` registry. Org-private plugins will ship from private npm registries or Git URLs. Until the registry lands, plugins must be placed in `~/.config/devaudit/plugins/<name>/` manually.
+- **`devaudit plugin install/list/remove/update`** — _stubbed_. These commands print "not yet implemented"; pending the portal registry above.
 
 Initial first-party plugins to ship in-tree:
 
