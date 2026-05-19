@@ -4,6 +4,10 @@ All notable changes to `@metasession.co/devaudit-plugin-evidence-export` are doc
 
 ## [Unreleased]
 
+## [0.1.1] — 2026-05-19
+
+Version bump in lockstep with `@metasession.co/devaudit-cli@0.1.1`. No source changes.
+
 ## [0.1.0] — 2026-05-19
 
 First public release. Package renamed from unscoped `devaudit-plugin-evidence-export` to scoped `@metasession.co/devaudit-plugin-evidence-export`. Repo flipped public; Apache-2.0 licensed. Published to npmjs.org with SLSA provenance. No behaviour change from v0.0.1.
