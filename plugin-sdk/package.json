@@ -40,6 +40,6 @@
     "url": "https://github.com/metasession-dev/DevAudit-Installer",
     "directory": "plugin-sdk"
   },
-  "license": "UNLICENSED",
+  "license": "Apache-2.0",
   "private": true
 }
