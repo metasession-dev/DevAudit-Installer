@@ -1,9 +1,16 @@
 import { syncAll } from '../update/index.js';
 import { logger } from '../lib/logger.js';
+import {
+  discoverPlugins,
+  buildPluginContext,
+  runHook,
+  type LoadedPlugin,
+} from '../lib/plugin/index.js';
 
 export interface UpdateOptions {
   readonly version?: string;
   readonly paths: readonly string[];
+  readonly plugins?: readonly LoadedPlugin[];
 }
 
 /**
@@ -23,7 +30,20 @@ export async function runUpdate(options: UpdateOptions): Promise<void> {
     log.error('No project paths provided. Usage: devaudit update <version> <path> [path...]');
     process.exit(2);
   }
+  const plugins = options.plugins ?? (await discoverPlugins()).loaded;
+  for (const projectPath of options.paths) {
+    if (plugins.length > 0) {
+      const ctx = await buildPluginContext({ projectPath });
+      await runHook(plugins, 'beforeSync', ctx);
+    }
+  }
   await syncAll(options.paths);
+  for (const projectPath of options.paths) {
+    if (plugins.length > 0) {
+      const ctx = await buildPluginContext({ projectPath });
+      await runHook(plugins, 'afterSync', ctx);
+    }
+  }
   log.success('=== Sync Complete ===');
   log.log('');
   log.log('Next steps for each consuming project:');

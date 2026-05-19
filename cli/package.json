@@ -32,7 +32,8 @@
     "@clack/prompts": "^0.8.2",
     "consola": "^3.2.3",
     "execa": "^9.5.1",
-    "env-paths": "^3.0.0"
+    "env-paths": "^3.0.0",
+    "@metasession-dev/devaudit-plugin-sdk": "file:../plugin-sdk"
   },
   "devDependencies": {
     "@types/node": "^22.9.0",

@@ -10,6 +10,8 @@ import { runPush } from './commands/push.js';
 import { runInstallCommand } from './commands/install.js';
 import { runUpdate } from './commands/update.js';
 import { makeStub } from './commands/stub.js';
+import { discoverPlugins, registerPluginCommands } from './lib/plugin/index.js';
+import { logger } from './lib/logger.js';
 
 const TRACKING_ISSUE = 'https://github.com/metasession-dev/DevAudit-Installer/issues/1';
 
@@ -30,7 +32,7 @@ function applyCommonFlags(program: Command): void {
   });
 }
 
-export function main(argv: readonly string[]): void {
+export async function main(argv: readonly string[]): Promise<void> {
   const program = new Command();
   program
     .name('devaudit')
@@ -257,7 +259,19 @@ export function main(argv: readonly string[]): void {
         trackedIn: TRACKING_ISSUE,
       }),
     );
+  const discovery = await discoverPlugins();
+  if (discovery.failures.length > 0) {
+    const log = logger();
+    for (const f of discovery.failures) {
+      log.warn(`Plugin at ${f.dir} failed to load: ${f.reason}`);
+    }
+  }
+  registerPluginCommands(program, discovery.loaded);
   program.parse(argv);
 }
 
-main(process.argv);
+main(process.argv).catch((err: unknown) => {
+  const log = logger();
+  log.error((err as Error).message);
+  process.exit(1);
+});

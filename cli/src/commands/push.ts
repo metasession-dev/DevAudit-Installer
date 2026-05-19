@@ -1,5 +1,7 @@
+import { resolve } from 'node:path';
 import { uploadEvidence } from '../lib/ci-upload.js';
 import { logger } from '../lib/logger.js';
+import { discoverPlugins, buildPluginContext, runHook, type LoadedPlugin } from '../lib/plugin/index.js';
 
 export interface PushOptions {
   readonly projectSlug: string;
@@ -15,6 +17,7 @@ export interface PushOptions {
   readonly branch?: string;
   readonly baseUrl?: string;
   readonly apiKey?: string;
+  readonly plugins?: readonly LoadedPlugin[];
 }
 
 const DEFAULT_BASE_URL = 'https://devaudit.metasession.co';
@@ -35,6 +38,12 @@ export async function runPush(options: PushOptions): Promise<void> {
   log.info(
     `Uploading ${options.filePath} (project=${options.projectSlug} req=${options.requirementId} type=${options.evidenceType}) → ${baseUrl}`,
   );
+  const plugins = options.plugins ?? (await discoverPlugins()).loaded;
+  const projectPath = resolve(process.cwd());
+  if (plugins.length > 0) {
+    const ctx = await buildPluginContext({ projectPath });
+    await runHook(plugins, 'beforePush', ctx);
+  }
   const results = await uploadEvidence({
     projectSlug: options.projectSlug,
     requirementId: options.requirementId,
@@ -63,5 +72,9 @@ export async function runPush(options: PushOptions): Promise<void> {
   }
   log.log('');
   log.info(`Uploaded: ${okCount} succeeded, ${failCount} failed.`);
+  if (plugins.length > 0) {
+    const ctx = await buildPluginContext({ projectPath });
+    await runHook(plugins, 'afterPush', ctx);
+  }
   if (failCount > 0) process.exit(4);
 }

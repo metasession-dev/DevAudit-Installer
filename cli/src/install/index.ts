@@ -4,6 +4,12 @@ import { resolveInstallerRoot } from '../lib/installer-root.js';
 import { isDir } from '../lib/fs-utils.js';
 import { logger } from '../lib/logger.js';
 import { getGitProvider, type GitProvider } from '../lib/git-provider/index.js';
+import {
+  discoverPlugins,
+  buildPluginContext,
+  runHook,
+  type LoadedPlugin,
+} from '../lib/plugin/index.js';
 import { runAuthProbe } from './auth-probe.js';
 import { detectStack } from './detect-stack.js';
 import { collectPlan } from './prompts.js';
@@ -24,6 +30,7 @@ export interface RunInstallOptions {
   readonly dryRun?: boolean;
   readonly nonInteractive?: boolean;
   readonly provider?: GitProvider;
+  readonly plugins?: readonly LoadedPlugin[];
 }
 
 export interface InstallReport {
@@ -54,6 +61,11 @@ export async function runInstall(options: RunInstallOptions): Promise<InstallRep
   banner(ctx);
   const steps: StepResult[] = [];
   steps.push(await record(log, runAuthProbe(ctx)));
+  const plugins = options.plugins ?? (await discoverPlugins()).loaded;
+  if (plugins.length > 0 && !ctx.dryRun) {
+    const pluginCtx = await buildPluginContext({ projectPath: ctx.projectPath });
+    await runHook(plugins, 'beforeInstall', pluginCtx);
+  }
   const { result: detectResult, detected } = await detectStack(ctx);
   steps.push(await record(log, Promise.resolve(detectResult)));
   const plan: InstallPlan = await collectPlan(ctx, detected);
@@ -92,6 +104,10 @@ export async function runInstall(options: RunInstallOptions): Promise<InstallRep
   steps.push(done);
   log.success(`[${done.step}]`);
   log.log(done.message ?? '');
+  if (plugins.length > 0 && !ctx.dryRun) {
+    const pluginCtx = await buildPluginContext({ projectPath: ctx.projectPath });
+    await runHook(plugins, 'afterInstall', pluginCtx);
+  }
   return { project: projectName, projectPath, dryRun: ctx.dryRun, steps };
 }
 
