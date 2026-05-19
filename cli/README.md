@@ -20,23 +20,26 @@ Requires Node ≥ 22. Native binaries (no Node runtime needed) are on the roadma
 - `devaudit --help` / `--version`
 - `devaudit doctor` — checks `node` (>=22), `git`, `gh`, `jq`, `curl` are on PATH
 - `devaudit status [path]` — reads `sdlc-config.json` from a consumer project, prints stack/host/slug/source-dirs, and reports which framework files are present
+- `devaudit install [path]` — **native TS, 11-step interactive onboarding** under `src/install/` (auth-probe → detect-stack → prompts → write-config → project → api-key → github → hooks-bootstrap → branch-protection → sync-templates → done-report). Replaces `scripts/sdlc-onboard.sh`; no shell-out.
+- `devaudit update <version> <paths...>` — **native TS, multi-project template sync** under `src/update/`. Reads each consumer's `sdlc-config.json`, copies framework files, fires `beforeSync` / `afterSync` plugin hooks. Replaces `scripts/sync-sdlc.sh`; no shell-out.
+- `devaudit push <slug> <req-id> <type> <file>` — uploads evidence to the portal (port of `upload-evidence.sh`; file or directory; retries on 429/5xx with backoff)
 - `devaudit auth login` — interactive PAT paste flow; validates against the portal; stores at `~/.config/devaudit/auth.json` (mode 0600)
 - `devaudit auth logout` — wipes the cached token
 - `devaudit auth status` — verifies the cached token (or `DEVAUDIT_USER_TOKEN` env var) by calling `GET /api/projects`
-- `devaudit push <slug> <req-id> <type> <file>` — uploads evidence to the portal (port of `upload-evidence.sh`; file or directory; retries on 429/5xx with backoff)
-- `devaudit install [path]` — **v0 wrapper** that shells out to `scripts/sdlc-onboard.sh`. Native TS port is workstream A milestone 3.
-- `devaudit update <version> <paths...>` — **v0 wrapper** that shells out to `scripts/sync-sdlc.sh`. Native TS port is workstream A milestone 4.
+- `devaudit plugin list` — discovers plugins in `~/.config/devaudit/plugins/`, validates manifests, reports load state
+- `devaudit plugin install <source>` — npm-name or Git URL; clones / installs / validates / registers
+- `devaudit plugin remove <name>` — deregisters and rm-rfs the plugin directory
+- `devaudit plugin update` — git-pulls each plugin directory
 
-7 vitest tests; all green.
+40 vitest tests across 8 test files; all green on Linux + macOS + Windows.
 
 ### Stubbed (exit code 1 + helpful pointer)
 
-These need workstream B (portal-side) prereqs or workstream D (plugin SDK) before they can do anything real:
+These need workstream B (portal-side) prereqs before they can do anything real:
 
-- `devaudit org list / switch / policy list|apply / report`
-- `devaudit plugin list / install / remove / update`
-- `devaudit config get / set / list`
-- `devaudit upgrade` (self-update — needs distribution channel established first)
+- `devaudit org list / switch / policy list|apply / report` — needs portal RBAC + org endpoints
+- `devaudit config get / set / list` — config file already exists, just no CLI surface yet
+- `devaudit upgrade` — self-update; needs distribution channel established first (Step 2 of trajectory — native binaries via brew/scoop/curl)
 
 ## Develop locally
 

@@ -56,18 +56,15 @@ Requires Node ≥ 22. Native binaries (no Node runtime) via brew / scoop / `curl
 
 ## Quick start — onboarding a consumer project
 
-The current onboarding flow is the bash installer. A polished CLI (`devaudit`) is in design — see [`docs/devaudit-cli/`](./docs/devaudit-cli/README.md).
-
 ```bash
 # 1. Issue a DevAudit Personal Access Token at https://devaudit.metasession.co/settings/tokens
 export DEVAUDIT_USER_TOKEN="mctok_..."
 
-# 2. Run the installer against your consumer project's repo
-cd path/to/DevAudit-Installer
-./scripts/sdlc-onboard.sh ../path/to/your-consumer-project
+# 2. Run the CLI against your consumer project's repo
+devaudit install ../path/to/your-consumer-project
 ```
 
-The script will:
+The 11-step native onboarding flow will:
 
 1. Validate the PAT against the DevAudit portal.
 2. Detect your project's stack (Node or Python) and host (Railway).
@@ -81,19 +78,22 @@ Full walkthrough: [`docs/onboarding.md`](./docs/onboarding.md).
 
 ## Quick start — syncing an existing consumer
 
-When the framework is updated (a new version is tagged on this repo), re-sync each consumer:
+When the framework is updated, re-sync each consumer:
 
 ```bash
-cd path/to/DevAudit-Installer
-./scripts/sync-sdlc.sh v1.x.y ../path/to/consumer-1 ../path/to/consumer-2
+devaudit update v1.x.y ../path/to/consumer-1 ../path/to/consumer-2
 ```
 
-The script tags the framework, then for each consumer it:
+For each consumer the CLI:
 
 - Reads the consumer's `sdlc-config.json` to resolve their stack + host adapters
 - Copies all templates from `sdlc/files/` into the consumer's tree
-- Installs any missing devDependencies declared by the stack adapter
+- Fires plugin `beforeSync` / `afterSync` lifecycle hooks
 - Leaves the working tree dirty for you to review + commit
+
+### Legacy bash flow
+
+The original bash scripts (`scripts/sdlc-onboard.sh`, `scripts/sync-sdlc.sh`) remain in-tree as a fallback for cases where the CLI can't be installed (e.g. no Node ≥ 22 available, air-gapped onboarding). Behaviour is equivalent; the CLI is the supported path going forward.
 
 ## Architecture
 

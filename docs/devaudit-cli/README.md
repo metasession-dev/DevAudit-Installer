@@ -22,20 +22,21 @@ This document describes the **end-state**. No incremental phasing is exposed —
 
 ## Current state — what already exists
 
-This CLI is a **port and expansion** of capabilities that already ship as bash scripts and templates in this repo. The underlying logic exists; the CLI wraps it in a polished UX and adds the enterprise features (multi-provider Git, org policy, plugins) that bash can't economically deliver:
+The CLI v0.1.x has shipped (npm: `@metasession.co/devaudit-cli`). The bash installer scripts that this CLI was originally framed as a *future replacement for* have been ported to native TypeScript and are the supported path today:
 
 | Capability                                          | Implemented today as                                                                                                                                                             |
 | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Onboard a new consumer                              | `DevAudit-Installer/scripts/sdlc-onboard.sh` (11-step interactive bash flow, originally tracked as portal repo PR #305, internal tracker)                                              |
-| Sync framework templates to consumers               | `DevAudit-Installer/scripts/sync-sdlc.sh` (reads `sdlc-config.json`, applies stack + host adapters)                                                                                     |
-| Upload evidence to the portal                       | `DevAudit-Installer/scripts/upload-evidence.sh`                                                                                                                      |
+| Onboard a new consumer                              | `devaudit install` — native TS 11-step flow in `cli/src/install/`. Bash original `scripts/sdlc-onboard.sh` remains in-tree as legacy fallback (portal repo PR #305 was the original spec). |
+| Sync framework templates to consumers               | `devaudit update` — native TS in `cli/src/update/`, fires plugin `beforeSync`/`afterSync` hooks. Bash original `scripts/sync-sdlc.sh` remains as legacy fallback.                |
+| Upload evidence to the portal                       | `devaudit push` — native TS in `cli/src/push.ts`, retries on 429/5xx. Bash original `scripts/upload-evidence.sh` remains as legacy fallback.                                     |
 | Stack/host abstraction (foundation for multi-stack) | `sdlc/files/stacks/{node,python}/adapter.json` + `sdlc/files/hosts/railway/adapter.json` (polyglot architecture, portal repo issue #287, internal tracker)                       |
 | Reusable skills                                     | `sdlc/files/_common/skills/` (Claude Code Skills as a first-class SDLC artefact, portal repo PR #307, internal tracker)                                                          |
-| DevAudit project + API key issuance                 | DevAudit REST API: `GET/POST /api/projects` + `GET/POST /api/projects/{id}/api-keys`                                                                                             |
-| GitHub secrets + branch protection                  | `gh` CLI calls inside `sdlc-onboard.sh`                                                                                                                                          |
+| Plugin SDK + first-party plugins                    | `@metasession.co/devaudit-plugin-sdk` published; `devaudit-plugin-prisma` + `devaudit-plugin-evidence-export` shipped as first-party plugins                                     |
+| DevAudit project + API key issuance                 | DevAudit REST API: `GET/POST /api/projects` + `GET/POST /api/projects/{id}/api-keys`; CLI talks to these directly                                                                |
+| GitHub secrets + branch protection                  | `cli/src/install/github.ts` + `cli/src/install/branch-protection.ts` (uses `gh` when present; falls back to REST against `api.github.com`)                                       |
 | Org-level groupings (nascent)                       | DevAudit portal: `/admin/organisations`                                                                                                                                          |
 
-What does **not** exist today and must be built as prerequisites: OAuth callback endpoint, policy engine, plugin registry, GitLab/Bitbucket/self-hosted provider abstraction, stack adapters for Go/Rust/Java/.NET/PHP, RBAC enforcement at the portal API layer.
+What does **not** exist today and must be built as remaining prerequisites: native binaries (Node SEA + brew/scoop/curl-installer), OAuth callback endpoint, policy engine, plugin registry, GitLab/Bitbucket/self-hosted provider abstraction, stack adapters for Go/Rust/Java/.NET/PHP, RBAC enforcement at the portal API layer.
 
 ## Core principles
 
