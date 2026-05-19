@@ -1,19 +1,28 @@
 # Onboarding a new project
 
-`scripts/sdlc-onboard.sh` collapses the v1.23.0 manual onboarding sequence (9 steps) into **two operator actions**:
+Onboarding collapses the v1.23.0 manual onboarding sequence (9 steps) into **two operator actions**:
 
 1. Issue a Personal Access Token at `https://devaudit.metasession.co/settings/tokens`.
-2. Run the onboarding script with the token exported.
+2. Run `devaudit install <consumer-path>` with the token exported.
 
-Everything else — DevAudit project creation, API key issuance, GitHub secrets/variables, hook framework install, branch protection, first template sync — is handled by the script.
+Everything else — DevAudit project creation, API key issuance, GitHub secrets/variables, hook framework install, branch protection, first template sync — is handled by the CLI.
+
+Two equivalent paths are available; pick one:
+
+- **`devaudit install`** (recommended) — native TS implementation in the CLI (npm package `@metasession.co/devaudit-cli`). Cross-platform, JSON output mode (`--json`), CI-friendly (`--yes`).
+- **`scripts/sdlc-onboard.sh`** (legacy fallback) — original bash flow. Behaviour-equivalent; remains in-tree for cases where the CLI can't be installed (no Node ≥ 22, air-gapped operator machines).
+
+This document describes the underlying flow; commands below show both paths where they differ.
 
 ## Prerequisites
 
 On the operator's machine:
 
-- `bash`, `jq`, `curl`, `gh` (GitHub CLI).
+- `git`, `gh` (GitHub CLI), `jq`, `curl`.
 - `gh` authenticated against the consumer's GitHub repo with admin scope (`gh auth login`).
-- Either `pre-commit` (for Python stacks) or `npx` (for Node stacks) available — the script bootstraps the hook framework via these.
+- Either `pre-commit` (for Python stacks) or `npx` (for Node stacks) available — the installer bootstraps the hook framework via these.
+- For the **CLI path**: Node ≥ 22 and `npm install -g @metasession.co/devaudit-cli`.
+- For the **legacy bash path**: `bash` (the script uses `set -euo pipefail`).
 
 On the DevAudit side:
 
@@ -28,7 +37,16 @@ On the DevAudit side:
 
 The PAT carries the operator's identity. Project creation, API key issuance, and audit-log entries all attribute to the operating user.
 
-## Step 2 — Run the onboarding script
+## Step 2 — Run the installer
+
+**CLI path (recommended):**
+
+```bash
+export DEVAUDIT_USER_TOKEN="mctok_…"
+devaudit install ../path/to/new-consumer
+```
+
+**Legacy bash path:**
 
 ```bash
 cd path/to/DevAudit-Installer
@@ -36,7 +54,7 @@ export DEVAUDIT_USER_TOKEN="mctok_…"
 ./scripts/sdlc-onboard.sh ../path/to/new-consumer
 ```
 
-The script will:
+Either path will:
 
 1. **Authenticate** — validates the PAT against DevAudit; aborts if invalid.
 2. **Detect the stack and working directory** — reads `pyproject.toml` / `package.json` to infer `python` / `node` and find the manifest location.

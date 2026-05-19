@@ -8,23 +8,25 @@ DevAudit serves as the central compliance hub for all Metasession projects. Each
 | ------------- | ------------------- | ----- | ------- | ---------- | ------------------------- |
 | wawagardenbar | `wawagardenbar-app` | node  | railway | Integrated | 2026-05-14 (sdlc-v1.23.0) |
 
-Only **wawagardenbar** is a live consumer as of 2026-05-18. Previous onboarding attempts for **META-AGENT**, **META-ATS**, and **META-JOBS** were started but stopped or reverted; none of them runs SDLC gates against DevAudit today. If any of those projects return as a live consumer they'll re-onboard from scratch via `scripts/sdlc-onboard.sh` and be added to this table at that time.
+Only **wawagardenbar** is a live consumer as of 2026-05-18. Previous onboarding attempts for **META-AGENT**, **META-ATS**, and **META-JOBS** were started but stopped or reverted; none of them runs SDLC gates against DevAudit today. If any of those projects return as a live consumer they'll re-onboard from scratch via `devaudit install` (or the legacy `scripts/sdlc-onboard.sh` fallback) and be added to this table at that time.
 
 The DevAudit portal itself does **not** consume the SDLC framework — it would otherwise gate its own releases through itself. See `CLAUDE.md` in DevAudit's repo root for its lightweight development process.
 
 ## Integrating a new project
 
-**One-shot via `scripts/sdlc-onboard.sh`.** Two operator actions:
+**One-shot via `devaudit install`.** Two operator actions:
 
 1. Issue a Personal Access Token at `https://devaudit.metasession.co/settings/tokens`.
-2. Run the onboarding script:
+2. Run the CLI installer:
 
    ```bash
    export DEVAUDIT_USER_TOKEN="mctok_..."
-   ./scripts/sdlc-onboard.sh ../path/to/new-consumer
+   devaudit install ../path/to/new-consumer
    ```
 
-The script handles every previously-manual step: DevAudit project creation, API key issuance, GitHub repo secrets/variables (`DEVAUDIT_API_KEY`, `DEVAUDIT_USER_TOKEN`, the production-URL secret, `DEVAUDIT_BASE_URL`), hook framework install (`pre-commit` for Python / `husky` for Node), branch protection on `main`, and the first template sync. ~30 seconds end-to-end.
+The CLI handles every previously-manual step: DevAudit project creation, API key issuance, GitHub repo secrets/variables (`DEVAUDIT_API_KEY`, `DEVAUDIT_USER_TOKEN`, the production-URL secret, `DEVAUDIT_BASE_URL`), hook framework install (`pre-commit` for Python / `husky` for Node), branch protection on `main`, and the first template sync. ~30 seconds end-to-end.
+
+The original bash script (`scripts/sdlc-onboard.sh`) remains in-tree as a behaviour-equivalent fallback for operators who can't install the CLI.
 
 **Full walkthrough**: see [docs/onboarding.md](onboarding.md).
 
@@ -88,7 +90,10 @@ The framework uses a **copy-and-customize** model. `_common/` docs define univer
 After framework changes land in DevAudit's `main`:
 
 ```bash
-# Tags DevAudit-Installer, copies all templates, updates tag references in CI workflows
+# Native CLI path (recommended):
+devaudit update v1.X.Y "../wawagardenbar app"
+
+# Or the legacy bash equivalent:
 ./scripts/sync-sdlc.sh v1.X.Y "../wawagardenbar app"
 
 # Then in the consuming project:
@@ -100,7 +105,7 @@ git push -u origin chore/sync-sdlc-vX.Y.Z
 gh pr create --base main
 ```
 
-The script syncs: `_common/` stage docs, AI agent pointer files, SDLC rules into `INSTRUCTIONS.md`, stack-specific hooks and scripts (`stacks/<name>/`), host-specific config (`hosts/<name>/`), and CI workflow templates (`ci/`).
+Either path syncs: `_common/` stage docs, AI agent pointer files, SDLC rules into `INSTRUCTIONS.md`, stack-specific hooks and scripts (`stacks/<name>/`), host-specific config (`hosts/<name>/`), and CI workflow templates (`ci/`). The CLI additionally fires `beforeSync` / `afterSync` plugin lifecycle hooks.
 
 ### One-time migration: `META_COMPLY_*` → `DEVAUDIT_*` rename
 
@@ -129,9 +134,9 @@ gh secret set DEVAUDIT_USER_TOKEN     # paste the mctok_... value
 gh secret set DEVAUDIT_API_KEY        # paste the mc_... value
 gh variable set DEVAUDIT_BASE_URL --body "https://devaudit.metasession.co"
 
-# 3. Re-sync to pick up the new workflow file references (run from DevAudit-Installer):
-cd path/to/DevAudit-Installer
-./scripts/sync-sdlc.sh v1.X.Y ../path/to/consumer-repo
+# 3. Re-sync to pick up the new workflow file references:
+devaudit update v1.X.Y ../path/to/consumer-repo
+# (Or, from a DevAudit-Installer checkout: ./scripts/sync-sdlc.sh v1.X.Y ../path/to/consumer-repo)
 
 # 4. Review the diff, commit, push, open PR
 cd ../path/to/consumer-repo
@@ -206,7 +211,7 @@ These are hard dependencies across all consumers:
 After making changes to the SDLC framework in DevAudit:
 
 - [ ] Validate adapters: `node scripts/validate-adapter.cjs --all`
-- [ ] Run the sync script for each consumer: `./scripts/sync-sdlc.sh vX.Y.Z ../project-1 ../project-2`
+- [ ] Sync each consumer: `devaudit update vX.Y.Z ../project-1 ../project-2` (or the legacy `./scripts/sync-sdlc.sh vX.Y.Z ../project-1 ../project-2`)
 - [ ] For each consuming project:
   - [ ] Review the diff (`git diff`) — check for overwritten project-specific customizations.
   - [ ] Re-apply any project-specific customizations if overwritten.
