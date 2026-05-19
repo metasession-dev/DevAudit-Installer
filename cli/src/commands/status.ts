@@ -1,6 +1,6 @@
 import { resolve } from 'node:path';
 import { readSdlcConfig, checkFrameworkFiles } from '../lib/sdlc-config.js';
-import { logger } from '../lib/logger.js';
+import { emitJsonResult, isJsonMode, logger } from '../lib/logger.js';
 
 const FRAMEWORK_FILES = [
   'INSTRUCTIONS.md',
@@ -22,13 +22,41 @@ interface StatusOptions {
 export async function runStatus(options: StatusOptions): Promise<void> {
   const log = logger();
   const projectPath = resolve(options.path ?? process.cwd());
-  log.info(`Inspecting ${projectPath}`);
   const config = await readSdlcConfig(projectPath);
   if (!config) {
-    log.warn('No sdlc-config.json found here. This project is not onboarded to DevAudit.');
-    log.info('Run `devaudit install` (once implemented) or `./scripts/sdlc-onboard.sh` to onboard.');
+    if (isJsonMode()) {
+      emitJsonResult({ ok: false, reason: 'not_onboarded', projectPath });
+    } else {
+      log.info(`Inspecting ${projectPath}`);
+      log.warn('No sdlc-config.json found here. This project is not onboarded to DevAudit.');
+      log.info('Run `devaudit install` to onboard.');
+    }
     process.exit(7);
+    return;
   }
+  const files = await checkFrameworkFiles(projectPath, FRAMEWORK_FILES);
+  const presentFiles = files.filter((f) => f.present).map((f) => f.path);
+  const missingFiles = files.filter((f) => !f.present).map((f) => f.path);
+  if (isJsonMode()) {
+    emitJsonResult({
+      ok: true,
+      projectPath,
+      project_slug: config.project_slug,
+      stack: config.stack ?? null,
+      host: config.host ?? null,
+      node_version: config.node_version ?? null,
+      python_version: config.python_version ?? null,
+      working_directory: config.working_directory ?? null,
+      source_dirs: config.source_dirs ?? null,
+      devaudit_base_url: config.devaudit?.base_url ?? null,
+      uat_enabled: config.uat?.enabled ?? false,
+      approval_mode: config.approval?.mode ?? null,
+      files_present: presentFiles,
+      files_missing: missingFiles,
+    });
+    return;
+  }
+  log.info(`Inspecting ${projectPath}`);
   log.success('sdlc-config.json found.');
   log.log('');
   log.log(`  Project slug:   ${config.project_slug}`);
@@ -43,17 +71,14 @@ export async function runStatus(options: StatusOptions): Promise<void> {
   log.log(`  Approval mode:  ${config.approval?.mode ?? '(unset)'}`);
   log.log('');
   log.info('Framework files present?');
-  const files = await checkFrameworkFiles(projectPath, FRAMEWORK_FILES);
-  let missingCount = 0;
   for (const f of files) {
     const marker = f.present ? '✓' : '✗';
-    if (!f.present) missingCount++;
     log.log(`  ${marker} ${f.path}`);
   }
   log.log('');
-  if (missingCount === 0) {
+  if (missingFiles.length === 0) {
     log.success('All checked framework files are present.');
   } else {
-    log.warn(`${missingCount} framework file(s) missing. Re-sync via DevAudit-Installer's sync-sdlc.sh to refresh.`);
+    log.warn(`${missingFiles.length} framework file(s) missing. Re-sync via DevAudit-Installer's sync-sdlc.sh to refresh.`);
   }
 }

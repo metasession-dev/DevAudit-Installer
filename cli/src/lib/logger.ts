@@ -9,6 +9,7 @@ interface LoggerOptions {
 const DEFAULT_OPTIONS: LoggerOptions = { json: false, verbose: false, noColor: false };
 
 let currentLogger: ConsolaInstance = build(DEFAULT_OPTIONS);
+let jsonModeActive = false;
 
 function build(opts: LoggerOptions): ConsolaInstance {
   const level = opts.verbose ? 5 : 3;
@@ -37,9 +38,19 @@ function build(opts: LoggerOptions): ConsolaInstance {
 }
 
 export function configureLogger(opts: Partial<LoggerOptions>): void {
-  currentLogger = build({ ...DEFAULT_OPTIONS, ...opts });
+  const merged = { ...DEFAULT_OPTIONS, ...opts };
+  jsonModeActive = merged.json;
+  currentLogger = build(merged);
 }
 
 export function logger(): ConsolaInstance {
   return currentLogger;
+}
+
+export function isJsonMode(): boolean {
+  return jsonModeActive;
+}
+
+export function emitJsonResult(payload: unknown): void {
+  process.stdout.write(JSON.stringify(payload) + '\n');
 }

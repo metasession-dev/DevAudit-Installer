@@ -28,7 +28,7 @@ const RETRYABLE_STATUSES = new Set([429, 500, 502, 503, 504]);
 const MAX_ATTEMPTS = 3;
 const INITIAL_BACKOFF_MS = 1000;
 
-async function collectFiles(filePath: string): Promise<readonly string[]> {
+export async function collectFiles(filePath: string): Promise<readonly string[]> {
   const stat = await fs.stat(filePath);
   if (stat.isFile()) return [filePath];
   if (stat.isDirectory()) {

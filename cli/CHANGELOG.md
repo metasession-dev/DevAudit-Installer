@@ -4,6 +4,13 @@ All notable changes to `@metasession-dev/devaudit-cli` are documented here. The 
 
 ## [Unreleased]
 
+### Added
+
+- `devaudit push --dry-run` now short-circuits before any portal mutation. The CLI enumerates which evidence files would be uploaded (via the same `collectFiles` logic the live upload uses) and prints them; no POST to `/api/evidence/upload` happens. Operators can safely preview a push before running it for real. Combined with `--json`, dry-run emits a single structured planned payload: `{ dryRun: true, projectSlug, requirementId, evidenceType, baseUrl, files, metadata, ... }`.
+- `devaudit auth status --json` emits one parseable JSON object instead of a stream of pretty log lines. Shape: `{ ok: true, source: 'env' | 'file', baseUrl, projects: [...slugs] }` on success; `{ ok: false, reason: 'not_logged_in' | 'portal_rejected' | 'unexpected', ... }` on failure. Prose path unchanged.
+- `devaudit status --json` emits one structured object: `{ ok, projectPath, project_slug, stack, host, node_version | python_version, devaudit_base_url, uat_enabled, approval_mode, files_present, files_missing }`. The `not_onboarded` failure path also emits structured JSON when `--json` is set. Useful for piping into other tools.
+- `lib/logger.ts` exports `isJsonMode()` and `emitJsonResult(payload)` — small helpers so commands can branch on JSON mode and emit a single result line rather than rely on consola's per-log JSON records.
+
 ### Fixed
 
 - `devaudit install --yes` on an existing consumer no longer wipes rich `sdlc-config.json` customizations. Previously the `--yes` path read only 4 fields (`project_slug`, runtime version, `source_dirs`, `working_directory`) and the write step then rebuilt the config from defaults — so re-running install on a customized consumer (e.g. WGB, which has `runner: self-hosted`, `sast_baseline: 6`, `database_service: mongodb`, custom `build_env`, custom `paths_ignore`, etc.) would erase all of those fields. Now `write-config.ts` reads the existing config and merges: wizard-owned fields (stack/host/slug/runtime/source_dirs/working_directory/production_url_secret/devaudit block) always come from the current plan; everything else is preserved if present, defaulted otherwise. `prompts.ts:planFromConfig` also now reads `production_url_secret` from the existing config so the wizard doesn't overwrite a custom-named secret. Caught during the WGB smoke against PR #8; new vitest case in `install.test.ts` seeds a richly customized config and asserts every non-wizard field survives a `--yes` re-install.
