@@ -4,6 +4,10 @@ All notable changes to `@metasession.co/devaudit-plugin-sdk` are documented here
 
 ## [Unreleased]
 
+## [0.1.1] — 2026-05-19
+
+Version bump in lockstep with `@metasession.co/devaudit-cli@0.1.1`. No source changes.
+
 ## [0.1.0] — 2026-05-19
 
 First public release. Package renamed from `@metasession-dev/devaudit-plugin-sdk` (GitHub org scope) to `@metasession.co/devaudit-plugin-sdk` (npm org scope). Repo flipped public; Apache-2.0 licensed. Published to npmjs.org with SLSA provenance.

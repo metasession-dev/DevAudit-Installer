@@ -4,7 +4,16 @@
 
 This is the source of `@metasession.co/devaudit-cli` (binary name: `devaudit`). It is under active development — see [tracking issue #1](https://github.com/metasession-dev/DevAudit-Installer/issues/1) and the full design in [`../docs/devaudit-cli/`](../docs/devaudit-cli/).
 
-## Status — v0.0.1
+## Install
+
+```bash
+npm install -g @metasession.co/devaudit-cli
+devaudit --help
+```
+
+Requires Node ≥ 22. Native binaries (no Node runtime needed) are on the roadmap.
+
+## Status — v0.1.1
 
 ### Working
 

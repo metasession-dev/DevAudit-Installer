@@ -4,6 +4,16 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+## [0.1.1] — 2026-05-19
+
+### Fixed
+
+- `devaudit --version` now reports the actual package version instead of a stale hardcoded `0.0.1`. Version is read from `package.json` at build time via a typed JSON import; tsup inlines it into the bundle. The constant can no longer drift from the published version.
+
+### Docs
+
+- `cli/README.md` now leads with the `npm install -g @metasession.co/devaudit-cli` snippet so the npm-registry page guides users straight to install. Status section bumped to 0.1.1.
+
 ## [0.1.0] — 2026-05-19
 
 First public release. Package renamed from `@metasession-dev/devaudit-cli` (GitHub org scope) to `@metasession.co/devaudit-cli` (npm org scope). Repo flipped public; Apache-2.0 licensed. Published to npmjs.org with SLSA provenance.

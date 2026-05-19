@@ -1,4 +1,3 @@
-/**
- * CLI version. Updated by the release pipeline; matches package.json on every build.
- */
-export const CLI_VERSION = '0.0.1';
+import pkg from '../../package.json' with { type: 'json' };
+
+export const CLI_VERSION: string = pkg.version;
