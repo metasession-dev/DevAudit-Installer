@@ -126,12 +126,12 @@ The CLI talks to Git providers through a `GitProvider` interface that abstracts:
 
 Implementations:
 
-- **GitHub** — uses `gh` CLI when present; falls back to direct REST.
-- **GitLab** — uses `glab` CLI when present; falls back to direct REST.
-- **Bitbucket** — direct REST against the Bitbucket Cloud / Server API.
-- **Self-hosted** — generic Git + manual configuration prompts for everything that can't be automated (no API access).
+- **GitHub** — _shipped_. Uses `gh` CLI when present; falls back to direct REST against `api.github.com` using `GH_TOKEN` / `GITHUB_TOKEN` for everything except secret-set (which requires sodium encryption — `gh` CLI required for that one operation).
+- **GitLab** — _planned_. Will use `glab` CLI when present; falls back to direct REST.
+- **Bitbucket** — _planned_. Direct REST against the Bitbucket Cloud / Server API.
+- **Self-hosted** — _planned_. Generic Git + manual configuration prompts for everything that can't be automated (no API access).
 
-Auto-detected from `git remote -v` URL pattern; override via `--provider`.
+Auto-detected from `git remote get-url origin` URL pattern; non-GitHub remotes currently throw a clear "not yet supported" error.
 
 ### Authentication
 
