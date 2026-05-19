@@ -1,6 +1,6 @@
 import { promises as fs } from 'node:fs';
 import { join } from 'node:path';
-import type { PluginContext } from '@metasession-dev/devaudit-plugin-sdk';
+import type { PluginContext } from '@metasession/devaudit-plugin-sdk';
 import { detectPrismaLayout, MIGRATIONS_DIR } from '../util/prisma-paths.js';
 
 interface MigrationDir {

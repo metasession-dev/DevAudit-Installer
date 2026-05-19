@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { setupServer } from 'msw/node';
 import { http, HttpResponse } from 'msw';
-import type { PluginContext, PluginEvent } from '@metasession-dev/devaudit-plugin-sdk';
+import type { PluginContext, PluginEvent } from '@metasession/devaudit-plugin-sdk';
 
 const BASE_URL = 'https://devaudit.test';
 const FILE_BYTES = new TextEncoder().encode('evidence-fixture-content');

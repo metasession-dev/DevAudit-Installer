@@ -15,7 +15,7 @@ These were open questions in earlier drafts; the recent repo split settled them:
 | Decision | Resolution |
 |---|---|
 | CLI source location | Sub-package inside this repo at `DevAudit-Installer/cli/`. Co-located with the framework templates it bundles so a CLI release and a template release ship from the same commit. |
-| npm package scope | `@metasession-dev/devaudit-cli` (matches GitHub org). |
+| npm package scope | `@metasession/devaudit-cli` (matches GitHub org). |
 | Binary name | `devaudit`. |
 | Bundling strategy | CLI embeds a snapshot of `sdlc/files/` at build time via `tsup`'s asset import. No cross-repo coordination for routine template changes. |
 | User-token env var name | `DEVAUDIT_USER_TOKEN`. Renamed from `META_COMPLY_USER_TOKEN` during the repo split. |
@@ -144,7 +144,7 @@ Plugin extensibility surface.
 
 | Item                                                                                                                  | Effort    | Why                                                       |
 | --------------------------------------------------------------------------------------------------------------------- | --------- | --------------------------------------------------------- |
-| Plugin SDK package (`@metasession-dev/devaudit-plugin-sdk`) — contract types, plugin manifest schema, lifecycle hooks | 2 weeks   | Plugins compile against this; defines what plugins can do |
+| Plugin SDK package (`@metasession/devaudit-plugin-sdk`) — contract types, plugin manifest schema, lifecycle hooks | 2 weeks   | Plugins compile against this; defines what plugins can do |
 | Plugin loader inside the CLI (dynamic import, sandboxing, error isolation)                                            | 2 weeks   | Workstream A depends on this for the `plugin` commands    |
 | First-party plugin: `devaudit-plugin-prisma`                                                                          | 1 week    | Prisma migration deploy hooks for node consumers          |
 | First-party plugin: `devaudit-plugin-supabase`                                                                        | 1.5 weeks | RLS policy linting + project metadata sync                |

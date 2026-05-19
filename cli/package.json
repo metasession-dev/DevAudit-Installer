@@ -1,6 +1,6 @@
 {
-  "name": "@metasession-dev/devaudit-cli",
-  "version": "0.0.1",
+  "name": "@metasession/devaudit-cli",
+  "version": "0.1.0",
   "description": "DevAudit CLI — installs, syncs, and operates the Metasession SDLC across consumer projects.",
   "type": "module",
   "bin": {
@@ -33,7 +33,7 @@
     "consola": "^3.2.3",
     "execa": "^9.5.1",
     "env-paths": "^3.0.0",
-    "@metasession-dev/devaudit-plugin-sdk": "file:../plugin-sdk"
+    "@metasession/devaudit-plugin-sdk": "file:../plugin-sdk"
   },
   "devDependencies": {
     "@types/node": "^22.9.0",
@@ -43,13 +43,12 @@
     "vitest": "^2.1.5"
   },
   "publishConfig": {
-    "access": "restricted"
+    "access": "public"
   },
   "repository": {
     "type": "git",
     "url": "https://github.com/metasession-dev/DevAudit-Installer",
     "directory": "cli"
   },
-  "license": "Apache-2.0",
-  "private": true
+  "license": "Apache-2.0"
 }

@@ -1,20 +1,24 @@
 # Changelog
 
-All notable changes to `@metasession-dev/devaudit-plugin-sdk` are documented here. The SDK follows semver.
+All notable changes to `@metasession/devaudit-plugin-sdk` are documented here. The SDK follows semver.
 
 ## [Unreleased]
 
-### Planned for v0.1.0
+## [0.1.0] — 2026-05-19
 
-- Plugin loader inside the CLI (`cli/src/lib/plugin.ts`) consumes this SDK
-- First-party plugin: `devaudit-plugin-prisma` (Prisma migration deploy hooks)
-- First-party plugin: `devaudit-plugin-supabase` (RLS policy linting + project metadata sync)
-- First-party plugin: `devaudit-plugin-evidence-export` (bulk evidence bundle export)
-- Plugin signing / verification (separate follow-up — v1 ships unsigned)
+First public release. Package renamed from `@metasession-dev/devaudit-plugin-sdk` (GitHub org scope) to `@metasession/devaudit-plugin-sdk` (npm org scope). Repo flipped public; Apache-2.0 licensed. Published to npmjs.org with SLSA provenance.
+
+The plugin contract from v0.0.1 (Plugin/PluginContext/PluginManifest types, 9 lifecycle hooks, validateManifest, CommandContribution shape) ships unchanged in v0.1.0 — only metadata and publishing surface changed.
+
+### Planned for future minor versions
+
+- Plugin signing / verification helpers (separate follow-up — v0 plugins ship unsigned)
+- Sandboxed execution helpers
+- Richer PluginContext (filesystem capability, portal client) — gated on real plugin needs
 
 ## [0.0.1] — 2026-05-19
 
-First public commit of `@metasession-dev/devaudit-plugin-sdk`. Slice 1 of [`DevAudit-Installer#6`](https://github.com/metasession-dev/DevAudit-Installer/issues/6) — defines the contract everything else compiles against, ahead of the loader and the first-party plugins.
+First public commit of `@metasession/devaudit-plugin-sdk`. Slice 1 of [`DevAudit-Installer#6`](https://github.com/metasession-dev/DevAudit-Installer/issues/6) — defines the contract everything else compiles against, ahead of the loader and the first-party plugins.
 
 ### Added
 

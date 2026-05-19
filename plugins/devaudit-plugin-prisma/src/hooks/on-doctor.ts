@@ -1,4 +1,4 @@
-import type { PluginContext } from '@metasession-dev/devaudit-plugin-sdk';
+import type { PluginContext } from '@metasession/devaudit-plugin-sdk';
 import { detectPrismaLayout, MIGRATIONS_DIR, SCHEMA_FILE } from '../util/prisma-paths.js';
 
 export async function onDoctor(ctx: PluginContext): Promise<void> {

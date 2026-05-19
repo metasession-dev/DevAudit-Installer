@@ -1,4 +1,4 @@
-import type { PluginContext } from '@metasession-dev/devaudit-plugin-sdk';
+import type { PluginContext } from '@metasession/devaudit-plugin-sdk';
 import { EvidenceApi } from '../api/client.js';
 import { resolveAuth } from '../util/token.js';
 

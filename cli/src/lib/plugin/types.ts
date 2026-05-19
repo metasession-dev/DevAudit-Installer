@@ -1,4 +1,4 @@
-import type { Plugin, PluginManifest } from '@metasession-dev/devaudit-plugin-sdk';
+import type { Plugin, PluginManifest } from '@metasession/devaudit-plugin-sdk';
 
 export interface LoadedPlugin {
   readonly dir: string;
