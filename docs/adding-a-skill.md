@@ -11,7 +11,7 @@ Two triggers, both real:
 1. **A multi-step procedure appears in two or more stage docs.** When Stage 2 and Stage 3 both instruct the AI to run the same five-phase test workflow, lift it into a skill. Stage docs stay focused on _when_; the skill owns _how_. Avoids drift.
 2. **A real task surfaces repeatedly in production work and benefits from auto-discovery.** "Hey AI, can you also figure out what e2e tests this PR needs?" said three times in a week → the work is reusable, opinionated, and discovery-driven. Build the skill.
 
-Don't speculate. The `compliance-evidence-author` skill listed in [SKILLS.md's roadmap](../sdlc/SKILLS.md#skills-on-the-roadmap) is queued because it's an obvious candidate; it doesn't exist yet because nobody's hit the pain often enough to justify the work.
+Don't speculate. The [SKILLS.md roadmap](../sdlc/SKILLS.md#skills-on-the-roadmap) names candidate skills, but candidates only become real `SKILL.md` artefacts when production work surfaces the pain repeatedly. The currently-planned `sdlc-implementer` was promoted off the roadmap into active build because the end-to-end SDLC orchestration it provides wasn't replicable from Claude Code's native tools alone — a clear pain signal. Other candidates (e.g. a `unit-test-engineer` counterpart to `e2e-test-engineer`) stay queued until similar real-need drivers appear.
 
 ## Step 1 — Decide universal or stack-specific
 

@@ -103,7 +103,7 @@ Five phases. Phases 1–4 run in one Claude Code session; Phase 5 is invoked sep
 
 ### Phase 4 — Submit for UAT review (SDLC stage 4)
 
-1. **Open the PR.** `gh pr create --base main --head <branch>`. PR body per the SDLC PR template (see [`.github/pull_request_template.md`](../../../../.github/pull_request_template.md)):
+1. **Open the PR.** `gh pr create --base main --head <branch>`. PR body per the SDLC PR template (see [`.github/pull_request_template.md`](../../../../../.github/pull_request_template.md)):
    - Closes #N
    - REQ-XXX
    - Risk: <class>
@@ -183,7 +183,7 @@ Plus one process risk surfaced explicitly in the principles below (rubber-stampi
 - [`references/call-graph.md`](./references/call-graph.md) — sub-skill invocation map; what `sdlc-implementer` calls and when.
 - [`references/change-request-loop.md`](./references/change-request-loop.md) — Phase 5 change-request flow in detail, including portal-state semantics.
 - [`../e2e-test-engineer/SKILL.md`](../e2e-test-engineer/SKILL.md) — the test-work sub-skill this orchestrator delegates to.
-- [`../../../SKILLS.md`](../../../SKILLS.md) — skill contract and conventions for the framework.
-- [Portal: `docs/implementing-an-sdlc-issue.md`](https://github.com/metasession-dev/devaudit/blob/main/docs/implementing-an-sdlc-issue.md) — the user-facing walkthrough this skill automates.
-- [Portal: `docs/standards-coverage.md`](https://github.com/metasession-dev/devaudit/blob/main/docs/standards-coverage.md) — which SDLC artefacts satisfy which compliance clauses.
+- [`SKILLS.md`](../../../../SKILLS.md) — skill contract and conventions for the framework.
+- Portal: `docs/implementing-an-sdlc-issue.md` — the user-facing walkthrough this skill automates. (Lives in the portal repo, currently private; the synced framework copy at `sdlc/files/_common/implementing-an-sdlc-issue.md` is the consumer-visible equivalent.)
+- Portal: `docs/standards-coverage.md` — which SDLC artefacts satisfy which compliance clauses. (Same: portal repo, currently private.)
 - [`metasession-dev/DevAudit-Installer#29`](https://github.com/metasession-dev/DevAudit-Installer/issues/29) — the umbrella issue tracking this skill's delivery.

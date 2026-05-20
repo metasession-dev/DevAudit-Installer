@@ -16,7 +16,7 @@ This repo is the single source of truth for:
 
 This repo does **not** contain:
 
-- The DevAudit web portal (Next.js application) — that's in `metasession-dev/META-COMPLY`.
+- The DevAudit web portal (Next.js application) — that's in [`metasession-dev/devaudit`](https://github.com/metasession-dev/devaudit) (formerly `META-COMPLY`).
 - Any consumer project's compliance evidence — that lives in the consumer's own repo and the DevAudit portal.
 
 ## Tech stack of this repo
@@ -83,7 +83,7 @@ Both are bash, both use `set -euo pipefail`, both are idempotent. When editing:
 
 Changes to `sdlc/files/` propagate to **every consumer** on the next sync. Be deliberate:
 
-- Validate against the active consumer (wawagardenbar-app) before tagging a release. The portal (META-COMPLY) is not a consumer per the self-release policy; META-AGENT / META-ATS / META-JOBS onboarding attempts were reverted (see [consuming-projects.md](./docs/consuming-projects.md)).
+- Validate against the active consumer (wawagardenbar-app) before tagging a release. The portal (`metasession-dev/devaudit`) is not a consumer per the self-release policy; META-AGENT / META-JOBS are active consumers and META-ATS is paused (see [consuming-projects.md](./docs/consuming-projects.md)).
 - Use semver for the `sdlc-vX.Y.Z` tag — breaking changes bump major.
 - Document breaking changes in the release notes / `CHANGELOG.md` (TODO if not yet present).
 

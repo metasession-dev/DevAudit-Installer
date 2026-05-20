@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for looking. This repo holds the `devaudit` CLI, the plugin SDK, first-party plugins, and the SDLC framework templates that consumers sync. The web portal (`META-COMPLY`) is a separate repository.
+Thanks for looking. This repo holds the `devaudit` CLI, the plugin SDK, first-party plugins, and the SDLC framework templates that consumers sync. The web portal lives in a separate repository — [`metasession-dev/devaudit`](https://github.com/metasession-dev/devaudit) (formerly `META-COMPLY`; renamed during the 2026-05 repo split).
 
 ## Pre-1.0 contribution policy
 
