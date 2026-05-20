@@ -36,6 +36,24 @@ For typo fixes, formatting changes, dependency bumps, and other zero-risk chores
 
 If you're not sure whether your change is trivial, treat it as non-trivial (cheaper than discovering mid-PR that an auditor needs evidence).
 
+## Automated mode (when `sdlc-implementer` ships)
+
+When the [`sdlc-implementer`](#skills-inventory) skill is integrated, this entire walkthrough collapses to:
+
+```text
+> Implement issue #N under the SDLC.
+```
+
+The skill runs phases 1–4 unattended (with a plan-approval pause for HIGH/CRITICAL risk) and surfaces a UAT review waiting for you on the portal. Approve it on the portal, then:
+
+```text
+> Resume REQ-XXX.
+```
+
+The skill completes phase 5: merge, monitor post-deploy, capture production smoke evidence, mark the release Released. If changes are requested at UAT instead of approval, the skill addresses them and re-submits for UAT re-review.
+
+The manual walkthrough below remains the source of truth for what the skill is doing (and the fallback for cases where the skill can't be used). Until the skill ships, follow the walkthrough manually — the sample prompts at the end of this doc are the per-stage stopgap.
+
 ---
 
 ## End-to-end walkthrough
@@ -56,7 +74,7 @@ Assign yourself, move the issue to **In Progress** in the project board.
 
 Goal: a written, reviewable plan before any code lands.
 
-Steps (manual or via the **requirements-architect** skill once landed; see [Skills inventory](#skills-inventory)):
+Steps (manual; the [`sdlc-implementer`](#skills-inventory) orchestration skill will run this phase automatically once it lands):
 
 1. **Classify risk** per [`Test_Policy.md`](https://github.com/metasession-dev/DevAudit-Installer/blob/main/sdlc/files/_common/Test_Policy.md) — LOW, MEDIUM, HIGH, or CRITICAL.
 2. **Pick or assign a REQ-XXX ID.** Inspect `compliance/RTM.md` for existing entries; if this is genuinely new, take the next available number.
@@ -82,6 +100,7 @@ Goal: code, tests, all gates green locally before pushing.
    - MEDIUM: unit + integration; e2e for any UI-facing change.
    - HIGH: unit + integration + e2e for every user-visible path + at least one negative/abuse test.
    - CRITICAL: HIGH plus targeted security tests (authz bypass attempts, input fuzzing where applicable).
+   - **For any e2e or visual-regression work in this step, invoke the `e2e-test-engineer` skill** — it derives scenarios from the acceptance criteria + diff, reconciles with the existing pack, retires obsolete tests, runs the suite, and files defects for failures. Don't author e2e tests by hand when the skill is shipped. (Once `sdlc-implementer` ships, it enforces this delegation automatically.)
 3. **Implement the change.** Reference the implementation plan; deviations from the plan must be noted in the plan itself (it's the source of truth, not a one-shot artefact).
 4. **Run all gates locally** before pushing:
    ```bash
@@ -342,18 +361,13 @@ The Metasession SDLC framework includes a set of [Claude Code Skills](https://gi
 
 ### Planned
 
-Each of these has a clear lifecycle slot but no `SKILL.md` yet. They'll land as separate PRs in DevAudit-Installer; this section is the design intent so the lifecycle reads consistently before the artefacts exist.
+One orchestration skill replaces an earlier roadmap of five atomic skills. The atomic ones (`risk-classifier`, `commit-message-author`, `compliance-evidence-author`, `sast-triager`, `release-ticket-author`) were deprioritised: Claude Code's innate capabilities already cover what each wrapped; the actual value-add is end-to-end orchestration with framework-compliant pauses, not five discoverable helpers a human still has to compose.
 
-| Skill (planned name)     | Stage                 | Scope it will cover                                                                                                                                                                                                                                                                                                                                                                                                  |
-| ------------------------ | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `requirements-architect` | 1                     | Read the GitHub issue, classify risk per `Test_Policy.md`, assign or look up the REQ-XXX ID, draft `implementation-plan.md` from the stage-1 template, update `compliance/RTM.md`, post the plan as an issue comment. For HIGH/CRITICAL: also threat-model, four-eyes attestation slot, rollback plan. Stops short of implementation.                                                                                |
-| `unit-test-engineer`     | 2                     | Counterpart to `e2e-test-engineer` for unit and integration tests. Detects the unit-test framework (vitest, jest, pytest, go test, …), authors failing tests first against the implementation plan, validates coverage targets per the risk class (LOW/MEDIUM: no minimum; HIGH: 80%+ on changed lines; CRITICAL: 90%+ plus mutation-testing where the stack supports it).                                           |
-| `evidence-compiler`      | 3                     | Runs the full test pack with artefact capture (e2e JSON, Playwright HTML report, vitest/jest coverage, screenshots), files artefacts under `compliance/evidence/REQ-XXX/` with the date-prefixed naming convention, uploads each via `devaudit push`, verifies the portal landed every artefact, updates the RTM with portal links. Tracker-agnostic; portal-aware.                                                  |
-| `security-engineer`      | Cross-cutting (1 + 2) | For HIGH/CRITICAL risk: threat model the change against the STRIDE categories applicable to the touched surfaces. Triages `semgrep` findings (false-positive vs accept-risk vs fix), triages `npm audit` / `pip audit` findings, owns the periodic-review schedule in `Periodic_Security_Review_Schedule.md`. Files defects for accepted-risk items.                                                                 |
-| `release-coordinator`    | 4 + 5                 | Drafts the PR body from the implementation plan (Closes #, REQ-XXX, risk class, evidence link, four-eyes attestation if HIGH/CRITICAL, rollback plan). Pre-merge: verifies `gh pr checks` is fully green. Post-merge: watches `post-deploy-prod.yml`, confirms production smoke evidence is on the portal, marks the release Released, or escalates to incident if smoke fails.                                      |
-| `compliance-auditor`     | 4 (pre-merge gate)    | Independent of `release-coordinator`. Validates the RTM is internally consistent for REQ-XXX (issue linked, plan linked, evidence linked, status correct), confirms the evidence types required for the risk class are present, checks the audit-log entries for the change exist on the portal. Refuses approval (sets a "blocking" label) if anything is missing. The four-eyes second reviewer for HIGH/CRITICAL. |
+| Skill (planned name) | Stage         | Scope it will cover                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| -------------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sdlc-implementer`   | All 5 stages  | One-command orchestration: `"implement issue #N under the SDLC"` triggers Phase 1 (classify risk, write plan, update RTM) → Phase 2 (branch, tests, implement, gates) → Phase 3 (evidence capture + portal upload) → Phase 4 (PR open, request UAT review). Halts at Phase 4 with a UAT review waiting for the human on the portal. Resumed by `"resume REQ-XXX"`: if UAT approved → Phase 5 (merge, monitor post-deploy, capture prod smoke evidence, mark Released); if changes requested → re-runs Phase 2 + 3, re-submits for UAT re-review. **MUST invoke** [`e2e-test-engineer`](https://github.com/metasession-dev/DevAudit-Installer/blob/main/sdlc/files/_common/skills/e2e-test-engineer/SKILL.md) for end-to-end and visual-regression test work in Phase 2 — the orchestrator never authors e2e tests directly. Unit-test work stays with the orchestrator until a counterpart unit-test skill ships. Enforces six architectural compliance constraints: never skip UAT gate, never act as UAT approver for HIGH/CRITICAL, plan checkpoint mandatory for HIGH/CRITICAL, change-request loop triggers UAT re-review, AI disclosure on every commit, all portal mutations through audit-logged APIs. Tracked at [`metasession-dev/DevAudit-Installer#29`](https://github.com/metasession-dev/DevAudit-Installer/issues/29). |
 
-When a skill lands, it appears in the consumer's `~/.config/devaudit/skills/` after the next `devaudit update`, becomes discoverable to Claude Code by name (`Skill(name: "requirements-architect", …)`), and gets a row moved from **Planned** to **Integrated today** above.
+When the skill lands, it appears in the consumer's `~/.config/devaudit/skills/` after the next `devaudit update`, becomes discoverable to Claude Code by name (`Skill(name: "sdlc-implementer", …)`), and gets a row moved from **Planned** to **Integrated today** above.
 
 ### Why skills (vs. just prompts)
 

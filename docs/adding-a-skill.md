@@ -84,6 +84,18 @@ node scripts/validate-adapter.cjs --all
 
 All adapters and skills should pass.
 
+## Orchestrator skills (calling other skills)
+
+Most skills are atomic — they own one slice of one stage. Some — like the planned `sdlc-implementer` ([SKILLS.md §roadmap](../sdlc/SKILLS.md#skills-on-the-roadmap)) — orchestrate multiple stages and benefit from calling other shipped skills as sub-procedures rather than re-implementing their logic.
+
+When you author an orchestrator skill:
+
+- **Use the Skill invocation pattern.** Claude Code exposes other registered skills to the running session; the orchestrator's SKILL.md body should explicitly name the skills it intends to call (`Skill(name: "e2e-test-engineer", ...)`-style references in the workflow phases) so an agent reading the body knows the call graph in advance.
+- **Don't inline a sub-skill's procedure.** If the orchestrator's Phase 2 needs e2e tests written, it MUST invoke `e2e-test-engineer` — not transcribe `e2e-test-engineer`'s six-phase workflow into its own body. Inlining drifts; invocation doesn't. The planned `sdlc-implementer` skill is the canonical example: its SKILL.md fails review if it authors e2e tests directly instead of delegating to `e2e-test-engineer`.
+- **Document the call graph in the `references/` directory.** A short `references/call-graph.md` listing every sub-skill the orchestrator may invoke (with a one-line "when") makes the orchestrator's behaviour predictable and grep-able.
+- **Compliance constraints stay with the orchestrator.** The sub-skill knows _how_ to do its own task; the orchestrator owns the cross-stage rules (UAT-gate enforcement, four-eyes-for-HIGH/CRITICAL, AI-disclosure on commits, etc.). Don't push compliance enforcement into sub-skills.
+- **Frontmatter still single-purpose.** The orchestrator's `description` field announces _orchestration_ as its trigger surface — not the sub-skills' triggers. `e2e-test-engineer` keeps its own trigger phrases; the orchestrator gets phrases like "implement issue #N under the SDLC".
+
 ## Step 6 — Cross-reference from stage docs
 
 If the skill specialises within a particular stage (and most do), add a one-line pointer from the relevant stage doc. Example for `e2e-test-engineer`:
