@@ -26,7 +26,7 @@ When reporting, please include:
 
 ## What is not in scope (here)
 
-- The DevAudit web portal lives in a separate private repository (`metasession-dev/META-COMPLY`). Vulnerabilities affecting the running service at `devaudit.metasession.co` belong there. Use the same email above; the security team handles both repos.
+- The DevAudit web portal lives in a separate repository ([`metasession-dev/devaudit`](https://github.com/metasession-dev/devaudit), currently private; formerly `META-COMPLY`). Vulnerabilities affecting the running service at `devaudit.metasession.co` belong there. Use the same email above; the security team handles both repos.
 - Vulnerabilities in upstream dependencies (npm packages, GitHub Actions, etc.) — please report those to the upstream projects. We track them via Dependabot and patch on our side as updates ship.
 - Issues with consumer projects that have onboarded the SDLC. Those go to the consumer's own security contact.
 
