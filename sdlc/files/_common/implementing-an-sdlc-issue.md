@@ -74,7 +74,7 @@ Assign yourself, move the issue to **In Progress** in the project board.
 
 Goal: a written, reviewable plan before any code lands.
 
-Steps (manual or via the **requirements-architect** skill once landed; see [Skills inventory](#skills-inventory)):
+Steps (manual; the [`sdlc-implementer`](#skills-inventory) orchestration skill will run this phase automatically once it lands):
 
 1. **Classify risk** per [`Test_Policy.md`](https://github.com/metasession-dev/DevAudit-Installer/blob/main/sdlc/files/_common/Test_Policy.md) — LOW, MEDIUM, HIGH, or CRITICAL.
 2. **Pick or assign a REQ-XXX ID.** Inspect `compliance/RTM.md` for existing entries; if this is genuinely new, take the next available number.
