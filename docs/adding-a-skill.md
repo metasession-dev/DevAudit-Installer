@@ -11,7 +11,7 @@ Two triggers, both real:
 1. **A multi-step procedure appears in two or more stage docs.** When Stage 2 and Stage 3 both instruct the AI to run the same five-phase test workflow, lift it into a skill. Stage docs stay focused on _when_; the skill owns _how_. Avoids drift.
 2. **A real task surfaces repeatedly in production work and benefits from auto-discovery.** "Hey AI, can you also figure out what e2e tests this PR needs?" said three times in a week → the work is reusable, opinionated, and discovery-driven. Build the skill.
 
-Don't speculate. The [SKILLS.md roadmap](../sdlc/SKILLS.md#skills-on-the-roadmap) names candidate skills, but candidates only become real `SKILL.md` artefacts when production work surfaces the pain repeatedly. The currently-planned `sdlc-implementer` was promoted off the roadmap into active build because the end-to-end SDLC orchestration it provides wasn't replicable from Claude Code's native tools alone — a clear pain signal. Other candidates (e.g. a `unit-test-engineer` counterpart to `e2e-test-engineer`) stay queued until similar real-need drivers appear.
+Don't speculate. The [SKILLS.md roadmap](../sdlc/SKILLS.md#skills-on-the-roadmap) names candidate skills, but candidates only become real `SKILL.md` artefacts when production work surfaces the pain repeatedly. `sdlc-implementer` was promoted off the roadmap because the end-to-end SDLC orchestration it provides wasn't replicable from Claude Code's native tools alone — a clear pain signal. Its SKILL.md + references are now authored on `main` (Phase B), validator-clean, awaiting Phase C smoke against `wawagardenbar-app` before being marked production-shipped. Other candidates (e.g. a `unit-test-engineer` counterpart to `e2e-test-engineer`) stay queued until similar real-need drivers appear.
 
 ## Step 1 — Decide universal or stack-specific
 
@@ -86,12 +86,12 @@ All adapters and skills should pass.
 
 ## Orchestrator skills (calling other skills)
 
-Most skills are atomic — they own one slice of one stage. Some — like the planned `sdlc-implementer` ([SKILLS.md §roadmap](../sdlc/SKILLS.md#skills-on-the-roadmap)) — orchestrate multiple stages and benefit from calling other shipped skills as sub-procedures rather than re-implementing their logic.
+Most skills are atomic — they own one slice of one stage. Some — like the `sdlc-implementer` ([SKILL.md authored on `main`](../sdlc/files/_common/skills/sdlc-implementer/SKILL.md); awaiting Phase C smoke per [SKILLS.md §roadmap](../sdlc/SKILLS.md#skills-on-the-roadmap)) — orchestrate multiple stages and benefit from calling other shipped skills as sub-procedures rather than re-implementing their logic.
 
 When you author an orchestrator skill:
 
 - **Use the Skill invocation pattern.** Claude Code exposes other registered skills to the running session; the orchestrator's SKILL.md body should explicitly name the skills it intends to call (`Skill(name: "e2e-test-engineer", ...)`-style references in the workflow phases) so an agent reading the body knows the call graph in advance.
-- **Don't inline a sub-skill's procedure.** If the orchestrator's Phase 2 needs e2e tests written, it MUST invoke `e2e-test-engineer` — not transcribe `e2e-test-engineer`'s six-phase workflow into its own body. Inlining drifts; invocation doesn't. The planned `sdlc-implementer` skill is the canonical example: its SKILL.md fails review if it authors e2e tests directly instead of delegating to `e2e-test-engineer`.
+- **Don't inline a sub-skill's procedure.** If the orchestrator's Phase 2 needs e2e tests written, it MUST invoke `e2e-test-engineer` — not transcribe `e2e-test-engineer`'s six-phase workflow into its own body. Inlining drifts; invocation doesn't. The `sdlc-implementer` skill is the canonical example: its SKILL.md fails review if it authors e2e tests directly instead of delegating to `e2e-test-engineer`.
 - **Document the call graph in the `references/` directory.** A short `references/call-graph.md` listing every sub-skill the orchestrator may invoke (with a one-line "when") makes the orchestrator's behaviour predictable and grep-able.
 - **Compliance constraints stay with the orchestrator.** The sub-skill knows _how_ to do its own task; the orchestrator owns the cross-stage rules (UAT-gate enforcement, four-eyes-for-HIGH/CRITICAL, AI-disclosure on commits, etc.). Don't push compliance enforcement into sub-skills.
 - **Frontmatter still single-purpose.** The orchestrator's `description` field announces _orchestration_ as its trigger surface — not the sub-skills' triggers. `e2e-test-engineer` keeps its own trigger phrases; the orchestrator gets phrases like "implement issue #N under the SDLC".
