@@ -99,17 +99,17 @@ node scripts/validate-adapter.cjs sdlc/files/_common/skills/<name>/SKILL.md
 
 ## Skills on the roadmap
 
-Speculative — driven by real need, not pre-built:
+| Candidate skill     | Likely trigger surface                                                                                                                   | Supports SDLC stage |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
+| `sdlc-implementer`  | "implement issue #N under the SDLC", "run the SDLC for issue #N", "automate REQ-XXX from issue to release", "do the SDLC for [issue]"   | All stages (1–5)    |
 
-| Candidate skill              | Likely trigger surface                                                         | Supports SDLC stage |
-| ---------------------------- | ------------------------------------------------------------------------------ | ------------------- |
-| `compliance-evidence-author` | "draft RTM entries", "create test-execution-summary", "write security-summary" | Stage 3             |
-| `release-ticket-author`      | "create the release ticket for REQ-XXX", "generate RELEASE-TICKET-REQ-NNN.md"  | Stage 3 Step 7      |
-| `risk-classifier`            | "what risk tier is this REQ", "classify the risk of this change"               | Stage 1             |
-| `sast-triager`               | "triage these semgrep findings", "are these SAST findings baseline or new"     | Stage 3 Step 4      |
-| `commit-message-author`      | "write a commit message for these changes", "draft a conventional commit"      | Stage 2             |
+`sdlc-implementer` is an **orchestration skill** — it drives Claude Code's native tools (`gh`, shell, `devaudit` CLI, portal API) through the full 5-stage flow against a single GitHub issue, pausing only at the UAT-review gate (and at the plan checkpoint for HIGH/CRITICAL risk). It replaces an earlier roadmap of five atomic skills (`risk-classifier`, `commit-message-author`, `compliance-evidence-author`, `sast-triager`, `release-ticket-author`) that were deprioritised — Claude Code's innate capabilities already cover what those atomic skills wrapped; the value-add is end-to-end orchestration with framework-compliant pauses, not five discoverable helpers a human still has to compose.
 
-Each lands when a real driver appears (a project's day-to-day work surfaces the same pain repeatedly).
+The orchestrator may internally invoke other shipped skills (notably `e2e-test-engineer` for Phase 2 test work) — see [docs/adding-a-skill.md §Orchestrator skills](../docs/adding-a-skill.md#orchestrator-skills-calling-other-skills).
+
+Tracking: [`metasession-dev/DevAudit-Installer#29`](https://github.com/metasession-dev/DevAudit-Installer/issues/29) (umbrella).
+
+Other speculative skills land when a real driver appears (a project's day-to-day work surfaces the same pain repeatedly and the orchestrator's internals demonstrably need it as a separable component).
 
 ## When to make a skill vs. when to keep something in a stage doc
 
