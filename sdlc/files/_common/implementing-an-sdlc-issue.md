@@ -36,9 +36,9 @@ For typo fixes, formatting changes, dependency bumps, and other zero-risk chores
 
 If you're not sure whether your change is trivial, treat it as non-trivial (cheaper than discovering mid-PR that an auditor needs evidence).
 
-## Automated mode (when `sdlc-implementer` ships)
+## Automated mode (`sdlc-implementer` — pending Phase C smoke)
 
-When the [`sdlc-implementer`](#skills-inventory) skill is integrated, this entire walkthrough collapses to:
+The [`sdlc-implementer`](#skills-inventory) skill has been authored (SKILL.md + 3 references on `main`, validator-clean) but hasn't yet been smoke-tested against `wawagardenbar-app`. Once Phase C completes, this entire walkthrough collapses to:
 
 ```text
 > Implement issue #N under the SDLC.
@@ -74,7 +74,7 @@ Assign yourself, move the issue to **In Progress** in the project board.
 
 Goal: a written, reviewable plan before any code lands.
 
-Steps (manual; the [`sdlc-implementer`](#skills-inventory) orchestration skill will run this phase automatically once it lands):
+Steps (manual; the [`sdlc-implementer`](#skills-inventory) orchestration skill will run this phase automatically once Phase C smoke completes):
 
 1. **Classify risk** per [`Test_Policy.md`](https://github.com/metasession-dev/DevAudit-Installer/blob/main/sdlc/files/_common/Test_Policy.md) — LOW, MEDIUM, HIGH, or CRITICAL.
 2. **Pick or assign a REQ-XXX ID.** Inspect `compliance/RTM.md` for existing entries; if this is genuinely new, take the next available number.
@@ -100,7 +100,7 @@ Goal: code, tests, all gates green locally before pushing.
    - MEDIUM: unit + integration; e2e for any UI-facing change.
    - HIGH: unit + integration + e2e for every user-visible path + at least one negative/abuse test.
    - CRITICAL: HIGH plus targeted security tests (authz bypass attempts, input fuzzing where applicable).
-   - **For any e2e or visual-regression work in this step, invoke the `e2e-test-engineer` skill** — it derives scenarios from the acceptance criteria + diff, reconciles with the existing pack, retires obsolete tests, runs the suite, and files defects for failures. Don't author e2e tests by hand when the skill is shipped. (Once `sdlc-implementer` ships, it enforces this delegation automatically.)
+   - **For any e2e or visual-regression work in this step, invoke the `e2e-test-engineer` skill** — it derives scenarios from the acceptance criteria + diff, reconciles with the existing pack, retires obsolete tests, runs the suite, and files defects for failures. Don't author e2e tests by hand when the skill is shipped. (Once `sdlc-implementer` Phase C smoke completes, it enforces this delegation automatically.)
 3. **Implement the change.** Reference the implementation plan; deviations from the plan must be noted in the plan itself (it's the source of truth, not a one-shot artefact).
 4. **Run all gates locally** before pushing:
    ```bash
@@ -367,7 +367,7 @@ One orchestration skill replaces an earlier roadmap of five atomic skills. The a
 | -------------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `sdlc-implementer`   | All 5 stages  | One-command orchestration: `"implement issue #N under the SDLC"` triggers Phase 1 (classify risk, write plan, update RTM) → Phase 2 (branch, tests, implement, gates) → Phase 3 (evidence capture + portal upload) → Phase 4 (PR open, request UAT review). Halts at Phase 4 with a UAT review waiting for the human on the portal. Resumed by `"resume REQ-XXX"`: if UAT approved → Phase 5 (merge, monitor post-deploy, capture prod smoke evidence, mark Released); if changes requested → re-runs Phase 2 + 3, re-submits for UAT re-review. **MUST invoke** [`e2e-test-engineer`](https://github.com/metasession-dev/DevAudit-Installer/blob/main/sdlc/files/_common/skills/e2e-test-engineer/SKILL.md) for end-to-end and visual-regression test work in Phase 2 — the orchestrator never authors e2e tests directly. Unit-test work stays with the orchestrator until a counterpart unit-test skill ships. Enforces six architectural compliance constraints: never skip UAT gate, never act as UAT approver for HIGH/CRITICAL, plan checkpoint mandatory for HIGH/CRITICAL, change-request loop triggers UAT re-review, AI disclosure on every commit, all portal mutations through audit-logged APIs. Tracked at [`metasession-dev/DevAudit-Installer#29`](https://github.com/metasession-dev/DevAudit-Installer/issues/29). |
 
-When the skill lands, it appears in the consumer's `~/.config/devaudit/skills/` after the next `devaudit update`, becomes discoverable to Claude Code by name (`Skill(name: "sdlc-implementer", …)`), and gets a row moved from **Planned** to **Integrated today** above.
+After Phase C smoke completes against `wawagardenbar-app`, the skill will appear in every onboarded consumer's `~/.config/devaudit/skills/` on the next `devaudit update`, become discoverable to Claude Code by name (`Skill(name: "sdlc-implementer", …)`), and get a row moved from **Planned** to **Integrated today** above.
 
 ### Why skills (vs. just prompts)
 
