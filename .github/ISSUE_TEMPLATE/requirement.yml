@@ -1,0 +1,82 @@
+name: Requirement
+description: A new CLI feature, plugin SDK change, new stack/host adapter, or significant framework template change.
+title: "[REQ] <one-line summary>"
+labels: ["requirement", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template for **new capabilities or significant changes** to the DevAudit CLI, plugin SDK, first-party plugins, or SDLC framework templates. Things that change the public contract — a new CLI command, a new lifecycle hook, a new adapter — go here.
+
+        For defects in shipped behaviour, use [Bug](./bug.yml).
+        For typo fixes, refactors, doc tweaks, dependency bumps, use [Task](./task.yml).
+
+        See [`docs/devaudit-cli/build-plan.md`](../docs/devaudit-cli/build-plan.md) for the existing workstream backlog before opening a new requirement.
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context / why
+      description: What problem does this solve? Who needs it (CLI users, plugin authors, consumer maintainers)? Why now?
+      placeholder: |
+        Plugin authors writing security-tooling plugins need access to the consumer's CI run history to scope their checks. Today the PluginContext only exposes the project path; plugins shell out to `gh` themselves, which is awkward and platform-specific.
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Bulleted, testable conditions.
+      placeholder: |
+        - [ ] `PluginContext` gains a `runHistory()` method returning the last N CI runs
+        - [ ] Implementation uses the abstracted `GitProvider` interface, not direct gh calls
+        - [ ] Plugin SDK semver bumps appropriately
+        - [ ] Tests cover empty-history, error, and happy-path
+    validations:
+      required: true
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Which surface is affected
+      description: Helps reviewers find the right files quickly.
+      options:
+        - "CLI (cli/)"
+        - "Plugin SDK (plugin-sdk/)"
+        - "First-party plugin (plugins/devaudit-plugin-*/)"
+        - "Framework templates (sdlc/files/)"
+        - "Stack/host adapter (sdlc/files/{stacks,hosts}/)"
+        - "Skills (sdlc/files/_common/skills/)"
+        - "Multiple — call out in dependencies below"
+    validations:
+      required: true
+
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: Other in-flight issues, portal API changes, breaking-change windows. "None" is valid.
+      placeholder: |
+        - portal repo (private) — release-approval API extension
+        - plugin SDK major version bump (semver implication)
+    validations:
+      required: true
+
+  - type: textarea
+    id: out_of_scope
+    attributes:
+      label: Out of scope
+      description: What this issue deliberately does not do. Prevents scope creep.
+      validations:
+        required: false
+
+  - type: checkboxes
+    id: sdlc-prep
+    attributes:
+      label: Pre-flight
+      options:
+        - label: I've checked [`docs/devaudit-cli/build-plan.md`](../docs/devaudit-cli/build-plan.md) — this isn't already a tracked workstream item.
+          required: true
+        - label: I've read [`CONTRIBUTING.md`](../CONTRIBUTING.md) — I understand the pre-1.0 contribution policy (external PRs by invitation; issues welcome).
+          required: true

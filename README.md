@@ -1,8 +1,17 @@
 # DevAudit Installer
 
-> Single source of truth for the Metasession SDLC framework — templates, adapter manifests, AI-tool rule files, and installer scripts that onboard a consumer project to the compliance pipeline.
+> **DevAudit is more than a self-hosted compliance evidence portal — it enforces an SDLC that satisfies ISO 29119, ISO 27001, SOC 2, GDPR, and the EU AI Act.** Whether you're a vibe coder, traditional engineer, or non-technical builder, DevAudit ensures your software development lifecycle meets the requirements auditors actually check.
 
-The DevAudit web portal (the running compliance service at <https://devaudit.metasession.co>) lives in a separate repository (`META-COMPLY`). This repo holds everything a consumer project needs to adopt the Metasession SDLC and to push evidence to the portal.
+This repo — `DevAudit-Installer` — holds two of DevAudit's three pillars:
+
+1. **The SDLC framework** (`sdlc/`) — stage docs, templates, adapters per stack/host, AI skills.
+2. **The CLI + compliance gates** (`cli/`, `plugin-sdk/`, `plugins/*`, plus the CI workflow templates under `sdlc/files/ci/`) — what onboards your project and what runs on every push/PR.
+
+The third pillar — the evidence portal — lives at [`metasession-dev/devaudit`](https://github.com/metasession-dev/devaudit) (running at <https://devaudit.metasession.co>). For the three-pillar story, the standards coverage map, and the end-to-end walkthrough, **start at the portal repo's docs**:
+
+- [What is DevAudit](https://github.com/metasession-dev/devaudit/blob/main/docs/what-is-devaudit.md) — the three pillars in depth
+- [Standards coverage](https://github.com/metasession-dev/devaudit/blob/main/docs/standards-coverage.md) — clause-by-clause mapping for ISO 29119 / ISO 27001 / SOC 2 / GDPR / EU AI Act
+- [Implementing an SDLC issue](https://github.com/metasession-dev/devaudit/blob/main/docs/implementing-an-sdlc-issue.md) — GitHub issue → merged-and-deployed, with sample AI prompts at each stage
 
 ## Install the CLI
 
@@ -113,10 +122,13 @@ The bash installer is being replaced by the `devaudit` CLI — **v0.1.x is publi
 
 | Repo | Role |
 |---|---|
-| `metasession-dev/META-COMPLY` | DevAudit web portal (the running service at devaudit.metasession.co) |
-| `metasession-dev/wawagardenbar-app` | The only active consumer of this framework as of 2026-05-18 |
+| [`metasession-dev/devaudit`](https://github.com/metasession-dev/devaudit) | DevAudit evidence portal (Next.js app running at `devaudit.metasession.co`). The reframing / standards-coverage / SDLC-walkthrough docs live there. |
+| [`metasession-dev/wawagardenbar-app`](https://github.com/metasession-dev/wawagardenbar-app) | Active consumer — Node/Next.js on Railway. |
+| [`metasession-dev/META-AGENT`](https://github.com/metasession-dev/META-AGENT) | Active consumer — Python. |
+| [`metasession-dev/META-JOBS`](https://github.com/metasession-dev/META-JOBS) | Active consumer — Node. Onboarded 2026-05-18. |
+| `metasession-dev/META-ATS` | Onboarding paused (resumable). |
 
-Earlier onboarding attempts for `metasession-dev/META-AGENT`, `metasession-dev/META-ATS`, and `metasession-dev/META-JOBS` were stopped or reverted. The repos still exist but don't run SDLC gates against DevAudit.
+The current portal-side consumers table is the authoritative version: see [`README.md`](https://github.com/metasession-dev/devaudit/blob/main/README.md) §Consuming projects.
 
 ## Contributing
 

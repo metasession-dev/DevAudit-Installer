@@ -1,0 +1,91 @@
+name: Bug
+description: Defect in the CLI, plugin SDK, first-party plugin, or shipped framework template.
+title: "[BUG] <one-line symptom>"
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this for defects in shipped behaviour of the CLI, plugin SDK, first-party plugins, or framework templates.
+
+        **Security vulnerabilities: do NOT open a public issue.** See [`SECURITY.md`](../SECURITY.md) for the private disclosure path.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: What's broken
+      description: One paragraph. What happens vs what should happen.
+      placeholder: |
+        `devaudit install` on Windows fails at the hooks-bootstrap step with "spawn EINVAL" when the consumer project's path contains a space. The bash equivalent (sdlc-onboard.sh) works in WSL because it quotes the path.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: Step-by-step. Include exact commands, paths, terminal/PowerShell, OS version.
+      placeholder: |
+        1. On Windows 11 (PowerShell 7.4), clone any consumer repo to a path with a space: `C:\Users\dev\my proj\`
+        2. Run `devaudit install C:\Users\dev\my proj\`
+        3. Observe failure at step 5 (hooks-bootstrap) with `Error: spawn npx EINVAL`
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected vs actual
+      placeholder: |
+        Expected: hooks bootstrap completes; consumer gets husky installed.
+        Actual: spawn EINVAL halts onboarding; consumer's working tree is left half-configured.
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: |
+        - CLI version (`devaudit --version`)
+        - Node version (`node --version`)
+        - OS + shell
+        - Affected package name + version if it's a plugin/SDK bug
+      placeholder: |
+        - CLI: devaudit 0.1.1
+        - Node: v22.11.0
+        - OS: Windows 11 (build 22631) / PowerShell 7.4
+    validations:
+      required: true
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Which surface is affected
+      options:
+        - "CLI (cli/)"
+        - "Plugin SDK (plugin-sdk/)"
+        - "First-party plugin (plugins/devaudit-plugin-*/)"
+        - "Framework templates (sdlc/files/)"
+        - "Stack/host adapter (sdlc/files/{stacks,hosts}/)"
+        - "Installer bash scripts (scripts/sdlc-onboard.sh, sync-sdlc.sh)"
+        - "Multiple"
+    validations:
+      required: true
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: Known workaround (if any)
+      validations:
+        required: false
+
+  - type: checkboxes
+    id: confirms
+    attributes:
+      label: Pre-flight
+      options:
+        - label: I confirm this is NOT a security vulnerability. (If it is, close this and follow [`SECURITY.md`](../SECURITY.md).)
+          required: true
+        - label: I've searched existing issues and this isn't a duplicate.
+          required: true
