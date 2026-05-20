@@ -1,0 +1,75 @@
+name: Bug
+description: Defect in shipped behaviour. Full SDLC if it touches a high-risk surface; otherwise lighter.
+title: "[BUG] <one-line symptom>"
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template for defects in shipped behaviour. Bug fixes follow the SDLC at the depth dictated by the affected surface — see Test_Policy.md §Risk-Based Testing and the trivial-change escape hatch in the [SDLC walkthrough](https://github.com/metasession-dev/devaudit/blob/main/docs/implementing-an-sdlc-issue.md#trivial-change-escape-hatch).
+
+        **Security vulnerabilities: do NOT open a public issue.** See `SECURITY.md` (if present in this repo) for the private disclosure path.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: What's broken
+      description: One paragraph. What happens vs what should happen.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: Step-by-step. Include URLs, commands, payloads. The more deterministic, the faster the fix.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected vs actual
+      description: Explicit contrast helps triage and writes the test case.
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Browser/OS, runtime version, deployment environment, commit SHA if relevant.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: surface_risk
+    attributes:
+      label: Affected surface — risk class
+      description: "Same scale as the Requirement template. Defects in HIGH/CRITICAL surfaces still need stage-1 risk classification and full evidence even if the fix is small."
+      options:
+        - "LOW — UI polish, low-traffic admin tooling, no security/data/payment surface"
+        - "MEDIUM — user-visible feature defect, no security/data risk"
+        - "HIGH — auth, payments, RBAC, evidence/audit storage, third-party data egress"
+        - "CRITICAL — regulated data, AI making decisions about people, production infra"
+        - "Unsure — defer to stage-1 plan to classify"
+    validations:
+      required: true
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: Known workaround (if any)
+      description: What lets the user keep working until this is fixed. "None" is a valid answer.
+      validations:
+        required: false
+
+  - type: checkboxes
+    id: sdlc-prep
+    attributes:
+      label: SDLC prep
+      options:
+        - label: I confirm this is NOT a security vulnerability. (If it is, close this and follow `SECURITY.md`.)
+          required: true
+        - label: I've searched existing issues and this isn't a duplicate.
+          required: true

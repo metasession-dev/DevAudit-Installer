@@ -1,0 +1,75 @@
+name: Requirement
+description: A new feature, enhancement, or significant change. Goes through full SDLC stages 1–5.
+title: "[REQ] <one-line summary>"
+labels: ["requirement", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template for **new features, enhancements, or significant changes** that need full SDLC traceability — anything an auditor or stakeholder might later ask "was this tested?".
+
+        For bug fixes that touch the same high-risk surfaces, use [Bug](./bug.yml).
+        For typo fixes, doc tweaks, dependency bumps, or other zero-risk chores, use [Task](./task.yml).
+
+        End-to-end walkthrough: [Implementing an SDLC issue](https://github.com/metasession-dev/devaudit/blob/main/docs/implementing-an-sdlc-issue.md) — stages 1–5, sample AI prompts, the skills inventory.
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context / why
+      description: What problem does this solve? Who is the user, and what are they trying to do? Why now?
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Bulleted, testable conditions. "Done" means every box is checked.
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: suspected_risk
+    attributes:
+      label: Suspected risk class
+      description: "Per Test_Policy.md §Risk-Based Testing. Final classification happens in stage 1; this is your first-cut signal."
+      options:
+        - "LOW — UI polish, low-traffic admin tooling, no security/data/payment surface"
+        - "MEDIUM — new feature, integration, refactor with user-visible effect"
+        - "HIGH — auth, payments, RBAC, evidence/audit storage, third-party data egress"
+        - "CRITICAL — regulated data, AI making decisions about people, production infra"
+        - "Unsure — defer to stage-1 plan to classify"
+    validations:
+      required: true
+
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: Other issues, infra prerequisites, external-team blockers. "None" is a valid answer.
+    validations:
+      required: true
+
+  - type: textarea
+    id: out_of_scope
+    attributes:
+      label: Out of scope
+      description: What this issue deliberately doesn't do. Helps reviewers gauge size and prevents scope creep.
+      validations:
+        required: false
+
+  - type: checkboxes
+    id: sdlc-prep
+    attributes:
+      label: SDLC prep
+      description: Confirm before triage.
+      options:
+        - label: I've read the SDLC walkthrough (https://github.com/metasession-dev/devaudit/blob/main/docs/implementing-an-sdlc-issue.md) and understand which stages this requirement will pass through.
+          required: true
+        - label: I've checked the existing RTM (`compliance/RTM.md`) for any pre-existing REQ-XXX that covers this. (If yes, link it above and close this issue.)
+          required: true

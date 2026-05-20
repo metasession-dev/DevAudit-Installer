@@ -1,0 +1,48 @@
+name: Task
+description: Chore, refactor, doc update, or dependency bump. Uses the trivial-change escape hatch — skips SDLC stages 1 + 3.
+title: "[TASK] <one-line summary>"
+labels: ["task", "chore"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template for **zero-risk chores**: typo fixes, formatting, dependency bumps, doc updates, refactors that produce no behaviour change. These follow the [trivial-change escape hatch](https://github.com/metasession-dev/devaudit/blob/main/docs/implementing-an-sdlc-issue.md#trivial-change-escape-hatch) — skip SDLC stages 1 (plan) and 3 (evidence), but **still run all gates locally** before pushing.
+
+        If the chore turns out to be non-trivial in flight, convert this issue to a [Requirement](./requirement.yml) and follow full stages 1–5.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What
+      description: One sentence describing the change.
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: Why
+      description: The minimum context a reviewer needs to approve without further questions.
+    validations:
+      required: true
+
+  - type: textarea
+    id: done
+    attributes:
+      label: Definition of done
+      description: Bullet list. "Done" means every box is checked.
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: confirms
+    attributes:
+      label: Confirmations
+      options:
+        - label: This change has no user-visible behaviour change and no security/data/auth surface impact.
+          required: true
+        - label: I will run all local gates before pushing, even though stages 1 + 3 are skipped.
+          required: true

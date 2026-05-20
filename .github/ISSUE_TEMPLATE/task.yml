@@ -1,0 +1,53 @@
+name: Task
+description: Chore, refactor, doc update, or dependency bump. No public-contract change.
+title: "[TASK] <one-line summary>"
+labels: ["task", "chore"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template for **zero-risk chores**: typo fixes, formatting, dependency bumps, doc updates, refactors that produce no observable behaviour change in the CLI / SDK / plugin / framework.
+
+        If the chore turns out to be non-trivial in flight (touches a public contract, requires a semver bump, needs evidence), convert this issue to a [Requirement](./requirement.yml).
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What
+      description: One sentence describing the change.
+      placeholder: |
+        Bump `commander` from ^12.1.0 to ^13.0.0 in `cli/package.json`.
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: Why
+      description: Minimum context for a reviewer to approve without further questions.
+      placeholder: |
+        Upstream security advisory in 12.x's option-parsing. v13 is API-compatible per its changelog; CLI tests pass locally on v13.
+    validations:
+      required: true
+
+  - type: textarea
+    id: done
+    attributes:
+      label: Definition of done
+      description: Bullet list.
+      placeholder: |
+        - [ ] package.json + package-lock.json updated
+        - [ ] `npm test` clean across cli + plugin-sdk + 2 plugins
+        - [ ] CI matrix green on Linux, macOS, Windows
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: confirms
+    attributes:
+      label: Confirmations
+      options:
+        - label: This change has no public-contract impact (CLI command surface, plugin SDK types, framework template shape all unchanged).
+          required: true
+        - label: I will run the local matrix (`npm test` in each package) before pushing.
+          required: true
