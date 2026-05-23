@@ -47,12 +47,10 @@ Requires Node ≥ 22. Native binaries (no Node runtime) via brew / scoop / `curl
 │   ├── STACK_ADAPTER.md             # Contract for adding a stack adapter
 │   └── SKILLS.md                    # Contract for adding skills
 ├── scripts/
-│   ├── sdlc-onboard.sh              # 11-step interactive consumer onboarding
-│   ├── sync-sdlc.sh                 # Sync framework templates into existing consumers
-│   ├── upload-evidence.sh           # Push evidence artefacts to the DevAudit portal
+│   ├── upload-evidence.sh           # Push evidence artefacts to the DevAudit portal (synced into consumers)
 │   └── validate-adapter.cjs         # Validate stack/host/skill manifests against their schemas
 ├── docs/
-│   ├── onboarding.md                # Operator walkthrough for sdlc-onboard.sh
+│   ├── onboarding.md                # Operator walkthrough for `devaudit install`
 │   ├── sdlc-framework.md            # Framework overview
 │   ├── consuming-projects.md        # Operator manual for consumer maintainers
 │   ├── adding-a-stack.md            # How to add a new stack adapter
@@ -100,9 +98,7 @@ For each consumer the CLI:
 - Fires plugin `beforeSync` / `afterSync` lifecycle hooks
 - Leaves the working tree dirty for you to review + commit
 
-### Legacy bash flow
-
-The original bash scripts (`scripts/sdlc-onboard.sh`, `scripts/sync-sdlc.sh`) remain in-tree as a fallback for cases where the CLI can't be installed (e.g. no Node ≥ 22 available, air-gapped onboarding). Behaviour is equivalent; the CLI is the supported path going forward.
+> The original bash installer (`scripts/sdlc-onboard.sh`, `scripts/sync-sdlc.sh`) has been **removed** — `devaudit install` / `devaudit update` are the supported path. The CLI bundles the framework templates, so it no longer needs a DevAudit-Installer checkout at runtime. `scripts/upload-evidence.sh` remains (it's synced into consumers and called by the generated CI workflow).
 
 ## Architecture
 

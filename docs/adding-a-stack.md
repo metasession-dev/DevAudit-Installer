@@ -147,7 +147,7 @@ If your adapter only uses existing fields, the existing tests cover it.
 ## Step 8 — Dry-run sync against the real consumer
 
 ```bash
-./scripts/sync-sdlc.sh v1.23.x <path-to-consumer>
+devaudit update v1.23.x <path-to-consumer>
 ```
 
 The consumer must have `sdlc-config.json` with `"stack": "<name>"`. Inspect:

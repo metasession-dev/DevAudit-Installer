@@ -4,6 +4,20 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+## [0.1.2] — 2026-05-23
+
+### Added
+
+- **Templates are now bundled into the package.** `prepack` runs `tools/bundle-templates.mjs`, which copies `sdlc/` and `scripts/upload-evidence.sh` from the repo root into the package, and `package.json` `files` ships them. The published tarball is self-contained — `devaudit install` / `devaudit update` work from a global `npm i -g` install with no DevAudit-Installer checkout. Implements the bundling design in `docs/devaudit-cli/build-plan.md` / ADR-001.
+
+### Changed
+
+- `resolveInstallerRoot()` now locates templates by the presence of `sdlc/files` (priority: `DEVAUDIT_INSTALLER_ROOT` → bundled package snapshot → repo root), instead of probing for `scripts/sdlc-onboard.sh`. The CLI no longer depends on the bash installer existing.
+
+### Removed
+
+- The bash installer (`scripts/sdlc-onboard.sh`, `scripts/sync-sdlc.sh`) has been removed from the repo. `devaudit install` / `devaudit update` are the only supported onboarding/sync path. (`scripts/upload-evidence.sh` stays — it's synced into consumers and bundled here.)
+
 ## [0.1.1] — 2026-05-19
 
 ### Fixed

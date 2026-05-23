@@ -27,7 +27,7 @@ A skill is `_common/` when its body is genuinely framework-agnostic (auto-detect
 
 ## How skills reach consumers
 
-`scripts/sync-sdlc.sh` copies every skill directory into the consumer's `.claude/skills/<skill-name>/` on every sync:
+`devaudit update` (cli/src/update/skills.ts) copies every skill directory into the consumer's `.claude/skills/<skill-name>/` on every sync:
 
 - All `_common/skills/<name>/` directories sync to every consumer.
 - `stacks/<stack>/skills/<name>/` directories sync only when the consumer's `sdlc-config.json` selects that stack.
@@ -39,9 +39,9 @@ Other AI tools (Cursor, Windsurf, Gemini CLI) don't have a native Skill mechanis
 
 ### Additional emissions
 
-A skill is allowed to ship code that the consumer's test/build tooling needs to `import` at runtime — a helper, a fixture, a shared utility. The canonical source lives under the skill's `references/` directory (so it's discoverable alongside the SKILL.md that teaches its use), and `sync-sdlc.sh` emits a copy into the right place in the consumer's source tree.
+A skill is allowed to ship code that the consumer's test/build tooling needs to `import` at runtime — a helper, a fixture, a shared utility. The canonical source lives under the skill's `references/` directory (so it's discoverable alongside the SKILL.md that teaches its use), and `devaudit update` emits a copy into the right place in the consumer's source tree.
 
-Currently the only such emission is the e2e-test-engineer skill's `evidence.ts` helper, which syncs to `<consumer>/e2e/helpers/evidence.ts` on node-stack consumers. The pattern: add a guarded section to `sync-sdlc.sh` (see section 2e-iii) — the skill's main bundle still syncs to `.claude/skills/` as normal, but the extra file lands where the consumer's tests can import it.
+Currently the only such emission is the e2e-test-engineer skill's `evidence.ts` helper, which syncs to `<consumer>/e2e/helpers/evidence.ts` on node-stack consumers. The pattern: add a guarded section to the CLI skill sync (`cli/src/update/skills.ts`) — the skill's main bundle still syncs to `.claude/skills/` as normal, but the extra file lands where the consumer's tests can import it.
 
 Use this pattern sparingly. If the skill only needs to teach a concept, a Markdown example in SKILL.md is enough. If the skill prescribes a helper consumers must call from their own code, that helper deserves to be canonical and shipped — not copy-pasted from a doc.
 

@@ -1,6 +1,6 @@
 {
   "name": "@metasession.co/devaudit-cli",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "DevAudit CLI — installs, syncs, and operates the Metasession SDLC across consumer projects.",
   "type": "module",
   "bin": {
@@ -13,6 +13,8 @@
   "files": [
     "bin",
     "dist",
+    "sdlc",
+    "scripts",
     "README.md",
     "LICENSE"
   ],
@@ -22,6 +24,8 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
+    "bundle:templates": "node tools/bundle-templates.mjs",
+    "prepack": "npm run build && npm run bundle:templates",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
