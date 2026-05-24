@@ -90,6 +90,17 @@ assert_eq "subject overrides body conflict -> REQ-037" "REQ-037" "$(run_helper)"
 make_fixture "$WORK/c6" "chore: bump deps"
 assert_eq "no tag -> bare date $TODAY" "$TODAY" "$(run_helper)"
 
+# Case 7: a prose REQ mention earlier in the body must NOT beat the Ref:
+# line. Regression for the META-JOBS misattribution where "target close:
+# REQ-002" caused gate evidence to land on a REQ-002 release instead of
+# the real Ref: REQ-001.
+make_fixture "$WORK/c7" "chore(sdlc): accept dep advisories
+
+Dependency advisories accepted under R-001; target close: REQ-002.
+
+Ref: REQ-001"
+assert_eq "prose REQ-002 before Ref: REQ-001 -> REQ-001" "REQ-001" "$(run_helper)"
+
 echo ""
 echo "=== Summary: $PASS pass / $FAIL fail ==="
 
