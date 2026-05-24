@@ -4,6 +4,12 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+## [0.1.5] — 2026-05-24
+
+### Fixed
+
+- Bundled `derive-release-version.sh` now reads the release id from the `[REQ-XXX]` subject tag or the `Ref:` line only — not the first `REQ-\d+` anywhere in the commit body. A prose forward-reference (e.g. "target close: REQ-002" before "Ref: REQ-001") no longer misroutes a release's gate evidence onto a phantom release named after the wrong requirement. Regression-tested (case 7). Same greedy-prose class as the 0.1.4 validator fix.
+
 ## [0.1.4] — 2026-05-24
 
 ### Fixed
