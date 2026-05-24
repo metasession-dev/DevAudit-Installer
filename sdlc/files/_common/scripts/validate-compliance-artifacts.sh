@@ -19,14 +19,25 @@ echo "=== Compliance Artifact Validation ==="
 echo "Comparing: $BASE_BRANCH...HEAD"
 echo ""
 
-# Extract REQ-XXX references from commits in this PR.
+# Extract the requirement(s) THIS PR implements — from the commit subject
+# tag `[REQ-XXX]` and the `Ref: REQ-XXX` trailer only, NOT from arbitrary
+# prose in commit bodies. A mention like "target close: REQ-002" or
+# "prereq for REQ-034" is a forward-reference, not a requirement under
+# change; scraping the whole body (%B) made CI demand evidence dirs for
+# work that hasn't started (DevAudit: META-JOBS tracker, REQ-002 false
+# positive). The RTM-row guard below is a secondary safety net.
 #
-# Requires ≥3 digits so placeholder patterns like `REQ-0XX` (used in
-# commit-body templates referring to a batch of sub-REQs) don't create
-# phantom IDs that block CI — the loose `\d+` would match `REQ-0` from
-# `REQ-0XX` and then ERROR on a missing evidence dir for the phantom
-# `REQ-0`. The project's stable id format is REQ-001 onwards (#232).
-REQUIREMENTS=$(git log "$BASE_BRANCH"..HEAD --format='%B' | grep -oP 'REQ-\d{3,}' | sort -u || true)
+# Requires ≥3 digits so placeholder patterns like `REQ-0XX` don't create
+# phantom IDs. The project's stable id format is REQ-001 onwards (#232).
+PR_MSGS=$(git log "$BASE_BRANCH"..HEAD --format='%B' || true)
+REQUIREMENTS=$(
+  {
+    # Subject/anywhere tag, e.g. `feat: [REQ-001] …`
+    printf '%s\n' "$PR_MSGS" | grep -oP '\[\KREQ-\d{3,}(?=\])' || true
+    # `Ref:` line (may list several, e.g. `Ref: REQ-001, REQ-003`)
+    printf '%s\n' "$PR_MSGS" | grep -iP '^\s*Ref:' | grep -oP 'REQ-\d{3,}' || true
+  } | sort -u
+)
 
 if [ -z "$REQUIREMENTS" ]; then
   echo "No REQ-XXX references found in PR commits — skipping artifact validation."

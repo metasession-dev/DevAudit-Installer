@@ -195,6 +195,33 @@ assert_grep "no missing-test ERROR" 'ERROR: Test file referenced in test-plan.md
 assert_exit "validator exits 0 with depth-2 bare-filename reference" 0
 cd "$WORKDIR"
 
+# --- case 6: a future REQ mentioned only in commit prose is ignored ---
+# Regression for the META-JOBS REQ-002 false positive: scraping the whole
+# commit body pulled in `REQ-002` from "target close: REQ-002" and then
+# ERRORed on its missing evidence dir even though REQ-002 hadn't started.
+# Only `[REQ-XXX]` subject tags and `Ref:` lines count as under-change.
+echo "Case 6: future REQ mentioned only in prose is not validated"
+make_fixture "$WORKDIR/case6" "Implements the access-control boundary.
+
+Dependency advisories accepted under R-001; target close: REQ-002.
+
+Ref: REQ-001"
+# REQ-002 HAS an RTM row (the trap) but no evidence dir; REQ-001 is the real
+# Ref but has no RTM row, so it INFO-skips. Old code would ERROR on REQ-002.
+{
+  echo '# RTM'
+  echo
+  echo '| ID | Description | Status |'
+  echo '| --- | --- | --- |'
+  echo '| REQ-002 | Dependency hardening (not started) | PLANNED |'
+} > compliance/RTM.md
+git add . && git commit -q -m "chore: seed RTM with future REQ-002 row"
+run_validator
+assert_grep "REQ-002 not pulled in from prose" 'Requirements found in PR commits:.*REQ-002' 0
+assert_grep "no evidence-dir ERROR for prose-only REQ-002" 'ERROR: Evidence directory missing.*REQ-002' 0
+assert_exit "validator exits 0 when future REQ is only prose-mentioned" 0
+cd "$WORKDIR"
+
 # --- summary ---
 
 echo
