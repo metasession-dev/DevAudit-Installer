@@ -4,7 +4,13 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
-## [0.1.2] — 2026-05-23
+## [0.1.3] — 2026-05-24
+
+> Supersedes a broken manual `0.1.2` publish whose tarball carried an unresolved
+> `@metasession.co/devaudit-plugin-sdk: file:../plugin-sdk` dependency (the manual
+> `npm publish` bypassed `release.yml`'s `file:`→`^version` rewrite, so `npm i -g`
+> failed). `0.1.2` is deprecated; this is the same change set published correctly
+> via the tagged CI release. Lockstep release across all four packages.
 
 ### Added
 
