@@ -4,6 +4,12 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+## [0.1.6] — 2026-05-24
+
+### Fixed
+
+- Bundled `post-deploy-prod.yml` now resolves the **promoted REQ release** instead of a date-prefixed one. It derives the version from the commits merged into the push (`[REQ-XXX]` subject tags / `Ref:` lines, `fetch-depth: 0`), falling back to a bare date only for date-versioned consumers. Previously a REQ-versioned release never converged at the production stage — prod evidence and the `prod_review` advance landed on a phantom `v<date>` release while the real REQ release stayed `uat_approved`.
+
 ## [0.1.5] — 2026-05-24
 
 ### Fixed
