@@ -4,6 +4,12 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+## [0.1.4] — 2026-05-24
+
+### Fixed
+
+- Bundled compliance validator (`sdlc/files/_common/scripts/validate-compliance-artifacts.sh`) now scopes requirement extraction to the commit `[REQ-XXX]` subject tag and `Ref:` trailer, instead of scraping the entire commit body. Prose forward-references like "target close: REQ-002" no longer cause CI to demand evidence dirs for requirements that haven't started. New regression case in the validator test suite (17 pass). Consumers pick this up on the next `devaudit update`.
+
 ## [0.1.3] — 2026-05-24
 
 > Supersedes a broken manual `0.1.2` publish whose tarball carried an unresolved
