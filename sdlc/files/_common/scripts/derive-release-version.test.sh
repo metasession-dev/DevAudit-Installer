@@ -101,6 +101,16 @@ Dependency advisories accepted under R-001; target close: REQ-002.
 Ref: REQ-001"
 assert_eq "prose REQ-002 before Ref: REQ-001 -> REQ-001" "REQ-001" "$(run_helper)"
 
+# Case 8: a "Merge pull request" commit carries the PR title (with its
+# bracketed [REQ-XXX] tag) in the BODY, not the subject, and no Ref: line.
+# Must resolve from the body bracket, not fall through to the date.
+# Regression for REQ-002 landing on a phantom v<date> release after a
+# feature->develop PR merge.
+make_fixture "$WORK/c8" "Merge pull request #7 from metasession-dev/feat/req-002
+
+chore(deps): [REQ-002] dependency hardening — close R-001"
+assert_eq "merge-commit body [REQ-002] -> REQ-002" "REQ-002" "$(run_helper)"
+
 echo ""
 echo "=== Summary: $PASS pass / $FAIL fail ==="
 

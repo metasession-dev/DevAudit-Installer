@@ -4,6 +4,12 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+## [0.1.8] — 2026-05-24
+
+### Fixed
+
+- `derive-release-version.sh` now also resolves a bracketed `[REQ-XXX]` tag in the **commit body**, not just the subject + `Ref:` line. A "Merge pull request …" commit carries the PR title (with its `[REQ-XXX]` tag) in the body, so PR-merged requirements were falling through to the date fallback and fragmenting onto a phantom `v<date>` release at `ci.yml`'s register-release step. Bracketed-only, so unbracketed prose ("target close: REQ-002") still can't beat a real `Ref:`. Regression-tested (case 8).
+
 ## [0.1.7] — 2026-05-24
 
 ### Fixed
