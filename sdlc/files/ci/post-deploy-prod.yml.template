@@ -33,6 +33,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history so the merged commits' REQ tags are readable
 
       - name: Resolve DevAudit base URL and post-deploy terminal status
         run: |
@@ -76,12 +78,29 @@ jobs:
       - name: Resolve current release
         id: release
         run: |
-          DATE_PREFIX="v$(date +%Y.%m.%d)"
+          # Resolve the release being PROMOTED — the same REQ the dev/UAT
+          # pipeline versioned (ci.yml / compliance-evidence.yml use
+          # derive-release-version.sh → REQ-XXX). The merge commit itself
+          # carries no REQ tag, so derive it from the commits merged into
+          # this push ([REQ-XXX] subject tags / Ref: lines), and only fall
+          # back to a bare date when the consumer uses date-versioned
+          # releases. Without this, a REQ-versioned release never converges:
+          # production evidence + the prod-review advance land on a phantom
+          # date release while the real REQ release stays uat_approved.
+          REQ=$(git log "${{ github.event.before }}..${{ github.sha }}" --format='%s%n%b' 2>/dev/null \
+                | grep -oiE '\[REQ-[0-9]+\]|Ref:[[:space:]]*REQ-[0-9]+' \
+                | grep -oiE 'REQ-[0-9]+' | head -1 | tr '[:lower:]' '[:upper:]' || true)
+          if [ -n "$REQ" ]; then
+            PREFIX="$REQ"
+          else
+            PREFIX="v$(date +%Y.%m.%d)"
+          fi
+          echo "Resolving release for version prefix: ${PREFIX}"
           RESP=$(curl -s -H "Authorization: Bearer ${DEVAUDIT_API_KEY}" \
-            "${BASE}/api/ci/releases/resolve?projectSlug=${PROJECT_SLUG}&versionPrefix=${DATE_PREFIX}")
+            "${BASE}/api/ci/releases/resolve?projectSlug=${PROJECT_SLUG}&versionPrefix=${PREFIX}")
           VERSION=$(echo "$RESP" | jq -r '.latest.version // empty')
           if [ -z "$VERSION" ]; then
-            VERSION="${DATE_PREFIX}"
+            VERSION="${PREFIX}"
           fi
           RELEASE_ID=$(echo "$RESP" | jq -r '.latest.id // empty')
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
