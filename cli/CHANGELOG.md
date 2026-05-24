@@ -4,6 +4,12 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+## [0.1.7] — 2026-05-24
+
+### Fixed
+
+- Bundled `post-deploy-prod.yml` now uploads the release ticket to the **production** environment (`release_artifact`) alongside the smoke results. Submit-for-production-review requires a release ticket in the production env (`STATUS_ENVIRONMENT[prod_review] = 'production'`), but the dev/UAT pipeline only uploaded it to `uat` — so the prod-review submission was unsatisfiable. The promoted release's ticket is now carried forward to production.
+
 ## [0.1.6] — 2026-05-24
 
 ### Fixed

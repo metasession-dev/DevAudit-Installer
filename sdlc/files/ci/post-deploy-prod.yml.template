@@ -154,6 +154,32 @@ jobs:
               ${FLAGS} || echo "Warning: Failed to upload smoke results"
           fi
 
+      - name: Upload release ticket to production
+        run: |
+          # Submit-for-production-review requires a release ticket (release_artifact)
+          # in the PRODUCTION environment — the dev/UAT pipeline only uploads it to
+          # uat. Carry the promoted release's ticket forward to production so the
+          # production release is self-contained and the prod-review gate passes.
+          chmod +x scripts/upload-evidence.sh 2>/dev/null || true
+          VERSION="${{ steps.release.outputs.version }}"
+          FLAGS="--release ${VERSION} --create-release-if-missing --environment production --category release_artifact"
+          FLAGS="${FLAGS} --git-sha ${GIT_SHA} --ci-run-id ${CI_RUN} --branch main"
+          TICKET=""
+          for DIR in compliance/pending-releases compliance/approved-releases; do
+            if [ -f "${DIR}/RELEASE-TICKET-${VERSION}.md" ]; then
+              TICKET="${DIR}/RELEASE-TICKET-${VERSION}.md"
+              break
+            fi
+          done
+          if [ -n "$TICKET" ]; then
+            echo "Uploading release ticket to production: $TICKET"
+            bash scripts/upload-evidence.sh \
+              "${PROJECT_SLUG}" "_compliance-docs" compliance_document "$TICKET" \
+              ${FLAGS} || echo "Warning: Failed to upload release ticket to production"
+          else
+            echo "No RELEASE-TICKET-${VERSION}.md in pending-/approved-releases — skipping (date-versioned release or ticket archived)."
+          fi
+
       - name: Advance release status (post-deploy)
         run: |
           RELEASE_ID="${{ steps.release.outputs.release_id }}"
