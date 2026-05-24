@@ -10,7 +10,9 @@
 #   2. Ref in commit body:        "Ref: REQ-037"                 -> REQ-037
 #   3. Fallback:                  bare date                      -> v2026.05.17
 #
-# Multi-REQ commits: first match wins; subject takes priority over body.
+# The id is taken from the bracketed subject tag or the `Ref:` line only —
+# NOT from arbitrary REQ mentions in prose (e.g. a body line "target close:
+# REQ-002" must not win over "Ref: REQ-001"). Subject takes priority over body.
 # Output: single line on stdout. Exit 0 in all normal cases.
 #
 # This ties a release record (project_id, version) to the feature the
@@ -24,15 +26,17 @@ set -euo pipefail
 SUBJECT=$(git log -1 --format='%s' 2>/dev/null || echo '')
 BODY=$(git log -1 --format='%b' 2>/dev/null || echo '')
 
-# 1. Subject: [REQ-XXX]
+# 1. Subject: [REQ-XXX] — the bracketed tag only, not other REQ mentions.
 if echo "$SUBJECT" | grep -qE '\[REQ-[0-9]+\]'; then
-  echo "$SUBJECT" | grep -oE 'REQ-[0-9]+' | head -1
+  echo "$SUBJECT" | grep -oE '\[REQ-[0-9]+\]' | head -1 | grep -oE 'REQ-[0-9]+'
   exit 0
 fi
 
-# 2. Body: Ref: REQ-XXX (case-insensitive on "Ref" and "REQ")
+# 2. Body: the id on the `Ref:` line only (case-insensitive on "Ref"/"REQ").
+# Scoping to the Ref: line prevents a prose mention earlier in the body
+# (e.g. "target close: REQ-002") from being picked over the real ref.
 if echo "$BODY" | grep -qiE 'Ref:[[:space:]]*REQ-[0-9]+'; then
-  echo "$BODY" | grep -ioE 'REQ-[0-9]+' | head -1 | tr '[:lower:]' '[:upper:]'
+  echo "$BODY" | grep -ioE 'Ref:[[:space:]]*REQ-[0-9]+' | head -1 | grep -oiE 'REQ-[0-9]+' | tr '[:lower:]' '[:upper:]'
   exit 0
 fi
 
