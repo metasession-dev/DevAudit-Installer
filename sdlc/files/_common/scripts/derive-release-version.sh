@@ -6,14 +6,18 @@
 #   VERSION=$(./scripts/derive-release-version.sh)
 #
 # Priority:
-#   1. REQ tag in commit subject: "[REQ-037] feat(kitchen): ..." -> REQ-037
-#   2. Ref in commit body:        "Ref: REQ-037"                 -> REQ-037
-#   3. Fallback:                  bare date                      -> v2026.05.17
+#   1. REQ tag in commit subject:   "[REQ-037] feat(kitchen): ..." -> REQ-037
+#   2. Ref in commit body:          "Ref: REQ-037"                 -> REQ-037
+#   3. Bracketed tag in commit body: merge commit whose body is the PR title
+#                                    "... [REQ-037] ..."           -> REQ-037
+#   4. Fallback:                    bare date                      -> v2026.05.17
 #
-# The id is taken from the bracketed subject tag or the `Ref:` line only —
-# NOT from arbitrary REQ mentions in prose (e.g. a body line "target close:
-# REQ-002" must not win over "Ref: REQ-001"). Subject takes priority over body.
-# Output: single line on stdout. Exit 0 in all normal cases.
+# The id is taken from a bracketed [REQ-XXX] tag (subject or body) or the
+# `Ref:` line — NOT from unbracketed prose (e.g. "target close: REQ-002" must
+# not win over "Ref: REQ-001"). Step 3 exists because a "Merge pull request"
+# commit carries the PR title (with its [REQ-XXX] tag) in the body, not the
+# subject — without it, PR-merged work falls through to the date fallback and
+# fragments onto a phantom date release. Output: single line on stdout.
 #
 # This ties a release record (project_id, version) to the feature the
 # commits belong to, so all CI uploads for one REQ converge on one
@@ -40,5 +44,14 @@ if echo "$BODY" | grep -qiE 'Ref:[[:space:]]*REQ-[0-9]+'; then
   exit 0
 fi
 
-# 3. Fallback: bare date in UTC
+# 3. Body: a bracketed [REQ-XXX] anywhere in the body. Catches a merge commit
+# whose body is the PR title — e.g. subject "Merge pull request #7 from …",
+# body "chore(deps): [REQ-002] …". Bracketed-only, so an unbracketed prose
+# mention ("target close: REQ-002") still cannot win over a real Ref: above.
+if echo "$BODY" | grep -qE '\[REQ-[0-9]+\]'; then
+  echo "$BODY" | grep -oE '\[REQ-[0-9]+\]' | head -1 | grep -oE 'REQ-[0-9]+'
+  exit 0
+fi
+
+# 4. Fallback: bare date in UTC
 echo "v$(date -u +%Y.%m.%d)"
