@@ -79,6 +79,6 @@ export async function runStatus(options: StatusOptions): Promise<void> {
   if (missingFiles.length === 0) {
     log.success('All checked framework files are present.');
   } else {
-    log.warn(`${missingFiles.length} framework file(s) missing. Re-sync via DevAudit-Installer's sync-sdlc.sh to refresh.`);
+    log.warn(`${missingFiles.length} framework file(s) missing. Re-sync with \`devaudit update <version> <path>\` to refresh.`);
   }
 }

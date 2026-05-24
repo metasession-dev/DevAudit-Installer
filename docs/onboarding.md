@@ -7,12 +7,9 @@ Onboarding collapses the v1.23.0 manual onboarding sequence (9 steps) into **two
 
 Everything else — DevAudit project creation, API key issuance, GitHub secrets/variables, hook framework install, branch protection, first template sync — is handled by the CLI.
 
-Two equivalent paths are available; pick one:
+Onboarding is driven by the **`@metasession.co/devaudit-cli`** npm package (binary `devaudit`) — a cross-platform, native TypeScript tool with JSON output mode (`--json`) for CI. The package **ships the framework templates inside it**, so no DevAudit-Installer checkout is required. (The earlier bash installer, `scripts/sdlc-onboard.sh`, has been removed; the CLI is the only supported path.)
 
-- **`devaudit install`** (recommended) — native TS implementation in the CLI (npm package `@metasession.co/devaudit-cli`). Cross-platform, JSON output mode (`--json`), CI-friendly (`--yes`).
-- **`scripts/sdlc-onboard.sh`** (legacy fallback) — original bash flow. Behaviour-equivalent; remains in-tree for cases where the CLI can't be installed (no Node ≥ 22, air-gapped operator machines).
-
-This document describes the underlying flow; commands below show both paths where they differ.
+This document describes the underlying flow.
 
 ## Prerequisites
 
@@ -21,8 +18,7 @@ On the operator's machine:
 - `git`, `gh` (GitHub CLI), `jq`, `curl`.
 - `gh` authenticated against the consumer's GitHub repo with admin scope (`gh auth login`).
 - Either `pre-commit` (for Python stacks) or `npx` (for Node stacks) available — the installer bootstraps the hook framework via these.
-- For the **CLI path**: Node ≥ 22 and `npm install -g @metasession.co/devaudit-cli`.
-- For the **legacy bash path**: `bash` (the script uses `set -euo pipefail`).
+- Node ≥ 22 and the CLI installed: `npm install -g @metasession.co/devaudit-cli`.
 
 On the DevAudit side:
 
@@ -39,22 +35,14 @@ The PAT carries the operator's identity. Project creation, API key issuance, and
 
 ## Step 2 — Run the installer
 
-**CLI path (recommended):**
+Provide the token either by exporting it or with `devaudit auth login` (caches to `~/.config/devaudit/auth.json`):
 
 ```bash
-export DEVAUDIT_USER_TOKEN="mctok_…"
+export DEVAUDIT_USER_TOKEN="mctok_…"     # or: devaudit auth login
 devaudit install ../path/to/new-consumer
 ```
 
-**Legacy bash path:**
-
-```bash
-cd path/to/DevAudit-Installer
-export DEVAUDIT_USER_TOKEN="mctok_…"
-./scripts/sdlc-onboard.sh ../path/to/new-consumer
-```
-
-Either path will:
+If `sdlc-config.json` already exists in the target, `install` runs non-interactively from it (and preserves customisations like `app_env` / `build_env` / `e2e_*`); otherwise it prompts for the remaining values. The CLI will:
 
 1. **Authenticate** — validates the PAT against DevAudit; aborts if invalid.
 2. **Detect the stack and working directory** — reads `pyproject.toml` / `package.json` to infer `python` / `node` and find the manifest location.
@@ -69,7 +57,7 @@ Either path will:
 8. **Set the GitHub variable** `DEVAUDIT_BASE_URL`.
 9. **Bootstrap the hook framework** — `pre-commit install` for Python, `npx husky init` for Node.
 10. **Configure branch protection on `main`** — required status checks: `Compliance Validation`, `DevAudit Release Approval`, `Quality Gates`. (Required-approving-reviews set to 0 by default; raise to 1+ once your team has more than one admin.)
-11. **Run `sync-sdlc.sh`** — populates all framework files in the consumer (SDLC/ stage docs, INSTRUCTIONS.md, AI pointer files, hooks, scripts, CI workflows).
+11. **Sync framework templates** — populates all framework files in the consumer (SDLC/ stage docs, INSTRUCTIONS.md, AI pointer files, hooks, scripts, CI workflows) from the templates bundled in the CLI. Equivalent to a `devaudit update` run.
 
 The consumer's working tree is left dirty so the operator can review the diff before committing.
 
@@ -87,7 +75,7 @@ gh pr create --base main
 
 Open the PR for review. Once merged, the project is fully active under the SDLC framework.
 
-## What the script can't do (and why)
+## What onboarding can't do (and why)
 
 Some operations remain out of scope by design:
 
@@ -115,7 +103,7 @@ Re-running the script on the same consumer is safe:
 
 ## Worked example: onboarding META-AGENT (historical trace)
 
-A trace of what `./scripts/sdlc-onboard.sh ../META-AGENT` looked like the first time. The META-AGENT onboarding has since been reverted (META-AGENT is no longer an active consumer — see [consuming-projects.md](./consuming-projects.md)), but the trace is preserved here as a concrete demonstration of what the script does:
+A trace of an early `devaudit install ../META-AGENT` run (the bash installer it replaced produced the same 11-step flow). The META-AGENT onboarding has since been reverted (META-AGENT is no longer an active consumer — see [consuming-projects.md](./consuming-projects.md)), but the trace is preserved here as a concrete demonstration of what onboarding does:
 
 ```text
 ══════════════════════════════════════════════════════════════

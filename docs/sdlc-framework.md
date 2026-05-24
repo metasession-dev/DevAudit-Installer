@@ -283,7 +283,7 @@ All agent config files use a **single source of truth** pattern: `.cursorrules`,
 Setup is automatic via the sync script:
 
 ```bash
-./scripts/sync-sdlc.sh v1.5.0 ../your-project
+devaudit update v1.5.0 ../your-project
 ```
 
 This generates pointer files and appends/replaces the SDLC section in `INSTRUCTIONS.md`. See `sdlc/ai-rules/README.md` for full details.

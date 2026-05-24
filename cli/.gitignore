@@ -3,3 +3,8 @@ dist/
 coverage/
 *.tsbuildinfo
 .DS_Store
+
+# Bundled template snapshot — generated from the repo root by
+# tools/bundle-templates.mjs on `prepack`. Not committed.
+/sdlc/
+/scripts/

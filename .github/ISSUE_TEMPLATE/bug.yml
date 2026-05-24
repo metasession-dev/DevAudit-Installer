@@ -16,7 +16,7 @@ body:
       label: What's broken
       description: One paragraph. What happens vs what should happen.
       placeholder: |
-        `devaudit install` on Windows fails at the hooks-bootstrap step with "spawn EINVAL" when the consumer project's path contains a space. The bash equivalent (sdlc-onboard.sh) works in WSL because it quotes the path.
+        `devaudit install` on Windows fails at the hooks-bootstrap step with "spawn EINVAL" when the consumer project's path contains a space.
     validations:
       required: true
 
@@ -68,7 +68,7 @@ body:
         - "First-party plugin (plugins/devaudit-plugin-*/)"
         - "Framework templates (sdlc/files/)"
         - "Stack/host adapter (sdlc/files/{stacks,hosts}/)"
-        - "Installer bash scripts (scripts/sdlc-onboard.sh, sync-sdlc.sh)"
+        - "Onboarding / template sync (devaudit install / update)"
         - "Multiple"
     validations:
       required: true

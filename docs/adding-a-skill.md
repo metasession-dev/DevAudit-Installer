@@ -113,7 +113,7 @@ The cross-reference makes the skill discoverable to AI agents that have already 
 Sync the framework to a consumer and verify the skill lands in `.claude/skills/<name>/`:
 
 ```bash
-./scripts/sync-sdlc.sh v1.23.x ../some-consumer
+devaudit update v1.23.x ../some-consumer
 ls ../some-consumer/.claude/skills/<name>/
 ```
 
@@ -136,7 +136,7 @@ The PR body should explain: which stage(s) the skill supports, what triggered th
 
 ## Step 10 — Consumers pick it up on next sync
 
-No action required by individual consumers — the next `sync-sdlc.sh` run distributes the skill into their `.claude/skills/`. The next AI session sees it automatically.
+No action required by individual consumers — the next `devaudit update` run distributes the skill into their `.claude/skills/`. The next AI session sees it automatically.
 
 ## Worked example: `e2e-test-engineer`
 

@@ -1,5 +1,5 @@
 {
-  "_comment": "SDLC project configuration — used by sync-sdlc.sh to generate CI workflows",
+  "_comment": "SDLC project configuration — used by `devaudit install` / `devaudit update` to generate CI workflows",
 
   "project_slug": "your-project-slug",
   "production_url_secret": "YOUR_PROJECT_PROD_URL",

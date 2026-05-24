@@ -14,12 +14,12 @@ export interface UpdateOptions {
 }
 
 /**
- * Native TypeScript implementation of the SDLC template sync.
+ * Native TypeScript implementation of the SDLC template sync — the canonical
+ * sync path (the former `scripts/sync-sdlc.sh` has been removed).
  *
- * The bash version (`scripts/sync-sdlc.sh`) tagged DevAudit-Installer before
- * sync. The CLI omits the tagging step — `devaudit release tag` will own that
- * concern in a future command. The version argument is accepted for parity
- * with the bash CLI but is currently used only in summary output.
+ * Tagging DevAudit-Installer before sync is intentionally out of scope here;
+ * `devaudit release tag` will own that concern in a future command. The version
+ * argument is accepted for summary output and forward compatibility.
  */
 export async function runUpdate(options: UpdateOptions): Promise<void> {
   const log = logger();

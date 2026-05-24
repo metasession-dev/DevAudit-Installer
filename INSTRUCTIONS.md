@@ -10,7 +10,7 @@ This repo is the single source of truth for:
 
 - **SDLC framework templates** (`sdlc/files/`) — copied into every consumer project at onboard / sync time.
 - **AI tool rule files** (`sdlc/ai-rules/`) — Claude / Cursor / Windsurf / Gemini configs that consumers receive.
-- **Installer scripts** (`scripts/sdlc-onboard.sh`, `scripts/sync-sdlc.sh`) — the bash flow that bootstraps a consumer.
+- **The `devaudit` CLI** (`cli/`) — the npm package `@metasession.co/devaudit-cli` that bootstraps and syncs a consumer (`devaudit install` / `devaudit update`). Bundles the templates under `sdlc/files/`.
 - **Documentation** (`docs/`) — operator walkthroughs and adapter-pattern guides.
 - **Adapter contracts** (`sdlc/STACK_ADAPTER.md`, `sdlc/HOST_ADAPTER.md`, `sdlc/SKILLS.md`) — schemas every stack/host/skill manifest must satisfy.
 
@@ -66,18 +66,15 @@ node scripts/validate-adapter.cjs --all
 
 This checks every `adapter.json` and `SKILL.md` against the schemas in `sdlc/files/stacks/_schema/`, `sdlc/files/hosts/_schema/`, and `sdlc/files/_common/skills/_schema/`.
 
-## Working on installer scripts
+## Working on the installer (the `devaudit` CLI)
 
-Two scripts live in `scripts/`:
+Onboarding and template sync live in the **`devaudit` CLI** (`cli/`, npm package `@metasession.co/devaudit-cli`) — the bash `sdlc-onboard.sh` / `sync-sdlc.sh` have been removed:
 
-- `sdlc-onboard.sh` — interactive 11-step onboarding. Read top-to-bottom to understand the flow.
-- `sync-sdlc.sh` — per-project template sync. Reads the consumer's `sdlc-config.json` to resolve stack + host adapters.
+- `cli/src/install/` — the 11-step onboarding (`devaudit install`).
+- `cli/src/update/` — per-project template sync (`devaudit update`); reads the consumer's `sdlc-config.json` to resolve stack + host adapters.
+- `cli/src/lib/installer-root.ts` — locates the templates: the package's bundled `sdlc/` snapshot (shipped via `tools/bundle-templates.mjs` on `prepack`), the repo root when run from a checkout, or `DEVAUDIT_INSTALLER_ROOT`.
 
-Both are bash, both use `set -euo pipefail`, both are idempotent. When editing:
-
-- Test against a throwaway fixture first (`/tmp/sync-test-*` is a fine convention).
-- `bash -n` syntax-check after every change.
-- Surface errors clearly. Silently-swallowing `npm install` failures was a real bug (portal repo issue #313, internal tracker) — don't reintroduce that pattern.
+When editing: `cd cli && npm run build && npm test` (vitest, 40 tests). Surface errors clearly — silently swallowing `npm install` failures was a real bug (portal repo issue #313); don't reintroduce that pattern.
 
 ## Cross-repo impact
 
@@ -92,15 +89,16 @@ Changes to `sdlc/files/` propagate to **every consumer** on the next sync. Be de
 The framework has limited automated testing today:
 
 - `scripts/validate-adapter.cjs --all` — schema check for adapters and skills.
+- `cd cli && npm test` — vitest suite covering install/update/sync.
 - Ad-hoc smoke runs against throwaway fixtures.
 
-A proper test harness for `sync-sdlc.sh` is on the roadmap. Until then, every framework PR should be smoke-synced against at least one real consumer before merge.
+Every framework PR should also be smoke-synced (`devaudit update`) against at least one real consumer before merge.
 
 ## Security considerations
 
 - Never embed credentials in templates. Tokens live in consumer env vars or GitHub secrets, not in shipped files.
 - Adapter manifests are evaluated by `validate-adapter.cjs` — any change to schemas needs explicit review.
-- The `sdlc-onboard.sh` script asks for `DEVAUDIT_USER_TOKEN` from env, never from a prompt that gets logged. Keep it that way.
+- `devaudit install` takes `DEVAUDIT_USER_TOKEN` from env / `devaudit auth login` cache / `--token`, never from a prompt that gets logged. Keep it that way.
 
 ## Related documents
 

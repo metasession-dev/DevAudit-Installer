@@ -20,8 +20,8 @@ Requires Node ≥ 22. Native binaries (no Node runtime needed) are on the roadma
 - `devaudit --help` / `--version`
 - `devaudit doctor` — checks `node` (>=22), `git`, `gh`, `jq`, `curl` are on PATH
 - `devaudit status [path]` — reads `sdlc-config.json` from a consumer project, prints stack/host/slug/source-dirs, and reports which framework files are present
-- `devaudit install [path]` — **native TS, 11-step interactive onboarding** under `src/install/` (auth-probe → detect-stack → prompts → write-config → project → api-key → github → hooks-bootstrap → branch-protection → sync-templates → done-report). Replaces `scripts/sdlc-onboard.sh`; no shell-out.
-- `devaudit update <version> <paths...>` — **native TS, multi-project template sync** under `src/update/`. Reads each consumer's `sdlc-config.json`, copies framework files, fires `beforeSync` / `afterSync` plugin hooks. Replaces `scripts/sync-sdlc.sh`; no shell-out.
+- `devaudit install [path]` — **native TS, 11-step interactive onboarding** under `src/install/` (auth-probe → detect-stack → prompts → write-config → project → api-key → github → hooks-bootstrap → branch-protection → sync-templates → done-report). Replaces the former `scripts/sdlc-onboard.sh` (removed); no shell-out.
+- `devaudit update <version> <paths...>` — **native TS, multi-project template sync** under `src/update/`. Reads each consumer's `sdlc-config.json`, copies framework files, fires `beforeSync` / `afterSync` plugin hooks. Replaces the former `scripts/sync-sdlc.sh` (removed); no shell-out.
 - `devaudit push <slug> <req-id> <type> <file>` — uploads evidence to the portal (port of `upload-evidence.sh`; file or directory; retries on 429/5xx with backoff)
 - `devaudit auth login` — interactive PAT paste flow; validates against the portal; stores at `~/.config/devaudit/auth.json` (mode 0600)
 - `devaudit auth logout` — wipes the cached token
@@ -73,7 +73,7 @@ cli/
 
 Future structure (per [build-plan.md](../docs/devaudit-cli/build-plan.md)): `src/commands/{install,update,push,auth/*,org/*,plugin/*,config/*,status,upgrade}.ts` and `src/lib/{adapter,devaudit-api,sdlc-config,auth,git-provider,policy,plugin,report,prompts,paths,stack-detect}.ts`.
 
-## Why a CLI when the bash scripts exist?
+## Why a CLI (it replaced the original bash scripts)
 
 - Cross-platform native (Linux/macOS/Windows; no WSL requirement)
 - JSON output mode on every command for CI

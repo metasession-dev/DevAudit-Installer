@@ -8,7 +8,7 @@ DevAudit serves as the central compliance hub for all Metasession projects. Each
 | ------------- | ------------------- | ----- | ------- | ---------- | ------------------------- |
 | wawagardenbar | `wawagardenbar-app` | node  | railway | Integrated | 2026-05-14 (sdlc-v1.23.0) |
 
-Only **wawagardenbar** is a live consumer as of 2026-05-18. Previous onboarding attempts for **META-AGENT**, **META-ATS**, and **META-JOBS** were started but stopped or reverted; none of them runs SDLC gates against DevAudit today. If any of those projects return as a live consumer they'll re-onboard from scratch via `devaudit install` (or the legacy `scripts/sdlc-onboard.sh` fallback) and be added to this table at that time.
+Only **wawagardenbar** is a live consumer as of 2026-05-18. Previous onboarding attempts for **META-AGENT**, **META-ATS**, and **META-JOBS** were started but stopped or reverted; none of them runs SDLC gates against DevAudit today. If any of those projects return as a live consumer they'll re-onboard from scratch via `devaudit install` and be added to this table at that time.
 
 The DevAudit portal itself does **not** consume the SDLC framework — it would otherwise gate its own releases through itself. See `CLAUDE.md` in DevAudit's repo root for its lightweight development process.
 
@@ -26,7 +26,7 @@ The DevAudit portal itself does **not** consume the SDLC framework — it would 
 
 The CLI handles every previously-manual step: DevAudit project creation, API key issuance, GitHub repo secrets/variables (`DEVAUDIT_API_KEY`, `DEVAUDIT_USER_TOKEN`, the production-URL secret, `DEVAUDIT_BASE_URL`), hook framework install (`pre-commit` for Python / `husky` for Node), branch protection on `main`, and the first template sync. ~30 seconds end-to-end.
 
-The original bash script (`scripts/sdlc-onboard.sh`) remains in-tree as a behaviour-equivalent fallback for operators who can't install the CLI.
+The original bash installer (`scripts/sdlc-onboard.sh`) has been removed — `devaudit install` is the only onboarding path. The CLI bundles the framework templates, so no DevAudit-Installer checkout is needed.
 
 **Full walkthrough**: see [docs/onboarding.md](onboarding.md).
 
@@ -51,7 +51,7 @@ your-project/
 
 ### How the Sync Script Manages It
 
-The sync script (`scripts/sync-sdlc.sh`, invoked once by the onboarding script and re-runnable for ongoing updates) handles the AI config files as follows:
+The sync step (`devaudit update`, also run once as part of `devaudit install` and re-runnable for ongoing updates) handles the AI config files as follows:
 
 1. **Generates pointer files** for `.cursorrules`, `.windsurfrules`, and `GEMINI.md` — these are identical one-line redirects to `INSTRUCTIONS.md`, overwritten on every sync.
 2. **Updates `CLAUDE.md`** — preserves the project-specific header (repo overview, build commands, key directories) and replaces or appends a pointer section directing to `INSTRUCTIONS.md`. If no `CLAUDE.md` exists, creates one with the pointer.
@@ -94,7 +94,7 @@ After framework changes land in DevAudit's `main`:
 devaudit update v1.X.Y "../wawagardenbar app"
 
 # Or the legacy bash equivalent:
-./scripts/sync-sdlc.sh v1.X.Y "../wawagardenbar app"
+devaudit update v1.X.Y "../wawagardenbar app"
 
 # Then in the consuming project:
 cd "../wawagardenbar app"
@@ -136,7 +136,7 @@ gh variable set DEVAUDIT_BASE_URL --body "https://devaudit.metasession.co"
 
 # 3. Re-sync to pick up the new workflow file references:
 devaudit update v1.X.Y ../path/to/consumer-repo
-# (Or, from a DevAudit-Installer checkout: ./scripts/sync-sdlc.sh v1.X.Y ../path/to/consumer-repo)
+# (Or, from a DevAudit-Installer checkout: devaudit update v1.X.Y ../path/to/consumer-repo)
 
 # 4. Review the diff, commit, push, open PR
 cd ../path/to/consumer-repo
@@ -176,10 +176,10 @@ The SDLC framework is versioned via git tags on DevAudit (e.g., `sdlc-v1.23.0`).
 
 | Component                    | Source of Truth                                                                                      | How Consumers Use It                                                                              | Sync Method                                                                          |
 | ---------------------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| **`upload-evidence.sh`**     | `scripts/upload-evidence.sh` in DevAudit                                                             | Synced into consumer's `scripts/` by sync-sdlc.sh                                                 | Re-sync on every framework version                                                   |
+| **`upload-evidence.sh`**     | `scripts/upload-evidence.sh` in DevAudit                                                             | Synced into consumer's `scripts/` by `devaudit update`                                                 | Re-sync on every framework version                                                   |
 | **CI job + status names**    | `Quality Gates`, `Compliance Validation`, `DevAudit Release Approval` (renamed in v1.22.0)           | GitHub branch protection references exact names                                                   | Must match — renaming requires updating consumer branch protection rules             |
 | **Project slug**             | `sdlc-config.json` `project_slug`                                                                    | Used to create releases, upload evidence, check approval                                          | Must match `compliance_projects.slug` in DevAudit                                    |
-| **GitHub vars/secrets**      | `DEVAUDIT_BASE_URL` (variable), `DEVAUDIT_API_KEY` (secret), `DEVAUDIT_USER_TOKEN` (secret) | Consuming projects' CI workflows authenticate against DevAudit                                    | Set by `sdlc-onboard.sh`; refresh manually when API keys rotate                      |
+| **GitHub vars/secrets**      | `DEVAUDIT_BASE_URL` (variable), `DEVAUDIT_API_KEY` (secret), `DEVAUDIT_USER_TOKEN` (secret) | Consuming projects' CI workflows authenticate against DevAudit                                    | Set by `devaudit install`; refresh manually when API keys rotate                      |
 | **Compliance doc filenames** | `RTM.md`, `test-plan.md`, `test-cases.md`, `test-summary-report.md`                                  | CI upload step looks for these exact filenames                                                    | Renaming requires updating all consumer CI workflows                                 |
 | **Release status values**    | `draft`, `uat_review`, `uat_approved`, `uat_rejected`, `prod_review`, `prod_approved`, `released`    | `check-release-approval.yml` checks for specific statuses                                         | Changing status names requires updating all consumer release-approval gate workflows |
 | **Risk tier column**         | `compliance_projects.risk_tier` (`low`, `medium`, `high`)                                            | Controls self-approval rules: LOW allows self-approval, MEDIUM/HIGH requires independent reviewer | Default `medium`; set per project in DevAudit portal                                 |
@@ -211,7 +211,7 @@ These are hard dependencies across all consumers:
 After making changes to the SDLC framework in DevAudit:
 
 - [ ] Validate adapters: `node scripts/validate-adapter.cjs --all`
-- [ ] Sync each consumer: `devaudit update vX.Y.Z ../project-1 ../project-2` (or the legacy `./scripts/sync-sdlc.sh vX.Y.Z ../project-1 ../project-2`)
+- [ ] Sync each consumer: `devaudit update vX.Y.Z ../project-1 ../project-2` (or the legacy `devaudit update vX.Y.Z ../project-1 ../project-2`)
 - [ ] For each consuming project:
   - [ ] Review the diff (`git diff`) — check for overwritten project-specific customizations.
   - [ ] Re-apply any project-specific customizations if overwritten.

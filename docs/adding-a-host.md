@@ -110,7 +110,7 @@ This is the only template that consumes the host adapter today (Phase 4 wired in
 Adding a new host today therefore has two paths:
 
 1. **The new host's wait is identical to Railway's** (curl the URL, check 2xx/3xx). No template edit needed — Railway's wait works.
-2. **The new host needs a different wait** (`flyctl status` polling, `kubectl rollout status`, etc.). Edit `sdlc/files/ci/post-deploy-prod.yml.template` to substitute `{{WAIT_FOR_DEPLOY}}` from the host adapter, and update `scripts/sync-sdlc.sh` to read it.
+2. **The new host needs a different wait** (`flyctl status` polling, `kubectl rollout status`, etc.). Edit `sdlc/files/ci/post-deploy-prod.yml.template` to substitute `{{WAIT_FOR_DEPLOY}}` from the host adapter, and update the CLI CI-template sync (`cli/src/update/ci-templates.ts`) to read it.
 
 Option 1 is the most likely path for the first non-Railway host. Option 2 is filed as a follow-up issue when needed; the contract field exists in HOST_ADAPTER.md so the wiring lands neatly when it does.
 
@@ -136,7 +136,7 @@ If you're only using existing fields, the existing tests cover it.
 ## Step 7 — Dry-run sync against the real consumer
 
 ```bash
-./scripts/sync-sdlc.sh v1.23.x <path-to-consumer>
+devaudit update v1.23.x <path-to-consumer>
 ```
 
 The consumer's `sdlc-config.json` should have `"host": "<name>"` plus any host-specific config keys you declared in `config_keys`.

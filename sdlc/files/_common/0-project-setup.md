@@ -18,21 +18,21 @@ This guide configures a new project so that the five pipeline workflows can run 
 
 ---
 
-## Fast path (recommended): `sdlc-onboard.sh`
+## Fast path (recommended): `devaudit install`
 
-If you're starting a new project from scratch, the DevAudit team maintains a one-shot onboarding script that automates almost all of this guide. It writes `sdlc-config.json`, creates the DevAudit project, issues an API key, sets the GitHub secrets and variables, installs the hook framework, configures branch protection, and runs the first template sync — in roughly 30 seconds.
+The DevAudit CLI (`@metasession.co/devaudit-cli`) automates almost all of this guide. It writes `sdlc-config.json`, creates the DevAudit project, issues an API key, sets the GitHub secrets and variables, installs the hook framework, configures branch protection, and syncs the framework templates (CI workflows, hooks, scripts) — in roughly 30 seconds.
 
 ```bash
-# In DevAudit's working copy:
-export DEVAUDIT_USER_TOKEN="mctok_..."   # Issued at https://devaudit.metasession.co/settings/tokens
-./scripts/sdlc-onboard.sh ../path/to/this-project
+npm install -g @metasession.co/devaudit-cli   # requires Node >= 22
+devaudit auth login                            # paste your PAT (issued at https://devaudit.metasession.co/settings/tokens)
+devaudit install ../path/to/this-project
 ```
 
-See [`docs/onboarding.md` in DevAudit-Installer](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/onboarding.md) for the full walkthrough.
+The CLI ships the framework templates inside the package, so no DevAudit-Installer checkout is needed. If `sdlc-config.json` already exists in the target, `install` runs non-interactively from it and preserves your customisations (`app_env`, `build_env`, `e2e_*`, etc.). See [`docs/onboarding.md` in DevAudit-Installer](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/onboarding.md) for the full walkthrough.
 
 If you take the fast path, skip to Step 6 (Tier 1 docs reference) — Steps 1–5 are handled automatically. The remaining manual steps in this guide are still relevant: project-specific customisation of `INSTRUCTIONS.md` and `CLAUDE.md`, optional UAT-environment configuration, and verifying the first end-to-end release walks through Stages 1–5 cleanly.
 
-The steps below remain as the **manual reference** for cases where the script can't be used (e.g. no network access to DevAudit at setup time, or an unsupported stack/host combination). They produce the same end state as the script.
+The steps below are the **manual reference** — useful for understanding what the CLI does, or for environments where it can't run. Where a step produces a framework file (CI workflows, hooks, scripts), **copy the canonical template from the DevAudit-Installer repo (`sdlc/files/…`) and fill its placeholders** rather than authoring it by hand — a hand-written `ci.yml` routinely omits the DevAudit `register-release` / `upload-evidence` jobs and leaves releases unable to pass the compliance gates.
 
 ---
 
@@ -76,11 +76,8 @@ Configure in GitHub → Settings → Branches → Branch protection rules:
 - [x] Require approvals: 1 (adjust if team size requires more)
 - [x] Require status checks to pass before merging
   - Add these required checks after CI is configured (Step 4):
-    - `typecheck`
-    - `sast`
-    - `dependency-audit`
-    - `e2e-tests`
-    - `DevAudit UAT Approval` (from `check-uat-approval.yml` — blocks merge until release is approved in DevAudit. Re-run the workflow after approving in DevAudit to turn the check green)
+    - `Quality Gates` (the consolidated CI job from `ci.yml` — TypeScript, SAST, dependency audit, E2E, build)
+    - `DevAudit Release Approval` (from `check-release-approval.yml` — blocks merge until the release is approved in DevAudit. Re-run the workflow after approving in DevAudit to turn the check green)
 - [x] Require branches to be up to date before merging
 - [x] Do not allow bypassing the above settings
 
@@ -138,205 +135,49 @@ PRs to `main` do not trigger a separate CI run. Branch protection required statu
 
 ### GitHub Actions Workflow File
 
-Create `.github/workflows/ci.yml`:
+> **Don't hand-author `ci.yml`.** `devaudit install` (and `devaudit update`)
+> generate it from the canonical template; it is the load-bearing path for the
+> compliance gates and drifts the moment it's retyped.
 
-```yaml
-name: CI Pipeline
+The generated `ci.yml` is a single `quality-gates` job (TypeScript + SAST +
+dependency audit + E2E + build, all on every push to `develop`) **plus two
+DevAudit jobs that are mandatory and easy to miss:**
 
-on:
-  push:
-    branches: [develop]
-    paths-ignore:      # Skip full CI for non-code changes
-      - '.github/workflows/**'
-      - 'SDLC/**'
-      - 'compliance/**'
-      - '*.md'
-      - '.cursorrules'
-      - '.windsurfrules'
-# PRs to main inherit commit status via branch protection required status checks.
-# No pull_request trigger needed — avoids duplicate CI runs.
+- **`register-release`** — registers the release in DevAudit and syncs known
+  requirements from `RTM.md`, so the UAT gate can find the release.
+- **`upload-evidence`** — uploads the gate results to DevAudit with the evidence
+  **categories the approval gate keys on**: `security_scan` (SAST + Dependency
+  Audit), `ci_pipeline` (E2E Tests), `test_report` (Playwright report / coverage).
 
-jobs:
-  # ──────────────────────────────────────────────
-  # JOB 1: TypeScript Compilation
-  # ──────────────────────────────────────────────
-  typecheck:
-    name: TypeScript Check
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'          # UPDATE: match your project's Node version
-          cache: 'npm'
-      - run: npm ci
-      - run: npx tsc --noEmit
+⚠️ **Without `upload-evidence`, releases can never pass the SAST Scan / Dependency
+Audit / E2E Tests gates** — DevAudit derives gate pass/fail from uploaded evidence
+categories, not from the GitHub check status. A `ci.yml` that only saves results
+as `upload-artifact` artifacts produces a release that is permanently stuck in UAT
+review with "Missing compliance gates". This is the single most common onboarding
+failure; let the CLI generate the workflow.
 
-  # ──────────────────────────────────────────────
-  # JOB 2: SAST Scan (Semgrep)
-  # Runs on: PR to main only
-  # Independent security evidence
-  # ──────────────────────────────────────────────
-  sast:
-    name: SAST Scan
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - run: pip install semgrep
-      - run: semgrep scan --config auto src/ --severity ERROR --severity WARNING --error
-        # --error flag makes semgrep exit with non-zero if findings exist
-      # Optional: upload results as artifact for audit evidence
-      - name: Save SAST results
-        if: always()
-        run: semgrep scan --config auto src/ --json > sast-results.json || true
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: sast-results
-          path: sast-results.json
-          retention-days: 90
+**Manual install (fallback only):** copy the canonical template from the
+DevAudit-Installer repo and fill its placeholders from `sdlc-config.json`:
 
-  # ──────────────────────────────────────────────
-  # JOB 3: Dependency Audit
-  # Runs on: PR to main only
-  # Independent supply chain evidence
-  # ──────────────────────────────────────────────
-  dependency-audit:
-    name: Dependency Audit
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'          # UPDATE: match your project's Node version
-          cache: 'npm'
-      - run: npm ci
-      - run: npm audit --audit-level=high
-      # Optional: save results for audit evidence
-      - name: Save audit results
-        if: always()
-        run: npm audit --json > dependency-audit.json || true
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: dependency-audit
-          path: dependency-audit.json
-          retention-days: 90
-
-  # ──────────────────────────────────────────────
-  # JOB 4: E2E Tests (Playwright)
-  # Runs on: PR to main only
-  # Independent functional test evidence
-  # ──────────────────────────────────────────────
-  e2e-tests:
-    name: E2E Tests
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-
-    # UPDATE: Configure your database service
-    # Option A: MongoDB service container
-    services:
-      mongodb:
-        image: mongo:7
-        ports:
-          - 27017:27017
-        options: >-
-          --health-cmd "mongosh --eval 'db.runCommand({ping:1})'"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-    # Option B: If using Docker Compose, remove the services block above
-    # and add a step: run: docker compose -f docker-compose.test.yml up -d
-
-    env:
-      # UPDATE: Set your project's required environment variables
-      MONGODB_URI: mongodb://localhost:27017
-      MONGODB_DB_NAME: testdb           # UPDATE: your test database name
-      NODE_ENV: test
-      # Add other env vars your app needs to start
-
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'            # UPDATE: match your project's Node version
-          cache: 'npm'
-      - run: npm ci
-      - run: npx playwright install chromium --with-deps
-
-      # Seed test data — required before running tests
-      - name: Seed test data
-        run: npx tsx scripts/seed-e2e-admins.ts    # UPDATE: your seed script path
-
-      # Run unauthenticated E2E tests only
-      # UPDATE: adjust the command to match your test configuration
-      # Options:
-      #   npx playwright test                        # all tests
-      #   npx playwright test --project=unauthenticated  # if using named projects
-      #   npx playwright test --grep-invert="@auth"  # exclude by tag
-      - name: Run E2E tests
-        run: npx playwright test
-
-      # Save test results for audit evidence
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: playwright-report
-          path: playwright-report/
-          retention-days: 90
-
-  # ──────────────────────────────────────────────
-  # JOB 5: Compliance Validation
-  # Runs on: PR to main only
-  # Validates compliance artifacts and commit conventions
-  # ──────────────────────────────────────────────
-  compliance-validation:
-    name: Compliance Validation
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0    # Full history needed for commit and diff analysis
-      - name: Validate compliance artifacts
-        run: bash scripts/validate-compliance-artifacts.sh origin/main
-      - name: Validate commit conventions
-        run: bash scripts/validate-commits.sh origin/main
-
-  # ──────────────────────────────────────────────
-  # Build verification (push to develop only)
-  # ──────────────────────────────────────────────
-  build:
-    name: Build Check
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push'
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'            # UPDATE: match your project's Node version
-          cache: 'npm'
-      - run: npm ci
-      - run: npm run build              # UPDATE: your build command
+```bash
+# `devaudit` here = a clone of the DevAudit-Installer repo, not the portal app.
+cp path/to/DevAudit-Installer/sdlc/files/ci/ci.yml.template .github/workflows/ci.yml
+# Then substitute {{PLACEHOLDERS}} ({{RUNNER}}, {{NODE_VERSION}}, {{SOURCE_DIRS}},
+# {{DATABASE_*}}, {{APP_ENV}}, {{BUILD_ENV}}, {{E2E_*}}, {{PROJECT_SLUG}}, …) — the
+# `devaudit update` command does this for you from sdlc-config.json.
 ```
 
 ### Customization Checklist
 
-After creating the workflow file, update every line marked `# UPDATE`:
+Customisation lives in **`sdlc-config.json`**, not in `ci.yml` (which is generated).
+Confirm before the first install/sync:
 
-- [ ] Node.js version matches your project
-- [ ] `src/` path in SAST scan matches your source directory
-- [ ] Database service matches your database (MongoDB, PostgreSQL, etc.)
-- [ ] Environment variables set for your app to start
-- [ ] Seed script path is correct
-- [ ] E2E test command runs the correct subset (unauthenticated for CI)
-- [ ] Build command is correct
+- [ ] `node_version` matches your project
+- [ ] `source_dirs` matches your source directory(ies) (e.g. `app/ lib/`)
+- [ ] `database_service` / `database_image` / `database_env` match your DB (or empty for none)
+- [ ] `app_env` + `build_env` carry every secret your app needs to start, as `${{ secrets.NAME }}`
+- [ ] `e2e_start_command` + `e2e_project` are set
+- [ ] `accepted_dep_risks` lists any documented, risk-registered audit acceptances
 
 ### Verify CI Works
 
@@ -353,9 +194,9 @@ gh pr create --base main --head develop --title "ci: verify pipeline configurati
 gh pr checks
 ```
 
-Once all checks pass, go back to GitHub → Settings → Branches → `main` protection rules and add the job names as required status checks: `typecheck`, `sast`, `dependency-audit`, `e2e-tests`, `compliance-validation`.
+Once all checks pass, go back to GitHub → Settings → Branches → `main` protection rules and add the required status check. The canonical workflow runs a single consolidated job, so add **`Quality Gates`** (and **`DevAudit Release Approval`** once that workflow is in place — see Additional Workflows below).
 
-Now the PR **cannot be merged** unless all four independent verification gates pass. This is enforced by GitHub, not by the developer.
+Now the PR **cannot be merged** unless the Quality Gates job passes. This is enforced by GitHub, not by the developer.
 
 ### After CI Is Configured
 
@@ -371,21 +212,21 @@ E2E tests (ALL — e.g., 183) ──────────→   E2E tests (una
 E2E tests (authenticated — local only)     ✗ (credentials not in CI)
 Post-deploy verification (local only)      ✗ (runs after merge)
                                            
-Evidence → compliance/evidence/REQ-XXX/    Evidence → GitHub Actions logs + artifacts
+Evidence → compliance/evidence/REQ-XXX/    Evidence → uploaded to DevAudit
 (comprehensive, developer-produced)        (independent, tamper-resistant)
 ```
 
-Both are required. Local evidence proves comprehensive testing. CI evidence proves it independently.
+Both are required. Local evidence proves comprehensive testing. CI evidence proves it independently. The `upload-evidence` job pushes the CI gate results **into DevAudit** (categorised `security_scan` / `ci_pipeline` / `test_report`) — GitHub artifacts alone are not evidence as far as the release gates are concerned.
 
 ### Additional Workflows
 
-Copy these template workflows from `sdlc/files/ci/` into your project's `.github/workflows/`:
+These are generated for you by `devaudit install` / `devaudit update`. They come from the canonical templates in the DevAudit-Installer repo (`sdlc/files/ci/`):
 
-**`check-uat-approval.yml`** — UAT approval gate:
+**`check-release-approval.yml`** (workflow "Release Approval Gate") — release approval gate:
 - Runs on PRs to `main` and `workflow_dispatch`
 - Queries DevAudit for release approval status
-- Blocks merge unless release is `uat_approved`
-- Add `Check UAT Approval` as a required status check on `main`
+- Blocks merge unless the release is approved
+- Add `DevAudit Release Approval` (the job name) as a required status check on `main`
 
 **`post-deploy-prod.yml`** — Production evidence capture:
 - Runs on push to `main` (after merge)
@@ -430,13 +271,15 @@ Copy hook templates from DevAudit SDLC:
 
 ```bash
 # From your project root (adjust path to DevAudit)
-cp path/to/devaudit/sdlc/files/hooks/commit-msg .husky/commit-msg
-cp path/to/devaudit/sdlc/files/hooks/pre-commit .husky/pre-commit
-cp path/to/devaudit/sdlc/files/hooks/pre-push .husky/pre-push
+# `devaudit install` bootstraps these for you. Manual fallback (path = a clone
+# of the DevAudit-Installer repo). Hooks are stack-specific — swap `node` for `python`.
+cp path/to/DevAudit-Installer/sdlc/files/stacks/node/hooks/commit-msg .husky/commit-msg
+cp path/to/DevAudit-Installer/sdlc/files/stacks/node/hooks/pre-commit .husky/pre-commit
+cp path/to/DevAudit-Installer/sdlc/files/stacks/node/hooks/pre-push .husky/pre-push
 chmod +x .husky/commit-msg .husky/pre-commit .husky/pre-push
 
 # Copy commitlint config
-cp path/to/devaudit/sdlc/files/hooks/commitlint.config.mjs commitlint.config.mjs
+cp path/to/DevAudit-Installer/sdlc/files/stacks/node/hooks/commitlint.config.mjs commitlint.config.mjs
 ```
 
 Add lint-staged configuration to `package.json`:
@@ -459,7 +302,7 @@ npm pkg set scripts.prepare="husky"
 ### 5d. JSDoc requirement check script (optional — for CI enforcement)
 
 ```bash
-cp path/to/devaudit/sdlc/files/scripts/check-requirement-jsdoc.sh scripts/check-requirement-jsdoc.sh
+cp path/to/DevAudit-Installer/sdlc/files/stacks/node/scripts/check-requirement-jsdoc.sh scripts/check-requirement-jsdoc.sh
 chmod +x scripts/check-requirement-jsdoc.sh
 ```
 
@@ -483,7 +326,7 @@ npx tsc --noEmit
 
 ## Step 6: Create Project Test Plan
 
-Copy `Test_Plan_TEMPLATE.md` from DevAudit (`sdlc/files/Test_Plan_TEMPLATE.md`) to `compliance/test-plan.md` and fill in:
+Copy `Test_Plan_TEMPLATE.md` from the DevAudit-Installer repo (`sdlc/files/_common/Test_Plan_TEMPLATE.md`) to `compliance/test-plan.md` and fill in:
 
 - [ ] Project name and repository
 - [ ] Stack and hosting details

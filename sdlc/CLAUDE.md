@@ -65,7 +65,7 @@ After updating SDLC templates, sync to consuming projects:
 
 ```bash
 # Pass one path per active consumer. Only WGB is live as of 2026-05-19.
-./scripts/sync-sdlc.sh v1.x.0 ../wawagardenbar-app
+devaudit update v1.x.0 ../wawagardenbar-app
 ```
 
 This tags DevAudit, copies all templates (workflow files, AI rules, hooks, scripts, CI templates), and updates tag references in the consuming project's CI workflows. Review the diff in each project before committing.

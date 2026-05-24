@@ -50,7 +50,7 @@ Conventions:
 | `plugin-sdk/` | The `@metasession.co/devaudit-plugin-sdk` package — plugin contract types |
 | `plugins/devaudit-plugin-*/` | First-party plugins built against the SDK |
 | `sdlc/` | Framework templates that get synced into consumer projects |
-| `scripts/` | Bash installer scripts (`sdlc-onboard.sh`, `sync-sdlc.sh`, `upload-evidence.sh`) |
+| `scripts/` | Helper scripts: `upload-evidence.sh` (synced into consumers; bundled into the CLI) + `validate-adapter.cjs`. Onboarding/sync live in the `devaudit` CLI (`cli/`). |
 | `docs/` | Operator docs + design docs (including `devaudit-cli/` build plan + ADR) |
 | `docs/ADR/` | Architectural Decision Records — immutable history |
 

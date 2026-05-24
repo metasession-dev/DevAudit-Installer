@@ -18,7 +18,7 @@ AI agent config files use a **single source of truth** pattern. The sync script 
 
 ```bash
 # Automatic setup via sync script (recommended)
-./scripts/sync-sdlc.sh v1.5.0 ../your-project
+devaudit update v1.5.0 ../your-project
 ```
 
 This generates:
@@ -87,7 +87,7 @@ When SDLC templates are updated in DevAudit, propagate changes to consuming proj
 
 ```bash
 # From DevAudit root. Pass one path per active consumer.
-./scripts/sync-sdlc.sh v1.1.0 ../wawagardenbar-app
+devaudit update v1.1.0 ../wawagardenbar-app
 ```
 
 Only `wawagardenbar-app` is an active consumer as of 2026-05-19; META-AGENT / META-ATS / META-JOBS onboarding attempts were reverted (see [docs/consuming-projects.md](../../docs/consuming-projects.md)). The sync command accepts multiple consumer paths when more projects come back online.
@@ -100,4 +100,4 @@ This:
 5. Updates tag references in consuming project CI workflows
 6. Reports what was synced — review the diff before committing
 
-See `scripts/sync-sdlc.sh` for full details.
+See the CLI sync (`devaudit update`, `cli/src/update/`) for full details.
