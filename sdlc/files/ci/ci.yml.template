@@ -327,59 +327,18 @@ jobs:
               --category test_report ${FLAGS}
           fi
 
-          # Upload compliance docs (planning category)
-          for DOC in compliance/RTM.md compliance/test-plan.md compliance/test-cases.md; do
-            if [ -f "$DOC" ]; then
-              upload "$(basename "$DOC")" \
-                {{PROJECT_SLUG}} _compliance-docs compliance_document "$DOC" \
-                --category planning ${FLAGS}
-            fi
-          done
-
-          # Upload release tickets (pending only — approved releases are historical)
-          for DIR in compliance/pending-releases; do
-            if [ -d "$DIR" ]; then
-              for TICKET in "$DIR"/*.md; do
-                [ -f "$TICKET" ] || continue
-                upload "$(basename "$TICKET")" \
-                  {{PROJECT_SLUG}} _compliance-docs compliance_document "$TICKET" \
-                  --category release_artifact ${FLAGS}
-              done
-            fi
-          done
-
-          # Upload per-requirement evidence — scoped to requirements with a
-          # pending release ticket. Without this scoping every historical
-          # compliance/evidence/REQ-*/ folder would be re-uploaded on every
-          # run, re-populating the release-requirement matrix with the full
-          # project catalogue (DevAudit #133).
-          IN_SCOPE_REQS=()
-          if [ -d compliance/pending-releases ]; then
-            for TICKET in compliance/pending-releases/RELEASE-TICKET-REQ-*.md; do
-              [ -f "$TICKET" ] || continue
-              REQ_ID=$(basename "$TICKET" .md | sed 's/^RELEASE-TICKET-//')
-              IN_SCOPE_REQS+=("$REQ_ID")
-            done
-          fi
-
-          if [ ${#IN_SCOPE_REQS[@]} -eq 0 ]; then
-            echo "No pending release tickets found — skipping per-requirement evidence upload"
-          else
-            echo "In-scope requirements for this release: ${IN_SCOPE_REQS[*]}"
-            for REQ_ID in "${IN_SCOPE_REQS[@]}"; do
-              REQ_DIR="compliance/evidence/${REQ_ID}/"
-              if [ ! -d "$REQ_DIR" ]; then
-                echo "Warning: pending ticket for ${REQ_ID} but no ${REQ_DIR} on disk"
-                continue
-              fi
-              for ARTIFACT in "$REQ_DIR"*.md; do
-                [ -f "$ARTIFACT" ] || continue
-                upload "${REQ_ID}/$(basename "$ARTIFACT")" \
-                  {{PROJECT_SLUG}} "${REQ_ID}" compliance_document "$ARTIFACT" \
-                  --category planning ${FLAGS}
-              done
-            done
-          fi
+          # NOTE: committed compliance docs (planning category: RTM/test-plan/
+          # test-cases, release tickets, and per-requirement
+          # compliance/evidence/REQ-*/ folders) are intentionally NOT uploaded
+          # here. compliance-evidence.yml is the single owner of those — it
+          # fires on every compliance/** push and uploads them to the same
+          # release (both workflows resolve the same version via
+          # derive-release-version.sh). Uploading them here too meant any push
+          # touching both code and compliance/ ran both workflows and inserted
+          # a duplicate row for every doc (evidence is append-only, no upsert),
+          # and re-populated the release matrix with the full catalogue. This
+          # job now uploads ONLY run-generated gate evidence (security_scan /
+          # ci_pipeline / test_report) above. See issue #45.
 
           if [ "$UPLOAD_FAILURES" -gt 0 ]; then
             echo "::error::${UPLOAD_FAILURES} evidence upload(s) failed — release is missing gate evidence and cannot pass UAT review"
