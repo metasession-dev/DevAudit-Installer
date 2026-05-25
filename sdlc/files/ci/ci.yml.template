@@ -82,9 +82,13 @@ jobs:
 
       - name: SAST Scan
         run: |
+          # --output writes the JSON report to the file directly; stderr
+          # (progress/metrics/version notices) goes to /dev/null. Using
+          # `> file 2>&1` instead merged semgrep's stderr into the JSON and
+          # produced an unparseable file (DevAudit #48).
           semgrep scan --config auto {{SOURCE_DIRS}} \
             --severity ERROR --severity WARNING \
-            --json > sast-results.json 2>&1 || true
+            --json --output sast-results.json 2>/dev/null || true
           FINDINGS=$(python3 -c "
           import json
           with open('sast-results.json') as f:
@@ -103,7 +107,8 @@ jobs:
 
       - name: Dependency Audit
         run: |
-          npm audit --json > dependency-audit.json 2>&1 || true
+          # stderr → /dev/null so warnings can't corrupt the JSON (DevAudit #48)
+          npm audit --json > dependency-audit.json 2>/dev/null || true
           ACCEPTED="{{ACCEPTED_DEP_RISKS}}"
           UNACCEPTED=$(python3 -c "
           import json
@@ -136,9 +141,15 @@ jobs:
         run: npx wait-on http://localhost:3000 --timeout 120000
 
       - name: E2E Tests
-        run: |
-          PLAYWRIGHT_HTML_REPORTER_OPEN=never npx playwright test --project={{E2E_PROJECT}} --reporter=json,html > e2e-results.json 2>/dev/null \
-            || PLAYWRIGHT_HTML_REPORTER_OPEN=never npx playwright test --project={{E2E_PROJECT}} --reporter=html
+        env:
+          # PLAYWRIGHT_JSON_OUTPUT_NAME makes the json reporter write straight
+          # to the file. Capturing stdout (`> e2e-results.json`) instead mixed
+          # the html reporter's "To open report" line in after the JSON blob
+          # and produced an unparseable file (DevAudit #48). html report still
+          # lands in playwright-report/.
+          PLAYWRIGHT_HTML_REPORTER_OPEN: never
+          PLAYWRIGHT_JSON_OUTPUT_NAME: e2e-results.json
+        run: npx playwright test --project={{E2E_PROJECT}} --reporter=json,html
 
       # ── Gate 5: Build ──
 
@@ -273,7 +284,7 @@ jobs:
           if [ ! -f ci-evidence/sast-results.json ]; then
             VENV="$HOME/.semgrep-venv"
             if [ -x "$VENV/bin/semgrep" ]; then
-              "$VENV/bin/semgrep" scan --config auto {{SOURCE_DIRS}} --json > ci-evidence/sast-results.json 2>/dev/null || echo '{"results":[]}' > ci-evidence/sast-results.json
+              "$VENV/bin/semgrep" scan --config auto {{SOURCE_DIRS}} --json --output ci-evidence/sast-results.json 2>/dev/null || echo '{"results":[]}' > ci-evidence/sast-results.json
             else
               echo '{"results":[]}' > ci-evidence/sast-results.json
             fi
