@@ -399,7 +399,7 @@ If it fails — typically a stale `devaudit.base_url`, a revoked `DEVAUDIT_API_K
 **Skip this step entirely if any of these are true:**
 
 - Project's `sdlc-config.json` has `uat.enabled: false` — meaning the project has no deployed UAT environment configured (internal services, retroactive-compliance pickups, etc.).
-- Requirement's risk class is **not** listed in project's `uat.required_risk_classes` (defaults: `payment`, `destructive_migration`, `realtime`, `physical_ux`). Text-only fixes, internal refactors, low-risk UI tweaks carry none of these and skip UAT-env verification.
+- Requirement's risk class is **not** listed in project's `uat.required_risk_classes` (defaults: `payment`, `destructive_migration`, `realtime`, `physical_ux`). Text-only fixes, internal refactors, low-risk UI tweaks carry none of these and skip UAT-env verification. **Wildcard:** if `required_risk_classes` contains `"*"`, every requirement requires UAT-env verification regardless of risk class — use this for projects that deploy `develop` to a UAT environment and exercise every release there before promotion.
 
 When skipped, proceed directly to Step 11.
 

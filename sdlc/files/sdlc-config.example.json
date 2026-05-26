@@ -53,7 +53,7 @@
     "api_key_secret": "DEVAUDIT_API_KEY"
   },
 
-  "_comment_uat": "UAT-environment verification (Stage 3 Step 10). Opt-in: enabled=false skips Step 10 entirely. When enabled, only requirements whose risk class is listed in required_risk_classes go through UAT-env verification.",
+  "_comment_uat": "UAT-environment verification (Stage 3 Step 10). Opt-in: enabled=false skips Step 10 entirely. When enabled, only requirements whose risk class is listed in required_risk_classes go through UAT-env verification; use [\"*\"] to require it for every requirement (projects that UAT every release).",
   "uat": {
     "enabled": false,
     "url": "",
