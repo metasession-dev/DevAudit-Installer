@@ -6,16 +6,27 @@
 # Production verification is READ-ONLY.
 # No E2E tests, no database operations, no API mutations.
 #
+# Promotes EVERY in-scope release (each requirement with a pending release
+# ticket), not just the first REQ found — a develop→main PR that bundles
+# several requirements must advance all of them to the terminal status, else
+# the requirements not picked first stay stuck at uat_approved with no
+# production evidence. `workflow_dispatch` allows re-running / catching up a
+# single release via the `release` input.
+#
 # In sdlc-v1.22.0+ the terminal release status is configurable via
 # sdlc-config.json `production_review.terminal_status`:
 #   - "prod_review" (default, Option A) — stop at prod_review; human in the
-#     portal clicks "Approve Production" then "Mark as Released" for an
-#     explicit audit trail. Closes #138.
+#     portal clicks "Approve Production" then "Mark as Released".
 #   - "released" (Option B) — preserves v1.21.x auto-release behaviour.
 
 name: Post-Deploy Production Evidence
 
 on:
+  workflow_dispatch:
+    inputs:
+      release:
+        description: 'Optional REQ-XXX / version to promote (blank = all in-scope from pending release tickets).'
+        required: false
   push:
     branches: [main]
 
@@ -30,11 +41,12 @@ jobs:
       PROJECT_SLUG: {{PROJECT_SLUG}}
       GIT_SHA: ${{ github.sha }}
       CI_RUN: ${{ github.run_id }}
+      RELEASE_INPUT: ${{ github.event.inputs.release }}
 
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # full history so the merged commits' REQ tags are readable
+          fetch-depth: 0   # full history so merged commits' REQ tags are readable
 
       - name: Resolve DevAudit base URL and post-deploy terminal status
         run: |
@@ -75,37 +87,31 @@ jobs:
           echo "DEVAUDIT_BASE_URL=${BASE%/}" >> "$GITHUB_ENV"
           echo "TERMINAL_STATUS=${TERMINAL_STATUS}" >> "$GITHUB_ENV"
 
-      - name: Resolve current release
-        id: release
+      - name: Resolve in-scope releases
         run: |
-          # Resolve the release being PROMOTED — the same REQ the dev/UAT
-          # pipeline versioned (ci.yml / compliance-evidence.yml use
-          # derive-release-version.sh → REQ-XXX). The merge commit itself
-          # carries no REQ tag, so derive it from the commits merged into
-          # this push ([REQ-XXX] subject tags / Ref: lines), and only fall
-          # back to a bare date when the consumer uses date-versioned
-          # releases. Without this, a REQ-versioned release never converges:
-          # production evidence + the prod-review advance land on a phantom
-          # date release while the real REQ release stays uat_approved.
-          REQ=$(git log "${{ github.event.before }}..${{ github.sha }}" --format='%s%n%b' 2>/dev/null \
-                | grep -oiE '\[REQ-[0-9]+\]|Ref:[[:space:]]*REQ-[0-9]+' \
-                | grep -oiE 'REQ-[0-9]+' | head -1 | tr '[:lower:]' '[:upper:]' || true)
-          if [ -n "$REQ" ]; then
-            PREFIX="$REQ"
+          # The releases being PROMOTED are the requirements with a pending
+          # release ticket (the same set the dev/UAT pipeline versioned via
+          # derive-release-version.sh → REQ-XXX). A bundled develop→main PR
+          # carries several; promote ALL of them, not just the first. A manual
+          # dispatch can target one via the `release` input. Fall back to a
+          # bare date for date-versioned (ticketless) releases.
+          if [ -n "${RELEASE_INPUT}" ]; then
+            REQS="${RELEASE_INPUT}"
           else
-            PREFIX="v$(date +%Y.%m.%d)"
+            REQS=""
+            if [ -d compliance/pending-releases ]; then
+              for T in compliance/pending-releases/RELEASE-TICKET-REQ-*.md; do
+                [ -f "$T" ] || continue
+                REQS="${REQS} $(basename "$T" .md | sed 's/^RELEASE-TICKET-//')"
+              done
+            fi
+            REQS=$(echo ${REQS} | tr ' ' '\n' | sort -u | tr '\n' ' ' | sed 's/[[:space:]]*$//')
+            if [ -z "${REQS}" ]; then
+              REQS="v$(date +%Y.%m.%d)"
+            fi
           fi
-          echo "Resolving release for version prefix: ${PREFIX}"
-          RESP=$(curl -s -H "Authorization: Bearer ${DEVAUDIT_API_KEY}" \
-            "${BASE}/api/ci/releases/resolve?projectSlug=${PROJECT_SLUG}&versionPrefix=${PREFIX}")
-          VERSION=$(echo "$RESP" | jq -r '.latest.version // empty')
-          if [ -z "$VERSION" ]; then
-            VERSION="${PREFIX}"
-          fi
-          RELEASE_ID=$(echo "$RESP" | jq -r '.latest.id // empty')
-          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "release_id=${RELEASE_ID}" >> "$GITHUB_OUTPUT"
-          echo "Release version: ${VERSION}"
+          echo "In-scope releases to promote: ${REQS}"
+          echo "REQS=${REQS}" >> "$GITHUB_ENV"
 
       - name: Wait for production deployment
         run: |
@@ -142,63 +148,57 @@ jobs:
           }
           RESULTS_EOF
 
-      - name: Upload production evidence
+      - name: Promote in-scope releases (evidence + status)
         run: |
           chmod +x scripts/upload-evidence.sh 2>/dev/null || true
-          VERSION="${{ steps.release.outputs.version }}"
-          FLAGS="--release ${VERSION} --create-release-if-missing --environment production --category test_report"
-          FLAGS="${FLAGS} --git-sha ${GIT_SHA} --ci-run-id ${CI_RUN} --branch main"
-          if [ -f prod-smoke-results.json ]; then
-            bash scripts/upload-evidence.sh \
-              "${PROJECT_SLUG}" "_compliance-docs" "test_report" prod-smoke-results.json \
-              ${FLAGS} || echo "Warning: Failed to upload smoke results"
-          fi
-
-      - name: Upload release ticket to production
-        run: |
-          # Submit-for-production-review requires a release ticket (release_artifact)
-          # in the PRODUCTION environment — the dev/UAT pipeline only uploads it to
-          # uat. Carry the promoted release's ticket forward to production so the
-          # production release is self-contained and the prod-review gate passes.
-          chmod +x scripts/upload-evidence.sh 2>/dev/null || true
-          VERSION="${{ steps.release.outputs.version }}"
-          FLAGS="--release ${VERSION} --create-release-if-missing --environment production --category release_artifact"
-          FLAGS="${FLAGS} --git-sha ${GIT_SHA} --ci-run-id ${CI_RUN} --branch main"
-          TICKET=""
-          for DIR in compliance/pending-releases compliance/approved-releases; do
-            if [ -f "${DIR}/RELEASE-TICKET-${VERSION}.md" ]; then
-              TICKET="${DIR}/RELEASE-TICKET-${VERSION}.md"
-              break
+          PROMOTED=0
+          for PREFIX in ${REQS}; do
+            echo "=== Promoting ${PREFIX} ==="
+            RESP=$(curl -s -H "Authorization: Bearer ${DEVAUDIT_API_KEY}" \
+              "${BASE}/api/ci/releases/resolve?projectSlug=${PROJECT_SLUG}&versionPrefix=${PREFIX}")
+            VERSION=$(echo "$RESP" | jq -r '.latest.version // empty')
+            [ -z "$VERSION" ] && VERSION="${PREFIX}"
+            RELEASE_ID=$(echo "$RESP" | jq -r '.latest.id // empty')
+            # Production smoke evidence (whole-app health) attached to this release.
+            if [ -f prod-smoke-results.json ]; then
+              bash scripts/upload-evidence.sh \
+                "${PROJECT_SLUG}" "${VERSION}" test_report prod-smoke-results.json \
+                --release "${VERSION}" --create-release-if-missing --environment production \
+                --category test_report --git-sha "${GIT_SHA}" --ci-run-id "${CI_RUN}" --branch main \
+                || echo "Warning: smoke upload failed for ${VERSION}"
+            fi
+            # Carry the release ticket into the production environment so the
+            # prod-review gate is self-contained.
+            TICKET=""
+            for DIR in compliance/pending-releases compliance/approved-releases; do
+              if [ -f "${DIR}/RELEASE-TICKET-${VERSION}.md" ]; then
+                TICKET="${DIR}/RELEASE-TICKET-${VERSION}.md"; break
+              fi
+            done
+            if [ -n "$TICKET" ]; then
+              bash scripts/upload-evidence.sh \
+                "${PROJECT_SLUG}" "${VERSION}" compliance_document "$TICKET" \
+                --release "${VERSION}" --create-release-if-missing --environment production \
+                --category release_artifact --git-sha "${GIT_SHA}" --ci-run-id "${CI_RUN}" --branch main \
+                || echo "Warning: ticket upload failed for ${VERSION}"
+            else
+              echo "No RELEASE-TICKET-${VERSION}.md found — skipping ticket (date-versioned or archived)."
+            fi
+            # Advance status (idempotent — re-PATCHing an already-promoted release is a no-op).
+            if [ -n "$RELEASE_ID" ]; then
+              curl -s -o /dev/null -w "  ${VERSION} status patch: HTTP %{http_code}\n" \
+                -X PATCH "${BASE}/api/ci/releases/${RELEASE_ID}" \
+                -H "Authorization: Bearer ${DEVAUDIT_API_KEY}" \
+                -H "Content-Type: application/json" \
+                -d "{\"status\":\"${TERMINAL_STATUS}\"}"
+              echo "  ${VERSION} → ${TERMINAL_STATUS}"
+              PROMOTED=$((PROMOTED + 1))
+            else
+              echo "::warning::No release_id resolved for ${PREFIX} — skipping status patch"
             fi
           done
-          if [ -n "$TICKET" ]; then
-            echo "Uploading release ticket to production: $TICKET"
-            bash scripts/upload-evidence.sh \
-              "${PROJECT_SLUG}" "_compliance-docs" compliance_document "$TICKET" \
-              ${FLAGS} || echo "Warning: Failed to upload release ticket to production"
-          else
-            echo "No RELEASE-TICKET-${VERSION}.md in pending-/approved-releases — skipping (date-versioned release or ticket archived)."
+          echo "Promoted ${PROMOTED} release(s) to ${TERMINAL_STATUS}."
+          if [ "${TERMINAL_STATUS}" = "prod_review" ]; then
+            echo "Next: a human in the portal clicks 'Approve Production' then 'Mark as Released' for each."
+            echo "Audit trail captures both events with reviewer identity per compliance/risk-register.md."
           fi
-
-      - name: Advance release status (post-deploy)
-        run: |
-          RELEASE_ID="${{ steps.release.outputs.release_id }}"
-          if [ -z "$RELEASE_ID" ]; then
-            echo "::warning::No release_id resolved — skipping status patch"
-            exit 0
-          fi
-          curl -s -o /dev/null -w "Release status patch: HTTP %{http_code}\n" \
-            -X PATCH "${BASE}/api/ci/releases/${RELEASE_ID}" \
-            -H "Authorization: Bearer ${DEVAUDIT_API_KEY}" \
-            -H "Content-Type: application/json" \
-            -d "{\"status\":\"${TERMINAL_STATUS}\"}"
-          case "$TERMINAL_STATUS" in
-            prod_review)
-              echo "Release ${{ steps.release.outputs.version }} → prod_review."
-              echo "Next: a human in the portal clicks 'Approve Production' (→ prod_approved), then 'Mark as Released' (→ released)."
-              echo "Audit trail captures both events with reviewer identity per compliance/risk-register.md."
-              ;;
-            released)
-              echo "Release ${{ steps.release.outputs.version }} → released (Option B: auto-release with no post-deploy human gate)."
-              ;;
-          esac
