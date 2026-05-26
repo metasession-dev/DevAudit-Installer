@@ -126,6 +126,8 @@ Write or update E2E tests **after** implementation. E2E tests need working UI/AP
 
 > **Skill available:** invoke the **`e2e-test-engineer`** skill for this step (at `.claude/skills/e2e-test-engineer/SKILL.md`). It derives scenarios from the requirement's acceptance criteria, reconciles with the existing test pack (flags obsoletes — but never deletes without confirmation), runs the suite, and files defects for failures or missed ACs. Framework-agnostic (Playwright, Cypress, pytest-playwright, etc.) and tracker-agnostic (GitHub, Linear, Jira, etc.). For projects with no e2e suite yet, the skill also covers bootstrapping one. See [`sdlc/SKILLS.md`](../sdlc/SKILLS.md) for the full list of available skills.
 
+> **Run authenticated flows in CI.** Tests that need a logged-in session (admin forms, role-gated flows) belong in their own Playwright project that depends on `auth-setup`. Register that project name in `sdlc-config.json` `e2e_projects` and set `e2e_seed_command` / `e2e_env` so CI seeds fixtures and runs it as a **report-only** gate (continue-on-error — it surfaces failures as evidence without blocking the merge until proven stable). Prove each AC with an `evidenceShot(page, 'REQ-XXX', 'ACn-…')` so the PNG lands in `compliance/evidence/REQ-XXX/screenshots/`. This is what lets Stage 3 Step 10 reduce manual UAT to a light smoke instead of a full re-click.
+
 **4a. Review the test plan for E2E items:**
 ```bash
 cat compliance/evidence/REQ-XXX/test-plan.md
