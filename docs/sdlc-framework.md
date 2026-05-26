@@ -70,7 +70,8 @@ Metasession projects follow a **single owner-developer partnered with AI coding 
 - Each project has an **owner-developer** who provides direction, judgment, and approval
 - An **AI agent** (Claude Code, Windsurf, or Cursor) acts as implementation partner, compliance enforcer, and reviewer
 - **Branching is trunk-based** with a permanent `develop` branch -- no feature branches, no parallel developer streams
-- **SDLC compliance is AI-enforced** via drop-in rules in `sdlc/ai-rules/` -- the AI asks which GitHub Issue a change is for, blocks implementation until planning is complete, runs compliance gates, and guides evidence to the right destination
+- **The `sdlc-implementer` skill is the default entry point** for a tracked change — give it one GitHub issue and it drives Stages 1–5 (delegating e2e work to `e2e-test-engineer`), pausing at the portal's UAT gate for a human. It is **not** used for trivial/housekeeping changes. See [change-workflows.md](./change-workflows.md) for which workflow applies to which change type, and [`implementing-an-sdlc-issue.md`](../sdlc/files/_common/implementing-an-sdlc-issue.md) for the stage-by-stage walkthrough (and the "when it is NOT used" list).
+- **SDLC compliance is AI-enforced** via drop-in rules in `sdlc/ai-rules/` -- the AI asks which GitHub Issue a change is for, blocks implementation until planning is complete, runs compliance gates, and guides evidence to the right destination. Implementation commits (`feat`/`fix`/`refactor`/`perf`) must cite a `[REQ-XXX]` — enforced by commitlint and `validate-commits.sh`, not merely advised
 - **PR reviews** are owner-reviewed with AI-assisted verification; CI provides independent, tamper-resistant evidence
 - **Risk-tiered approval** -- LOW risk changes can be self-merged after CI passes; MEDIUM and HIGH risk changes require a second independent human reviewer before merge
 
@@ -120,7 +121,8 @@ Metasession projects follow a **single owner-developer partnered with AI coding 
 │  │ ENFORCEMENT LAYER 1: Local Git Hooks                                             │    │
 │  │                                                                                  │    │
 │  │  pre-commit ──→ lint-staged (ESLint + Prettier)                                  │    │
-│  │  commit-msg ──→ commitlint (Conventional Commits + Ref: REQ-XXX warning)         │    │
+│  │  commit-msg ──→ commitlint (Conventional Commits; [REQ-XXX]/Ref REQUIRED         │
+│                 on feat/fix/refactor/perf — housekeeping exempt)                 │    │
 │  │  pre-push  ──→ tsc --noEmit (TypeScript check)                                   │    │
 │  └──────────────────────────────────────────────────────────────────────────────────┘    │
 │                                                                                         │

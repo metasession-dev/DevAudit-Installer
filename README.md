@@ -2,16 +2,17 @@
 
 > **DevAudit is more than a self-hosted compliance evidence portal — it enforces an SDLC that satisfies ISO 29119, ISO 27001, SOC 2, GDPR, and the EU AI Act.** Whether you're a vibe coder, traditional engineer, or non-technical builder, DevAudit ensures your software development lifecycle meets the requirements auditors actually check.
 
-This repo — `DevAudit-Installer` — holds two of DevAudit's three pillars:
+This repo — `DevAudit-Installer` — is the **framework + client** side of DevAudit: the SDLC you run and the tooling that gets installed into your project. It holds two of DevAudit's three pillars:
 
-1. **The SDLC framework** (`sdlc/`) — stage docs, templates, adapters per stack/host, AI skills.
-2. **The CLI + compliance gates** (`cli/`, `plugin-sdk/`, `plugins/*`, plus the CI workflow templates under `sdlc/files/ci/`) — what onboards your project and what runs on every push/PR.
+1. **The SDLC framework** (`sdlc/`) — stage docs, templates, per-stack/host adapters, and AI skills (`sdlc-implementer`, `e2e-test-engineer`).
+2. **The CLI + compliance gates** (`cli/`, `plugin-sdk/`, `plugins/*`, and the CI workflow templates under `sdlc/files/ci/`) — what onboards your project and what runs on every push/PR to feed the portal.
 
-The third pillar — the evidence portal — lives at [`metasession-dev/devaudit`](https://github.com/metasession-dev/devaudit) (running at <https://devaudit.metasession.co>). For the three-pillar story, the standards coverage map, and the end-to-end walkthrough, **start at the portal repo's docs**:
+The third pillar — the **evidence portal** (the product/server side: what you see, the source of truth for releases, evidence, and approvals) — lives at [`metasession-dev/devaudit`](https://github.com/metasession-dev/devaudit) (running at <https://devaudit.metasession.co>). **Topics are split, not duplicated:** the product story, standards coverage, the portal UI, release lifecycle/approvals, and the API are documented there; the CLI, onboarding, the SDLC process, the skills, and the workflows that upload evidence are documented here. Each side cross-references the other.
+
+Start at the portal for the big picture:
 
 - [What is DevAudit](https://github.com/metasession-dev/devaudit/blob/main/docs/what-is-devaudit.md) — the three pillars in depth
 - [Standards coverage](https://github.com/metasession-dev/devaudit/blob/main/docs/standards-coverage.md) — clause-by-clause mapping for ISO 29119 / ISO 27001 / SOC 2 / GDPR / EU AI Act
-- [Implementing an SDLC issue](https://github.com/metasession-dev/devaudit/blob/main/docs/implementing-an-sdlc-issue.md) — GitHub issue → merged-and-deployed, with sample AI prompts at each stage
 
 ## Install the CLI
 
@@ -29,39 +30,7 @@ Requires Node ≥ 22. Native binaries (no Node runtime) via brew / scoop / `curl
 | [`@metasession.co/devaudit-plugin-prisma`](https://www.npmjs.com/package/@metasession.co/devaudit-plugin-prisma) | First-party plugin — Prisma migration hooks |
 | [`@metasession.co/devaudit-plugin-evidence-export`](https://www.npmjs.com/package/@metasession.co/devaudit-plugin-evidence-export) | First-party plugin — bulk evidence bundle export |
 
-## What's in here
-
-```
-.
-├── sdlc/                            # The framework templates (synced to consumers)
-│   ├── ai-rules/                    # INSTRUCTIONS-SDLC.md + Claude/Cursor/Windsurf rule files
-│   ├── files/                       # Templates emitted into consumer repos
-│   │   ├── _common/                 # Universal: stage docs, scripts, skills
-│   │   ├── ci/                      # Workflow templates (ci.yml, compliance, etc.)
-│   │   ├── stacks/                  # Node + Python adapters (more to come)
-│   │   └── hosts/                   # Railway adapter (more to come)
-│   ├── .claude/                     # Claude Code skills used during framework maintenance
-│   ├── article.md                   # Long-form article on the framework design
-│   ├── CLAUDE.md                    # Guidance for AI tools editing the templates
-│   ├── HOST_ADAPTER.md              # Contract for adding a host adapter
-│   ├── STACK_ADAPTER.md             # Contract for adding a stack adapter
-│   └── SKILLS.md                    # Contract for adding skills
-├── scripts/
-│   ├── upload-evidence.sh           # Push evidence artefacts to the DevAudit portal (synced into consumers)
-│   └── validate-adapter.cjs         # Validate stack/host/skill manifests against their schemas
-├── docs/
-│   ├── onboarding.md                # Operator walkthrough for `devaudit install`
-│   ├── sdlc-framework.md            # Framework overview
-│   ├── consuming-projects.md        # Operator manual for consumer maintainers
-│   ├── adding-a-stack.md            # How to add a new stack adapter
-│   ├── adding-a-host.md             # How to add a new host adapter
-│   ├── adding-a-skill.md            # How to add a Claude Code skill
-│   ├── devaudit-cli/                # Design docs for the proposed `devaudit` CLI
-│   └── ADR/                         # Architectural decision records
-└── INSTRUCTIONS.md                  # Standards for working in this repo
-```
-
-## Quick start — onboarding a consumer project
+## Quick start — onboard a consumer project
 
 ```bash
 # 1. Issue a DevAudit Personal Access Token at https://devaudit.metasession.co/settings/tokens
@@ -71,61 +40,79 @@ export DEVAUDIT_USER_TOKEN="mctok_..."
 devaudit install ../path/to/your-consumer-project
 ```
 
-The 11-step native onboarding flow will:
+The native onboarding flow validates the PAT, detects your stack (Node/Python) + host (Railway), creates the project + a CI API key in the portal, sets GitHub secrets and branch protection on `main`, bootstraps the hook framework, and syncs the framework templates — then leaves the tree dirty for you to review + open an onboarding PR. Full walkthrough: [`docs/onboarding.md`](./docs/onboarding.md).
 
-1. Validate the PAT against the DevAudit portal.
-2. Detect your project's stack (Node or Python) and host (Railway).
-3. Create the project record in DevAudit and issue a project API key.
-4. Set the GitHub repo secrets and apply branch protection on `main`.
-5. Bootstrap the hook framework (husky for Node, pre-commit for Python).
-6. Sync framework templates (`SDLC/`, workflows, scripts, hooks, AI rule files).
-7. Leave the working tree dirty for you to review + commit + open an onboarding PR.
+## Quick start — keep a consumer in sync
 
-Full walkthrough: [`docs/onboarding.md`](./docs/onboarding.md).
-
-## Quick start — syncing an existing consumer
-
-When the framework is updated, re-sync each consumer:
+When the framework is updated, re-sync each consumer (a bare `update` targets the current directory):
 
 ```bash
-devaudit update v1.x.y ../path/to/consumer-1 ../path/to/consumer-2
+cd ../path/to/consumer && npx @metasession.co/devaudit-cli@latest update
+# or, for several at once:
+devaudit update <label> ../consumer-1 ../consumer-2
 ```
 
-For each consumer the CLI:
+The CLI reads each consumer's `sdlc-config.json`, copies the templates from its bundled `sdlc/files/`, fires plugin `beforeSync`/`afterSync` hooks, and leaves the tree dirty for review. It bundles the framework, so it needs no DevAudit-Installer checkout at runtime.
 
-- Reads the consumer's `sdlc-config.json` to resolve their stack + host adapters
-- Copies all templates from `sdlc/files/` into the consumer's tree
-- Fires plugin `beforeSync` / `afterSync` lifecycle hooks
-- Leaves the working tree dirty for you to review + commit
+## The SDLC at a glance
 
-> The original bash installer (`scripts/sdlc-onboard.sh`, `scripts/sync-sdlc.sh`) has been **removed** — `devaudit install` / `devaudit update` are the supported path. The CLI bundles the framework templates, so it no longer needs a DevAudit-Installer checkout at runtime. `scripts/upload-evidence.sh` remains (it's synced into consumers and called by the generated CI workflow).
+Trunk-based (`develop` → `main`), one owner-developer partnered with AI agents. Every tracked change runs five stages:
+
+```
+0 Project setup → 1 Plan (REQ-XXX, risk, plan) → 2 Implement & test (gates green)
+→ 3 Compile evidence (+ UAT verification) → 4 Submit for review (PR + UAT four-eyes)
+→ 5 Deploy to main (prod smoke + Production approval)
+```
+
+- **Default path:** the **`sdlc-implementer`** skill takes one GitHub issue through Stages 1–5 unattended (pausing at the portal UAT gate), delegating e2e work to **`e2e-test-engineer`**.
+- **When it's NOT used:** trivial/housekeeping changes (`docs`/`chore`/`ci`…) skip the ceremony; e2e-only or planning-only work is done directly. Implementation commits (`feat`/`fix`/`refactor`/`perf`) **must** cite a `[REQ-XXX]` — enforced by commitlint + `validate-commits.sh`.
+
+→ Which workflow applies to which change type, and what release each produces: [**`docs/change-workflows.md`**](./docs/change-workflows.md).
+→ The stage-by-stage operational walkthrough (synced into every consumer): [**`implementing-an-sdlc-issue.md`**](./sdlc/files/_common/implementing-an-sdlc-issue.md).
 
 ## Architecture
 
-The framework follows a three-layer polyglot adapter pattern (ADR-001 in `docs/ADR/`):
+The framework follows a three-layer polyglot adapter pattern ([ADR-001](./docs/ADR/ADR-001-polyglot-sdlc-architecture.md)):
 
-- **Process layer** (`sdlc/files/_common/`) — stage docs 0–5, test policies, evidence shape. Stack-agnostic.
+- **Process layer** (`sdlc/files/_common/`) — stage docs 0–5, test policies, evidence shape, skills. Stack-agnostic.
 - **Stack adapters** (`sdlc/files/stacks/<name>/`) — language-specific commands and hooks (Node, Python today).
 - **Host adapters** (`sdlc/files/hosts/<name>/`) — deployment-specific deploy-wait and prod-URL logic (Railway today).
 
-Adding a new stack or host means dropping a new `adapter.json` + supporting files; no installer-script changes required.
+Adding a new stack or host means dropping a new `adapter.json` + supporting files; no installer-script changes. The CLI substitutes each consumer's `sdlc-config.json` into the templates at `install`/`update` time.
 
-## Future direction
+## Documentation
 
-The bash installer is being replaced by the `devaudit` CLI — **v0.1.x is published to npm today** (see "Install the CLI" above) and supports the install / update / push / doctor / status / auth / plugin command surface. End-state goals (multi-provider Git, organisation policy, multi-stack adapters beyond Node + Python, single-binary distribution via brew/scoop/curl) are tracked in the [design brief](./docs/devaudit-cli/README.md) and [build plan](./docs/devaudit-cli/build-plan.md).
+**This repo (framework, CLI, process):**
+
+| Doc | What |
+|---|---|
+| [`docs/onboarding.md`](./docs/onboarding.md) | `devaudit install` operator walkthrough |
+| [`docs/consuming-projects.md`](./docs/consuming-projects.md) | Operator manual for consumer maintainers |
+| [`docs/sdlc-framework.md`](./docs/sdlc-framework.md) | Framework structure, tiers, adapter layering, schematic |
+| [`docs/change-workflows.md`](./docs/change-workflows.md) | Change types → workflow → release type, and what to expect |
+| [`sdlc/files/_common/implementing-an-sdlc-issue.md`](./sdlc/files/_common/implementing-an-sdlc-issue.md) | Operational stage-by-stage walkthrough (synced to consumers) |
+| [`sdlc/SKILLS.md`](./sdlc/SKILLS.md) · [`docs/adding-a-skill.md`](./docs/adding-a-skill.md) | The skills (`sdlc-implementer`, `e2e-test-engineer`) + authoring new ones |
+| [`docs/adding-a-stack.md`](./docs/adding-a-stack.md) · [`docs/adding-a-host.md`](./docs/adding-a-host.md) | Adapter contracts |
+| [`INSTRUCTIONS.md`](./INSTRUCTIONS.md) | Working conventions for this repo |
+
+**Portal repo (product, server, the things you see):**
+
+| Doc | What |
+|---|---|
+| [What is DevAudit](https://github.com/metasession-dev/devaudit/blob/main/docs/what-is-devaudit.md) | The three pillars, value proposition |
+| [Standards coverage](https://github.com/metasession-dev/devaudit/blob/main/docs/standards-coverage.md) | Clause-by-clause standards mapping |
+| [Portal ↔ consumer integration](https://github.com/metasession-dev/devaudit/blob/main/docs/ci-integration.md) | API, evidence categories, when/how artifacts are displayed |
+| [Releases & approvals](https://github.com/metasession-dev/devaudit/blob/main/docs/releases-and-approvals.md) | Release lifecycle states, types, four-eyes approval |
+| [Implementing an SDLC issue](https://github.com/metasession-dev/devaudit/blob/main/docs/implementing-an-sdlc-issue.md) | Audience walkthrough with sample AI prompts |
 
 ## Related repositories
 
 | Repo | Role |
 |---|---|
-| [`metasession-dev/devaudit`](https://github.com/metasession-dev/devaudit) | DevAudit evidence portal (Next.js app running at `devaudit.metasession.co`). The reframing / standards-coverage / SDLC-walkthrough docs live there. |
+| [`metasession-dev/devaudit`](https://github.com/metasession-dev/devaudit) | DevAudit evidence portal (Next.js, `devaudit.metasession.co`). Product/standards/portal-UI/release docs live there; the authoritative consumers table too. |
 | [`metasession-dev/wawagardenbar-app`](https://github.com/metasession-dev/wawagardenbar-app) | Active consumer — Node/Next.js on Railway. |
-| [`metasession-dev/META-AGENT`](https://github.com/metasession-dev/META-AGENT) | Active consumer — Python. |
-| [`metasession-dev/META-JOBS`](https://github.com/metasession-dev/META-JOBS) | Active consumer — Node. Onboarded 2026-05-18. |
-| `metasession-dev/META-ATS` | Onboarding paused (resumable). |
-
-The current portal-side consumers table is the authoritative version: see [`README.md`](https://github.com/metasession-dev/devaudit/blob/main/README.md) §Consuming projects.
+| [`metasession-dev/META-JOBS`](https://github.com/metasession-dev/META-JOBS) | Active consumer — Node. |
 
 ## Contributing
 
-See [`INSTRUCTIONS.md`](./INSTRUCTIONS.md) for the working conventions in this repo, and the `adding-a-stack.md` / `adding-a-host.md` / `adding-a-skill.md` guides for adding new framework artefacts.
+See [`INSTRUCTIONS.md`](./INSTRUCTIONS.md) for working conventions, and the `adding-a-stack.md` / `adding-a-host.md` / `adding-a-skill.md` guides for adding framework artefacts. DevAudit-Installer does not run its own SDLC against itself — CI green is the merge bar.

@@ -36,23 +36,30 @@ For typo fixes, formatting changes, dependency bumps, and other zero-risk chores
 
 If you're not sure whether your change is trivial, treat it as non-trivial (cheaper than discovering mid-PR that an auditor needs evidence).
 
-## Automated mode (`sdlc-implementer` — pending Phase C smoke)
+## Default mode: the `sdlc-implementer` skill
 
-The [`sdlc-implementer`](#skills-inventory) skill has been authored (SKILL.md + 3 references on `main`, validator-clean) but hasn't yet been smoke-tested against `wawagardenbar-app`. Once Phase C completes, this entire walkthrough collapses to:
+The [`sdlc-implementer`](#skills-inventory) skill is the **default way to implement a tracked change** — it is shipped and synced into this repo at `.claude/skills/sdlc-implementer/`. Give it one GitHub issue and the whole walkthrough below collapses to:
 
 ```text
 > Implement issue #N under the SDLC.
 ```
 
-The skill runs phases 1–4 unattended (with a plan-approval pause for HIGH/CRITICAL risk) and surfaces a UAT review waiting for you on the portal. Approve it on the portal, then:
+It runs Phases 1–4 unattended (with a plan-approval pause for HIGH/CRITICAL risk, or always-on via `--require-plan-approval`): classify risk, assign the next `REQ-XXX`, write the implementation plan, update `RTM.md`, implement, delegate all end-to-end / visual test work to [`e2e-test-engineer`](#skills-inventory), run the gates, compile evidence, open the PR, and submit for UAT review on the portal. It then **halts** at the UAT gate. After a reviewer approves on the portal:
 
 ```text
 > Resume REQ-XXX.
 ```
 
-The skill completes phase 5: merge, monitor post-deploy, capture production smoke evidence, mark the release Released. If changes are requested at UAT instead of approval, the skill addresses them and re-submits for UAT re-review.
+It runs Phase 5: merge, monitor post-deploy, confirm production smoke evidence, advance the release. If changes are requested at UAT instead of approval, it addresses them and re-submits for UAT re-review. It **refuses** issues that decompose into multiple requirements (split them first).
 
-The manual walkthrough below remains the source of truth for what the skill is doing (and the fallback for cases where the skill can't be used). Until the skill ships, follow the walkthrough manually — the sample prompts at the end of this doc are the per-stage stopgap.
+**When it is NOT used:**
+
+- **Trivial / housekeeping changes** — see the escape hatch above. Docs, formatting, dependency bumps, CI tweaks (`docs:` / `chore:` / `ci:` …) don't need a requirement and don't go through the skill. (Note: `feat` / `fix` / `refactor` / `perf` commits **do** require a `[REQ-XXX]` / `Ref: REQ-XXX` and are rejected by commitlint + `validate-commits.sh` without one.)
+- **Stage-1 planning in isolation, or e2e test work alone** — run the manual walkthrough / invoke `e2e-test-engineer` directly.
+- **Cross-issue refactors** spanning multiple `REQ-XXX` scopes — out of the one-issue contract.
+- **When the orchestration can't apply** (unusual repo state, partial work mid-stream) — fall back to the manual walkthrough below.
+
+The manual walkthrough below is the **operational reference** for exactly what the skill does at each stage — and the fallback when the skill isn't the right fit. (For an audience-level walkthrough with sample AI prompts, see the portal's [`implementing-an-sdlc-issue.md`](https://github.com/metasession-dev/devaudit/blob/main/docs/implementing-an-sdlc-issue.md).)
 
 ---
 
