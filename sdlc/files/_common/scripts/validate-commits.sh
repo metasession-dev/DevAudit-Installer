@@ -52,6 +52,28 @@ while IFS= read -r sha; do
     continue
   fi
 
+  # Requirement traceability: implementation commits (feat/fix/refactor/perf)
+  # MUST cite a requirement — [REQ-XXX] in the subject or a Ref: REQ-XXX
+  # trailer. Housekeeping types (docs/chore/ci/build/test/compliance/revert)
+  # are exempt. Mirrors the commitlint rule; this is the PR-CI half that
+  # `--no-verify` can't skip. Work starts from a requirement (which starts
+  # from an issue) — use the sdlc-implementer skill to assign one.
+  TYPE=$(echo "$SUBJECT" | grep -oE '^[a-z]+' || true)
+  case "$TYPE" in
+    feat|fix|refactor|perf)
+      if ! echo "$SUBJECT" | grep -qP '\[REQ-\d{3,}\]' \
+        && ! echo "$BODY" | grep -qiP 'Ref:\s*REQ-\d{3,}'; then
+        echo "ERROR [$SHORT]: '$TYPE' is an implementation commit but cites no requirement."
+        echo "       Add [REQ-XXX] to the subject or a 'Ref: REQ-XXX' trailer. Start work"
+        echo "       from a requirement via the sdlc-implementer skill (it assigns the REQ"
+        echo "       from the originating issue in Phase 1)."
+        FAILED=$((FAILED + 1))
+        EXIT_CODE=1
+        continue
+      fi
+      ;;
+  esac
+
   # Check Co-Authored-By on commits that touch code files
   CODE_FILES=$(git diff-tree --no-commit-id --name-only -r "$sha" -- '*.ts' '*.tsx' '*.js' '*.jsx' '*.py' 2>/dev/null || true)
   if [ -n "$CODE_FILES" ]; then

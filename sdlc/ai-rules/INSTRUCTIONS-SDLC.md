@@ -15,6 +15,12 @@ Detailed workflow instructions are in this project's `SDLC/` directory. Read the
 
 When a workflow step requires detailed commands or templates, read the full workflow file rather than relying on the summary below.
 
+### Entry point: the `sdlc-implementer` skill
+
+The default way to implement a tracked change is the **`sdlc-implementer`** skill (`.claude/skills/sdlc-implementer/SKILL.md`): give it one GitHub issue and it runs Stage 1 (classify risk, assign the next `REQ-XXX`, write the implementation plan, update `RTM.md`) through Stage 4 (PR + UAT review), delegating all end-to-end / visual test work to `e2e-test-engineer`. **Do NOT hand-roll implementation outside this flow** — every change starts from a requirement, which starts from an issue. The only exceptions are trivial housekeeping (docs, formatting, dependency bumps, CI tweaks).
+
+**This is enforced, not just advised.** `feat` / `fix` / `refactor` / `perf` commits that cite no requirement (`[REQ-XXX]` in the subject or a `Ref: REQ-XXX` trailer) are **rejected** locally by the commit-msg hook (commitlint) and at PR CI by `validate-commits.sh` (which `--no-verify` cannot skip). So implementation work cannot reach `develop` without a requirement — which is also what keeps release labels correct (the version-deriver only falls back to a bare date for genuine housekeeping, never for real feature work). Housekeeping commit types remain exempt.
+
 ### Before ANY Code Change
 
 1. Ask: "Which GitHub Issue is this for?" before writing code. Fetch it with `gh issue view NNN`.
