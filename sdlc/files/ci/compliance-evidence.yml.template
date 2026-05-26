@@ -20,6 +20,7 @@
 name: Compliance Evidence Upload
 
 on:
+  workflow_dispatch:
   push:
     branches: [develop]
     paths:
@@ -98,9 +99,16 @@ jobs:
         if: steps.resolve.outputs.skip != 'true'
         run: |
           chmod +x scripts/upload-evidence.sh 2>/dev/null || true
+          # Common flags WITHOUT --release. Each upload appends its OWN
+          # --release so per-requirement artifacts land in their own release
+          # record (version = REQ-ID) instead of all collapsing into whichever
+          # single version the triggering commit derived. DevAudit #135 follow-
+          # up: this fixes release *attribution* (not just duplication) — an
+          # untagged docs commit must not sweep every in-scope REQ into a date
+          # release. Note: upload-evidence.sh keeps the LAST --release seen.
           FLAGS="--git-sha ${{ github.sha }} --ci-run-id ${{ github.run_id }} --branch ${{ github.ref_name }}"
-          FLAGS="${FLAGS} --release ${{ steps.version.outputs.version }} --create-release-if-missing"
-          FLAGS="${FLAGS} --environment uat"
+          FLAGS="${FLAGS} --create-release-if-missing --environment uat"
+          DERIVED_RELEASE="${{ steps.version.outputs.version }}"
 
           # Upload compliance docs (planning category)
           for DOC in compliance/RTM.md compliance/test-plan.md compliance/test-cases.md compliance/test-summary-report.md; do
@@ -108,7 +116,7 @@ jobs:
               echo "Uploading: $(basename "$DOC")"
               bash scripts/upload-evidence.sh \
                 {{PROJECT_SLUG}} _compliance-docs compliance_document "$DOC" \
-                --category planning ${FLAGS} || echo "Warning: Failed to upload $(basename "$DOC")"
+                --category planning ${FLAGS} --release "${DERIVED_RELEASE}" || echo "Warning: Failed to upload $(basename "$DOC")"
             fi
           done
 
@@ -116,10 +124,20 @@ jobs:
           if [ -d "compliance/pending-releases" ]; then
             for TICKET in compliance/pending-releases/*.md; do
               [ -f "$TICKET" ] || continue
-              echo "Uploading: $(basename "$TICKET")"
+              # A RELEASE-TICKET-REQ-XXX.md belongs to that requirement's
+              # release record; any other ticket rides the derived release.
+              TICKET_BASE=$(basename "$TICKET" .md)
+              case "$TICKET_BASE" in
+                RELEASE-TICKET-REQ-*)
+                  TICKET_REQ="${TICKET_BASE#RELEASE-TICKET-}"
+                  TICKET_OWNER="$TICKET_REQ"; TICKET_RELEASE="$TICKET_REQ" ;;
+                *)
+                  TICKET_OWNER="_compliance-docs"; TICKET_RELEASE="$DERIVED_RELEASE" ;;
+              esac
+              echo "Uploading: $(basename "$TICKET") -> release ${TICKET_RELEASE}"
               bash scripts/upload-evidence.sh \
-                {{PROJECT_SLUG}} _compliance-docs compliance_document "$TICKET" \
-                --category release_artifact ${FLAGS} || echo "Warning: Failed to upload $(basename "$TICKET")"
+                {{PROJECT_SLUG}} "${TICKET_OWNER}" compliance_document "$TICKET" \
+                --category release_artifact ${FLAGS} --release "${TICKET_RELEASE}" || echo "Warning: Failed to upload $(basename "$TICKET")"
             done
           fi
 
@@ -152,7 +170,7 @@ jobs:
                 echo "Uploading: ${REQ_ID}/$(basename "$ARTIFACT")"
                 bash scripts/upload-evidence.sh \
                   {{PROJECT_SLUG}} "${REQ_ID}" compliance_document "$ARTIFACT" \
-                  --category planning ${FLAGS} || echo "Warning: Failed to upload $(basename "$ARTIFACT")"
+                  --category planning ${FLAGS} --release "${REQ_ID}" || echo "Warning: Failed to upload $(basename "$ARTIFACT")"
               done
             done
           fi
