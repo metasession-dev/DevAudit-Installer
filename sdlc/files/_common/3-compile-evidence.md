@@ -407,6 +407,8 @@ When skipped, proceed directly to Step 11.
 
 When this step DOES apply, the develop branch's auto-deploy to UAT must complete first. **Wait for the deployment to complete**, then verify the change works in the UAT environment.
 
+> **Automated e2e shrinks this step — it does not delete it.** When a requirement's acceptance criteria are covered by **passing CI e2e tests** authored with the `e2e-test-engineer` skill (each AC proven by an `evidenceShot`, run via the report-only authenticated-e2e gate — see `sdlc-config.json` `e2e_projects` / `e2e_seed_command`), those ACs are already exercised against the running app on every push. For those ACs, this step is **not** a full manual re-click of every criterion: it reduces to a **light manual smoke** on the deployed UAT environment — confirm the build is live, the changed area loads, and spot-check anything the e2e couldn't reach (real third-party integrations, environment-specific config, payment sandboxes). Record which ACs were discharged by automated e2e vs. exercised manually. ACs **not** covered by a passing e2e test still need full manual verification here.
+
 #### WAIT CHECKPOINT: Confirm CI + Deployment Complete
 
 Before UAT verification, confirm BOTH CI and deployment are complete:

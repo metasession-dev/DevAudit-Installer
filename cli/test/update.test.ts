@@ -104,12 +104,85 @@ describe('syncProject — native TS sync against a fixture', () => {
     expect(ciYml).toContain('fixture-app');
     expect(ciYml).not.toContain('{{PROJECT_SLUG}}');
     expect(ciYml).not.toContain('{{NODE_VERSION}}');
+    // Backward compat: with no e2e_projects/e2e_seed_command configured, the
+    // authenticated-e2e token is dropped and no extra step is emitted.
+    expect(ciYml).not.toContain('{{E2E_AUTHENTICATED_STEP}}');
+    expect(ciYml).not.toContain('Authenticated E2E');
   }, 60_000);
 
   it('is idempotent — re-running produces no errors and same file count', async () => {
     const first = await syncProject(fixtureDir);
     const second = await syncProject(fixtureDir);
     expect(second.totalFilesSynced).toBe(first.totalFilesSynced);
+  }, 60_000);
+
+  it('renders a report-only authenticated e2e step when configured', async () => {
+    const dir = await fs.mkdtemp(join(tmpdir(), 'cli-update-authe2e-'));
+    try {
+      await fs.writeFile(
+        join(dir, 'sdlc-config.json'),
+        JSON.stringify({
+          project_slug: 'fixture-app',
+          stack: 'node',
+          host: 'railway',
+          node_version: '20',
+          runner: 'ubuntu-latest',
+          working_directory: '.',
+          source_dirs: 'app/ lib/',
+          sast_baseline: 0,
+          accepted_dep_risks: '',
+          production_url_secret: 'FIXTURE_PROD_URL',
+          database_service: '',
+          database_image: '',
+          database_port: '',
+          database_env: {},
+          app_env: {},
+          build_env: {},
+          e2e_project: 'chromium',
+          e2e_start_command: 'npm run dev',
+          e2e_seed_command: 'npx tsx scripts/seed-e2e-admins.ts',
+          e2e_projects: ['reward-rule-form'],
+          e2e_env: { E2E_ADMIN_USERNAME: '${{ secrets.E2E_ADMIN_USERNAME }}' },
+          paths_ignore: ['SDLC/**', 'compliance/**'],
+        }),
+      );
+      await fs.writeFile(
+        join(dir, 'package.json'),
+        JSON.stringify({
+          name: 'fixture-app',
+          private: true,
+          version: '0.0.0',
+          devDependencies: {
+            husky: '*',
+            '@commitlint/cli': '*',
+            '@commitlint/config-conventional': '*',
+            'lint-staged': '*',
+            prettier: '*',
+            eslint: '*',
+            typescript: '*',
+            '@playwright/test': '*',
+          },
+        }),
+      );
+      await fs.mkdir(join(dir, '.husky'), { recursive: true });
+      await fs.mkdir(join(dir, 'scripts'), { recursive: true });
+      await fs.mkdir(join(dir, '.github', 'workflows'), { recursive: true });
+      await syncProject(dir);
+      const ciYml = await fs.readFile(join(dir, '.github', 'workflows', 'ci.yml'), 'utf-8');
+      // The blocking smoke gate is preserved …
+      expect(ciYml).toContain('--project=chromium --reporter=json,html');
+      // … and the report-only authenticated steps are injected after it.
+      expect(ciYml).toContain('Seed E2E test data (report-only)');
+      expect(ciYml).toContain('npx tsx scripts/seed-e2e-admins.ts');
+      expect(ciYml).toContain('Authenticated E2E (report-only)');
+      expect(ciYml).toContain('continue-on-error: true');
+      expect(ciYml).toContain('--project=reward-rule-form --reporter=json,html');
+      expect(ciYml).toContain('E2E_ADMIN_USERNAME: ${{ secrets.E2E_ADMIN_USERNAME }}');
+      expect(ciYml).toContain('e2e-auth-results.json');
+      expect(ciYml).not.toContain('{{E2E_AUTHENTICATED_STEP}}');
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
   }, 60_000);
 
   it('rejects an unknown stack', async () => {

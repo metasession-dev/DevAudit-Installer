@@ -33,6 +33,10 @@ interface SdlcConfig {
   readonly build_env?: Readonly<Record<string, string>>;
   readonly e2e_project: string;
   readonly e2e_start_command: string;
+  // Authenticated e2e (report-only). Optional; absent → no extra step rendered.
+  readonly e2e_seed_command?: string;
+  readonly e2e_projects?: readonly string[];
+  readonly e2e_env?: Readonly<Record<string, string>>;
   readonly paths_ignore?: readonly string[];
 }
 
@@ -41,6 +45,48 @@ function indentEnvBlock(env: Record<string, string>, indent: number): string {
   return Object.entries(env)
     .map(([k, v]) => `${pad}${k}: ${v}`)
     .join('\n');
+}
+
+/**
+ * Build the optional "authenticated e2e" steps injected after the blocking
+ * smoke e2e gate. Report-only by design (continue-on-error): authenticated
+ * flows (auth-setup + seeded fixtures) are flakier than smoke, so failures
+ * surface as evidence without blocking the merge until proven stable. Renders
+ * empty (no step) unless the consumer configures e2e_projects and/or
+ * e2e_seed_command — so existing projects regenerate to an identical ci.yml.
+ */
+function buildAuthenticatedE2eStep(cfg: SdlcConfig): string {
+  const projects = cfg.e2e_projects ?? [];
+  const seed = (cfg.e2e_seed_command ?? '').trim();
+  if (projects.length === 0 && !seed) return '';
+  const env = cfg.e2e_env ?? {};
+  const envBlock = Object.keys(env).length > 0 ? indentEnvBlock({ ...env }, 10) : '';
+  const lines: string[] = [];
+  if (seed) {
+    lines.push(
+      '',
+      '      - name: Seed E2E test data (report-only)',
+      '        if: always()',
+      '        continue-on-error: true',
+    );
+    if (envBlock) lines.push('        env:', envBlock);
+    lines.push(`        run: ${seed}`);
+  }
+  if (projects.length > 0) {
+    const flags = projects.map((p) => `--project=${p}`).join(' ');
+    lines.push(
+      '',
+      '      - name: Authenticated E2E (report-only)',
+      '        if: always()',
+      '        continue-on-error: true',
+      '        env:',
+      '          PLAYWRIGHT_HTML_REPORTER_OPEN: never',
+      '          PLAYWRIGHT_JSON_OUTPUT_NAME: e2e-auth-results.json',
+    );
+    if (envBlock) lines.push(envBlock);
+    lines.push(`        run: npx playwright test ${flags} --reporter=json,html`);
+  }
+  return lines.join('\n');
 }
 
 function buildDbUriStep(dbService: string, dbPort: string): string {
@@ -100,6 +146,7 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
     APP_ENV: cfg.app_env ? indentEnvBlock({ ...cfg.app_env }, 6) : '',
     BUILD_ENV: cfg.build_env ? indentEnvBlock({ ...cfg.build_env }, 10) : '',
     DATABASE_URI_STEP: buildDbUriStep(cfg.database_service, cfg.database_port),
+    E2E_AUTHENTICATED_STEP: buildAuthenticatedE2eStep(cfg),
   };
   let count = 0;
   for (const tmpl of CI_TEMPLATES) {

@@ -32,6 +32,11 @@
   "e2e_project": "chromium",
   "e2e_start_command": "npm run dev",
 
+  "_comment_e2e_authenticated": "Optional report-only authenticated e2e gate (continue-on-error, never blocks the merge). e2e_projects = Playwright project names that need a logged-in session (auth-setup runs automatically as their dependency); e2e_seed_command seeds admins/fixtures before the run; e2e_env maps repo secrets onto the seed + e2e steps. Author these specs with the e2e-test-engineer skill (evidenceShot per AC). Leave empty to run only the blocking smoke project above.",
+  "e2e_seed_command": "",
+  "e2e_projects": [],
+  "e2e_env": {},
+
   "paths_ignore": [
     ".github/workflows/**",
     "SDLC/**",

@@ -150,7 +150,7 @@ jobs:
           PLAYWRIGHT_HTML_REPORTER_OPEN: never
           PLAYWRIGHT_JSON_OUTPUT_NAME: e2e-results.json
         run: npx playwright test --project={{E2E_PROJECT}} --reporter=json,html
-
+{{E2E_AUTHENTICATED_STEP}}
       # ── Gate 5: Build ──
 
       - name: Build Check
@@ -169,6 +169,7 @@ jobs:
             sast-results.json
             dependency-audit.json
             e2e-results.json
+            e2e-auth-results.json
             playwright-report/
             coverage/coverage-summary.json
           retention-days: 90
