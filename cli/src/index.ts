@@ -61,10 +61,25 @@ export async function main(argv: readonly string[]): Promise<void> {
       });
     });
   program
-    .command('update <version> <paths...>')
-    .description('Sync framework templates into existing consumer(s) (native TS implementation)')
-    .action(async (version: string, paths: string[]) => {
-      await runUpdate({ version, paths });
+    .command('update [version] [paths...]')
+    .description(
+      'Sync framework templates into existing consumer(s). Both args are optional: ' +
+        'paths default to the current directory, and version is a cosmetic label ' +
+        '(defaults to the running CLI version). So a bare `devaudit update` syncs ' +
+        'the current project.',
+    )
+    .action(async (version: string | undefined, paths: string[] | undefined) => {
+      // `version` is purely informational. Disambiguate the single-arg case so
+      // `devaudit update <path>` treats a path-like token as a path, not a label.
+      let resolvedVersion = version;
+      let resolvedPaths = paths ?? [];
+      const looksLikeVersion = (s: string): boolean => /^v?\d+(\.\d+)/.test(s);
+      if (resolvedVersion && resolvedPaths.length === 0 && !looksLikeVersion(resolvedVersion)) {
+        resolvedPaths = [resolvedVersion];
+        resolvedVersion = undefined;
+      }
+      if (resolvedPaths.length === 0) resolvedPaths = ['.'];
+      await runUpdate({ version: resolvedVersion ?? CLI_VERSION, paths: resolvedPaths });
     });
   program
     .command('push <project-slug> <requirement-id> <evidence-type> <file>')
