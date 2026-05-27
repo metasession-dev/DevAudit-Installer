@@ -151,6 +151,15 @@ If the smoke results look wrong or a manual verification fails, click **Reject**
 
 ### Step 6: Finalize Compliance (Tracked Requirements Only)
 
+> **Automated path (preferred).** Run the synced helper instead of doing this by hand — it flips the ticket Status → `RELEASED` (+ backlinks the release PR and records the sign-off), flips the matching `RTM.md` row, and `git mv`s the ticket to `approved-releases/`, then stages the changes for you to commit:
+>
+> ```bash
+> ./scripts/close-out-release.sh REQ-XXX --release-pr <release-PR-#>
+> git add -A && git commit -m "docs(compliance): close out REQ-XXX release ticket (RELEASED)" && git push origin develop
+> ```
+>
+> It is **idempotent** (a no-op if already closed out) and, when `DEVAUDIT_API_KEY` + `DEVAUDIT_BASE_URL` are set, **refuses** unless the portal reports the release as `released` (so you can't flip the local tree ahead of the Production approval). The `close-out-release.yml` workflow runs the same script automatically when the portal marks a release released (and is `workflow_dispatch`-able for catch-up). The manual steps below are the fallback / reference for what the script does.
+
 ```bash
 mv compliance/pending-releases/RELEASE-TICKET-REQ-XXX.md compliance/approved-releases/
 ```

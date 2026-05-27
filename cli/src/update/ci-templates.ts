@@ -11,6 +11,7 @@ const CI_TEMPLATES = [
   'check-release-approval.yml.template',
   'post-deploy-prod.yml.template',
   'compliance-evidence.yml.template',
+  'close-out-release.yml.template',
 ];
 
 const OLD_WORKFLOWS_TO_REMOVE = ['test-on-pr.yml', 'check-uat-approval.yml'];
