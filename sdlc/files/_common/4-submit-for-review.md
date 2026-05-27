@@ -160,6 +160,7 @@ CI runs automatically on this PR. The following gates must pass before merge:
 
 ## Compliance Artifacts
 - [ ] RTM updated with risk level
+- [ ] SRS updated if observable behaviour changed (`docs/SRS.md`, or `docs/REQUIREMENTS.md` if not yet adopted) — or N/A
 - [ ] Test scope addressed (all items in test-scope.md completed)
 - [ ] Implementation plan present and matches implementation (MEDIUM/HIGH risk)
 - [ ] Release ticket created
@@ -201,6 +202,7 @@ CI runs automatically on this PR. The following gates must pass before merge:
 
 **Compliance**
 - [ ] RTM status: TESTED - PENDING SIGN-OFF
+- [ ] SRS updated if observable behaviour changed (or correctly N/A)
 - [ ] Release ticket accurate
 - [ ] Security evidence present and clean
 

@@ -338,9 +338,11 @@ EOF
 
 ---
 
-### Step 9: Update Requirements Document (If Applicable)
+### Step 9: Update the Software Requirements Specification (If Applicable)
 
-If the requirement modifies a documented feature, update the requirements document to reflect the intended change.
+If the requirement adds, changes, or removes **observable behaviour**, update the project's Software Requirements Specification (`docs/SRS.md`) — or `docs/REQUIREMENTS.md` if the project has not adopted the SRS — to reflect the intended change. The SRS is the MoSCoW-prioritised, Given/When/Then source that developers and the `e2e-test-engineer` skill derive tests from, so keeping it current is what carries the requirement through into test cases.
+
+Only act if the document exists; do not introduce an SRS on a project that has not adopted one.
 
 ### Step 10: Document AI Use Intent (If Applicable)
 
@@ -361,7 +363,11 @@ For Low risk, the `Co-Authored-By` commit tag is sufficient.
 ### Step 11: Commit
 
 ```bash
-git add compliance/RTM.md compliance/evidence/REQ-XXX docs/REQUIREMENTS.md
+# Stage the RTM + evidence. Add the requirements doc only if you updated it in Step 9
+# — whichever the project uses; staging an unchanged tracked file is a harmless no-op.
+git add compliance/RTM.md compliance/evidence/REQ-XXX
+[ -f docs/SRS.md ] && git add docs/SRS.md
+[ -f docs/REQUIREMENTS.md ] && git add docs/REQUIREMENTS.md
 git commit -m "compliance: [REQ-XXX] define requirement and test scope - [description] [RISK: LOW/MEDIUM/HIGH]
 
 Ref: REQ-XXX

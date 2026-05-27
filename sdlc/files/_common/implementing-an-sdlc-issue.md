@@ -38,7 +38,7 @@ If you're not sure whether your change is trivial, treat it as non-trivial (chea
 
 ### Trivial-change walkthrough
 
-A worked end-to-end example for a zero-risk change (a typo, a dependency bump, a README tweak, a CI-config nudge). No requirement, no plan, no evidence pack — but the gates still run and a human still reviews the PR. `sdlc-implementer` is **not** used here.
+A worked end-to-end example for a zero-risk change (a typo, a dependency bump, a README tweak, a CI-config nudge). No requirement, no plan, no evidence pack — but the gates still run and a human still reviews the PR. You can run these steps by hand, or let `sdlc-implementer` drive them: its Phase-0 triage routes a trivial change down exactly this lightweight path and guides it to merge (without the tracked ceremony).
 
 1. **Branch off `develop`.** `git checkout develop && git pull && git checkout -b docs/fix-readme-typo` (or `chore/…`, `ci/…`). A GitHub issue is welcome but not required for a true triviality.
 2. **Make the change, keep it single-purpose.** If it touches `app/` or `lib/` runtime behaviour, it is **not** trivial — stop and run the full SDLC (Stage 1 onward). The commit-type rule below is the backstop.
@@ -57,7 +57,9 @@ The [`sdlc-implementer`](#skills-inventory) skill is the **default way to implem
 > Implement issue #N under the SDLC.
 ```
 
-It runs Phases 1–4 unattended (with a plan-approval pause for HIGH/CRITICAL risk, or always-on via `--require-plan-approval`): classify risk, assign the next `REQ-XXX`, write the implementation plan, update `RTM.md`, implement, delegate all end-to-end / visual test work to [`e2e-test-engineer`](#skills-inventory), run the gates, compile evidence, open the PR, and submit for UAT review on the portal. It then **halts** at the UAT gate. After a reviewer approves on the portal:
+It **triages first** (Phase 0): it reads the issue + labels, classifies the change-type against the [change-workflows](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/change-workflows.md) taxonomy, announces a **Workflow Decision** (which path, which gates, which approvals, what's skipped), and routes — only a tracked change continues into the full cycle; housekeeping / trivial / doc-only is announced and handed off to its lighter path. So pointing the skill at an issue no longer defaults to maximum ceremony — it decides the path at pickup.
+
+For a tracked change it then runs Phases 1–4 unattended (with a plan-approval pause for HIGH/CRITICAL risk, or always-on via `--require-plan-approval`): classify risk, assign the next `REQ-XXX`, write the implementation plan, update `RTM.md`, implement, delegate all end-to-end / visual test work to [`e2e-test-engineer`](#skills-inventory), run the gates, compile evidence, open the PR, and submit for UAT review on the portal. It then **halts** at the UAT gate. After a reviewer approves on the portal:
 
 ```text
 > Resume REQ-XXX.
@@ -65,12 +67,13 @@ It runs Phases 1–4 unattended (with a plan-approval pause for HIGH/CRITICAL ri
 
 It runs Phase 5: merge, monitor post-deploy, confirm production smoke evidence, advance the release. If changes are requested at UAT instead of approval, it addresses them and re-submits for UAT re-review. It **refuses** issues that decompose into multiple requirements (split them first).
 
-**When it is NOT used:**
+**Where it routes (the Phase-0 decision):** the skill now makes this call at pickup rather than you discovering mid-PR that you over- (or under-) ceremonied. It still **drives each path to completion** — these are the paths it takes *instead of* the full tracked cycle, not points where it abandons you:
 
-- **Trivial / housekeeping changes** — see the escape hatch above. Docs, formatting, dependency bumps, CI tweaks (`docs:` / `chore:` / `ci:` …) don't need a requirement and don't go through the skill. (Note: `feat` / `fix` / `refactor` / `perf` commits **do** require a `[REQ-XXX]` / `Ref: REQ-XXX` and are rejected by commitlint + `validate-commits.sh` without one.)
-- **Stage-1 planning in isolation, or e2e test work alone** — run the manual walkthrough / invoke `e2e-test-engineer` directly.
-- **Cross-issue refactors** spanning multiple `REQ-XXX` scopes — out of the one-issue contract.
-- **When the orchestration can't apply** (unusual repo state, partial work mid-stream) — fall back to the manual walkthrough below.
+- **Trivial / housekeeping changes** → the skill drives the lightweight escape hatch (above) to merge: branch → all gates locally → `chore:`/`docs:`/`ci:` PR → review → merge. No requirement, no tracked cycle, but it guides every step. Docs, formatting, dependency bumps, CI tweaks (`docs:` / `chore:` / `ci:` …) don't need a requirement. (Note: `feat` / `fix` / `refactor` / `perf` commits **do** require a `[REQ-XXX]` / `Ref: REQ-XXX` and are rejected by commitlint + `validate-commits.sh` without one.)
+- **Compliance-doc-only** → the skill drives a docs push against an **existing** `REQ-XXX` through to merge; no new requirement, no quality gates.
+- **Stage-1 planning in isolation, or e2e test work alone** → run the manual walkthrough / invoke `e2e-test-engineer` directly.
+- **Cross-issue refactors** spanning multiple `REQ-XXX` scopes → out of the one-issue contract; the skill refuses and asks you to split.
+- **When the orchestration can't apply** (unusual repo state, partial work mid-stream) → fall back to the manual walkthrough below.
 
 The manual walkthrough below is the **operational reference** for exactly what the skill does at each stage — and the fallback when the skill isn't the right fit. (For an audience-level walkthrough with sample AI prompts, see the portal's [`implementing-an-sdlc-issue.md`](https://github.com/metasession-dev/devaudit/blob/main/docs/implementing-an-sdlc-issue.md).)
 
@@ -378,7 +381,7 @@ The Metasession SDLC framework includes a set of [Claude Code Skills](https://gi
 | Skill                                                                                                                                       | Stage | Scope                                                                                                                                                                                                                                                                            |
 | ------------------------------------------------------------------------------------------------------------------------------------------- | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [`e2e-test-engineer`](https://github.com/metasession-dev/DevAudit-Installer/blob/main/sdlc/files/_common/skills/e2e-test-engineer/SKILL.md) | 2     | Bootstrap or maintain e2e + visual regression suites. Derives scenarios from issue/PR diff, reconciles with existing pack, retires obsolete tests (after confirmation), runs the suite, files defects for failures. Framework-agnostic (Playwright, Cypress, WDIO, Selenium, …). |
-| [`sdlc-implementer`](https://github.com/metasession-dev/DevAudit-Installer/blob/main/sdlc/files/_common/skills/sdlc-implementer/SKILL.md) | 1–5 | One-command orchestration (the **default** for a tracked change): `"implement issue #N under the SDLC"` runs Phase 1 (classify risk, write plan, update RTM) → Phase 2 (branch, tests, implement, gates) → Phase 3 (evidence + portal upload) → Phase 4 (PR + request UAT review), halting at the UAT gate. `"resume REQ-XXX"` runs Phase 5 (merge, post-deploy, mark Released), or the change-request loop. **MUST** invoke `e2e-test-engineer` for e2e/visual work; never authors e2e directly. Enforces six compliance constraints (never skip UAT, no self-approval for HIGH/CRITICAL, mandatory plan checkpoint for HIGH/CRITICAL, change-request → UAT re-review, AI disclosure per commit, all portal mutations audit-logged). **Not** used for trivial/housekeeping changes. |
+| [`sdlc-implementer`](https://github.com/metasession-dev/DevAudit-Installer/blob/main/sdlc/files/_common/skills/sdlc-implementer/SKILL.md) | 1–5 | One-command orchestration (the **default** for a tracked change): `"implement issue #N under the SDLC"` runs Phase 1 (classify risk, write plan, update RTM) → Phase 2 (branch, tests, implement, gates) → Phase 3 (evidence + portal upload) → Phase 4 (PR + request UAT review), halting at the UAT gate. `"resume REQ-XXX"` runs Phase 5 (merge, post-deploy, mark Released), or the change-request loop. **MUST** invoke `e2e-test-engineer` for e2e/visual work; never authors e2e directly. Enforces six compliance constraints (never skip UAT, no self-approval for HIGH/CRITICAL, mandatory plan checkpoint for HIGH/CRITICAL, change-request → UAT re-review, AI disclosure per commit, all portal mutations audit-logged). **Triages at pickup (Phase 0)** and routes: tracked → Stages 1–5; trivial/housekeeping/doc-only → a lightweight path it drives to merge without tracked ceremony. |
 
 ### Roadmap
 
