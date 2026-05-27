@@ -26,7 +26,9 @@ sdlc/
 │   │   └── scripts/                          # Universal compliance helpers
 │   │       ├── validate-compliance-artifacts.sh
 │   │       ├── validate-commits.sh
-│   │       └── submit-for-uat-review.sh
+│   │       ├── submit-for-uat-review.sh
+│   │       ├── derive-release-version.sh
+│   │       └── close-out-release.sh          # Reconcile ticket on release (#60)
 │   ├── ci/                                   # CI workflow templates
 │   │   ├── ci.yml.template                   # Default (Node) — quality-gates workflow
 │   │   ├── python/                           # Stack-specific override
@@ -35,6 +37,7 @@ sdlc/
 │   │   ├── check-release-approval.yml.template
 │   │   ├── compliance-evidence.yml.template
 │   │   ├── post-deploy-prod.yml.template
+│   │   ├── close-out-release.yml.template    # Auto-close ticket on release (#60)
 │   │   └── ci-status-fallback.yml.template
 │   ├── stacks/                               # Per-language adapter directories
 │   │   ├── _schema/adapter.schema.json       # JSON Schema for stack adapter manifests
