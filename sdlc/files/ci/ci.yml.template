@@ -162,6 +162,7 @@ jobs:
             e2e-auth-results.json
             playwright-report/
             coverage/coverage-summary.json
+            compliance/evidence/*/screenshots/*.png
           retention-days: 90
 
   # ──────────────────────────────────────────────
@@ -328,6 +329,44 @@ jobs:
               {{PROJECT_SLUG}} _compliance-docs compliance_document compliance/test-summary-report.md \
               --category test_report ${FLAGS}
           fi
+
+          # Upload per-AC e2e evidence screenshots, scoped to each in-scope
+          # requirement so they render under "Evidence by requirement" in the
+          # portal. These are the per-assertion `evidenceShot(page, REQ, 'ACn-…')`
+          # captures (compliance/evidence/<reqId>/screenshots/*.png) — taken at the
+          # moment each acceptance criterion is demonstrated, NOT the Playwright
+          # report's trailing/failure capture. evidenceType `screenshot` →
+          # image/png renders inline. Only when a pending release ticket defines
+          # the in-scope REQ(s); skipped on ordinary dev pushes. Best-effort: a
+          # screenshot upload failure warns but never blocks the gate.
+          SHOT_REQS=()
+          if [ -d compliance/pending-releases ]; then
+            for TICKET in compliance/pending-releases/RELEASE-TICKET-REQ-*.md; do
+              [ -f "$TICKET" ] || continue
+              SHOT_REQS+=("$(basename "$TICKET" .md | sed 's/^RELEASE-TICKET-//')")
+            done
+          fi
+          shopt -s nullglob
+          SHOTS=(ci-evidence/compliance/evidence/*/screenshots/*.png compliance/evidence/*/screenshots/*.png)
+          if [ "${#SHOT_REQS[@]}" -gt 0 ] && [ "${#SHOTS[@]}" -gt 0 ]; then
+            echo "Uploading ${#SHOTS[@]} evidence screenshot(s) for: ${SHOT_REQS[*]}"
+            SHOT_TMP="$(mktemp -d)"
+            for REQ in "${SHOT_REQS[@]}"; do
+              for PNG in "${SHOTS[@]}"; do
+                # The folder is the (SRS) requirement id, the basename is the AC
+                # slug (ACn-…). Upload as <srs-req>-<slug>.png so the reviewer can
+                # see which requirement/AC each image proves and names don't collide.
+                SRS_REQ="$(basename "$(dirname "$(dirname "$PNG")")")"
+                NAMED="${SHOT_TMP}/${SRS_REQ}-$(basename "$PNG")"
+                cp "$PNG" "$NAMED" 2>/dev/null || continue
+                bash scripts/upload-evidence.sh \
+                  {{PROJECT_SLUG}} "$REQ" screenshot "$NAMED" \
+                  --category test_report ${FLAGS} --release "$REQ" \
+                  || echo "::warning::evidence screenshot upload failed: ${PNG} -> ${REQ}"
+              done
+            done
+          fi
+          shopt -u nullglob
 
           # NOTE: committed compliance docs (planning category: RTM/test-plan/
           # test-cases, release tickets, and per-requirement

@@ -116,6 +116,11 @@ describe('syncProject — native TS sync against a fixture', () => {
     expect(ciYml).not.toContain('{{E2E_TEST_STEP}}');
     expect(ciYml).not.toContain('- name: E2E setup');
     expect(ciYml).toContain('- name: Start dev server\n        run: npm run dev &');
+    // Per-AC evidence screenshots: the artifact carries them and the upload-evidence
+    // job uploads them as `screenshot` type, scoped per in-scope requirement.
+    expect(ciYml).toContain('compliance/evidence/*/screenshots/*.png');
+    expect(ciYml).toContain('Upload per-AC e2e evidence screenshots');
+    expect(ciYml).toMatch(/"\$REQ" screenshot "\$NAMED"/);
   }, 60_000);
 
   it('is idempotent — re-running produces no errors and same file count', async () => {
