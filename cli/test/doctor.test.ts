@@ -32,6 +32,29 @@ describe('devaudit doctor', () => {
     expect([0, 6]).toContain(result.exitCode);
     expect(result.stdout + result.stderr).toContain('node');
   }, 30_000);
+
+  it('reports release close-out drift check (skips gracefully without portal creds)', async () => {
+    const { mkdtemp, mkdir, writeFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const dir = await mkdtemp(join(tmpdir(), 'devaudit-doctor-'));
+    await writeFile(
+      join(dir, 'sdlc-config.json'),
+      JSON.stringify({ project_slug: 'fixture', devaudit: { base_url: 'https://example.test' } }),
+    );
+    await mkdir(join(dir, 'compliance', 'pending-releases'), { recursive: true });
+    await writeFile(
+      join(dir, 'compliance', 'pending-releases', 'RELEASE-TICKET-REQ-099.md'),
+      '# t\n',
+    );
+    // No DEVAUDIT_API_KEY in env → the portal drift check skips but still
+    // reports the pending-ticket count; doctor's tool-gate exit is unaffected.
+    const env = { ...process.env };
+    delete env['DEVAUDIT_API_KEY'];
+    const result = await execa('node', [BIN, 'doctor'], { cwd: dir, env, reject: false });
+    expect([0, 6]).toContain(result.exitCode);
+    expect(result.stdout + result.stderr).toContain('pending ticket(s)');
+  }, 30_000);
 });
 
 describe('stubbed commands (workstream B / D prereqs)', () => {
