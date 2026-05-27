@@ -47,6 +47,15 @@ Unit-test and integration-test work stays with this skill until a counterpart un
 
 A triage step (Phase 0) routes the issue, then up to five phases for tracked work. Phase 0 plus Phases 1–4 run in one Claude Code session; Phase 5 is invoked separately by the user after UAT. The off-ramps from Phase 0 (housekeeping / trivial / doc-only) don't enter Phase 1 — they run the **Lightweight path** (below), which the skill drives to merge.
 
+**Branch targets are project-configured — never hardcode `main` / `develop`.** Read them once from `sdlc-config.json` and use them throughout:
+
+```bash
+INTEGRATION_BRANCH=$(jq -r '.integration_branch // "develop"' sdlc-config.json)  # where work lands + ci.yml uploads gate evidence
+RELEASE_BRANCH=$(jq -r '.release_branch // "main"' sdlc-config.json)             # the protected production branch
+```
+
+For a **develop-first** repo these are `develop` and `main`: implementation lands on `$INTEGRATION_BRANCH`, and the UAT-approved release PR is `$INTEGRATION_BRANCH → $RELEASE_BRANCH`. A **trunk-only** repo sets both to `main`, collapsing the two hops into a single `feature → main` PR. Where the two branches differ, the release PR's head is `$INTEGRATION_BRANCH`; where they're equal, it's the feature branch.
+
 ### Phase 0 — Workflow triage (classify → announce → confirm → route)
 
 Runs **first**, before any `REQ-XXX` is assigned. It decides which of the six change-types in [`change-workflows.md`](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/change-workflows.md) applies and what will — and won't — run. This is what stops every issue defaulting to maximum ceremony.
@@ -86,11 +95,11 @@ Only the **tracked** route continues into Phase 1; the others run the Lightweigh
 
 Reached from Phase 0 for non-tracked change-types. The skill drives this end-to-end; the only difference from the tracked cycle is the absence of *ceremony*, not the absence of *guidance*. It pauses only where a human is genuinely required (PR review, merge).
 
-1. **Branch off `develop`** with a housekeeping prefix — `chore/…`, `docs/…`, `ci/…`, `build/…`, `test/…`, or `compliance/…` for a doc-only change against an existing REQ.
+1. **Branch off `$INTEGRATION_BRANCH`** with a housekeeping prefix — `chore/…`, `docs/…`, `ci/…`, `build/…`, `test/…`, or `compliance/…` for a doc-only change against an existing REQ.
 2. **Make the change**, single-purpose. If it turns out to touch runtime behaviour in `app/` / `lib/`, stop and reclassify as tracked — the commit-type rule is the backstop.
 3. **Run all gates locally** (`npm run lint`, `npx tsc --noEmit`, the test suite, `semgrep`, `npm audit` — or the stack-adapter equivalents). Trivial ≠ unverified; never `--no-verify`.
 4. **Commit** with a housekeeping type and **no** `REQ-XXX` — `docs:` / `chore:` / `ci:` / `build:` / `test:` / `revert:` are exempt from the `[REQ-XXX]` rule; a `compliance:` doc-only change references the existing REQ. `Co-Authored-By: Claude` if AI-assisted.
-5. **Push and open the PR.** CI runs the same quality gates; `compliance-validation.yml` finds no `REQ-XXX` and skips artifact validation.
+5. **Push and open the PR** into `$INTEGRATION_BRANCH` (`gh pr create --base "$INTEGRATION_BRANCH" --head <branch>`). CI runs the same quality gates; `compliance-validation.yml` finds no `REQ-XXX` and skips artifact validation.
 6. **Report honest status** — wait for CI, name any failing check, fix and re-push. Never announce "ready" while a required check is red.
 7. **Guide review → merge.** A human still reviews the PR (separation of duties). There is **no** portal release approval, no UAT four-eyes, no Production gate, and no close-out. Merge once CI is green and the reviewer approves.
 8. **Done.** A housekeeping push produces at most a bare-date release (`vYYYY.MM.DD`) with no approval gate; a doc-only push attaches its docs to the existing `REQ-XXX` release. No further action required — report completion and stop.
@@ -110,7 +119,7 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
 
 ### Phase 2 — Implement and test (SDLC stage 2)
 
-1. **Branch off `develop`.** `git checkout -b feat/REQ-XXX-<slug>`. The slug is a kebab-case fragment of the issue title (max 6 words).
+1. **Branch off `$INTEGRATION_BRANCH`.** `git checkout "$INTEGRATION_BRANCH" && git pull && git checkout -b feat/REQ-XXX-<slug>`. The slug is a kebab-case fragment of the issue title (max 6 words).
 2. **Write failing tests first** per [`Test_Architecture.md`](../../Test_Architecture.md). Depth scales with risk class:
    - LOW — unit tests on the changed function(s); no e2e required unless the change touches a user-facing flow.
    - MEDIUM — unit + integration; e2e for any UI-facing change.
@@ -127,7 +136,9 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
    - `npm audit --audit-level=high` (or stack-adapter equivalent)
 6. **On gate failure**, iterate up to N=3 attempts. Each iteration: read the failure output, propose a fix, apply, re-run. On exhausted attempts, halt with the full failure output and surface to the human — never use `--no-verify`, `eslint-disable`, `@ts-expect-error`, `xfail`, or any other bypass.
 7. **Commit** using Conventional Commits with `Ref: REQ-XXX` trailer and `Co-Authored-By: Claude` trailer. One commit per logical step; never amend a commit that's already been pushed.
-8. **Push** to the feature branch. No PR yet — that happens in Phase 4.
+8. **Land the work on `$INTEGRATION_BRANCH`.** Push the feature branch, then:
+   - **If `$INTEGRATION_BRANCH` ≠ `$RELEASE_BRANCH`** (develop-first): open a PR `feat/REQ-XXX-<slug> → $INTEGRATION_BRANCH` and merge it once CI is green. This is the **integration hop** — there is no UAT four-eyes gate here (that's the release PR in Phase 4); for MEDIUM+ risk get a peer review on this PR per the project's norms. The push to `$INTEGRATION_BRANCH` is what triggers `ci.yml` to register the release and upload gate evidence.
+   - **If `$INTEGRATION_BRANCH` = `$RELEASE_BRANCH`** (trunk-only): do **not** merge to the protected branch here — leave the work on the feature branch; it becomes the release PR's head in Phase 4.
 
 ### Phase 3 — Compile evidence (SDLC stage 3)
 
@@ -156,7 +167,11 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
 
 ### Phase 4 — Submit for UAT review (SDLC stage 4)
 
-1. **Open the PR.** `gh pr create --base main --head <branch>`. PR body per the SDLC PR template (see [`.github/pull_request_template.md`](../../../../../.github/pull_request_template.md)):
+1. **Open the release PR** — the PR that carries the UAT four-eyes approval gate (`check-release-approval.yml`), always into `$RELEASE_BRANCH`:
+   - develop-first (`$INTEGRATION_BRANCH` ≠ `$RELEASE_BRANCH`): `gh pr create --base "$RELEASE_BRANCH" --head "$INTEGRATION_BRANCH"` (e.g. `develop → main`). The implementation already landed on `$INTEGRATION_BRANCH` in Phase 2; this promotes it. (Note: if other work is also waiting on `$INTEGRATION_BRANCH`, this is a bundled release — every in-scope REQ keeps its own release record and Production approval.)
+   - trunk-only (`$INTEGRATION_BRANCH` = `$RELEASE_BRANCH`): `gh pr create --base "$RELEASE_BRANCH" --head feat/REQ-XXX-<slug>` (the feature branch from Phase 2).
+
+   PR body per the SDLC PR template (see [`.github/pull_request_template.md`](../../../../../.github/pull_request_template.md)):
    - Closes #N
    - REQ-XXX
    - Risk: <class>

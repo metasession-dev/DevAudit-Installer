@@ -31,6 +31,8 @@ export async function writeSdlcConfig(ctx: InstallContext, plan: InstallPlan): P
   const existing = ((await readSdlcConfig(ctx.projectPath)) as Record<string, unknown> | null) ?? null;
   const defaultedIfNew: Record<string, unknown> = {
     runner: 'ubuntu-latest',
+    integration_branch: 'develop',
+    release_branch: 'main',
     sast_baseline: 0,
     accepted_dep_risks: '',
     database_service: '',

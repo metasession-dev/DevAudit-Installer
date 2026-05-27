@@ -9,6 +9,8 @@ export interface SdlcConfig {
   readonly python_version?: string | number;
   readonly working_directory?: string;
   readonly source_dirs?: string;
+  readonly integration_branch?: string;
+  readonly release_branch?: string;
   readonly devaudit?: {
     readonly base_url?: string;
     readonly project_slug?: string;
