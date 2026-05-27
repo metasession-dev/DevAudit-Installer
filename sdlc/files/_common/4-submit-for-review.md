@@ -93,6 +93,8 @@ git diff origin/main..develop -- package.json | grep '^\+'
 
 ### Step 3: Create the PR
 
+> The `--base main --head develop` below is the develop-first default. The branches are project-configured in `sdlc-config.json` — `release_branch` (default `main`) and `integration_branch` (default `develop`); a trunk-only project sets both to `main` and opens the feature branch directly against `main`.
+
 **For tracked requirements:**
 
 ```bash

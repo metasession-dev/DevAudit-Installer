@@ -189,6 +189,9 @@ describe('runInstall — native TS install against a node fixture', () => {
       const written = JSON.parse(await fs.readFile(join(dir, 'sdlc-config.json'), 'utf-8'));
       expect(written.stack).toBe('node');
       expect(written.project_slug).toBe('fixture-app');
+      // develop-first branch defaults (DevAudit-Installer#70)
+      expect(written.integration_branch).toBe('develop');
+      expect(written.release_branch).toBe('main');
       // provider was called for secrets + variable
       const secretCalls = providerCalls.filter((c) => c.method === 'setSecret');
       const secretNames = secretCalls.map((c) => c.args[0]);
