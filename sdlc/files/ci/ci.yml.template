@@ -130,26 +130,16 @@ jobs:
       # ── Gate 4: E2E Tests (Playwright) ──
 
 {{DATABASE_URI_STEP}}
-
+{{E2E_SETUP_STEP}}
       - name: Kill stale dev server
         run: lsof -ti:3000 | xargs kill -9 2>/dev/null || true
 
-      - name: Start dev server
-        run: {{E2E_START_COMMAND}} &
+{{E2E_DEV_SERVER_STEP}}
 
       - name: Wait for dev server
         run: npx wait-on http://localhost:3000 --timeout 120000
 
-      - name: E2E Tests
-        env:
-          # PLAYWRIGHT_JSON_OUTPUT_NAME makes the json reporter write straight
-          # to the file. Capturing stdout (`> e2e-results.json`) instead mixed
-          # the html reporter's "To open report" line in after the JSON blob
-          # and produced an unparseable file (DevAudit #48). html report still
-          # lands in playwright-report/.
-          PLAYWRIGHT_HTML_REPORTER_OPEN: never
-          PLAYWRIGHT_JSON_OUTPUT_NAME: e2e-results.json
-        run: npx playwright test --project={{E2E_PROJECT}} --reporter=json,html
+{{E2E_TEST_STEP}}
 {{E2E_AUTHENTICATED_STEP}}
       # ── Gate 5: Build ──
 

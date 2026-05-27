@@ -34,9 +34,17 @@ interface SdlcConfig {
   readonly build_env?: Readonly<Record<string, string>>;
   readonly e2e_project: string;
   readonly e2e_start_command: string;
+  // Optional pre-E2E setup command (foreground, blocking) run before the dev
+  // server starts — e.g. `supabase start` + load schema + seed for a disposable
+  // local database. Multi-line allowed. Absent → no setup step rendered.
+  readonly e2e_setup_command?: string;
   // Authenticated e2e (report-only). Optional; absent → no extra step rendered.
   readonly e2e_seed_command?: string;
   readonly e2e_projects?: readonly string[];
+  // Env applied to the E2E setup step, the (blocking) dev-server step, and the
+  // blocking + report-only E2E test steps. Use it to point E2E at a local stack
+  // (e.g. E2E_LOCAL=1 + local Supabase coords + a dummy email key), overriding
+  // the job-level remote secrets so tests never touch production.
   readonly e2e_env?: Readonly<Record<string, string>>;
   readonly paths_ignore?: readonly string[];
 }
@@ -46,6 +54,67 @@ function indentEnvBlock(env: Record<string, string>, indent: number): string {
   return Object.entries(env)
     .map(([k, v]) => `${pad}${k}: ${v}`)
     .join('\n');
+}
+
+/**
+ * Build the optional pre-E2E setup step (foreground, blocking) injected before
+ * the dev server starts. Renders only when e2e_setup_command is set, so existing
+ * projects regenerate an identical ci.yml. Carries e2e_env so the setup command
+ * (e.g. `supabase start` + schema load + seed) sees the local-stack coords.
+ * A multi-line command is emitted as a `run: |` block scalar.
+ */
+function buildE2eSetupStep(cfg: SdlcConfig): string {
+  const cmd = (cfg.e2e_setup_command ?? '').trim();
+  if (!cmd) return '';
+  const env = cfg.e2e_env ?? {};
+  const lines = ['      - name: E2E setup'];
+  if (Object.keys(env).length > 0) lines.push('        env:', indentEnvBlock({ ...env }, 10));
+  if (cmd.includes('\n')) {
+    lines.push('        run: |');
+    for (const l of cmd.split('\n')) lines.push(`          ${l}`);
+  } else {
+    lines.push(`        run: ${cmd}`);
+  }
+  lines.push('');
+  return lines.join('\n');
+}
+
+/**
+ * Build the blocking "Start dev server" step. Rebuilt in code (rather than left
+ * inline in the template) so e2e_env can be threaded onto the dev-server process
+ * — overriding the job-level remote secrets so the server talks to the local
+ * stack. With no e2e_env the output is identical to the previous inline step.
+ */
+function buildE2eDevServerStep(cfg: SdlcConfig): string {
+  const env = cfg.e2e_env ?? {};
+  const lines = ['      - name: Start dev server'];
+  if (Object.keys(env).length > 0) lines.push('        env:', indentEnvBlock({ ...env }, 10));
+  lines.push(`        run: ${cfg.e2e_start_command} &`);
+  return lines.join('\n');
+}
+
+/**
+ * Build the blocking "E2E Tests" step. Rebuilt in code so e2e_env can be threaded
+ * onto the Playwright process (specs read it to reach the local stack directly).
+ * With no e2e_env the output is identical to the previous inline step, comment
+ * and all.
+ */
+function buildE2eTestStep(cfg: SdlcConfig): string {
+  const env = cfg.e2e_env ?? {};
+  const lines = [
+    '      - name: E2E Tests',
+    '        env:',
+    '          # PLAYWRIGHT_JSON_OUTPUT_NAME makes the json reporter write straight',
+    '          # to the file. Capturing stdout (`> e2e-results.json`) instead mixed',
+    '          # the html reporter\'s "To open report" line in after the JSON blob',
+    '          # and produced an unparseable file (DevAudit #48). html report still',
+    '          # lands in playwright-report/.',
+    '          PLAYWRIGHT_HTML_REPORTER_OPEN: never',
+    '          PLAYWRIGHT_JSON_OUTPUT_NAME: e2e-results.json',
+  ];
+  if (Object.keys(env).length > 0) lines.push(indentEnvBlock({ ...env }, 10));
+  lines.push(`        run: npx playwright test --project=${cfg.e2e_project} --reporter=json,html`);
+  return lines.join('\n');
 }
 
 /**
@@ -147,6 +216,9 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
     APP_ENV: cfg.app_env ? indentEnvBlock({ ...cfg.app_env }, 6) : '',
     BUILD_ENV: cfg.build_env ? indentEnvBlock({ ...cfg.build_env }, 10) : '',
     DATABASE_URI_STEP: buildDbUriStep(cfg.database_service, cfg.database_port),
+    E2E_SETUP_STEP: buildE2eSetupStep(cfg),
+    E2E_DEV_SERVER_STEP: buildE2eDevServerStep(cfg),
+    E2E_TEST_STEP: buildE2eTestStep(cfg),
     E2E_AUTHENTICATED_STEP: buildAuthenticatedE2eStep(cfg),
   };
   let count = 0;

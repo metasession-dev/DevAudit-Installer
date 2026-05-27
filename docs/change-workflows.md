@@ -50,6 +50,7 @@ For the **lifecycle states** a release moves through (`draft → uat_review → 
 ## See also
 
 - [`implementing-an-sdlc-issue.md`](../sdlc/files/_common/implementing-an-sdlc-issue.md) — the operational stage-by-stage walkthrough (also synced into every consumer).
+- [`e2e-local-db-ci.md`](./e2e-local-db-ci.md) — run the E2E gate against a disposable local database (never test against prod) via `e2e_setup_command` + `e2e_env`.
 - [`sdlc-framework.md`](./sdlc-framework.md) — the framework's structure, tiers, and adapter layering.
 - [`onboarding.md`](./onboarding.md) — `devaudit install` for a new consumer.
 - Portal: [What is DevAudit](https://github.com/metasession-dev/devaudit/blob/main/docs/what-is-devaudit.md) · [Portal ↔ consumer integration](https://github.com/metasession-dev/devaudit/blob/main/docs/ci-integration.md) · [Releases & approvals](https://github.com/metasession-dev/devaudit/blob/main/docs/releases-and-approvals.md).

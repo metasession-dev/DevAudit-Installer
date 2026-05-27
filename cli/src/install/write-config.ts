@@ -41,6 +41,7 @@ export async function writeSdlcConfig(ctx: InstallContext, plan: InstallPlan): P
     build_env: {},
     e2e_project: '',
     e2e_start_command: '',
+    e2e_setup_command: '',
     e2e_seed_command: '',
     e2e_projects: [],
     e2e_env: {},
