@@ -55,7 +55,7 @@ The table above is a reference; **this section is the decision you make when you
 | **2 Implement** | Code on `develop`, gates green every commit; push to `develop` | `ci.yml` registers the release + uploads **gate evidence** (`security_scan`, `ci_pipeline`, `test_report`) at `environment=uat` |
 | **3 Compile evidence** | test-scope / test-plan / security-summary / release ticket; UAT-env verification (Step 10) | `compliance-evidence.yml` uploads the **committed docs** scoped to the requirement; the release dashboard shows the completeness checklist filling in |
 | **4 Submit for review** | Open PR to `main`; submit the release for **UAT review** | `compliance-validation.yml` checks artifacts + commit conventions; `check-release-approval.yml` blocks the merge until the release is approved; the portal shows the **four-eyes UAT approval** panel |
-| **5 Deploy** | Merge `develop → main` (production deploy) | `post-deploy-prod.yml` runs prod smoke, uploads `environment=production` evidence, and advances each in-scope release to `prod_review`; a reviewer approves Production → Mark as Released |
+| **5 Deploy** | Merge `develop → main` (production deploy) | `post-deploy-prod.yml` runs prod smoke, uploads `environment=production` evidence, and advances each in-scope release to `prod_review`; a reviewer approves Production → Mark as Released. On `released`, the portal fires `release-closed` and `close-out-release.yml` reconciles the ticket automatically (→ `RELEASED`, RTM row flipped, moved to `approved-releases/`) |
 
 The split of *which* workflow uploads *what* (and the exact evidence categories) is the **upload side**; how those artifacts are gated and rendered on the release dashboard is the **portal side** — see the integration doc linked above.
 
