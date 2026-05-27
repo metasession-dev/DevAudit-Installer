@@ -43,7 +43,7 @@ The table above is a reference; **this section is the decision you make when you
 
 **Confirm — pause-when-it-matters.** Pause for an explicit go on **tracked / heavier** paths, or when the classification is ambiguous; **announce-and-auto-proceed** for trivial / housekeeping. You can always reclassify.
 
-**Route:** tracked → Stages 1–5 (below); housekeeping / trivial → the [trivial-change escape hatch](../sdlc/files/_common/implementing-an-sdlc-issue.md) (no `REQ-XXX`, no evidence pack); compliance-doc-only → a docs push against the existing `REQ-XXX`.
+**Route:** tracked → Stages 1–5 (below); housekeeping / trivial → the [trivial-change escape hatch](../sdlc/files/_common/implementing-an-sdlc-issue.md) (no `REQ-XXX`, no evidence pack); compliance-doc-only → a docs push against the existing `REQ-XXX`. Routing chooses *which workflow to drive*, not whether to keep going — `sdlc-implementer` drives whichever path through to merge, skipping only the ceremony the change-type doesn't need.
 
 **Labels are an accelerator and a record, not a prerequisite.** Routing works with zero labels; when present they are authoritative, and the triage step writes the inferred `type:*` / `risk:*` labels back so the issue ends up labelled. The minimal set is `type:feature` · `type:fix` · `type:refactor` · `type:chore` · `type:docs` · `type:compliance` and `risk:low` · `risk:medium` · `risk:high`.
 

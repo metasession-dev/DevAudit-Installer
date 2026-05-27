@@ -1,12 +1,12 @@
 ---
 name: sdlc-implementer
-description: Take a GitHub issue end-to-end through the Metasession SDLC. Opens with a Workflow Triage step (Phase 0) that classifies the change and routes it — tracked work continues into the full cycle; housekeeping/trivial/doc-only is announced and handed off to the lightweight path. Use when the user wants to implement a single GitHub issue as a complete SDLC cycle — Phase 1 (classify risk, write implementation plan, update RTM) through Phase 4 (open PR, request UAT review on the portal), then halt; and Phase 5 (merge, post-deploy smoke evidence, mark Released, or change-request loop) on resume. Trigger phrases — "implement issue #N under the SDLC", "run the SDLC for issue #N", "automate REQ-XXX from issue to release", "do the SDLC stages for [issue]". Resume phrase — "resume REQ-XXX". MUST delegate end-to-end and visual-regression test work to the e2e-test-engineer skill in Phase 2; never authors e2e tests directly. Do NOT use for partial work — for stage-1 planning only, run the manual walkthrough; for test work alone, invoke e2e-test-engineer directly.
+description: Take a GitHub issue end-to-end through the Metasession SDLC. Opens with a Workflow Triage step (Phase 0) that classifies the change and routes it — tracked work continues into the full cycle; housekeeping/trivial/doc-only is driven to merge down a lightweight path (same step-by-step guidance, no tracked ceremony). Use when the user wants to implement a single GitHub issue as a complete SDLC cycle — Phase 1 (classify risk, write implementation plan, update RTM) through Phase 4 (open PR, request UAT review on the portal), then halt; and Phase 5 (merge, post-deploy smoke evidence, mark Released, or change-request loop) on resume. Trigger phrases — "implement issue #N under the SDLC", "run the SDLC for issue #N", "automate REQ-XXX from issue to release", "do the SDLC stages for [issue]". Resume phrase — "resume REQ-XXX". MUST delegate end-to-end and visual-regression test work to the e2e-test-engineer skill in Phase 2; never authors e2e tests directly. Do NOT use for partial work — for stage-1 planning only, run the manual walkthrough; for test work alone, invoke e2e-test-engineer directly.
 tags: [sdlc, orchestration, compliance, automation]
 ---
 
 # SDLC implementer
 
-Take a single GitHub issue end-to-end through the Metasession SDLC. The skill **triages first** (Phase 0): it classifies the change, announces the path it will take, and routes — only a **tracked** change continues into the full cycle, while housekeeping, trivial, and compliance-doc-only work is announced and handed back to its lighter path. For a tracked change, one command runs Phase 1 through Phase 4 unattended (with a plan-approval pause for HIGH/CRITICAL risk); the human enters the loop at the UAT review gate on the portal. On resume, the skill runs Phase 5 — merge, post-deploy smoke evidence, mark the release Released, or address change-requests and re-submit for UAT re-review.
+Take a single GitHub issue end-to-end through the Metasession SDLC. The skill **triages first** (Phase 0): it classifies the change, announces the path it will take, and routes — only a **tracked** change continues into the full cycle, while housekeeping, trivial, and compliance-doc-only work is driven down its lighter path **to completion** (the skill still guides every step to merge; it just skips the tracked ceremony). For a tracked change, one command runs Phase 1 through Phase 4 unattended (with a plan-approval pause for HIGH/CRITICAL risk); the human enters the loop at the UAT review gate on the portal. On resume, the skill runs Phase 5 — merge, post-deploy smoke evidence, mark the release Released, or address change-requests and re-submit for UAT re-review.
 
 This skill is a single entry point that **routes**, not one that always runs heavy. The change-type taxonomy it routes against is the canonical table in [`change-workflows.md`](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/change-workflows.md) (six change-types → commit-type → requirement? → path).
 
@@ -16,7 +16,7 @@ This is an **orchestration skill**. It drives Claude Code's native tools (`gh`, 
 
 **In scope**
 
-- Pickup-time **workflow triage** (Phase 0): read the issue + labels, classify the change-type, announce the path, and route — tracked work into Stages 1–5; housekeeping / trivial / compliance-doc-only handed off to the lightweight path.
+- Pickup-time **workflow triage** (Phase 0): read the issue + labels, classify the change-type, announce the path, and route — tracked work into Stages 1–5; housekeeping / trivial / compliance-doc-only **driven to merge down the Lightweight path** (same guidance, no tracked ceremony).
 - Taking one GitHub issue from triage to merged-and-deployed, under the project's existing SDLC framework.
 - Risk classification per [`Test_Policy.md`](../../Test_Policy.md) §Risk-Based Testing.
 - Authoring `compliance/plans/REQ-XXX/implementation-plan.md` per the stage-1 template.
@@ -45,7 +45,7 @@ Unit-test and integration-test work stays with this skill until a counterpart un
 
 ## The workflow
 
-A triage step (Phase 0) routes the issue, then up to five phases for tracked work. Phase 0 plus Phases 1–4 run in one Claude Code session; Phase 5 is invoked separately by the user after UAT. The off-ramps from Phase 0 (housekeeping / trivial / doc-only) stop after the hand-off — they never enter Phase 1.
+A triage step (Phase 0) routes the issue, then up to five phases for tracked work. Phase 0 plus Phases 1–4 run in one Claude Code session; Phase 5 is invoked separately by the user after UAT. The off-ramps from Phase 0 (housekeeping / trivial / doc-only) don't enter Phase 1 — they run the **Lightweight path** (below), which the skill drives to merge.
 
 ### Phase 0 — Workflow triage (classify → announce → confirm → route)
 
@@ -61,10 +61,10 @@ Runs **first**, before any `REQ-XXX` is assigned. It decides which of the six ch
    Map the result to one of the six paths in `change-workflows.md`.
 3. **Announce a "Workflow Decision" block** (template below): change-type, commit-type, whether a `REQ-XXX` is needed, risk class, which stages/gates run, which approvals the **operator** must perform (UAT four-eyes, Production approval), and what is **skipped**.
 4. **Pause policy — pause-when-it-matters.** Pause for explicit confirmation on **tracked / heavier** paths, or when classification is **ambiguous**; **announce-and-auto-proceed** on trivial / housekeeping. The operator can always reclassify ("treat this as housekeeping" / "this is HIGH risk").
-5. **Route:**
-   - **tracked** (feature / bug fix / refactor / perf) → continue into Phase 1 below.
-   - **housekeeping / trivial** → this is **not** an `sdlc-implementer` job. Hand back the lightweight escape-hatch steps (branch off `develop` → run **all** gates locally → `chore:` / `docs:` / `ci:` PR → review → merge) and stop. No `REQ-XXX`, no RTM row, no evidence pack, no portal release approvals.
-   - **compliance-doc-only** → a docs push referencing the **existing** `REQ-XXX` (no new requirement); hand back the steps and stop.
+5. **Route — and stay on to completion.** A route is a choice of *which workflow to drive*, never a hand-off that abandons the operator. Whatever the path, the skill keeps guiding step by step until no further action is required (typically: merged).
+   - **tracked** (feature / bug fix / refactor / perf) → continue into Phase 1 below (full Stages 1–5).
+   - **housekeeping / trivial** → drive the **Lightweight path** below to completion. No `REQ-XXX`, no RTM row, no evidence pack, no portal release approvals — but the skill still branches, runs the gates, opens the PR, and walks the operator through review → merge.
+   - **compliance-doc-only** → drive the same Lightweight path as a docs push (or PR, per the project's flow) referencing the **existing** `REQ-XXX`: no new requirement and no quality-gate ceremony, but driven through to merge.
 6. **Write labels back.** Apply the inferred `type:*` / `risk:*` labels so the issue ends up labelled — `gh label create <label> --force` to ensure the label exists (idempotent; no failure if a label-seeding step never ran), then `gh issue edit <N> --add-label <label>`. Future triage is then a glance.
 
 **"Workflow Decision" announcement template**
@@ -80,7 +80,20 @@ Runs **first**, before any `REQ-XXX` is assigned. It decides which of the six ch
 > - **Skipped:** \<…\>
 > Proceed? *(or reclassify)*
 
-Only the **tracked** route continues into Phase 1. The off-ramps are deliberate: dragging housekeeping through tracked-change machinery it doesn't need is exactly the failure mode this step exists to prevent.
+Only the **tracked** route continues into Phase 1; the others run the Lightweight path below. The off-ramps are deliberate — dragging housekeeping through tracked-change machinery it doesn't need is exactly the failure mode this step exists to prevent — but they are still **driven to completion**, never dumped as a checklist for the operator to run alone.
+
+### Lightweight path (housekeeping / trivial / compliance-doc-only)
+
+Reached from Phase 0 for non-tracked change-types. The skill drives this end-to-end; the only difference from the tracked cycle is the absence of *ceremony*, not the absence of *guidance*. It pauses only where a human is genuinely required (PR review, merge).
+
+1. **Branch off `develop`** with a housekeeping prefix — `chore/…`, `docs/…`, `ci/…`, `build/…`, `test/…`, or `compliance/…` for a doc-only change against an existing REQ.
+2. **Make the change**, single-purpose. If it turns out to touch runtime behaviour in `app/` / `lib/`, stop and reclassify as tracked — the commit-type rule is the backstop.
+3. **Run all gates locally** (`npm run lint`, `npx tsc --noEmit`, the test suite, `semgrep`, `npm audit` — or the stack-adapter equivalents). Trivial ≠ unverified; never `--no-verify`.
+4. **Commit** with a housekeeping type and **no** `REQ-XXX` — `docs:` / `chore:` / `ci:` / `build:` / `test:` / `revert:` are exempt from the `[REQ-XXX]` rule; a `compliance:` doc-only change references the existing REQ. `Co-Authored-By: Claude` if AI-assisted.
+5. **Push and open the PR.** CI runs the same quality gates; `compliance-validation.yml` finds no `REQ-XXX` and skips artifact validation.
+6. **Report honest status** — wait for CI, name any failing check, fix and re-push. Never announce "ready" while a required check is red.
+7. **Guide review → merge.** A human still reviews the PR (separation of duties). There is **no** portal release approval, no UAT four-eyes, no Production gate, and no close-out. Merge once CI is green and the reviewer approves.
+8. **Done.** A housekeeping push produces at most a bare-date release (`vYYYY.MM.DD`) with no approval gate; a doc-only push attaches its docs to the existing `REQ-XXX` release. No further action required — report completion and stop.
 
 ### Phase 1 — Plan (SDLC stage 1)
 
