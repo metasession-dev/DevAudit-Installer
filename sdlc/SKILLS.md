@@ -96,22 +96,17 @@ node scripts/validate-adapter.cjs sdlc/files/_common/skills/<name>/SKILL.md
 | Skill               | Location          | Triggers (paraphrased)                                                                                                       | Additional emissions                             |
 | ------------------- | ----------------- | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
 | `e2e-test-engineer` | `_common/skills/` | "add e2e tests", "bootstrap an e2e suite", "update the test pack", "are any tests obsolete", "run e2e tests and file issues" | `e2e/helpers/evidence.ts` (node-stack consumers) |
+| `sdlc-implementer`  | `_common/skills/` | "implement issue #N under the SDLC", "run the SDLC for issue #N", "automate REQ-XXX from issue to release", "resume REQ-XXX" | — (orchestrator; invokes `e2e-test-engineer`)    |
 
-## Skills on the roadmap
-
-| Candidate skill     | Likely trigger surface                                                                                                                   | Supports SDLC stage |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
-| `sdlc-implementer`  | "implement issue #N under the SDLC", "run the SDLC for issue #N", "automate REQ-XXX from issue to release", "do the SDLC for [issue]"   | All stages (1–5)    |
-
-`sdlc-implementer` is an **orchestration skill** — it drives Claude Code's native tools (`gh`, shell, `devaudit` CLI, portal API) through the full 5-stage flow against a single GitHub issue, pausing only at the UAT-review gate (and at the plan checkpoint for HIGH/CRITICAL risk). It replaces an earlier roadmap of five atomic skills (`risk-classifier`, `commit-message-author`, `compliance-evidence-author`, `sast-triager`, `release-ticket-author`) that were deprioritised — Claude Code's innate capabilities already cover what those atomic skills wrapped; the value-add is end-to-end orchestration with framework-compliant pauses, not five discoverable helpers a human still has to compose.
-
-**Current status.** SKILL.md + 3 references files are authored at [`sdlc/files/_common/skills/sdlc-implementer/`](./files/_common/skills/sdlc-implementer/) on `main` (Phase B, PR #31). Validator passes. Phase C — smoke against `wawagardenbar-app` — is the last step before this row moves to "Skills currently shipped" above.
+`sdlc-implementer` is the **default entry point for a tracked change** — an **orchestration skill** that drives Claude Code's native tools (`gh`, shell, `devaudit` CLI, portal API) through the full 5-stage flow against a single GitHub issue, pausing only at the UAT-review gate (and at the plan checkpoint for HIGH/CRITICAL risk). It is synced into every consumer (`.claude/skills/sdlc-implementer/`) by `devaudit update`. It replaces an earlier roadmap of five atomic skills (`risk-classifier`, `commit-message-author`, `compliance-evidence-author`, `sast-triager`, `release-ticket-author`) that were deprioritised — Claude Code's innate capabilities already cover what those atomic skills wrapped; the value-add is end-to-end orchestration with framework-compliant pauses, not five discoverable helpers a human still has to compose.
 
 **Sub-skill invocation requirement.** During its Phase 2 (Implement & test), the orchestrator **MUST** invoke `e2e-test-engineer` for any end-to-end or visual-regression test work — both scenario derivation from the implementation plan and execution of the resulting suite. The orchestrator does NOT author e2e tests directly. (Unit tests stay with the orchestrator until a unit-test counterpart skill ships.) The invocation pattern is documented in [docs/adding-a-skill.md §Orchestrator skills](../docs/adding-a-skill.md#orchestrator-skills-calling-other-skills); this is a hard contract — the orchestrator's SKILL.md fails review if it inlines `e2e-test-engineer`'s procedure.
 
-Tracking: [`metasession-dev/DevAudit-Installer#29`](https://github.com/metasession-dev/DevAudit-Installer/issues/29) (umbrella).
+`sdlc-implementer` is **not** used for trivial / housekeeping changes (docs, formatting, dependency bumps, CI tweaks) — those skip the requirement and the ceremony. See [the change-type matrix](../docs/change-workflows.md) and the [trivial-change walkthrough](./files/_common/implementing-an-sdlc-issue.md#trivial-change-walkthrough).
 
-Other speculative skills land when a real driver appears (a project's day-to-day work surfaces the same pain repeatedly and the orchestrator's internals demonstrably need it as a separable component).
+## Skills on the roadmap
+
+No concrete candidates are queued. A `unit-test-engineer` counterpart to `e2e-test-engineer` is the most likely next skill, but it lands only when day-to-day work repeatedly surfaces the pain and the orchestrator demonstrably needs it as a separable component. Tracking: [`metasession-dev/DevAudit-Installer#29`](https://github.com/metasession-dev/DevAudit-Installer/issues/29).
 
 ## When to make a skill vs. when to keep something in a stage doc
 
