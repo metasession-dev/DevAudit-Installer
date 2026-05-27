@@ -347,7 +347,12 @@ jobs:
             done
           fi
           shopt -s nullglob
-          SHOTS=(ci-evidence/compliance/evidence/*/screenshots/*.png compliance/evidence/*/screenshots/*.png)
+          # Only this run's freshly-generated screenshots (from the ci-results
+          # artifact). The full pack regenerates them every run, so the committed
+          # copies under compliance/evidence/ are redundant here — globbing both
+          # uploaded every image twice (deduped on display, but wasteful + rate-limit
+          # pressure) and swept in legacy screenshots from unrelated past releases.
+          SHOTS=(ci-evidence/compliance/evidence/*/screenshots/*.png)
           if [ "${#SHOT_REQS[@]}" -gt 0 ] && [ "${#SHOTS[@]}" -gt 0 ]; then
             echo "Uploading ${#SHOTS[@]} evidence screenshot(s) for: ${SHOT_REQS[*]}"
             SHOT_TMP="$(mktemp -d)"
