@@ -108,6 +108,14 @@ describe('syncProject — native TS sync against a fixture', () => {
     // authenticated-e2e token is dropped and no extra step is emitted.
     expect(ciYml).not.toContain('{{E2E_AUTHENTICATED_STEP}}');
     expect(ciYml).not.toContain('Authenticated E2E');
+    // Backward compat: with no e2e_setup_command/e2e_env, no setup step renders
+    // and the blocking dev-server + E2E steps carry no extra env — the gate is
+    // byte-identical to before the local-DB-harness change.
+    expect(ciYml).not.toContain('{{E2E_SETUP_STEP}}');
+    expect(ciYml).not.toContain('{{E2E_DEV_SERVER_STEP}}');
+    expect(ciYml).not.toContain('{{E2E_TEST_STEP}}');
+    expect(ciYml).not.toContain('- name: E2E setup');
+    expect(ciYml).toContain('- name: Start dev server\n        run: npm run dev &');
   }, 60_000);
 
   it('is idempotent — re-running produces no errors and same file count', async () => {
@@ -180,6 +188,81 @@ describe('syncProject — native TS sync against a fixture', () => {
       expect(ciYml).toContain('E2E_ADMIN_USERNAME: ${{ secrets.E2E_ADMIN_USERNAME }}');
       expect(ciYml).toContain('e2e-auth-results.json');
       expect(ciYml).not.toContain('{{E2E_AUTHENTICATED_STEP}}');
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it('threads a local-DB E2E setup step + e2e_env into the blocking gate when configured', async () => {
+    const dir = await fs.mkdtemp(join(tmpdir(), 'cli-update-e2elocal-'));
+    try {
+      await fs.writeFile(
+        join(dir, 'sdlc-config.json'),
+        JSON.stringify({
+          project_slug: 'fixture-app',
+          stack: 'node',
+          host: 'railway',
+          node_version: '20',
+          runner: 'ubuntu-latest',
+          working_directory: '.',
+          source_dirs: 'app/ lib/',
+          sast_baseline: 0,
+          accepted_dep_risks: '',
+          production_url_secret: 'FIXTURE_PROD_URL',
+          database_service: '',
+          database_image: '',
+          database_port: '',
+          database_env: {},
+          app_env: {},
+          build_env: {},
+          e2e_project: 'chromium',
+          e2e_start_command: 'next dev -p 3000',
+          e2e_setup_command: 'supabase start\npsql "$DATABASE_URL" -f supabase/schema-local.sql',
+          e2e_env: { E2E_LOCAL: '1', NEXT_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:54321' },
+          paths_ignore: ['SDLC/**', 'compliance/**'],
+        }),
+      );
+      await fs.writeFile(
+        join(dir, 'package.json'),
+        JSON.stringify({
+          name: 'fixture-app',
+          private: true,
+          version: '0.0.0',
+          devDependencies: {
+            husky: '*',
+            '@commitlint/cli': '*',
+            '@commitlint/config-conventional': '*',
+            'lint-staged': '*',
+            prettier: '*',
+            eslint: '*',
+            typescript: '*',
+            '@playwright/test': '*',
+          },
+        }),
+      );
+      await fs.mkdir(join(dir, '.husky'), { recursive: true });
+      await fs.mkdir(join(dir, 'scripts'), { recursive: true });
+      await fs.mkdir(join(dir, '.github', 'workflows'), { recursive: true });
+      await syncProject(dir);
+      const ciYml = await fs.readFile(join(dir, '.github', 'workflows', 'ci.yml'), 'utf-8');
+      // A foreground setup step renders before the dev server, as a `run: |` block.
+      expect(ciYml).toContain('- name: E2E setup');
+      expect(ciYml).toContain('        run: |\n          supabase start');
+      expect(ciYml).toContain('psql "$DATABASE_URL" -f supabase/schema-local.sql');
+      // e2e_env is threaded onto the dev-server step (overrides remote secrets) …
+      expect(ciYml).toContain(
+        '- name: Start dev server\n        env:\n          E2E_LOCAL: 1\n' +
+          '          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321\n        run: next dev -p 3000 &',
+      );
+      // … and onto the blocking E2E test step (after the PLAYWRIGHT_* vars).
+      expect(ciYml).toContain(
+        '          PLAYWRIGHT_JSON_OUTPUT_NAME: e2e-results.json\n          E2E_LOCAL: 1\n' +
+          '          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321\n' +
+          '        run: npx playwright test --project=chromium --reporter=json,html',
+      );
+      expect(ciYml).not.toContain('{{E2E_SETUP_STEP}}');
+      expect(ciYml).not.toContain('{{E2E_DEV_SERVER_STEP}}');
+      expect(ciYml).not.toContain('{{E2E_TEST_STEP}}');
     } finally {
       await fs.rm(dir, { recursive: true, force: true });
     }

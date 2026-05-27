@@ -85,7 +85,7 @@ The bootstrap workflow:
 
 9. **Wire up runner scripts** — at minimum `test:e2e` (headless), `test:e2e:ui` or `:headed` (interactive), `test:e2e:debug`, and `test:e2e:update-snapshots` if visual regression is in.
 
-10. **Offer a CI job** — write the YAML (or equivalent) for the project's CI system, but **do not commit it without confirmation**. Show it inline first.
+10. **Offer a CI job** — write the YAML (or equivalent) for the project's CI system, but **do not commit it without confirmation**. Show it inline first. On a **DevAudit** project, `.github/workflows/ci.yml` is generated and marked do-not-edit-manually — don't hand-edit it; instead drive the E2E gate from `sdlc-config.json`. If the suite must run against a **disposable local database** (the rule on any project with no separate test instance — never test against prod), set `e2e_setup_command` (e.g. `supabase start` + load schema + seed) and `e2e_env` (e.g. `E2E_LOCAL=1`, local coords, a dummy email key) so the gate severs production. See [Local-database E2E in CI](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/e2e-local-db-ci.md), then `devaudit update` to regenerate.
 
 11. **Write a short README** in the test directory explaining structure, how to run, how to add new tests, and how to update visual baselines. Future contributors (and the skill itself, on next invocation) will thank you.
 

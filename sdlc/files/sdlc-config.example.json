@@ -32,9 +32,14 @@
   "e2e_project": "chromium",
   "e2e_start_command": "npm run dev",
 
-  "_comment_e2e_authenticated": "Optional report-only authenticated e2e gate (continue-on-error, never blocks the merge). e2e_projects = Playwright project names that need a logged-in session (auth-setup runs automatically as their dependency); e2e_seed_command seeds admins/fixtures before the run; e2e_env maps repo secrets onto the seed + e2e steps. Author these specs with the e2e-test-engineer skill (evidenceShot per AC). Leave empty to run only the blocking smoke project above.",
+  "_comment_e2e_setup": "Optional foreground command run before the dev server starts — use it to stand up a DISPOSABLE LOCAL database so the E2E gate never touches production. The consumer owns the command (the framework stays stack-agnostic). For a Supabase project: install the CLI, `supabase start`, load the local schema + seed, e.g. \"supabase start && psql \\\"$DATABASE_URL\\\" -f supabase/schema-local.sql\". Pair with e2e_env below to point the dev server + tests at the local stack. Leave empty for projects whose dev server already targets a safe test DB.",
+  "e2e_setup_command": "",
+
+  "_comment_e2e_authenticated": "Optional report-only authenticated e2e gate (continue-on-error, never blocks the merge). e2e_projects = Playwright project names that need a logged-in session (auth-setup runs automatically as their dependency); e2e_seed_command seeds admins/fixtures before the run. Author these specs with the e2e-test-engineer skill (evidenceShot per AC). Leave empty to run only the blocking smoke project above.",
   "e2e_seed_command": "",
   "e2e_projects": [],
+
+  "_comment_e2e_env": "Env applied to the E2E setup, (blocking) dev-server, and E2E test steps. To run E2E against a local stack, override EVERY remote/prod key here so production is fully severed — e.g. { \"E2E_LOCAL\": \"1\", \"NEXT_PUBLIC_SUPABASE_URL\": \"http://127.0.0.1:54321\", \"SUPABASE_SERVICE_ROLE_KEY\": \"<local-service-key>\", \"RESEND_API_KEY\": \"re_e2e_local_dummy_key\" }. Step-level env wins over the job-level secrets. Values may reference repo secrets, e.g. \"${{ secrets.E2E_ADMIN_USERNAME }}\".",
   "e2e_env": {},
 
   "paths_ignore": [
