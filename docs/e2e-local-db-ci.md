@@ -76,6 +76,21 @@ Notes for this stack:
   `e2e_setup_command` (or in the loaded schema file) — `supabase start` gives you empty
   tables. A test auth user can be created at runtime via the admin API from a test helper.
 
+## Per-AC screenshot evidence
+
+When your specs call `evidenceShot(page, '<REQ>', 'ACn-…')` (the `e2e-test-engineer`
+pattern — assert the acceptance criterion, then capture the page at that moment), the
+generated gate **uploads those per-AC PNGs to the portal** as `screenshot` evidence,
+scoped to each in-scope requirement (the REQs with a `compliance/pending-releases/
+RELEASE-TICKET-REQ-XXX.md`). They render under **Evidence by requirement** on the
+release, named `<srs-req>-<slug>.png` so a reviewer sees which AC each image proves.
+
+These are the **per-AC proof** images — distinct from the Playwright HTML report
+(`test_report`), which only captures on failure. Upload is best-effort (a screenshot
+failure warns, never blocks the gate) and only runs when a release ticket defines the
+in-scope REQ(s), so ordinary dev pushes don't spam evidence. Capture at the proving
+moment, not the end of the test.
+
 ## What stays the same
 
 With **no** `e2e_setup_command` and **no** `e2e_env`, the generated Gate 4 is unchanged —
