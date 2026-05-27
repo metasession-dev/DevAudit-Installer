@@ -57,7 +57,9 @@ The [`sdlc-implementer`](#skills-inventory) skill is the **default way to implem
 > Implement issue #N under the SDLC.
 ```
 
-It runs Phases 1–4 unattended (with a plan-approval pause for HIGH/CRITICAL risk, or always-on via `--require-plan-approval`): classify risk, assign the next `REQ-XXX`, write the implementation plan, update `RTM.md`, implement, delegate all end-to-end / visual test work to [`e2e-test-engineer`](#skills-inventory), run the gates, compile evidence, open the PR, and submit for UAT review on the portal. It then **halts** at the UAT gate. After a reviewer approves on the portal:
+It **triages first** (Phase 0): it reads the issue + labels, classifies the change-type against the [change-workflows](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/change-workflows.md) taxonomy, announces a **Workflow Decision** (which path, which gates, which approvals, what's skipped), and routes — only a tracked change continues into the full cycle; housekeeping / trivial / doc-only is announced and handed off to its lighter path. So pointing the skill at an issue no longer defaults to maximum ceremony — it decides the path at pickup.
+
+For a tracked change it then runs Phases 1–4 unattended (with a plan-approval pause for HIGH/CRITICAL risk, or always-on via `--require-plan-approval`): classify risk, assign the next `REQ-XXX`, write the implementation plan, update `RTM.md`, implement, delegate all end-to-end / visual test work to [`e2e-test-engineer`](#skills-inventory), run the gates, compile evidence, open the PR, and submit for UAT review on the portal. It then **halts** at the UAT gate. After a reviewer approves on the portal:
 
 ```text
 > Resume REQ-XXX.
@@ -65,12 +67,13 @@ It runs Phases 1–4 unattended (with a plan-approval pause for HIGH/CRITICAL ri
 
 It runs Phase 5: merge, monitor post-deploy, confirm production smoke evidence, advance the release. If changes are requested at UAT instead of approval, it addresses them and re-submits for UAT re-review. It **refuses** issues that decompose into multiple requirements (split them first).
 
-**When it is NOT used:**
+**Where it routes (the Phase-0 decision):** the skill now makes this call at pickup rather than you discovering mid-PR that you over- (or under-) ceremonied. These are the paths it routes *away* from the full tracked cycle:
 
-- **Trivial / housekeeping changes** — see the escape hatch above. Docs, formatting, dependency bumps, CI tweaks (`docs:` / `chore:` / `ci:` …) don't need a requirement and don't go through the skill. (Note: `feat` / `fix` / `refactor` / `perf` commits **do** require a `[REQ-XXX]` / `Ref: REQ-XXX` and are rejected by commitlint + `validate-commits.sh` without one.)
-- **Stage-1 planning in isolation, or e2e test work alone** — run the manual walkthrough / invoke `e2e-test-engineer` directly.
-- **Cross-issue refactors** spanning multiple `REQ-XXX` scopes — out of the one-issue contract.
-- **When the orchestration can't apply** (unusual repo state, partial work mid-stream) — fall back to the manual walkthrough below.
+- **Trivial / housekeeping changes** → handed to the escape hatch above and stopped. Docs, formatting, dependency bumps, CI tweaks (`docs:` / `chore:` / `ci:` …) don't need a requirement and don't go through the tracked cycle. (Note: `feat` / `fix` / `refactor` / `perf` commits **do** require a `[REQ-XXX]` / `Ref: REQ-XXX` and are rejected by commitlint + `validate-commits.sh` without one.)
+- **Compliance-doc-only** → a docs push against an **existing** `REQ-XXX`; no new requirement, no quality gates.
+- **Stage-1 planning in isolation, or e2e test work alone** → run the manual walkthrough / invoke `e2e-test-engineer` directly.
+- **Cross-issue refactors** spanning multiple `REQ-XXX` scopes → out of the one-issue contract; the skill refuses and asks you to split.
+- **When the orchestration can't apply** (unusual repo state, partial work mid-stream) → fall back to the manual walkthrough below.
 
 The manual walkthrough below is the **operational reference** for exactly what the skill does at each stage — and the fallback when the skill isn't the right fit. (For an audience-level walkthrough with sample AI prompts, see the portal's [`implementing-an-sdlc-issue.md`](https://github.com/metasession-dev/devaudit/blob/main/docs/implementing-an-sdlc-issue.md).)
 

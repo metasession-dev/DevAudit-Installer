@@ -1,12 +1,14 @@
 ---
 name: sdlc-implementer
-description: Take a GitHub issue end-to-end through the Metasession SDLC. Use when the user wants to implement a single GitHub issue as a complete SDLC cycle — Phase 1 (classify risk, write implementation plan, update RTM) through Phase 4 (open PR, request UAT review on the portal), then halt; and Phase 5 (merge, post-deploy smoke evidence, mark Released, or change-request loop) on resume. Trigger phrases — "implement issue #N under the SDLC", "run the SDLC for issue #N", "automate REQ-XXX from issue to release", "do the SDLC stages for [issue]". Resume phrase — "resume REQ-XXX". MUST delegate end-to-end and visual-regression test work to the e2e-test-engineer skill in Phase 2; never authors e2e tests directly. Do NOT use for partial work — for stage-1 planning only, run the manual walkthrough; for test work alone, invoke e2e-test-engineer directly.
+description: Take a GitHub issue end-to-end through the Metasession SDLC. Opens with a Workflow Triage step (Phase 0) that classifies the change and routes it — tracked work continues into the full cycle; housekeeping/trivial/doc-only is announced and handed off to the lightweight path. Use when the user wants to implement a single GitHub issue as a complete SDLC cycle — Phase 1 (classify risk, write implementation plan, update RTM) through Phase 4 (open PR, request UAT review on the portal), then halt; and Phase 5 (merge, post-deploy smoke evidence, mark Released, or change-request loop) on resume. Trigger phrases — "implement issue #N under the SDLC", "run the SDLC for issue #N", "automate REQ-XXX from issue to release", "do the SDLC stages for [issue]". Resume phrase — "resume REQ-XXX". MUST delegate end-to-end and visual-regression test work to the e2e-test-engineer skill in Phase 2; never authors e2e tests directly. Do NOT use for partial work — for stage-1 planning only, run the manual walkthrough; for test work alone, invoke e2e-test-engineer directly.
 tags: [sdlc, orchestration, compliance, automation]
 ---
 
 # SDLC implementer
 
-Take a single GitHub issue end-to-end through the Metasession SDLC. One command runs Phase 1 through Phase 4 unattended (with a plan-approval pause for HIGH/CRITICAL risk); the human enters the loop at the UAT review gate on the portal. On resume, the skill runs Phase 5 — merge, post-deploy smoke evidence, mark the release Released, or address change-requests and re-submit for UAT re-review.
+Take a single GitHub issue end-to-end through the Metasession SDLC. The skill **triages first** (Phase 0): it classifies the change, announces the path it will take, and routes — only a **tracked** change continues into the full cycle, while housekeeping, trivial, and compliance-doc-only work is announced and handed back to its lighter path. For a tracked change, one command runs Phase 1 through Phase 4 unattended (with a plan-approval pause for HIGH/CRITICAL risk); the human enters the loop at the UAT review gate on the portal. On resume, the skill runs Phase 5 — merge, post-deploy smoke evidence, mark the release Released, or address change-requests and re-submit for UAT re-review.
+
+This skill is a single entry point that **routes**, not one that always runs heavy. The change-type taxonomy it routes against is the canonical table in [`change-workflows.md`](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/change-workflows.md) (six change-types → commit-type → requirement? → path).
 
 This is an **orchestration skill**. It drives Claude Code's native tools (`gh`, shell, the `devaudit` CLI, the portal API) through the framework's existing stage docs, and it **MUST invoke the [`e2e-test-engineer`](../e2e-test-engineer/SKILL.md) skill** for any end-to-end or visual-regression test work in Phase 2. It does not author e2e tests directly.
 
@@ -14,6 +16,7 @@ This is an **orchestration skill**. It drives Claude Code's native tools (`gh`, 
 
 **In scope**
 
+- Pickup-time **workflow triage** (Phase 0): read the issue + labels, classify the change-type, announce the path, and route — tracked work into Stages 1–5; housekeeping / trivial / compliance-doc-only handed off to the lightweight path.
 - Taking one GitHub issue from triage to merged-and-deployed, under the project's existing SDLC framework.
 - Risk classification per [`Test_Policy.md`](../../Test_Policy.md) §Risk-Based Testing.
 - Authoring `compliance/plans/REQ-XXX/implementation-plan.md` per the stage-1 template.
@@ -42,11 +45,48 @@ Unit-test and integration-test work stays with this skill until a counterpart un
 
 ## The workflow
 
-Five phases. Phases 1–4 run in one Claude Code session; Phase 5 is invoked separately by the user after UAT.
+A triage step (Phase 0) routes the issue, then up to five phases for tracked work. Phase 0 plus Phases 1–4 run in one Claude Code session; Phase 5 is invoked separately by the user after UAT. The off-ramps from Phase 0 (housekeeping / trivial / doc-only) stop after the hand-off — they never enter Phase 1.
+
+### Phase 0 — Workflow triage (classify → announce → confirm → route)
+
+Runs **first**, before any `REQ-XXX` is assigned. It decides which of the six change-types in [`change-workflows.md`](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/change-workflows.md) applies and what will — and won't — run. This is what stops every issue defaulting to maximum ceremony.
+
+1. **Fetch.** `gh issue view <N> --json labels,title,body` and read all comments. Read the **labels** as well as the title and body.
+2. **Classify the change-workflow**, inference-first (labels are optional input). Precedence, highest first:
+   1. An explicit `type:*` / `risk:*` label → **authoritative**.
+   2. A conventional-commit prefix in the issue title — `feat` / `fix` / `refactor` / `perf` → **tracked**; `chore` / `ci` / `build` / `test` / `docs` / `compliance` → **housekeeping / doc-only**.
+   3. The issue template — Requirement → tracked; Bug → fix (tracked); Task → housekeeping.
+   4. Body heuristics — acceptance criteria, or risk signals (auth, payments, RBAC, data egress, AI decisioning) → tracked, and raise the risk class.
+
+   Map the result to one of the six paths in `change-workflows.md`.
+3. **Announce a "Workflow Decision" block** (template below): change-type, commit-type, whether a `REQ-XXX` is needed, risk class, which stages/gates run, which approvals the **operator** must perform (UAT four-eyes, Production approval), and what is **skipped**.
+4. **Pause policy — pause-when-it-matters.** Pause for explicit confirmation on **tracked / heavier** paths, or when classification is **ambiguous**; **announce-and-auto-proceed** on trivial / housekeeping. The operator can always reclassify ("treat this as housekeeping" / "this is HIGH risk").
+5. **Route:**
+   - **tracked** (feature / bug fix / refactor / perf) → continue into Phase 1 below.
+   - **housekeeping / trivial** → this is **not** an `sdlc-implementer` job. Hand back the lightweight escape-hatch steps (branch off `develop` → run **all** gates locally → `chore:` / `docs:` / `ci:` PR → review → merge) and stop. No `REQ-XXX`, no RTM row, no evidence pack, no portal release approvals.
+   - **compliance-doc-only** → a docs push referencing the **existing** `REQ-XXX` (no new requirement); hand back the steps and stop.
+6. **Write labels back.** Apply the inferred `type:*` / `risk:*` labels so the issue ends up labelled — `gh label create <label> --force` to ensure the label exists (idempotent; no failure if a label-seeding step never ran), then `gh issue edit <N> --add-label <label>`. Future triage is then a glance.
+
+**"Workflow Decision" announcement template**
+
+> **Workflow decision — #N**
+> - **Change type:** \<Feature | Bug fix | Refactor/Perf | Housekeeping | Trivial | Compliance-doc-only\>
+> - **Commit type:** \<feat | fix | refactor | chore | docs | …\>
+> - **Requirement:** \<REQ-XXX assigned | none\>
+> - **Risk:** \<LOW | MEDIUM | HIGH | CRITICAL\>
+> - **Path:** \<Full SDLC Stages 1–5 | Lightweight (gates → chore PR) | Doc-only push\>
+> - **Gates/evidence:** \<…\>
+> - **Your approvals:** \<UAT four-eyes + Production approval | PR review only\>
+> - **Skipped:** \<…\>
+> Proceed? *(or reclassify)*
+
+Only the **tracked** route continues into Phase 1. The off-ramps are deliberate: dragging housekeeping through tracked-change machinery it doesn't need is exactly the failure mode this step exists to prevent.
 
 ### Phase 1 — Plan (SDLC stage 1)
 
-1. **Fetch the issue.** `gh issue view <N>` — read the title, body, and all comments.
+Reached only on the **tracked** route from Phase 0 (the issue is already fetched and classified).
+
+1. **Confirm the issue scope.** Re-read the `gh issue view <N>` output from Phase 0 — title, body, all comments — with implementation in mind.
 2. **Classify risk** per `Test_Policy.md` §Risk-Based Testing. Emit a one-paragraph rationale citing the signals you used (auth surface, financial calc, data egress, RBAC, AI decisioning, etc.).
 3. **Assign REQ-XXX.** Inspect `compliance/RTM.md` for existing entries; take the next free number. If the issue references an existing REQ, use that instead.
 4. **Detect over-scoping.** If the issue spans clearly distinct deliverables (e.g. "build SAML SSO + reorganise the admin dashboard + migrate from Postgres 14 to 16"), halt with a clear message asking the user to split the issue into separate ones. Do not proceed past Phase 1.
@@ -179,6 +219,7 @@ Plus one process risk surfaced explicitly in the principles below (rubber-stampi
 
 ## References
 
+- [`change-workflows.md`](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/change-workflows.md) — the canonical change-type taxonomy and the pickup-time **Workflow triage** decision Phase 0 runs against.
 - [`references/compliance-constraints.md`](./references/compliance-constraints.md) — the six architectural constraints + the process risk, audited per framework.
 - [`references/call-graph.md`](./references/call-graph.md) — sub-skill invocation map; what `sdlc-implementer` calls and when.
 - [`references/change-request-loop.md`](./references/change-request-loop.md) — Phase 5 change-request flow in detail, including portal-state semantics.
