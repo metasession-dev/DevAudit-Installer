@@ -196,20 +196,61 @@ jobs:
             --git-sha ${{ github.sha }} --branch ${{ github.ref_name }} || true
 
       - name: Sync known requirements from RTM
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          if [ -f "compliance/RTM.md" ]; then
-            REQS=$(grep -oP 'REQ-\d+' compliance/RTM.md | sort -t- -k2 -n -u)
-            if [ -n "$REQS" ]; then
-              JSON_ARRAY=$(echo "$REQS" | jq -R -s -c 'split("\n") | map(select(length > 0))')
-              HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-                -X PATCH "${BASE}/api/ci/projects/{{PROJECT_SLUG}}/known-requirements" \
-                -H "Authorization: Bearer ${DEVAUDIT_API_KEY}" \
-                -H "Content-Type: application/json" \
-                -d "{\"requirements\": ${JSON_ARRAY}}")
-              echo "known_requirements sync: HTTP ${HTTP_CODE}"
-              echo "Synced $(echo "$REQS" | wc -w) requirements from RTM.md"
+          if [ ! -f "compliance/RTM.md" ]; then exit 0; fi
+
+          # Per REQ row in RTM we look up: title (release-ticket H1, else the
+          # linked issue's title via `gh`), and risk_class (the first LOW /
+          # MEDIUM / HIGH / CRITICAL token in the row). Both are optional —
+          # the portal renders gracefully with nulls. The portal endpoint
+          # accepts either a bare string[] (legacy) or rich rows.
+          REQS_JSON='[]'
+          while IFS= read -r REQ; do
+            [ -z "$REQ" ] && continue
+            ROW=$(grep -m1 -E "^\| ${REQ} " compliance/RTM.md || true)
+            TITLE=""
+            for FILE in "compliance/pending-releases/RELEASE-TICKET-${REQ}.md" \
+                        "compliance/approved-releases/RELEASE-TICKET-${REQ}.md"; do
+              if [ -f "$FILE" ]; then
+                TITLE=$(grep -m1 '^# ' "$FILE" \
+                  | sed -E 's/^# *(REQ-[0-9]+)?[[:space:]]*[—:-]?[[:space:]]*//')
+                break
+              fi
+            done
+            if [ -z "$TITLE" ] && [ -n "$ROW" ]; then
+              ISSUE_NUM=$(echo "$ROW" | grep -oE '#[0-9]+' | head -1 | tr -d '#')
+              if [ -n "$ISSUE_NUM" ]; then
+                TITLE=$(gh issue view "$ISSUE_NUM" --json title --jq .title 2>/dev/null || true)
+              fi
             fi
+            RISK=""
+            if [ -n "$ROW" ]; then
+              RISK=$(echo "$ROW" | grep -ioE '\b(LOW|MEDIUM|HIGH|CRITICAL)\b' | head -1 \
+                | tr 'a-z' 'A-Z')
+            fi
+            REQS_JSON=$(echo "$REQS_JSON" | jq \
+              --arg id "$REQ" --arg title "$TITLE" --arg risk "$RISK" \
+              '. + [{
+                id: $id,
+                title: (if $title == "" then null else $title end),
+                riskClass: (if $risk == "" then null else $risk end)
+              }]')
+          done < <(grep -oE 'REQ-[0-9]+' compliance/RTM.md | sort -t- -k2 -n -u)
+
+          COUNT=$(echo "$REQS_JSON" | jq length)
+          if [ "$COUNT" = "0" ]; then
+            echo "No REQ-XXX rows in RTM.md — skipping sync"
+            exit 0
           fi
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X PATCH "${BASE}/api/ci/projects/{{PROJECT_SLUG}}/known-requirements" \
+            -H "Authorization: Bearer ${DEVAUDIT_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "{\"requirements\": ${REQS_JSON}}")
+          echo "known_requirements sync: HTTP ${HTTP_CODE}"
+          echo "Synced ${COUNT} requirements from RTM.md (titles + risk_class)"
 
   upload-evidence:
     name: Upload Evidence

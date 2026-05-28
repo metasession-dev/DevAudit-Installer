@@ -17,6 +17,15 @@
 #   --category <cat>            Evidence category: ci_pipeline, local_dev,
 #                               planning, test_report, security_scan,
 #                               release_artifact
+#   --release-title <text>      Human title for the release row (e.g. the
+#                               release-ticket H1). Forwarded as
+#                               `releaseTitle`; the portal no-clobbers
+#                               existing non-null values.
+#   --change-type <type>        Conventional-commit prefix (feat / fix /
+#                               refactor / perf / chore / docs / ci /
+#                               build / test / compliance / revert) for
+#                               the release row. Unknown values are
+#                               silently dropped server-side.
 #
 # Required environment variables:
 #   DEVAUDIT_BASE_URL  e.g. https://meta-comply-production.up.railway.app
@@ -54,6 +63,8 @@ RELEASE_VERSION=""
 CREATE_RELEASE_IF_MISSING=false
 ENVIRONMENT=""
 EVIDENCE_CATEGORY=""
+RELEASE_TITLE=""
+CHANGE_TYPE=""
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -64,6 +75,11 @@ while [ "$#" -gt 0 ]; do
     --create-release-if-missing) CREATE_RELEASE_IF_MISSING=true; shift ;;
     --environment) ENVIRONMENT="$2"; shift 2 ;;
     --category) EVIDENCE_CATEGORY="$2"; shift 2 ;;
+    # Descriptive title + conventional-commit change type passed through to
+    # the portal's findOrCreateRelease no-clobber backfill. Both optional;
+    # unknown change-type values are dropped server-side, not 400'd.
+    --release-title) RELEASE_TITLE="$2"; shift 2 ;;
+    --change-type) CHANGE_TYPE="$2"; shift 2 ;;
     *) echo "Unknown option: $1"; exit 1 ;;
   esac
 done
@@ -163,6 +179,8 @@ for FILE in "${FILES[@]}"; do
   [ -n "$BRANCH" ] && CURL_ARGS+=(-F "releaseBranch=${BRANCH}")
   [ -n "$ENVIRONMENT" ] && CURL_ARGS+=(-F "environment=${ENVIRONMENT}")
   [ -n "$EVIDENCE_CATEGORY" ] && CURL_ARGS+=(-F "evidenceCategory=${EVIDENCE_CATEGORY}")
+  [ -n "$RELEASE_TITLE" ] && CURL_ARGS+=(-F "releaseTitle=${RELEASE_TITLE}")
+  [ -n "$CHANGE_TYPE" ] && CURL_ARGS+=(-F "changeType=${CHANGE_TYPE}")
 
   ATTEMPT=1
   BACKOFF=$INITIAL_BACKOFF_SECONDS
