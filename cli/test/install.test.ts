@@ -37,6 +37,10 @@ function makeFakeProvider() {
     async setVariable(_cwd: string, name: string, value: string) {
       providerCalls.push({ method: 'setVariable', args: [name, value] });
     },
+    async hasSecret(_cwd: string, name: string) {
+      providerCalls.push({ method: 'hasSecret', args: [name] });
+      return false;
+    },
     async applyBranchProtection(_cwd: string, branch: string, checks: readonly string[]) {
       providerCalls.push({ method: 'applyBranchProtection', args: [branch, checks.length] });
       return { applied: true };
@@ -296,6 +300,148 @@ describe('runInstall — native TS install against a node fixture', () => {
       await fs.rm(dir, { recursive: true, force: true });
     }
   }, 30_000);
+
+  // Helper for the developer-mode tests below: a provider whose hasSecret
+  // returns true (the fixture's "DEVAUDIT_USER_TOKEN is already wired up"
+  // bit of the four-bit dev-mode detection).
+  function makeOnboardedProvider() {
+    const fp = makeFakeProvider();
+    return {
+      ...fp,
+      async hasSecret(_cwd: string, name: string) {
+        providerCalls.push({ method: 'hasSecret', args: [name] });
+        return true;
+      },
+    };
+  }
+  // Seeds an MSW state where the project + 'Onboarding-issued' key already
+  // exist on the portal — the other two bits of dev-mode detection.
+  function seedOnboardedPortal(): void {
+    server.use(
+      http.get(`${BASE_URL}/api/projects`, () =>
+        HttpResponse.json([{ id: 'existing-id', slug: 'fixture-app', name: 'fixture-app' }]),
+      ),
+      http.get(`${BASE_URL}/api/projects/:id/api-keys`, () =>
+        HttpResponse.json([{ id: 'key-x', name: 'Onboarding-issued', revoked_at: null }]),
+      ),
+    );
+  }
+
+  it('developer mode: skips steps 4, 6, 7, 9 when all four detection bits are true', async () => {
+    seedOnboardedPortal();
+    const { runInstall } = await import('../src/install/index.js');
+    const dir = await buildNodeFixture();
+    await fs.writeFile(
+      join(dir, 'sdlc-config.json'),
+      JSON.stringify({ project_slug: 'fixture-app', stack: 'node', host: 'railway', node_version: '20' }),
+    );
+    try {
+      const report = await runInstall({
+        path: dir,
+        nonInteractive: true,
+        provider: makeOnboardedProvider(),
+      });
+      const step4 = report.steps.find((s) => s.step.startsWith('4/'));
+      const step6 = report.steps.find((s) => s.step.startsWith('6/'));
+      const step7 = report.steps.find((s) => s.step.startsWith('7/'));
+      const step9 = report.steps.find((s) => s.step.startsWith('9/'));
+      expect(step4?.status).toBe('skipped');
+      expect(step6?.status).toBe('skipped');
+      expect(step7?.status).toBe('skipped');
+      expect(step9?.status).toBe('skipped');
+      expect(step7?.message).toMatch(/developer mode/);
+      expect(step9?.message).toMatch(/developer mode/);
+      // The provider's mutating methods were never called.
+      expect(providerCalls.find((c) => c.method === 'setSecret')).toBeUndefined();
+      expect(providerCalls.find((c) => c.method === 'setVariable')).toBeUndefined();
+      expect(providerCalls.find((c) => c.method === 'applyBranchProtection')).toBeUndefined();
+      // The done report carries the developer-mode marker.
+      const step11 = report.steps.find((s) => s.step.startsWith('11/'));
+      expect(step11?.step).toMatch(/developer mode/);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it('developer mode falls back to operator when DEVAUDIT_USER_TOKEN secret is missing on the repo', async () => {
+    seedOnboardedPortal();
+    const { runInstall } = await import('../src/install/index.js');
+    const dir = await buildNodeFixture();
+    await fs.writeFile(
+      join(dir, 'sdlc-config.json'),
+      JSON.stringify({ project_slug: 'fixture-app', stack: 'node', host: 'railway', node_version: '20' }),
+    );
+    try {
+      // hasSecret returns false by default in makeFakeProvider — proves bit-4
+      // is required to trip dev-mode (the safe default that matches today's
+      // behaviour when the repo isn't fully wired up yet).
+      const report = await runInstall({
+        path: dir,
+        nonInteractive: true,
+        provider: makeFakeProvider(),
+      });
+      // Operator path: secrets + branch protection actually called.
+      expect(providerCalls.find((c) => c.method === 'setSecret')).toBeDefined();
+      expect(providerCalls.find((c) => c.method === 'applyBranchProtection')).toBeDefined();
+      const step7 = report.steps.find((s) => s.step.startsWith('7/'));
+      expect(step7?.status).toBe('ok');
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it('--force-team-config: pins back to operator mode even when all dev-mode bits are true', async () => {
+    seedOnboardedPortal();
+    const { runInstall } = await import('../src/install/index.js');
+    const dir = await buildNodeFixture();
+    await fs.writeFile(
+      join(dir, 'sdlc-config.json'),
+      JSON.stringify({ project_slug: 'fixture-app', stack: 'node', host: 'railway', node_version: '20' }),
+    );
+    try {
+      const report = await runInstall({
+        path: dir,
+        nonInteractive: true,
+        provider: makeOnboardedProvider(),
+        forceTeamConfig: true,
+      });
+      // Destructive steps did run.
+      expect(providerCalls.find((c) => c.method === 'setSecret')).toBeDefined();
+      expect(providerCalls.find((c) => c.method === 'applyBranchProtection')).toBeDefined();
+      const step7 = report.steps.find((s) => s.step.startsWith('7/'));
+      expect(step7?.status).toBe('ok');
+      const step11 = report.steps.find((s) => s.step.startsWith('11/'));
+      // Operator copy ('Done', not 'Done (developer mode)').
+      expect(step11?.step).toBe('11/11 Done');
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it('mode: developer (pinned, the join code path): routes to developer mode without checking detection bits', async () => {
+    // Here the portal returns an empty project list (no existing project) but
+    // we pin mode=developer; the destructive steps should still skip. This
+    // proves `devaudit join` works as the explicit second-dev entry point.
+    const { runInstall } = await import('../src/install/index.js');
+    const dir = await buildNodeFixture();
+    await fs.writeFile(
+      join(dir, 'sdlc-config.json'),
+      JSON.stringify({ project_slug: 'fixture-app', stack: 'node', host: 'railway', node_version: '20' }),
+    );
+    try {
+      const report = await runInstall({
+        path: dir,
+        nonInteractive: true,
+        provider: makeFakeProvider(),
+        mode: 'developer',
+      });
+      expect(report.steps.find((s) => s.step.startsWith('7/'))?.status).toBe('skipped');
+      expect(report.steps.find((s) => s.step.startsWith('9/'))?.status).toBe('skipped');
+      expect(providerCalls.find((c) => c.method === 'setSecret')).toBeUndefined();
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
 
   it('warns and skips API key issuance if Onboarding-issued already exists', async () => {
     server.use(

@@ -4,6 +4,14 @@ import type { InstallContext, InstallPlan, StepResult } from './types.js';
 const KEY_NAME = 'Onboarding-issued';
 
 export async function issueApiKey(ctx: InstallContext, plan: InstallPlan): Promise<StepResult> {
+  if (ctx.installMode === 'developer') {
+    return {
+      step: '6/11 Issue project API key',
+      status: 'skipped',
+      message:
+        "developer mode — leaving the project's 'Onboarding-issued' API key untouched (the team key is already configured by the project operator).",
+    };
+  }
   if (ctx.dryRun) {
     return {
       step: '6/11 Issue project API key',

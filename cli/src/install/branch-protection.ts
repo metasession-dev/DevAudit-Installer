@@ -11,6 +11,14 @@ export async function configureBranchProtection(
   ctx: InstallContext,
   provider: GitProvider,
 ): Promise<StepResult> {
+  if (ctx.installMode === 'developer') {
+    return {
+      step: '9/11 Configure branch protection',
+      status: 'skipped',
+      message:
+        'developer mode — leaving branch protection unchanged. Use --force-team-config to re-apply as the project operator.',
+    };
+  }
   let meta;
   try {
     meta = await provider.getRepoMeta(ctx.projectPath);

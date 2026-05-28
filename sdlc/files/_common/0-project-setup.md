@@ -4,6 +4,8 @@ description: One-time project setup — configure repository, CI pipeline, compl
 
 # Project Setup Guide
 
+> **For the operator only.** This guide is for the first developer setting up the project. If you're joining an **already-onboarded** project, you don't need to run any of this — the synced framework files are already in the repo. See [`SDLC/joining-an-existing-project.md`](./joining-an-existing-project.md) for the second-developer path.
+
 **Document Type:** Setup Guide | **Run Once:** At project start, before any workflow is executed
 
 **Parent Documents:** Test Policy, Test Strategy, Test Architecture (all Tier 1, in devaudit/sdlc/files/)

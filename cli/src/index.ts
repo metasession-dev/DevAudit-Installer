@@ -8,6 +8,7 @@ import { runAuthStatus } from './commands/auth/status.js';
 import { runStatus } from './commands/status.js';
 import { runPush } from './commands/push.js';
 import { runInstallCommand } from './commands/install.js';
+import { runJoinCommand } from './commands/join.js';
 import { runUpdate } from './commands/update.js';
 import { makeStub } from './commands/stub.js';
 import { discoverPlugins, registerPluginCommands } from './lib/plugin/index.js';
@@ -47,12 +48,45 @@ export async function main(argv: readonly string[]): Promise<void> {
   applyCommonFlags(program);
   program
     .command('install [path]')
-    .description('Interactive onboarding for a consumer project (native TS implementation)')
+    .description('Interactive onboarding for a consumer project (operator flow). On an already-onboarded project a second dev auto-routes to developer mode; use `devaudit join` for the explicit second-dev entry point.')
     .option('--token <token>', 'PAT to use (otherwise reads DEVAUDIT_USER_TOKEN env or ~/.config/devaudit/auth.json)')
     .option('--base-url <url>', 'override portal URL (defaults to DEVAUDIT_BASE_URL env or production)')
+    .option('--force-team-config', 'Re-run the destructive steps (write sdlc-config, issue API key, set GH secrets, apply branch protection) even when dev-mode detection would have skipped them. The operator-only rotation lane.')
+    .action(
+      async (
+        path: string | undefined,
+        cmdOpts: { token?: string; baseUrl?: string; forceTeamConfig?: boolean },
+        cmd,
+      ) => {
+        const globals = cmd.optsWithGlobals();
+        await runInstallCommand({
+          ...(path !== undefined ? { path } : {}),
+          ...(cmdOpts.token !== undefined ? { token: cmdOpts.token } : {}),
+          ...(cmdOpts.baseUrl !== undefined ? { baseUrl: cmdOpts.baseUrl } : {}),
+          ...(cmdOpts.forceTeamConfig !== undefined
+            ? { forceTeamConfig: Boolean(cmdOpts.forceTeamConfig) }
+            : {}),
+          ...(globals.dryRun !== undefined ? { dryRun: Boolean(globals.dryRun) } : {}),
+          ...(globals.yes !== undefined ? { yes: Boolean(globals.yes) } : {}),
+        });
+      },
+    );
+  program
+    .command('join [path]')
+    .description(
+      'Second-developer entry point: re-sync framework templates + run hook bootstrap locally on an already-onboarded project. Skips the operator-only steps (sdlc-config write, API key issuance, GitHub secret writes, branch protection) so the team CI token is never rotated. See SDLC/joining-an-existing-project.md.',
+    )
+    .option(
+      '--token <token>',
+      'PAT to use (otherwise reads DEVAUDIT_USER_TOKEN env or ~/.config/devaudit/auth.json)',
+    )
+    .option(
+      '--base-url <url>',
+      'override portal URL (defaults to DEVAUDIT_BASE_URL env or production)',
+    )
     .action(async (path: string | undefined, cmdOpts: { token?: string; baseUrl?: string }, cmd) => {
       const globals = cmd.optsWithGlobals();
-      await runInstallCommand({
+      await runJoinCommand({
         ...(path !== undefined ? { path } : {}),
         ...(cmdOpts.token !== undefined ? { token: cmdOpts.token } : {}),
         ...(cmdOpts.baseUrl !== undefined ? { baseUrl: cmdOpts.baseUrl } : {}),

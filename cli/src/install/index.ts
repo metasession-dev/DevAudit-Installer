@@ -1,9 +1,10 @@
 import { basename, resolve } from 'node:path';
 import { resolveToken } from '../lib/auth.js';
 import { resolveInstallerRoot } from '../lib/installer-root.js';
-import { isDir } from '../lib/fs-utils.js';
+import { isDir, isFile } from '../lib/fs-utils.js';
 import { logger } from '../lib/logger.js';
 import { getGitProvider, type GitProvider } from '../lib/git-provider/index.js';
+import { DevAuditClient } from '../lib/devaudit-api.js';
 import {
   discoverPlugins,
   buildPluginContext,
@@ -21,7 +22,7 @@ import { bootstrapHooks } from './hooks-bootstrap.js';
 import { configureBranchProtection } from './branch-protection.js';
 import { syncTemplates } from './sync-templates.js';
 import { doneReport } from './done-report.js';
-import type { InstallContext, InstallPlan, StepResult } from './types.js';
+import type { InstallContext, InstallMode, InstallPlan, StepResult } from './types.js';
 
 export interface RunInstallOptions {
   readonly path?: string;
@@ -31,6 +32,18 @@ export interface RunInstallOptions {
   readonly nonInteractive?: boolean;
   readonly provider?: GitProvider;
   readonly plugins?: readonly LoadedPlugin[];
+  /**
+   * Pin the install mode explicitly. `'auto'` (default) lets `detectInstallMode`
+   * decide based on probes. `'developer'` is set by the `devaudit join`
+   * subcommand to force the lighter flow.
+   */
+  readonly mode?: 'auto' | InstallMode;
+  /**
+   * Re-enables the destructive steps (write sdlc-config, issue API key, set
+   * GH secrets, apply branch protection) even when dev-mode detection would
+   * have skipped them. The operator's rotation lane.
+   */
+  readonly forceTeamConfig?: boolean;
 }
 
 export interface InstallReport {
@@ -49,7 +62,11 @@ export async function runInstall(options: RunInstallOptions): Promise<InstallRep
   const projectName = basename(projectPath);
   const auth = await resolveTokenForInstall(options);
   const installerRoot = await resolveInstallerRoot();
-  const ctx: InstallContext = {
+
+  // Pre-flight mode detection runs after step 3 (plan), because it needs the
+  // project slug. We build a tentative ctx for steps 1–3 here with mode set to
+  // 'operator' (safe default — those steps don't consult installMode anyway).
+  const tentativeCtx: InstallContext = {
     projectPath,
     projectName,
     installerRoot,
@@ -57,25 +74,33 @@ export async function runInstall(options: RunInstallOptions): Promise<InstallRep
     baseUrl: auth.baseUrl,
     dryRun: Boolean(options.dryRun),
     nonInteractive: Boolean(options.nonInteractive),
+    installMode: 'operator',
   };
-  banner(ctx);
+  banner(tentativeCtx);
   const steps: StepResult[] = [];
-  steps.push(await record(log, runAuthProbe(ctx)));
+  steps.push(await record(log, runAuthProbe(tentativeCtx)));
   const plugins = options.plugins ?? (await discoverPlugins()).loaded;
-  if (plugins.length > 0 && !ctx.dryRun) {
-    const pluginCtx = await buildPluginContext({ projectPath: ctx.projectPath });
+  if (plugins.length > 0 && !tentativeCtx.dryRun) {
+    const pluginCtx = await buildPluginContext({ projectPath: tentativeCtx.projectPath });
     await runHook(plugins, 'beforeInstall', pluginCtx);
   }
-  const { result: detectResult, detected } = await detectStack(ctx);
+  const { result: detectResult, detected } = await detectStack(tentativeCtx);
   steps.push(await record(log, Promise.resolve(detectResult)));
-  const plan: InstallPlan = await collectPlan(ctx, detected);
+  const plan: InstallPlan = await collectPlan(tentativeCtx, detected);
   const planStep = planSummary(plan);
   steps.push(planStep);
   log.success(`[${planStep.step}] ${planStep.message ?? ''}`);
+
+  const providerResolution = await resolveProvider(options, tentativeCtx);
+  // Resolve install mode now that we have plan.projectSlug + (maybe) a
+  // provider — see detectInstallMode for the four-bit decision rule.
+  const detection = await detectInstallMode(tentativeCtx, plan, providerResolution.provider, options);
+  if (detection.notice) log.info(detection.notice);
+  const ctx: InstallContext = { ...tentativeCtx, installMode: detection.mode };
+
   steps.push(await record(log, writeSdlcConfig(ctx, plan)));
   steps.push(await record(log, findOrCreateProject(ctx, plan)));
   steps.push(await record(log, issueApiKey(ctx, plan)));
-  const providerResolution = await resolveProvider(options, ctx);
   if (providerResolution.provider) {
     steps.push(await record(log, setGithubSecrets(ctx, plan, providerResolution.provider)));
   } else {
@@ -109,6 +134,92 @@ export async function runInstall(options: RunInstallOptions): Promise<InstallRep
     await runHook(plugins, 'afterInstall', pluginCtx);
   }
   return { project: projectName, projectPath, dryRun: ctx.dryRun, steps };
+}
+
+interface ModeDetection {
+  readonly mode: InstallMode;
+  readonly notice?: string;
+  /** True iff all four detection bits resolved to "developer-mode". */
+  readonly allBitsMatched: boolean;
+}
+
+/**
+ * Decide whether this install is the operator setting up / rotating a project
+ * (`'operator'`) or a developer joining an already-onboarded one (`'developer'`).
+ *
+ * Developer mode requires **all four** bits to hold (any failure → operator,
+ * the safe default that matches today's behaviour); `RunInstallOptions.mode`
+ * overrides the auto-detection (used by `devaudit join`); `forceTeamConfig`
+ * pins back to operator (the operator's rotation lane).
+ *
+ *   1. `sdlc-config.json` exists at projectPath        — already-onboarded marker
+ *   2. portal returns a project for `plan.projectSlug`  — project lives on the portal
+ *   3. an `'Onboarding-issued'` API key already exists  — first install already ran
+ *   4. the repo has a `DEVAUDIT_USER_TOKEN` secret      — CI is already wired up
+ */
+async function detectInstallMode(
+  ctx: InstallContext,
+  plan: InstallPlan,
+  provider: GitProvider | null,
+  options: RunInstallOptions,
+): Promise<ModeDetection> {
+  if (options.forceTeamConfig) {
+    return {
+      mode: 'operator',
+      allBitsMatched: false,
+      notice: '--force-team-config: running operator-mode (will rewrite repo secrets + branch protection).',
+    };
+  }
+  if (options.mode === 'developer') {
+    return {
+      mode: 'developer',
+      allBitsMatched: true,
+      notice:
+        "mode=developer (pinned): destructive steps will skip — use `devaudit install --force-team-config` from the project's onboarding operator if you need to rotate team secrets.",
+    };
+  }
+  if (options.mode === 'operator') {
+    return { mode: 'operator', allBitsMatched: false };
+  }
+  // auto-detect ('auto' or undefined)
+  if (ctx.dryRun) {
+    // In dry-run we don't probe; default to operator semantics so the report
+    // shows the maximum possible step set. (The new --force-team-config and
+    // mode=developer cases above still take effect in dry-run.)
+    return { mode: 'operator', allBitsMatched: false };
+  }
+  const sdlcConfigExisted = await isFile(`${ctx.projectPath}/sdlc-config.json`);
+  if (!sdlcConfigExisted) return { mode: 'operator', allBitsMatched: false };
+  let projectExists = false;
+  let keyExists = false;
+  try {
+    const client = new DevAuditClient({ token: ctx.token, baseUrl: ctx.baseUrl });
+    const existing = await client.getProjectBySlug(plan.projectSlug);
+    if (existing) {
+      projectExists = true;
+      const keys = await client.listApiKeys(existing.id);
+      keyExists = keys.some((k) => k.name === 'Onboarding-issued' && k.revoked_at === null);
+    }
+  } catch {
+    // Any portal error → fall back to operator (safe default).
+    return { mode: 'operator', allBitsMatched: false };
+  }
+  if (!projectExists || !keyExists) return { mode: 'operator', allBitsMatched: false };
+  let hasUserTokenSecret = false;
+  if (provider) {
+    try {
+      hasUserTokenSecret = await provider.hasSecret(ctx.projectPath, 'DEVAUDIT_USER_TOKEN');
+    } catch {
+      hasUserTokenSecret = false;
+    }
+  }
+  if (!hasUserTokenSecret) return { mode: 'operator', allBitsMatched: false };
+  return {
+    mode: 'developer',
+    allBitsMatched: true,
+    notice:
+      'developer mode auto-detected (project + Onboarding-issued key + DEVAUDIT_USER_TOKEN secret all present): destructive steps (4, 6, 7, 9) will skip. Use --force-team-config to rotate team secrets.',
+  };
 }
 
 async function resolveProvider(

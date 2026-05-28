@@ -27,6 +27,14 @@ export interface GitProvider {
   getRepoMeta(cwd: string): Promise<RepoMeta>;
   setSecret(cwd: string, name: string, value: string): Promise<void>;
   setVariable(cwd: string, name: string, value: string): Promise<void>;
+  /**
+   * Read-only probe: does the repo already have a secret with this name?
+   * Used by `install`'s dev-mode auto-detection to recognise an already-
+   * onboarded project's CI token before deciding whether to (re-)write it.
+   * Implementations should never throw on "secret doesn't exist" — that's a
+   * `false` return — only on auth / network failures.
+   */
+  hasSecret(cwd: string, name: string): Promise<boolean>;
   applyBranchProtection(
     cwd: string,
     branch: string,

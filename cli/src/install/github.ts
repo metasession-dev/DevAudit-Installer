@@ -30,6 +30,14 @@ export async function setGithubSecrets(
   plan: InstallPlan,
   provider: GitProvider,
 ): Promise<StepResult> {
+  if (ctx.installMode === 'developer') {
+    return {
+      step: '7/11 Set GitHub secrets and variables',
+      status: 'skipped',
+      message:
+        'developer mode — leaving DEVAUDIT_USER_TOKEN, DEVAUDIT_API_KEY, DEVAUDIT_BASE_URL, and the production-URL secret unchanged. Use --force-team-config to rotate them as the project operator.',
+    };
+  }
   const operations = buildOperations(ctx, plan);
   if (ctx.dryRun) {
     const summary = operations.map((op) => `${op.kind}:${op.name}`).join(', ');

@@ -78,6 +78,29 @@ export class GitHubProvider implements GitProvider {
     );
   }
 
+  async hasSecret(cwd: string, name: string): Promise<boolean> {
+    // Best-effort probe used by install's dev-mode detection (#NN). Returns
+    // false on any read failure — the safe default routes to operator mode,
+    // which preserves today's behaviour for first-dev installs.
+    if (this.preferGhCli && (await ghAvailable())) {
+      const res = await execa('gh', ['secret', 'list', '--json', 'name'], { cwd, reject: false });
+      if (res.exitCode !== 0) return false;
+      try {
+        const rows = JSON.parse(res.stdout) as Array<{ name: string }>;
+        return rows.some((r) => r.name === name);
+      } catch {
+        return false;
+      }
+    }
+    const meta = await this.getRepoMeta(cwd);
+    if (!this.token) return false;
+    const res = await fetch(
+      `https://api.github.com/repos/${meta.owner}/${meta.name}/actions/secrets/${name}`,
+      { headers: this.authHeaders() },
+    );
+    return res.ok;
+  }
+
   async setVariable(cwd: string, name: string, value: string): Promise<void> {
     if (this.preferGhCli && (await ghAvailable())) {
       await execa('gh', ['variable', 'set', name, '--body', value], { cwd });

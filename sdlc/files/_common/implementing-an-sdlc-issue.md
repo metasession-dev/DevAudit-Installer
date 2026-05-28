@@ -16,7 +16,7 @@ End-to-end walkthrough for taking a GitHub issue from triage to merged-and-deplo
 | Your `gh` CLI is authenticated against the project's GitHub repo                                | `gh auth status`                                   |
 | Your local checkout is on `develop` (or branched from it) and up-to-date                        | `git status`                                       |
 
-If `devaudit status` reports gaps, see [`DevAudit-Installer/docs/onboarding.md`](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/onboarding.md) to re-sync the framework, then come back here.
+If `devaudit status` reports gaps and you're a developer joining an already-onboarded project, see [`SDLC/joining-an-existing-project.md`](./joining-an-existing-project.md) — your local clone may just need `devaudit auth login` + `devaudit join`. If the project hasn't been onboarded yet (you're the first developer), see [`DevAudit-Installer/docs/onboarding.md`](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/onboarding.md) for the operator flow. Either way, come back here once `devaudit status` is green.
 
 ## The five stages, at a glance
 

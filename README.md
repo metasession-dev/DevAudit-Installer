@@ -42,6 +42,8 @@ devaudit install ../path/to/your-consumer-project
 
 The native onboarding flow validates the PAT, detects your stack (Node/Python) + host (Railway), creates the project + a CI API key in the portal, sets GitHub secrets and branch protection on `main`, bootstraps the hook framework, and syncs the framework templates — then leaves the tree dirty for you to review + open an onboarding PR. Full walkthrough: [`docs/onboarding.md`](./docs/onboarding.md).
 
+**Joining a project that's already been onboarded?** You're the second (or nth) developer — `install` is the *operator's* command and would silently rotate the team's CI secrets. Use `devaudit join` instead. Full guide: [`sdlc/files/_common/joining-an-existing-project.md`](./sdlc/files/_common/joining-an-existing-project.md) (synced into every consumer's `SDLC/`).
+
 ## Quick start — keep a consumer in sync
 
 When the framework is updated, re-sync each consumer (a bare `update` targets the current directory):
