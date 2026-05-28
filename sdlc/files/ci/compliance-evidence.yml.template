@@ -110,15 +110,46 @@ jobs:
           FLAGS="${FLAGS} --create-release-if-missing --environment uat"
           DERIVED_RELEASE="${{ steps.version.outputs.version }}"
 
+          # Derive change_type for the bare-date (housekeeping) DERIVED_RELEASE:
+          # the prefix of the most recent commit's subject. No-op for tracked
+          # releases — they get per-REQ derivation in the loop below.
+          DERIVED_CT=$(git log -1 --pretty=%s 2>/dev/null \
+            | grep -oE '^(feat|fix|refactor|perf|chore|docs|ci|build|test|compliance|revert)' \
+            | head -1 || true)
+          DERIVED_META=()
+          [ -n "$DERIVED_CT" ] && DERIVED_META+=(--change-type "$DERIVED_CT")
+
           # Upload compliance docs (planning category)
           for DOC in compliance/RTM.md compliance/test-plan.md compliance/test-cases.md compliance/test-summary-report.md; do
             if [ -f "$DOC" ]; then
               echo "Uploading: $(basename "$DOC")"
               bash scripts/upload-evidence.sh \
                 {{PROJECT_SLUG}} _compliance-docs compliance_document "$DOC" \
-                --category planning ${FLAGS} --release "${DERIVED_RELEASE}" || echo "Warning: Failed to upload $(basename "$DOC")"
+                --category planning ${FLAGS} --release "${DERIVED_RELEASE}" \
+                "${DERIVED_META[@]}" \
+                || echo "Warning: Failed to upload $(basename "$DOC")"
             fi
           done
+
+          # Helper: emit a `--release-title …` `--change-type …` pair for a given
+          # REQ, derived from its pending release-ticket H1 and the most recent
+          # commit attributed to that REQ. Empty pair when neither is available.
+          req_meta_args() {
+            local REQ="$1"; local TITLE=""; local CT=""
+            for FILE in "compliance/pending-releases/RELEASE-TICKET-${REQ}.md" \
+                        "compliance/approved-releases/RELEASE-TICKET-${REQ}.md"; do
+              if [ -f "$FILE" ]; then
+                TITLE=$(grep -m1 '^# ' "$FILE" \
+                  | sed -E 's/^# *(REQ-[0-9]+)?[[:space:]]*[—:-]?[[:space:]]*//')
+                break
+              fi
+            done
+            CT=$(git log --grep "\[${REQ}\]\|Ref: ${REQ}" --pretty=%s -1 2>/dev/null \
+              | grep -oE '^(feat|fix|refactor|perf|chore|docs|ci|build|test|compliance|revert)' \
+              | head -1 || true)
+            [ -n "$TITLE" ] && printf -- '--release-title %q ' "$TITLE"
+            [ -n "$CT" ] && printf -- '--change-type %q ' "$CT"
+          }
 
           # Upload release tickets (pending only)
           if [ -d "compliance/pending-releases" ]; then
@@ -130,14 +161,18 @@ jobs:
               case "$TICKET_BASE" in
                 RELEASE-TICKET-REQ-*)
                   TICKET_REQ="${TICKET_BASE#RELEASE-TICKET-}"
-                  TICKET_OWNER="$TICKET_REQ"; TICKET_RELEASE="$TICKET_REQ" ;;
+                  TICKET_OWNER="$TICKET_REQ"; TICKET_RELEASE="$TICKET_REQ"
+                  TICKET_META_ARGS=$(req_meta_args "$TICKET_REQ") ;;
                 *)
-                  TICKET_OWNER="_compliance-docs"; TICKET_RELEASE="$DERIVED_RELEASE" ;;
+                  TICKET_OWNER="_compliance-docs"; TICKET_RELEASE="$DERIVED_RELEASE"
+                  TICKET_META_ARGS="" ;;
               esac
               echo "Uploading: $(basename "$TICKET") -> release ${TICKET_RELEASE}"
-              bash scripts/upload-evidence.sh \
-                {{PROJECT_SLUG}} "${TICKET_OWNER}" compliance_document "$TICKET" \
-                --category release_artifact ${FLAGS} --release "${TICKET_RELEASE}" || echo "Warning: Failed to upload $(basename "$TICKET")"
+              eval "bash scripts/upload-evidence.sh \
+                {{PROJECT_SLUG}} \"${TICKET_OWNER}\" compliance_document \"$TICKET\" \
+                --category release_artifact ${FLAGS} --release \"${TICKET_RELEASE}\" \
+                ${TICKET_META_ARGS}" \
+                || echo "Warning: Failed to upload $(basename "$TICKET")"
             done
           fi
 
@@ -165,12 +200,15 @@ jobs:
                 echo "Warning: pending ticket for ${REQ_ID} but no ${REQ_DIR} on disk"
                 continue
               fi
+              REQ_META_ARGS=$(req_meta_args "$REQ_ID")
               for ARTIFACT in "$REQ_DIR"*.md; do
                 [ -f "$ARTIFACT" ] || continue
                 echo "Uploading: ${REQ_ID}/$(basename "$ARTIFACT")"
-                bash scripts/upload-evidence.sh \
-                  {{PROJECT_SLUG}} "${REQ_ID}" compliance_document "$ARTIFACT" \
-                  --category planning ${FLAGS} --release "${REQ_ID}" || echo "Warning: Failed to upload $(basename "$ARTIFACT")"
+                eval "bash scripts/upload-evidence.sh \
+                  {{PROJECT_SLUG}} \"${REQ_ID}\" compliance_document \"$ARTIFACT\" \
+                  --category planning ${FLAGS} --release \"${REQ_ID}\" \
+                  ${REQ_META_ARGS}" \
+                  || echo "Warning: Failed to upload $(basename "$ARTIFACT")"
               done
             done
           fi
