@@ -70,8 +70,18 @@ jobs:
           esac
           # Bootstrap probe (#301): project may not exist in DevAudit yet —
           # the first compliance-evidence.yml run auto-creates it. A 404 here
-          # means we're on the introducing PR; pass with a notice. 401/403
+          # means we're on the introducing PR; pass with a warning. 401/403
           # means the API key is invalid → fail (not bootstrap).
+          #
+          # Defense in depth (#74): if /api/ci/projects/<slug> 404s we
+          # cross-check against /api/ci/releases/resolve — a known-good
+          # read endpoint scoped to the same project. If THAT returns 2xx
+          # the project clearly exists, and the projects-endpoint 404 is a
+          # portal-side bug. Failing closed beats silently passing the
+          # four-eyes gate. The original "GET /api/ci/projects/<slug>"
+          # endpoint didn't exist on the portal before metasession-dev/
+          # devaudit#NN, so this exact false-positive was the universal
+          # state of the gate across every consumer.
           PROJ_CODE=$(curl -s -o /dev/null -w "%{http_code}" -m 10 \
             -H "Authorization: Bearer ${DEVAUDIT_API_KEY}" \
             "${BASE%/}/api/ci/projects/${PROJECT_SLUG}" || echo "000")
@@ -80,9 +90,34 @@ jobs:
               echo "DevAudit project '${PROJECT_SLUG}' confirmed (HTTP ${PROJ_CODE})"
               ;;
             404)
-              echo "::notice::DevAudit project '${PROJECT_SLUG}' does not exist yet (HTTP 404) — bootstrap mode. Gate passes. The project will be auto-created by the first compliance-evidence.yml run; enforcement kicks in on the next PR after that."
-              echo "BOOTSTRAP_MODE=true" >> "$GITHUB_ENV"
-              exit 0
+              # Cross-check: does the project actually exist? versionPrefix=v
+              # matches every release version shape (REQ-XXX, vYYYY.MM.DD,
+              # vX.Y.Z) — we don't care about the body, only whether the
+              # endpoint authorises the project. Endpoint returns 200 even
+              # when no releases match the prefix (just with latest: null).
+              CROSS_CODE=$(curl -s -o /dev/null -w "%{http_code}" -m 10 \
+                -H "Authorization: Bearer ${DEVAUDIT_API_KEY}" \
+                "${BASE%/}/api/ci/releases/resolve?projectSlug=${PROJECT_SLUG}&versionPrefix=v" \
+                || echo "000")
+              case "$CROSS_CODE" in
+                2*)
+                  echo "::error::Portal /api/ci/projects/${PROJECT_SLUG} returned 404 but releases/resolve confirms the project exists (HTTP ${CROSS_CODE}). This is a portal-side issue (missing or broken endpoint), not a bootstrap. Failing closed to avoid silently bypassing the four-eyes gate. Triage at metasession-dev/devaudit (and/or DevAudit-Installer#75)."
+                  exit 1
+                  ;;
+                404)
+                  echo "::warning::DevAudit project '${PROJECT_SLUG}' does not exist yet (HTTP 404 from both /api/ci/projects and /api/ci/releases/resolve) — bootstrap mode. Gate passes. The project will be auto-created by the first compliance-evidence.yml run; enforcement kicks in on the next PR after that."
+                  echo "BOOTSTRAP_MODE=true" >> "$GITHUB_ENV"
+                  exit 0
+                  ;;
+                401|403)
+                  echo "::error::DevAudit returned HTTP ${CROSS_CODE} for releases/resolve on project '${PROJECT_SLUG}' (cross-check after the projects endpoint 404'd) — API key is invalid or lacks access. Verify DEVAUDIT_API_KEY belongs to the right project."
+                  exit 1
+                  ;;
+                *)
+                  echo "::error::Cross-check endpoint /api/ci/releases/resolve returned unexpected HTTP ${CROSS_CODE} after the projects endpoint 404'd. Investigate before retrying."
+                  exit 1
+                  ;;
+              esac
               ;;
             401|403)
               echo "::error::DevAudit returned HTTP ${PROJ_CODE} for project '${PROJECT_SLUG}' — API key is invalid or lacks access. Verify DEVAUDIT_API_KEY belongs to the right project."
