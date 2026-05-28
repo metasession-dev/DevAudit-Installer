@@ -39,6 +39,12 @@ jobs:
       DEVAUDIT_API_KEY: ${{ secrets.DEVAUDIT_API_KEY }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history so `req_meta_args` can `git log --grep "[REQ-XXX]|Ref: REQ-XXX"`
+          # against the implementation commits (the merge commit alone never
+          # carries the REQ tag in a feature → develop PR flow, so without this
+          # the change_type derivation is null nearly everywhere — #77).
+          fetch-depth: 0
 
       - name: Resolve DevAudit base URL
         id: resolve
@@ -147,8 +153,12 @@ jobs:
             CT=$(git log --grep "\[${REQ}\]\|Ref: ${REQ}" --pretty=%s -1 2>/dev/null \
               | grep -oE '^(feat|fix|refactor|perf|chore|docs|ci|build|test|compliance|revert)' \
               | head -1 || true)
-            [ -n "$TITLE" ] && printf -- '--release-title %q ' "$TITLE"
-            [ -n "$CT" ] && printf -- '--change-type %q ' "$CT"
+            # Use if/then/fi (not `[ … ] && cmd`) — under bash -eo pipefail a
+            # trailing `[ … ] && cmd` whose test fails returns 1, and the
+            # function inherits that exit code; calling via $(req_meta_args …)
+            # then aborts the step silently (DevAudit-Installer#77).
+            if [ -n "$TITLE" ]; then printf -- '--release-title %q ' "$TITLE"; fi
+            if [ -n "$CT" ]; then printf -- '--change-type %q ' "$CT"; fi
           }
 
           # Upload release tickets (pending only)
