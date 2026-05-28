@@ -13,6 +13,7 @@ const execaCalls: ExecaCall[] = [];
 
 let ghAvailable = true;
 let ghRepoViewStdout = JSON.stringify({ owner: 'foo', name: 'bar', defaultBranch: 'main' });
+let ghSecretListStdout = '[]';
 
 vi.mock('execa', () => ({
   execa: async (file: string, args: readonly string[] = [], opts: { input?: string } = {}) => {
@@ -26,6 +27,9 @@ vi.mock('execa', () => ({
     }
     if (file === 'gh' && args[0] === 'secret' && args[1] === 'set') {
       return { exitCode: 0, stdout: '', stderr: '' };
+    }
+    if (file === 'gh' && args[0] === 'secret' && args[1] === 'list') {
+      return { exitCode: 0, stdout: ghSecretListStdout, stderr: '' };
     }
     if (file === 'gh' && args[0] === 'variable' && args[1] === 'set') {
       return { exitCode: 0, stdout: '', stderr: '' };
@@ -101,6 +105,19 @@ describe('GitHubProvider (gh-CLI-preferred path)', () => {
     expect(result.applied).toBe(true);
     const call = execaCalls.find((c) => c.file === 'gh' && c.args[0] === 'api');
     expect(call?.args).toContain('/repos/foo/bar/branches/main/protection');
+  });
+  it('hasSecret: true when gh secret list reports the name', async () => {
+    ghSecretListStdout = JSON.stringify([{ name: 'DEVAUDIT_USER_TOKEN' }, { name: 'OTHER' }]);
+    const { GitHubProvider } = await import('../src/lib/git-provider/github.js');
+    const p = new GitHubProvider();
+    expect(await p.hasSecret('/tmp/x', 'DEVAUDIT_USER_TOKEN')).toBe(true);
+    expect(await p.hasSecret('/tmp/x', 'NOT_PRESENT')).toBe(false);
+  });
+  it('hasSecret: false on JSON parse failure (safe default → operator mode)', async () => {
+    ghSecretListStdout = 'not json';
+    const { GitHubProvider } = await import('../src/lib/git-provider/github.js');
+    const p = new GitHubProvider();
+    expect(await p.hasSecret('/tmp/x', 'DEVAUDIT_USER_TOKEN')).toBe(false);
   });
 });
 

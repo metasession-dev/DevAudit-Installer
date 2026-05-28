@@ -26,6 +26,14 @@ const PYTHON_PATHS_IGNORE: readonly string[] = [
 ];
 
 export async function writeSdlcConfig(ctx: InstallContext, plan: InstallPlan): Promise<StepResult> {
+  if (ctx.installMode === 'developer') {
+    return {
+      step: '4/11 Write sdlc-config.json',
+      status: 'skipped',
+      message:
+        'developer mode — leaving sdlc-config.json untouched (the team config is already on disk from the project operator). Use --force-team-config if you need to refresh wizard-owned fields.',
+    };
+  }
   const runtimeKey = plan.stack === 'node' ? 'node_version' : 'python_version';
   const pathsIgnore = plan.stack === 'node' ? NODE_PATHS_IGNORE : PYTHON_PATHS_IGNORE;
   const existing = ((await readSdlcConfig(ctx.projectPath)) as Record<string, unknown> | null) ?? null;
