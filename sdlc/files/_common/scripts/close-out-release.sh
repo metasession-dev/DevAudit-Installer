@@ -117,11 +117,31 @@ echo "Ticket Status -> RELEASED."
 
 # ── Flip the RTM row -> RELEASED (preserve any parenthetical note) ───────────
 if [ -f "$RTM" ] && grep -qE "^\| ${REQ_ID} " "$RTM"; then
+  # Table-aware Status column resolution (#72): the previous version locked
+  # `statuscol` on the FIRST header that contained "Status", which mangled the
+  # wrong column when the RTM has a small legend table above the main matrix
+  # (e.g. a 2-column legend with `Status | Description` columns → statuscol=2,
+  # then the awk overwrote col-1 REQ-ID for every row).
+  #
+  # Fix: re-evaluate `statuscol` on EVERY header-shaped row (a row whose cells
+  # carry the literal header text "Status" + an ID-like column header). The
+  # legend has "Status" but no ID-like column → not locked; the main RTM has
+  # both → locks correctly. Data rows don't carry the literal "Status" header
+  # text in any cell, so they don't re-trigger the lock. Separator rows
+  # (`|---|---|…`) are left intact and don't affect `statuscol`.
   awk -v req="$REQ_ID" '
     BEGIN { FS="|"; OFS="|"; statuscol=0 }
-    # Locate the "Status" column from the first header row that has one.
-    statuscol==0 {
-      for (i=1; i<=NF; i++) { c=$i; gsub(/^[[:space:]]+|[[:space:]]+$/, "", c); if (c=="Status") statuscol=i }
+    # Header detection: scan every row; require both a "Status" header cell
+    # AND an ID-like header cell in the same row before locking statuscol to
+    # this row''s column index.
+    {
+      cand=0; idseen=0
+      for (i=1; i<=NF; i++) {
+        c=$i; gsub(/^[[:space:]]+|[[:space:]]+$/, "", c)
+        if (c=="Status") cand=i
+        if (c=="ID" || c=="REQ-ID" || c=="REQ ID" || c ~ /^Requirement/) idseen=1
+      }
+      if (cand>0 && idseen) statuscol=cand
     }
     $0 ~ ("^\\| " req " ") && statuscol>0 {
       cell=$statuscol

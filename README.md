@@ -46,11 +46,13 @@ The native onboarding flow validates the PAT, detects your stack (Node/Python) +
 
 ## Quick start — keep a consumer in sync
 
-When the framework is updated, re-sync each consumer (a bare `update` targets the current directory):
+When the framework is updated, re-sync each consumer. The common case is *"from inside the consumer's repo"* — a bare `update` syncs the current directory:
 
 ```bash
-cd ../path/to/consumer && npx @metasession.co/devaudit-cli@latest update
-# or, for several at once:
+# from inside the consumer's repo (the common case):
+npx @metasession.co/devaudit-cli@latest update
+
+# from anywhere, syncing one or several:
 devaudit update <label> ../consumer-1 ../consumer-2
 ```
 

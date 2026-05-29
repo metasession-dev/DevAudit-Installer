@@ -34,6 +34,17 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The default `pull_request` checkout is a synthetic merge commit
+          # with an empty body, so `derive-release-version.sh` can't see the
+          # `[REQ-XXX]` tag on the integration-side commit. Pull the head
+          # commit directly + full history so the same derivation script the
+          # uploaders use (compliance-evidence.yml, ci.yml's register-release)
+          # produces the same release identity here (#81 — release-identity
+          # coherence; was hardcoded to `v$(date +%Y.%m.%d)` which never
+          # matched the `REQ-XXX` records the uploaders wrote).
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
 
       - name: Resolve DevAudit base URL
         run: |
@@ -138,8 +149,15 @@ jobs:
         id: release
         if: env.BOOTSTRAP_MODE != 'true'
         run: |
-          DATE_PREFIX="v$(date +%Y.%m.%d)"
-          RESOLVE_URL="${BASE}/api/ci/releases/resolve?projectSlug=${PROJECT_SLUG}&versionPrefix=${DATE_PREFIX}"
+          # Derive the same release prefix the uploaders write to. The script
+          # priority is: subject `[REQ-XXX]` → body `Ref: REQ-XXX` → body
+          # `[REQ-XXX]` (merge-commit case) → bare-date fallback. Reusing it
+          # here makes the gate and the uploaders agree on release identity
+          # (#81). The 8 scenarios are covered by derive-release-version.test.sh.
+          chmod +x scripts/derive-release-version.sh 2>/dev/null || true
+          LOOKUP_PREFIX=$(bash scripts/derive-release-version.sh)
+          echo "Resolving release for prefix: ${LOOKUP_PREFIX}"
+          RESOLVE_URL="${BASE}/api/ci/releases/resolve?projectSlug=${PROJECT_SLUG}&versionPrefix=${LOOKUP_PREFIX}"
           # Retry: register-release in ci.yml may still be racing with us.
           MAX_ATTEMPTS=6
           WAIT_SECONDS=10
@@ -151,13 +169,13 @@ jobs:
               break
             fi
             if [ "$ATTEMPT" -lt "$MAX_ATTEMPTS" ]; then
-              echo "Attempt ${ATTEMPT}/${MAX_ATTEMPTS}: no release for ${DATE_PREFIX} yet — waiting ${WAIT_SECONDS}s..."
+              echo "Attempt ${ATTEMPT}/${MAX_ATTEMPTS}: no release for ${LOOKUP_PREFIX} yet — waiting ${WAIT_SECONDS}s..."
               sleep $WAIT_SECONDS
             fi
           done
           VERSION=$(echo "$RESP" | jq -r '.latest.version // empty')
           if [ -z "$VERSION" ]; then
-            echo "::error::No release found for ${DATE_PREFIX} after ${MAX_ATTEMPTS} attempts. Push to develop first to create the release."
+            echo "::error::No release found for ${LOOKUP_PREFIX} after ${MAX_ATTEMPTS} attempts. Push to develop first to create the release."
             exit 1
           fi
           RELEASE_ID=$(echo "$RESP" | jq -r '.latest.id')
