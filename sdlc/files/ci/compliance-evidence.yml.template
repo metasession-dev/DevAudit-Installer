@@ -137,6 +137,36 @@ jobs:
             fi
           done
 
+          # Project-level governance docs (devaudit#370 Phase 3a). When the
+          # operator commits any of these markdown files, upload with the
+          # precise evidence_type so the portal's framework-coverage matrix
+          # auto-closes the matching clauses (GDPR.Art-30 for ropa, GDPR.Art-35
+          # for dpia, EUAIA.Art-13 for ai_disclosure, SOC2.CC4.1 + ISO27001.A.12.1
+          # for periodic_review, etc.). Each path is optional — skipped silently
+          # when the file is absent.
+          upload_governance() {
+            local FILE="$1" TYPE="$2"
+            if [ ! -f "$FILE" ]; then return 0; fi
+            echo "Uploading governance: $(basename "$FILE") (type=${TYPE})"
+            bash scripts/upload-evidence.sh \
+              {{PROJECT_SLUG}} _compliance-docs "$TYPE" "$FILE" \
+              --category planning ${FLAGS} --release "${DERIVED_RELEASE}" \
+              "${DERIVED_META[@]}" \
+              || echo "Warning: Failed to upload $(basename "$FILE")"
+          }
+          # Recognise governance docs at top-level OR under compliance/governance/
+          # (operator's choice — both layouts are common).
+          upload_governance compliance/ropa.md             ropa
+          upload_governance compliance/governance/ropa.md  ropa
+          upload_governance compliance/dpia.md             dpia
+          upload_governance compliance/governance/dpia.md  dpia
+          upload_governance compliance/ai-disclosure.md             ai_disclosure
+          upload_governance compliance/governance/ai-disclosure.md  ai_disclosure
+          upload_governance compliance/periodic-review.md             periodic_review
+          upload_governance compliance/governance/periodic-review.md  periodic_review
+          upload_governance compliance/incident-report.md             incident_report
+          upload_governance compliance/governance/incident-report.md  incident_report
+
           # Helper: emit a `--release-title …` `--change-type …` pair for a given
           # REQ, derived from its pending release-ticket H1 and the most recent
           # commit attributed to that REQ. Empty pair when neither is available.
