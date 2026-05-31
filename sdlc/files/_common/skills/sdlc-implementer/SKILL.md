@@ -91,6 +91,41 @@ Runs **first**, before any `REQ-XXX` is assigned. It decides which of the six ch
 
 Only the **tracked** route continues into Phase 1; the others run the Lightweight path below. The off-ramps are deliberate — dragging housekeeping through tracked-change machinery it doesn't need is exactly the failure mode this step exists to prevent — but they are still **driven to completion**, never dumped as a checklist for the operator to run alone.
 
+**Worked examples** (one per change-type the skill keeps mis-routing without one):
+
+*Tracked feature — REQ-XXX assigned*
+
+> - **Change type:** Feature
+> - **Commit type:** feat
+> - **Requirement:** REQ-XXX (new)
+> - **Risk:** MEDIUM
+> - **Path:** Full SDLC Stages 1–5
+> - **Gates/evidence:** plan + RTM row + unit/integration/e2e evidence + UAT four-eyes + Production approval
+> - **Your approvals:** UAT four-eyes + Production approval
+> - **Skipped:** none
+
+*Test fix surfaced by suite drift*
+
+> - **Change type:** Housekeeping (test maintenance)
+> - **Commit type:** test
+> - **Requirement:** none
+> - **Risk:** LOW
+> - **Path:** Lightweight (gates → PR review → merge)
+> - **Gates/evidence:** quality-gates smoke (default CI Gate 4); no full regression on PR (run via `workflow_dispatch` while iterating, full regression on next nightly)
+> - **Your approvals:** PR review only
+> - **Skipped:** RTM, evidence pack, UAT four-eyes, Production approval
+
+*Workflow tweak (CI artifact upload, gate timeout bump, etc.)*
+
+> - **Change type:** Housekeeping (CI maintenance)
+> - **Commit type:** ci
+> - **Requirement:** none
+> - **Risk:** LOW
+> - **Path:** Lightweight (gates → verify-via-dispatch → PR review → merge)
+> - **Gates/evidence:** quality-gates smoke + a `gh workflow run <file> --ref <branch>` on the modified workflow before merge (silent CI regressions are the failure mode this catches)
+> - **Your approvals:** PR review only
+> - **Skipped:** RTM, evidence pack, UAT four-eyes, Production approval
+
 ### Lightweight path (housekeeping / trivial / compliance-doc-only)
 
 Reached from Phase 0 for non-tracked change-types. The skill drives this end-to-end; the only difference from the tracked cycle is the absence of *ceremony*, not the absence of *guidance*. It pauses only where a human is genuinely required (PR review, merge).
@@ -100,9 +135,10 @@ Reached from Phase 0 for non-tracked change-types. The skill drives this end-to-
 3. **Run all gates locally** (`npm run lint`, `npx tsc --noEmit`, the test suite, `semgrep`, `npm audit` — or the stack-adapter equivalents). Trivial ≠ unverified; never `--no-verify`.
 4. **Commit** with a housekeeping type and **no** `REQ-XXX` — `docs:` / `chore:` / `ci:` / `build:` / `test:` / `revert:` are exempt from the `[REQ-XXX]` rule; a `compliance:` doc-only change references the existing REQ. `Co-Authored-By: Claude` if AI-assisted.
 5. **Push and open the PR** into `$INTEGRATION_BRANCH` (`gh pr create --base "$INTEGRATION_BRANCH" --head <branch>`). CI runs the same quality gates; `compliance-validation.yml` finds no `REQ-XXX` and skips artifact validation.
-6. **Report honest status** — wait for CI, name any failing check, fix and re-push. Never announce "ready" while a required check is red.
-7. **Guide review → merge.** A human still reviews the PR (separation of duties). There is **no** portal release approval, no UAT four-eyes, no Production gate, and no close-out. Merge once CI is green and the reviewer approves.
-8. **Done.** A housekeeping push produces at most a bare-date release (`vYYYY.MM.DD`) with no approval gate; a doc-only push attaches its docs to the existing `REQ-XXX` release. No further action required — report completion and stop.
+6. **For `ci:` changes, verify-via-dispatch before merging.** `gh workflow run <workflow.yml> --ref <branch>` fires the modified workflow against the PR branch. If the change broke a step, the dispatch run fails loudly and you fix-forward *before* the merge ships the broken gate to `$INTEGRATION_BRANCH`. This is the cheapest insurance against silent CI regressions — a `ci:` change that breaks a gate is most damaging *after* it lands.
+7. **Report honest status** — wait for CI, name any failing check, fix and re-push. Never announce "ready" while a required check is red.
+8. **Guide review → merge.** A human still reviews the PR (separation of duties). There is **no** portal release approval, no UAT four-eyes, no Production gate, and no close-out. Merge once CI is green and the reviewer approves.
+9. **Done.** A housekeeping push produces at most a bare-date release (`vYYYY.MM.DD`) with no approval gate; a doc-only push attaches its docs to the existing `REQ-XXX` release. No further action required — report completion and stop.
 
 ### Phase 1 — Plan (SDLC stage 1)
 
@@ -127,13 +163,17 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
    - CRITICAL — HIGH plus targeted security tests (authz bypass attempts, input fuzzing where applicable).
 3. **For any e2e or visual-regression test work in this step, invoke `e2e-test-engineer`** — do not author e2e tests directly. The orchestrator passes the implementation plan + the diff so far to the e2e-test-engineer skill, which derives scenarios, reconciles with the existing pack, and runs the suite.
 4. **Implement against the plan.** Reference `compliance/plans/REQ-XXX/implementation-plan.md` as you go. Any deviation from the plan must be noted in the plan itself under a `## Plan deviation` section — never silently diverge.
-5. **Run all gates locally** before pushing:
+5. **Run gates locally, cheap-first.** The gates are not equivalent-cost — `npm run lint` is seconds, `npx playwright test` is 30–60 minutes. Iterate on the fast gates; spend the e2e cost once.
+
+   **Fast gates** (run on every change, ideally pre-commit):
    - `npm run lint` (or stack-adapter equivalent)
    - `npx tsc --noEmit` (or stack-adapter equivalent)
    - `npx vitest run` (unit/integration)
-   - `npx playwright test` (e2e — delegated to `e2e-test-engineer`)
    - `semgrep scan --config auto`
    - `npm audit --audit-level=high` (or stack-adapter equivalent)
+
+   **E2E gate** — run *once*, after the fast gates are clean:
+   - `npx playwright test` (delegated to `e2e-test-engineer`, which has its own focused-iteration discipline for within-e2e fix-and-verify loops)
 6. **On gate failure**, iterate up to N=3 attempts. Each iteration: read the failure output, propose a fix, apply, re-run. On exhausted attempts, halt with the full failure output and surface to the human — never use `--no-verify`, `eslint-disable`, `@ts-expect-error`, `xfail`, or any other bypass.
 7. **Commit** using Conventional Commits with `Ref: REQ-XXX` trailer and `Co-Authored-By: Claude` trailer. One commit per logical step; never amend a commit that's already been pushed.
 8. **Land the work on `$INTEGRATION_BRANCH`.** Push the feature branch, then:
@@ -150,9 +190,12 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
    compliance/evidence/REQ-XXX/
    ├── YYYY-MM-DD_e2e-results.json
    ├── YYYY-MM-DD_playwright-report/
+   ├── YYYY-MM-DD_traces/                ← per-test trace.zip + error-context.md
    ├── YYYY-MM-DD_unit-coverage/
    └── YYYY-MM-DD_screenshots/*.png
    ```
+
+   Copy Playwright's `test-results/` folder verbatim into `YYYY-MM-DD_traces/` so trace-by-test-name is available for audit without walking the HTML report's hash-name index. For HIGH/CRITICAL releases the traces are part of the audit trail — *"what state was the page in when test X failed and was overridden?"* answers in one `ls` instead of an HTML-report walk.
 3. **Upload each artefact to the portal**:
    ```bash
    devaudit push <project-slug> REQ-XXX <evidence-type> <file> \
@@ -181,9 +224,18 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
    - Test plan
    - SDLC checklist
 2. **Verify the UAT reviewer ≠ skill-trigger user** for HIGH/CRITICAL. If they match, halt with a configuration error: "HIGH/CRITICAL risk requires an independent UAT reviewer; the configured reviewer matches the trigger user — fix the four-eyes attestation slot in the implementation plan and re-run."
+
+   **Solo-operator teams.** On a one-person team, the literal "reviewer ≠ submitter" check is structurally unsatisfiable. The supported interpretation is *actor type, not human identity* — AI tooling (the skill-trigger) and the human operator (the portal-approver) are distinct actors. Document this on the release ticket under `## Sign-off (dual-actor)` with the explicit interpretation, and ensure the human operator has independently reviewed the diff before clicking *Approve Production* in the portal. Without this attestation the four-eyes claim is performative.
 3. **Apply labels** — `awaiting-uat-review`, `risk:<class>`.
 4. **Comment on the issue**: "Implementation complete. PR #M opened. Evidence on portal: <link>. UAT review requested. Resume with `resume REQ-XXX` once UAT approval is granted on the portal."
 5. **Hard stop.** Phase 4 ends here. Do not proceed to merge; the human's next action is reviewing on the portal.
+
+**When an external gate hangs or fails for unrelated reasons.** A required gate may fail for reasons outside the change's scope — flaky infra, an unrelated regression test that hangs at hour-plus runtime with no log activity, a known-failing suite. When this happens:
+
+1. **Verify it's actually unrelated.** Read the failure (or the lack of one). If it's the change's fault, fix it; this section does not apply.
+2. **Document the rationale on the PR.** A sticky comment naming: which gate, what the failure was, why it's unrelated to the change, what the safety net is (nightly run on `$INTEGRATION_BRANCH`, post-deploy verification, etc.).
+3. **Cancel-and-admin-merge is allowed** when **all three** hold: (a) ≥3 other required gates are green, (b) the change has no scope-overlap with the failing gate (e.g. service-layer fix vs hung UI e2e, or an `E2E: N/A by scope` test-plan), and (c) a fallback verification exists (nightly e2e on `$INTEGRATION_BRANCH`, post-deploy smoke, etc.). If any of the three fail, hold the merge and surface the blocker to the operator.
+4. **Record the decision in the release ticket.** The release ticket's `## Verification` section must mention the cancelled gate by run-ID and the fallback that justifies bypassing it. Auditors look here first.
 
 ### Phase 5 — Finalise or change-request loop (SDLC stage 5)
 
