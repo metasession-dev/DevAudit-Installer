@@ -125,8 +125,9 @@ jobs:
           DERIVED_META=()
           [ -n "$DERIVED_CT" ] && DERIVED_META+=(--change-type "$DERIVED_CT")
 
-          # Upload compliance docs (planning category)
-          for DOC in compliance/RTM.md compliance/test-plan.md compliance/test-cases.md compliance/test-summary-report.md; do
+          # Upload planning docs (RTM / Test Plan / Test Cases) as
+          # compliance_document — they surface under the Documents tab.
+          for DOC in compliance/RTM.md compliance/test-plan.md compliance/test-cases.md; do
             if [ -f "$DOC" ]; then
               echo "Uploading: $(basename "$DOC")"
               bash scripts/upload-evidence.sh \
@@ -136,6 +137,19 @@ jobs:
                 || echo "Warning: Failed to upload $(basename "$DOC")"
             fi
           done
+
+          # Test summary report — precise evidence_type=test_report so it
+          # lands in the portal's Test Reports gate (rendered inline by the
+          # MarkdownRenderer). devaudit#370 follow-up; same change applied
+          # in ci.yml's gate-evidence upload step.
+          if [ -f "compliance/test-summary-report.md" ]; then
+            echo "Uploading: test-summary-report.md (test_report type)"
+            bash scripts/upload-evidence.sh \
+              {{PROJECT_SLUG}} _compliance-docs test_report compliance/test-summary-report.md \
+              --category test_report ${FLAGS} --release "${DERIVED_RELEASE}" \
+              "${DERIVED_META[@]}" \
+              || echo "Warning: Failed to upload test-summary-report.md"
+          fi
 
           # Project-level governance docs (devaudit#370 Phase 3a). When the
           # operator commits any of these markdown files, upload with the
