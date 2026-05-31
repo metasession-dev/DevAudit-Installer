@@ -6,11 +6,22 @@
 #   VERSION=$(./scripts/derive-release-version.sh)
 #
 # Priority:
-#   1. REQ tag in commit subject:   "[REQ-037] feat(kitchen): ..." -> REQ-037
-#   2. Ref in commit body:          "Ref: REQ-037"                 -> REQ-037
-#   3. Bracketed tag in commit body: merge commit whose body is the PR title
-#                                    "... [REQ-037] ..."           -> REQ-037
-#   4. Fallback:                    bare date                      -> v2026.05.17
+#   1. REQ tag in commit subject:     "[REQ-037] feat(kitchen): ..." -> REQ-037
+#   2. Ref in commit body:            "Ref: REQ-037"                 -> REQ-037
+#   3. Bracketed tag in commit body:   merge commit whose body is the PR title
+#                                      "... [REQ-037] ..."           -> REQ-037
+#   4. Pending release ticket on disk: exactly one
+#                                      compliance/pending-releases/RELEASE-TICKET-REQ-XXX.md
+#                                                                    -> REQ-XXX
+#   5. Fallback:                      bare date                      -> v2026.05.17
+#
+# Step 4 (DevAudit-Installer#92) handles `chore:` / `docs:` / `ci:`
+# commits (e.g. a `devaudit update` sync) landing on the integration
+# branch between feature merge and release-PR open. Such a commit has
+# no REQ tag in its message → steps 1-3 fall through. The release
+# ticket on disk is a stronger explicit-operator-state signal than the
+# bare date — when exactly one ticket is open, attribute to it.
+# Multiple open tickets stays ambiguous → bare-date fallback.
 #
 # The id is taken from a bracketed [REQ-XXX] tag (subject or body) or the
 # `Ref:` line — NOT from unbracketed prose (e.g. "target close: REQ-002" must
@@ -53,5 +64,24 @@ if echo "$BODY" | grep -qE '\[REQ-[0-9]+\]'; then
   exit 0
 fi
 
-# 4. Fallback: bare date in UTC
+# 4. Pending release ticket on disk: when exactly one
+# `compliance/pending-releases/RELEASE-TICKET-REQ-*.md` is present, the
+# operator's explicit state says THIS is the in-flight release. Use it.
+# Zero or multiple → ambiguous, fall through to the bare date.
+# DevAudit-Installer#92.
+if [ -d compliance/pending-releases ]; then
+  # NUL-delimited count so filenames with spaces don't trip us up.
+  TICKET_COUNT=$(find compliance/pending-releases -maxdepth 1 -type f \
+    -name 'RELEASE-TICKET-REQ-*.md' -print0 2>/dev/null \
+    | tr -cd '\0' | wc -c)
+  if [ "$TICKET_COUNT" = "1" ]; then
+    find compliance/pending-releases -maxdepth 1 -type f \
+      -name 'RELEASE-TICKET-REQ-*.md' -print 2>/dev/null \
+      | head -1 | xargs -n1 basename \
+      | sed -E 's/^RELEASE-TICKET-(REQ-[0-9]+)\.md$/\1/'
+    exit 0
+  fi
+fi
+
+# 5. Fallback: bare date in UTC
 echo "v$(date -u +%Y.%m.%d)"

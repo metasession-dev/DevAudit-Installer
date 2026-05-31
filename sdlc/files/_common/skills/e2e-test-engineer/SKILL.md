@@ -87,6 +87,8 @@ The bootstrap workflow:
 
 10. **Offer a CI job** — write the YAML (or equivalent) for the project's CI system, but **do not commit it without confirmation**. Show it inline first. On a **DevAudit** project, `.github/workflows/ci.yml` is generated and marked do-not-edit-manually — don't hand-edit it; instead drive the E2E gate from `sdlc-config.json`. If the suite must run against a **disposable local database** (the rule on any project with no separate test instance — never test against prod), set `e2e_setup_command` (e.g. `supabase start` + load schema + seed) and `e2e_env` (e.g. `E2E_LOCAL=1`, local coords, a dummy email key) so the gate severs production. See [Local-database E2E in CI](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/e2e-local-db-ci.md), then `devaudit update` to regenerate.
 
+    **Upload both artefact shapes.** Playwright writes per-test artefacts to *two* places: `test-results/<spec>-<title>[-retryN]/{trace.zip, video.webm, *.png, error-context.md}` — **spec-named**, human-mappable — and `playwright-report/data/<content-hash>.zip` — **hash-named**, indexed by the HTML report. Ensure the project's CI uploads **both** `playwright-report/` (for the HTML viewer) and `test-results/` (for spec-named traces / videos / error-context). If only one is uploaded, propose a small follow-up PR to add the other — it costs ~80 MB of artefact storage and saves the operator from walking the HTML report's hash index to find a specific trace.
+
 11. **Write a short README** in the test directory explaining structure, how to run, how to add new tests, and how to update visual baselines. Future contributors (and the skill itself, on next invocation) will thank you.
 
 After bootstrap, if there's a change to test, continue to Phase 2 as normal. If the user only wanted the suite set up with no specific change in mind, stop here with a final summary.
@@ -157,6 +159,7 @@ Write the tests in the project's existing style.
 - **Reuse existing helpers.** Page Object Models, fixtures, custom commands, test-data factories — use them. Don't invent parallel infrastructure.
 - **Match the assertion style.** If the codebase uses `expect(locator).toBeVisible()`, don't switch to `assert.isTrue(...)`.
 - **Read 2–3 nearby tests before writing.** Fastest way to absorb conventions you wouldn't have noticed otherwise.
+- **Check `references/common-patterns.md` before writing role-based locators** for component-library UI (shadcn/ui, Radix, MUI, etc.). A short appendix of known framework × library gotchas — `CardTitle` is a `<div>` not a heading; Radix `<Select>` renders two `role="combobox"` nodes; Next.js `<Link>` clicks don't fire network requests — saves a round-trip through a failing selector each time.
 
 For **visual regression** specifically:
 - New tests need baseline images. Generate them, but **do not auto-approve** — surface them for the user to verify before they're committed.
@@ -168,15 +171,23 @@ Do additions, updates, and (approved) deletions in the same change so the suite 
 
 Run the suite. Strategy:
 
-1. **Run the new and updated tests first** in isolation if the framework supports filtering. Fast feedback on whether your tests themselves work.
-2. **Then run the full suite** to catch regressions outside the changed area.
-3. **For visual regression**, run the project's normal comparison mode against existing baselines.
+1. **Iterate focused.** During fix-and-verify, run only the failing specs (`--grep`, spec-path args, or a CI input that scopes to a subset). Cycle time is what makes the loop tractable — full regression for every iteration burns CI budget and operator patience. Expect to loop: fix → focused run → fix → focused run, many times.
+2. **Run full regression once, at the end.** Once the focused set is green, run the full suite to catch unintended side effects in untouched areas.
+3. **For CI-driven verification, ensure the workflow accepts a subset input.** A `workflow_dispatch.inputs.specs` (or equivalent) lets a developer fire a scoped run without local infrastructure. Recommend setting this up if the project doesn't have it — the speed-up (~5–10 min vs ~30–60 min) is the difference between a tractable loop and a hated one.
+4. **For visual regression**, run the project's normal comparison mode against existing baselines.
 
 Triage every failure into one of these buckets *before* taking any action:
+
+**0. Read the page snapshot first.** Modern Playwright writes `test-results/<spec>-<title>[-retryN]/error-context.md` — a markdown accessibility-tree snapshot of the page at failure time. It's enough to triage selector / role / wait-condition failures without extracting the trace zip. Reach for the trace only when the snapshot is ambiguous (e.g. the failure depends on a transition or a network race the snapshot can't show).
+
+**Filter for all terminal failure statuses.** `failed` and `timedOut` are distinct in Playwright's JSON reporter; `interrupted` is also possible. When summarising failures from `reporter=json` output, use `select(.status == "failed" or .status == "timedOut" or .status == "interrupted")` — `select(.status == "failed")` alone hides hung tests.
+
+Then bucket each failure:
 
 - **Flake** — non-deterministic; passes on rerun. Rerun once. If it passes, note it. If it keeps flaking, flag it but don't file a noisy bug.
 - **Test bug** — your test is wrong (bad selector, wrong assertion, timing). Fix the test; don't file anything.
 - **Application defect** — the app does the wrong thing. File it.
+- **Seed-data gap** — the page works, the test's assertion is correct, but the seeded fixture doesn't satisfy the assertion (empty table, no transactions for the day, missing user role). Fix the seed script (or the test's own setup), not the test logic or the product.
 - **Visual diff — intended** — the snapshot changed because the change intentionally changed the UI. Update the baseline and surface it for user approval.
 - **Visual diff — unintended** — a snapshot changed somewhere the change shouldn't have affected. File it as a regression.
 
