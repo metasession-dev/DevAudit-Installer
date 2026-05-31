@@ -329,17 +329,22 @@ jobs:
             npm audit --json > ci-evidence/dependency-audit.json 2>/dev/null || echo '{"vulnerabilities":{}}' > ci-evidence/dependency-audit.json
           fi
 
-          # Upload SAST results (security_scan category)
+          # Upload SAST results — precise evidence_type=sast_report (Phase 3a /
+          # devaudit#370). Pre-3a uploads used `audit_log` + category alone,
+          # which made the portal's SAST and Dependency Audit gates show
+          # identical content (devaudit#387). Tagging the precise type keeps
+          # the two panels distinct + matches the ISO 27001 A.8.28 clause.
           if [ -f ci-evidence/sast-results.json ]; then
             upload sast-results.json \
-              {{PROJECT_SLUG}} _compliance-docs audit_log ci-evidence/sast-results.json \
+              {{PROJECT_SLUG}} _compliance-docs sast_report ci-evidence/sast-results.json \
               --category security_scan ${FLAGS}
           fi
 
-          # Upload dependency audit (security_scan category)
+          # Upload dependency audit — precise evidence_type=dependency_audit
+          # (same rationale as SAST above).
           if [ -f ci-evidence/dependency-audit.json ]; then
             upload dependency-audit.json \
-              {{PROJECT_SLUG}} _compliance-docs audit_log ci-evidence/dependency-audit.json \
+              {{PROJECT_SLUG}} _compliance-docs dependency_audit ci-evidence/dependency-audit.json \
               --category security_scan ${FLAGS}
           fi
 
