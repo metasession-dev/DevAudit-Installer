@@ -26,7 +26,7 @@ export function doneReport(ctx: InstallContext, plan: InstallPlan): StepResult {
       '',
     ];
     return {
-      step: '11/11 Done (developer mode)',
+      step: '12/12 Done (developer mode)',
       status: 'ok',
       message: lines.join('\n'),
       data: { mode: 'developer' },
@@ -53,7 +53,7 @@ export function doneReport(ctx: InstallContext, plan: InstallPlan): StepResult {
     '',
   ];
   return {
-    step: '11/11 Done',
+    step: '12/12 Done',
     status: 'ok',
     message: lines.join('\n'),
     data: { nextBranch: branch, mode: 'operator' },

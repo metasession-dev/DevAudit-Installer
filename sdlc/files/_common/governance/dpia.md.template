@@ -1,0 +1,78 @@
+---
+title: "Data Protection Impact Assessment (DPIA)"
+processing_activity: "REPLACE — short name of the activity assessed"
+controller: "REPLACE — legal name of the controller"
+last_reviewed_at: "REPLACE — YYYY-MM-DD"
+review_cadence_days: 365
+risk_level: "REPLACE — low | medium | high"
+---
+
+> ⚠️ **STARTER TEMPLATE — REPLACE BEFORE GOING TO PRODUCTION.**
+> This file was auto-installed by `devaudit install` as a starting point.
+> It does **not** describe your project's actual data protection risks. Edit and commit.
+> Auditors will reject unedited stubs. See `docs/governance-templates.md` for guidance.
+
+# Data Protection Impact Assessment
+
+**Framework coverage:** `GDPR.Art-35` (Data protection impact assessment)
+
+**Evidence type:** `dpia` · **Cadence:** refresh every 365 days, or whenever the processing materially changes.
+
+> A DPIA is **mandatory** for processing likely to result in high risk to data subjects: large-scale special-category data, systematic monitoring, automated decision-making with legal effect, etc. See Art. 35(3) and your supervisory authority's "blacklist" guidance.
+
+## 1. Description of the processing
+
+- **Activity name:** REPLACE
+- **Nature, scope, context, purposes:** REPLACE — what data is processed, how, why, for whom, at what scale
+- **Data flow diagram or reference:** REPLACE — link to architecture doc / threat model
+- **Cross-reference to ROPA:** `compliance/governance/ropa.md` activity REPLACE
+
+## 2. Necessity and proportionality
+
+- **Lawful basis (Art. 6):** REPLACE
+- **Special-category basis (Art. 9), if applicable:** REPLACE
+- **Less-intrusive alternatives considered:** REPLACE
+- **Data minimisation:** REPLACE — what's not collected and why
+- **Retention justification:** REPLACE
+- **Data subject rights — how exercised:** REPLACE — link to SAR procedure, rectification, erasure, portability
+
+## 3. Risks to rights and freedoms
+
+For each risk, populate one row. Add or remove rows to fit your assessment.
+
+| # | Risk | Likelihood (1–3) | Severity (1–3) | Inherent risk | Existing controls | Residual risk | Acceptable? |
+|---|---|---|---|---|---|---|---|
+| 1 | REPLACE — e.g. unauthorised access to user accounts | REPLACE | REPLACE | REPLACE | REPLACE — MFA, RBAC, encryption-at-rest | REPLACE | REPLACE Y/N |
+| 2 | REPLACE | | | | | | |
+
+## 4. Measures to address the risks
+
+- **Technical measures:** REPLACE — encryption, pseudonymisation, access controls, logging
+- **Organisational measures:** REPLACE — training, policies, contractual safeguards
+- **Residual high risk?** REPLACE — if YES, you must consult the supervisory authority (Art. 36) **before** processing begins. Document the consultation outcome.
+
+## 5. Consultation
+
+- **DPO opinion:** REPLACE — name, date, conclusion
+- **Data subjects / representatives consulted:** REPLACE — describe or document why not
+- **Supervisory authority prior consultation:** REPLACE — required only when residual high risk remains
+
+## 6. Sign-off
+
+| Role | Name | Date | Decision |
+|---|---|---|---|
+| Controller | REPLACE | REPLACE | REPLACE — approved / rejected / conditional |
+| DPO | REPLACE | REPLACE | REPLACE |
+| Technical lead | REPLACE | REPLACE | REPLACE |
+
+## Sources
+
+- [EDPB DPIA guidelines (WP248 rev.01)](https://edpb.europa.eu/our-work-tools/our-documents/guidelines/)
+- [ICO DPIA template](https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/accountability-and-governance/data-protection-impact-assessments-dpias/)
+- [CNIL PIA software](https://www.cnil.fr/en/open-source-pia-software-helps-carry-out-data-protection-impact-assessment)
+
+## Review log
+
+| Date | Reviewer | Changes |
+|---|---|---|
+| REPLACE — YYYY-MM-DD | REPLACE | Initial DPIA authored from starter template |

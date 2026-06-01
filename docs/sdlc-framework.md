@@ -22,6 +22,12 @@ sdlc/
 │   │   ├── Periodic_Security_Review_Schedule.md  # Tier 1
 │   │   ├── Test_Plan_TEMPLATE.md             # Project starter
 │   │   ├── README_TEMPLATE.md                # Project starter
+│   │   ├── governance/                       # Governance evidence starters (install-only)
+│   │   │   ├── ropa.md.template              # GDPR Art. 30
+│   │   │   ├── dpia.md.template              # GDPR Art. 35
+│   │   │   ├── ai-disclosure.md.template     # EU AI Act Art. 13
+│   │   │   ├── incident-report.md.template   # ISO 29119 3.5.4 / SOC 2 CC7.2 / GDPR Art. 33-34
+│   │   │   └── periodic-review.md.template   # SOC 2 CC4.1 / ISO 27001 A.12.1
 │   │   ├── github/                           # Stack-agnostic GitHub issue templates
 │   │   └── scripts/                          # Universal compliance helpers
 │   │       ├── validate-compliance-artifacts.sh
@@ -82,6 +88,7 @@ Metasession projects follow a **single owner-developer partnered with AI coding 
 
 - **Tier 1 (universal):** `Test_Policy.md`, `Test_Strategy.md`, `Test_Architecture.md`, `Periodic_Security_Review_Schedule.md` -- never project-specific
 - **Tier 2 (project-specific):** Workflows `0-project-setup.md` through `5-deploy-main.md`, `Test_Plan_TEMPLATE.md`, `README_TEMPLATE.md` -- copied and customised per project
+- **Tier 3 (governance starters, install-only):** the five files under `sdlc/files/_common/governance/`. **Copied once** into `compliance/governance/` by `devaudit install` (step 11/12) and **never re-synced by `devaudit update`** — once you edit a stub, your content is preserved. Each starter ships with a prominent **STARTER TEMPLATE — REPLACE BEFORE GOING TO PRODUCTION** banner that's intentionally visible both on disk and in the portal's evidence renderer. See [`governance-templates.md`](./governance-templates.md) for the per-framework mapping (which clause each starter closes) and external references for replacing the stub content.
 
 ## Workflow Pipeline
 

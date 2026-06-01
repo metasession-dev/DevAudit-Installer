@@ -1,0 +1,107 @@
+---
+title: "Periodic Review of Internal Controls"
+period_start: "REPLACE — YYYY-MM-DD"
+period_end: "REPLACE — YYYY-MM-DD"
+reviewer: "REPLACE — name + role"
+last_reviewed_at: "REPLACE — YYYY-MM-DD"
+review_cadence_days: 90
+---
+
+> ⚠️ **STARTER TEMPLATE — REPLACE BEFORE GOING TO PRODUCTION.**
+> This file was auto-installed by `devaudit install` as a starting point.
+> Once Workstream 3 ships (`.github/workflows/periodic-review.yml`), this file will be
+> auto-regenerated quarterly with portal metrics. Until then — and to add the human
+> attestation the auto-generator can't produce — edit this file yourself. Auditors
+> will reject unedited stubs. See `docs/governance-templates.md` for guidance.
+
+# Periodic Review of Internal Controls
+
+**Framework coverage:**
+
+- `SOC2.CC4.1` (Monitoring of internal controls)
+- `ISO27001.A.12.1` (Operational procedures and responsibilities)
+
+**Evidence type:** `periodic_review` · **Cadence:** every 90 days (quarterly). The portal flags this evidence as `expired` after 365 days — but a 90-day cadence is the practical minimum.
+
+## 1. Review period
+
+- **From:** REPLACE — YYYY-MM-DD
+- **To:** REPLACE — YYYY-MM-DD
+- **Reviewer:** REPLACE — name + role
+- **Approver (different person, if dual-actor required):** REPLACE
+
+## 2. Activity summary (CI-derived, auto-fill when WS3 lands)
+
+| Metric | Value | Notes |
+|---|---|---|
+| Releases shipped this period | REPLACE | Tracked + housekeeping combined |
+| Tracked releases (REQ-XXX) | REPLACE | |
+| Quality-gate pass rate | REPLACE — % | % of CI runs where every gate passed |
+| SAST findings net change | REPLACE | +/- vs. previous period |
+| Dependency-audit unaccepted high/critical | REPLACE | Current count |
+| Audit-log entries | REPLACE | Total in period |
+| Open SDLC issues at period end | REPLACE | From `gh issue list --label requirement --state open` |
+
+## 3. Control-effectiveness review
+
+For each control area, document evidence + reviewer judgement.
+
+### 3a. Access control (ISO 27001 A.5.15)
+
+- **Active access grants reviewed:** REPLACE — list or attach export
+- **Grants revoked this period:** REPLACE — count + reason
+- **Anomalies:** REPLACE — or "none"
+- **Effective?** REPLACE — Y / N (if N, follow-up action below)
+
+### 3b. Change management (ISO 27001 A.8.32 / SOC 2 CC8.1)
+
+- **Releases approved via four-eyes flow:** REPLACE — N of M
+- **Self-approval blocked on MEDIUM/HIGH risk?** REPLACE — confirm enforcement
+- **Effective?** REPLACE
+
+### 3c. Security testing (ISO 27001 A.8.29)
+
+- **SAST gate pass rate:** REPLACE
+- **Dependency-audit gate pass rate:** REPLACE
+- **E2E gate pass rate:** REPLACE
+- **Effective?** REPLACE
+
+### 3d. Logging and monitoring (ISO 27001 A.8.16 / EUAIA Art. 12)
+
+- **Audit-log entries reviewed:** REPLACE — sample size + method
+- **Anomalies escalated:** REPLACE — count
+- **Effective?** REPLACE
+
+### 3e. Operational procedures (ISO 27001 A.12.1)
+
+- **Procedures reviewed this period:** REPLACE — list (link `Periodic_Security_Review_Schedule.md` items completed)
+- **Stale / out-of-date docs:** REPLACE
+- **Effective?** REPLACE
+
+## 4. Incidents this period
+
+- **Total incidents:** REPLACE — link each `compliance/governance/incident-report-*.md`
+- **Personal-data breaches:** REPLACE — count
+- **Mean time to detection (MTTD):** REPLACE
+- **Mean time to resolution (MTTR):** REPLACE
+
+## 5. Findings and follow-up actions
+
+| # | Finding | Severity | Owner | Due | Issue link |
+|---|---|---|---|---|---|
+| 1 | REPLACE | REPLACE | REPLACE | REPLACE | REPLACE |
+| 2 | REPLACE | | | | |
+
+## 6. Sign-off
+
+| Role | Name | Date |
+|---|---|---|
+| Reviewer | REPLACE | REPLACE |
+| Approver (dual-actor) | REPLACE | REPLACE |
+| Decision | REPLACE — controls effective / partially effective / not effective |
+
+## Sources
+
+- [SOC 2 Trust Services Criteria — CC4 (Monitoring)](https://www.aicpa-cima.com/topic/audit-assurance/trust-services-criteria)
+- [ISO/IEC 27001:2022 Annex A.12 — Operational security](https://www.iso.org/standard/82875.html)
+- Your project's `Periodic_Security_Review_Schedule.md`

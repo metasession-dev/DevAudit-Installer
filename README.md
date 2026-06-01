@@ -40,7 +40,7 @@ export DEVAUDIT_USER_TOKEN="mctok_..."
 devaudit install ../path/to/your-consumer-project
 ```
 
-The native onboarding flow validates the PAT, detects your stack (Node/Python) + host (Railway), creates the project + a CI API key in the portal, sets GitHub secrets and branch protection on `main`, bootstraps the hook framework, and syncs the framework templates — then leaves the tree dirty for you to review + open an onboarding PR. Full walkthrough: [`docs/onboarding.md`](./docs/onboarding.md).
+The native onboarding flow validates the PAT, detects your stack (Node/Python) + host (Railway), creates the project + a CI API key in the portal, sets GitHub secrets and branch protection on `main`, bootstraps the hook framework, syncs the framework templates, and drops five **starter** governance docs (ROPA, DPIA, AI disclosure, incident report, periodic review) into `compliance/governance/` — then leaves the tree dirty for you to review + open an onboarding PR. **The governance starters are stubs you must replace before going to production** — see [`docs/governance-templates.md`](./docs/governance-templates.md). Full walkthrough: [`docs/onboarding.md`](./docs/onboarding.md).
 
 **Joining a project that's already been onboarded?** You're the second (or nth) developer — `install` is the *operator's* command and would silently rotate the team's CI secrets. Use `devaudit join` instead. Full guide: [`sdlc/files/_common/joining-an-existing-project.md`](./sdlc/files/_common/joining-an-existing-project.md) (synced into every consumer's `SDLC/`).
 
@@ -93,6 +93,7 @@ Adding a new stack or host means dropping a new `adapter.json` + supporting file
 | [`docs/onboarding.md`](./docs/onboarding.md) | `devaudit install` operator walkthrough |
 | [`docs/consuming-projects.md`](./docs/consuming-projects.md) | Operator manual for consumer maintainers |
 | [`docs/sdlc-framework.md`](./docs/sdlc-framework.md) | Framework structure, tiers, adapter layering, schematic |
+| [`docs/governance-templates.md`](./docs/governance-templates.md) | Five starter templates (ROPA, DPIA, AI disclosure, incident report, periodic review) installed once into `compliance/governance/`. **Replace before going to production.** |
 | [`docs/change-workflows.md`](./docs/change-workflows.md) | Change types → workflow → release type, and what to expect |
 | [`sdlc/files/_common/implementing-an-sdlc-issue.md`](./sdlc/files/_common/implementing-an-sdlc-issue.md) | Operational stage-by-stage walkthrough (synced to consumers) |
 | [`sdlc/SKILLS.md`](./sdlc/SKILLS.md) · [`docs/adding-a-skill.md`](./docs/adding-a-skill.md) | The skills (`sdlc-implementer`, `e2e-test-engineer`) + authoring new ones |

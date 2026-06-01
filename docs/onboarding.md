@@ -77,6 +77,22 @@ gh pr create --base main
 
 Open the PR for review. Once merged, the project is fully active under the SDLC framework.
 
+### Step 3a — Replace the governance starters before your first production release
+
+Step 11/12 of `devaudit install` (**Bootstrap governance docs**) dropped five starter templates into `compliance/governance/`:
+
+- `ropa.md` — GDPR Art. 30
+- `dpia.md` — GDPR Art. 35
+- `ai-disclosure.md` — EU AI Act Art. 13
+- `incident-report.md` — ISO 29119 3.5.4 / SOC 2 CC7.2 / GDPR Art. 33–34
+- `periodic-review.md` — SOC 2 CC4.1 / ISO 27001 A.12.1
+
+**Each file is a stub, not defensible audit evidence.** The first line of every file is a prominent `⚠️ STARTER TEMPLATE — REPLACE BEFORE GOING TO PRODUCTION` banner that intentionally renders inline in the portal so the placeholder status can't be missed.
+
+Open each file, replace the `REPLACE — …` placeholders with content that reflects your project's actual processing activities / risks / response plan, and commit. The portal's framework-coverage panel will flip the corresponding clauses to COVERED on the next release after these land on `develop`.
+
+See [`governance-templates.md`](./governance-templates.md) for the per-framework mapping and authoritative external references (ICO ROPA template, EDPB DPIA guidelines, NIST AI RMF, etc.).
+
 ## What onboarding can't do (and why)
 
 Some operations remain out of scope by design:

@@ -21,6 +21,7 @@ import { setGithubSecrets } from './github.js';
 import { bootstrapHooks } from './hooks-bootstrap.js';
 import { configureBranchProtection } from './branch-protection.js';
 import { syncTemplates } from './sync-templates.js';
+import { bootstrapGovernanceDocs } from './bootstrap-governance.js';
 import { doneReport } from './done-report.js';
 import type { InstallContext, InstallMode, InstallPlan, StepResult } from './types.js';
 
@@ -105,7 +106,7 @@ export async function runInstall(options: RunInstallOptions): Promise<InstallRep
     steps.push(await record(log, setGithubSecrets(ctx, plan, providerResolution.provider)));
   } else {
     const skipped: StepResult = {
-      step: '7/11 Set GitHub secrets and variables',
+      step: '7/12 Set GitHub secrets and variables',
       status: 'skipped',
       message: providerResolution.reason ?? 'no git provider available',
     };
@@ -117,7 +118,7 @@ export async function runInstall(options: RunInstallOptions): Promise<InstallRep
     steps.push(await record(log, configureBranchProtection(ctx, providerResolution.provider)));
   } else {
     const skipped: StepResult = {
-      step: '9/11 Configure branch protection',
+      step: '9/12 Configure branch protection',
       status: 'skipped',
       message: providerResolution.reason ?? 'no git provider available',
     };
@@ -125,6 +126,7 @@ export async function runInstall(options: RunInstallOptions): Promise<InstallRep
     log.warn(`[${skipped.step}] SKIPPED ${skipped.message}`);
   }
   steps.push(await record(log, syncTemplates(ctx)));
+  steps.push(await record(log, bootstrapGovernanceDocs(ctx)));
   const done = doneReport(ctx, plan);
   steps.push(done);
   log.success(`[${done.step}]`);
@@ -261,7 +263,7 @@ async function record(log: ReturnType<typeof logger>, p: Promise<StepResult>): P
 
 function planSummary(plan: InstallPlan): StepResult {
   return {
-    step: '3/11 Configure',
+    step: '3/12 Configure',
     status: 'ok',
     message: `slug=${plan.projectSlug} runtime=${plan.runtimeVersion}`,
     data: { ...plan },
