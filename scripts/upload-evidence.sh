@@ -26,6 +26,12 @@
 #                               build / test / compliance / revert) for
 #                               the release row. Unknown values are
 #                               silently dropped server-side.
+#   --gate-status <status>      `passed` / `failed` / `skipped`. Lets the
+#                               portal distinguish a gate that ran-and-
+#                               failed from one that never ran. Forwarded
+#                               as `gateStatus`; unknown values are
+#                               silently dropped server-side.
+#                               DevAudit-Installer#96.
 #
 # Required environment variables:
 #   DEVAUDIT_BASE_URL  e.g. https://meta-comply-production.up.railway.app
@@ -65,6 +71,7 @@ ENVIRONMENT=""
 EVIDENCE_CATEGORY=""
 RELEASE_TITLE=""
 CHANGE_TYPE=""
+GATE_STATUS=""
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -80,6 +87,10 @@ while [ "$#" -gt 0 ]; do
     # unknown change-type values are dropped server-side, not 400'd.
     --release-title) RELEASE_TITLE="$2"; shift 2 ;;
     --change-type) CHANGE_TYPE="$2"; shift 2 ;;
+    # passed/failed/skipped — surfaces failed gates on the portal so
+    # ran-and-failed != never-ran. Unknown values dropped server-side.
+    # DevAudit-Installer#96.
+    --gate-status) GATE_STATUS="$2"; shift 2 ;;
     *) echo "Unknown option: $1"; exit 1 ;;
   esac
 done
@@ -181,6 +192,7 @@ for FILE in "${FILES[@]}"; do
   [ -n "$EVIDENCE_CATEGORY" ] && CURL_ARGS+=(-F "evidenceCategory=${EVIDENCE_CATEGORY}")
   [ -n "$RELEASE_TITLE" ] && CURL_ARGS+=(-F "releaseTitle=${RELEASE_TITLE}")
   [ -n "$CHANGE_TYPE" ] && CURL_ARGS+=(-F "changeType=${CHANGE_TYPE}")
+  [ -n "$GATE_STATUS" ] && CURL_ARGS+=(-F "gateStatus=${GATE_STATUS}")
 
   ATTEMPT=1
   BACKOFF=$INITIAL_BACKOFF_SECONDS

@@ -13,6 +13,9 @@
 #   4. Pending release ticket on disk: exactly one
 #                                      compliance/pending-releases/RELEASE-TICKET-REQ-XXX.md
 #                                                                    -> REQ-XXX
+#   4-bis. RTM.md IN PROGRESS row:    exactly one tracked REQ marked
+#                                      IN PROGRESS in compliance/RTM.md
+#                                                                    -> REQ-XXX
 #   5. Fallback:                      bare date                      -> v2026.05.17
 #
 # Step 4 (DevAudit-Installer#92) handles `chore:` / `docs:` / `ci:`
@@ -22,6 +25,12 @@
 # ticket on disk is a stronger explicit-operator-state signal than the
 # bare date — when exactly one ticket is open, attribute to it.
 # Multiple open tickets stays ambiguous → bare-date fallback.
+#
+# Step 4-bis (DevAudit-Installer#95) is the zero-ceremony equivalent:
+# RTM.md is the file the operator already maintains as the source of
+# truth for release state. When step 4 finds no ticket and exactly one
+# RTM row is IN PROGRESS, attribute to it. RTM_PATH defaults to
+# compliance/RTM.md and is overridable via env.
 #
 # The id is taken from a bracketed [REQ-XXX] tag (subject or body) or the
 # `Ref:` line — NOT from unbracketed prose (e.g. "target close: REQ-002" must
@@ -80,6 +89,33 @@ if [ -d compliance/pending-releases ]; then
       | head -1 | xargs -n1 basename \
       | sed -E 's/^RELEASE-TICKET-(REQ-[0-9]+)\.md$/\1/'
     exit 0
+  fi
+fi
+
+# 4-bis. RTM.md IN PROGRESS row: when exactly one REQ row in
+# compliance/RTM.md (or $RTM_PATH) is marked IN PROGRESS, attribute the
+# in-flight release to it. Reads the file the operator already
+# maintains so chore/docs/ci sync commits don't need a manually-dropped
+# pending-tickets file. Same exactly-one guard as step 4 — zero or
+# multiple IN PROGRESS rows → ambiguous, fall through.
+# DevAudit-Installer#95.
+RTM_PATH="${RTM_PATH:-compliance/RTM.md}"
+if [ -f "$RTM_PATH" ]; then
+  # Match REQ rows whose status column starts with `IN PROGRESS`.
+  # `\|[[:space:]]+IN PROGRESS` requires a pipe followed by whitespace,
+  # so legend rows (`| \`IN PROGRESS\``) and prose mentions don't match.
+  # Variable padding between REQ-ID and Status (Issue/Risk/Evidence
+  # columns) is fine — only the leading REQ-XXX and the status-cell
+  # marker matter.
+  IN_PROGRESS_REQS=$(grep -E '\|[[:space:]]+IN PROGRESS' "$RTM_PATH" 2>/dev/null \
+    | grep -oE '^\|[[:space:]]*REQ-[0-9]+' \
+    | grep -oE 'REQ-[0-9]+' | sort -u || true)
+  if [ -n "$IN_PROGRESS_REQS" ]; then
+    IN_PROGRESS_COUNT=$(echo "$IN_PROGRESS_REQS" | grep -c .)
+    if [ "$IN_PROGRESS_COUNT" = "1" ]; then
+      echo "$IN_PROGRESS_REQS"
+      exit 0
+    fi
   fi
 fi
 

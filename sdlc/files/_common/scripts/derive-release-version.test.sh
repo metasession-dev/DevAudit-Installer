@@ -154,6 +154,89 @@ cat > compliance/pending-releases/RELEASE-TICKET-REQ-051.md <<'TICKET'
 TICKET
 assert_eq "subject [REQ-099] beats pending REQ-051 -> REQ-099" "REQ-099" "$(run_helper)"
 
+# Case 13 (DevAudit-Installer#95): step-4-bis. No subject/body tag,
+# no pending ticket, but RTM.md has exactly one IN PROGRESS row.
+# Attribute to that REQ. Tests the zero-ceremony fallback that
+# survives chore/docs/ci sync commits when no operator state file
+# has been dropped.
+make_fixture "$WORK/c13" "chore: devaudit update to 0.1.29"
+mkdir -p compliance
+cat > compliance/RTM.md <<'RTM'
+# RTM
+| REQ-ID  | Issue | Risk | Evidence                     | Status              | Approver | Date       |
+| ------- | ----- | ---- | ---------------------------- | ------------------- | -------- | ---------- |
+| REQ-100 | #10   | LOW  | compliance/evidence/REQ-100/ | APPROVED - DEPLOYED | dev      | 2026-05-30 |
+| REQ-101 | #11   | MED  | compliance/evidence/REQ-101/ | IN PROGRESS         | dev      | 2026-06-01 |
+RTM
+assert_eq "RTM single IN PROGRESS row -> REQ-101" "REQ-101" "$(run_helper)"
+
+# Case 14: step-4-bis ambiguity guard. Two IN PROGRESS rows → falls
+# through to the bare date rather than guessing.
+make_fixture "$WORK/c14" "chore: devaudit update to 0.1.29"
+mkdir -p compliance
+cat > compliance/RTM.md <<'RTM'
+| REQ-ID  | Status         |
+| ------- | -------------- |
+| REQ-101 | IN PROGRESS    |
+| REQ-102 | IN PROGRESS    |
+RTM
+assert_eq "RTM two IN PROGRESS rows -> bare date $TODAY" "$TODAY" "$(run_helper)"
+
+# Case 15: step-4-bis must ignore legend rows that mention IN PROGRESS
+# inside backticks (the wawagardenbar-app RTM convention) and prose
+# mentions in description columns.
+make_fixture "$WORK/c15" "chore: devaudit update to 0.1.29"
+mkdir -p compliance
+cat > compliance/RTM.md <<'RTM'
+# RTM
+## Conventions
+| Value              | Meaning                       |
+| ------------------ | ----------------------------- |
+| `IN PROGRESS`      | Active development underway   |
+
+| REQ-ID  | Status                                                            |
+| ------- | ----------------------------------------------------------------- |
+| REQ-200 | RELEASED (was IN PROGRESS during Q3, then deployed)               |
+RTM
+assert_eq "RTM legend + prose mentions -> bare date $TODAY" "$TODAY" "$(run_helper)"
+
+# Case 16: step-4-bis with the real META-JOBS-shaped RTM row (long
+# parenthetical commentary in the status cell). The status cell still
+# starts with `IN PROGRESS` after the pipe.
+make_fixture "$WORK/c16" "chore: devaudit update to 0.1.29"
+mkdir -p compliance
+cat > compliance/RTM.md <<'RTM'
+| REQ-ID  | Issue | Risk        | Evidence                     | Status                                                                | Approver   | Date       |
+| ------- | ----- | ----------- | ---------------------------- | --------------------------------------------------------------------- | ---------- | ---------- |
+| REQ-056 | #117  | MEDIUM-HIGH | compliance/evidence/REQ-056/ | IN PROGRESS (WhatsApp inbound-message router; many details follow...) | ostendo-io | 2026-06-01 |
+RTM
+assert_eq "RTM long parenthetical status -> REQ-056" "REQ-056" "$(run_helper)"
+
+# Case 17: step-4-bis must NOT win over a pending ticket on disk.
+# Step 4 returns first.
+make_fixture "$WORK/c17" "chore: devaudit update to 0.1.29"
+mkdir -p compliance/pending-releases compliance
+cat > compliance/pending-releases/RELEASE-TICKET-REQ-301.md <<'TICKET'
+# Release Ticket: REQ-301
+TICKET
+cat > compliance/RTM.md <<'RTM'
+| REQ-ID  | Status      |
+| ------- | ----------- |
+| REQ-302 | IN PROGRESS |
+RTM
+assert_eq "pending ticket REQ-301 beats RTM IN PROGRESS REQ-302" "REQ-301" "$(run_helper)"
+
+# Case 18: step-4-bis respects RTM_PATH env override.
+make_fixture "$WORK/c18" "chore: devaudit update to 0.1.29"
+mkdir -p docs
+cat > docs/custom-RTM.md <<'RTM'
+| REQ-ID  | Status      |
+| ------- | ----------- |
+| REQ-400 | IN PROGRESS |
+RTM
+GOT=$(RTM_PATH=docs/custom-RTM.md run_helper)
+assert_eq "RTM_PATH=docs/custom-RTM.md -> REQ-400" "REQ-400" "$GOT"
+
 echo ""
 echo "=== Summary: $PASS pass / $FAIL fail ==="
 
