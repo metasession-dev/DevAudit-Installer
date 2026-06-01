@@ -189,6 +189,32 @@ describe('runInstall — native TS install against a node fixture', () => {
       expect(stepByStart('8/')?.status).toBe('ok');
       expect(stepByStart('9/')?.status).toBe('ok');
       expect(stepByStart('10/')?.status).toBe('ok');
+      expect(stepByStart('11/')?.status).toBe('ok');
+      // step 11 (bootstrap governance docs) drops 5 starters under compliance/governance/
+      const govNames = await fs.readdir(join(dir, 'compliance', 'governance'));
+      expect(govNames.sort()).toEqual([
+        'ai-disclosure.md',
+        'dpia.md',
+        'incident-report.md',
+        'periodic-review.md',
+        'ropa.md',
+      ]);
+      const ropaBody = await fs.readFile(join(dir, 'compliance', 'governance', 'ropa.md'), 'utf8');
+      expect(ropaBody).toMatch(/STARTER TEMPLATE/);
+      // Idempotency: rerun install — operator edit survives, no overwrite.
+      const edited = '# my edited ropa\n\nactual content, not a stub.\n';
+      await fs.writeFile(join(dir, 'compliance', 'governance', 'ropa.md'), edited, 'utf8');
+      const rerun = await runInstall({
+        path: dir,
+        dryRun: false,
+        nonInteractive: true,
+        provider: makeFakeProvider(),
+      });
+      const rerun11 = rerun.steps.find((s) => s.step.startsWith('11/'));
+      expect(rerun11?.status).toBe('ok');
+      expect(rerun11?.data).toMatchObject({ skipped: expect.arrayContaining(['ropa.md']) });
+      const preserved = await fs.readFile(join(dir, 'compliance', 'governance', 'ropa.md'), 'utf8');
+      expect(preserved).toBe(edited);
       // sdlc-config.json was rewritten by step 4
       const written = JSON.parse(await fs.readFile(join(dir, 'sdlc-config.json'), 'utf-8'));
       expect(written.stack).toBe('node');
@@ -356,8 +382,8 @@ describe('runInstall — native TS install against a node fixture', () => {
       expect(providerCalls.find((c) => c.method === 'setVariable')).toBeUndefined();
       expect(providerCalls.find((c) => c.method === 'applyBranchProtection')).toBeUndefined();
       // The done report carries the developer-mode marker.
-      const step11 = report.steps.find((s) => s.step.startsWith('11/'));
-      expect(step11?.step).toMatch(/developer mode/);
+      const stepDone = report.steps.find((s) => s.step.includes('Done'));
+      expect(stepDone?.step).toMatch(/developer mode/);
     } finally {
       await fs.rm(dir, { recursive: true, force: true });
     }
@@ -410,9 +436,9 @@ describe('runInstall — native TS install against a node fixture', () => {
       expect(providerCalls.find((c) => c.method === 'applyBranchProtection')).toBeDefined();
       const step7 = report.steps.find((s) => s.step.startsWith('7/'));
       expect(step7?.status).toBe('ok');
-      const step11 = report.steps.find((s) => s.step.startsWith('11/'));
+      const stepDone = report.steps.find((s) => s.step.includes('Done'));
       // Operator copy ('Done', not 'Done (developer mode)').
-      expect(step11?.step).toBe('11/11 Done');
+      expect(stepDone?.step).toBe('12/12 Done');
     } finally {
       await fs.rm(dir, { recursive: true, force: true });
     }

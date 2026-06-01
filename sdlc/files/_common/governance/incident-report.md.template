@@ -1,0 +1,111 @@
+---
+title: "Incident Report"
+incident_id: "REPLACE — e.g. INC-2026-001"
+severity: "REPLACE — low | medium | high | critical"
+detected_at: "REPLACE — ISO-8601 with timezone"
+resolved_at: "REPLACE — ISO-8601 or 'ongoing'"
+involves_personal_data: "REPLACE — true | false"
+reported_to_supervisory_authority: "REPLACE — true | false | n/a"
+notification_window_72h: "REPLACE — within | outside | n/a"
+last_reviewed_at: "REPLACE — YYYY-MM-DD"
+---
+
+> ⚠️ **STARTER TEMPLATE — REPLACE BEFORE GOING TO PRODUCTION.**
+> This file was auto-installed by `devaudit install` as a starting point.
+> If you reach for this file it's because something **happened** — replace this banner
+> with the actual incident details. One incident per file (rename to
+> `incident-report-<id>.md` if you keep multiple). Auditors will reject unedited stubs.
+
+# Incident Report
+
+**Framework coverage:**
+
+- `ISO29119.3.5.4` (Test incident report)
+- `SOC2.CC7.2` (System monitoring and incident response)
+- `GDPR.Art-33` (Notification of a personal data breach to the supervisory authority — 72h)
+- `GDPR.Art-34` (Communication of a personal data breach to the data subject)
+
+**Evidence type:** `incident_report` · One artefact can satisfy multiple clauses depending on its scope (test defect, ops incident, personal-data breach).
+
+## 1. Summary
+
+- **Incident ID:** REPLACE
+- **Severity:** REPLACE — low / medium / high / critical
+- **One-line description:** REPLACE
+- **Detected at:** REPLACE — when was it first noticed
+- **Resolved at:** REPLACE — or "ongoing"
+- **Duration:** REPLACE
+
+## 2. Personal data scope (GDPR triage)
+
+| Question | Answer |
+|---|---|
+| Did the incident involve personal data? | REPLACE — Y / N |
+| If Y: estimated number of data subjects affected | REPLACE |
+| If Y: categories of personal data involved | REPLACE |
+| If Y: likely consequences for data subjects | REPLACE |
+| **Notify supervisory authority (Art. 33)?** | REPLACE — required if Y and risk to rights/freedoms |
+| **Notify data subjects (Art. 34)?** | REPLACE — required if high risk to rights/freedoms |
+| 72-hour notification window: | REPLACE — within / outside / n/a; if outside, explain delay |
+
+## 3. Timeline
+
+| Time (UTC) | Event |
+|---|---|
+| REPLACE — ISO-8601 | REPLACE — first signal observed |
+| REPLACE | REPLACE — detection escalated to on-call |
+| REPLACE | REPLACE — incident channel opened, IC assigned |
+| REPLACE | REPLACE — mitigation deployed |
+| REPLACE | REPLACE — incident declared resolved |
+| REPLACE | REPLACE — supervisory authority notified (if applicable) |
+| REPLACE | REPLACE — data subjects notified (if applicable) |
+
+## 4. Root cause
+
+- **What happened:** REPLACE — technical narrative
+- **Why it happened:** REPLACE — 5-whys or equivalent
+- **Why it wasn't caught earlier:** REPLACE — gap in monitoring / testing / review
+
+## 5. Impact
+
+- **Users affected:** REPLACE — count + segment
+- **Data confidentiality / integrity / availability impact:** REPLACE
+- **Financial / reputational:** REPLACE
+- **Regulatory:** REPLACE
+
+## 6. Containment, mitigation, and recovery
+
+- **Containment actions:** REPLACE
+- **Mitigation deployed (link PRs):** REPLACE
+- **Recovery actions:** REPLACE
+- **Verification that the incident is resolved:** REPLACE
+
+## 7. Communications
+
+- **Internal:** REPLACE — who was notified, when
+- **Customer / data subjects:** REPLACE — channel, content (attach), timing
+- **Supervisory authority:** REPLACE — body, reference number, content (attach)
+- **Public statement:** REPLACE — link if any
+
+## 8. Lessons learned and follow-ups
+
+- **What worked well:** REPLACE
+- **What didn't:** REPLACE
+- **Follow-up actions (issue links, owners, due dates):** REPLACE — file GitHub issues; one row per action
+  - [ ] REPLACE — owner @REPLACE — due REPLACE
+  - [ ] REPLACE — owner @REPLACE — due REPLACE
+
+## 9. Sign-off
+
+| Role | Name | Date |
+|---|---|---|
+| Incident Commander | REPLACE | REPLACE |
+| Engineering lead | REPLACE | REPLACE |
+| DPO (if personal data involved) | REPLACE | REPLACE |
+| Security lead | REPLACE | REPLACE |
+
+## Sources
+
+- [ICO breach reporting guidance](https://ico.org.uk/for-organisations/report-a-breach/personal-data-breach/) (UK)
+- [EDPB Guidelines 9/2022 on personal data breach notification](https://edpb.europa.eu/our-work-tools/our-documents/guidelines/)
+- [SOC 2 Trust Services Criteria — CC7 (System Operations)](https://www.aicpa-cima.com/topic/audit-assurance/trust-services-criteria)

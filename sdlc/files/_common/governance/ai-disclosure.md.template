@@ -1,0 +1,91 @@
+---
+title: "AI Use Disclosure (deployer-facing)"
+provider: "REPLACE — legal name of the AI system provider"
+intended_purpose: "REPLACE — one-line description of intended use"
+last_reviewed_at: "REPLACE — YYYY-MM-DD"
+review_cadence_days: 180
+risk_class: "REPLACE — minimal | limited | high | unacceptable"
+---
+
+> ⚠️ **STARTER TEMPLATE — REPLACE BEFORE GOING TO PRODUCTION.**
+> This file was auto-installed by `devaudit install` as a starting point.
+> It does **not** describe your project's actual AI use. Edit and commit.
+> Auditors will reject unedited stubs. See `docs/governance-templates.md` for guidance.
+
+# AI Use Disclosure — Provision of information to deployers
+
+**Framework coverage:** `EUAIA.Art-13` (Transparency and provision of information to deployers)
+
+**Evidence type:** `ai_disclosure` · **Cadence:** refresh every 180 days, or whenever an AI tool / model / prompt-class is added or substantively changed.
+
+> The EU AI Act requires providers to give deployers (the people who put the AI system into use in their professional activity) **clear, comprehensive, accurate and unambiguous** information about the system's capabilities, limitations, and intended use. This file is that disclosure for our project — both for AI we develop and for third-party AI we incorporate.
+
+## 1. Intended purpose
+
+- **What the AI system does:** REPLACE
+- **Intended use cases:** REPLACE
+- **Foreseeable misuse / out-of-scope use cases:** REPLACE
+
+## 2. Risk classification
+
+- **Annex III high-risk category match:** REPLACE — none / list applicable categories
+- **Final risk class (per Title III):** REPLACE — minimal / limited / high / unacceptable
+- **Reasoning:** REPLACE
+
+## 3. AI tools and models in use
+
+Add one row per AI tool / model / API. Delete this template row before your first audit.
+
+| Tool / model | Vendor | Use case | Inputs (data classes) | Outputs | Risk class | Provider docs |
+|---|---|---|---|---|---|---|
+| REPLACE — e.g. GPT-4o | OpenAI | Code suggestion in IDE | Source code, no PII | Code suggestions | Limited | https://… |
+| REPLACE | | | | | | |
+
+## 4. Human oversight (Art. 14)
+
+- **Where humans intervene in the AI loop:** REPLACE — e.g. "Every AI-suggested change goes through a four-eyes code review before merge"
+- **Authority of the human reviewer:** REPLACE — can they reject / override / stop the system? Document the path
+- **Cross-reference to four-eyes release approval:** all releases require an approved-by audit event in the portal (closes `EUAIA.Art-14`)
+
+## 5. Capabilities and limitations
+
+- **Known limitations:** REPLACE — failure modes, training data cut-off, hallucination risk
+- **Accuracy / robustness metrics:** REPLACE — link to test reports / benchmark results
+- **Conditions under which performance degrades:** REPLACE
+
+## 6. Data, training, validation
+
+- **Training data provenance (if we train):** REPLACE — sources, licensing, consent
+- **Fine-tuning, RAG, prompt engineering used:** REPLACE
+- **Data flowing to third-party AI providers:** REPLACE — list each provider + what's sent + DPA / SCC reference (cross-link to ROPA)
+
+## 7. Logging and traceability (Art. 12)
+
+- **What we log:** REPLACE — prompts, completions, user/agent identity, timestamp
+- **Where logs live:** REPLACE — link to portal `audit_log` evidence pipeline
+- **Retention:** REPLACE
+- **Closes `EUAIA.Art-12` via the `audit_log` snapshot uploaded each release.**
+
+## 8. Deployer obligations
+
+- **What deployers must do to use the system safely:** REPLACE — link to operator runbook
+- **Notification of substantial modifications:** REPLACE — process
+
+## 9. Sign-off
+
+| Role | Name | Date |
+|---|---|---|
+| Provider responsible | REPLACE | REPLACE |
+| AI compliance reviewer | REPLACE | REPLACE |
+
+## Sources
+
+- [EU AI Act (Regulation 2024/1689)](https://eur-lex.europa.eu/eli/reg/2024/1689/oj) — especially Art. 9–15 (high-risk requirements) and Title IV (transparency)
+- [NIST AI Risk Management Framework](https://www.nist.gov/itl/ai-risk-management-framework)
+- [Anthropic Responsible Scaling Policy](https://www.anthropic.com/news/anthropics-responsible-scaling-policy) (example provider disclosure)
+
+## Review log
+
+| Date | Reviewer | Changes |
+|---|---|---|
+| REPLACE — YYYY-MM-DD | REPLACE | Initial AI disclosure authored from starter template |

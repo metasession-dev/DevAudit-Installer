@@ -1,0 +1,59 @@
+---
+title: "Records of Processing Activities (ROPA)"
+controller: "REPLACE — legal name of the controller"
+controller_contact: "REPLACE — DPO email or controller contact"
+last_reviewed_at: "REPLACE — YYYY-MM-DD"
+review_cadence_days: 365
+processing_activities: []
+---
+
+> ⚠️ **STARTER TEMPLATE — REPLACE BEFORE GOING TO PRODUCTION.**
+> This file was auto-installed by `devaudit install` as a starting point.
+> It does **not** describe your project's actual processing activities. Edit and commit.
+> Auditors will reject unedited stubs. See `docs/governance-templates.md` for guidance.
+
+# Records of Processing Activities
+
+**Framework coverage:** `GDPR.Art-30` (Records of processing activities)
+
+**Evidence type:** `ropa` · **Cadence:** refresh every 365 days (portal flags as `expired` after)
+
+## Controller
+
+- **Legal name:** REPLACE
+- **Address:** REPLACE
+- **Contact / DPO:** REPLACE
+- **Joint controllers / representatives:** REPLACE (or "none")
+
+## Processing activities
+
+For each distinct processing activity your project performs, add one section below. Delete this template row before your first audit.
+
+### Activity 1 — REPLACE (e.g. "User authentication and session management")
+
+| Field | Value |
+|---|---|
+| **Purpose(s) of processing** | REPLACE — why you process this data; lawful basis (Art. 6) |
+| **Categories of data subjects** | REPLACE — e.g. customers, employees, prospects |
+| **Categories of personal data** | REPLACE — e.g. name, email, IP address, hashed password |
+| **Special categories (Art. 9)** | REPLACE — none / specify (health, biometric, etc.) |
+| **Recipients / categories of recipients** | REPLACE — internal teams + named processors |
+| **Third-country transfers** | REPLACE — none / list countries + safeguard (SCCs, adequacy) |
+| **Retention period** | REPLACE — e.g. "duration of customer relationship + 7 years" |
+| **Technical and organisational security measures** | REPLACE — link to ISO 27001 controls / Test_Policy.md / encryption details |
+
+### Activity 2 — REPLACE
+
+(repeat the table above)
+
+## Sources
+
+- [ICO ROPA template (UK)](https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/accountability-and-governance/documentation/records-of-processing/)
+- [EDPB Guidelines on Article 30](https://edpb.europa.eu/our-work-tools/our-documents/guidelines/)
+- Your privacy policy + DPIA (`compliance/governance/dpia.md`) should describe the same activities.
+
+## Review log
+
+| Date | Reviewer | Changes |
+|---|---|---|
+| REPLACE — YYYY-MM-DD | REPLACE | Initial ROPA authored from starter template |
