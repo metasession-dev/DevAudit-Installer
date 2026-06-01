@@ -76,11 +76,13 @@ jobs:
       # ── Gate 1: TypeScript ──
 
       - name: TypeScript Check
+        id: typescript
         run: npx tsc --noEmit
 
       # ── Gate 2: SAST (Semgrep) ──
 
       - name: SAST Scan
+        id: sast
         run: |
           # --output writes the JSON report to the file directly; stderr
           # (progress/metrics/version notices) goes to /dev/null. Using
@@ -106,6 +108,7 @@ jobs:
       # ── Gate 3: Dependency Audit ──
 
       - name: Dependency Audit
+        id: dep-audit
         run: |
           # stderr → /dev/null so warnings can't corrupt the JSON (DevAudit #48)
           npm audit --json > dependency-audit.json 2>/dev/null || true
@@ -144,9 +147,33 @@ jobs:
       # ── Gate 5: Build ──
 
       - name: Build Check
+        id: build
         run: npm run build
         env:
 {{BUILD_ENV}}
+
+      # ── Summarise per-gate outcomes ──
+      #
+      # Runs unconditionally so a failed earlier gate doesn't strand the
+      # outcome of the gates that did run. Step outcomes are one of
+      # `success` / `failure` / `skipped` / `cancelled`. The upload-evidence
+      # job maps these to `passed` / `failed` / `skipped` and sends the
+      # result as `gateStatus=` on each per-gate upload, so the portal can
+      # render a failed gate as failed (with the run artefact) rather than
+      # showing it as missing. DevAudit-Installer#96.
+
+      - name: Summarise gate outcomes
+        if: always()
+        run: |
+          cat > gate-outcomes.json <<EOF
+          {
+            "typescript": "${{ steps.typescript.outcome }}",
+            "sast": "${{ steps.sast.outcome }}",
+            "dependency_audit": "${{ steps.dep-audit.outcome }}",
+            "build": "${{ steps.build.outcome }}"
+          }
+          EOF
+          cat gate-outcomes.json
 
       # ── Upload artifacts ──
 
@@ -162,6 +189,7 @@ jobs:
             e2e-auth-results.json
             playwright-report/
             coverage/coverage-summary.json
+            gate-outcomes.json
             compliance/evidence/*/screenshots/*.png
           retention-days: 90
 
@@ -278,7 +306,11 @@ jobs:
     name: Upload Evidence
     runs-on: {{RUNNER}}
     needs: [quality-gates, register-release]
-    if: ${{ !failure() && !cancelled() && vars.DEVAUDIT_BASE_URL != '' }}
+    # `always()` instead of `!failure()` so failed gates still upload their
+    # evidence — `status=failed` is itself the audit trail. `!cancelled()`
+    # still guards against partial state on operator-cancel.
+    # DevAudit-Installer#96.
+    if: ${{ always() && !cancelled() && vars.DEVAUDIT_BASE_URL != '' && needs.register-release.result == 'success' }}
     env:
       DEVAUDIT_BASE_URL: ${{ vars.DEVAUDIT_BASE_URL }}
       DEVAUDIT_API_KEY: ${{ secrets.DEVAUDIT_API_KEY }}
@@ -315,6 +347,32 @@ jobs:
             fi
           }
 
+          # Map step outcomes from gate-outcomes.json (written by the
+          # `Summarise gate outcomes` step) to gateStatus values the
+          # uploader forwards to the portal. Failed gates upload as
+          # gateStatus=failed so the portal can distinguish a gate that
+          # ran-and-failed from one that never ran. DevAudit-Installer#96.
+          gate_status() {
+            case "$1" in
+              success) echo passed ;;
+              failure) echo failed ;;
+              *) echo skipped ;;
+            esac
+          }
+          STATUS_TYPESCRIPT=skipped
+          STATUS_SAST=skipped
+          STATUS_DEPAUDIT=skipped
+          STATUS_BUILD=skipped
+          if [ -f ci-evidence/gate-outcomes.json ]; then
+            STATUS_TYPESCRIPT=$(gate_status "$(jq -r '.typescript // "skipped"' ci-evidence/gate-outcomes.json)")
+            STATUS_SAST=$(gate_status "$(jq -r '.sast // "skipped"' ci-evidence/gate-outcomes.json)")
+            STATUS_DEPAUDIT=$(gate_status "$(jq -r '.dependency_audit // "skipped"' ci-evidence/gate-outcomes.json)")
+            STATUS_BUILD=$(gate_status "$(jq -r '.build // "skipped"' ci-evidence/gate-outcomes.json)")
+            upload gate-outcomes.json \
+              {{PROJECT_SLUG}} _compliance-docs compliance_document ci-evidence/gate-outcomes.json \
+              --category ci_pipeline ${FLAGS}
+          fi
+
           # Re-generate gate evidence as fallback if artifact download failed
           mkdir -p ci-evidence
           if [ ! -f ci-evidence/sast-results.json ]; then
@@ -337,7 +395,7 @@ jobs:
           if [ -f ci-evidence/sast-results.json ]; then
             upload sast-results.json \
               {{PROJECT_SLUG}} _compliance-docs sast_report ci-evidence/sast-results.json \
-              --category security_scan ${FLAGS}
+              --category security_scan --gate-status "$STATUS_SAST" ${FLAGS}
           fi
 
           # Upload dependency audit — precise evidence_type=dependency_audit
@@ -345,7 +403,7 @@ jobs:
           if [ -f ci-evidence/dependency-audit.json ]; then
             upload dependency-audit.json \
               {{PROJECT_SLUG}} _compliance-docs dependency_audit ci-evidence/dependency-audit.json \
-              --category security_scan ${FLAGS}
+              --category security_scan --gate-status "$STATUS_DEPAUDIT" ${FLAGS}
           fi
 
           # Upload E2E test results (ci_pipeline category)
