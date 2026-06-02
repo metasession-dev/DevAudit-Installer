@@ -138,15 +138,20 @@ jobs:
             fi
           done
 
-          # Test summary report — precise evidence_type=test_report so it
-          # lands in the portal's Test Reports gate (rendered inline by the
-          # MarkdownRenderer). devaudit#370 follow-up; same change applied
-          # in ci.yml's gate-evidence upload step.
+          # Project-level Test Summary Report — a hand-authored baseline
+          # describing the project's testing posture. As of v0.1.32 this is
+          # uploaded as `compliance_document` (NOT `test_report`) — the
+          # per-release Test Reports gate is now satisfied by the per-REQ
+          # `test-execution-summary.md` uploaded in the in-scope-requirements
+          # loop below, which carries fresh release-specific data. The
+          # project-level TSR continues to ship as a Documents-tab baseline
+          # but no longer poses as per-release test evidence.
+          # See DevAudit-Installer#101.
           if [ -f "compliance/test-summary-report.md" ]; then
-            echo "Uploading: test-summary-report.md (test_report type)"
+            echo "Uploading: test-summary-report.md (compliance_document — baseline)"
             bash scripts/upload-evidence.sh \
-              {{PROJECT_SLUG}} _compliance-docs test_report compliance/test-summary-report.md \
-              --category test_report ${FLAGS} --release "${DERIVED_RELEASE}" \
+              {{PROJECT_SLUG}} _compliance-docs compliance_document compliance/test-summary-report.md \
+              --category planning ${FLAGS} --release "${DERIVED_RELEASE}" \
               "${DERIVED_META[@]}" \
               || echo "Warning: Failed to upload test-summary-report.md"
           fi
@@ -257,12 +262,28 @@ jobs:
               REQ_META_ARGS=$(req_meta_args "$REQ_ID")
               for ARTIFACT in "$REQ_DIR"*.md; do
                 [ -f "$ARTIFACT" ] || continue
-                echo "Uploading: ${REQ_ID}/$(basename "$ARTIFACT")"
+                # Per-REQ test-execution-summary.md is the ISO 29119-3 §3.5.6
+                # Test Completion Report for THIS release cycle (populated by
+                # the e2e-test-engineer skill in Stage 3 — scope, results, AC
+                # mapping, defects). Upload as `test_report` so it satisfies
+                # the portal's Test Reports gate with per-release evidence
+                # instead of the project-level evergreen TSR (which from
+                # v0.1.32 downgrades to `compliance_document`). See
+                # DevAudit-Installer#101.
+                BASENAME=$(basename "$ARTIFACT")
+                if [ "$BASENAME" = "test-execution-summary.md" ] || [ "$BASENAME" = "test-summary-report.md" ]; then
+                  EVTYPE=test_report
+                  EVCAT=test_report
+                else
+                  EVTYPE=compliance_document
+                  EVCAT=planning
+                fi
+                echo "Uploading: ${REQ_ID}/${BASENAME} (${EVTYPE})"
                 eval "bash scripts/upload-evidence.sh \
-                  {{PROJECT_SLUG}} \"${REQ_ID}\" compliance_document \"$ARTIFACT\" \
-                  --category planning ${FLAGS} --release \"${REQ_ID}\" \
+                  {{PROJECT_SLUG}} \"${REQ_ID}\" ${EVTYPE} \"$ARTIFACT\" \
+                  --category ${EVCAT} ${FLAGS} --release \"${REQ_ID}\" \
                   ${REQ_META_ARGS}" \
-                  || echo "Warning: Failed to upload $(basename "$ARTIFACT")"
+                  || echo "Warning: Failed to upload ${BASENAME}"
               done
             done
           fi
