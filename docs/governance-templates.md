@@ -123,13 +123,22 @@ compliance-evidence.yml runs ──▶ upload_governance ──▶ portal receiv
 Framework coverage panel flips clauses to COVERED on the next release detail
 ```
 
-## What about the `audit_log` and other auto-generated evidence?
+## Auto-generation workflows (companion to the starters)
 
-Issue [#98](https://github.com/metasession-dev/DevAudit-Installer/issues/98) tracks four workstreams. This doc covers Workstream 1 (governance templates). The other three:
+Issue [#98](https://github.com/metasession-dev/DevAudit-Installer/issues/98) tracks four workstreams. Workstream 1 (this doc, the starter templates) shipped in v0.1.30. Workstreams 3 and 4 shipped in v0.1.31 as scheduled / event-driven workflows that **auto-PR** the corresponding governance docs:
 
-- **W2 — Audit log snapshot in CI** (closes `ISO27001.A.8.16`, `EUAIA.Art-12`, `GDPR.Art-32`): A new CI step exports the portal audit log for the release window and uploads as `audit_log`. **Auto-generated, no template needed.**
-- **W3 — Periodic-review scheduled workflow** (closes `SOC2.CC4.1`, `ISO27001.A.12.1`): A quarterly cron auto-regenerates `compliance/governance/periodic-review.md` with portal metrics. The human attestation section is still yours.
-- **W4 — Incident-report close-out hook** (closes the automated arm of `ISO29119.3.5.4`, `SOC2.CC7.2`, `GDPR.Art-33`, `GDPR.Art-34`): When you close a GitHub issue labelled `incident`, a workflow exports its body to `compliance/governance/incident-report-<id>.md`. Operator-authored arm (W1) remains the recommended default for high-severity incidents.
+- **W3 — Periodic-review scheduled workflow** (`v0.1.31`, closes `SOC2.CC4.1`, `ISO27001.A.12.1`):
+  `.github/workflows/periodic-review.yml` runs on a quarterly cron (1st of Jan/Apr/Jul/Oct, 09:00 UTC) and on `workflow_dispatch`. It derives stats from local state — RTM REQ count, pending/approved release counts, incident-report count on disk, and CI-pass-rate over the 90-day window via `gh run list` — then rewrites `compliance/governance/periodic-review.md` against `develop` on a `chore/periodic-review-<YYYY-Qn>` branch and opens (or updates) a PR. **The PR still requires the human attestation** — `REPLACE — …` markers in the Review notes, control-effectiveness judgement, and dual-actor sign-off must be filled in before merge. Once merged, `compliance-evidence.yml` uploads as `periodic_review`.
+
+- **W4 — Incident-report close-out hook** (`v0.1.31`, closes the automated arm of `ISO29119.3.5.4`, `SOC2.CC7.2`, `GDPR.Art-33`, `GDPR.Art-34`):
+  `.github/workflows/incident-export.yml` fires on `issues: [closed]`, gated by `contains(labels.*.name, 'incident')`. The job calls `gh issue view --json` to capture title + body + comments + timeline + labels, renders to `compliance/governance/incident-report-<n>.md`, and opens a PR on `chore/incident-export-<n>`. **The PR still requires GDPR-triage and sign-off** before merge — auto-generated personal-data-Y/N decisions are not defensible. The operator-authored arm (W1's `incident-report.md` starter) remains the recommended default for very high-severity incidents where you want full editorial control.
+  **One-time operator setup** (after `devaudit update` brings the workflow in):
+  ```bash
+  gh label create incident --color 'B60205' \
+    --description 'Operational or test incident; close to auto-archive as portal evidence'
+  ```
+
+- **W2 — Audit log snapshot in CI** (queued for a future release, closes `ISO27001.A.8.16`, `EUAIA.Art-12`, `GDPR.Art-32` audit-log half): A new CI step in `compliance-evidence.yml` will export the portal audit log for the release window and upload as `audit_log`. Auto-generated, no template needed. Blocked on a small META-COMPLY endpoint (`GET /api/projects/[slug]/audit-log/export`).
 
 ## See also
 

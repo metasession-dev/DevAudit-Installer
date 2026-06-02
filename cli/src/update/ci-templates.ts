@@ -12,6 +12,12 @@ const CI_TEMPLATES = [
   'post-deploy-prod.yml.template',
   'compliance-evidence.yml.template',
   'close-out-release.yml.template',
+  // DevAudit-Installer#98 WS3: quarterly cron → auto-PR with the
+  // periodic-review.md regenerated from local stats.
+  'periodic-review.yml.template',
+  // DevAudit-Installer#98 WS4: fires on `label:incident` issue close →
+  // auto-PR with the issue exported to compliance/governance/.
+  'incident-export.yml.template',
 ];
 
 const OLD_WORKFLOWS_TO_REMOVE = ['test-on-pr.yml', 'check-uat-approval.yml'];
