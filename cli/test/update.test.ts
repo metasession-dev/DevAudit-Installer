@@ -104,6 +104,16 @@ describe('syncProject — native TS sync against a fixture', () => {
     expect(ciYml).toContain('fixture-app');
     expect(ciYml).not.toContain('{{PROJECT_SLUG}}');
     expect(ciYml).not.toContain('{{NODE_VERSION}}');
+    // DevAudit-Installer#98 WS3 + WS4: governance auto-generation workflows
+    // sync into .github/workflows/ alongside the gate workflows.
+    expect(await fs.stat(join(fixtureDir, '.github', 'workflows', 'periodic-review.yml'))).toBeTruthy();
+    expect(await fs.stat(join(fixtureDir, '.github', 'workflows', 'incident-export.yml'))).toBeTruthy();
+    const periodicYml = await fs.readFile(join(fixtureDir, '.github', 'workflows', 'periodic-review.yml'), 'utf-8');
+    expect(periodicYml).toContain("cron: '0 9 1 */3 *'");
+    expect(periodicYml).toContain('compliance/governance/periodic-review.md');
+    const incidentYml = await fs.readFile(join(fixtureDir, '.github', 'workflows', 'incident-export.yml'), 'utf-8');
+    expect(incidentYml).toContain("contains(github.event.issue.labels.*.name, 'incident')");
+    expect(incidentYml).toContain('compliance/governance/incident-report-');
     // Backward compat: with no e2e_projects/e2e_seed_command configured, the
     // authenticated-e2e token is dropped and no extra step is emitted.
     expect(ciYml).not.toContain('{{E2E_AUTHENTICATED_STEP}}');

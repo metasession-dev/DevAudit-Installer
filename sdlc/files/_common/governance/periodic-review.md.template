@@ -9,10 +9,12 @@ review_cadence_days: 90
 
 > ⚠️ **STARTER TEMPLATE — REPLACE BEFORE GOING TO PRODUCTION.**
 > This file was auto-installed by `devaudit install` as a starting point.
-> Once Workstream 3 ships (`.github/workflows/periodic-review.yml`), this file will be
-> auto-regenerated quarterly with portal metrics. Until then — and to add the human
-> attestation the auto-generator can't produce — edit this file yourself. Auditors
-> will reject unedited stubs. See `docs/governance-templates.md` for guidance.
+> The Periodic Review workflow (`.github/workflows/periodic-review.yml`, shipped in
+> v0.1.31) auto-regenerates this file quarterly with locally-derived metrics and
+> opens a PR. The human attestation sections (Review notes, control-effectiveness
+> judgement, dual-actor sign-off) still need to be filled in before each PR can
+> merge — the auto-generator can't produce defensible attestation on its own.
+> Auditors will reject unedited stubs. See `docs/governance-templates.md` for guidance.
 
 # Periodic Review of Internal Controls
 
