@@ -186,6 +186,38 @@ jobs:
           upload_governance compliance/incident-report.md             incident_report
           upload_governance compliance/governance/incident-report.md  incident_report
 
+          # ── Audit-log export (DevAudit-Installer#98 WS2) ──────────────
+          # Snapshot the portal's audit log for the rolling 90-day window
+          # and upload as `evidence_type=audit_log`. Closes three
+          # framework-coverage clauses on every release:
+          #   - ISO27001.A.8.16 — Monitoring activities
+          #   - EUAIA.Art-12   — Record-keeping (automatic logging)
+          #   - GDPR.Art-32    — Security of processing (audit-log half)
+          #
+          # The portal endpoint defaults to the last 90 days when no
+          # `since`/`until` query params are passed; omit them so the
+          # consumer side stays zero-config. Endpoint shipped in
+          # META-COMPLY PR #413; project-scoped API key (uploader role)
+          # already has read access via `resolveCiUploadAuth`.
+          AUDIT_LOG_FILE="$(mktemp -t audit-log-XXXXXX.json)"
+          if curl -sSf -H "Authorization: Bearer ${DEVAUDIT_API_KEY}" \
+            "${DEVAUDIT_BASE_URL%/}/api/ci/projects/{{PROJECT_SLUG}}/audit-log/export" \
+            -o "$AUDIT_LOG_FILE"; then
+            echo "Uploading: audit-log.json (audit_log — 90-day window)"
+            bash scripts/upload-evidence.sh \
+              {{PROJECT_SLUG}} _compliance-docs audit_log "$AUDIT_LOG_FILE" \
+              --category compliance_document ${FLAGS} --release "${DERIVED_RELEASE}" \
+              "${DERIVED_META[@]}" \
+              || echo "Warning: Failed to upload audit-log.json"
+          else
+            # Soft-fail: an export hiccup shouldn't break the rest of the
+            # evidence pipeline. Surfaces as a warning in the workflow log;
+            # the framework-coverage panel will show MISSING for the three
+            # clauses above until the next successful upload.
+            echo "::warning::Audit-log export failed — endpoint unreachable or 4xx/5xx. Three framework-coverage clauses (ISO27001.A.8.16, EUAIA.Art-12, GDPR.Art-32 audit-log half) will stay MISSING until the next run."
+          fi
+          rm -f "$AUDIT_LOG_FILE"
+
           # Helper: emit a `--release-title …` `--change-type …` pair for a given
           # REQ, derived from its pending release-ticket H1 and the most recent
           # commit attributed to that REQ. Empty pair when neither is available.

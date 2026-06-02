@@ -138,7 +138,8 @@ Issue [#98](https://github.com/metasession-dev/DevAudit-Installer/issues/98) tra
     --description 'Operational or test incident; close to auto-archive as portal evidence'
   ```
 
-- **W2 — Audit log snapshot in CI** (queued for a future release, closes `ISO27001.A.8.16`, `EUAIA.Art-12`, `GDPR.Art-32` audit-log half): A new CI step in `compliance-evidence.yml` will export the portal audit log for the release window and upload as `audit_log`. Auto-generated, no template needed. Blocked on a small META-COMPLY endpoint (`GET /api/projects/[slug]/audit-log/export`).
+- **W2 — Audit log snapshot in CI** (`v0.1.33`, closes `ISO27001.A.8.16`, `EUAIA.Art-12`, `GDPR.Art-32` audit-log half):
+  A new CI step in `compliance-evidence.yml` snapshots the portal's audit log for the rolling 90-day window via `GET /api/ci/projects/<slug>/audit-log/export` (shipped in META-COMPLY [#413](https://github.com/metasession-dev/devaudit/pull/413)) and uploads it as `evidence_type=audit_log`. Auto-generated; no template needed; soft-fails on transient endpoint hiccups so the rest of the evidence pipeline isn't blocked.
 
 ## See also
 
