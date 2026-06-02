@@ -114,6 +114,14 @@ describe('syncProject — native TS sync against a fixture', () => {
     const incidentYml = await fs.readFile(join(fixtureDir, '.github', 'workflows', 'incident-export.yml'), 'utf-8');
     expect(incidentYml).toContain("contains(github.event.issue.labels.*.name, 'incident')");
     expect(incidentYml).toContain('compliance/governance/incident-report-');
+    // DevAudit-Installer#98 WS2: compliance-evidence.yml now snapshots
+    // the portal's audit log per release and uploads as `audit_log`.
+    const complianceEvidenceYml = await fs.readFile(
+      join(fixtureDir, '.github', 'workflows', 'compliance-evidence.yml'),
+      'utf-8',
+    );
+    expect(complianceEvidenceYml).toContain('/api/ci/projects/fixture-app/audit-log/export');
+    expect(complianceEvidenceYml).toContain('audit_log "$AUDIT_LOG_FILE"');
     // Backward compat: with no e2e_projects/e2e_seed_command configured, the
     // authenticated-e2e token is dropped and no extra step is emitted.
     expect(ciYml).not.toContain('{{E2E_AUTHENTICATED_STEP}}');
