@@ -29,7 +29,7 @@ description: Compile test, security, and AI evidence, update RTM, create release
 | `compliance/evidence/REQ-XXX/test-scope.md` | Git | Planning artifact, reviewed in PRs |
 | `compliance/evidence/REQ-XXX/implementation-plan.md` | Git | Design decisions artifact (MEDIUM/HIGH risk), reviewed in PRs |
 | `compliance/evidence/REQ-XXX/test-plan.md` | Git | Test strategy — tests to add/update/remove, mapped to criteria |
-| `compliance/evidence/REQ-XXX/test-execution-summary.md` | Git | Gate results, test changes, coverage against test plan |
+| `compliance/evidence/REQ-XXX/test-execution-summary.md` | Git | Gate results, test changes, coverage against test plan. **ISO 29119-3 §3.5.6 Test Completion Report for THIS release** — uploaded as `evidence_type=test_report` since v0.1.32, satisfying the portal's Test Reports gate with fresh per-release evidence. |
 | `compliance/evidence/REQ-XXX/ai-use-note.md` | Git | Small markdown, needs PR review |
 | `compliance/evidence/REQ-XXX/ai-prompts.md` | Git | Small markdown, needs PR review |
 | `compliance/evidence/REQ-XXX/security-summary.md` | Git | Small markdown, needs PR review |

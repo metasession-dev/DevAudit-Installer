@@ -430,17 +430,18 @@ jobs:
               --category test_report ${FLAGS}
           fi
 
-          # Upload test summary report — precise evidence_type=test_report
-          # (was compliance_document). The portal's Compliance Gates panel
-          # filters by evidence_type, so the markdown summary belongs in the
-          # Test Reports gate alongside playwright-report.zip + coverage
-          # summary. Markdown renders inline (MarkdownRenderer); auditor
-          # reads pass/fail counts + narrative without downloading the zip.
-          # devaudit#370 follow-up.
+          # Upload project-level Test Summary Report as a baseline
+          # `compliance_document`. As of v0.1.32 this is NOT a per-release
+          # gate artefact — the Test Reports gate is satisfied by the
+          # per-REQ `test-execution-summary.md` uploaded by
+          # compliance-evidence.yml (carries fresh release-specific data).
+          # The project-level TSR remains useful as Documents-tab baseline
+          # describing the project's testing posture but no longer poses
+          # as per-release test evidence. See DevAudit-Installer#101.
           if [ -f "compliance/test-summary-report.md" ]; then
             upload test-summary-report.md \
-              {{PROJECT_SLUG}} _compliance-docs test_report compliance/test-summary-report.md \
-              --category test_report ${FLAGS}
+              {{PROJECT_SLUG}} _compliance-docs compliance_document compliance/test-summary-report.md \
+              --category planning ${FLAGS}
           fi
 
           # Upload per-AC e2e evidence screenshots, scoped to each in-scope
