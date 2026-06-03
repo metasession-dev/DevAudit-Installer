@@ -40,7 +40,9 @@ export DEVAUDIT_USER_TOKEN="mctok_..."
 devaudit install ../path/to/your-consumer-project
 ```
 
-The native onboarding flow validates the PAT, detects your stack (Node/Python) + host (Railway), creates the project + a CI API key in the portal, sets GitHub secrets and branch protection on `main`, bootstraps the hook framework, syncs the framework templates, and drops five **starter** governance docs (ROPA, DPIA, AI disclosure, incident report, periodic review) into `compliance/governance/` — then leaves the tree dirty for you to review + open an onboarding PR. **The governance starters are stubs you must replace before going to production** — see [`docs/governance-templates.md`](./docs/governance-templates.md). Full walkthrough: [`docs/onboarding.md`](./docs/onboarding.md).
+The native onboarding flow validates the PAT, detects your stack (Node/Python) + host (Railway), creates the project + a CI API key in the portal, sets GitHub secrets and branch protection on `main`, bootstraps the hook framework, and syncs the framework templates — then leaves the tree dirty for you to review + open an onboarding PR.
+
+**Governance docs are opt-in since v0.1.36.** `devaudit install` no longer auto-seeds the five starter templates (ROPA, DPIA, AI disclosure, incident report, periodic review) — the placeholders were auto-uploading as portal evidence on the first CI push, masking the project's true coverage state. Run `devaudit bootstrap-governance` explicitly when you want the starters on disk, OR invoke the new `governance-doc-author` skill (v0.1.37+) to drive authoring from scratch. **The governance starters are stubs you must replace before committing** — see [`docs/governance-templates.md`](./docs/governance-templates.md). Full walkthrough: [`docs/onboarding.md`](./docs/onboarding.md).
 
 **Joining a project that's already been onboarded?** You're the second (or nth) developer — `install` is the *operator's* command and would silently rotate the team's CI secrets. Use `devaudit join` instead. Full guide: [`sdlc/files/_common/joining-an-existing-project.md`](./sdlc/files/_common/joining-an-existing-project.md) (synced into every consumer's `SDLC/`).
 

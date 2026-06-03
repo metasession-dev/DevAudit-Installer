@@ -58,7 +58,7 @@ Read `SDLC/1-plan-requirement.md` for full details. Summary:
 2. Get next REQ ID: `grep -oP 'REQ-\d+' compliance/RTM.md | sort -t- -k2 -n | tail -1`
 3. Classify risk (use issue labels as input): LOW (internal, no auth) / MEDIUM (PII, user-facing, APIs) / HIGH (security, payments, RBAC). AI involvement raises risk by one level.
 4. Add to `compliance/RTM.md` Part B: `| REQ-XXX | #NNN | [RISK] | compliance/evidence/REQ-XXX/ | DRAFT | -- | -- |`
-5. **MEDIUM/HIGH risk:** Create `compliance/evidence/REQ-XXX/implementation-plan.md` — document approach, files, architecture decisions. **WAIT CHECKPOINT:** Present the plan to the developer. Do NOT proceed until approved.
+5. **MEDIUM/HIGH risk:** Create `compliance/evidence/REQ-XXX/implementation-plan.md` from `SDLC/Implementation_Plan_TEMPLATE.md` (synced from the framework in v0.1.37+). The template's shape is load-bearing — it carries the `## Framework attribution` section that closes **ISO 29119 §3.4** (test plan), **ISO 27001 A.8.25** (secure SDLC), **GDPR Art. 25** (data protection by design), and **EU AI Act Art. 11** (technical documentation). Don't delete sections — mark with `N/A — <reason>` if a clause genuinely doesn't apply. **WAIT CHECKPOINT:** Present the plan to the developer. Do NOT proceed until approved.
 6. Create `compliance/evidence/REQ-XXX/test-scope.md` with acceptance criteria (derived from the implementation plan for MEDIUM/HIGH).
 7. **WAIT CHECKPOINT:** Present the test scope to the developer. Do NOT proceed until confirmed.
 8. Create `compliance/evidence/REQ-XXX/test-plan.md` — map acceptance criteria to specific tests, list tests to add/update/remove. Distinguish unit tests (TDD, before implementation) from E2E tests (after implementation).
