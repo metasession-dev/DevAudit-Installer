@@ -23,20 +23,29 @@ export function substituteTokens(content: string, tokens: TokenMap): string {
  * Replace lines that contain `{{TOKEN}}` with the given block (multi-line).
  * Matches the bash `replace_block` awk helper: a line containing the token
  * is replaced wholesale with the block content (the original line is dropped).
+ *
+ * When the replacement is the empty string, the line is dropped entirely
+ * rather than leaving a blank line. Otherwise an empty `{{DATABASE_ENV}}`
+ * substitution leaves a stray newline inside `env:` blocks that YAML
+ * parsers reject (prettier flagged this on WGB v0.1.34 update).
  */
 export function substituteBlocks(content: string, blocks: TokenMap): string {
   if (Object.keys(blocks).length === 0) return content;
-  const tokenList = Object.keys(blocks).map((k) => `{{${k}}}`);
-  return content
-    .split('\n')
-    .map((line) => {
-      for (const [key, replacement] of Object.entries(blocks)) {
-        const needle = `{{${key}}}`;
-        if (line.includes(needle)) return replacement;
+  const out: string[] = [];
+  for (const line of content.split('\n')) {
+    let matched = false;
+    for (const [key, replacement] of Object.entries(blocks)) {
+      const needle = `{{${key}}}`;
+      if (line.includes(needle)) {
+        matched = true;
+        if (replacement.length > 0) out.push(replacement);
+        // empty replacement → drop the line entirely
+        break;
       }
-      return line;
-    })
-    .join('\n');
+    }
+    if (!matched) out.push(line);
+  }
+  return out.join('\n');
 }
 
 /**

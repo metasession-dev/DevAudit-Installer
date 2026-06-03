@@ -534,14 +534,7 @@ jobs:
                 # onboard via `devaudit update`.
                 ORIGIN_META=()
                 if [ -f "${PNG}.meta.json" ]; then
-                  ORIGIN=$(python3 -c "
-import json, sys
-try:
-  with open('${PNG}.meta.json') as f:
-    print(json.load(f).get('origin', ''))
-except Exception:
-  pass
-" 2>/dev/null || true)
+                  ORIGIN=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('origin',''))" "${PNG}.meta.json" 2>/dev/null || true)
                   if [ "$ORIGIN" = "feature" ] || [ "$ORIGIN" = "regression" ]; then
                     ORIGIN_META+=(--meta-key "origin=${ORIGIN}")
                   fi
