@@ -7,10 +7,10 @@ review_cadence_days: 365
 risk_level: "REPLACE — low | medium | high"
 ---
 
-> ⚠️ **STARTER TEMPLATE — REPLACE BEFORE GOING TO PRODUCTION.**
-> This file was auto-installed by `devaudit install` as a starting point.
-> It does **not** describe your project's actual data protection risks. Edit and commit.
-> Auditors will reject unedited stubs. See `docs/governance-templates.md` for guidance.
+> ⚠️ **STARTER TEMPLATE — REPLACE BEFORE COMMITTING.**
+> Installed on demand via `devaudit bootstrap-governance` (v0.1.36+) as a starting point.
+> It does **not** describe your project's actual data protection risks. Edit before committing.
+> Auditors reject unedited stubs. See `docs/governance-templates.md` for guidance.
 
 # Data Protection Impact Assessment
 
@@ -19,6 +19,22 @@ risk_level: "REPLACE — low | medium | high"
 **Evidence type:** `dpia` · **Cadence:** refresh every 365 days, or whenever the processing materially changes.
 
 > A DPIA is **mandatory** for processing likely to result in high risk to data subjects: large-scale special-category data, systematic monitoring, automated decision-making with legal effect, etc. See Art. 35(3) and your supervisory authority's "blacklist" guidance.
+
+## Uploading this artefact
+
+- **File path:** `compliance/governance/dpia.md` (or `dpia-<reqid>.md` for a per-REQ DPIA tied to a HIGH-risk requirement)
+- **Upload trigger:** automatic — on every push to `develop` that touches `compliance/**`, `compliance-evidence.yml` uploads this file as `dpia` evidence.
+- **Verify after merge:** open `/projects/<slug>/compliance`. The **GDPR Art. 35** clause should flip MISSING → COVERED within ~2 minutes.
+- **Refresh cadence:** annually (365 days), or sooner whenever the assessed processing materially changes (new data category, new recipient, new automated-decision path).
+
+## Framework checklist — GDPR Art. 35
+
+- [ ] §1 Description of processing: purpose + scope + lawful basis + data flow diagram or text-equivalent
+- [ ] §2 Necessity + proportionality: justified why this processing is needed, alternatives considered
+- [ ] §3 Risks to rights and freedoms: each risk → likelihood + severity + affected data subjects
+- [ ] §4 Measures to address the risks: each risk has a concrete mitigation (technical or organisational)
+- [ ] §5 Consultation: DPO + affected stakeholders consulted (or "not applicable — sole-dev project" stated explicitly)
+- [ ] §6 Sign-off: data controller approval recorded with date
 
 ## 1. Description of the processing
 

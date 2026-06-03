@@ -7,16 +7,34 @@ review_cadence_days: 365
 processing_activities: []
 ---
 
-> ⚠️ **STARTER TEMPLATE — REPLACE BEFORE GOING TO PRODUCTION.**
-> This file was auto-installed by `devaudit install` as a starting point.
-> It does **not** describe your project's actual processing activities. Edit and commit.
-> Auditors will reject unedited stubs. See `docs/governance-templates.md` for guidance.
+> ⚠️ **STARTER TEMPLATE — REPLACE BEFORE COMMITTING.**
+> Installed on demand via `devaudit bootstrap-governance` (v0.1.36+) as a starting point.
+> It does **not** describe your project's actual processing activities. Edit before committing.
+> Auditors reject unedited stubs. See `docs/governance-templates.md` for guidance.
 
 # Records of Processing Activities
 
 **Framework coverage:** `GDPR.Art-30` (Records of processing activities)
 
 **Evidence type:** `ropa` · **Cadence:** refresh every 365 days (portal flags as `expired` after)
+
+## Uploading this artefact
+
+- **File path:** `compliance/governance/ropa.md`
+- **Upload trigger:** automatic — on every push to `develop` that touches `compliance/**`, the `compliance-evidence.yml` workflow uploads this file as `ropa` evidence via the `upload_governance` helper.
+- **Verify after merge:** open `/projects/<slug>/compliance` on the DevAudit portal. The **GDPR Art. 30** clause should flip MISSING → COVERED within ~2 minutes.
+- **Refresh cadence:** annually (365 days). The portal flags the clause as `expired` once the most-recent ropa upload is older than that window.
+
+## Framework checklist — GDPR Art. 30
+
+Before committing, confirm each item below — if any is unchecked, the document is not yet audit-ready:
+
+- [ ] Controller's legal name + contact + DPO listed
+- [ ] At least one processing activity documented (no placeholder "Activity 1" row left in)
+- [ ] Each activity carries: purpose, lawful basis (Art. 6), data subject categories, data categories, recipients, retention, transfers
+- [ ] Special categories (Art. 9) flagged where applicable
+- [ ] Cross-border transfer mechanism named where data leaves the EEA
+- [ ] `last_reviewed_at` frontmatter matches the actual review date
 
 ## Controller
 

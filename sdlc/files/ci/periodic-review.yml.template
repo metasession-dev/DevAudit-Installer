@@ -210,9 +210,62 @@ jobs:
           # Open PR (or update existing).
           EXISTING=$(gh pr list --head "${BRANCH}" --json number --jq '.[0].number' || true)
           if [ -z "$EXISTING" ]; then
+            # Two-part PR body:
+            # 1. The 60% operator-fill checklist with per-clause attribution
+            # 2. The auto-filled section list (40% workflow-derived)
+            # Both are inline so the reviewer can tick boxes and the
+            # auto-generated half stays visible. Per-clause links use the
+            # consumer's portal base URL — fall back to the SDLC docs when
+            # DEVAUDIT_BASE_URL isn't set in the workflow env.
+            BASE="${DEVAUDIT_BASE_URL:-https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/governance-templates.md}"
+            PR_BODY=$(cat <<PRBODY
+Auto-generated quarterly periodic-review for **${REVIEW_ID}** by the \`Periodic Review\` workflow.
+
+## What auto-filled (~40%)
+
+- Review-period metrics: releases shipped, gate pass rate, SAST + dependency findings, audit-log volume, open issues
+- Frontmatter (\`review_id\`, period dates, generated_at)
+- Section 2 control-area headers wired to the right framework clauses
+
+## What still needs the operator (~60%)
+
+Each item below corresponds to a section of the doc. **Tick the box once the section is non-stub** — leaving REPLACE markers in place will fail audit review and the merge bar.
+
+### §3 Review notes
+- [ ] Qualitative observations on the review period (≥2 sentences; no \`REPLACE\` text remaining)
+- [ ] Cross-reference any incidents from this period (\`compliance/governance/incident-report-*.md\`)
+
+### §4 Control-effectiveness judgement
+*Closes \`SOC2.CC4.1\` + \`ISO27001.A.12.1\` only when ALL control areas have a non-stub judgement.*
+
+- [ ] Access control (ISO 27001 A.5.15) — effective / partially / not + 1-line evidence
+- [ ] Secure SDLC (ISO 27001 A.8.25) — judgement + evidence
+- [ ] Secure coding (ISO 27001 A.8.28) — judgement + evidence (SAST + dep-audit pass rate)
+- [ ] Security testing (ISO 27001 A.8.29) — judgement + evidence (E2E pass rate)
+- [ ] Change management (ISO 27001 A.8.32 + SOC 2 CC8.1) — judgement + evidence (four-eyes approvals count)
+- [ ] Monitoring activities (ISO 27001 A.8.16 + EU AI Act Art. 12) — judgement + evidence (audit-log volume / coverage)
+
+### §5 Follow-up actions
+- [ ] Each material finding → owner → due date (or "none for this period" stated explicitly)
+- [ ] Carry-over actions from last quarter's review → status updated
+
+### §6 Sign-off
+- [ ] Reviewer name + date (must be different from the actor who made code changes that the review is judging)
+- [ ] Approver name + date (when \`risk_tier\` is medium or higher — dual-actor required)
+
+## Closes once merged
+
+- \`SOC2.CC4.1\` (Monitoring of internal controls)
+- \`ISO27001.A.12.1\` (Operational procedures and responsibilities)
+
+Verify at \`${BASE}/projects/<slug>/compliance\` after the PR-merge push lands on develop — both clauses should flip MISSING → COVERED within ~2 minutes. Stays COVERED for 365 days (portal's \`freshnessDays\`), then flips to EXPIRED until the next quarterly review.
+
+See [\`docs/governance-templates.md\`](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/governance-templates.md#soc-2--trust-services-criteria) for full guidance.
+PRBODY
+)
             gh pr create --base develop --head "${BRANCH}" \
               --title "chore(compliance): periodic review ${REVIEW_ID}" \
-              --body "Auto-generated quarterly periodic-review for **${REVIEW_ID}** by the \`Periodic Review\` workflow.\n\n**Required before merge:**\n- [ ] Replace \`REPLACE — …\` markers in the **Review notes** section\n- [ ] Fill in control-effectiveness judgement for each control area\n- [ ] Add reviewer + approver names (dual-actor)\n- [ ] List follow-up actions with owners + dates\n\nSee [\`docs/governance-templates.md\`](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/governance-templates.md#soc-2--trust-services-criteria) (SDLC repo) for guidance.\n\nCloses \`SOC2.CC4.1\` + \`ISO27001.A.12.1\` for the period once the PR lands on develop."
+              --body "$PR_BODY"
           else
             echo "PR #${EXISTING} already open for this period — branch updated in place."
           fi
