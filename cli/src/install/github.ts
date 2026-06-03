@@ -32,7 +32,7 @@ export async function setGithubSecrets(
 ): Promise<StepResult> {
   if (ctx.installMode === 'developer') {
     return {
-      step: '7/12 Set GitHub secrets and variables',
+      step: '7/11 Set GitHub secrets and variables',
       status: 'skipped',
       message:
         'developer mode — leaving DEVAUDIT_USER_TOKEN, DEVAUDIT_API_KEY, DEVAUDIT_BASE_URL, and the production-URL secret unchanged. Use --force-team-config to rotate them as the project operator.',
@@ -42,7 +42,7 @@ export async function setGithubSecrets(
   if (ctx.dryRun) {
     const summary = operations.map((op) => `${op.kind}:${op.name}`).join(', ');
     return {
-      step: '7/12 Set GitHub secrets and variables',
+      step: '7/11 Set GitHub secrets and variables',
       status: 'planned',
       message: `would set ${summary} via ${provider.name} provider`,
     };
@@ -58,5 +58,5 @@ export async function setGithubSecrets(
   }
   const skipped = buildSkipped(plan);
   const detail = `${operations.length} item(s) set${skipped.length > 0 ? ` (skipped: ${skipped.join('; ')})` : ''}`;
-  return { step: '7/12 Set GitHub secrets and variables', status: 'ok', message: detail };
+  return { step: '7/11 Set GitHub secrets and variables', status: 'ok', message: detail };
 }

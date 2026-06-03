@@ -3,7 +3,15 @@ import { join, resolve } from 'node:path';
 import { ensureDir, isFile } from '../lib/fs-utils.js';
 import type { InstallContext, StepResult } from './types.js';
 
-const STEP = '11/12 Bootstrap governance docs';
+/**
+ * Tightened view of `InstallContext` — only the fields this function
+ * actually reads. Lets the standalone `devaudit bootstrap-governance`
+ * command construct a minimal context without faking auth tokens or
+ * install-mode state it doesn't have.
+ */
+type BootstrapCtx = Pick<InstallContext, 'projectPath' | 'installerRoot' | 'dryRun'>;
+
+const STEP = 'Bootstrap governance docs';
 const SOURCE_REL = 'sdlc/files/_common/governance';
 const TARGET_REL = 'compliance/governance';
 
@@ -30,7 +38,7 @@ const TARGET_REL = 'compliance/governance';
  * See `docs/governance-templates.md` for the per-framework mapping the
  * operator needs to honour when replacing the starter content.
  */
-export async function bootstrapGovernanceDocs(ctx: InstallContext): Promise<StepResult> {
+export async function bootstrapGovernanceDocs(ctx: BootstrapCtx): Promise<StepResult> {
   const sourceDir = resolve(ctx.installerRoot, SOURCE_REL);
   const targetDir = resolve(ctx.projectPath, TARGET_REL);
   let templates: readonly string[] = [];

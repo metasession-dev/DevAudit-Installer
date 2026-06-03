@@ -189,32 +189,15 @@ describe('runInstall — native TS install against a node fixture', () => {
       expect(stepByStart('8/')?.status).toBe('ok');
       expect(stepByStart('9/')?.status).toBe('ok');
       expect(stepByStart('10/')?.status).toBe('ok');
-      expect(stepByStart('11/')?.status).toBe('ok');
-      // step 11 (bootstrap governance docs) drops 5 starters under compliance/governance/
-      const govNames = await fs.readdir(join(dir, 'compliance', 'governance'));
-      expect(govNames.sort()).toEqual([
-        'ai-disclosure.md',
-        'dpia.md',
-        'incident-report.md',
-        'periodic-review.md',
-        'ropa.md',
-      ]);
-      const ropaBody = await fs.readFile(join(dir, 'compliance', 'governance', 'ropa.md'), 'utf8');
-      expect(ropaBody).toMatch(/STARTER TEMPLATE/);
-      // Idempotency: rerun install — operator edit survives, no overwrite.
-      const edited = '# my edited ropa\n\nactual content, not a stub.\n';
-      await fs.writeFile(join(dir, 'compliance', 'governance', 'ropa.md'), edited, 'utf8');
-      const rerun = await runInstall({
-        path: dir,
-        dryRun: false,
-        nonInteractive: true,
-        provider: makeFakeProvider(),
-      });
-      const rerun11 = rerun.steps.find((s) => s.step.startsWith('11/'));
-      expect(rerun11?.status).toBe('ok');
-      expect(rerun11?.data).toMatchObject({ skipped: expect.arrayContaining(['ropa.md']) });
-      const preserved = await fs.readFile(join(dir, 'compliance', 'governance', 'ropa.md'), 'utf8');
-      expect(preserved).toBe(edited);
+      // v0.1.36: governance-doc auto-seed removed from the default
+      // install flow. compliance/governance/ should NOT exist after a
+      // fresh install — operators run `devaudit bootstrap-governance`
+      // explicitly when they want the starter templates on disk.
+      const govDirExists = await fs
+        .stat(join(dir, 'compliance', 'governance'))
+        .then(() => true)
+        .catch(() => false);
+      expect(govDirExists).toBe(false);
       // sdlc-config.json was rewritten by step 4
       const written = JSON.parse(await fs.readFile(join(dir, 'sdlc-config.json'), 'utf-8'));
       expect(written.stack).toBe('node');
@@ -438,7 +421,7 @@ describe('runInstall — native TS install against a node fixture', () => {
       expect(step7?.status).toBe('ok');
       const stepDone = report.steps.find((s) => s.step.includes('Done'));
       // Operator copy ('Done', not 'Done (developer mode)').
-      expect(stepDone?.step).toBe('12/12 Done');
+      expect(stepDone?.step).toBe('11/11 Done');
     } finally {
       await fs.rm(dir, { recursive: true, force: true });
     }

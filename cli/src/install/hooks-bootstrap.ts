@@ -25,7 +25,7 @@ export async function bootstrapHooks(ctx: InstallContext, plan: InstallPlan): Pr
   if (ctx.dryRun) {
     const action = plan.stack === 'python' ? 'pre-commit install' : 'npx husky init';
     return {
-      step: '8/12 Bootstrap hook framework',
+      step: '8/11 Bootstrap hook framework',
       status: 'planned',
       message: `would run \`${action}\` in ${ctx.projectPath}`,
     };
@@ -37,28 +37,28 @@ export async function bootstrapHooks(ctx: InstallContext, plan: InstallPlan): Pr
 async function bootstrapPython(ctx: InstallContext): Promise<StepResult> {
   if (!(await commandExists('pre-commit'))) {
     return {
-      step: '8/12 Bootstrap hook framework',
+      step: '8/11 Bootstrap hook framework',
       status: 'warn',
       message: 'pre-commit not on PATH — run `pip install pre-commit && pre-commit install` manually',
     };
   }
   await execa('pre-commit', ['install'], { cwd: ctx.projectPath, stdio: 'inherit' });
   await execa('pre-commit', ['install', '--hook-type', 'commit-msg'], { cwd: ctx.projectPath, stdio: 'inherit' });
-  return { step: '8/12 Bootstrap hook framework', status: 'ok', message: 'pre-commit hooks installed' };
+  return { step: '8/11 Bootstrap hook framework', status: 'ok', message: 'pre-commit hooks installed' };
 }
 
 async function bootstrapNode(ctx: InstallContext): Promise<StepResult> {
   const huskyDir = join(ctx.projectPath, '.husky');
   if (await dirExists(huskyDir)) {
-    return { step: '8/12 Bootstrap hook framework', status: 'ok', message: '.husky/ already exists' };
+    return { step: '8/11 Bootstrap hook framework', status: 'ok', message: '.husky/ already exists' };
   }
   if (!(await commandExists('npx'))) {
     return {
-      step: '8/12 Bootstrap hook framework',
+      step: '8/11 Bootstrap hook framework',
       status: 'warn',
       message: 'npx not on PATH — run `npx husky init` manually',
     };
   }
   await execa('npx', ['husky', 'init'], { cwd: ctx.projectPath, stdio: 'inherit' });
-  return { step: '8/12 Bootstrap hook framework', status: 'ok', message: '.husky/ bootstrapped' };
+  return { step: '8/11 Bootstrap hook framework', status: 'ok', message: '.husky/ bootstrapped' };
 }
