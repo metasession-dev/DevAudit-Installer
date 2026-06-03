@@ -193,6 +193,20 @@ Then bucket each failure:
 
 **Then check for missed requirements.** For each numbered acceptance criterion from Phase 2, confirm at least one *passing* test covers it. An AC with no passing test — because no test was written, or because the test fails — is a missed requirement. File it.
 
+### Phase 7 — Regression-pack handoff
+
+After Phase 6 succeeds — green run, all ACs proved, defects filed for anything missing — the new spec(s) you authored move into the project's regression pack. There is **no separate graduation step**. The pack is defined as:
+
+> **Every `*.spec.ts` (and `*.spec.tsx`) under `tests/e2e/` or `e2e/`.**
+
+There is no `regression/` sub-directory, no `@regression` tag, no manifest file. Being committed and merged to `develop` *is* the graduation step. Once that happens:
+
+1. The next CI run (on this branch's PR, or on `develop` after merge) executes the new spec alongside every existing one.
+2. The evidenceShot helper sees `process.env.E2E_NEW_SPECS` (computed by CI as `git diff --diff-filter=A <merge-base>...HEAD`) and tags this branch's captures as `origin: 'feature'`.
+3. Post-merge, develop runs see an empty `E2E_NEW_SPECS` and tag every capture as `origin: 'regression'`. The original feature-branch captures stay tagged `feature` as the historical proof of original landing; subsequent develop runs accumulate `regression` captures alongside.
+
+You don't need to do anything explicit for this step — it's a property of the pipeline, not an action. Surface it in the final report so the reviewer knows the new tests are now load-bearing for every future release.
+
 ### Filing defects
 
 Use whatever tracker integration you found in Phase 1: `gh issue create`, `glab issue create`, a Jira or Linear MCP tool, `az boards work-item create`. If nothing is available, produce a markdown report with each defect formatted ready to paste.
@@ -234,7 +248,7 @@ import { evidenceShot } from './helpers/evidence';
 test('AC1: edit dialog opens with fields pre-filled', async ({ page }) => {
   await openEditDialog(page, item.id);
   await expect(dialog.locator('#name')).toHaveValue(item.name);
-  await evidenceShot(page, 'REQ-037', 'AC1-edit-dialog-prefilled');
+  await evidenceShot(page, 'REQ-037', 1, 'edit-dialog-prefilled');
   // ...rest of test
 });
 ```
@@ -242,11 +256,14 @@ test('AC1: edit dialog opens with fields pre-filled', async ({ page }) => {
 **Discipline:**
 
 - Call `evidenceShot` **immediately after** the AC-proving assertion, before navigating, closing dialogs, or any further interaction.
-- Slug as `AC<n>-<what-this-proves>` — the filename documents the claim.
+- AC number is a separate argument (`ac: number`) — the helper composes the filename `REQ-XXX-AC<n>-<slug>.png`. The slug describes what the screenshot proves (`edit-dialog-prefilled`), NOT the AC number.
+- Slug is kebab-case lowercase (`[a-z0-9-]+`). Capitalised slugs, underscores, or spaces throw.
 - One screenshot per AC, not per test.
 - Failure forensics stays untouched (`screenshot: 'only-on-failure'` + `trace: 'on-first-retry'`).
 
-The helper is shipped automatically into `e2e/helpers/evidence.ts` by the SDLC sync (node-stack consumers). Output lands at `compliance/evidence/<REQ-ID>/screenshots/<slug>.png` — commit these PNGs as part of the evidence pack so reviewers can corroborate the test-plan AC mapping.
+The helper is shipped automatically into `e2e/helpers/evidence.ts` by the SDLC sync (node-stack consumers). Output lands at `compliance/evidence/<REQ-ID>/screenshots/REQ-XXX-AC<n>-<slug>.png` — commit these PNGs as part of the evidence pack so reviewers can corroborate the test-plan AC mapping.
+
+The helper also writes a sidecar `<filename>.meta.json` containing the AC mapping + the screenshot's **origin** — `feature` if the spec was added on the current branch, `regression` if the spec already existed. The consumer's CI passes `origin` through to the DevAudit portal as evidence metadata so the release-detail page can render feature vs regression captures distinctly. Auto-detected from `process.env.E2E_NEW_SPECS` — no manual tagging required.
 
 The canonical helper source lives at `references/evidence.ts` in this skill.
 

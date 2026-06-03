@@ -72,6 +72,11 @@ EVIDENCE_CATEGORY=""
 RELEASE_TITLE=""
 CHANGE_TYPE=""
 GATE_STATUS=""
+# Repeatable `--meta-key key=value` accumulator. Each pair gets merged
+# into the metadata JSON sent to the portal. Used by the screenshot
+# upload loop to pass `origin=feature|regression` from the per-PNG
+# sidecar JSON written by the evidenceShot helper.
+META_KEYS=()
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -91,6 +96,17 @@ while [ "$#" -gt 0 ]; do
     # ran-and-failed != never-ran. Unknown values dropped server-side.
     # DevAudit-Installer#96.
     --gate-status) GATE_STATUS="$2"; shift 2 ;;
+    # --meta-key key=value (repeatable). Merged into the metadata JSON
+    # before posting. Validates the `key=value` shape; rejects bare
+    # keys without `=`.
+    --meta-key)
+      if [[ "$2" != *=* ]]; then
+        echo "Error: --meta-key requires key=value (got: $2)"
+        exit 1
+      fi
+      META_KEYS+=("$2")
+      shift 2
+      ;;
     *) echo "Unknown option: $1"; exit 1 ;;
   esac
 done
@@ -118,24 +134,27 @@ fi
 DEVAUDIT_BASE_URL="${DEVAUDIT_BASE_URL%/}"
 
 # --- Build metadata JSON ---
-METADATA="{}"
-if [ -n "$GIT_SHA" ] || [ -n "$CI_RUN_ID" ] || [ -n "$BRANCH" ]; then
-  METADATA="{"
-  FIRST=true
-  if [ -n "$GIT_SHA" ]; then
-    METADATA="${METADATA}\"gitSha\":\"${GIT_SHA}\""
-    FIRST=false
-  fi
-  if [ -n "$CI_RUN_ID" ]; then
-    [ "$FIRST" = false ] && METADATA="${METADATA},"
-    METADATA="${METADATA}\"ciRunId\":\"${CI_RUN_ID}\""
-    FIRST=false
-  fi
-  if [ -n "$BRANCH" ]; then
-    [ "$FIRST" = false ] && METADATA="${METADATA},"
-    METADATA="${METADATA}\"branch\":\"${BRANCH}\""
-  fi
-  METADATA="${METADATA}}"
+# Assemble entries first; only emit `{ ... }` if at least one field is
+# set. Each entry is a `"key":"value"` JSON pair with the value
+# json-escaped (quotes + backslashes).
+json_escape() {
+  printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'
+}
+META_ENTRIES=()
+[ -n "$GIT_SHA" ] && META_ENTRIES+=("\"gitSha\":\"$(json_escape "$GIT_SHA")\"")
+[ -n "$CI_RUN_ID" ] && META_ENTRIES+=("\"ciRunId\":\"$(json_escape "$CI_RUN_ID")\"")
+[ -n "$BRANCH" ] && META_ENTRIES+=("\"branch\":\"$(json_escape "$BRANCH")\"")
+for KV in "${META_KEYS[@]}"; do
+  KEY="${KV%%=*}"
+  VAL="${KV#*=}"
+  META_ENTRIES+=("\"$(json_escape "$KEY")\":\"$(json_escape "$VAL")\"")
+done
+if [ "${#META_ENTRIES[@]}" -gt 0 ]; then
+  IFS=','
+  METADATA="{${META_ENTRIES[*]}}"
+  unset IFS
+else
+  METADATA="{}"
 fi
 
 # --- Collect files ---
