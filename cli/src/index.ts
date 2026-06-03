@@ -10,6 +10,7 @@ import { runPush } from './commands/push.js';
 import { runInstallCommand } from './commands/install.js';
 import { runJoinCommand } from './commands/join.js';
 import { runUpdate } from './commands/update.js';
+import { runBootstrapGovernance } from './commands/bootstrap-governance.js';
 import { makeStub } from './commands/stub.js';
 import { discoverPlugins, registerPluginCommands } from './lib/plugin/index.js';
 import { runPluginList } from './commands/plugin/list.js';
@@ -167,6 +168,15 @@ export async function main(argv: readonly string[]): Promise<void> {
         });
       },
     );
+  program
+    .command('bootstrap-governance [path]')
+    .description(
+      'Copy governance starter templates (ropa, dpia, ai-disclosure, periodic-review, incident-report) into compliance/governance/. Opt-in since v0.1.36 — auto-seed during install was removed because the placeholders auto-uploaded as evidence on first CI push.',
+    )
+    .action(async (path?: string, _opts?: unknown, cmd?: Command) => {
+      const opts = (cmd?.optsWithGlobals() ?? {}) as { dryRun?: boolean };
+      await runBootstrapGovernance({ path, dryRun: opts.dryRun });
+    });
   program
     .command('doctor')
     .description('Verify the local install: required tools on PATH, auth state, config validity')

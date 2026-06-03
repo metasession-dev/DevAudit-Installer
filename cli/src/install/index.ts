@@ -21,7 +21,9 @@ import { setGithubSecrets } from './github.js';
 import { bootstrapHooks } from './hooks-bootstrap.js';
 import { configureBranchProtection } from './branch-protection.js';
 import { syncTemplates } from './sync-templates.js';
-import { bootstrapGovernanceDocs } from './bootstrap-governance.js';
+// `bootstrapGovernanceDocs` is no longer called from the default install
+// flow; consumers invoke `devaudit bootstrap-governance` on demand. Kept
+// importable so the standalone command can still use it.
 import { doneReport } from './done-report.js';
 import type { InstallContext, InstallMode, InstallPlan, StepResult } from './types.js';
 
@@ -106,7 +108,7 @@ export async function runInstall(options: RunInstallOptions): Promise<InstallRep
     steps.push(await record(log, setGithubSecrets(ctx, plan, providerResolution.provider)));
   } else {
     const skipped: StepResult = {
-      step: '7/12 Set GitHub secrets and variables',
+      step: '7/11 Set GitHub secrets and variables',
       status: 'skipped',
       message: providerResolution.reason ?? 'no git provider available',
     };
@@ -118,7 +120,7 @@ export async function runInstall(options: RunInstallOptions): Promise<InstallRep
     steps.push(await record(log, configureBranchProtection(ctx, providerResolution.provider)));
   } else {
     const skipped: StepResult = {
-      step: '9/12 Configure branch protection',
+      step: '9/11 Configure branch protection',
       status: 'skipped',
       message: providerResolution.reason ?? 'no git provider available',
     };
@@ -126,7 +128,12 @@ export async function runInstall(options: RunInstallOptions): Promise<InstallRep
     log.warn(`[${skipped.step}] SKIPPED ${skipped.message}`);
   }
   steps.push(await record(log, syncTemplates(ctx)));
-  steps.push(await record(log, bootstrapGovernanceDocs(ctx)));
+  // Governance-doc auto-seed (v0.1.30 → v0.1.35) is now OPT-IN ONLY.
+  // Operators ran `devaudit install` and the next CI push uploaded five
+  // placeholder governance docs (ropa.md / dpia.md / etc.) as compliance
+  // evidence on day one — the portal then read those starters as the
+  // canonical answer, which they aren't. Run `devaudit bootstrap-governance`
+  // explicitly when you actually want the starters on disk.
   const done = doneReport(ctx, plan);
   steps.push(done);
   log.success(`[${done.step}]`);
@@ -263,7 +270,7 @@ async function record(log: ReturnType<typeof logger>, p: Promise<StepResult>): P
 
 function planSummary(plan: InstallPlan): StepResult {
   return {
-    step: '3/12 Configure',
+    step: '3/11 Configure',
     status: 'ok',
     message: `slug=${plan.projectSlug} runtime=${plan.runtimeVersion}`,
     data: { ...plan },

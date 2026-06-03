@@ -51,7 +51,7 @@ export async function detectStack(ctx: InstallContext): Promise<{ result: StepRe
 
 function ok(stack: 'node' | 'python', wd: string): StepResult {
   return {
-    step: '2/12 Detect stack',
+    step: '2/11 Detect stack',
     status: 'ok',
     message: `stack=${stack} working_directory=${wd} host=railway`,
     data: { stack, workingDirectory: wd, host: 'railway' },
