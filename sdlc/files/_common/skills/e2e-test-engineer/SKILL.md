@@ -220,6 +220,75 @@ Each filed issue needs:
 - **Evidence** — link or path to the failing test, error output, screenshot, trace.
 - **Link back** to the originating issue/PR.
 - **Severity** — your honest call: blocker, major, minor. Don't inflate.
+- **`### Framework attribution`** section — the clauses this defect closes when its incident report lands. Always lists `ISO29119.3.5.4` as baseline; additional clauses depending on classification below.
+
+#### Framework classification + the `incident` label
+
+Every defect filed from Phase 6 becomes `incident_report` evidence when (a) the issue is labelled `incident` and (b) the issue is closed. The flow: closed-with-label → `incident-export.yml` exports the body to `compliance/governance/incident-report-<N>.md` → `compliance-evidence.yml` uploads as `incident_report` evidence → portal flips the attributed clauses MISSING → COVERED.
+
+Classify the defect against this table when filing — the canonical version lives at `governance-doc-author/references/incident-classification.md`, mirrored here for the e2e workflow:
+
+| Defect characteristic | Frameworks/clauses attributed |
+|---|---|
+| **Any test failure / defect** (baseline — always) | `ISO29119.3.5.4` Test incident report |
+| **Ops impact** (downtime, persistent errors, perf regression, data corruption) | + `SOC2.CC7.2` System monitoring and incident response |
+| **Security vulnerability** (auth bypass, injection, data exposure) | + `SOC2.CC7.2` + relevant ISO 27001 controls |
+| **Personal data exposed / lost / mishandled** | + `GDPR.Art-33` (always — 72h supervisory notification) + `GDPR.Art-34` (when data subjects need notification) |
+| **AI/ML failure** (model hallucination, biased output, oversight bypass) | + relevant EU AI Act articles (`Art-9` risk, `Art-14` human oversight, `Art-15` accuracy/robustness) |
+
+**Baseline rule:** the first row is **mandatory**. Even a defect with no specific framework impact STILL produces a valid incident_report attributed to `ISO29119.3.5.4`. Never silently drop the artefact because "it's just a bug".
+
+**Apply the `incident` label at filing time** for defects that warrant incident_report evidence — don't wait for the operator to add it later. Confirm with the operator first (per the **Confirm before destructive or public actions** principle).
+
+If the `incident` label doesn't exist yet on the repo, create it idempotently:
+
+```bash
+gh label list --json name --jq '.[].name' | grep -qx incident || \
+  gh label create incident --color 'B60205' --description 'Operational, test, or compliance incident; close to auto-archive as portal evidence'
+```
+
+Then file with `--label incident,<existing-labels>`.
+
+#### Issue body template
+
+Embed the `### Framework attribution` section near the end of every defect issue body so the auto-export PR (after close) inherits the attribution:
+
+```markdown
+### Framework attribution
+
+This defect, once closed with the `incident` label, will be auto-exported as `incident_report` evidence and attribute to:
+
+- [x] `ISO29119.3.5.4` (baseline — every incident_report)
+- [ ] `SOC2.CC7.2` — ops impact: <REPLACE — yes/no, with one-line rationale>
+- [ ] `GDPR.Art-33` — personal data scope: <REPLACE — yes/no>
+- [ ] `GDPR.Art-34` — data-subject notification required: <REPLACE — yes/no>
+- [ ] `EUAIA.Art-9 / Art-14 / Art-15` — AI failure: <REPLACE — yes/no, which article(s)>
+
+Once closed, the `incident-export.yml` workflow exports this issue's body to `compliance/governance/incident-report-<N>.md`, auto-files a PR with the GDPR triage + sign-off sections to fill in. Merge that PR → `compliance-evidence.yml` uploads as `incident_report`.
+```
+
+Pre-tick boxes you're confident about. Leave the operator-judgement ones (GDPR triage, AI-failure classification) for the operator to confirm in the export PR.
+
+#### Worked examples
+
+**Example 1 — Non-PII, non-security defect.** A unit-conversion bug rounds metric prices incorrectly. Found by failing e2e. No data exposure, no service impact beyond cosmetic.
+
+- Apply `incident` label: **yes** (every defect produces an incident_report on close).
+- Pre-ticked attribution: `ISO29119.3.5.4` only.
+- Operator confirms in the export PR: no SOC 2 / GDPR / EU AI Act ticks added.
+- Result: valid incident_report closing the baseline clause. Don't pad with false ticks.
+
+**Example 2 — PII exposure via misconfigured RLS.** Users see other users' applications. Found via e2e regression. ~3,000 users affected over 6 hours.
+
+- Apply `incident` label: **yes**.
+- Pre-ticked attribution: `ISO29119.3.5.4` + `SOC2.CC7.2` + `GDPR.Art-33`.
+- Leave `GDPR.Art-34` unticked — high-risk threshold needs operator + DPO judgement.
+- Severity: blocker.
+- The export PR will surface the GDPR triage section for the operator + DPO to fill in (data-subject count, notification method, 72h-window timestamp).
+
+#### Skipping the issue path — direct incident report
+
+When the incident wasn't found by an e2e run (e.g. an ops event surfaced externally, or a retrospective documentation of an event the team handled outside the tracker), file directly using the `governance-doc-author` skill against `compliance/governance/incident-report.md.template`. Same classification table applies; the doc gets committed, `compliance-evidence.yml` auto-uploads it.
 
 Show the user the full set of issues you're about to file. Get confirmation. Then file them.
 

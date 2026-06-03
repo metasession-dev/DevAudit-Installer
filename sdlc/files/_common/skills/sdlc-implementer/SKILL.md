@@ -148,7 +148,18 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
 2. **Classify risk** per `Test_Policy.md` §Risk-Based Testing. Emit a one-paragraph rationale citing the signals you used (auth surface, financial calc, data egress, RBAC, AI decisioning, etc.).
 3. **Assign REQ-XXX.** Inspect `compliance/RTM.md` for existing entries; take the next free number. If the issue references an existing REQ, use that instead.
 4. **Detect over-scoping.** If the issue spans clearly distinct deliverables (e.g. "build SAML SSO + reorganise the admin dashboard + migrate from Postgres 14 to 16"), halt with a clear message asking the user to split the issue into separate ones. Do not proceed past Phase 1.
-5. **Write the implementation plan.** Create `compliance/plans/REQ-XXX/implementation-plan.md` per the stage-1 template (sections: context, acceptance criteria, technical approach, security considerations, dependencies, test scope). For HIGH/CRITICAL also include: threat model (against STRIDE categories applicable to the touched surfaces), four-eyes attestation slot, rollback plan.
+5. **Write the implementation plan.** Create `compliance/plans/REQ-XXX/implementation-plan.md` from `sdlc/files/_common/Implementation_Plan_TEMPLATE.md` (synced into the consumer's `SDLC/` directory at install). The template's shape is load-bearing — it carries the **Framework attribution** section that closes four framework clauses on upload:
+
+   | Clause | What the plan must contain |
+   |---|---|
+   | **ISO 29119 §3.4** Test Plan | Acceptance criteria + verification strategy per AC. |
+   | **ISO 27001 A.8.25** Secure SDLC | Threat model + secrets / dependency considerations. |
+   | **GDPR Art. 25** Data protection by design | Per-purpose data flows + lawful basis + retention. Explicit "no personal data" callout if not applicable. |
+   | **EU AI Act Art. 11** Technical documentation | Model provenance + oversight path when AI is in scope. Explicit "no AI in scope" callout if not. |
+
+   For HIGH/CRITICAL also include: threat model (against STRIDE categories applicable to the touched surfaces), four-eyes attestation slot, rollback plan — the template has slots for all of these.
+
+   **Don't delete sections** — mark with `N/A — <reason>` if a clause genuinely doesn't apply (e.g. UI-only change with no personal-data scope). Empty stubs commit-then-upload as placeholder evidence and break the audit trail.
 6. **Update `compliance/RTM.md`** with the new entry: REQ-XXX, title, risk class, linked issue, linked test cases (placeholder).
 7. **Post plan summary as an issue comment.** Format: TL;DR; Risk class + signals; Acceptance criteria; Technical approach (one paragraph); Dependencies; Test scope.
 8. **Checkpoint** — pause for human approval **iff** risk class is HIGH or CRITICAL. LOW and MEDIUM pass through to Phase 2 automatically. The checkpoint can be forced on for all classes via the `--require-plan-approval` flag (or `DEVAUDIT_REQUIRE_PLAN_APPROVAL=1` env var) for orgs that want it always-on.

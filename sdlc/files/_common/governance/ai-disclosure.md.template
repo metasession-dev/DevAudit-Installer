@@ -7,10 +7,10 @@ review_cadence_days: 180
 risk_class: "REPLACE — minimal | limited | high | unacceptable"
 ---
 
-> ⚠️ **STARTER TEMPLATE — REPLACE BEFORE GOING TO PRODUCTION.**
-> This file was auto-installed by `devaudit install` as a starting point.
-> It does **not** describe your project's actual AI use. Edit and commit.
-> Auditors will reject unedited stubs. See `docs/governance-templates.md` for guidance.
+> ⚠️ **STARTER TEMPLATE — REPLACE BEFORE COMMITTING.**
+> Installed on demand via `devaudit bootstrap-governance` (v0.1.36+) as a starting point.
+> It does **not** describe your project's actual AI use. Edit before committing.
+> Auditors reject unedited stubs. See `docs/governance-templates.md` for guidance.
 
 # AI Use Disclosure — Provision of information to deployers
 
@@ -19,6 +19,23 @@ risk_class: "REPLACE — minimal | limited | high | unacceptable"
 **Evidence type:** `ai_disclosure` · **Cadence:** refresh every 180 days, or whenever an AI tool / model / prompt-class is added or substantively changed.
 
 > The EU AI Act requires providers to give deployers (the people who put the AI system into use in their professional activity) **clear, comprehensive, accurate and unambiguous** information about the system's capabilities, limitations, and intended use. This file is that disclosure for our project — both for AI we develop and for third-party AI we incorporate.
+
+## Uploading this artefact
+
+- **File path:** `compliance/governance/ai-disclosure.md`
+- **Upload trigger:** automatic — on every push to `develop` that touches `compliance/**`, `compliance-evidence.yml` uploads this file as `ai_disclosure` evidence.
+- **Verify after merge:** open `/projects/<slug>/compliance`. The **EU AI Act Art. 13** clause should flip MISSING → COVERED within ~2 minutes.
+- **Refresh cadence:** every 180 days, or whenever an AI tool / model / prompt-class is added or materially changed. Source data: git `Co-Authored-By: Claude` trailers + CI usage logs + per-REQ implementation-plan §5.
+
+## Framework checklist — EU AI Act Art. 13
+
+- [ ] §1 Intended purpose: what the AI does + intended use + foreseeable misuse
+- [ ] §2 Capabilities + limitations: known performance bounds + known failure modes
+- [ ] §3 Each AI tool listed: provider, model, version, where invoked in the codebase
+- [ ] §4 Human-oversight path documented per Art. 14 (cross-reference: four-eyes release approval)
+- [ ] §5 Accuracy + robustness measures named (Art. 15)
+- [ ] §6 Data inputs / training data provenance disclosed where applicable
+- [ ] `last_reviewed_at` frontmatter matches the actual review date
 
 ## 1. Intended purpose
 

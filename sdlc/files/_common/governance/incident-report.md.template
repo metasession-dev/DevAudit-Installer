@@ -10,11 +10,11 @@ notification_window_72h: "REPLACE — within | outside | n/a"
 last_reviewed_at: "REPLACE — YYYY-MM-DD"
 ---
 
-> ⚠️ **STARTER TEMPLATE — REPLACE BEFORE GOING TO PRODUCTION.**
-> This file was auto-installed by `devaudit install` as a starting point.
+> ⚠️ **STARTER TEMPLATE — REPLACE BEFORE COMMITTING.**
+> Installed on demand via `devaudit bootstrap-governance` (v0.1.36+) as a starting point.
 > If you reach for this file it's because something **happened** — replace this banner
 > with the actual incident details. One incident per file (rename to
-> `incident-report-<id>.md` if you keep multiple). Auditors will reject unedited stubs.
+> `incident-report-<id>.md` if you keep multiple). Auditors reject unedited stubs.
 
 # Incident Report
 
@@ -26,6 +26,39 @@ last_reviewed_at: "REPLACE — YYYY-MM-DD"
 - `GDPR.Art-34` (Communication of a personal data breach to the data subject)
 
 **Evidence type:** `incident_report` · One artefact can satisfy multiple clauses depending on its scope (test defect, ops incident, personal-data breach).
+
+## Uploading this artefact
+
+- **File path:** `compliance/governance/incident-report.md` (the template) or `compliance/governance/incident-report-<id>.md` (per-incident — recommended; the `incident-export.yml` workflow auto-produces these from closed GitHub issues labelled `incident`)
+- **Upload trigger:** automatic — on every push to `develop` that touches `compliance/**`, `compliance-evidence.yml` uploads this file as `incident_report` evidence via the `upload_governance` helper.
+- **Verify after merge:** open `/projects/<slug>/compliance`. `ISO29119.3.5.4` always flips to COVERED (baseline). `SOC2.CC7.2`, `GDPR.Art-33`, `GDPR.Art-34` flip only when the relevant attribution sections below are non-stub.
+- **Refresh cadence:** none — incidents are point-in-time. Authoring is event-driven.
+
+## Framework attribution — which clauses THIS incident closes
+
+Mandatory baseline (every incident_report attributes to it):
+
+- [x] **ISO 29119 §3.5.4** Test incident report — always.
+
+Conditional — tick the boxes that match this incident's scope, then ensure the corresponding section is fully populated:
+
+- [ ] **SOC 2 CC7.2** System monitoring and incident response — ops impact / downtime / persistent errors / perf regression / data corruption
+- [ ] **GDPR Art. 33** Breach notification (supervisory authority) — personal data was exposed, lost, or mishandled (72h window applies)
+- [ ] **GDPR Art. 34** Breach notification (data subject) — affected data subjects need to be told (high-risk threshold per Art. 34(1))
+- [ ] **EU AI Act Art. 9 / 14 / 15** — AI / model failure, oversight bypass, accuracy / robustness regression. Cross-reference `compliance/governance/ai-disclosure.md`.
+
+If none of the conditional boxes apply, this is still a valid incident_report — it just closes ISO 29119 §3.5.4 only. The "no specific framework impact" case is genuine and should not be padded.
+
+## Framework checklist — fields auditors look for
+
+- [ ] §1 Summary: incident ID, severity, dates discovered/contained/closed, root cause one-liner
+- [ ] §2 Timeline: actor + action + time, chronological
+- [ ] §3 Affected scope: systems, data, users (counts where known)
+- [ ] §4 GDPR triage: personal data Y/N → if Y, categories + count of data subjects + notification path
+- [ ] §5 Root cause: blameless, technical, sufficient detail to prevent recurrence
+- [ ] §6 Containment + remediation: what was done, what's still open
+- [ ] §7 Follow-up actions: each → owner → due date
+- [ ] §8 Sign-off: incident commander + eng lead (+ DPO when PII, + security lead when security)
 
 ## 1. Summary
 
