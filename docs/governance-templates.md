@@ -1,13 +1,27 @@
 # Governance evidence templates
 
 > ⚠️ **These templates are starting points, not defensible audit evidence.**
-> `devaudit install` drops five stub markdown files into your `compliance/governance/` directory on first onboarding. Each one carries a prominent **STARTER TEMPLATE — REPLACE BEFORE GOING TO PRODUCTION** banner at the top. **Edit each file to reflect your project before your first audit.** Auditors will reject an unedited stub.
+> Each starter carries a prominent **STARTER TEMPLATE — REPLACE BEFORE COMMITTING** banner at the top. **Edit each file to reflect your project before committing.** Auditors will reject an unedited stub.
 
 This doc lists every governance starter we ship, groups them by the compliance framework they support, and points at authoritative external references for replacing the stub content with content that fits your project.
 
+## Authoring path (v0.1.37+)
+
+Two equivalent ways to produce + maintain these docs:
+
+- **Skill-driven (recommended):** invoke the **`governance-doc-author`** skill — synced into every consumer at `.claude/skills/governance-doc-author/`. The skill walks you through source-data gathering, framework attribution, content authoring against the starter, and the commit + portal-verification loop. Six phases; one doc per invocation. See [`sdlc/files/_common/skills/governance-doc-author/SKILL.md`](../sdlc/files/_common/skills/governance-doc-author/SKILL.md).
+- **Manual:** start from the starter template (you can copy it from the installer or run `devaudit bootstrap-governance` to drop all five into your project's `compliance/governance/` directory), edit against this doc, commit, push.
+
 ## What gets installed
 
-On first install, `devaudit install` (step 11/12, **Bootstrap governance docs**) copies five starter templates into your repo:
+**v0.1.36+:** `devaudit install` no longer auto-seeds the starters — the pre-v0.1.36 install dropped five placeholders that auto-uploaded to the portal on the first CI push, masking the project's true coverage state. Run `devaudit bootstrap-governance` explicitly when you want the starters on disk:
+
+```bash
+# From the consumer's repo root:
+npx @metasession.co/devaudit-cli@latest bootstrap-governance
+```
+
+This copies the five starter templates into your repo:
 
 | File on disk | Evidence type uploaded | Refresh cadence |
 |---|---|---|
@@ -101,11 +115,12 @@ The other ISO 29119 clauses (Test Policy, Test Strategy, Test Plan, Test executi
 ## Workflow
 
 ```
-First onboarding
+Onboarding (or new doc class needed mid-project)
    │
    ▼
-devaudit install ─── step 11/12 ──▶ copies 5 starters into compliance/governance/
-   │                                  (idempotent — does not overwrite)
+Option A: invoke `governance-doc-author` skill ─▶ walks Phase 1→6 per doc
+Option B: `devaudit bootstrap-governance` ──────▶ copies 5 starters into compliance/governance/
+   │                                               (idempotent — does not overwrite)
    ▼
 Operator reads docs/governance-templates.md  ◀── you are here
    │

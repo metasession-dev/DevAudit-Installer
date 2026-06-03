@@ -77,9 +77,13 @@ gh pr create --base main
 
 Open the PR for review. Once merged, the project is fully active under the SDLC framework.
 
-### Step 3a — Replace the governance starters before your first production release
+### Step 3a — Author the governance docs before your first production release
 
-Step 11/12 of `devaudit install` (**Bootstrap governance docs**) dropped five starter templates into `compliance/governance/`:
+`devaudit install` no longer auto-seeds governance docs (changed in v0.1.36 — placeholders were auto-uploading as evidence on first CI push). Two equivalent ways to produce them:
+
+**Skill-driven (recommended).** Invoke the `governance-doc-author` skill — synced into every consumer at `.claude/skills/governance-doc-author/`. Six-phase flow per doc: route → confirm starter → gather source data → author → verify framework attribution → commit + portal-verify. The skill names which framework clauses each doc closes and ticks the per-section checklist as you go.
+
+**Manual.** Run `devaudit bootstrap-governance` to drop five starters into `compliance/governance/`:
 
 - `ropa.md` — GDPR Art. 30
 - `dpia.md` — GDPR Art. 35
@@ -87,7 +91,7 @@ Step 11/12 of `devaudit install` (**Bootstrap governance docs**) dropped five st
 - `incident-report.md` — ISO 29119 3.5.4 / SOC 2 CC7.2 / GDPR Art. 33–34
 - `periodic-review.md` — SOC 2 CC4.1 / ISO 27001 A.12.1
 
-**Each file is a stub, not defensible audit evidence.** The first line of every file is a prominent `⚠️ STARTER TEMPLATE — REPLACE BEFORE GOING TO PRODUCTION` banner that intentionally renders inline in the portal so the placeholder status can't be missed.
+Each starter is a stub — first line is a prominent `⚠️ STARTER TEMPLATE — REPLACE BEFORE COMMITTING` banner. Each carries a `## Uploading this artefact` block + `## Framework checklist` section so you can tick each clause's requirements before commit.
 
 Open each file, replace the `REPLACE — …` placeholders with content that reflects your project's actual processing activities / risks / response plan, and commit. The portal's framework-coverage panel will flip the corresponding clauses to COVERED on the next release after these land on `develop`.
 
