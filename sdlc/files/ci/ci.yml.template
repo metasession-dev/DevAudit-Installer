@@ -42,6 +42,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history so the "new specs on this branch" calculation
+          # (E2E_NEW_SPECS, below) can do a real diff against the merge
+          # base — Playwright's evidenceShot helper reads that env var to
+          # tag each captured screenshot as feature vs regression.
+          fetch-depth: 0
 
       # ── Cached installs (skip if already present on self-hosted runner) ──
 
@@ -142,6 +148,32 @@ jobs:
       - name: Wait for dev server
         run: npx wait-on http://localhost:3000 --timeout 120000
 
+      # Compute the set of e2e spec files added on this branch (relative
+      # to the merge base). The evidenceShot helper in the consumer's
+      # tests reads E2E_NEW_SPECS at capture time and tags each screenshot
+      # `origin=feature` when its spec appears in the list, else
+      # `origin=regression`. On main / develop (post-merge) the diff is
+      # empty and every capture is `regression`, which is the intended
+      # behaviour. Newline-delimited; relative paths.
+      - name: Compute new-spec list for E2E origin tagging
+        run: |
+          BASE_REF="${{ github.base_ref || github.event.repository.default_branch || 'main' }}"
+          BASE_SHA=$(git merge-base "origin/${BASE_REF}" HEAD 2>/dev/null || git rev-parse HEAD)
+          NEW_SPECS=$(git diff --name-only --diff-filter=A "${BASE_SHA}...HEAD" \
+            -- 'tests/e2e/**/*.spec.ts' 'tests/e2e/**/*.spec.tsx' \
+               'e2e/**/*.spec.ts' 'e2e/**/*.spec.tsx' 2>/dev/null || true)
+          {
+            echo "E2E_NEW_SPECS<<EOF"
+            echo "$NEW_SPECS"
+            echo "EOF"
+          } >> "$GITHUB_ENV"
+          if [ -n "$NEW_SPECS" ]; then
+            echo "New e2e specs on this branch (origin=feature for captures):"
+            echo "$NEW_SPECS" | sed 's/^/  /'
+          else
+            echo "No new e2e specs detected — all captures will tag origin=regression."
+          fi
+
 {{E2E_TEST_STEP}}
 {{E2E_AUTHENTICATED_STEP}}
       # ── Gate 5: Build ──
@@ -191,6 +223,7 @@ jobs:
             coverage/coverage-summary.json
             gate-outcomes.json
             compliance/evidence/*/screenshots/*.png
+            compliance/evidence/*/screenshots/*.png.meta.json
           retention-days: 90
 
   # ──────────────────────────────────────────────
@@ -486,16 +519,39 @@ jobs:
               [ -n "$REQ_TITLE" ] && REQ_META+=(--release-title "$REQ_TITLE")
               [ -n "$REQ_CT" ] && REQ_META+=(--change-type "$REQ_CT")
               for PNG in "${SHOTS[@]}"; do
-                # The folder is the (SRS) requirement id, the basename is the AC
-                # slug (ACn-…). Upload as <srs-req>-<slug>.png so the reviewer can
-                # see which requirement/AC each image proves and names don't collide.
-                SRS_REQ="$(basename "$(dirname "$(dirname "$PNG")")")"
-                NAMED="${SHOT_TMP}/${SRS_REQ}-$(basename "$PNG")"
+                # The basename is the canonical evidenceShot filename
+                # `REQ-XXX-AC<n>-<slug>.png`. The portal validates this
+                # shape on upload — anything else is rejected with 400.
+                BASE="$(basename "$PNG")"
+                NAMED="${SHOT_TMP}/${BASE}"
                 cp "$PNG" "$NAMED" 2>/dev/null || continue
+
+                # Read the sidecar JSON (`<png>.meta.json`) written by the
+                # evidenceShot helper. Pull `origin` out so the portal
+                # render can tell feature vs regression captures apart.
+                # Sidecar missing → upload with no origin metadata; the
+                # portal renders those as "unknown" until consumers re-
+                # onboard via `devaudit update`.
+                ORIGIN_META=()
+                if [ -f "${PNG}.meta.json" ]; then
+                  ORIGIN=$(python3 -c "
+import json, sys
+try:
+  with open('${PNG}.meta.json') as f:
+    print(json.load(f).get('origin', ''))
+except Exception:
+  pass
+" 2>/dev/null || true)
+                  if [ "$ORIGIN" = "feature" ] || [ "$ORIGIN" = "regression" ]; then
+                    ORIGIN_META+=(--meta-key "origin=${ORIGIN}")
+                  fi
+                fi
+
                 bash scripts/upload-evidence.sh \
                   {{PROJECT_SLUG}} "$REQ" screenshot "$NAMED" \
                   --category test_report ${FLAGS} --release "$REQ" \
                   "${REQ_META[@]}" \
+                  "${ORIGIN_META[@]}" \
                   || echo "::warning::evidence screenshot upload failed: ${PNG} -> ${REQ}"
               done
             done
