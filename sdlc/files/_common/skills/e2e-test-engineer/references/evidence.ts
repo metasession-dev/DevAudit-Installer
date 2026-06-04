@@ -4,12 +4,14 @@ import { test, type Page } from '@playwright/test';
 import {
   autoDetectEvidenceShotOrigin,
   composeScreenshotFilename,
+  shouldSuppressEvidenceShot,
   validateEvidenceShotInputs,
   type EvidenceShotOrigin,
   type EvidenceShotSidecar,
+  type EvidenceShotTier,
 } from './evidence-shot-core';
 
-export type { EvidenceShotOrigin };
+export type { EvidenceShotOrigin, EvidenceShotTier };
 
 export interface EvidenceShotOptions {
   /** Capture the full page rather than the viewport. Default: true. */
@@ -21,6 +23,14 @@ export interface EvidenceShotOptions {
    * the calling spec's file appears in that list, else `regression`.
    */
   readonly origin?: EvidenceShotOrigin;
+  /**
+   * Capture density tier. Default: `'always'`. Set to `'feature'` for
+   * intermediate-state screenshots that should only fire while the
+   * spec is on a feature branch — they auto-suppress once the spec
+   * graduates into the regression pack. See the SKILL.md "Screenshot
+   * density per spec role" section for the density policy.
+   */
+  readonly tier?: EvidenceShotTier;
 }
 
 /**
@@ -59,15 +69,15 @@ export async function evidenceShot(
   opts: EvidenceShotOptions = {},
 ): Promise<void> {
   validateEvidenceShotInputs(reqId, ac, slug);
+  const tier: EvidenceShotTier = opts.tier ?? 'always';
+  const specFile = resolveSpecFile();
+  const origin = opts.origin ?? autoDetectEvidenceShotOrigin(specFile, process.env.E2E_NEW_SPECS);
+  if (shouldSuppressEvidenceShot(tier, origin)) return;
   const fileName = composeScreenshotFilename(reqId, ac, slug);
   const dir = path.join(process.cwd(), 'compliance/evidence', reqId, 'screenshots');
   const pngPath = path.join(dir, fileName);
   const sidecarPath = `${pngPath}.meta.json`;
-
   await page.screenshot({ path: pngPath, fullPage: opts.fullPage ?? true });
-
-  const specFile = resolveSpecFile();
-  const origin = opts.origin ?? autoDetectEvidenceShotOrigin(specFile, process.env.E2E_NEW_SPECS);
   const sidecar: EvidenceShotSidecar = {
     origin,
     reqId,

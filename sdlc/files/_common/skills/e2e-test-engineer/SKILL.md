@@ -327,7 +327,7 @@ test('AC1: edit dialog opens with fields pre-filled', async ({ page }) => {
 - Call `evidenceShot` **immediately after** the AC-proving assertion, before navigating, closing dialogs, or any further interaction.
 - AC number is a separate argument (`ac: number`) — the helper composes the filename `REQ-XXX-AC<n>-<slug>.png`. The slug describes what the screenshot proves (`edit-dialog-prefilled`), NOT the AC number.
 - Slug is kebab-case lowercase (`[a-z0-9-]+`). Capitalised slugs, underscores, or spaces throw.
-- One screenshot per AC, not per test.
+- One **canonical** screenshot per AC; additional stage screenshots are tier-gated — see *Screenshot density per spec role* below.
 - Failure forensics stays untouched (`screenshot: 'only-on-failure'` + `trace: 'on-first-retry'`).
 
 The helper is shipped automatically into `e2e/helpers/evidence.ts` by the SDLC sync (node-stack consumers). Output lands at `compliance/evidence/<REQ-ID>/screenshots/REQ-XXX-AC<n>-<slug>.png` — commit these PNGs as part of the evidence pack so reviewers can corroborate the test-plan AC mapping.
@@ -335,6 +335,43 @@ The helper is shipped automatically into `e2e/helpers/evidence.ts` by the SDLC s
 The helper also writes a sidecar `<filename>.meta.json` containing the AC mapping + the screenshot's **origin** — `feature` if the spec was added on the current branch, `regression` if the spec already existed. The consumer's CI passes `origin` through to the DevAudit portal as evidence metadata so the release-detail page can render feature vs regression captures distinctly. Auto-detected from `process.env.E2E_NEW_SPECS` — no manual tagging required.
 
 The canonical helper source lives at `references/evidence.ts` in this skill.
+
+### Screenshot density per spec role
+
+The number of `evidenceShot` calls per spec should scale to the spec's role:
+
+- **While the spec is a feature artefact** (newly authored on the branch, before merge to develop): capture multiple stages — every meaningful transition or state the AC documents. The dense evidence is what reviewers use to verify the AC was met end-to-end during the feature cycle.
+- **Once the spec joins the regression pack** (post-merge, `git diff --diff-filter=A` no longer matches it): capture only the canonical "this still works" anchor per AC. Re-running the dense journey on every regression cycle is noise and inflates CI artefact storage with little signal.
+
+The `EvidenceShotOrigin` signal (`'feature' | 'regression'`) auto-detects from `E2E_NEW_SPECS`. Mark stage screenshots with `{ tier: 'feature' }`; the helper auto-suppresses them on regression runs. The canonical anchor uses the default tier (`'always'`).
+
+```ts
+test('AC7: stock dial completes the transition', async ({ page }) => {
+  // Stage screenshots — fire while the spec is a feature artefact;
+  // auto-suppress once it graduates into the regression pack.
+  await openStockDial(page, item.id);
+  await evidenceShot(page, 'REQ-066', 7, 'dial-open',  { tier: 'feature' });
+  await advanceDial(page);
+  await evidenceShot(page, 'REQ-066', 7, 'in-progress', { tier: 'feature' });
+
+  // Canonical anchor — always fires (default tier: 'always').
+  // This is the artefact every future regression run re-captures as
+  // proof the AC still holds.
+  await expect(dial.getByRole('status')).toHaveText('Completed');
+  await evidenceShot(page, 'REQ-066', 7, 'completed');
+});
+```
+
+A reasonable default per AC:
+
+- 1× canonical "completed / final state" shot (tier `'always'`).
+- 1–3× stage shots covering the meaningful intermediate transitions (tier `'feature'`).
+
+When to deviate:
+
+- **Single-shot ACs** (one assertion that's its own proof — e.g. *"the form submits and returns to the list"*) need only the canonical anchor. Don't manufacture stages just to hit the 1–3 band.
+- **Long flows** (>3 meaningful transitions) keep all stages tier `'feature'`. The post-merge regression run still has the canonical anchor to corroborate the AC; the dense journey is on the feature PR for reviewers and in the audit-pack download for that release forever.
+- **Reviewer pushback that evidence feels thin** (single-shot per AC across a HIGH-risk REQ) almost always means tier `'feature'` stages are missing — add them on the feature branch where they actually fire, not after.
 
 ---
 
