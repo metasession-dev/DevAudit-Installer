@@ -22,10 +22,10 @@ risk_level: "REPLACE — low | medium | high"
 
 ## Uploading this artefact
 
-- **File path:** `compliance/governance/dpia.md` (or `dpia-<reqid>.md` for a per-REQ DPIA tied to a HIGH-risk requirement)
-- **Upload trigger:** automatic — on every push to `develop` that touches `compliance/**`, `compliance-evidence.yml` uploads this file as `dpia` evidence.
-- **Verify after merge:** open `/projects/<slug>/compliance`. The **GDPR Art. 35** clause should flip MISSING → COVERED within ~2 minutes.
-- **Refresh cadence:** annually (365 days), or sooner whenever the assessed processing materially changes (new data category, new recipient, new automated-decision path).
+- **File path:** `compliance/governance/dpia.md` (or `dpia-<reqid>.md` for a per-REQ DPIA tied to a HIGH-risk requirement). Kept in-repo for review; CI does NOT upload it.
+- **Upload trigger:** manual via the portal Upload Evidence form at `/projects/<slug>/upload` — select evidence type `dpia`. Tier-2 governance docs are operator-uploaded only since DevAudit-Installer v0.1.39 — the previous CI auto-upload was treating placeholder content as canonical evidence. The matrix MISSING row for `GDPR.Art-35` renders an `Upload dpia.md →` deep-link that pre-fills the form for you.
+- **Verify after upload:** open `/projects/<slug>/compliance`. The **GDPR Art. 35** clause should flip MISSING → COVERED immediately.
+- **Refresh cadence:** annually (365 days), or sooner whenever the assessed processing materially changes (new data category, new recipient, new automated-decision path). The portal renders an inline `Expires YYYY-MM-DD` on the clause (amber within 30 days, red once stale).
 
 ## Framework checklist — GDPR Art. 35
 

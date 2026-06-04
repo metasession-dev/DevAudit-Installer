@@ -22,10 +22,10 @@ risk_class: "REPLACE — minimal | limited | high | unacceptable"
 
 ## Uploading this artefact
 
-- **File path:** `compliance/governance/ai-disclosure.md`
-- **Upload trigger:** automatic — on every push to `develop` that touches `compliance/**`, `compliance-evidence.yml` uploads this file as `ai_disclosure` evidence.
-- **Verify after merge:** open `/projects/<slug>/compliance`. The **EU AI Act Art. 13** clause should flip MISSING → COVERED within ~2 minutes.
-- **Refresh cadence:** every 180 days, or whenever an AI tool / model / prompt-class is added or materially changed. Source data: git `Co-Authored-By: Claude` trailers + CI usage logs + per-REQ implementation-plan §5.
+- **File path:** `compliance/governance/ai-disclosure.md` (kept in-repo for review; CI does NOT upload it).
+- **Upload trigger:** manual via the portal Upload Evidence form at `/projects/<slug>/upload` — select evidence type `ai_disclosure`. Tier-2 governance docs are operator-uploaded only since DevAudit-Installer v0.1.39 — the previous CI auto-upload was treating placeholder content as canonical evidence. The matrix MISSING row for `EUAIA.Art-13` renders an `Upload ai-disclosure.md →` deep-link that pre-fills the form for you.
+- **Verify after upload:** open `/projects/<slug>/compliance`. The **EU AI Act Art. 13** clause should flip MISSING → COVERED immediately.
+- **Refresh cadence:** every 180 days, or whenever an AI tool / model / prompt-class is added or materially changed. The portal renders an inline `Expires YYYY-MM-DD` on the clause (amber within 30 days, red once stale). Source data for each refresh: git `Co-Authored-By: Claude` trailers + CI usage logs + per-REQ implementation-plan §5.
 
 ## Framework checklist — EU AI Act Art. 13
 

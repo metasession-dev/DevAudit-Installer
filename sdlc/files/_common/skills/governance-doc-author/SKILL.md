@@ -7,13 +7,13 @@ description: Author or refresh one of the project's governance documents — RoP
 
 Author or refresh a single governance document so it correctly closes the framework clauses it's meant to satisfy. Five document classes covered:
 
-| Document | File | Closes |
-|---|---|---|
-| **RoPA** | `compliance/governance/ropa.md` | `GDPR.Art-30` |
-| **DPIA** | `compliance/governance/dpia.md` (or `dpia-<reqid>.md`) | `GDPR.Art-35` |
-| **AI Use Disclosure** | `compliance/governance/ai-disclosure.md` | `EUAIA.Art-13` |
-| **Periodic Security Review Schedule** | `SDLC/Periodic_Security_Review_Schedule.md` *(Tier 2, uploaded as `compliance_document` via the portal Upload form)* | `ISO27001.A.12.1` (the schedule itself; the quarterly runs close `ISO27001.A.12.1` + `SOC2.CC4.1` via `periodic_review` evidence — see Phase 6) |
-| **Incident Report (project-level template)** | `compliance/governance/incident-report.md` | `ISO29119.3.5.4` baseline; conditionals via [[incident-classification]] |
+| Document | Tier | File | Upload path | Closes |
+|---|---|---|---|---|
+| **RoPA** | 2 | `compliance/governance/ropa.md` | **Portal Upload form** (type `ropa`) — CI does NOT auto-upload since v0.1.39 | `GDPR.Art-30` |
+| **DPIA** | 2 | `compliance/governance/dpia.md` (or `dpia-<reqid>.md`) | **Portal Upload form** (type `dpia`) — CI does NOT auto-upload since v0.1.39 | `GDPR.Art-35` |
+| **AI Use Disclosure** | 2 | `compliance/governance/ai-disclosure.md` | **Portal Upload form** (type `ai_disclosure`) — CI does NOT auto-upload since v0.1.39 | `EUAIA.Art-13` |
+| **Periodic Security Review Schedule** | 2 | `SDLC/Periodic_Security_Review_Schedule.md` | **Portal Upload form** (type `compliance_document`) | `ISO27001.A.12.1` schedule expectation (quarterly runs close it via `periodic_review` evidence — see Phase 6) |
+| **Incident Report (project-level template)** | 3 | `compliance/governance/incident-report.md` | **CI auto-upload** via `compliance-evidence.yml` | `ISO29119.3.5.4` baseline; conditionals via [[incident-classification]] |
 
 Each doc has a starter template under `sdlc/files/_common/governance/*.md.template` (installed on demand via `devaudit bootstrap-governance` since v0.1.36). This skill does NOT regenerate the template — it walks the operator through *filling it in* against the project's actual state.
 
@@ -23,7 +23,7 @@ Each doc has a starter template under `sdlc/files/_common/governance/*.md.templa
 - Authoring or refreshing one (or more) of the five governance docs above.
 - Gathering source data from the codebase / CI runs / git history.
 - Confirming framework attribution before commit.
-- Driving the commit + push → CI auto-upload → portal verification loop.
+- Driving the commit + push → portal upload (manual for Tier 1/2, CI auto for Tier 3) → portal verification loop.
 
 **Out of scope**
 - Incident response itself — that path is the `e2e-test-engineer` skill's defect-filing flow plus `incident-export.yml` on issue close.
@@ -104,10 +104,15 @@ If any required section is still stub, **do not commit**. Surface the gap in the
 
 ### Phase 5 — Commit + verify
 
+Tier 1/2 docs (RoPA, DPIA, AI Disclosure, Periodic Security Review Schedule) and Tier 3 per-event docs (Incident Report template) take different upload paths since DevAudit-Installer v0.1.39. The skill must drive the right one based on which doc Phase 0 routed to.
+
 1. Show the operator the diff. Confirm before committing (per the **Confirm before destructive or public actions** principle).
 2. Commit with a conventional-commit message: `compliance(governance): refresh <doc> for <reason>` — e.g. `compliance(governance): refresh ropa.md — annual review 2026-Q2`.
-3. Push to the current working branch. Surface the path: "next `git push` to `develop` → `compliance-evidence.yml` auto-uploads as `<evidence_type>`, closing `<framework_clause>` within ~2 minutes."
-4. Suggest the operator open `/projects/<slug>/compliance` on the portal post-merge to verify the clause flipped MISSING → COVERED.
+3. Push to the current working branch.
+4. Drive upload based on doc class:
+   - **Tier 1/2 (RoPA, DPIA, AI Disclosure, Periodic Security Review Schedule)** — CI does NOT upload these. Direct the operator to the portal Upload Evidence form at `/projects/<slug>/upload`. Surface the exact evidence type to select (`ropa` / `dpia` / `ai_disclosure` / `compliance_document` respectively) and remind them: "the matrix MISSING row for the corresponding clause renders an `Upload <filename> →` deep-link that pre-fills the form."
+   - **Tier 3 (Incident Report template, plus per-event `periodic-review.md` and `incident-report-<n>.md`)** — CI auto-uploads via `compliance-evidence.yml`. Surface: "next `git push` to `develop` → `compliance-evidence.yml` auto-uploads as `<evidence_type>`, closing `<framework_clause>` within ~2 minutes."
+5. Suggest the operator open `/projects/<slug>/compliance` on the portal post-upload to verify the clause flipped MISSING → COVERED. For docs with freshness windows (365d for RoPA / DPIA / Test_Policy / Test_Strategy / AGENT / INSTRUCTIONS; 180d for AI Disclosure) the matrix renders an inline `Expires YYYY-MM-DD` label — confirm it reads the expected date for the upload.
 
 ### Phase 6 — Special case: the Periodic Review Schedule vs the quarterly review itself
 
