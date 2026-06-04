@@ -20,10 +20,10 @@ processing_activities: []
 
 ## Uploading this artefact
 
-- **File path:** `compliance/governance/ropa.md`
-- **Upload trigger:** automatic — on every push to `develop` that touches `compliance/**`, the `compliance-evidence.yml` workflow uploads this file as `ropa` evidence via the `upload_governance` helper.
-- **Verify after merge:** open `/projects/<slug>/compliance` on the DevAudit portal. The **GDPR Art. 30** clause should flip MISSING → COVERED within ~2 minutes.
-- **Refresh cadence:** annually (365 days). The portal flags the clause as `expired` once the most-recent ropa upload is older than that window.
+- **File path:** `compliance/governance/ropa.md` (kept in-repo for review; CI does NOT upload it).
+- **Upload trigger:** manual via the portal Upload Evidence form at `/projects/<slug>/upload` — select evidence type `ropa`. Tier-2 governance docs are operator-uploaded only since DevAudit-Installer v0.1.39 — the previous CI auto-upload was treating placeholder content as canonical evidence. The matrix MISSING row for `GDPR.Art-30` renders an `Upload ropa.md →` deep-link that pre-fills the form for you.
+- **Verify after upload:** open `/projects/<slug>/compliance` on the DevAudit portal. The **GDPR Art. 30** clause should flip MISSING → COVERED immediately.
+- **Refresh cadence:** annually (365 days). The portal renders an inline `Expires YYYY-MM-DD` on the clause (amber within 30 days, red once stale).
 
 ## Framework checklist — GDPR Art. 30
 
