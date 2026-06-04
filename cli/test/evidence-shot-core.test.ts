@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   autoDetectEvidenceShotOrigin,
   composeScreenshotFilename,
+  shouldSuppressEvidenceShot,
   validateEvidenceShotInputs,
 } from '../../sdlc/files/_common/skills/e2e-test-engineer/references/evidence-shot-core';
 
@@ -77,5 +78,20 @@ describe('autoDetectEvidenceShotOrigin', () => {
   it('trims whitespace around each entry', () => {
     const env = '  tests/e2e/new.spec.ts  \n\n  tests/e2e/another.spec.ts  ';
     expect(autoDetectEvidenceShotOrigin('tests/e2e/new.spec.ts', env)).toBe('feature');
+  });
+});
+
+describe('shouldSuppressEvidenceShot', () => {
+  it("tier='always' captures on every origin", () => {
+    expect(shouldSuppressEvidenceShot('always', 'feature')).toBe(false);
+    expect(shouldSuppressEvidenceShot('always', 'regression')).toBe(false);
+  });
+
+  it("tier='feature' captures while the spec is a feature artefact", () => {
+    expect(shouldSuppressEvidenceShot('feature', 'feature')).toBe(false);
+  });
+
+  it("tier='feature' suppresses once the spec has graduated into the regression pack", () => {
+    expect(shouldSuppressEvidenceShot('feature', 'regression')).toBe(true);
   });
 });
