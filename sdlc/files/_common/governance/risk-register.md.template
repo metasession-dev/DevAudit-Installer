@@ -1,0 +1,116 @@
+---
+title: 'Risk register'
+project: 'REPLACE — project name'
+maintained_by: 'risk-register-keeper skill (DevAudit-Installer v0.1.44+)'
+scoring_matrix: 'likelihood × impact (3×3)'
+last_reviewed_at: 'REPLACE — YYYY-MM-DD'
+review_cadence_days: 90
+---
+
+> ⚠️ **STARTER TEMPLATE — REPLACE BEFORE COMMITTING.**
+> Installed on demand via `devaudit bootstrap-governance` as a starting point.
+> It does **not** describe your project's actual risks. The `risk-register-keeper` skill (DevAudit-Installer#121) maintains this file as REQs land, incidents close, and accepted risks come due for re-validation.
+> Auditors reject unedited stubs.
+
+# Risk register — REPLACE project
+
+**Framework coverage:** primary audit surface for `SOC2.CC3.2` (Risk identification and assessment), `SOC2.CC3.4` (Risk monitoring), `ISO27001.A.5.1` (Policies for information security — risk-driven), `ISO27001.A.6.2` (Risk management procedures), `GDPR.Art-32` (Security of processing — risk-based) when a risk pertains to personal-data processing.
+
+**Maintained by:** the [`risk-register-keeper` skill](../../.claude/skills/risk-register-keeper/SKILL.md) at Stage 1 (MEDIUM/HIGH risk classification — open new entries), at incident close (residual-risk entries), and at Stage 3 (per-REQ `risk-assessment.md` artefact summarises entries touched).
+
+**Scoring:** likelihood × impact, 3×3 matrix (low / medium / high). CVSS-aware scoring deferred to Phase B.
+
+---
+
+## Scoring matrix
+
+| Inherent + Residual rating | Likelihood (frequency / ease-of-exploit) | Impact (worst-case if realised) |
+|---|---|---|
+| **Low** | Unlikely in a typical year; requires unusual access or coincidence | Recoverable inconvenience; no regulatory exposure |
+| **Medium** | Plausible within a year; standard skill or access | Recoverable but disruptive; possible reportable incident |
+| **High** | Probable within months; trivial to trigger | Material loss; regulatory reporting required |
+
+Residual = post-mitigation rating. **A risk's residual rating drives review cadence:** Low = annual, Medium = quarterly, High = monthly until reduced.
+
+---
+
+## OPEN risks
+
+> Risks currently being treated — controls planned but not yet demonstrated effective, or monitoring continues.
+
+### RISK-001 — REPLACE one-line title
+
+- **Status:** OPEN
+- **Opened:** YYYY-MM-DD (REQ-XXX) — REPLACE
+- **Owner:** REPLACE — operator
+- **Description:** REPLACE — what the risk is, in operator-readable terms (2-3 sentences).
+- **Inherent likelihood × impact:** REPLACE (e.g. medium × high)
+- **Mitigations planned / in flight:** REPLACE — list controls being applied
+- **Residual likelihood × impact (post-mitigation):** REPLACE
+- **Framework cross-references:** REPLACE — ISO27001.A.X.Y / SOC2.CC3.2 / GDPR.Art-32 (as applicable)
+- **Review due:** YYYY-MM-DD (default: monthly for OPEN-HIGH, quarterly for OPEN-MEDIUM, annually for OPEN-LOW)
+- **Cross-links:** REPLACE — REQ-XXX implementation plan / ADR-NNN / incident-report-N
+
+---
+
+## MITIGATED risks
+
+> Risks whose controls have landed and been demonstrated effective. Residual rating ≤ Low. Periodic re-validation confirms controls remain effective.
+
+### RISK-NNN — example template
+
+- **Status:** MITIGATED
+- **Opened:** YYYY-MM-DD (REQ-XXX) / **Mitigated:** YYYY-MM-DD
+- **Owner:** REPLACE
+- **Description:** REPLACE
+- **Original inherent likelihood × impact:** medium × high
+- **Mitigations applied:** REPLACE — list controls + evidence reference (e.g. "rate limit middleware shipped REQ-042; verified via integration test in `__tests__/auth/rate-limit.test.ts`")
+- **Residual likelihood × impact:** low × low
+- **Framework cross-references:** REPLACE
+- **Re-validation due:** YYYY-MM-DD (default: annually for MITIGATED)
+- **Cross-links:** REPLACE
+
+---
+
+## ACCEPTED risks
+
+> Risks the operator has explicitly chosen to accept (typically: residual is tolerable + mitigation cost exceeds expected loss). Each acceptance needs sign-off + a periodic re-validation date.
+
+### RISK-NNN — example template
+
+- **Status:** ACCEPTED
+- **Opened:** YYYY-MM-DD / **Accepted:** YYYY-MM-DD
+- **Owner:** REPLACE
+- **Description:** REPLACE
+- **Inherent likelihood × impact:** REPLACE
+- **Mitigations applied:** REPLACE — partial mitigations + why full mitigation isn't pursued
+- **Residual likelihood × impact:** REPLACE — tolerated
+- **Acceptance rationale:** REPLACE — why the operator judges this acceptable (cost / use-case / compensating controls / regulatory context)
+- **Acceptance sign-off:** REPLACE — operator name + date. For organisations with separate risk-owner role, the risk-owner signs off here, not the implementing engineer.
+- **Framework cross-references:** REPLACE
+- **Re-validation due:** YYYY-MM-DD (default: every 365d; sooner if the risk landscape changes)
+- **Cross-links:** REPLACE
+
+---
+
+## CLOSED risks
+
+> Risks that no longer apply (removed scope, deprecated dependency, etc.). Kept on the register for audit-trail completeness — auditors examine what was closed and why.
+
+### RISK-NNN — example template
+
+- **Status:** CLOSED
+- **Opened:** YYYY-MM-DD / **Closed:** YYYY-MM-DD
+- **Owner:** REPLACE
+- **Description:** REPLACE
+- **Close rationale:** REPLACE — why this risk no longer applies (e.g. "feature deprecated REQ-080", "dependency removed REQ-095", "external dependency now provides the control")
+- **Cross-links:** REPLACE
+
+---
+
+## Audit-trail rules
+
+- **Append-only edits.** Never delete a RISK-NNN entry. Status transitions (OPEN → MITIGATED → ACCEPTED → CLOSED) are visible audit history.
+- **Re-validation cadence is binding.** When an ACCEPTED risk's `Re-validation due:` date passes, the operator must either re-sign or change status. Stale acceptances are an audit finding.
+- **Cross-linking is bidirectional.** When an entry references an incident report, the incident report's frontmatter references the entry. When an entry references an ADR, the ADR references the entry.
+- **`solo_with_gap` projects** must carry a documented control-gap entry referencing `SOC2.CC8.1` — see the `risk-register-keeper` skill's Phase 4 for the canonical entry shape.

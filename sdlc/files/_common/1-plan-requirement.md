@@ -25,7 +25,7 @@ description: Define a new requirement in the RTM, classify risk, create implemen
 
 ### Step 1: Identify the GitHub Issue
 
-Every tracked change starts from a GitHub Issue. The issue provides the *what* and *why*; the RTM provides the compliance audit trail.
+Every tracked change starts from a GitHub Issue. The issue provides the _what_ and _why_; the RTM provides the compliance audit trail.
 
 - If the user references an issue number (e.g., `#123`): fetch its title, description, and labels using `gh issue view 123`.
 - If the user describes work without an issue: ask **"Is there a GitHub Issue for this, or should we create one?"**
@@ -42,11 +42,11 @@ The next ID is one higher (e.g., if the last is REQ-007, use REQ-008).
 
 ### Step 3: Classify Risk Level
 
-| Risk Level | Criteria |
-|---|---|
-| **Low** | Internal tools, no regulated data, no auth changes |
+| Risk Level | Criteria                                                         |
+| ---------- | ---------------------------------------------------------------- |
+| **Low**    | Internal tools, no regulated data, no auth changes               |
 | **Medium** | Touches PII, user-facing features, API changes, new dependencies |
-| **High** | Security, payments, RBAC, data handling, authentication |
+| **High**   | Security, payments, RBAC, data handling, authentication          |
 
 AI involvement raises risk by one level when touching Medium or High categories. See Test Policy for the full risk matrix.
 
@@ -68,11 +68,12 @@ mkdir -p compliance/evidence/REQ-XXX
 
 ### Step 6: Implementation Plan (MEDIUM/HIGH Risk — Required)
 
-For MEDIUM and HIGH risk requirements, create an implementation plan before defining test scope. The implementation plan defines *what code changes are needed* — the test scope is then derived from it.
+For MEDIUM and HIGH risk requirements, create an implementation plan before defining test scope. The implementation plan defines _what code changes are needed_ — the test scope is then derived from it.
 
 **Skip this step** for LOW risk requirements — proceed directly to Step 7.
 
 **6a. Explore the codebase:**
+
 - Understand existing patterns, models, services, and API routes relevant to the change
 - Identify files that will be created, modified, or affected
 
@@ -89,27 +90,35 @@ Create `compliance/evidence/REQ-XXX/implementation-plan.md`:
 **Date:** [YYYY-MM-DD]
 
 ## Approach
+
 [1-3 sentences describing the overall approach]
 
 ## Files to Create
+
 - `path/to/new-file.ts` — [purpose]
 
 ## Files to Modify
+
 - `path/to/existing-file.ts` — [what changes and why]
 
 ## Architecture Decisions
 
 > Populated by the [`adr-author` skill](../skills/adr-author/SKILL.md) at Stage 1 plan APPROVAL. The skill applies a decision tree (new third-party dependency / new database, cache, or queue / new external service / pattern change spanning > 3 files / HIGH-CRITICAL risk) and either drafts `docs/ADR/ADR-NNN-<slug>.md` + injects "Produced ADR-NNN: <title>" here, or injects "No ADR needed — <one-line rationale>" so the question is visibly asked and answered. Don't author this section inline as bullets — the persistent decision lives in `docs/ADR/`, not buried in the plan.
 
-- ADR-NNN — <title> (`docs/ADR/ADR-NNN-<slug>.md`) — Operator edits stub + flips to *Accepted* before APPROVAL — OR — No ADR needed — <rationale>
+- ADR-NNN — <title> (`docs/ADR/ADR-NNN-<slug>.md`) — Operator edits stub + flips to _Accepted_ before APPROVAL — OR — No ADR needed — <rationale>
 
 ## Dependencies
+
 - [New packages needed, or "None"]
 
 ## Risks / Considerations
-- [Anything that could go wrong or needs special attention]
+
+> Populated by the [`risk-register-keeper` skill](../skills/risk-register-keeper/SKILL.md) at Stage 1 for MEDIUM/HIGH risk REQs (LOW skipped by default per `sdlc-config.json:risk_register_keeper.stage_1_min_risk_class`). The skill identifies discrete risks the change introduces, allocates `RISK-NNN` per project, drafts canonical rows in `compliance/risk-register.md`, and injects the RISK-NNN reference list here (replacing the inline bullets). Don't author this section inline as bullets — the persistent risk record lives in `compliance/risk-register.md`, not buried in the plan.
+
+- RISK-NNN — <title> (`compliance/risk-register.md`) — Operator edits canonical row + signs off residual rating before APPROVAL — OR — @risk-deferred — <rationale>
 
 ## Post-Deploy Actions
+
 - [Data migrations, backfill scripts, schema changes — or "None"]
 - [If any: create script in `scripts/`, document exact command and target environment]
 ```
@@ -117,6 +126,7 @@ Create `compliance/evidence/REQ-XXX/implementation-plan.md`:
 ### WAIT CHECKPOINT: Implementation Plan Review
 
 **Present the implementation plan to the developer.** Summarize:
+
 - Approach and rationale
 - Files to create/modify
 - Architecture decisions
@@ -277,6 +287,7 @@ EOF
 ### WAIT CHECKPOINT: Test Scope Review
 
 **Present the test scope to the developer.** Summarize:
+
 - Risk classification and rationale
 - Test approach (which additional testing applies)
 - Acceptance criteria
@@ -332,6 +343,7 @@ EOF
 ### WAIT CHECKPOINT: Test Plan Review
 
 **Present the test plan to the developer.** Summarize:
+
 - Tests to add, update, and remove
 - How acceptance criteria map to specific tests
 - Any non-functional testing required

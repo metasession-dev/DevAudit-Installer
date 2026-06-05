@@ -7,25 +7,27 @@ description: Author or refresh one of the project's governance documents — RoP
 
 Author or refresh a single governance document so it correctly closes the framework clauses it's meant to satisfy. Five document classes covered:
 
-| Document | Tier | File | Upload path | Closes |
-|---|---|---|---|---|
-| **RoPA** | 2 | `compliance/governance/ropa.md` | **Portal Upload form** (type `ropa`) — CI does NOT auto-upload since v0.1.39 | `GDPR.Art-30` |
-| **DPIA** | 2 | `compliance/governance/dpia.md` (or `dpia-<reqid>.md`) | **Portal Upload form** (type `dpia`) — CI does NOT auto-upload since v0.1.39 | `GDPR.Art-35` |
-| **AI Use Disclosure** | 2 | `compliance/governance/ai-disclosure.md` | **Portal Upload form** (type `ai_disclosure`) — CI does NOT auto-upload since v0.1.39 | `EUAIA.Art-13` |
-| **Periodic Security Review Schedule** | 2 | `SDLC/Periodic_Security_Review_Schedule.md` | **Portal Upload form** (type `compliance_document`) | `ISO27001.A.12.1` schedule expectation (quarterly runs close it via `periodic_review` evidence — see Phase 6) |
-| **Incident Report (project-level template)** | 3 | `compliance/governance/incident-report.md` | **CI auto-upload** via `compliance-evidence.yml` | `ISO29119.3.5.4` baseline; conditionals via [[incident-classification]] |
+| Document                                     | Tier | File                                                   | Upload path                                                                           | Closes                                                                                                        |
+| -------------------------------------------- | ---- | ------------------------------------------------------ | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| **RoPA**                                     | 2    | `compliance/governance/ropa.md`                        | **Portal Upload form** (type `ropa`) — CI does NOT auto-upload since v0.1.39          | `GDPR.Art-30`                                                                                                 |
+| **DPIA**                                     | 2    | `compliance/governance/dpia.md` (or `dpia-<reqid>.md`) | **Portal Upload form** (type `dpia`) — CI does NOT auto-upload since v0.1.39          | `GDPR.Art-35`                                                                                                 |
+| **AI Use Disclosure**                        | 2    | `compliance/governance/ai-disclosure.md`               | **Portal Upload form** (type `ai_disclosure`) — CI does NOT auto-upload since v0.1.39 | `EUAIA.Art-13`                                                                                                |
+| **Periodic Security Review Schedule**        | 2    | `SDLC/Periodic_Security_Review_Schedule.md`            | **Portal Upload form** (type `compliance_document`)                                   | `ISO27001.A.12.1` schedule expectation (quarterly runs close it via `periodic_review` evidence — see Phase 6) |
+| **Incident Report (project-level template)** | 3    | `compliance/governance/incident-report.md`             | **CI auto-upload** via `compliance-evidence.yml`                                      | `ISO29119.3.5.4` baseline; conditionals via [[incident-classification]]                                       |
 
-Each doc has a starter template under `sdlc/files/_common/governance/*.md.template` (installed on demand via `devaudit bootstrap-governance` since v0.1.36). This skill does NOT regenerate the template — it walks the operator through *filling it in* against the project's actual state.
+Each doc has a starter template under `sdlc/files/_common/governance/*.md.template` (installed on demand via `devaudit bootstrap-governance` since v0.1.36). This skill does NOT regenerate the template — it walks the operator through _filling it in_ against the project's actual state.
 
 ## Scope
 
 **In scope**
+
 - Authoring or refreshing one (or more) of the five governance docs above.
 - Gathering source data from the codebase / CI runs / git history.
 - Confirming framework attribution before commit.
 - Driving the commit + push → portal upload (manual for Tier 1/2, CI auto for Tier 3) → portal verification loop.
 
 **Out of scope**
+
 - Incident response itself — that path is the `e2e-test-engineer` skill's defect-filing flow plus `incident-export.yml` on issue close.
 - Test execution evidence — handled by `e2e-test-engineer`.
 - Implementation plans for individual REQs — handled by the `sdlc-implementer` skill's Phase 1 against `Implementation_Plan_TEMPLATE.md`.
@@ -39,13 +41,14 @@ Six phases. Phase 0 is a routing step; phases 1–5 are per-document.
 
 Determine which document the operator needs. Ask if ambiguous; otherwise infer from the trigger phrase.
 
-- *"create / refresh the RoPA"* → Phase 1 with doc = ROPA
-- *"write / update a DPIA"* → Phase 1 with doc = DPIA (ask: tied to a specific HIGH-risk REQ, or project-wide?)
-- *"AI use disclosure"* / *"document our AI use"* → Phase 1 with doc = AI_DISCLOSURE
-- *"periodic security review schedule"* / *"how often do we review"* → Phase 1 with doc = REVIEW_SCHEDULE
-- *"incident-report template"* → Phase 1 with doc = INCIDENT_TEMPLATE (and remind the operator that per-incident reports come from `incident-export.yml`, not this skill)
+- _"create / refresh the RoPA"_ → Phase 1 with doc = ROPA
+- _"write / update a DPIA"_ → Phase 1 with doc = DPIA (ask: tied to a specific HIGH-risk REQ, or project-wide?)
+- _"AI use disclosure"_ / _"document our AI use"_ → Phase 1 with doc = AI_DISCLOSURE
+- _"periodic security review schedule"_ / _"how often do we review"_ → Phase 1 with doc = REVIEW_SCHEDULE
+- _"incident-report template"_ → Phase 1 with doc = INCIDENT_TEMPLATE (and remind the operator that per-incident reports come from `incident-export.yml`, not this skill)
+- _"register a new risk"_ / _"open a risk-register entry"_ / _"document a control gap"_ → **delegate to the [`risk-register-keeper` skill](../risk-register-keeper/SKILL.md)** (DevAudit-Installer#121, v0.1.44+). The risk register is a separate SoT (`compliance/risk-register.md`) with its own lifecycle (OPEN / MITIGATED / ACCEPTED / CLOSED) and stage hooks (Stage 1 / incident close / Stage 3). This skill does not maintain it.
 
-When the trigger is *"GDPR.Art-30 is MISSING on the matrix, what do I upload?"* and similar — route to the matching doc above.
+When the trigger is _"GDPR.Art-30 is MISSING on the matrix, what do I upload?"_ and similar — route to the matching doc above. When the trigger is about per-REQ risks or control gaps — route to `risk-register-keeper`.
 
 ### Phase 1 — Confirm the starter exists
 
@@ -61,7 +64,7 @@ Each doc class has different inputs. Read what's needed; don't ask the operator 
   - Read `app/`, `lib/`, `prisma/schema.prisma` (or equivalent) to enumerate processing activities.
   - For each, infer: data categories, recipients (third-party SDKs / services), retention (DB triggers, env vars naming retention windows), lawful basis where reasonable.
   - Read `.env.example` for third-party service names.
-  - Ask the operator to confirm purposes (you can guess the technical surface; the *purpose* is a business decision).
+  - Ask the operator to confirm purposes (you can guess the technical surface; the _purpose_ is a business decision).
 
 - **DPIA**
   - Project-wide DPIA → same source data as RoPA, plus a risk identification pass against Art. 35(3) triggers (large-scale special category, systematic monitoring, automated decisions with legal effect).
@@ -92,13 +95,13 @@ Each doc class has different inputs. Read what's needed; don't ask the operator 
 
 For each clause the doc closes, confirm the corresponding section of the doc is non-stub:
 
-| Doc | Clause | Section that must be non-stub |
-|---|---|---|
-| ROPA | GDPR.Art-30 | §Controller + ≥1 §Processing activities row with all fields filled |
-| DPIA | GDPR.Art-35 | All six sections (description / necessity / risks / measures / consultation / sign-off) |
-| AI_DISCLOSURE | EUAIA.Art-13 | All six checklist items in the template's Framework checklist |
-| REVIEW_SCHEDULE | ISO27001.A.12.1 | A schedule entry per control area + a named reviewer per cadence |
-| INCIDENT_TEMPLATE | ISO29119.3.5.4 baseline | §1–§8 of the template are skeletal but coherent (per-incident files inherit the shape) |
+| Doc               | Clause                  | Section that must be non-stub                                                           |
+| ----------------- | ----------------------- | --------------------------------------------------------------------------------------- |
+| ROPA              | GDPR.Art-30             | §Controller + ≥1 §Processing activities row with all fields filled                      |
+| DPIA              | GDPR.Art-35             | All six sections (description / necessity / risks / measures / consultation / sign-off) |
+| AI_DISCLOSURE     | EUAIA.Art-13            | All six checklist items in the template's Framework checklist                           |
+| REVIEW_SCHEDULE   | ISO27001.A.12.1         | A schedule entry per control area + a named reviewer per cadence                        |
+| INCIDENT_TEMPLATE | ISO29119.3.5.4 baseline | §1–§8 of the template are skeletal but coherent (per-incident files inherit the shape)  |
 
 If any required section is still stub, **do not commit**. Surface the gap in the Phase 5 report, ask the operator for the missing input.
 
@@ -118,10 +121,10 @@ Tier 1/2 docs (RoPA, DPIA, AI Disclosure, Periodic Security Review Schedule) and
 
 These are **two different artefacts** and the skill must not conflate them:
 
-| Artefact | What | Closes | Cadence | Skill responsibility |
-|---|---|---|---|---|
-| **Periodic_Security_Review_Schedule.md** | The *plan* — which controls get reviewed, how often, by whom | `ISO27001.A.12.1` (the schedule presence) | Once, refresh annually | **In scope.** Author / refresh via this skill. |
-| **periodic-review.md** | The *execution evidence* — this quarter's actual review | `ISO27001.A.12.1` + `SOC2.CC4.1` (effectiveness evidence) | Quarterly | **Out of scope.** Auto-generated by `periodic-review.yml`; the operator fills in the 60% operator-fill section per the PR body's checklist. |
+| Artefact                                 | What                                                         | Closes                                                    | Cadence                | Skill responsibility                                                                                                                        |
+| ---------------------------------------- | ------------------------------------------------------------ | --------------------------------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Periodic_Security_Review_Schedule.md** | The _plan_ — which controls get reviewed, how often, by whom | `ISO27001.A.12.1` (the schedule presence)                 | Once, refresh annually | **In scope.** Author / refresh via this skill.                                                                                              |
+| **periodic-review.md**                   | The _execution evidence_ — this quarter's actual review      | `ISO27001.A.12.1` + `SOC2.CC4.1` (effectiveness evidence) | Quarterly              | **Out of scope.** Auto-generated by `periodic-review.yml`; the operator fills in the 60% operator-fill section per the PR body's checklist. |
 
 If the operator asks for "the periodic review", clarify which they mean. If they want the quarterly execution, point them at the open auto-PR (or, if cron hasn't fired yet, suggest `gh workflow run periodic-review.yml`).
 
@@ -139,7 +142,7 @@ When Phase 5 commits successfully, append a short narrator update in the final r
 
 **Don't invent.** If you can't derive a value from the codebase / CI / git, ask the operator. Never guess at lawful basis, retention windows, controller contacts, or AI provider names.
 
-**Framework checklist is load-bearing.** The portal's matrix uses the *presence* of the doc to flip COVERED; auditors use the *content* to decide if that's defensible. Tick boxes only when they're actually true.
+**Framework checklist is load-bearing.** The portal's matrix uses the _presence_ of the doc to flip COVERED; auditors use the _content_ to decide if that's defensible. Tick boxes only when they're actually true.
 
 **Confirm before destructive or public actions.** Same as the e2e-test-engineer principle. Diff, confirm, commit. The operator approves the doc going to GitHub before push.
 

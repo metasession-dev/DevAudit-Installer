@@ -71,7 +71,12 @@
   "uat": {
     "enabled": false,
     "url": "",
-    "required_risk_classes": ["payment", "destructive_migration", "realtime", "physical_ux"]
+    "required_risk_classes": [
+      "payment",
+      "destructive_migration",
+      "realtime",
+      "physical_ux"
+    ]
   },
 
   "_comment_approval": "Four-eyes release approval policy (Stage 3 Step 11). dual_actor = DevAudit enforces approver ≠ release_creator. solo_with_gap = self-approval allowed with documented control gap in compliance/risk-register.md. auto_low_risk = LOW-risk auto-approved by CI, MEDIUM/HIGH require human.",
@@ -106,5 +111,16 @@
       "prisma/schema.prisma",
       "infra/"
     ]
+  },
+
+  "_comment_risk_register_keeper": "risk-register-keeper skill toggles (DevAudit-Installer#121, v0.1.44+). The skill maintains compliance/risk-register.md as the project-spanning risk SoT. At Stage 1 (MEDIUM/HIGH risk classifications only by default — LOW skipped) it identifies risks the change introduces, allocates RISK-NNN per project, drafts canonical rows, and injects the reference list into the implementation plan. On incident close it drafts the residual-risk entry. At Stage 3 it drops compliance/evidence/REQ-XXX/risk-assessment.md. For solo_with_gap approval projects it enforces the documented control-gap entry. block_on_stage_1=false (default) means advisory in v1. block_on_stage_3=true means the per-REQ risk-assessment.md artefact is the hard gate. scoring='likelihood-impact' = default 3x3 matrix per 0-project-setup.md (CVSS deferred). stage_1_min_risk_class='MEDIUM' = LOW REQs skip the Stage-1 hook (orchestrator's classification already decided no register entry is warranted).",
+  "risk_register_keeper": {
+    "enabled": true,
+    "block_on_stage_1": false,
+    "block_on_stage_3": true,
+    "scoring": "likelihood-impact",
+    "auto_open_on_high_risk_req": true,
+    "auto_open_on_closed_incident": true,
+    "stage_1_min_risk_class": "MEDIUM"
   }
 }

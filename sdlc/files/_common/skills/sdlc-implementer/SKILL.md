@@ -68,9 +68,10 @@ Runs **first**, before any `REQ-XXX` is assigned. It decides which of the six ch
    4. Body heuristics — acceptance criteria, or risk signals (auth, payments, RBAC, data egress, AI decisioning) → tracked, and raise the risk class.
 
    Map the result to one of the six paths in `change-workflows.md`.
+
 3. **Announce a "Workflow Decision" block** (template below): change-type, commit-type, whether a `REQ-XXX` is needed, risk class, which stages/gates run, which approvals the **operator** must perform (UAT four-eyes, Production approval), and what is **skipped**.
 4. **Pause policy — pause-when-it-matters.** Pause for explicit confirmation on **tracked / heavier** paths, or when classification is **ambiguous**; **announce-and-auto-proceed** on trivial / housekeeping. The operator can always reclassify ("treat this as housekeeping" / "this is HIGH risk").
-5. **Route — and stay on to completion.** A route is a choice of *which workflow to drive*, never a hand-off that abandons the operator. Whatever the path, the skill keeps guiding step by step until no further action is required (typically: merged).
+5. **Route — and stay on to completion.** A route is a choice of _which workflow to drive_, never a hand-off that abandons the operator. Whatever the path, the skill keeps guiding step by step until no further action is required (typically: merged).
    - **tracked** (feature / bug fix / refactor / perf) → continue into Phase 1 below (full Stages 1–5).
    - **housekeeping / trivial** → drive the **Lightweight path** below to completion. No `REQ-XXX`, no RTM row, no evidence pack, no portal release approvals — but the skill still branches, runs the gates, opens the PR, and walks the operator through review → merge.
    - **compliance-doc-only** → drive the same Lightweight path as a docs push (or PR, per the project's flow) referencing the **existing** `REQ-XXX`: no new requirement and no quality-gate ceremony, but driven through to merge.
@@ -79,6 +80,7 @@ Runs **first**, before any `REQ-XXX` is assigned. It decides which of the six ch
 **"Workflow Decision" announcement template**
 
 > **Workflow decision — #N**
+>
 > - **Change type:** \<Feature | Bug fix | Refactor/Perf | Housekeeping | Trivial | Compliance-doc-only\>
 > - **Commit type:** \<feat | fix | refactor | chore | docs | …\>
 > - **Requirement:** \<REQ-XXX assigned | none\>
@@ -87,13 +89,13 @@ Runs **first**, before any `REQ-XXX` is assigned. It decides which of the six ch
 > - **Gates/evidence:** \<…\>
 > - **Your approvals:** \<UAT four-eyes + Production approval | PR review only\>
 > - **Skipped:** \<…\>
-> Proceed? *(or reclassify)*
+>   Proceed? _(or reclassify)_
 
 Only the **tracked** route continues into Phase 1; the others run the Lightweight path below. The off-ramps are deliberate — dragging housekeeping through tracked-change machinery it doesn't need is exactly the failure mode this step exists to prevent — but they are still **driven to completion**, never dumped as a checklist for the operator to run alone.
 
 **Worked examples** (one per change-type the skill keeps mis-routing without one):
 
-*Tracked feature — REQ-XXX assigned*
+_Tracked feature — REQ-XXX assigned_
 
 > - **Change type:** Feature
 > - **Commit type:** feat
@@ -104,7 +106,7 @@ Only the **tracked** route continues into Phase 1; the others run the Lightweigh
 > - **Your approvals:** UAT four-eyes + Production approval
 > - **Skipped:** none
 
-*Test fix surfaced by suite drift*
+_Test fix surfaced by suite drift_
 
 > - **Change type:** Housekeeping (test maintenance)
 > - **Commit type:** test
@@ -115,7 +117,7 @@ Only the **tracked** route continues into Phase 1; the others run the Lightweigh
 > - **Your approvals:** PR review only
 > - **Skipped:** RTM, evidence pack, UAT four-eyes, Production approval
 
-*Workflow tweak (CI artifact upload, gate timeout bump, etc.)*
+_Workflow tweak (CI artifact upload, gate timeout bump, etc.)_
 
 > - **Change type:** Housekeeping (CI maintenance)
 > - **Commit type:** ci
@@ -128,14 +130,14 @@ Only the **tracked** route continues into Phase 1; the others run the Lightweigh
 
 ### Lightweight path (housekeeping / trivial / compliance-doc-only)
 
-Reached from Phase 0 for non-tracked change-types. The skill drives this end-to-end; the only difference from the tracked cycle is the absence of *ceremony*, not the absence of *guidance*. It pauses only where a human is genuinely required (PR review, merge).
+Reached from Phase 0 for non-tracked change-types. The skill drives this end-to-end; the only difference from the tracked cycle is the absence of _ceremony_, not the absence of _guidance_. It pauses only where a human is genuinely required (PR review, merge).
 
 1. **Branch off `$INTEGRATION_BRANCH`** with a housekeeping prefix — `chore/…`, `docs/…`, `ci/…`, `build/…`, `test/…`, or `compliance/…` for a doc-only change against an existing REQ.
 2. **Make the change**, single-purpose. If it turns out to touch runtime behaviour in `app/` / `lib/`, stop and reclassify as tracked — the commit-type rule is the backstop.
 3. **Run all gates locally** (`npm run lint`, `npx tsc --noEmit`, the test suite, `semgrep`, `npm audit` — or the stack-adapter equivalents). Trivial ≠ unverified; never `--no-verify`.
 4. **Commit** with a housekeeping type and **no** `REQ-XXX` — `docs:` / `chore:` / `ci:` / `build:` / `test:` / `revert:` are exempt from the `[REQ-XXX]` rule; a `compliance:` doc-only change references the existing REQ. `Co-Authored-By: Claude` if AI-assisted.
 5. **Push and open the PR** into `$INTEGRATION_BRANCH` (`gh pr create --base "$INTEGRATION_BRANCH" --head <branch>`). CI runs the same quality gates; `compliance-validation.yml` finds no `REQ-XXX` and skips artifact validation.
-6. **For `ci:` changes, verify-via-dispatch before merging.** `gh workflow run <workflow.yml> --ref <branch>` fires the modified workflow against the PR branch. If the change broke a step, the dispatch run fails loudly and you fix-forward *before* the merge ships the broken gate to `$INTEGRATION_BRANCH`. This is the cheapest insurance against silent CI regressions — a `ci:` change that breaks a gate is most damaging *after* it lands.
+6. **For `ci:` changes, verify-via-dispatch before merging.** `gh workflow run <workflow.yml> --ref <branch>` fires the modified workflow against the PR branch. If the change broke a step, the dispatch run fails loudly and you fix-forward _before_ the merge ships the broken gate to `$INTEGRATION_BRANCH`. This is the cheapest insurance against silent CI regressions — a `ci:` change that breaks a gate is most damaging _after_ it lands.
 7. **Report honest status** — wait for CI, name any failing check, fix and re-push. Never announce "ready" while a required check is red.
 8. **Guide review → merge.** A human still reviews the PR (separation of duties). There is **no** portal release approval, no UAT four-eyes, no Production gate, and no close-out. Merge once CI is green and the reviewer approves.
 9. **Done.** A housekeeping push produces at most a bare-date release (`vYYYY.MM.DD`) with no approval gate; a doc-only push attaches its docs to the existing `REQ-XXX` release. No further action required — report completion and stop.
@@ -150,21 +152,23 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
 4. **Detect over-scoping.** If the issue spans clearly distinct deliverables (e.g. "build SAML SSO + reorganise the admin dashboard + migrate from Postgres 14 to 16"), halt with a clear message asking the user to split the issue into separate ones. Do not proceed past Phase 1.
 5. **Write the implementation plan.** Create `compliance/plans/REQ-XXX/implementation-plan.md` from `sdlc/files/_common/Implementation_Plan_TEMPLATE.md` (synced into the consumer's `SDLC/` directory at install). The template's shape is load-bearing — it carries the **Framework attribution** section that closes four framework clauses on upload:
 
-   | Clause | What the plan must contain |
-   |---|---|
-   | **ISO 29119 §3.4** Test Plan | Acceptance criteria + verification strategy per AC. |
-   | **ISO 27001 A.8.25** Secure SDLC | Threat model + secrets / dependency considerations. |
-   | **GDPR Art. 25** Data protection by design | Per-purpose data flows + lawful basis + retention. Explicit "no personal data" callout if not applicable. |
-   | **EU AI Act Art. 11** Technical documentation | Model provenance + oversight path when AI is in scope. Explicit "no AI in scope" callout if not. |
+   | Clause                                        | What the plan must contain                                                                                |
+   | --------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+   | **ISO 29119 §3.4** Test Plan                  | Acceptance criteria + verification strategy per AC.                                                       |
+   | **ISO 27001 A.8.25** Secure SDLC              | Threat model + secrets / dependency considerations.                                                       |
+   | **GDPR Art. 25** Data protection by design    | Per-purpose data flows + lawful basis + retention. Explicit "no personal data" callout if not applicable. |
+   | **EU AI Act Art. 11** Technical documentation | Model provenance + oversight path when AI is in scope. Explicit "no AI in scope" callout if not.          |
 
    For HIGH/CRITICAL also include: threat model (against STRIDE categories applicable to the touched surfaces), four-eyes attestation slot, rollback plan — the template has slots for all of these.
 
    **Don't delete sections** — mark with `N/A — <reason>` if a clause genuinely doesn't apply (e.g. UI-only change with no personal-data scope). Empty stubs commit-then-upload as placeholder evidence and break the audit trail.
+
 6. **Invoke `requirements-aligner` to populate the SRS-ID column on the AC table.** The plan's "Acceptance criteria" table carries an SRS-ID column per AC; `requirements-aligner` fuzzy-matches each AC against `docs/SRS.md` and proposes new `REQ-AREA-NNN` stubs, flags stale items, or annotates `@srs-deferred`. Don't author the SRS-ID column inline — call via the standard Claude Code Skill mechanism (`Skill(name: "requirements-aligner", …)`). Block plan APPROVAL until every AC has a resolved SRS-ID per the skill's Phase 1 contract (configurable via `sdlc-config.json:requirements_aligner.block_on_stage_1`; ramp-up mode default-on for legacy projects).
-7. **Invoke `adr-author` to decide ADR-worthiness + draft the ADR if needed.** The plan's "Architecture decisions" section is no longer authored inline as bullets — `adr-author` applies its decision tree (new third-party dependency / new database/cache/queue / new external service / pattern change spanning >3 files / HIGH-CRITICAL risk class / file-path signals from `sdlc-config.json:adr_author.file_paths_signal_architecture`), allocates the next `ADR-NNN`, drafts a Context/Decision/Consequences/Alternatives/Status stub at `docs/ADR/ADR-NNN-<slug>.md`, and injects either *"Produced ADR-NNN: <title>"* or *"No ADR needed — <rationale>"* into the plan's section. Call via the standard Claude Code Skill mechanism (`Skill(name: "adr-author", …)`). Configurable via `sdlc-config.json:adr_author.block_on_stage_1`; advisory by default in v1.
-8. **Update `compliance/RTM.md`** with the new entry: REQ-XXX, title, risk class, linked issue, linked test cases (placeholder).
-9. **Post plan summary as an issue comment.** Format: TL;DR; Risk class + signals; Acceptance criteria (with SRS-IDs); Architectural decisions (ADR-NNN reference or no-ADR rationale); Technical approach (one paragraph); Dependencies; Test scope.
-10. **Checkpoint** — pause for human approval **iff** risk class is HIGH or CRITICAL. LOW and MEDIUM pass through to Phase 2 automatically. The checkpoint can be forced on for all classes via the `--require-plan-approval` flag (or `DEVAUDIT_REQUIRE_PLAN_APPROVAL=1` env var) for orgs that want it always-on.
+7. **Invoke `adr-author` to decide ADR-worthiness + draft the ADR if needed.** The plan's "Architecture decisions" section is no longer authored inline as bullets — `adr-author` applies its decision tree (new third-party dependency / new database/cache/queue / new external service / pattern change spanning >3 files / HIGH-CRITICAL risk class / file-path signals from `sdlc-config.json:adr_author.file_paths_signal_architecture`), allocates the next `ADR-NNN`, drafts a Context/Decision/Consequences/Alternatives/Status stub at `docs/ADR/ADR-NNN-<slug>.md`, and injects either _"Produced ADR-NNN: <title>"_ or _"No ADR needed — <rationale>"_ into the plan's section. Call via the standard Claude Code Skill mechanism (`Skill(name: "adr-author", …)`). Configurable via `sdlc-config.json:adr_author.block_on_stage_1`; advisory by default in v1.
+8. **Invoke `risk-register-keeper` for MEDIUM/HIGH risk classifications.** The plan's "Threat model" / Risks section is no longer authored as orphan bullets — when risk class is MEDIUM or HIGH (LOW skipped by default per `sdlc-config.json:risk_register_keeper.stage_1_min_risk_class`), `risk-register-keeper` reads the plan + diff, identifies discrete risks the change introduces, allocates `RISK-NNN` per project, drafts canonical rows in `compliance/risk-register.md`, and injects the RISK-NNN reference list into the plan's "Risk register entries" sub-section. The skill also enforces the `solo_with_gap` control-gap entry exists for projects in that approval mode. Call via the standard Claude Code Skill mechanism (`Skill(name: "risk-register-keeper", …)`). Configurable via `sdlc-config.json:risk_register_keeper.block_on_stage_1`; advisory by default in v1.
+9. **Update `compliance/RTM.md`** with the new entry: REQ-XXX, title, risk class, linked issue, linked test cases (placeholder).
+10. **Post plan summary as an issue comment.** Format: TL;DR; Risk class + signals; Acceptance criteria (with SRS-IDs); Architectural decisions (ADR-NNN reference or no-ADR rationale); Risk register entries (RISK-NNN list); Technical approach (one paragraph); Dependencies; Test scope.
+11. **Checkpoint** — pause for human approval **iff** risk class is HIGH or CRITICAL. LOW and MEDIUM pass through to Phase 2 automatically. The checkpoint can be forced on for all classes via the `--require-plan-approval` flag (or `DEVAUDIT_REQUIRE_PLAN_APPROVAL=1` env var) for orgs that want it always-on.
 
 ### Phase 2 — Implement and test (SDLC stage 2)
 
@@ -185,8 +189,9 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
    - `semgrep scan --config auto`
    - `npm audit --audit-level=high` (or stack-adapter equivalent)
 
-   **E2E gate** — run *once*, after the fast gates are clean:
+   **E2E gate** — run _once_, after the fast gates are clean:
    - `npx playwright test` (delegated to `e2e-test-engineer`, which has its own focused-iteration discipline for within-e2e fix-and-verify loops)
+
 6. **On gate failure**, iterate up to N=3 attempts. Each iteration: read the failure output, propose a fix, apply, re-run. On exhausted attempts, halt with the full failure output and surface to the human — never use `--no-verify`, `eslint-disable`, `@ts-expect-error`, `xfail`, or any other bypass.
 7. **Commit** using Conventional Commits with `Ref: REQ-XXX` trailer and `Co-Authored-By: Claude` trailer. One commit per logical step; never amend a commit that's already been pushed.
 8. **Land the work on `$INTEGRATION_BRANCH`.** Push the feature branch, then:
@@ -196,15 +201,18 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
 ### Phase 3 — Compile evidence (SDLC stage 3)
 
 1. **Invoke `requirements-aligner` to drop the per-REQ SRS-alignment artefact.** The skill's Phase 2 produces `compliance/evidence/REQ-XXX/srs-alignment.md` — the per-REQ trace from each AC to its SRS item, with an operator sign-off block. The artefact uploads with `evidence_type=srs_alignment` (visible in Documents tab + audit-pack export; v1 orphan-by-design per META-COMPLY framework-registry-auditor). Call via the standard Skill mechanism; don't inline the alignment logic.
-2. **Invoke `adr-author` to drop the per-REQ architecture-decision artefact.** The skill's Phase 2 produces `compliance/evidence/REQ-XXX/architecture-decision.md` — either *"Produced ADR-NNN: <title>"* with the file pointer, or *"No ADR needed — <rationale>"*. Operator sign-off block at the bottom. The artefact uploads with `evidence_type=architecture_decision`; clause attribution per the META-COMPLY framework-registry-auditor review. Call via the standard Skill mechanism.
-3. **Re-run the full test pack** with artefact capture:
+2. **Invoke `adr-author` to drop the per-REQ architecture-decision artefact.** The skill's Phase 2 produces `compliance/evidence/REQ-XXX/architecture-decision.md` — either _"Produced ADR-NNN: <title>"_ with the file pointer, or _"No ADR needed — <rationale>"_. Operator sign-off block at the bottom. The artefact uploads with `evidence_type=architecture_decision`; clause attribution per the META-COMPLY framework-registry-auditor review. Call via the standard Skill mechanism.
+3. **Invoke `risk-register-keeper` to drop the per-REQ risk-assessment artefact.** The skill's Phase 3 produces `compliance/evidence/REQ-XXX/risk-assessment.md` — a summary table of RISK-NNN entries this REQ opened / mitigated / accepted, framework cross-references, and an operator sign-off block. The artefact uploads with `evidence_type=risk_assessment`; clause attribution per the META-COMPLY framework-registry-auditor review. Call via the standard Skill mechanism.
+4. **Re-run the full test pack** with artefact capture:
    - `npm run test:e2e -- --reporter=html` (produces `playwright-report/`)
    - `npx vitest run --coverage` (produces `coverage/`)
-4. **Organise artefacts** under `compliance/evidence/REQ-XXX/` with date-prefixed naming:
+5. **Organise artefacts** under `compliance/evidence/REQ-XXX/` with date-prefixed naming:
+
    ```
    compliance/evidence/REQ-XXX/
    ├── srs-alignment.md                  ← produced in step 1 by requirements-aligner
    ├── architecture-decision.md          ← produced in step 2 by adr-author
+   ├── risk-assessment.md                ← produced in step 3 by risk-register-keeper
    ├── YYYY-MM-DD_e2e-results.json
    ├── YYYY-MM-DD_playwright-report/
    ├── YYYY-MM-DD_traces/                ← per-test trace.zip + error-context.md
@@ -212,8 +220,9 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
    └── YYYY-MM-DD_screenshots/*.png
    ```
 
-   Copy Playwright's `test-results/` folder verbatim into `YYYY-MM-DD_traces/` so trace-by-test-name is available for audit without walking the HTML report's hash-name index. For HIGH/CRITICAL releases the traces are part of the audit trail — *"what state was the page in when test X failed and was overridden?"* answers in one `ls` instead of an HTML-report walk.
-5. **Upload each artefact to the portal**:
+   Copy Playwright's `test-results/` folder verbatim into `YYYY-MM-DD_traces/` so trace-by-test-name is available for audit without walking the HTML report's hash-name index. For HIGH/CRITICAL releases the traces are part of the audit trail — _"what state was the page in when test X failed and was overridden?"_ answers in one `ls` instead of an HTML-report walk.
+
+6. **Upload each artefact to the portal**:
    ```bash
    devaudit push <project-slug> REQ-XXX <evidence-type> <file> \
      --release "v$(date +%Y.%m.%d)" --create-release-if-missing \
@@ -221,9 +230,9 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
      --git-sha "$(git rev-parse HEAD)" \
      --branch "$(git rev-parse --abbrev-ref HEAD)"
    ```
-   Evidence types: `screenshot`, `e2e_result`, `test_report`, `audit_log`, `compliance_document`, `manual_upload`, `srs_alignment` (from step 1), `architecture_decision` (from step 2).
-6. **Verify uploads landed.** `gh api` or `curl` against `https://devaudit.metasession.co/projects/<slug>/requirements/REQ-XXX/evidence` should show every artefact.
-7. **Update `compliance/RTM.md`** with portal links for each evidence row.
+   Evidence types: `screenshot`, `e2e_result`, `test_report`, `audit_log`, `compliance_document`, `manual_upload`, `srs_alignment` (from step 1), `architecture_decision` (from step 2), `risk_assessment` (from step 3).
+7. **Verify uploads landed.** `gh api` or `curl` against `https://devaudit.metasession.co/projects/<slug>/requirements/REQ-XXX/evidence` should show every artefact.
+8. **Update `compliance/RTM.md`** with portal links for each evidence row.
 
 ### Phase 4 — Submit for UAT review (SDLC stage 4)
 
@@ -240,9 +249,11 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
    - For HIGH/CRITICAL: Rollback plan: reference to `compliance/plans/REQ-XXX/implementation-plan.md` §Rollback
    - Test plan
    - SDLC checklist
+
 2. **Verify the UAT reviewer ≠ skill-trigger user** for HIGH/CRITICAL. If they match, halt with a configuration error: "HIGH/CRITICAL risk requires an independent UAT reviewer; the configured reviewer matches the trigger user — fix the four-eyes attestation slot in the implementation plan and re-run."
 
-   **Solo-operator teams.** On a one-person team, the literal "reviewer ≠ submitter" check is structurally unsatisfiable. The supported interpretation is *actor type, not human identity* — AI tooling (the skill-trigger) and the human operator (the portal-approver) are distinct actors. Document this on the release ticket under `## Sign-off (dual-actor)` with the explicit interpretation, and ensure the human operator has independently reviewed the diff before clicking *Approve Production* in the portal. Without this attestation the four-eyes claim is performative.
+   **Solo-operator teams.** On a one-person team, the literal "reviewer ≠ submitter" check is structurally unsatisfiable. The supported interpretation is _actor type, not human identity_ — AI tooling (the skill-trigger) and the human operator (the portal-approver) are distinct actors. Document this on the release ticket under `## Sign-off (dual-actor)` with the explicit interpretation, and ensure the human operator has independently reviewed the diff before clicking _Approve Production_ in the portal. Without this attestation the four-eyes claim is performative.
+
 3. **Apply labels** — `awaiting-uat-review`, `risk:<class>`.
 4. **Comment on the issue**: "Implementation complete. PR #M opened. Evidence on portal: <link>. UAT review requested. Resume with `resume REQ-XXX` once UAT approval is granted on the portal."
 5. **Hard stop.** Phase 4 ends here. Do not proceed to merge; the human's next action is reviewing on the portal.
@@ -261,7 +272,6 @@ Invoked separately by the user after UAT activity on the portal. Trigger: "resum
 1. **Read portal state.** `curl` `https://devaudit.metasession.co/api/projects/<slug>/releases/<version>` and inspect the approval status.
 
 2. **Branch on state:**
-
    - **UAT approved** → run stage 5:
      - `gh pr merge <M> --merge` (merge commit; `--squash` and `--rebase` are blocked by branch protection on SDLC repos and would break the audit trail).
      - Watch `post-deploy-prod.yml` via `gh run watch` — block until the workflow reaches a terminal state.
