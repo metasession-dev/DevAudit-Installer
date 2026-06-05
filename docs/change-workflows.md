@@ -63,15 +63,16 @@ The split of *which* workflow uploads *what* (and the exact evidence categories)
 
 A **release record** in the portal is keyed by `(project, version)`. The version is derived from the latest commit by [`derive-release-version.sh`](../sdlc/files/_common/scripts/derive-release-version.sh), and both `ci.yml` and `compliance-evidence.yml` call the same helper so a feature's code pushes and doc pushes converge on **one** record.
 
-| Version shape | Produced by | Use |
-|---|---|---|
-| **`REQ-XXX`** | a commit with `[REQ-XXX]` in the subject or `Ref: REQ-XXX` in the body | the normal release for tracked work — one requirement, one release |
-| **`vYYYY.MM.DD`** (bare date) | a commit with **no** REQ tag (housekeeping) | date-versioned release for ticketless work; CI auto-increments same-day collisions (`.2`, `.3`) |
+| Version shape | Shape | Produced by | Use |
+|---|---|---|---|
+| **`REQ-XXX`** | tracked | a commit with `[REQ-XXX]` in the subject or `Ref: REQ-XXX` in the body | the normal release for tracked work — one requirement, one release |
+| **`vYYYY.MM.DD`** (bare date) | housekeeping | a commit with **no** REQ tag (`docs`/`chore`/`ci`/`build`/`test`/`compliance`/`revert`) | date-versioned release for ticketless work; CI auto-increments same-day collisions (`.2`, `.3`) |
 
-Two structural cases:
+Three structural cases:
 
-- **Single-requirement release** — the common case. One `REQ-XXX` release carries its gates + docs + UAT record, goes through four-eyes once, deploys, gets a Production approval.
-- **Bundled release** — several requirements promoted in one `develop → main` PR. Each `REQ-XXX` keeps its **own** release record: `compliance-evidence.yml` attributes each requirement's docs to its own release, and `post-deploy-prod.yml` promotes **every** in-scope requirement (not just the first). So a bundled deploy still yields per-requirement audit trails and per-requirement Production approvals.
+- **Single-requirement (tracked) release** — the common case. One `REQ-XXX` release carries its gates + docs + UAT record, goes through four-eyes once, deploys, gets a Production approval.
+- **Bundled (tracked) release** — several requirements promoted in one `develop → main` PR. Each `REQ-XXX` keeps its **own** release record: `compliance-evidence.yml` attributes each requirement's docs to its own release, and `post-deploy-prod.yml` promotes **every** in-scope requirement (not just the first). So a bundled deploy still yields per-requirement audit trails and per-requirement Production approvals.
+- **Housekeeping release** — bare-date version, no per-REQ ceremony. The portal auto-skips the four per-REQ completeness items (test-scope, test-plan, implementation-plan, test-execution-summary). What's still required: the four CI gates green AND two release-scoped artefacts (`RELEASE-TICKET-<version>.md` + `security-summary-<version>.md`). Both are **auto-generated** by CI (`generate-housekeeping-release-ticket.sh` + `generate-security-summary.sh`, DevAudit-Installer v0.1.41+) and surfaced as an auto-PR for operator sign-off. Same UAT → production four-eyes flow as tracked.
 
 > Keep implementation commits REQ-tagged. An untagged code merge falls back to a date version and, before the per-requirement attribution fixes, would scatter a bundle's evidence onto that date release — which is exactly why the REQ-tag rule is enforced.
 

@@ -92,14 +92,23 @@ Metasession projects follow a **single owner-developer partnered with AI coding 
 
 ## Workflow Pipeline
 
+The framework has **two release shapes** — *tracked* (REQ-XXX) for user-visible changes and *housekeeping* (bare-date) for everything else. Both shapes go through the same five-stage pipeline below, with housekeeping releases skipping the per-REQ ceremony but still running the four CI gates and producing release-ticket + security-summary artefacts (CI auto-generates both for housekeeping; the operator authors them for tracked).
+
 ```
 0. Project Setup    -- repo, branches, CI, compliance directories (run once)
 1. Plan Requirement -- identify GitHub Issue, assign REQ-XXX, classify risk, create implementation plan (MEDIUM/HIGH), generate test scope derived from plan
+                       [housekeeping: skipped — no REQ to plan]
 2. Implement & Test -- code on develop, all local gates green every commit
+                       [housekeeping: docs/chore/ci/build/test/compliance/revert commits; no REQ tag required]
 3. Compile Evidence -- gather artifacts, create release ticket, verify on UAT, upload to META-COMPLY
+                       [housekeeping: CI auto-generates RELEASE-TICKET-<version>.md + security-summary-<version>.md as a PR; operator signs off]
 4. Submit for Review -- PR triggers independent CI verification + risk-tiered human approval
+                       [same for both shapes — four-eyes applies per project risk_tier]
 5. Deploy to Prod   -- merge, verify production deployment, finalize compliance artifacts
+                       [same for both shapes]
 ```
+
+See [`change-workflows.md`](./change-workflows.md) for the version-pattern triage at CI time and [`3-compile-evidence.md`](../sdlc/files/_common/3-compile-evidence.md) for the housekeeping walkthrough.
 
 ## SDLC Schematic
 
