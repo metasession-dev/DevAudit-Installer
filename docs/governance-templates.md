@@ -9,8 +9,8 @@ This doc lists every governance starter we ship, groups them by the compliance f
 
 Two equivalent ways to produce + maintain these docs:
 
-- **Skill-driven (recommended):** invoke the **`governance-doc-author`** skill — synced into every consumer at `.claude/skills/governance-doc-author/`. The skill walks you through source-data gathering, framework attribution, content authoring against the starter, and the commit + portal-verification loop. Six phases; one doc per invocation. See [`sdlc/files/_common/skills/governance-doc-author/SKILL.md`](../sdlc/files/_common/skills/governance-doc-author/SKILL.md).
-- **Manual:** start from the starter template (you can copy it from the installer or run `devaudit bootstrap-governance` to drop all five into your project's `compliance/governance/` directory), edit against this doc, commit, push.
+- **Skill-driven (recommended):** invoke the **`governance-doc-author`** skill — synced into every consumer at `.claude/skills/governance-doc-author/`. The skill walks you through source-data gathering, framework attribution, content authoring against the starter, and the commit + portal-verification loop. Six phases; one doc per invocation. See [`sdlc/files/_common/skills/governance-doc-author/SKILL.md`](../sdlc/files/_common/skills/governance-doc-author/SKILL.md). Routes the "register a new risk" / "open a control-gap entry" triggers to its sibling skill `risk-register-keeper` (the risk register is a separate SoT with its own lifecycle — see below).
+- **Manual:** start from the starter template (you can copy it from the installer or run `devaudit bootstrap-governance` to drop the starters into your project), edit against this doc, commit, push.
 
 ## What gets installed
 
@@ -21,21 +21,30 @@ Two equivalent ways to produce + maintain these docs:
 npx @metasession.co/devaudit-cli@latest bootstrap-governance
 ```
 
-This copies the five starter templates into your repo:
+This copies the six starter templates into your repo:
 
-| File on disk | Tier | Evidence type | Upload path | Refresh cadence |
-|---|---|---|---|---|
-| `compliance/governance/ropa.md` | 2 | `ropa` | **Portal Upload form** | 365 days |
-| `compliance/governance/dpia.md` | 2 | `dpia` | **Portal Upload form** | 365 days |
-| `compliance/governance/ai-disclosure.md` | 2 | `ai_disclosure` | **Portal Upload form** | 180 days |
-| `compliance/governance/incident-report.md` | 3 | `incident_report` | CI auto-upload | per incident |
-| `compliance/governance/periodic-review.md` | 3 | `periodic_review` | CI auto-upload | 90-day execution (portal freshness window 365 days) |
+| File on disk                                                  | Tier | Evidence type                                                                             | Upload path                                                                                  | Refresh cadence                                                                                       |
+| ------------------------------------------------------------- | ---- | ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `compliance/governance/ropa.md`                               | 2    | `ropa`                                                                                    | **Portal Upload form**                                                                       | 365 days                                                                                              |
+| `compliance/governance/dpia.md`                               | 2    | `dpia`                                                                                    | **Portal Upload form**                                                                       | 365 days                                                                                              |
+| `compliance/governance/ai-disclosure.md`                      | 2    | `ai_disclosure`                                                                           | **Portal Upload form**                                                                       | 180 days                                                                                              |
+| `compliance/governance/incident-report.md`                    | 3    | `incident_report`                                                                         | CI auto-upload                                                                               | per incident                                                                                          |
+| `compliance/governance/periodic-review.md`                    | 3    | `periodic_review`                                                                         | CI auto-upload                                                                               | 90-day execution (portal freshness window 365 days)                                                   |
+| `compliance/risk-register.md` (root, not under `governance/`) | 2    | `compliance_document` (the register itself); produces `risk_assessment` per-REQ artefacts | **Portal Upload form** (the register itself) + CI auto-upload (per-REQ `risk-assessment.md`) | Per-entry: monthly review for OPEN-HIGH, quarterly for OPEN-MEDIUM, annually for MITIGATED + ACCEPTED |
 
 **Key behaviour:**
 
 - **First-install only.** `devaudit update` does **not** re-sync these files. Once you've edited a stub it's yours; we never overwrite.
 - **Idempotent.** Re-running `devaudit install` on a project where the file already exists leaves it alone.
 - **Upload paths split by tier (v0.1.39+).** Tier 1/2 governance docs (RoPA, DPIA, AI Disclosure, plus Test_Policy, AGENT, INSTRUCTIONS, Test_Strategy, Test_Architecture, Periodic_Security_Review_Schedule) are operator-uploaded via the portal Upload Evidence form at `/projects/<slug>/upload`. Tier 3 per-event docs (`incident-report.md`, `periodic-review.md`) continue to be CI-uploaded via `compliance-evidence.yml`'s `upload_governance` helper. The split exists because Tier 1/2 docs are high-judgement content where placeholder-as-canonical was a real failure mode; Tier 3 docs are auto-generated by their own workflows and CI ownership is appropriate.
+
+### The risk register is its own surface (v0.1.44+)
+
+Unlike the five governance starters above (which live under `compliance/governance/`), the risk register lives at **`compliance/risk-register.md`** at the project root. It's the persistent risk SoT — maintained continuously by the **`risk-register-keeper`** skill (DevAudit-Installer#121) across Stage 1 (open RISK-NNN entries for MEDIUM/HIGH REQs), incident close (residual-risk entry), Stage 3 (per-REQ `risk-assessment.md` artefact summarising entries touched), and the `solo_with_gap` approval enforcement.
+
+The starter template ships at [`sdlc/files/_common/governance/risk-register.md.template`](../sdlc/files/_common/governance/risk-register.md.template) — installed via `devaudit bootstrap-governance` alongside the five governance starters. It scaffolds four status sections (OPEN / MITIGATED / ACCEPTED / CLOSED), a likelihood × impact 3×3 scoring matrix, and audit-trail rules.
+
+The risk-register-keeper skill is a sibling of `governance-doc-author` — when the operator says "register a new risk" or "open a control-gap entry", `governance-doc-author`'s Phase 0 routing delegates to risk-register-keeper instead of authoring inline.
 
 ## Coverage by framework
 
@@ -45,11 +54,11 @@ Each section below quotes the framework clauses the starter helps satisfy, links
 
 Two governance starters target GDPR.
 
-| Clause | Title | Starter | What you must replace |
-|---|---|---|---|
-| `GDPR.Art-30` | Records of processing activities (ROPA) | `compliance/governance/ropa.md` | Every processing activity your project performs, with lawful basis, categories of data subjects + personal data, recipients, retention, security measures. |
-| `GDPR.Art-35` | Data protection impact assessment (DPIA) | `compliance/governance/dpia.md` | Your actual risk analysis for high-risk processing — necessity, proportionality, risks-to-rights table, mitigations, residual-risk decision. |
-| `GDPR.Art-33` + `Art-34` | Breach notification (supervisory authority + data subjects) | `compliance/governance/incident-report.md` | Filled in when an incident actually occurs. The same incident report can satisfy both Articles depending on its scope. |
+| Clause                   | Title                                                       | Starter                                    | What you must replace                                                                                                                                      |
+| ------------------------ | ----------------------------------------------------------- | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GDPR.Art-30`            | Records of processing activities (ROPA)                     | `compliance/governance/ropa.md`            | Every processing activity your project performs, with lawful basis, categories of data subjects + personal data, recipients, retention, security measures. |
+| `GDPR.Art-35`            | Data protection impact assessment (DPIA)                    | `compliance/governance/dpia.md`            | Your actual risk analysis for high-risk processing — necessity, proportionality, risks-to-rights table, mitigations, residual-risk decision.               |
+| `GDPR.Art-33` + `Art-34` | Breach notification (supervisory authority + data subjects) | `compliance/governance/incident-report.md` | Filled in when an incident actually occurs. The same incident report can satisfy both Articles depending on its scope.                                     |
 
 **Replacing the stubs — sources:**
 
@@ -62,11 +71,11 @@ Two governance starters target GDPR.
 
 ### EU AI Act — Regulation 2024/1689
 
-| Clause | Title | Starter | What you must replace |
-|---|---|---|---|
-| `EUAIA.Art-13` | Transparency and provision of information to deployers | `compliance/governance/ai-disclosure.md` | Every AI tool / model / API your project incorporates, its intended purpose, capabilities, limitations, human oversight path, logging behaviour. |
-| `EUAIA.Art-12` | Record-keeping (automatic logging) | (auto — covered by W2 audit-log snapshot in CI; see issue [#98](https://github.com/metasession-dev/DevAudit-Installer/issues/98)) | Not a governance doc — closed by the audit-log export evidence type. |
-| `EUAIA.Art-14` | Human oversight | (auto — covered by `release.approved` audit events from the portal's four-eyes flow) | Not a governance doc — closed when releases are approved. |
+| Clause         | Title                                                  | Starter                                                                                                                           | What you must replace                                                                                                                            |
+| -------------- | ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `EUAIA.Art-13` | Transparency and provision of information to deployers | `compliance/governance/ai-disclosure.md`                                                                                          | Every AI tool / model / API your project incorporates, its intended purpose, capabilities, limitations, human oversight path, logging behaviour. |
+| `EUAIA.Art-12` | Record-keeping (automatic logging)                     | (auto — covered by W2 audit-log snapshot in CI; see issue [#98](https://github.com/metasession-dev/DevAudit-Installer/issues/98)) | Not a governance doc — closed by the audit-log export evidence type.                                                                             |
+| `EUAIA.Art-14` | Human oversight                                        | (auto — covered by `release.approved` audit events from the portal's four-eyes flow)                                              | Not a governance doc — closed when releases are approved.                                                                                        |
 
 **Replacing the stub — sources:**
 
@@ -76,10 +85,10 @@ Two governance starters target GDPR.
 
 ### SOC 2 — Trust Services Criteria
 
-| Clause | Title | Starter | What you must replace |
-|---|---|---|---|
-| `SOC2.CC4.1` | Monitoring of internal controls | `compliance/governance/periodic-review.md` | Per-quarter control-effectiveness review with reviewer + approver sign-off and concrete findings. Auto-generated metrics will fill in when W3 ships (DevAudit-Installer [#98](https://github.com/metasession-dev/DevAudit-Installer/issues/98)); the human attestation is yours either way. |
-| `SOC2.CC7.2` | System monitoring and incident response | `compliance/governance/incident-report.md` | Same file as GDPR breach notification — one report per incident, covering containment, root cause, lessons learned. |
+| Clause       | Title                                   | Starter                                    | What you must replace                                                                                                                                                                                                                                                                       |
+| ------------ | --------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SOC2.CC4.1` | Monitoring of internal controls         | `compliance/governance/periodic-review.md` | Per-quarter control-effectiveness review with reviewer + approver sign-off and concrete findings. Auto-generated metrics will fill in when W3 ships (DevAudit-Installer [#98](https://github.com/metasession-dev/DevAudit-Installer/issues/98)); the human attestation is yours either way. |
+| `SOC2.CC7.2` | System monitoring and incident response | `compliance/governance/incident-report.md` | Same file as GDPR breach notification — one report per incident, covering containment, root cause, lessons learned.                                                                                                                                                                         |
 
 **Replacing the stubs — sources:**
 
@@ -89,8 +98,8 @@ Two governance starters target GDPR.
 
 ### ISO/IEC 27001:2022 — Information Security Management
 
-| Clause | Title | Starter | What you must replace |
-|---|---|---|---|
+| Clause            | Title                                       | Starter                                    | What you must replace                                                                                                                                   |
+| ----------------- | ------------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `ISO27001.A.12.1` | Operational procedures and responsibilities | `compliance/governance/periodic-review.md` | Same file as SOC 2 CC4.1 — one quarterly review covers both. Cross-reference your `Periodic_Security_Review_Schedule.md` items completed in the period. |
 
 **Replacing the stub — sources:**
@@ -101,9 +110,9 @@ Two governance starters target GDPR.
 
 ### ISO/IEC 29119 — Software Testing
 
-| Clause | Title | Starter | What you must replace |
-|---|---|---|---|
-| `ISO29119.3.5.4` | Test incident report | `compliance/governance/incident-report.md` | Same file as the SOC 2 / GDPR incident report — for a *test* incident (a defect found during execution that warrants a recorded outcome), one report per incident. |
+| Clause           | Title                | Starter                                    | What you must replace                                                                                                                                              |
+| ---------------- | -------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ISO29119.3.5.4` | Test incident report | `compliance/governance/incident-report.md` | Same file as the SOC 2 / GDPR incident report — for a _test_ incident (a defect found during execution that warrants a recorded outcome), one report per incident. |
 
 The other ISO 29119 clauses (Test Policy, Test Strategy, Test Plan, Test execution log, Test completion / summary report) are **already covered** by the SDLC framework — `Test_Policy.md`, `Test_Strategy.md`, per-REQ `test-plan.md`, CI-generated `e2e-results.json` / `playwright-report.zip`, and `compliance/test-summary-report.md`. No new starter needed.
 
@@ -159,6 +168,7 @@ Issue [#98](https://github.com/metasession-dev/DevAudit-Installer/issues/98) tra
 - **W4 — Incident-report close-out hook** (`v0.1.31`, closes the automated arm of `ISO29119.3.5.4`, `SOC2.CC7.2`, `GDPR.Art-33`, `GDPR.Art-34`):
   `.github/workflows/incident-export.yml` fires on `issues: [closed]`, gated by `contains(labels.*.name, 'incident')`. The job calls `gh issue view --json` to capture title + body + comments + timeline + labels, renders to `compliance/governance/incident-report-<n>.md`, and opens a PR on `chore/incident-export-<n>`. **The PR still requires GDPR-triage and sign-off** before merge — auto-generated personal-data-Y/N decisions are not defensible. The operator-authored arm (W1's `incident-report.md` starter) remains the recommended default for very high-severity incidents where you want full editorial control.
   **One-time operator setup** (after `devaudit update` brings the workflow in):
+
   ```bash
   gh label create incident --color 'B60205' \
     --description 'Operational or test incident; close to auto-archive as portal evidence'
