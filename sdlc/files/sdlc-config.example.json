@@ -84,5 +84,14 @@
   "production_review": {
     "enabled": true,
     "terminal_status": "prod_review"
+  },
+
+  "_comment_requirements_aligner": "requirements-aligner skill toggles (DevAudit-Installer#119, v0.1.42+). Controls when the skill blocks vs advises. block_on_stage_1=false (default) means the skill advises on AC-to-SRS mapping at plan APPROVAL but doesn't block; flip to true once docs/SRS.md is populated enough for the check to be reliably surfacing real drift (not false-positives on sparse SoT). block_on_stage_3=true means the per-REQ srs-alignment.md artefact is required before Stage 3 completes — the per-REQ evidence is the hard gate. auto_file_followup_issue=false means the skill never opens GitHub issues automatically; if gaps are detected and operator defers, operator files follow-up manually. ramp_up_runs=5 means the first 5 invocations on a project are audit-only regardless of block_on_stage_1, so legacy projects with sparse SRS get time to populate before blocking enforces.",
+  "requirements_aligner": {
+    "enabled": true,
+    "block_on_stage_1": false,
+    "block_on_stage_3": true,
+    "auto_file_followup_issue": false,
+    "ramp_up_runs": 5
   }
 }
