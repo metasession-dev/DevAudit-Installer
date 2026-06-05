@@ -161,9 +161,10 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
 
    **Don't delete sections** — mark with `N/A — <reason>` if a clause genuinely doesn't apply (e.g. UI-only change with no personal-data scope). Empty stubs commit-then-upload as placeholder evidence and break the audit trail.
 6. **Invoke `requirements-aligner` to populate the SRS-ID column on the AC table.** The plan's "Acceptance criteria" table carries an SRS-ID column per AC; `requirements-aligner` fuzzy-matches each AC against `docs/SRS.md` and proposes new `REQ-AREA-NNN` stubs, flags stale items, or annotates `@srs-deferred`. Don't author the SRS-ID column inline — call via the standard Claude Code Skill mechanism (`Skill(name: "requirements-aligner", …)`). Block plan APPROVAL until every AC has a resolved SRS-ID per the skill's Phase 1 contract (configurable via `sdlc-config.json:requirements_aligner.block_on_stage_1`; ramp-up mode default-on for legacy projects).
-7. **Update `compliance/RTM.md`** with the new entry: REQ-XXX, title, risk class, linked issue, linked test cases (placeholder).
-8. **Post plan summary as an issue comment.** Format: TL;DR; Risk class + signals; Acceptance criteria (with SRS-IDs); Technical approach (one paragraph); Dependencies; Test scope.
-9. **Checkpoint** — pause for human approval **iff** risk class is HIGH or CRITICAL. LOW and MEDIUM pass through to Phase 2 automatically. The checkpoint can be forced on for all classes via the `--require-plan-approval` flag (or `DEVAUDIT_REQUIRE_PLAN_APPROVAL=1` env var) for orgs that want it always-on.
+7. **Invoke `adr-author` to decide ADR-worthiness + draft the ADR if needed.** The plan's "Architecture decisions" section is no longer authored inline as bullets — `adr-author` applies its decision tree (new third-party dependency / new database/cache/queue / new external service / pattern change spanning >3 files / HIGH-CRITICAL risk class / file-path signals from `sdlc-config.json:adr_author.file_paths_signal_architecture`), allocates the next `ADR-NNN`, drafts a Context/Decision/Consequences/Alternatives/Status stub at `docs/ADR/ADR-NNN-<slug>.md`, and injects either *"Produced ADR-NNN: <title>"* or *"No ADR needed — <rationale>"* into the plan's section. Call via the standard Claude Code Skill mechanism (`Skill(name: "adr-author", …)`). Configurable via `sdlc-config.json:adr_author.block_on_stage_1`; advisory by default in v1.
+8. **Update `compliance/RTM.md`** with the new entry: REQ-XXX, title, risk class, linked issue, linked test cases (placeholder).
+9. **Post plan summary as an issue comment.** Format: TL;DR; Risk class + signals; Acceptance criteria (with SRS-IDs); Architectural decisions (ADR-NNN reference or no-ADR rationale); Technical approach (one paragraph); Dependencies; Test scope.
+10. **Checkpoint** — pause for human approval **iff** risk class is HIGH or CRITICAL. LOW and MEDIUM pass through to Phase 2 automatically. The checkpoint can be forced on for all classes via the `--require-plan-approval` flag (or `DEVAUDIT_REQUIRE_PLAN_APPROVAL=1` env var) for orgs that want it always-on.
 
 ### Phase 2 — Implement and test (SDLC stage 2)
 
@@ -194,14 +195,16 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
 
 ### Phase 3 — Compile evidence (SDLC stage 3)
 
-1. **Invoke `requirements-aligner` to drop the per-REQ SRS-alignment artefact.** The skill's Phase 2 produces `compliance/evidence/REQ-XXX/srs-alignment.md` — the per-REQ trace from each AC to its SRS item, with an operator sign-off block. The artefact uploads with `evidence_type=srs_alignment` and closes `ISO29119.3.4` + `SOC2.CC2.1` for the REQ. Call via the standard Skill mechanism; don't inline the alignment logic.
-2. **Re-run the full test pack** with artefact capture:
+1. **Invoke `requirements-aligner` to drop the per-REQ SRS-alignment artefact.** The skill's Phase 2 produces `compliance/evidence/REQ-XXX/srs-alignment.md` — the per-REQ trace from each AC to its SRS item, with an operator sign-off block. The artefact uploads with `evidence_type=srs_alignment` (visible in Documents tab + audit-pack export; v1 orphan-by-design per META-COMPLY framework-registry-auditor). Call via the standard Skill mechanism; don't inline the alignment logic.
+2. **Invoke `adr-author` to drop the per-REQ architecture-decision artefact.** The skill's Phase 2 produces `compliance/evidence/REQ-XXX/architecture-decision.md` — either *"Produced ADR-NNN: <title>"* with the file pointer, or *"No ADR needed — <rationale>"*. Operator sign-off block at the bottom. The artefact uploads with `evidence_type=architecture_decision`; clause attribution per the META-COMPLY framework-registry-auditor review. Call via the standard Skill mechanism.
+3. **Re-run the full test pack** with artefact capture:
    - `npm run test:e2e -- --reporter=html` (produces `playwright-report/`)
    - `npx vitest run --coverage` (produces `coverage/`)
-3. **Organise artefacts** under `compliance/evidence/REQ-XXX/` with date-prefixed naming:
+4. **Organise artefacts** under `compliance/evidence/REQ-XXX/` with date-prefixed naming:
    ```
    compliance/evidence/REQ-XXX/
    ├── srs-alignment.md                  ← produced in step 1 by requirements-aligner
+   ├── architecture-decision.md          ← produced in step 2 by adr-author
    ├── YYYY-MM-DD_e2e-results.json
    ├── YYYY-MM-DD_playwright-report/
    ├── YYYY-MM-DD_traces/                ← per-test trace.zip + error-context.md
@@ -210,7 +213,7 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
    ```
 
    Copy Playwright's `test-results/` folder verbatim into `YYYY-MM-DD_traces/` so trace-by-test-name is available for audit without walking the HTML report's hash-name index. For HIGH/CRITICAL releases the traces are part of the audit trail — *"what state was the page in when test X failed and was overridden?"* answers in one `ls` instead of an HTML-report walk.
-4. **Upload each artefact to the portal**:
+5. **Upload each artefact to the portal**:
    ```bash
    devaudit push <project-slug> REQ-XXX <evidence-type> <file> \
      --release "v$(date +%Y.%m.%d)" --create-release-if-missing \
@@ -218,9 +221,9 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
      --git-sha "$(git rev-parse HEAD)" \
      --branch "$(git rev-parse --abbrev-ref HEAD)"
    ```
-   Evidence types: `screenshot`, `e2e_result`, `test_report`, `audit_log`, `compliance_document`, `manual_upload`, `srs_alignment` (from step 1).
-5. **Verify uploads landed.** `gh api` or `curl` against `https://devaudit.metasession.co/projects/<slug>/requirements/REQ-XXX/evidence` should show every artefact.
-6. **Update `compliance/RTM.md`** with portal links for each evidence row.
+   Evidence types: `screenshot`, `e2e_result`, `test_report`, `audit_log`, `compliance_document`, `manual_upload`, `srs_alignment` (from step 1), `architecture_decision` (from step 2).
+6. **Verify uploads landed.** `gh api` or `curl` against `https://devaudit.metasession.co/projects/<slug>/requirements/REQ-XXX/evidence` should show every artefact.
+7. **Update `compliance/RTM.md`** with portal links for each evidence row.
 
 ### Phase 4 — Submit for UAT review (SDLC stage 4)
 
