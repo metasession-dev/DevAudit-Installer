@@ -34,6 +34,18 @@ jobs:
   upload-compliance-evidence:
     name: Upload Compliance Evidence
     runs-on: {{RUNNER}}
+    # Permissions are needed because the "Auto-generate housekeeping stubs"
+    # step pushes a new branch + opens a PR via `gh pr create` when the
+    # current push triggers a housekeeping release (vYYYY.MM.DD) that
+    # doesn't yet have its stub release-ticket on disk. Without these
+    # the github-actions[bot] token gets HTTP 403 on the push + on the PR
+    # create, and the auto-housekeeping path silently leaves a red badge
+    # on every docs-only / chore push. DEVAUDIT_USER_TOKEN remains optional
+    # for orgs with restricted Actions permissions — but is no longer
+    # required for the default-config flow. See DevAudit-Installer#122.
+    permissions:
+      contents: write       # push the auto-PR branch
+      pull-requests: write  # gh pr create
     env:
       DEVAUDIT_BASE_URL_VAR: ${{ vars.DEVAUDIT_BASE_URL }}
       DEVAUDIT_API_KEY: ${{ secrets.DEVAUDIT_API_KEY }}

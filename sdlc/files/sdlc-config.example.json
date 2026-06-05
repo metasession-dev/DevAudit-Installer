@@ -93,5 +93,18 @@
     "block_on_stage_3": true,
     "auto_file_followup_issue": false,
     "ramp_up_runs": 5
+  },
+
+  "_comment_adr_author": "adr-author skill toggles (DevAudit-Installer#120, v0.1.43+). The skill applies a decision tree at Stage 1 plan APPROVAL to judge ADR-worthiness, drafts docs/ADR/ADR-NNN-<slug>.md when warranted, and drops compliance/evidence/REQ-XXX/architecture-decision.md at Stage 3. block_on_stage_1=false (default) means advisory-with-strong-recommend in v1; flip to true once the project's calibrated on the heuristic. block_on_stage_3=true means the per-REQ architecture-decision.md artefact is the hard gate. file_paths_signal_architecture lists path prefixes that should trigger an ADR-worthy verdict when touched — defaults cover lib/services/, lib/repositories/, prisma/schema.prisma, infra/; add project-specific load-bearing paths.",
+  "adr_author": {
+    "enabled": true,
+    "block_on_stage_1": false,
+    "block_on_stage_3": true,
+    "file_paths_signal_architecture": [
+      "lib/services/",
+      "lib/repositories/",
+      "prisma/schema.prisma",
+      "infra/"
+    ]
   }
 }

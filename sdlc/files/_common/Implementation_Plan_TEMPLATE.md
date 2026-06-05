@@ -50,7 +50,23 @@ Each section below maps to one (or more) of these clauses. Don't delete sections
 - **In scope:** REPLACE — list every file / module / surface the change touches.
 - **Out of scope:** REPLACE — adjacent areas the change deliberately leaves alone.
 
-## 3. Threat model + security considerations
+## 3. Architecture decisions
+
+> *Populated by the [`adr-author` skill](../skills/adr-author/SKILL.md) at Stage 1 plan APPROVAL.*
+
+Either an ADR-NNN reference list (when the skill judges the REQ architecturally significant) OR an explicit "no ADR" rationale. **Don't author this section inline as bullets** — the `adr-author` skill applies its decision tree and either drafts a `docs/ADR/ADR-NNN-<slug>.md` stub the operator edits, or annotates the no-ADR case.
+
+When **ADR warranted**:
+
+- **ADR-NNN — <decision title>** — Drafted by `adr-author`. File at `docs/ADR/ADR-NNN-<slug>.md`. Operator edits stub to canonical prose + flips status to *Accepted* before plan APPROVAL.
+
+When **No ADR needed**:
+
+- **No ADR needed** — REPLACE one-line rationale. Examples: "Bug fix touching only `lib/services/order-service.ts:applyDiscount` — no structural change." / "CSS-only adjustment — no behavioural or dependency change." / "Patch-level dependency bump with no API change."
+
+The negative case is audit evidence too — auditors examine "no ADR — <rationale>" to confirm the question was asked. Never leave this section empty.
+
+## 4. Threat model + security considerations
 
 > *Closes ISO 27001 A.8.25 — secure development life cycle*
 
@@ -63,7 +79,7 @@ Each section below maps to one (or more) of these clauses. Don't delete sections
 
 **Dependencies introduced:** REPLACE — list new npm/pip packages; flag any with known CVEs or transitive concerns.
 
-## 4. Data protection (GDPR Art. 25)
+## 5. Data protection (GDPR Art. 25)
 
 > *Closes GDPR Art. 25 — data protection by design*
 
@@ -85,7 +101,7 @@ If **yes**, fill in:
 
 If **no**, write: *"N/A — this REQ does not process personal data. <Why — e.g. UI-only change, internal-routing refactor, dev-tooling.>"*
 
-## 5. AI / model considerations (EU AI Act Art. 11)
+## 6. AI / model considerations (EU AI Act Art. 11)
 
 > *Closes EUAIA Art. 11 — technical documentation*
 
@@ -103,13 +119,13 @@ If **yes**, fill in:
 
 If **no**, write: *"N/A — this REQ does not introduce or change AI behaviour. <Why.>"*
 
-## 6. Rollback plan
+## 7. Rollback plan
 
 - **Reversible via:** REPLACE — git revert / migration down / config flip / etc.
 - **Data implications of rollback:** REPLACE — any data written by the new code that an older version can't read?
 - **Notification path if rollback during a release:** REPLACE — who hears, how quickly?
 
-## 7. Verification
+## 8. Verification
 
 How the team will know the REQ is correct in production:
 
@@ -118,7 +134,7 @@ How the team will know the REQ is correct in production:
 - **Manual smoke after deploy:** REPLACE — bullet-list, or "none" with reason
 - **Monitoring / alerting:** REPLACE — what dashboards / alerts the change adds or relies on
 
-## 8. Sign-off
+## 9. Sign-off
 
 - **Plan reviewer (eng):** REPLACE — name + date
 - **Plan reviewer (security / DPO):** REPLACE — when GDPR or threat-model sections are non-trivial; otherwise "N/A"

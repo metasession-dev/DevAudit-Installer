@@ -98,8 +98,10 @@ Create `compliance/evidence/REQ-XXX/implementation-plan.md`:
 - `path/to/existing-file.ts` — [what changes and why]
 
 ## Architecture Decisions
-- [Key decision 1 and rationale]
-- [Key decision 2 and rationale]
+
+> Populated by the [`adr-author` skill](../skills/adr-author/SKILL.md) at Stage 1 plan APPROVAL. The skill applies a decision tree (new third-party dependency / new database, cache, or queue / new external service / pattern change spanning > 3 files / HIGH-CRITICAL risk) and either drafts `docs/ADR/ADR-NNN-<slug>.md` + injects "Produced ADR-NNN: <title>" here, or injects "No ADR needed — <one-line rationale>" so the question is visibly asked and answered. Don't author this section inline as bullets — the persistent decision lives in `docs/ADR/`, not buried in the plan.
+
+- ADR-NNN — <title> (`docs/ADR/ADR-NNN-<slug>.md`) — Operator edits stub + flips to *Accepted* before APPROVAL — OR — No ADR needed — <rationale>
 
 ## Dependencies
 - [New packages needed, or "None"]
