@@ -62,7 +62,11 @@ The CLI reads each consumer's `sdlc-config.json`, copies the templates from its 
 
 ## The SDLC at a glance
 
-Trunk-based (`develop` → `main`), one owner-developer partnered with AI agents. Every tracked change runs five stages:
+Trunk-based (`develop` → `main`), one owner-developer partnered with AI agents. The framework has **two release shapes** — tracked and housekeeping — and CI auto-classifies each develop push into the correct shape.
+
+### Tracked releases (`REQ-XXX`)
+
+The default path for any user-visible change. Triggered by `feat`/`fix`/`refactor`/`perf` commits, which **must** cite a `[REQ-XXX]` (enforced by commitlint + `validate-commits.sh`). Runs all five stages:
 
 ```
 0 Project setup → 1 Plan (REQ-XXX, risk, plan) → 2 Implement & test (gates green)
@@ -70,10 +74,21 @@ Trunk-based (`develop` → `main`), one owner-developer partnered with AI agents
 → 5 Deploy to main (prod smoke + Production approval)
 ```
 
-- **Default path:** the **`sdlc-implementer`** skill takes one GitHub issue through Stages 1–5 unattended (pausing at the portal UAT gate), delegating e2e work to **`e2e-test-engineer`**.
-- **When it's NOT used:** trivial/housekeeping changes (`docs`/`chore`/`ci`…) skip the ceremony; e2e-only or planning-only work is done directly. Implementation commits (`feat`/`fix`/`refactor`/`perf`) **must** cite a `[REQ-XXX]` — enforced by commitlint + `validate-commits.sh`.
+The **`sdlc-implementer`** skill takes one GitHub issue through Stages 1–5 unattended (pausing at the portal UAT gate), delegating e2e work to **`e2e-test-engineer`**.
+
+### Housekeeping releases (`v2026.06.04`)
+
+Bare-date release shape for develop pushes that don't carry a `REQ-XXX` — typically `docs:`, `chore:`, `ci:`, `build:`, `test:`, `compliance:`, `revert:` commits. The portal **auto-classifies these by version pattern** and skips the per-REQ ceremony (no implementation plan, no test scope, no test execution summary). What's still required:
+
+- All four CI gates green (SAST, dep-audit, E2E, test reports)
+- `compliance/pending-releases/RELEASE-TICKET-<version>.md` — **auto-generated** by `generate-housekeeping-release-ticket.sh` and opened as a PR for operator review + sign-off (v0.1.41+).
+- `compliance/security-summary-<version>.md` — **auto-generated** by `generate-security-summary.sh` from SAST + dep-audit JSON, same auto-PR (v0.1.41+).
+- Same UAT → production four-eyes approval flow as tracked.
+
+Operator workload on a housekeeping release: review the auto-PR, replace `REPLACE — …` markers in the Sign-off blocks, merge. The next CI run uploads both artefacts and the portal's release-completeness matrix flips both items to ✓.
 
 → Which workflow applies to which change type, and what release each produces: [**`docs/change-workflows.md`**](./docs/change-workflows.md).
+→ Full stage-3 walkthrough including the housekeeping path: [**`3-compile-evidence.md`**](./sdlc/files/_common/3-compile-evidence.md).
 → The stage-by-stage operational walkthrough (synced into every consumer): [**`implementing-an-sdlc-issue.md`**](./sdlc/files/_common/implementing-an-sdlc-issue.md).
 
 ## Architecture
