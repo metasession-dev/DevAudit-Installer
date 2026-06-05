@@ -64,6 +64,20 @@ The CLI reads each consumer's `sdlc-config.json`, copies the templates from its 
 
 Trunk-based (`develop` → `main`), one owner-developer partnered with AI agents. The framework has **two release shapes** — tracked and housekeeping — and CI auto-classifies each develop push into the correct shape.
 
+### Which AI agent? Any of them.
+
+`devaudit install` writes drop-in rule files for the four agents that have a native rule-file mechanism, plus the canonical `INSTRUCTIONS.md` that any LLM-driven agent can consume:
+
+| Agent | File installed | Integration depth |
+|---|---|---|
+| **Claude Code** | `CLAUDE.md` + `.claude/skills/{sdlc-implementer,e2e-test-engineer,governance-doc-author}/` | **Deepest** — skills auto-fire from natural-language prompts ("implement issue #N", "run e2e tests"). |
+| **Cursor** | `.cursorrules` (pointer → `INSTRUCTIONS.md`) | Rules load automatically; the agent reads the SDLC content on demand. |
+| **Windsurf** | `.windsurfrules` (pointer → `INSTRUCTIONS.md`) | Same as Cursor — rules-on-load, content-on-demand. |
+| **Gemini CLI** | `GEMINI.md` (pointer → `INSTRUCTIONS.md`) | Same pattern as Cursor + Windsurf. |
+| **GitHub Copilot / Aider / Continue / any other LLM** | `INSTRUCTIONS.md` (canonical) | No native rule-file integration; the agent reads `INSTRUCTIONS.md` when you point it at the SDLC content. |
+
+The SDLC content + compliance gates + portal don't depend on which agent you pick. Claude Code's auto-firing skills are the most ergonomic today; the other agents do the same work with a slightly more manual "read the workflow file then run the stage" cadence.
+
 ### Tracked releases (`REQ-XXX`)
 
 The default path for any user-visible change. Triggered by `feat`/`fix`/`refactor`/`perf` commits, which **must** cite a `[REQ-XXX]` (enforced by commitlint + `validate-commits.sh`). Runs all five stages:
@@ -74,7 +88,7 @@ The default path for any user-visible change. Triggered by `feat`/`fix`/`refacto
 → 5 Deploy to main (prod smoke + Production approval)
 ```
 
-The **`sdlc-implementer`** skill takes one GitHub issue through Stages 1–5 unattended (pausing at the portal UAT gate), delegating e2e work to **`e2e-test-engineer`**.
+The **`sdlc-implementer`** skill takes one GitHub issue through Stages 1–5 unattended on Claude Code (pausing at the portal UAT gate), delegating e2e work to **`e2e-test-engineer`**. On Cursor / Windsurf / Gemini CLI / Copilot the same workflow runs step-by-step against the synced `INSTRUCTIONS.md` — same gates, same evidence, slightly more manual cadence.
 
 ### Housekeeping releases (`v2026.06.04`)
 
