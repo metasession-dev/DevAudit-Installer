@@ -36,9 +36,14 @@ Each section below maps to one (or more) of these clauses. Don't delete sections
 
 - **Goal:** REPLACE — one sentence describing what this REQ delivers, no jargon.
 - **Acceptance criteria:**
-  - AC1 — REPLACE
-  - AC2 — REPLACE
-  - …
+
+| AC | Description | SRS item it traces to |
+|---|---|---|
+| AC1 | REPLACE — one-line behavioural description | REQ-AREA-NNN (existing) / REQ-AREA-NNN (new — propose stub) / `@srs-deferred: <reason>` |
+| AC2 | REPLACE | REPLACE |
+| … | | |
+
+> **SRS-ID column populated by the `requirements-aligner` skill** at Stage 1 plan APPROVAL. The skill fuzzy-matches each AC against `docs/SRS.md`, proposes new `REQ-AREA-NNN` stubs for behaviour the SRS doesn't yet describe, and flags stale items. Plan APPROVAL blocks (configurable per `sdlc-config.json:requirements_aligner.block_on_stage_1`, ramp-up mode default-on for legacy projects) until every AC has either an existing SRS item, a new SRS-ID stub added in this cycle, or an explicit `@srs-deferred` annotation. See [`requirements-aligner` skill](../skills/requirements-aligner/SKILL.md).
 
 ## 2. Scope
 

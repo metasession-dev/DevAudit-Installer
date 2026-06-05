@@ -265,6 +265,20 @@ cat compliance/evidence/REQ-XXX/test-scope.md
 # If not, complete the outstanding items before proceeding
 ```
 
+The test-scope artefact carries an **SRS-ID cross-reference table** so each test maps back to the requirement (SoT) it pins. Format:
+
+```markdown
+## SRS coverage
+
+| Test (file) | AC | SRS item |
+|---|---|---|
+| e2e/admin-order-flow.spec.ts | AC1 | REQ-ORDER-005 |
+| services/order-service.test.ts | AC2 | REQ-INV-010 |
+| e2e/incident-dashboard.spec.ts | AC9 | REQ-OPS-001 |
+```
+
+The SRS-ID column populates from the implementation plan's SRS-ID column (populated by the `requirements-aligner` skill at Stage 1). Stage 3 cross-checks consistency: every AC's SRS item should resolve to a real entry in `docs/SRS.md`, every test should pin at least one AC. The skill also drops a `srs-alignment.md` per-REQ artefact alongside this one (Tier 3 evidence with `evidence_type=srs_alignment`).
+
 For MEDIUM/HIGH risk, verify the implementation plan exists and matches what was built:
 
 ```bash
