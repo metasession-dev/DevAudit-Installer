@@ -18,6 +18,12 @@ const CI_TEMPLATES = [
   // DevAudit-Installer#98 WS4: fires on `label:incident` issue close →
   // auto-PR with the issue exported to compliance/governance/.
   'incident-export.yml.template',
+  // Phase 2 of the consumer-bump-via-issue process (v0.1.46+): daily
+  // cron that flags overdue devaudit-bump issues with the `overdue`
+  // label + a sticky comment carrying installed-vs-latest version
+  // state. No gating; pure visibility. Pairs with the auto-issue-
+  // filing step in DevAudit-Installer's release.yml.
+  'devaudit-version-drift.yml.template',
 ];
 
 const OLD_WORKFLOWS_TO_REMOVE = ['test-on-pr.yml', 'check-uat-approval.yml'];

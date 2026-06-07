@@ -1,0 +1,19 @@
+{
+  "_comment": "Source-of-truth list of repos that consume the DevAudit SDLC framework + should receive auto-filed bump issues when a new version publishes. Operator-maintained: add a repo when it onboards via `devaudit install` + survives its first release cycle; remove when it's stopped/paused for > 30d. The release.yml workflow reads this on every tag push.",
+  "active_consumers": [
+    {
+      "repo": "metasession-dev/wawagardenbar-app",
+      "short_name": "WGB",
+      "notes": "Hospitality/POS; primary consumer since 2026-03. Node + MongoDB. Highest velocity (~1 release/day)."
+    },
+    {
+      "repo": "metasession-dev/META-JOBS",
+      "short_name": "META-JOBS",
+      "notes": "Job board; secondary consumer since 2026-05. Node + Postgres."
+    }
+  ],
+  "_paused_consumers": {
+    "_comment": "Consumers that onboarded but are currently stopped. NOT auto-issued. Move back to active_consumers when they resume.",
+    "repos": ["metasession-dev/META-AGENT", "metasession-dev/META-ATS"]
+  }
+}

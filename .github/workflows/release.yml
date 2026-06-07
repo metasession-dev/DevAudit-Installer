@@ -89,3 +89,45 @@ jobs:
           TAG="${GITHUB_REF_NAME:-v${{ inputs.version }}}"
           echo "Creating GitHub Release $TAG"
           gh release create "$TAG" --generate-notes --title "$TAG"
+
+      # ----- Step 6: File bump issues on active consumers -----
+      #
+      # Phase 2 of the consumer-bump-via-issue process. Reads
+      # docs/active-consumers.json + opens one GitHub issue per active
+      # consumer using the body rendered by
+      # scripts/render-bump-issue-body.sh. Issues land unlabelled (=
+      # routine priority); the operator promotes via `priority:high` /
+      # `priority:medium` labels when warranted. The per-consumer
+      # devaudit-version-drift.yml workflow (synced via the CLI as part
+      # of the same release) escalates the `overdue` label when target-
+      # action dates pass.
+      #
+      # Uses DEVAUDIT_USER_TOKEN — needs `issues:write` on each
+      # consumer in the registry. Same PAT already used for cross-repo
+      # automation; failure here doesn't unwind the npm publish (issue-
+      # filing is best-effort post-publish).
+      - name: File bump issues on active consumers
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.DEVAUDIT_USER_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME:-v${{ inputs.version }}}"
+          REGISTRY=docs/active-consumers.json
+          if [ ! -f "$REGISTRY" ]; then
+            echo "::warning::$REGISTRY not found; skipping auto-issue-filing."
+            exit 0
+          fi
+          # Iterate active_consumers, NOT _paused_consumers.
+          jq -c '.active_consumers[]' "$REGISTRY" | while read -r row; do
+            repo=$(echo "$row" | jq -r '.repo')
+            short_name=$(echo "$row" | jq -r '.short_name // .repo')
+            echo "Filing bump issue on $repo (as $short_name)…"
+            CONSUMER_NAME="$short_name" \
+              ./scripts/render-bump-issue-body.sh "$TAG" \
+              | gh issue create --repo "$repo" \
+                  --title "chore: bump devaudit to $TAG" \
+                  --body-file - \
+                  --label "type:chore,area:tooling" \
+              || echo "::warning::Failed to file bump issue on $repo. Continue."
+          done
