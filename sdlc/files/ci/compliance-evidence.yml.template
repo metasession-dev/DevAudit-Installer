@@ -40,9 +40,13 @@ jobs:
     # doesn't yet have its stub release-ticket on disk. Without these
     # the github-actions[bot] token gets HTTP 403 on the push + on the PR
     # create, and the auto-housekeeping path silently leaves a red badge
-    # on every docs-only / chore push. DEVAUDIT_USER_TOKEN remains optional
-    # for orgs with restricted Actions permissions — but is no longer
-    # required for the default-config flow. See DevAudit-Installer#122.
+    # on every docs-only / chore push.
+    #
+    # `DEVAUDIT_USER_TOKEN` is no longer consulted by this workflow (the
+    # auto-stub step now uses `github.token` directly — see the env block
+    # on that step). The permissions below grant everything `gh pr create`
+    # needs; preferring a (potentially stale) PAT was the cause of the
+    # 2026-06-07 401 chain on this issue.
     permissions:
       contents: write       # push the auto-PR branch
       pull-requests: write  # gh pr create
@@ -129,7 +133,19 @@ jobs:
       - name: Auto-generate housekeeping stubs (if needed)
         if: steps.resolve.outputs.skip != 'true'
         env:
-          GH_TOKEN: ${{ secrets.DEVAUDIT_USER_TOKEN || github.token }}
+          # Use the workflow's GITHUB_TOKEN directly. The `permissions:`
+          # block on the job grants `contents: write` + `pull-requests:
+          # write`, which is everything `gh pr create` + `git push` need
+          # here. The earlier `secrets.DEVAUDIT_USER_TOKEN || github.token`
+          # fallback became a foot-gun once that permissions block landed
+          # — when an operator had set `DEVAUDIT_USER_TOKEN` historically
+          # (to work around the missing permissions) and the PAT later
+          # expired, every `gh pr create` 401'd as the workflow preferred
+          # the stale PAT over the live bot token. See DevAudit-Installer#122
+          # 2026-06-07 escalation. Orgs with policy that blocks the bot
+          # token from creating PRs can override per-workflow on their
+          # own; the canonical default no longer prefers a PAT.
+          GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           # Guard: only fire for bare-date (housekeeping) versions.
