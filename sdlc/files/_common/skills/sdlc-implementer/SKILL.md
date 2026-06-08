@@ -41,6 +41,8 @@ The orchestrator MUST invoke `e2e-test-engineer` for end-to-end and visual-regre
 - Never transcribe `e2e-test-engineer`'s six-phase workflow into this skill's body.
 - Call via the standard Claude Code Skill mechanism (`Skill(name: "e2e-test-engineer", …)`).
 
+**Structural enforcement (devaudit#132):** the contract is backed by two gates inside Phase 2 — a literal pre-test-work declaration before any `e2e/**/*.spec.ts` edit (step 3) and a mandatory self-audit before Phase 3 (step 9). Both are scripts the orchestrator follows, not prose it can rationalise around. If you find yourself about to skip either, that's the inertia trap the gates exist to interrupt — STOP, run the gate, and you'll usually find the delegation path is obvious from there.
+
 Unit-test and integration-test work stays with this skill until a counterpart unit-test skill ships. The full sub-skill call graph lives at [`references/call-graph.md`](./references/call-graph.md).
 
 ## The workflow
@@ -178,7 +180,13 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
    - MEDIUM — unit + integration; e2e for any UI-facing change.
    - HIGH — unit + integration + e2e for every user-visible path + at least one negative/abuse test.
    - CRITICAL — HIGH plus targeted security tests (authz bypass attempts, input fuzzing where applicable).
-3. **For any e2e or visual-regression test work in this step, invoke `e2e-test-engineer`** — do not author e2e tests directly. The orchestrator passes the implementation plan + the diff so far to the e2e-test-engineer skill, which derives scenarios, reconciles with the existing pack, and runs the suite.
+3. **E2E delegation gate — pre-test-work declaration (devaudit#132).** Before creating or editing **any** `e2e/**/*.spec.ts` file in this phase, follow these three steps in order. The literal script exists because the "MUST invoke" prose alone has been bypassed by inertia in past runs; the declaration is the structural defence.
+
+   a. Output the single literal line, verbatim: `Delegating e2e test work to e2e-test-engineer.`
+   b. Immediately invoke `Skill(name: "e2e-test-engineer", args: "<the change summary + plan pointer>")`. The change summary is one sentence; the plan pointer is `compliance/plans/REQ-XXX/implementation-plan.md`.
+   c. **Do not author or edit any `e2e/**/*.spec.ts` file in this skill's own tool calls.** The e2e-test-engineer skill owns spec authoring end-to-end — including the "this AC needs no e2e" decision. If you feel the urge to write a spec inline, that's the inertia trap — STOP and re-invoke the skill.
+
+   When in doubt about whether work qualifies: visual-regression tests, screenshot diffs, browser-driven flows, any file ending in `.spec.ts` under `e2e/`, and any `playwright.config.ts`/`evidence/`/`baselines/` directory all qualify. Unit/integration tests under `tests/unit/`, `tests/integration/`, or stack-equivalent paths stay with this orchestrator.
 4. **Implement against the plan.** Reference `compliance/plans/REQ-XXX/implementation-plan.md` as you go. Any deviation from the plan must be noted in the plan itself under a `## Plan deviation` section — never silently diverge.
 5. **Run gates locally, cheap-first.** The gates are not equivalent-cost — `npm run lint` is seconds, `npx playwright test` is 30–60 minutes. Iterate on the fast gates; spend the e2e cost once.
 
@@ -197,6 +205,15 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
 8. **Land the work on `$INTEGRATION_BRANCH`.** Push the feature branch, then:
    - **If `$INTEGRATION_BRANCH` ≠ `$RELEASE_BRANCH`** (develop-first): open a PR `feat/REQ-XXX-<slug> → $INTEGRATION_BRANCH` and merge it once CI is green. This is the **integration hop** — there is no UAT four-eyes gate here (that's the release PR in Phase 4); for MEDIUM+ risk get a peer review on this PR per the project's norms. The push to `$INTEGRATION_BRANCH` is what triggers `ci.yml` to register the release and upload gate evidence.
    - **If `$INTEGRATION_BRANCH` = `$RELEASE_BRANCH`** (trunk-only): do **not** merge to the protected branch here — leave the work on the feature branch; it becomes the release PR's head in Phase 4.
+
+9. **E2E delegation self-audit — mandatory before Phase 3 (devaudit#132).** Run `git diff "$INTEGRATION_BRANCH"...HEAD --name-only` and walk the file list. For **every** entry matching `e2e/**/*.spec.ts`, state out loud one of:
+
+   - _"Authored via `e2e-test-engineer` skill invocation on turn N."_ — with the turn pointer the operator can verify from the chat transcript.
+   - _"Pre-existing file; only mechanical edits (path renames, import fixes, lint-only) applied directly. No scenario / assertion / selector changes."_ — applies only to non-substantive sweeps where the e2e-test-engineer skill would have nothing to contribute.
+
+   If you cannot place a spec file in either category — STOP. Do not proceed to Phase 3. Revert the direct edits (`git checkout "$INTEGRATION_BRANCH" -- <file>`) and re-do the work via `Skill(name: "e2e-test-engineer", …)`. The audit must be honest: omitting a file or fabricating a turn pointer is worse than the original delegation gap because it pollutes the audit trail with a false attribution.
+
+   This is the post-hoc check that catches anything step 3 missed. If both gates fire (declaration before the spec edit + audit before Phase 3) and you still see a direct authoring path, that's evidence the gates need to be stronger and worth a follow-up issue.
 
 ### Phase 3 — Compile evidence (SDLC stage 3)
 

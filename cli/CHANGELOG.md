@@ -4,6 +4,12 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+## [0.1.48] — 2026-06-08
+
+### Changed
+
+- **devaudit#132** — `sdlc-implementer`'s e2e delegation contract is now backed by two structural gates inside Phase 2, not just MUST-prose. Step 3 requires a literal pre-test-work declaration (`Delegating e2e test work to e2e-test-engineer.`) before any `e2e/**/*.spec.ts` edit, immediately followed by a `Skill(name: "e2e-test-engineer", …)` invocation. New step 9 (before Phase 3) is a mandatory self-audit: every `*.spec.ts` in the diff must be placed in one of two categories ("authored via skill on turn N" / "mechanical edit only"), or the orchestrator STOPs and reverts. Both gates exist because the rule alone was bypassed by inertia in past runs (REQ-075 + REQ-076 receipts); the gates are scripts the agent follows, not prose it can rationalise around.
+
 ## [0.1.47] — 2026-06-08
 
 ### Fixed
