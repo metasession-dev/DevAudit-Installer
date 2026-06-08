@@ -29,9 +29,9 @@ last_reviewed_at: "REPLACE — YYYY-MM-DD"
 
 ## Uploading this artefact
 
-- **File path:** `compliance/governance/incident-report.md` (the template) or `compliance/governance/incident-report-<id>.md` (per-incident — recommended; the `incident-export.yml` workflow auto-produces these from closed GitHub issues labelled `incident`)
-- **Upload trigger:** automatic — on every push to `develop` that touches `compliance/**`, `compliance-evidence.yml` uploads this file as `incident_report` evidence via the `upload_governance` helper.
-- **Verify after merge:** open `/projects/<slug>/compliance`. `ISO29119.3.5.4` always flips to COVERED (baseline). `SOC2.CC7.2`, `GDPR.Art-33`, `GDPR.Art-34` flip only when the relevant attribution sections below are non-stub.
+- **File path:** `compliance/governance/incident-report-<id>.md` (per-incident — recommended; the `incident-export.yml` workflow auto-produces these from closed GitHub issues labelled `incident`). The bare `incident-report.md` is the unedited starter — kept on disk as a reference but **skipped by the uploader** until you replace the STARTER TEMPLATE banner.
+- **Upload trigger:** automatic — on every push to `develop` that touches `compliance/**`, `compliance-evidence.yml` globs `incident-report*.md` under both layouts and uploads each non-stub file as `incident_report` evidence via the `upload_governance` helper. The starter stub is filtered out centrally by `upload-evidence.sh` (devaudit#133).
+- **Verify after merge:** open `/projects/<slug>/compliance`. `ISO29119.3.5.4` flips to COVERED only when a non-stub `incident-report*.md` lands. `SOC2.CC7.2`, `GDPR.Art-33`, `GDPR.Art-34` flip only when the relevant attribution sections below are non-stub.
 - **Refresh cadence:** none — incidents are point-in-time. Authoring is event-driven.
 
 ## Framework attribution — which clauses THIS incident closes

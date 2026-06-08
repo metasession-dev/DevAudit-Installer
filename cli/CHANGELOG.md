@@ -4,6 +4,14 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+## [0.1.47] — 2026-06-08
+
+### Fixed
+
+- **devaudit#133** — Unedited governance starter stubs (incident-report.md, etc.) no longer flip framework-coverage clauses to COVERED off placeholder content. `scripts/upload-evidence.sh` now skips any file still carrying the `STARTER TEMPLATE — REPLACE BEFORE …` banner (matches both v0.1.36+ "BEFORE COMMITTING" and pre-v0.1.36 "BEFORE GOING TO PRODUCTION" phrasings). Central guard protects every upload path — governance helper, per-REQ loop, future callers. New `SKIPPED` counter in the summary; exit code unchanged (only `FAILED > 0` exits 1).
+- **devaudit#133** — `compliance-evidence.yml.template` now globs `incident-report*.md` (under both top-level and `compliance/governance/`) so real per-incident files written by `incident-export.yml` upload as evidence. Previously the exact-name match missed `incident-report-<id>.md` entirely.
+- Doc accuracy: `incident-report.md.template` reflects the new behaviour — unedited stub is held back; COVERED flips only when a non-stub matches the glob.
+
 ## [0.1.8] — 2026-05-24
 
 ### Fixed

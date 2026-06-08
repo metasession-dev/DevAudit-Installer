@@ -290,8 +290,19 @@ jobs:
           # (operator's choice — both layouts are common).
           upload_governance compliance/periodic-review.md             periodic_review
           upload_governance compliance/governance/periodic-review.md  periodic_review
-          upload_governance compliance/incident-report.md             incident_report
-          upload_governance compliance/governance/incident-report.md  incident_report
+          # Incident reports: glob `incident-report*.md` so per-incident
+          # files (e.g. `incident-report-2026-001.md`, written by
+          # incident-export.yml from labelled GitHub issues) all
+          # upload as real evidence. The unedited starter
+          # `incident-report.md` matches the glob too but is skipped
+          # by upload-evidence.sh's central stub guard — so the stub
+          # can never flip ISO29119.3.5.4 to COVERED on its own
+          # (devaudit#133). `*.md` does not match `*.md.template`.
+          shopt -s nullglob
+          for f in compliance/incident-report*.md compliance/governance/incident-report*.md; do
+            upload_governance "$f" incident_report
+          done
+          shopt -u nullglob
 
           # ── Audit-log export (DevAudit-Installer#98 WS2) ──────────────
           # Snapshot the portal's audit log for the rolling 90-day window
