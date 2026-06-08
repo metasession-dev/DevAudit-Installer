@@ -184,13 +184,33 @@ fi
 # Issue: devaudit#263.
 SUCCEEDED=0
 FAILED=0
+# devaudit#133 — central stub guard. Any file still carrying the
+# DevAudit starter banner ("STARTER TEMPLATE — REPLACE BEFORE
+# COMMITTING" / "...BEFORE GOING TO PRODUCTION" — both phrasings)
+# is skipped before the upload attempt so unedited placeholders
+# can't flip a clause to COVERED off a stub. The check is binary-
+# safe (-a) so it doesn't choke on PNGs or other non-text files.
+SKIPPED=0
 TOTAL_SIZE=0
 UPLOAD_URL="${DEVAUDIT_BASE_URL}/api/evidence/upload"
 MAX_ATTEMPTS=${UPLOAD_MAX_ATTEMPTS:-5}
 INITIAL_BACKOFF_SECONDS=${UPLOAD_INITIAL_BACKOFF_SECONDS:-1}
 
+is_unedited_starter_stub() {
+  # Match BOTH banner phrasings the SDLC has shipped (v0.1.36 changed
+  # the wording from "...GOING TO PRODUCTION" to "...COMMITTING").
+  # -a forces binary→text so we don't error on PNGs/PDFs; the regex
+  # won't match either of those formats by accident.
+  grep -aqE 'STARTER TEMPLATE.+REPLACE BEFORE' "$1"
+}
+
 for FILE in "${FILES[@]}"; do
   FILENAME=$(basename "$FILE")
+  if is_unedited_starter_stub "$FILE"; then
+    echo "SKIPPED ${FILENAME} — unedited starter stub (replace the STARTER TEMPLATE banner to upload)"
+    SKIPPED=$((SKIPPED + 1))
+    continue
+  fi
   FILE_SIZE=$(stat -c%s "$FILE" 2>/dev/null || stat -f%z "$FILE")
   echo -n "Uploading ${FILENAME}... "
   CURL_ARGS=(
@@ -267,8 +287,10 @@ done
 # --- Summary ---
 echo ""
 echo "=== Upload Summary ==="
-echo "Files: ${SUCCEEDED} succeeded, ${FAILED} failed (${#FILES[@]} total)"
+echo "Files: ${SUCCEEDED} succeeded, ${FAILED} failed, ${SKIPPED} skipped (${#FILES[@]} total)"
 echo "Total size: $((TOTAL_SIZE / 1024)) KB"
+# Skipped stubs are intentional (devaudit#133) — they don't fail the
+# run. Only true upload failures bump the exit code.
 if [ "$FAILED" -gt 0 ]; then
   exit 1
 fi
