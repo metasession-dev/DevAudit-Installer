@@ -4,6 +4,12 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+## [0.1.49] — 2026-06-09
+
+### Added
+
+- **devaudit#131** — SDLC navigability: every long-running REQ issue now carries an always-current `LAST` / `NEXT` status sticky comment, updated by `sdlc-implementer` at every phase transition + every operator-action handoff. New `scripts/update-sdlc-status.sh` is the idempotent helper (find-or-create via marker-tagged comment; `--dry-run` for safe inspection). The skill body now invokes it at the start of Phase 1, the end of Phases 1/2/3/4, and at every Phase 5 terminal (released / change-request loop / incident). Skill body also documents the matching `LAST: / NEXT:` chat-output convention. Operators returning to a long thread can now find "what just happened + what's next" without re-scrolling. 12 new hermetic tests over the helper.
+
 ## [0.1.48] — 2026-06-08
 
 ### Changed

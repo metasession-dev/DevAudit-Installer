@@ -45,6 +45,76 @@ The orchestrator MUST invoke `e2e-test-engineer` for end-to-end and visual-regre
 
 Unit-test and integration-test work stays with this skill until a counterpart unit-test skill ships. The full sub-skill call graph lives at [`references/call-graph.md`](./references/call-graph.md).
 
+## SDLC navigability — LAST/NEXT status sticky (devaudit#131)
+
+Long-running SDLC issues accumulate dozens of comments across multiple Claude Code sessions. The operator returning to the thread should be able to answer two questions in under five seconds:
+
+1. **What just happened?** — the most recent stage completion
+2. **What is the immediate next step?** — the single action the operator (or this skill on resume) should take next
+
+Two surfaces, one convention. Both are mandatory:
+
+### 1. Sticky comment on the REQ issue
+
+At **every stage transition** AND **every operator-action handoff** (waiting for review, waiting for merge, waiting for prod apply), invoke the helper:
+
+```bash
+bash scripts/update-sdlc-status.sh "$ISSUE_NUM" \
+  "<one sentence describing the step just completed>" \
+  "<one sentence describing the immediate next step + actor>"
+```
+
+The helper is idempotent — finds the marker-tagged comment and edits it, or creates one if none exists. So calling it on every transition keeps the same comment current; it never spawns duplicates.
+
+LAST sentence rules:
+
+- One sentence. Name the phase / artefact / outcome.
+- Include load-bearing identifiers — PR numbers, file paths, gate names — so the operator can act without re-scrolling.
+- Past tense.
+
+NEXT sentence rules:
+
+- One sentence. **Always name the actor** (operator action / `sdlc-implementer` auto-continues / waiting for CI / waiting for review).
+- Include the artefact to act on — issue number, PR number, migration path, command to run.
+- If the next step is operator-only and we're paused: say so explicitly. "Operator action — apply Prisma migration 13 to prod, then merge develop→main PR #458."
+
+Examples:
+
+```
+LAST: Phase 1 complete — implementation plan written to compliance/plans/REQ-074/implementation-plan.md (risk class MEDIUM)
+NEXT: Phase 2 — sdlc-implementer auto-continuing
+```
+
+```
+LAST: Phase 4 — release PR #455 opened against develop, CI running
+NEXT: Operator action — review PR #455 + merge when CI green; sdlc-implementer halts here until you ping resume REQ-074
+```
+
+```
+LAST: Phase 5 complete — release v1.2.0 marked Released; post-deploy smoke evidence uploaded
+NEXT: Done — close issue + retire feature branch (sdlc-implementer halts)
+```
+
+### 2. In-chat LAST/NEXT line (Claude Code surface)
+
+Lead every substantive turn with the same two-line shape so the operator can `Ctrl-F NEXT:` in the chat transcript to find the current pointer without re-reading:
+
+```
+**LAST:** <one sentence>
+**NEXT:** <one sentence with actor>
+```
+
+Skip it for trivial turns (acknowledging a "merged" / one-line confirmations / chitchat). It's for SDLC work, not every message. The two surfaces (sticky comment + chat line) should always agree — if they diverge, the comment is canonical (it's what the operator scrolling the issue sees).
+
+### When to update
+
+- After every Phase transition (Phase 0 → 1, 1 → 2, …, 5 → done)
+- On every operator-action handoff (paused for review, paused for merge, paused for prod apply, paused for migration)
+- On the change-request loop (Phase 5 rejection → re-enter Phase 2)
+- On error halt (gate failure exhausted retries, operator-only decision needed)
+
+Do **not** update on every internal step within a phase — that just spams the sticky. The transition + handoff cadence is the right frequency.
+
 ## The workflow
 
 A triage step (Phase 0) routes the issue, then up to five phases for tracked work. Phase 0 plus Phases 1–4 run in one Claude Code session; Phase 5 is invoked separately by the user after UAT. The off-ramps from Phase 0 (housekeeping / trivial / doc-only) don't enter Phase 1 — they run the **Lightweight path** (below), which the skill drives to merge.
@@ -148,6 +218,7 @@ Reached from Phase 0 for non-tracked change-types. The skill drives this end-to-
 
 Reached only on the **tracked** route from Phase 0 (the issue is already fetched and classified).
 
+0. **Initialise SDLC status sticky** on the issue: `bash scripts/update-sdlc-status.sh "$ISSUE_NUM" "Phase 0 complete — classified as tracked SDLC work" "Phase 1 — sdlc-implementer authoring implementation plan"`. From now until the issue closes, the sticky is the always-current pointer to "what's next" — the operator scans it on every return to the issue.
 1. **Confirm the issue scope.** Re-read the `gh issue view <N>` output from Phase 0 — title, body, all comments — with implementation in mind.
 2. **Classify risk** per `Test_Policy.md` §Risk-Based Testing. Emit a one-paragraph rationale citing the signals you used (auth surface, financial calc, data egress, RBAC, AI decisioning, etc.).
 3. **Assign REQ-XXX.** Inspect `compliance/RTM.md` for existing entries; take the next free number. If the issue references an existing REQ, use that instead.
@@ -171,6 +242,7 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
 9. **Update `compliance/RTM.md`** with the new entry: REQ-XXX, title, risk class, linked issue, linked test cases (placeholder).
 10. **Post plan summary as an issue comment.** Format: TL;DR; Risk class + signals; Acceptance criteria (with SRS-IDs); Architectural decisions (ADR-NNN reference or no-ADR rationale); Risk register entries (RISK-NNN list); Technical approach (one paragraph); Dependencies; Test scope.
 11. **Checkpoint** — pause for human approval **iff** risk class is HIGH or CRITICAL. LOW and MEDIUM pass through to Phase 2 automatically. The checkpoint can be forced on for all classes via the `--require-plan-approval` flag (or `DEVAUDIT_REQUIRE_PLAN_APPROVAL=1` env var) for orgs that want it always-on.
+12. **Update SDLC status sticky** before exiting Phase 1: `bash scripts/update-sdlc-status.sh "$ISSUE_NUM" "Phase 1 complete — plan written to compliance/plans/REQ-XXX/implementation-plan.md (risk class <CLASS>)" "Phase 2 — sdlc-implementer auto-continuing"` (or "Operator action — review plan + ping resume" if the HIGH/CRITICAL checkpoint paused).
 
 ### Phase 2 — Implement and test (SDLC stage 2)
 
@@ -215,6 +287,8 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
 
    This is the post-hoc check that catches anything step 3 missed. If both gates fire (declaration before the spec edit + audit before Phase 3) and you still see a direct authoring path, that's evidence the gates need to be stronger and worth a follow-up issue.
 
+10. **Update SDLC status sticky** before exiting Phase 2: `bash scripts/update-sdlc-status.sh "$ISSUE_NUM" "Phase 2 complete — feat branch landed on $INTEGRATION_BRANCH; all gates green" "Phase 3 — sdlc-implementer auto-continuing (evidence compile)"`.
+
 ### Phase 3 — Compile evidence (SDLC stage 3)
 
 1. **Invoke `requirements-aligner` to drop the per-REQ SRS-alignment artefact.** The skill's Phase 2 produces `compliance/evidence/REQ-XXX/srs-alignment.md` — the per-REQ trace from each AC to its SRS item, with an operator sign-off block. The artefact uploads with `evidence_type=srs_alignment` (visible in Documents tab + audit-pack export; v1 orphan-by-design per META-COMPLY framework-registry-auditor). Call via the standard Skill mechanism; don't inline the alignment logic.
@@ -250,6 +324,7 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
    Evidence types: `screenshot`, `e2e_result`, `test_report`, `audit_log`, `compliance_document`, `manual_upload`, `srs_alignment` (from step 1), `architecture_decision` (from step 2), `risk_assessment` (from step 3).
 7. **Verify uploads landed.** `gh api` or `curl` against `https://devaudit.metasession.co/projects/<slug>/requirements/REQ-XXX/evidence` should show every artefact.
 8. **Update `compliance/RTM.md`** with portal links for each evidence row.
+9. **Update SDLC status sticky** before exiting Phase 3: `bash scripts/update-sdlc-status.sh "$ISSUE_NUM" "Phase 3 complete — evidence uploaded; SRS-alignment + ADR + risk-assessment artefacts attached" "Phase 4 — sdlc-implementer auto-continuing (open release PR)"`.
 
 ### Phase 4 — Submit for UAT review (SDLC stage 4)
 
@@ -274,6 +349,7 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
 3. **Apply labels** — `awaiting-uat-review`, `risk:<class>`.
 4. **Comment on the issue**: "Implementation complete. PR #M opened. Evidence on portal: <link>. UAT review requested. Resume with `resume REQ-XXX` once UAT approval is granted on the portal."
 5. **Hard stop.** Phase 4 ends here. Do not proceed to merge; the human's next action is reviewing on the portal.
+6. **Update SDLC status sticky** before halting: `bash scripts/update-sdlc-status.sh "$ISSUE_NUM" "Phase 4 — release PR #<N> opened against $RELEASE_BRANCH; CI running" "Operator action — review PR #<N> + approve UAT release on the portal; sdlc-implementer halts until you ping resume REQ-XXX"`. This is a critical handoff — the sticky must reflect that the agent has stopped + the operator is on the hook.
 
 **When an external gate hangs or fails for unrelated reasons.** A required gate may fail for reasons outside the change's scope — flaky infra, an unrelated regression test that hangs at hour-plus runtime with no log activity, a known-failing suite. When this happens:
 
@@ -295,8 +371,9 @@ Invoked separately by the user after UAT activity on the portal. Trigger: "resum
      - Verify production smoke evidence uploaded (`--environment production`) at `https://devaudit.metasession.co/projects/<slug>/releases/<version>`.
      - Mark release as `Released` via portal API: `PATCH /releases/<version>` with `{"status": "released"}`.
      - Comment on the issue: "Released. Production smoke evidence: <link>."
+     - **Update SDLC status sticky** to the terminal state: `bash scripts/update-sdlc-status.sh "$ISSUE_NUM" "Phase 5 complete — release marked Released; production smoke evidence uploaded" "Done — close issue + retire feature branch (sdlc-implementer halts)"`.
      - Close the issue.
-     - If production smoke fails: do NOT mark as Released. File an `[INCIDENT]` defect issue, page the on-call per the project's incident playbook, follow the rollback plan from the implementation plan.
+     - If production smoke fails: do NOT mark as Released. File an `[INCIDENT]` defect issue, page the on-call per the project's incident playbook, follow the rollback plan from the implementation plan. **Update the sticky** to reflect the incident state: `… "Phase 5 BLOCKED — production smoke failed; INCIDENT issue #N filed" "Operator action — read INCIDENT #N + execute rollback per plan"`.
 
    - **Changes requested** → run change-request loop:
      - Fetch change-request comments from the PR (`gh pr view <M> --comments`) and from the portal release page.
@@ -306,6 +383,7 @@ Invoked separately by the user after UAT activity on the portal. Trigger: "resum
      - Push to the same branch (no force-push). The PR auto-updates.
      - Re-request UAT review on the portal: `POST /api/projects/<slug>/releases/<version>/approval-requests`.
      - Comment on the issue: "Change requests addressed in commits <SHAs>. UAT re-review requested."
+     - **Update SDLC status sticky** for the re-review handoff: `bash scripts/update-sdlc-status.sh "$ISSUE_NUM" "Change-request iteration N applied; PR pushed; re-review requested" "Operator action — re-review on portal; sdlc-implementer halts until you ping resume REQ-XXX"`.
      - Hard stop again. The portal's release-approval state has reset; UAT must explicitly re-approve.
 
    - **Still pending UAT (no approval, no change-request)** → report "UAT review still pending on the portal at <link>" and stop. Do not act.
