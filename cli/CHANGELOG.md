@@ -4,6 +4,12 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+## [0.1.52] — 2026-06-09
+
+### Changed
+
+- **#50** — `test-execution-summary.md` now carries a `## Test design` section at the top that records the design-time decisions (layers planned vs covered, deferral rationale, skill-invocation attribution). Closes the loop with #47/#132/#133/#152: the SDLC now has a recorded trace that scope was *decided*, not implicit — schema-only changes can state `e2e N/A — schema-only, no UI yet` explicitly rather than silently shipping unit+manual. Three additive edits: `3-compile-evidence.md` Step 1a heredoc grows the new section; `e2e-test-engineer/SKILL.md` Final report directs the operator to populate it with the skill's decisions + a verifiable turn pointer. The existing Test Reports gate continues to feed on `test_report` evidence; this enriches what's *in* the file without changing the gate mechanics.
+
 ## [0.1.51] — 2026-06-09
 
 ### Changed

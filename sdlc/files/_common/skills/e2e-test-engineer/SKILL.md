@@ -305,6 +305,15 @@ Wrap up with a summary the user can drop into the PR or ticket:
 - Defects filed — count, with links.
 - Missed requirements — count, with links.
 
+**Then feed the test-design record (devaudit#50).** The Stage 3 `test-execution-summary.md` (generated per `3-compile-evidence.md` Step 1a) carries a `## Test design` section at the top. Before Stage 3 finalises the file, populate that section with the design-time decisions this skill made, so the SDLC has a recorded trace that scope was *decided*, not implicit:
+
+- **Layers planned** — which of `unit | integration | e2e | visual | manual` applied to this REQ
+- **Layers covered** — same list with ✓ or `deferred`
+- **Deferrals** — explicit one-line rationale per deferred layer (`e2e N/A — schema-only, no UI yet` rather than silent absence)
+- **Skill invocation** — _"`e2e-test-engineer` invoked on turn N during Phase 2"_, with a turn pointer the reviewer can verify against the chat transcript
+
+If you authored or modified `e2e/**/*.spec.ts` directly without invoking this skill, that's a delegation gap — the `sdlc-implementer` Phase 2 audit (devaudit#132) will catch it before Phase 3. The honest record is: the skill ran (or didn't), the layers were chosen for stated reasons, and the test-execution-summary attribution points back at the chat turn where the decision happened.
+
 ---
 
 ## Evidence vs failure forensics
