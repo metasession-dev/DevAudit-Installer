@@ -135,6 +135,24 @@ cat > compliance/evidence/REQ-XXX/test-execution-summary.md << 'EOF'
 **Git SHA:** [short SHA]
 **CI Run:** [run ID or "local"]
 
+## Test design (devaudit#50)
+
+Records the design-time decisions before listing run results — what was tested, what was deliberately deferred, who/what decided. Auditors (and future maintainers) can see the scope decision was *made*, not implicit.
+
+**Layers planned:** [unit | integration | e2e | visual | manual — pick the ones that apply to this REQ]
+
+**Layers covered:** [same list, marked ✓ for shipped layers / `deferred` for skipped ones]
+
+**Deferrals (if any):**
+
+- [e.g. "e2e N/A — schema-only change, no UI surface reads the new fields yet; deferred to REQ-NNN when the admin form lands"]
+- [e.g. "visual regression N/A — backend service change, no UI affected"]
+- A deferral without a stated rationale is a gap, not a deferral. Either name *why* it was skipped or do the work.
+
+**Skill invocation:** [`e2e-test-engineer` invoked on turn N during Phase 2 — verifiable from the chat transcript] / [`manual scope decision` — operator chose layers directly because <reason>]
+
+**Surface inventory (MEDIUM/HIGH risk REQs):** see `implementation-plan.md` Section 2. Each `In scope` surface here should map to at least one passing test below; each `Already works` surface should map to a regression-pack spec; each `Out of scope (waived)` surface should have a follow-up issue referenced.
+
 ## Gate Results
 
 | Gate | Result | Details |
