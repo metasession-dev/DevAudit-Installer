@@ -4,6 +4,21 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+## [0.1.53] — 2026-06-09
+
+### Changed
+
+- **Three-tier E2E gating model** — formalises smoke (every push, ~3–5 min) / critical (PR-to-release-branch, ~10–15 min) / regression (nightly + post-merge + dispatch, full audit trail). The third tier (critical) is new; it bridges between fast smoke and full regression so release-PRs no longer wait 30+ minutes on the full pack. MoSCoW priority drives tier choice via file location: `e2e/smoke/`, `e2e/critical/`, `e2e/<area>/`. Post-merge `push: branches: [release]` runs the full regression + auto-files a `bug, priority:high` issue if a spec slipped past the critical-tier PR gate — operator triages within working hours (hotfix forward, revert, or accept-with-rationale). No automated revert; false positives + flakes + UAT-data drift are real classes that need human judgement.
+
+  Ships as a framework convention, not a synced workflow: the framework provides a copy-pasteable reference at `skills/e2e-test-engineer/references/e2e-regression-3-tier.yml` that operators apply to their consumer-owned `e2e-regression.yml`. The framework does NOT sync `e2e-regression.yml` (consumers customise it per project) — overwriting that file is held off until the sync-survival escape hatch (#84) ships.
+
+  Touch points:
+  - `Test_Strategy.md` § *System Testing (E2E)* — new sub-section names the 3 tiers + cost philosophy + post-merge safety net
+  - `Test_Policy.md` § *Risk-Based Testing* — new sub-section pins gate enforcement language ("Must in smoke + critical: pre-merge blocking; Should/Could in regression: post-merge auto-issue or accepted-with-rationale")
+  - `Test_Architecture.md` § *Speed over Exhaustiveness* — cross-refs the new model as the first concrete implementation of "Strategic test selection"
+  - `skills/e2e-test-engineer/SKILL.md` Phase 3 — adds a tier classification decision tree authors apply per spec; recorded in the eventual `test-execution-summary.md` § *Test design* (devaudit#50)
+  - `skills/e2e-test-engineer/references/e2e-regression-3-tier.yml` — NEW reference workflow consumers copy into their own `e2e-regression.yml`. Includes critical-with-smoke-fallback selector + post-merge auto-issue logic.
+
 ## [0.1.52] — 2026-06-09
 
 ### Changed

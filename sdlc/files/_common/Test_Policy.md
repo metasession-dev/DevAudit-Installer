@@ -150,6 +150,18 @@ Testing effort is prioritized by risk level, determined at planning time:
 
 AI involvement in Medium or High categories raises risk by one level. The Test Strategy defines specific testing depth requirements per level.
 
+### E2E gate enforcement (v0.1.53+)
+
+The MoSCoW prioritisation of acceptance criteria maps onto three E2E gates, each enforced at a different point in the workflow:
+
+- **Must-tier ACs in the smoke subset** must pass on every push to the integration branch. Blocking — a red smoke gate stops the integration hop.
+- **Must-tier ACs in the critical subset** must pass on every PR to the release branch. Blocking — a red critical gate stops the release.
+- **Should/Could-tier ACs (full regression)** must pass on the next post-merge run to the release branch OR a hotfix issue is auto-filed. Not pre-merge blocking — the safety net is post-hoc triage by the operator within working hours.
+
+Operator override on a hotfix issue (accept-with-rationale) is logged on the issue itself + carried in the next release's `test-execution-summary.md` design record (devaudit#50). The framework does not permit silently shipping a failing test — every red regression spec ends as either fixed, reverted, or accepted-with-recorded-rationale.
+
+See Test_Strategy.md § *System Testing (E2E)* — *E2E gating model* for the tier definitions + cost philosophy.
+
 ---
 
 ## Roles & Responsibilities
