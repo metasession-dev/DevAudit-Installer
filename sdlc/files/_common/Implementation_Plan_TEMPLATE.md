@@ -35,11 +35,29 @@ Each section below maps to one (or more) of these clauses. Don't delete sections
 > _Closes ISO 29119 §3.4 — test plan_
 
 - **Goal:** REPLACE — one sentence describing what this REQ delivers, no jargon.
+
+### How to write acceptance criteria (devaudit#152)
+
+Phrase each AC as a **user-observable journey**, not a technical-layer assertion. Use the Given/When/Then form:
+
+> **Given** [the relevant pre-state, including which UI surface the user is on],
+> **When** [the user takes a specific, named action with a specific, named control],
+> **Then** [the user can observe a specific, named change in a specific, named UI surface]
+> _(And any additional observable changes — audit rows, downstream UI updates, etc.)_
+
+Concrete examples:
+
+- ✅ "Given Poundo has Ogbono linked, When a staff member opens `/dashboard/orders/express/create-order` and picks Ogbono from the Soup group and marks the order Complete, Then `/dashboard/inventory/{ogbono}` shows stock decreased by 1 and one new Sale movement row tied to the order ID."
+- ❌ "Schema accepts optional `inventoryId` field (persistence round-trip)" — this is a unit-test contract, not a user-observable AC. It belongs in `test-plan.md`, not here.
+- ❌ "Resolver maps selected pairs to inventory link" — same problem. Internal mechanics, not user value.
+
+If you can't phrase an AC in Given/When/Then because no UI surface delivers the change to a user, the scope is incomplete — expand the **Surface inventory** (Section 2) until every AC has a UI surface that delivers it.
+
 - **Acceptance criteria:**
 
 | AC  | Description                                | SRS item it traces to                                                                   |
 | --- | ------------------------------------------ | --------------------------------------------------------------------------------------- |
-| AC1 | REPLACE — one-line behavioural description | REQ-AREA-NNN (existing) / REQ-AREA-NNN (new — propose stub) / `@srs-deferred: <reason>` |
+| AC1 | REPLACE — one-line Given/When/Then journey | REQ-AREA-NNN (existing) / REQ-AREA-NNN (new — propose stub) / `@srs-deferred: <reason>` |
 | AC2 | REPLACE                                    | REPLACE                                                                                 |
 | …   |                                            |                                                                                         |
 
@@ -49,6 +67,24 @@ Each section below maps to one (or more) of these clauses. Don't delete sections
 
 - **In scope:** REPLACE — list every file / module / surface the change touches.
 - **Out of scope:** REPLACE — adjacent areas the change deliberately leaves alone.
+
+### Surface inventory (MEDIUM/HIGH risk — required) (devaudit#152)
+
+List every UI, API, background job, and report **that a real user touches** in the journey this REQ enables. For each surface, mark one of:
+
+- **In scope** — this REQ adds or modifies it
+- **Already works** — existing code already handles it correctly (link the file / route as evidence)
+- **Out of scope (waived)** — explicitly deferred, with one-sentence justification and a follow-up issue link
+
+| Surface                 | URL / file                                            | Status                                                                       |
+| ----------------------- | ----------------------------------------------------- | ---------------------------------------------------------------------------- |
+| [e.g. Customer cart]    | `/menu` modal — `components/features/menu/…`          | In scope                                                                     |
+| [e.g. Staff POS]        | `/dashboard/orders/express/…`                         | Out of scope (waived) — front-of-house flow not used yet, follow-up #NN      |
+| [e.g. Admin Edit Order] | `/dashboard/orders/[id]/edit` — `app/admin/orders/…`  | Already works — existing customisation picker handles the new fields as-is   |
+
+**Rule of thumb:** if the AC list reads _"the schema accepts X"_ or _"the resolver returns Y"_ but never _"the user can do Z in the UI and see the result in the UI"_, the surface inventory is incomplete and the plan is not ready for approval. The matching test-scope ACs in Step 7 must each pin to a surface listed here.
+
+LOW risk REQs may skip the table when the change is genuinely surface-free (refactor, dependency bump, infra-only). State `Surface inventory: N/A — <reason>` instead.
 
 ## 3. Architecture decisions
 

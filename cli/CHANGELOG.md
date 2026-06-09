@@ -4,6 +4,12 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+## [0.1.50] — 2026-06-09
+
+### Changed
+
+- **devaudit#152** — SDLC Stage 1 hardening: the implementation plan now structurally catches the failure mode where green gates ship a feature with no UI surface that a user can reach (the REQ-030 / WGB pattern). Three additive doc edits — `Implementation_Plan_TEMPLATE.md` Section 1 (Goal + ACs) now opens with a Given/When/Then writing guide that names the format directly; Section 2 (Scope) gains a **Surface inventory** sub-section listing every user-touchable surface as `In scope` / `Already works` / `Out of scope (waived)`; `1-plan-requirement.md` Step 6 WAIT CHECKPOINT gains two new gate bullets (surface-inventory completeness + AC form) and Step 7's three test-scope heredocs (LOW / MEDIUM / HIGH) carry tier-appropriate AC-writing guidance above each `## Acceptance Criteria` heading. The original REQ-030 failure mode — `AC1: schema accepts inventoryId field` passing review as a valid behavioural AC — is now structurally caught at the plan-review gate.
+
 ## [0.1.49] — 2026-06-09
 
 > 0.1.48 was bumped on-disk but never tagged — its contents are folded into this release to minimise consumer-side bumps. Consumers update from 0.1.47 directly to 0.1.49 in a single `devaudit update`.

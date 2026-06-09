@@ -131,6 +131,8 @@ Create `compliance/evidence/REQ-XXX/implementation-plan.md`:
 - Files to create/modify
 - Architecture decisions
 - Risks and dependencies
+- **Surface inventory completeness** (MEDIUM/HIGH risk) — every user-touchable surface listed in Section 2's surface-inventory table is either `In scope`, `Already works`, or explicitly `Out of scope (waived)` with a follow-up issue. No surface is silently absent. _(devaudit#152)_
+- **AC form** — the test-scope ACs (drafted in Step 7) can each be phrased in Given/When/Then against the surfaces in scope. If any AC reduces to _"the schema accepts X"_ or _"the resolver returns Y"_, the plan is incomplete — return to Section 2 and expand the surface inventory until every AC has a UI surface that delivers it. _(devaudit#152)_
 
 **Do NOT proceed** until the developer explicitly approves the plan. If the developer requests changes, update `implementation-plan.md` and re-present. For HIGH risk, this review is especially important — it's cheaper to change the plan than to refactor the code.
 
@@ -177,9 +179,22 @@ Standard gates apply. No additional testing beyond universal exit criteria.
 - CI independent verification: all PR checks pass
 - Human code review via PR
 
+### How to write acceptance criteria (devaudit#152)
+
+Phrase each AC as a **user-observable journey**, not a technical-layer assertion. Use the Given/When/Then form:
+
+> **Given** [pre-state + which UI surface the user is on], **When** [named user action with a named control], **Then** [observable change in a named UI surface].
+
+If you can't phrase an AC in Given/When/Then because no UI surface delivers the change to a user, the scope is incomplete — return to the implementation plan's surface inventory (Section 2). LOW risk REQs may keep ACs shorter when the change is genuinely surface-free (refactor / dep bump / infra-only), but the journey form is still preferred when a user surface exists.
+
+Examples:
+
+- ✅ "Given the dependency is updated, When CI runs the universal gates, Then 0 high/critical findings."
+- ❌ "Schema accepts optional `inventoryId` field" — internal mechanic, belongs in `test-plan.md` (this matters even for LOW when the change is user-facing).
+
 ## Acceptance Criteria
 
-- [x] [Criterion 1 — what "done" looks like]
+- [x] [Criterion 1 — what "done" looks like, phrased Given/When/Then where applicable]
 - [x] [Criterion 2]
 EOF
 ```
@@ -218,10 +233,24 @@ How we confirm this meets the business requirement:
 - [e.g., "Verify public page displays new content correctly"]
 - [e.g., "Confirm edits are visible to users within expected time"]
 
+### How to write acceptance criteria (devaudit#152)
+
+Phrase each AC as a **user-observable journey**, not a technical-layer assertion. Use the Given/When/Then form:
+
+> **Given** [pre-state + which UI surface the user is on], **When** [named user action with a named control], **Then** [observable change in a named UI surface] _(plus any audit / downstream UI changes)_.
+
+If you can't phrase an AC in Given/When/Then because no UI surface delivers the change to a user, the scope is incomplete — return to the implementation plan's surface inventory (Section 2).
+
+Examples:
+
+- ✅ "Given Poundo has Ogbono linked, When a staff member opens `/dashboard/orders/express/create-order`, picks Ogbono from the Soup group, and marks the order Complete, Then `/dashboard/inventory/{ogbono}` shows stock decreased by 1 and a new Sale movement row tied to the order ID."
+- ❌ "Schema accepts optional `inventoryId` field (persistence round-trip)" — unit-test contract, belongs in `test-plan.md`, not here.
+- ❌ "Resolver maps selected pairs to inventory link" — internal mechanic, not user value.
+
 ## Acceptance Criteria
 
-- [ ] [Criterion 1]
-- [ ] [Criterion 2]
+- [ ] [Criterion 1 — Given/When/Then]
+- [ ] [Criterion 2 — Given/When/Then]
 - [ ] All additional testing items above pass
 EOF
 ```
@@ -274,10 +303,24 @@ How we confirm this meets the business requirement:
 - Elevated review required for: [security-sensitive files]
 - Regeneration protocol: [will any components be regenerated?]
 
+### How to write acceptance criteria (devaudit#152)
+
+Phrase each AC as a **user-observable journey**, not a technical-layer assertion. Use the Given/When/Then form:
+
+> **Given** [pre-state + which UI surface the user is on], **When** [named user action with a named control], **Then** [observable change in a named UI surface] _(plus any audit / downstream UI changes)_.
+
+HIGH risk especially: every AC must pin to a named UI surface from the implementation plan's surface inventory (Section 2). If you can't phrase an AC in Given/When/Then because no UI surface delivers the change to a user, the scope is incomplete — expand the surface inventory before approving the plan. This is the gap that produced REQ-030 on a consumer project (feature shipped through every gate green, but no order-creation surface let a user select a customisation at order time).
+
+Examples:
+
+- ✅ "Given an admin has linked Poundo to Ogbono in `/dashboard/inventory/links`, When a staff member opens `/dashboard/orders/express/create-order`, picks Ogbono from the Soup group, and marks the order Complete, Then `/dashboard/inventory/{ogbono}` shows stock decreased by 1, a new Sale movement row appears tied to the order ID, and the activity timeline records the link-driven deduction."
+- ❌ "Schema accepts optional `inventoryId` field (persistence round-trip)" — unit-test contract, belongs in `test-plan.md`, not here.
+- ❌ "Resolver maps selected pairs to inventory link" — internal mechanic, not user value.
+
 ## Acceptance Criteria
 
-- [ ] [Criterion 1]
-- [ ] [Criterion 2]
+- [ ] [Criterion 1 — Given/When/Then against a named UI surface]
+- [ ] [Criterion 2 — Given/When/Then against a named UI surface]
 - [ ] All security testing items pass
 - [ ] All validation items confirmed
 - [ ] Independent review completed (if required)
