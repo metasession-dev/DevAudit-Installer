@@ -131,6 +131,26 @@ Resist padding. A new endpoint doesn't need a test that re-verifies login if log
 
 For each scenario, write a one-line description. Present the full grouped list to the user before writing any code: *"Here's the coverage I'd propose — anything to add or drop?"*
 
+#### Classify each spec into a tier (devaudit#152 follow-up, v0.1.53)
+
+When designing each scenario, also pick the tier it'll live in. Three tiers map to MoSCoW priority + gating point (see `Test_Strategy.md` § *E2E gating model*):
+
+| Tier | File location | Picks this when… |
+|---|---|---|
+| **smoke** | `e2e/smoke/*.spec.ts` | Cross-cutting sanity that proves the app is up: login, basic nav, one canonical CRUD per main domain. Runs on every push to the integration branch. Keep small — total smoke wall-clock target is ~3–5 min. |
+| **critical** | `e2e/critical/*.spec.ts` | Must-priority SRS item that breaks a headline flow if it regresses. Examples: payment authorisation, order completion, admin permission editing, RBAC enforcement on financial surfaces. Runs on PR-to-release-branch. Total critical wall-clock target ~10–15 min (includes smoke). |
+| **regression** | `e2e/<area>/*.spec.ts` | Should/Could-priority SRS item, edge cases, less-load-bearing flows. Runs nightly + post-merge + dispatch. Total full pack can be 30+ min; that's the point of the tier. |
+
+Decision tree, applied per scenario:
+
+1. **Does the spec prove a Must-priority SRS AC (or a baseline "app is up" sanity check)?** → smoke or critical.
+2. **Within Must: would a regression here break a headline business flow visible to a paying customer or stop a release from shipping?** → critical. Otherwise → smoke.
+3. **Should/Could priority, edge case, advanced flow?** → regression (file under `e2e/<area>/`, not under `e2e/smoke/` or `e2e/critical/`).
+
+When you can't decide between critical and regression, default to **regression** — promoting a spec from regression → critical later is cheap (move the file); demoting in the other direction is rarely needed but equally cheap. The cost of putting a Should spec in critical is everyone waiting longer on every PR-to-main for a low-value signal.
+
+Record the tier choice in the eventual `test-execution-summary.md` § *Test design* (devaudit#50) — Layers covered should name which tier each new spec landed in. Reviewers verify the tier choice is defensible during the WAIT CHECKPOINT.
+
 ### Phase 4 — Reconcile with existing tests
 
 For the area touched by the change, look at what's already there.

@@ -39,7 +39,7 @@ These standards apply to all Metasession products, client engagements, and inter
 ### Speed over Exhaustiveness
 - Fast feedback prioritized (unit tests < 30 seconds)
 - Parallelization and sharding for E2E suites
-- Strategic test selection based on code changes
+- Strategic test selection based on code changes — first concrete implementation is the three-tier E2E gating model (smoke / critical / regression), see Test_Strategy.md § *E2E gating model* (v0.1.53+)
 - Regression suites optimized for execution time
 
 ### Traceability

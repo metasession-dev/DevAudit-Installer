@@ -1,0 +1,178 @@
+# Reference: three-tier E2E gating workflow (devaudit#152 follow-up, v0.1.53)
+#
+# Copy this into your consumer-owned .github/workflows/e2e-regression.yml
+# to adopt the 3-tier model: smoke (every develop push, fast) / critical
+# (PR-to-main, ~10-15 min target) / regression (nightly + push-to-main +
+# dispatch, full audit trail with auto-issue on failure).
+#
+# The framework does NOT sync this file automatically — your consumer
+# owns its e2e-regression.yml. Apply the patterns below to your own
+# file; keep any consumer-specific env / matrix / runner customisations.
+#
+# Tier definitions:
+#   - smoke   — runs on develop push via ci.yml (no change here)
+#   - critical — Playwright project that selects e2e/smoke/ + e2e/critical/
+#   - regression — Playwright project that selects all e2e/**/*.spec.ts
+#
+# playwright.config.ts must define the `critical` project for this to
+# fire; if it doesn't, the gate falls back to the existing `smoke`
+# project so PR-to-main stays green during migration.
+
+name: E2E Regression
+
+on:
+  pull_request:
+    branches: [main] # critical-tier gate before merge
+  push:
+    branches: [main] # full regression after merge; auto-issues on failure
+  schedule:
+    - cron: '0 2 * * *' # nightly full regression
+  workflow_dispatch:
+    inputs:
+      specs:
+        description: 'Optional: space-separated spec paths or --grep pattern for a scoped run. Empty = full regression.'
+        required: false
+
+permissions:
+  contents: read
+  issues: write # post-merge auto-issue on regression failure
+
+concurrency:
+  group: e2e-regression-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  e2e:
+    name: E2E Regression Tests
+    runs-on: ubuntu-latest # adapt to your runner; e.g. self-hosted, ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # for E2E_NEW_SPECS computation
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22' # match your project
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      # Decide which Playwright project to run based on the trigger.
+      # PR-to-main uses critical with smoke fall-back; push-to-main and
+      # schedule run the full regression project; workflow_dispatch
+      # accepts an optional spec filter.
+      - name: Determine E2E project + spec selector
+        id: select
+        run: |
+          set -euo pipefail
+          EVENT="${{ github.event_name }}"
+          case "$EVENT" in
+            pull_request)
+              if grep -qE "name:\s*['\"]critical['\"]" playwright.config.ts 2>/dev/null; then
+                echo "project=critical" >> "$GITHUB_OUTPUT"
+                echo "Using critical-tier project (smoke + e2e/critical/)"
+              else
+                echo "project=smoke" >> "$GITHUB_OUTPUT"
+                echo "::warning::No 'critical' Playwright project defined; falling back to smoke. See e2e-test-engineer/references/e2e-regression-3-tier.yml + the Phase 3 tier-classification guide."
+              fi
+              echo "specs=" >> "$GITHUB_OUTPUT"
+              ;;
+            push|schedule)
+              echo "project=regression" >> "$GITHUB_OUTPUT"
+              echo "specs=" >> "$GITHUB_OUTPUT"
+              echo "Running full regression project"
+              ;;
+            workflow_dispatch)
+              echo "project=regression" >> "$GITHUB_OUTPUT"
+              echo "specs=${{ github.event.inputs.specs }}" >> "$GITHUB_OUTPUT"
+              if [ -n "${{ github.event.inputs.specs }}" ]; then
+                echo "Scoped dispatch: ${{ github.event.inputs.specs }}"
+              fi
+              ;;
+          esac
+
+      - name: Run E2E suite
+        id: run
+        env:
+          PLAYWRIGHT_HTML_REPORTER_OPEN: never
+          PLAYWRIGHT_JSON_OUTPUT_NAME: e2e-regression-results.json
+          # Add your e2e_env values here as needed (DEVAUDIT_BASE_URL etc.)
+        run: |
+          set -euo pipefail
+          PROJECT="${{ steps.select.outputs.project }}"
+          SPECS="${{ steps.select.outputs.specs }}"
+          if [ -n "$SPECS" ]; then
+            npx playwright test --project="$PROJECT" --reporter=json,html $SPECS
+          else
+            npx playwright test --project="$PROJECT" --reporter=json,html
+          fi
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-regression-report
+          path: |
+            e2e-regression-results.json
+            playwright-report/
+            test-results/
+
+      # ─────────────────────────────────────────────────────────────
+      # Post-merge auto-issue on regression failure (push:branches:[main])
+      #
+      # Catches regressions that slipped past the critical-tier PR gate.
+      # Opens a high-priority issue tagging the merge commit + the
+      # failing specs so the operator can triage within working hours.
+      # No auto-revert — that's intentionally an operator decision.
+      # ─────────────────────────────────────────────────────────────
+      - name: Open hotfix issue on post-merge regression
+        if: failure() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          MERGE_SHA="${{ github.sha }}"
+          MERGE_SHA_SHORT=$(echo "$MERGE_SHA" | cut -c1-7)
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          # Extract failing spec names from the JSON reporter output if available.
+          FAILING=""
+          if [ -f e2e-regression-results.json ]; then
+            FAILING=$(jq -r '
+              [.. | objects | select(.status == "failed" or .status == "timedOut") | .title // empty]
+              | unique | .[]
+            ' e2e-regression-results.json 2>/dev/null | head -20 || true)
+          fi
+          if [ -z "$FAILING" ]; then
+            FAILING="(see the failing run logs — could not parse spec titles from reporter output)"
+          fi
+
+          BODY=$(cat <<EOF
+          ## Post-merge regression caught on \`main\`
+
+          The full regression suite failed on the post-merge run for commit \`${MERGE_SHA_SHORT}\`. The critical-tier PR gate let this slip through.
+
+          **Failing specs (best-effort extracted from the JSON reporter):**
+
+          \`\`\`
+          ${FAILING}
+          \`\`\`
+
+          **Triage actions:**
+
+          - [ ] Read the run log: ${RUN_URL}
+          - [ ] Pull \`e2e-regression-report\` artifact from the run; inspect \`test-results/<spec>/error-context.md\` for page state at failure
+          - [ ] Decide: hotfix on \`main\`, revert \`${MERGE_SHA_SHORT}\`, or accept-with-rationale if the failure is environmental
+          - [ ] If the failing spec is a Must-tier candidate that should have caught this pre-merge, move it from \`e2e/\` to \`e2e/critical/\` so the next PR-to-main runs it
+
+          **Auto-filed by:** \`e2e-regression.yml\` (devaudit#152 3-tier gating, v0.1.53+)
+          EOF
+          )
+
+          gh issue create \
+            --title "[hotfix] Post-merge regression on \`${MERGE_SHA_SHORT}\` — full E2E failed" \
+            --body "$BODY" \
+            --label "bug,priority:high"
