@@ -4,6 +4,12 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+## [0.1.51] — 2026-06-09
+
+### Changed
+
+- **devaudit#127** — `e2e-test-engineer` skill now explicitly handles transport-layer specs (Node `fetch` against webhooks, `MongoClient` queries, `socket.io-client` assertions) that live in `e2e/` but cannot call `evidenceShot` because they have no Playwright `page` object. Skill scope clarified — transport-boundary integration tests are IN scope (the existing "API-only" exclusion means unit-level route-handler tests, not transport-boundary integration). New "Specs with no page object" sub-section names the evidence form for these specs: per-spec entry in `test-execution-summary.md` describing the asserted behaviour in operator terms, with `[REQ-XXX][ACn]` bracket convention in the test title. Release-detail "screenshots" panel showing zero entries for purely-transport REQs is correct; reviewers cross-reference the test-execution summary instead. `2-implement-and-test.md` Step 4 carries the same callout so the operator sees it at the right point in the workflow.
+
 ## [0.1.50] — 2026-06-09
 
 ### Changed

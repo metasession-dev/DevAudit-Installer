@@ -19,6 +19,8 @@ Maintain or bootstrap a project's e2e and visual regression test suite. Given an
 - Unit, component, or API-only tests.
 - Performance, load, or accessibility audits, unless the project's e2e pack already includes them — in which case follow its lead.
 
+**Transport-layer specs that live in `e2e/`** (Node `fetch` against webhooks, `MongoClient` queries, `socket.io-client` assertions) ARE in scope — they exercise the deployed system end-to-end, just at the transport boundary rather than the UI. Their evidence form is `test-execution-summary.md`, not `evidenceShot` (see *Specs with no page object* below). The "API-only tests" exclusion above means **unit-level** API contract tests that exercise a route handler in isolation, not transport-boundary integration tests against the running system.
+
 ## The workflow
 
 Six phases. Don't skip them and don't reorder — each one feeds the next. Communicate progress as you go; long silent phases feel like the skill has stalled.
@@ -372,6 +374,27 @@ When to deviate:
 - **Single-shot ACs** (one assertion that's its own proof — e.g. *"the form submits and returns to the list"*) need only the canonical anchor. Don't manufacture stages just to hit the 1–3 band.
 - **Long flows** (>3 meaningful transitions) keep all stages tier `'feature'`. The post-merge regression run still has the canonical anchor to corroborate the AC; the dense journey is on the feature PR for reviewers and in the audit-pack download for that release forever.
 - **Reviewer pushback that evidence feels thin** (single-shot per AC across a HIGH-risk REQ) almost always means tier `'feature'` stages are missing — add them on the feature branch where they actually fire, not after.
+
+### Specs with no page object — transport-layer evidence (devaudit#127)
+
+`evidenceShot` requires a Playwright `page` object. Specs that exercise behaviour at the transport layer — Node `fetch` against HTTP / webhook endpoints, `socket.io-client` connections, direct `MongoClient` queries, gRPC clients — have no `page` and **cannot call `evidenceShot`**. Examples from the wawagardenbar-app regression pack:
+
+- `e2e/payments/webhook-signature-rejection.spec.ts` — HMAC-SHA512 verification via Node `fetch`
+- `e2e/realtime/order-status-broadcast.spec.ts` — `socket.io-client` event assertion
+- `e2e/admin/menu-item-delete.spec.ts` — direct `MongoClient` + service-layer call
+
+These specs are still E2E (they exercise the deployed system end-to-end at the transport boundary), they belong in `e2e/`, and they run alongside UI specs. **Their evidence form is the per-spec entry in `test-execution-summary.md`** — the table of spec → pass/fail → asserted behaviour (signature rejected with HTTP 401, idempotent replay suppressed, broadcast received within Nms, soft-delete cascaded) is the load-bearing proof. The screenshot check is **N/A** for them; the release-completeness "behavioural proof" check is satisfied by the test-execution-summary upload alone.
+
+Discipline for transport specs:
+
+- Name the asserted behaviour in the test title using the same `[REQ-XXX][ACn]` bracket convention UI specs use. Reviewers grep on that.
+- The `test-execution-summary.md` table row should describe what the spec verified in operator-facing terms ("signature mismatch returns 401; payment row unchanged"), not in TypeScript-spec terms ("`expect(response.status).toBe(401)`").
+- If a transport spec *can* be paired with a thin UI shim that screenshots the user-visible outcome (e.g. an admin dashboard surface that shows the rejected payment as "Failed — signature mismatch"), pair them — that buys back the screenshot evidence at the surface level. Otherwise: transport spec stands alone.
+- The portal's release-detail "screenshots" panel will show zero entries for purely-transport REQs; that's correct. Reviewers cross-reference `test-execution-summary.md` instead.
+
+This is **observation**, not gate-relaxation — these specs satisfy the SDLC evidence requirement; the screenshot mechanism doesn't apply.
+
+A `evidenceTrace(reqId, ac, slug, payload)` helper that writes a JSON sidecar (request/response/ledger shape) was considered as a Phase B; deferred until the portal grows a non-PNG evidence type. Today the test-execution-summary already carries the equivalent information at the table level.
 
 ---
 
