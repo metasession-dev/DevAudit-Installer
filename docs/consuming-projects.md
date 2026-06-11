@@ -14,13 +14,18 @@ The DevAudit portal itself does **not** consume the SDLC framework — it would 
 
 ## Integrating a new project
 
-**One-shot via `devaudit install`.** Two operator actions:
+**One-shot via `install`.** Two operator actions:
 
-1. Issue a Personal Access Token at `https://devaudit.metasession.co/settings/tokens`.
+1. Issue a Personal Access Token at `https://devaudit.ai/settings/tokens`.
 2. Run the CLI installer:
 
    ```bash
    export DEVAUDIT_USER_TOKEN="mctok_..."
+
+   # Canonical (zero-install):
+   npx @metasession.co/devaudit-cli@latest install ../path/to/new-consumer
+
+   # Or, after `npm install -g @metasession.co/devaudit-cli`:
    devaudit install ../path/to/new-consumer
    ```
 
@@ -90,22 +95,32 @@ The framework uses a **copy-and-customize** model. `_common/` docs define univer
 After framework changes land in DevAudit's `main`:
 
 ```bash
-# Native CLI path (recommended):
-devaudit update v1.X.Y "../wawagardenbar app"
-
-# Or the legacy bash equivalent:
-devaudit update v1.X.Y "../wawagardenbar app"
-
-# Then in the consuming project:
+# The common case — run from inside the consumer's repo:
 cd "../wawagardenbar app"
-git diff                    # Review changes
-git checkout -b chore/sync-sdlc-vX.Y.Z
-git add -A && git commit -m "chore: sync SDLC templates sdlc-v1.X.Y from DevAudit"
-git push -u origin chore/sync-sdlc-vX.Y.Z
-gh pr create --base main
+git checkout develop && git pull
+git checkout -b chore/devaudit-update-to-vX.Y.Z
+
+# Canonical zero-install invocation:
+npx @metasession.co/devaudit-cli@latest update
+
+# Or, after `npm install -g @metasession.co/devaudit-cli`:
+devaudit update
+
+# Then review the diff, run local gates, commit + PR:
+git diff
+npm run lint && npx tsc --noEmit && npm test
+git add -A && git commit -m "chore: devaudit update to vX.Y.Z"
+git push -u origin HEAD
+gh pr create --base develop
 ```
 
-Either path syncs: `_common/` stage docs, AI agent pointer files, SDLC rules into `INSTRUCTIONS.md`, stack-specific hooks and scripts (`stacks/<name>/`), host-specific config (`hosts/<name>/`), and CI workflow templates (`ci/`). The CLI additionally fires `beforeSync` / `afterSync` plugin lifecycle hooks.
+Syncing several projects at once from anywhere:
+
+```bash
+npx @metasession.co/devaudit-cli@latest update ../wawagardenbar-app ../META-JOBS
+```
+
+Either path syncs: `_common/` stage docs, AI agent pointer files, SDLC rules into `INSTRUCTIONS.md`, stack-specific hooks and scripts (`stacks/<name>/`), host-specific config (`hosts/<name>/`), and CI workflow templates (`ci/`). The CLI additionally fires `beforeSync` / `afterSync` plugin lifecycle hooks. **What it does not touch:** the portal project, your API keys, GitHub secrets, branch protection, `sdlc-config.json`, or anything under `compliance/` — only the framework-owned files listed above.
 
 ### One-time migration: `META_COMPLY_*` → `DEVAUDIT_*` rename
 
@@ -135,8 +150,8 @@ gh secret set DEVAUDIT_API_KEY        # paste the mc_... value
 gh variable set DEVAUDIT_BASE_URL --body "https://devaudit.metasession.co"
 
 # 3. Re-sync to pick up the new workflow file references:
-devaudit update v1.X.Y ../path/to/consumer-repo
-# (Or, from a DevAudit-Installer checkout: devaudit update v1.X.Y ../path/to/consumer-repo)
+cd path/to/consumer-repo
+npx @metasession.co/devaudit-cli@latest update
 
 # 4. Review the diff, commit, push, open PR
 cd ../path/to/consumer-repo
@@ -211,7 +226,7 @@ These are hard dependencies across all consumers:
 After making changes to the SDLC framework in DevAudit:
 
 - [ ] Validate adapters: `node scripts/validate-adapter.cjs --all`
-- [ ] Sync each consumer: `devaudit update vX.Y.Z ../project-1 ../project-2` (or the legacy `devaudit update vX.Y.Z ../project-1 ../project-2`)
+- [ ] Sync each consumer: `npx @metasession.co/devaudit-cli@latest update ../project-1 ../project-2` (or `devaudit update ../project-1 ../project-2` after a global install)
 - [ ] For each consuming project:
   - [ ] Review the diff (`git diff`) — check for overwritten project-specific customizations.
   - [ ] Re-apply any project-specific customizations if overwritten.

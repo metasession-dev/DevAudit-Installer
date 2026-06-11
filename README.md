@@ -14,14 +14,9 @@ Start at the portal for the big picture:
 - [What is DevAudit](https://github.com/metasession-dev/devaudit/blob/main/docs/what-is-devaudit.md) — the three pillars in depth
 - [Standards coverage](https://github.com/metasession-dev/devaudit/blob/main/docs/standards-coverage.md) — clause-by-clause mapping for ISO 29119 / ISO 27001 / SOC 2 / GDPR / EU AI Act
 
-## Install the CLI
+## The CLI: `install`, `update`, `join`
 
-```sh
-npm install -g @metasession.co/devaudit-cli
-devaudit --help
-```
-
-Requires Node ≥ 22. Native binaries (no Node runtime) via brew / scoop / `curl | sh` are on the roadmap — see [`docs/devaudit-cli/`](./docs/devaudit-cli/README.md).
+`npx` is the canonical invocation — zero install, always-latest. Requires Node ≥ 22. Prefer a permanent install? `npm install -g @metasession.co/devaudit-cli` once, then the short forms `devaudit install` / `devaudit update` / `devaudit join` work everywhere.
 
 | Package                                                                                                                            | Purpose                                          |
 | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
@@ -30,35 +25,73 @@ Requires Node ≥ 22. Native binaries (no Node runtime) via brew / scoop / `curl
 | [`@metasession.co/devaudit-plugin-prisma`](https://www.npmjs.com/package/@metasession.co/devaudit-plugin-prisma)                   | First-party plugin — Prisma migration hooks      |
 | [`@metasession.co/devaudit-plugin-evidence-export`](https://www.npmjs.com/package/@metasession.co/devaudit-plugin-evidence-export) | First-party plugin — bulk evidence bundle export |
 
-## Quick start — onboard a consumer project
+Native binaries (no Node runtime) via brew / scoop / `curl | sh` are on the roadmap — see [`docs/devaudit-cli/`](./docs/devaudit-cli/README.md).
+
+### When to use which command
+
+|                 | `install`                                                                                                                                                                                                | `update`                                                                                                                                              | `join`                                                                                                                                                                                |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Use when        | First time on a project — no `sdlc-config.json` yet                                                                                                                                                      | Framework has a new version (or you bumped on purpose)                                                                                                | A teammate is joining a project that's already been onboarded                                                                                                                         |
+| Touches         | Creates portal project · issues API key · uploads GitHub secrets · sets branch protection · installs hooks · syncs templates                                                                             | Refreshes framework-owned files only: `.github/workflows/`, `SDLC/`, `.claude/skills/`, `scripts/`, AI rule files, issue templates, evidence helper   | Installs hooks + AI skills locally; **does not** rotate API keys, create new portal projects, or overwrite config                                                                     |
+| Frequency       | Once per project lifetime                                                                                                                                                                                | Each release (or on demand to pick up a fix)                                                                                                          | Once per teammate per project                                                                                                                                                         |
+| Interactive?    | Yes — 11 steps, ~5-10 min                                                                                                                                                                                | No — non-interactive, ~1-2 min                                                                                                                        | Minimal — local-only prompts                                                                                                                                                          |
+| `sdlc-config.json` | Created                                                                                                                                                                                                  | Read                                                                                                                                                  | Read                                                                                                                                                                                  |
+
+> `install` against an already-onboarded repo auto-detects the situation and flips to **developer mode** internally (same as running `join` explicitly). The four detection bits: `sdlc-config.json` exists · portal returns a project for the slug · an `Onboarding-issued` API key already exists · the repo has a `DEVAUDIT_USER_TOKEN` secret. Any one missing → operator mode (safe default).
+
+## Quick start — onboard a new project (`install`)
 
 ```bash
-# 1. Issue a DevAudit Personal Access Token at https://devaudit.metasession.co/settings/tokens
+# 1. Issue a DevAudit Personal Access Token at https://devaudit.ai/settings/tokens
 export DEVAUDIT_USER_TOKEN="mctok_..."
 
 # 2. Run the CLI against your consumer project's repo
-devaudit install ../path/to/your-consumer-project
+npx @metasession.co/devaudit-cli@latest install ../path/to/your-consumer-project
 ```
 
-The native onboarding flow validates the PAT, detects your stack (Node/Python) + host (Railway), creates the project + a CI API key in the portal, sets GitHub secrets and branch protection on `main`, bootstraps the hook framework, and syncs the framework templates — then leaves the tree dirty for you to review + open an onboarding PR.
+The 11-step interactive flow validates the PAT, detects your stack (Node / Python) + host (Railway), creates the project + a CI API key on the portal, sets GitHub secrets and branch protection, bootstraps husky + commitlint hooks, and syncs the framework templates. The CLI leaves the tree dirty for you to review + open an onboarding PR.
 
-**Governance docs are opt-in since v0.1.36.** `devaudit install` no longer auto-seeds the five starter templates (ROPA, DPIA, AI disclosure, incident report, periodic review) — the placeholders were auto-uploading as portal evidence on the first CI push, masking the project's true coverage state. Run `devaudit bootstrap-governance` explicitly when you want the starters on disk, OR invoke the new `governance-doc-author` skill (v0.1.37+) to drive authoring from scratch. **The governance starters are stubs you must replace before committing** — see [`docs/governance-templates.md`](./docs/governance-templates.md). Full walkthrough: [`docs/onboarding.md`](./docs/onboarding.md).
+**What you commit afterwards:** `sdlc-config.json`, `.github/workflows/*`, `SDLC/`, `.claude/skills/*`, `scripts/`, root rule files (`.cursorrules` / `.windsurfrules` / `GEMINI.md` / `INSTRUCTIONS.md`). First push to develop runs the gates; the portal starts seeing evidence on the same push.
 
-**Joining a project that's already been onboarded?** You're the second (or nth) developer — `install` is the _operator's_ command and would silently rotate the team's CI secrets. Use `devaudit join` instead. Full guide: [`sdlc/files/_common/joining-an-existing-project.md`](./sdlc/files/_common/joining-an-existing-project.md) (synced into every consumer's `SDLC/`).
+**Governance docs are opt-in since v0.1.36.** `install` no longer auto-seeds the five starter templates (ROPA, DPIA, AI disclosure, incident report, periodic review) — the placeholders were auto-uploading as portal evidence on the first CI push, masking the project's true coverage state. Run `npx @metasession.co/devaudit-cli@latest bootstrap-governance` explicitly when you want the starters on disk, or invoke the `governance-doc-author` skill (v0.1.37+) to drive authoring from scratch. **The governance starters are stubs you must replace before committing** — see [`docs/governance-templates.md`](./docs/governance-templates.md). Full walkthrough: [`docs/onboarding.md`](./docs/onboarding.md).
 
-## Quick start — keep a consumer in sync
+## Quick start — keep a consumer in sync (`update`)
 
-When the framework is updated, re-sync each consumer. The common case is _"from inside the consumer's repo"_ — a bare `update` syncs the current directory:
+When the framework ships a new version, re-sync each consumer. The CLI is idempotent — re-running it against an unchanged framework version is a no-op.
 
 ```bash
-# from inside the consumer's repo (the common case):
+# Inside the consumer's repo (the common case):
+cd ../path/to/your-project
+git checkout develop && git pull
+git checkout -b chore/devaudit-update-to-vX.Y.Z
+
 npx @metasession.co/devaudit-cli@latest update
 
-# from anywhere, syncing one or several:
-devaudit update <label> ../consumer-1 ../consumer-2
+# Review the diff, run local gates, commit + open PR, merge once CI green:
+git diff
+npm run lint && npx tsc --noEmit && npm test
+git add -A && git commit -m "chore: devaudit update to vX.Y.Z"
+git push -u origin HEAD
 ```
 
-The CLI reads each consumer's `sdlc-config.json`, copies the templates from its bundled `sdlc/files/`, fires plugin `beforeSync`/`afterSync` hooks, and leaves the tree dirty for review. It bundles the framework, so it needs no DevAudit-Installer checkout at runtime.
+From anywhere, syncing one or several:
+
+```bash
+npx @metasession.co/devaudit-cli@latest update ../consumer-1 ../consumer-2
+```
+
+The CLI reads each consumer's `sdlc-config.json`, copies the templates from its bundled `sdlc/files/`, fires plugin `beforeSync`/`afterSync` hooks, and leaves the tree dirty for review. It bundles the framework, so it needs no DevAudit-Installer checkout at runtime. Check the [`cli/CHANGELOG.md`](./cli/CHANGELOG.md) before merging — most releases require no operator action beyond reviewing the diff, but occasionally a release adds a new GitHub secret or schema change that needs an explicit step.
+
+## Quick start — teammate joining an existing project (`join`)
+
+You're the second (or nth) developer on a project that's already been onboarded. Running `install` here would silently rotate the team's CI API key. Use `join` instead — same template sync, no portal call-outs:
+
+```bash
+cd ../path/to/your-project
+npx @metasession.co/devaudit-cli@latest join
+```
+
+Full guide: [`sdlc/files/_common/joining-an-existing-project.md`](./sdlc/files/_common/joining-an-existing-project.md) (synced into every consumer's `SDLC/`). Or just run `install` — the CLI auto-detects and flips behaviour as described above.
 
 ## The SDLC at a glance
 
