@@ -4,6 +4,8 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+## [0.1.54] — 2026-06-11
+
 ### Fixed
 
 - **devaudit-installer#143** — `scripts/upload-evidence.sh` now follows HTTP 3xx redirects (`curl -L --max-redirs 3`) so a portal host migration (e.g. `devaudit.metasession.co → devaudit.ai`) no longer breaks every consumer's CI evidence upload with `HTTP 301`. The script also probes `DEVAUDIT_BASE_URL` at startup and logs a loud `WARNING:` line when the configured base URL redirects to a different host, nudging the operator to rotate the secret. Uploads succeed in the same run because curl follows the redirect; the warning is the nudge, not a hard stop.
