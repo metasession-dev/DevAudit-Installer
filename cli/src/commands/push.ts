@@ -1,5 +1,5 @@
 import { resolve } from 'node:path';
-import { collectFiles, uploadEvidence } from '../lib/ci-upload.js';
+import { collectFiles, uploadEvidence, probeBaseUrlDrift } from '../lib/ci-upload.js';
 import { logger, isJsonMode, emitJsonResult } from '../lib/logger.js';
 import { discoverPlugins, buildPluginContext, runHook, type LoadedPlugin } from '../lib/plugin/index.js';
 
@@ -15,6 +15,11 @@ export interface PushOptions {
   readonly gitSha?: string;
   readonly ciRunId?: string;
   readonly branch?: string;
+  readonly releaseTitle?: string;
+  readonly changeType?: string;
+  readonly gateStatus?: string;
+  /** Repeatable `key=value` pairs merged into the metadata JSON. */
+  readonly metaKeys?: readonly string[];
   readonly baseUrl?: string;
   readonly apiKey?: string;
   readonly dryRun?: boolean;
@@ -28,7 +33,28 @@ function buildMetadata(options: PushOptions): Record<string, unknown> {
   if (options.gitSha) metadata['gitSha'] = options.gitSha;
   if (options.ciRunId) metadata['ciRunId'] = options.ciRunId;
   if (options.branch) metadata['branch'] = options.branch;
+  for (const kv of options.metaKeys ?? []) {
+    const eq = kv.indexOf('=');
+    metadata[kv.slice(0, eq)] = kv.slice(eq + 1);
+  }
   return metadata;
+}
+
+/**
+ * Client-side argument validation matching scripts/upload-evidence.sh. Returns
+ * an error message, or null when the options are coherent.
+ */
+export function validateOptions(options: PushOptions): string | null {
+  if (options.environment && !options.release) {
+    return '--environment requires --release (evidence without a release is orphaned)';
+  }
+  if (options.release && !options.category) {
+    return '--category is required when --release is specified (gate validation)';
+  }
+  for (const kv of options.metaKeys ?? []) {
+    if (!kv.includes('=')) return `--meta-key requires key=value (got: ${kv})`;
+  }
+  return null;
 }
 
 async function runDryRun(options: PushOptions, baseUrl: string): Promise<void> {
@@ -60,6 +86,12 @@ export async function runPush(options: PushOptions): Promise<void> {
   const log = logger();
   const projectPath = resolve(process.cwd());
   const baseUrl = options.baseUrl ?? process.env['DEVAUDIT_BASE_URL'] ?? DEFAULT_BASE_URL;
+  const validationError = validateOptions(options);
+  if (validationError) {
+    if (isJsonMode()) emitJsonResult({ ok: false, reason: 'invalid_arguments', message: validationError });
+    else log.error(validationError);
+    process.exit(2);
+  }
   if (options.dryRun) {
     await runDryRun(options, baseUrl);
     return;
@@ -76,6 +108,9 @@ export async function runPush(options: PushOptions): Promise<void> {
   log.info(
     `Uploading ${options.filePath} (project=${options.projectSlug} req=${options.requirementId} type=${options.evidenceType}) → ${baseUrl}`,
   );
+  // Surface base-URL drift loudly (non-fatal) — parity with upload-evidence.sh.
+  const driftWarning = await probeBaseUrlDrift(baseUrl);
+  if (driftWarning) log.warn(driftWarning);
   const plugins = options.plugins ?? (await discoverPlugins()).loaded;
   if (plugins.length > 0) {
     const ctx = await buildPluginContext({ projectPath });
@@ -95,12 +130,20 @@ export async function runPush(options: PushOptions): Promise<void> {
       : {}),
     ...(options.environment !== undefined ? { environment: options.environment } : {}),
     ...(options.category !== undefined ? { evidenceCategory: options.category } : {}),
+    ...(options.branch !== undefined ? { releaseBranch: options.branch } : {}),
+    ...(options.releaseTitle !== undefined ? { releaseTitle: options.releaseTitle } : {}),
+    ...(options.changeType !== undefined ? { changeType: options.changeType } : {}),
+    ...(options.gateStatus !== undefined ? { gateStatus: options.gateStatus } : {}),
     metadata,
   });
   let okCount = 0;
   let failCount = 0;
+  let skippedCount = 0;
   for (const result of results) {
-    if (result.ok) {
+    if (result.skipped) {
+      skippedCount++;
+      log.warn(`  ⊘ ${result.file} SKIPPED — unedited starter stub (replace the STARTER TEMPLATE banner to upload)`);
+    } else if (result.ok) {
       okCount++;
       log.success(`  ✓ ${result.file} (HTTP ${result.status})`);
     } else {
@@ -109,7 +152,7 @@ export async function runPush(options: PushOptions): Promise<void> {
     }
   }
   log.log('');
-  log.info(`Uploaded: ${okCount} succeeded, ${failCount} failed.`);
+  log.info(`Uploaded: ${okCount} succeeded, ${failCount} failed, ${skippedCount} skipped.`);
   if (plugins.length > 0) {
     const ctx = await buildPluginContext({ projectPath });
     await runHook(plugins, 'afterPush', ctx);
@@ -119,7 +162,14 @@ export async function runPush(options: PushOptions): Promise<void> {
       ok: failCount === 0,
       uploaded: okCount,
       failed: failCount,
-      results: results.map((r) => ({ file: r.file, ok: r.ok, status: r.status, error: r.error ?? null })),
+      skipped: skippedCount,
+      results: results.map((r) => ({
+        file: r.file,
+        ok: r.ok,
+        status: r.status,
+        skipped: r.skipped ?? false,
+        error: r.error ?? null,
+      })),
     });
   }
   if (failCount > 0) process.exit(4);

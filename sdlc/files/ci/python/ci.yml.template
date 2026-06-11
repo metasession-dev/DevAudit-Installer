@@ -352,15 +352,19 @@ jobs:
 
           mkdir -p {{WORKING_DIR_PREFIX}}ci-evidence
 
+          # Precise evidence_type=sast_report (matches the node template; the
+          # imprecise audit_log used pre-devaudit#370 made the portal's SAST and
+          # dependency panels show identical content — DevAudit-Installer#157).
           if [ -f {{WORKING_DIR_PREFIX}}ci-evidence/sast-results.json ]; then
             upload sast-results.json \
-              {{PROJECT_SLUG}} _compliance-docs audit_log {{WORKING_DIR_PREFIX}}ci-evidence/sast-results.json \
+              {{PROJECT_SLUG}} _compliance-docs sast_report {{WORKING_DIR_PREFIX}}ci-evidence/sast-results.json \
               --category security_scan --gate-status "$STATUS_SAST" ${FLAGS}
           fi
 
+          # Precise evidence_type=dependency_audit (matches the node template).
           if [ -f {{WORKING_DIR_PREFIX}}ci-evidence/dependency-audit.json ]; then
             upload dependency-audit.json \
-              {{PROJECT_SLUG}} _compliance-docs audit_log {{WORKING_DIR_PREFIX}}ci-evidence/dependency-audit.json \
+              {{PROJECT_SLUG}} _compliance-docs dependency_audit {{WORKING_DIR_PREFIX}}ci-evidence/dependency-audit.json \
               --category security_scan --gate-status "$STATUS_DEPAUDIT" ${FLAGS}
           fi
 

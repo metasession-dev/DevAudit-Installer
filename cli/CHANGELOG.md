@@ -4,6 +4,19 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+## [0.1.56] — 2026-06-11
+
+### Fixed
+
+Batch fix of the bugs surfaced by the SRS reverse-engineering (Appendix A of `docs/SRS.md`, #153).
+
+- **#154** — `devaudit update --dry-run` no longer mutates the consumer tree. The flag was parsed but never forwarded from the `update` action into `runUpdate`, so a "preview" still wrote files. It now short-circuits before the sync (mirroring `install`'s dry-run), printing the consumers it would sync and writing nothing.
+- **#155** — `devaudit push` reaches parity with `scripts/upload-evidence.sh`: recursive directory upload (`find -type f` semantics), retry budget raised to 5 with a `UPLOAD_MAX_ATTEMPTS` override, unedited starter-stub skip (the "STARTER TEMPLATE" banner, #133), a base-URL drift warning that probes `/api/health`, the `releaseBranch` / `releaseTitle` (`--release-title`) / `changeType` (`--change-type`) / `gateStatus` (`--gate-status`) form fields, repeatable `--meta-key key=value`, and the client-side `--environment requires --release` / `--release requires --category` validations.
+- **#156** — node `ci.yml`'s evidence jobs (`register-release`, `upload-evidence`) now resolve the DevAudit base URL from `sdlc-config.json` `devaudit.base_url` (falling back to the deprecated repo Variable `DEVAUDIT_BASE_URL`), matching `compliance-evidence.yml` / `check-release-approval.yml`. Previously the jobs were gated on the repo Variable, so a consumer that had moved base_url into `sdlc-config.json` silently skipped release registration + evidence upload.
+- **#157** — python `ci.yml` uploads SAST results as `evidence_type=sast_report` and the dependency audit as `dependency_audit` (matching the node template) instead of the catch-all `audit_log`, which made the portal's SAST and Dependency panels show identical content (devaudit#387, previously unfixed for python).
+- **#158** — stack/host adapter manifests are validated against their JSON Schema (`adapter.schema.json`, via Ajv) at load time; a parseable-but-schema-invalid `adapter.json` now fails loudly instead of silently rendering broken CI/hooks into a consumer.
+- **#159** — `devaudit doctor`'s description now matches what it actually checks (tools on PATH + a release close-out drift check, not "auth state / config validity"); the `bootstrap-governance` docstrings quote the real starter banner ("REPLACE BEFORE COMMITTING").
+
 ## [0.1.55] — 2026-06-11
 
 ### Changed

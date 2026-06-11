@@ -25,8 +25,8 @@ const TARGET_REL = 'compliance/governance';
  * - Source files end in `.md.template`; the target drops the `.template`
  *   suffix (e.g. `ropa.md.template` → `compliance/governance/ropa.md`).
  *
- * Templates begin with a prominent "STARTER TEMPLATE — REPLACE BEFORE GOING
- * TO PRODUCTION" banner so the placeholder status is unambiguous on disk
+ * Templates begin with a prominent "STARTER TEMPLATE — REPLACE BEFORE
+ * COMMITTING" banner so the placeholder status is unambiguous on disk
  * and in the portal's rendered evidence view.
  *
  * Closes framework clauses: GDPR.Art-30 (ropa), GDPR.Art-35 (dpia),
