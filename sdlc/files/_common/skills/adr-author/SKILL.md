@@ -206,7 +206,7 @@ I have reviewed the ADR-worthiness verdict above and confirm:
 
 **Step 2 — Tag for upload.** The CI's `compliance-evidence.yml` uploads this file as `evidence_type=architecture_decision` (added to META-COMPLY's `EVIDENCE_TYPE_REGISTRY` in the paired sub-PR). The framework-coverage matrix maps this to clauses per `framework-registry-auditor`'s review — see the META-COMPLY-side PR for the final clause attributions (v1 may ship orphan-by-design if the auditor rejects proposed mappings; see [`requirements-aligner`](../requirements-aligner/SKILL.md) for the precedent).
 
-**Step 3 — Hand-off back to `sdlc-implementer`.** The skill's job ends at the artefact + the operator sign-off. The parent orchestrator continues with the rest of Stage 3.
+**Step 3 — Return to the running `sdlc-implementer` context.** The skill's job ends at the artefact + the operator sign-off. The orchestrator immediately continues with the rest of Stage 3 inline — no pause, no operator nudge needed. (Skills run in the same invocation context; control returns synchronously when this skill exits. See `sdlc-implementer/SKILL.md` § *Sub-skill return semantics*.)
 
 ### Phase 3 — Per-REQ ad-hoc audit
 

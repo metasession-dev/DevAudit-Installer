@@ -4,6 +4,12 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+### Fixed
+
+- **devaudit-installer#143** — `scripts/upload-evidence.sh` now follows HTTP 3xx redirects (`curl -L --max-redirs 3`) so a portal host migration (e.g. `devaudit.metasession.co → devaudit.ai`) no longer breaks every consumer's CI evidence upload with `HTTP 301`. The script also probes `DEVAUDIT_BASE_URL` at startup and logs a loud `WARNING:` line when the configured base URL redirects to a different host, nudging the operator to rotate the secret. Uploads succeed in the same run because curl follows the redirect; the warning is the nudge, not a hard stop.
+- **devaudit-installer#144** — Sub-skill return semantics clarified across `sdlc-implementer`, `requirements-aligner`, `adr-author`, `risk-register-keeper`. The previous literal phrasing _"Hand-off back to `sdlc-implementer`"_ read as "stop and wait for the operator" and caused the orchestrator to pause mid-Phase between sub-skill returns; the operator had to manually nudge the agent four times in one wawagardenbar-app REQ-077 cycle. Sub-skill tails now say _"Return to the running `sdlc-implementer` context"_ and `sdlc-implementer/SKILL.md` carries a new § _Sub-skill return semantics_ rule: skills run in the same invocation context, control returns synchronously, the only pauses are the explicitly-named checkpoints (Phase 1 HIGH/CRITICAL plan-approval, Phase 4 release-PR hard stop, Phase 5 separate invocation). Opt-in-to-pause, not opt-out.
+- **devaudit-installer#145** — `sdlc-implementer` Lightweight path step 7 now adapts to the project's CI trigger shape. The DevAudit-Installer-generated `ci.yml.template` defaults to **post-merge-only** triggers (`push: branches: [<integration>]` with no `pull_request:` trigger) so the previous _"wait for CI"_ instruction was unactionable on a PR (no checks would ever fire). Step 7 now reads the project's `ci.yml`, distinguishes PR-time CI from post-merge-only CI, and tells the LAST/NEXT sticky to surface the right wording (_"no PR-time checks will fire; review + merge is the gate; CI runs post-merge on `$INTEGRATION_BRANCH`"_). The Lightweight-path intro also names the default trigger shape so the agent doesn't poll a PR for checks the template doesn't trigger.
+
 ## [0.1.53] — 2026-06-09
 
 ### Changed

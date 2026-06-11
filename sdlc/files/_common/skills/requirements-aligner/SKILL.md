@@ -132,7 +132,7 @@ I have reviewed the AC-to-SRS-item traces above and confirm:
 
 **Step 2 — Tag for upload.** The CI's `compliance-evidence.yml` uploads this file as `evidence_type=srs_alignment` (added to META-COMPLY's `EVIDENCE_TYPE_REGISTRY` in the paired sub-PR). The framework-coverage matrix then closes `ISO29119.3.4` (Test Plan — requirements traceability) and `SOC2.CC2.1` (Communication of policies — when paired with INSTRUCTIONS.md) for this REQ.
 
-**Step 3 — Hand-off back to `sdlc-implementer`.** The skill's job ends at the artefact + the operator sign-off. The parent orchestrator continues with the rest of Stage 3 (security summary, evidence upload, release ticket).
+**Step 3 — Return to the running `sdlc-implementer` context.** The skill's job ends at the artefact + the operator sign-off. The orchestrator immediately continues with the rest of Stage 3 (security summary, evidence upload, release ticket) inline — no pause, no operator nudge needed. (Skills run in the same invocation context; control returns synchronously when this skill exits. See `sdlc-implementer/SKILL.md` § *Sub-skill return semantics*.)
 
 ### Phase 3 — Per-REQ ad-hoc audit
 

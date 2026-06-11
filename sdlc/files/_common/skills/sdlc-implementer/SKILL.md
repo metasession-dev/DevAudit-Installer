@@ -45,6 +45,20 @@ The orchestrator MUST invoke `e2e-test-engineer` for end-to-end and visual-regre
 
 Unit-test and integration-test work stays with this skill until a counterpart unit-test skill ships. The full sub-skill call graph lives at [`references/call-graph.md`](./references/call-graph.md).
 
+## Sub-skill return semantics (devaudit-installer#144)
+
+**Sub-skills return findings synchronously; do not wait for operator confirmation between sub-skill returns.** Invoking a Skill loads its instructions into this same invocation context — there is no separate agent, no separate process. When a sub-skill emits its final summary and stops, this orchestrator's next step runs immediately, in the same turn if possible.
+
+The literal phrasing _"Returns to the running `sdlc-implementer` context"_ at the tail of each sub-skill (`requirements-aligner`, `adr-author`, `risk-register-keeper`, and any future siblings) does **not** mean "pause and wait for the operator to nudge you" — it means "you have control again; keep going with the parent workflow." A chain of three sub-skill calls in Phase 1 (steps 6 → 7 → 8) or Phase 3 (steps 1 → 2 → 3) is a single flowing sequence; do not stop between them.
+
+The only pauses in the whole workflow are the explicitly-named checkpoints:
+
+- **Phase 1 step 11** — pause for human approval **iff** risk class is HIGH or CRITICAL (or `--require-plan-approval` is set).
+- **Phase 4 step 5** — hard stop, release PR opened, awaiting UAT review on the portal.
+- **Phase 5** — invoked separately by the user (`resume REQ-XXX`).
+
+Everything else is silent continuation. The rule is **opt-in-to-pause, not opt-out-of-pause**. If you find yourself stopping after a sub-skill's "Return to the running `sdlc-implementer` context" line and waiting for the operator to ask _"is anything happening?"_ — that is the bug this section exists to prevent. Keep going.
+
 ## SDLC navigability — LAST/NEXT status sticky (devaudit#131)
 
 Long-running SDLC issues accumulate dozens of comments across multiple Claude Code sessions. The operator returning to the thread should be able to answer two questions in under five seconds:
@@ -204,13 +218,19 @@ _Workflow tweak (CI artifact upload, gate timeout bump, etc.)_
 
 Reached from Phase 0 for non-tracked change-types. The skill drives this end-to-end; the only difference from the tracked cycle is the absence of _ceremony_, not the absence of _guidance_. It pauses only where a human is genuinely required (PR review, merge).
 
+**CI trigger shape — read once before step 7.** The DevAudit-Installer-generated `ci.yml.template` defaults to **post-merge-only** triggers (`push: branches: [<integration>]`, no `pull_request:` trigger). On these projects there will be **no PR-time checks** to wait for — review + merge is the gate, and the post-merge CI run on the integration branch is the actual quality gate. A consumer who has explicitly added a `pull_request:` trigger has PR-time CI in addition. The skill must adapt step 7's wording to whichever shape the project uses; never poll a PR for checks that the template doesn't trigger.
+
 1. **Branch off `$INTEGRATION_BRANCH`** with a housekeeping prefix — `chore/…`, `docs/…`, `ci/…`, `build/…`, `test/…`, or `compliance/…` for a doc-only change against an existing REQ.
 2. **Make the change**, single-purpose. If it turns out to touch runtime behaviour in `app/` / `lib/`, stop and reclassify as tracked — the commit-type rule is the backstop.
 3. **Run all gates locally** (`npm run lint`, `npx tsc --noEmit`, the test suite, `semgrep`, `npm audit` — or the stack-adapter equivalents). Trivial ≠ unverified; never `--no-verify`.
 4. **Commit** with a housekeeping type and **no** `REQ-XXX` — `docs:` / `chore:` / `ci:` / `build:` / `test:` / `revert:` are exempt from the `[REQ-XXX]` rule; a `compliance:` doc-only change references the existing REQ. `Co-Authored-By: Claude` if AI-assisted.
 5. **Push and open the PR** into `$INTEGRATION_BRANCH` (`gh pr create --base "$INTEGRATION_BRANCH" --head <branch>`). CI runs the same quality gates; `compliance-validation.yml` finds no `REQ-XXX` and skips artifact validation.
 6. **For `ci:` changes, verify-via-dispatch before merging.** `gh workflow run <workflow.yml> --ref <branch>` fires the modified workflow against the PR branch. If the change broke a step, the dispatch run fails loudly and you fix-forward _before_ the merge ships the broken gate to `$INTEGRATION_BRANCH`. This is the cheapest insurance against silent CI regressions — a `ci:` change that breaks a gate is most damaging _after_ it lands.
-7. **Report honest status** — wait for CI, name any failing check, fix and re-push. Never announce "ready" while a required check is red.
+7. **Report honest status — adapt to the project's CI trigger shape (devaudit-installer#145).** Check whether `.github/workflows/ci.yml` has a `pull_request:` trigger.
+   - **PR-time CI present** — wait for CI to settle, name any failing check, fix and re-push. Never announce "ready" while a required check is red.
+   - **Post-merge-only CI (the DevAudit-Installer default — `push: branches: [<integration>]` with no `pull_request:` trigger)** — say so explicitly in the LAST/NEXT sticky: _"no PR-time checks will fire; review + merge is the gate; CI runs post-merge on `$INTEGRATION_BRANCH`."_ Don't poll the PR for checks that won't arrive. The post-merge run (CI Pipeline + Compliance Evidence Upload on the integration branch) is the actual gate; address it via fix-forward if it fails.
+
+   Either way, never bypass a gate (no `--no-verify`, no `--admin` merge of a red required check); the only difference is **where** you wait for the gate to fire — before merge vs. after merge.
 8. **Guide review → merge.** A human still reviews the PR (separation of duties). There is **no** portal release approval, no UAT four-eyes, no Production gate, and no close-out. Merge once CI is green and the reviewer approves.
 9. **Done.** A housekeeping push produces at most a bare-date release (`vYYYY.MM.DD`) with no approval gate; a doc-only push attaches its docs to the existing `REQ-XXX` release. No further action required — report completion and stop.
 

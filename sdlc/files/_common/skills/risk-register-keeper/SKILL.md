@@ -163,7 +163,7 @@ I have reviewed the risk register entries above and confirm:
 
 **Step 2 — Tag for upload.** The CI's `compliance-evidence.yml` uploads this file as `evidence_type=risk_assessment` (added to META-COMPLY's `EVIDENCE_TYPE_REGISTRY` in the paired sub-PR). The framework-coverage matrix attribution depends on `framework-registry-auditor`'s review — see the META-COMPLY-side PR for final clause closures.
 
-**Step 3 — Hand-off back to `sdlc-implementer`.** The skill's job ends at the artefact + operator sign-off.
+**Step 3 — Return to the running `sdlc-implementer` context.** The skill's job ends at the artefact + the operator sign-off. The orchestrator immediately continues with the rest of Stage 3 inline — no pause, no operator nudge needed. (Skills run in the same invocation context; control returns synchronously when this skill exits. See `sdlc-implementer/SKILL.md` § *Sub-skill return semantics*.)
 
 ### Phase 4 — `solo_with_gap` approval check
 
