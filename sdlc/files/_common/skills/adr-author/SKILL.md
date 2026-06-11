@@ -263,4 +263,4 @@ Per the [#119 review](https://github.com/metasession-dev/DevAudit-Installer/issu
 - `sdlc/files/_common/skills/requirements-aligner/SKILL.md` — sibling skill (same SoT-alignment family); see for the symmetric shape (Stage 1 + Stage 3 hooks; advisory-then-blocking enforcement).
 - Sibling skill (forthcoming): `risk-register-keeper` (DevAudit-Installer#121).
 - Meta-reviewer (META-COMPLY): `framework-registry-auditor` reviews the `architecture_decision` evidence type's clause mappings before the META-COMPLY sub-PR opens. Per the [#119 sequencing](https://github.com/metasession-dev/DevAudit-Installer/issues/119#issuecomment-4631840651).
-- Existing ADRs in the framework itself: `DevAudit-Installer/docs/ADR/ADR-001-polyglot-sdlc-architecture.md`, `docs/devaudit-cli/ADR-001-language-and-distribution.md` — the pattern this skill maintains.
+- Existing ADRs in the framework itself: [`DevAudit-Installer/docs/ADR/ADR-001-polyglot-sdlc-architecture.md`](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/ADR/ADR-001-polyglot-sdlc-architecture.md) — the pattern this skill maintains.

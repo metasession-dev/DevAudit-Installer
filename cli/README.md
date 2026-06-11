@@ -23,7 +23,7 @@ devaudit install ../path/to/your-project
 devaudit update
 ```
 
-Requires Node ≥ 22. Native binaries (no Node runtime needed) are on the roadmap — see the [trajectory doc](../docs/devaudit-cli/README.md).
+Requires Node ≥ 22. Native binaries (no Node runtime needed) are on the roadmap.
 
 ## Status — v0.1.1
 
@@ -83,15 +83,11 @@ cli/
         └── version.ts        # CLI version constant
 ```
 
-Future structure (per [build-plan.md](../docs/devaudit-cli/build-plan.md)): `src/commands/{install,update,push,auth/*,org/*,plugin/*,config/*,status,upgrade}.ts` and `src/lib/{adapter,devaudit-api,sdlc-config,auth,git-provider,policy,plugin,report,prompts,paths,stack-detect}.ts`.
-
 ## Why a CLI (it replaced the original bash scripts)
 
 - Cross-platform native (Linux/macOS/Windows; no WSL requirement)
 - JSON output mode on every command for CI
 - Interactive UX comparable to Vercel/Supabase/Firebase/GH/Railway CLIs
-- Single-binary distribution via Node SEA (no Node runtime required on the user's machine)
-- Plugin extensibility
+- Plugin extensibility (`@metasession.co/devaudit-plugin-sdk` defines the contract; `@metasession.co/devaudit-plugin-prisma` + `@metasession.co/devaudit-plugin-evidence-export` are first-party reference implementations)
 - Organisation-level features: policy-as-code, RBAC, centralised reporting
-
-The full motivation lives in [`../docs/devaudit-cli/README.md`](../docs/devaudit-cli/README.md).
+- Single-binary distribution via Node SEA (no Node runtime required on the user's machine) — on the roadmap

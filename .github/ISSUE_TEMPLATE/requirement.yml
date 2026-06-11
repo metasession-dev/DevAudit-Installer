@@ -11,7 +11,7 @@ body:
         For defects in shipped behaviour, use [Bug](./bug.yml).
         For typo fixes, refactors, doc tweaks, dependency bumps, use [Task](./task.yml).
 
-        See [`docs/devaudit-cli/build-plan.md`](../docs/devaudit-cli/build-plan.md) for the existing workstream backlog before opening a new requirement.
+        Check the [open issues](https://github.com/metasession-dev/DevAudit-Installer/issues) to see if your requirement is already being tracked.
 
   - type: textarea
     id: context
@@ -76,7 +76,7 @@ body:
     attributes:
       label: Pre-flight
       options:
-        - label: I've checked [`docs/devaudit-cli/build-plan.md`](../docs/devaudit-cli/build-plan.md) — this isn't already a tracked workstream item.
+        - label: I've checked the [open issues](https://github.com/metasession-dev/DevAudit-Installer/issues) — this requirement isn't already being tracked.
           required: true
         - label: I've read [`CONTRIBUTING.md`](../CONTRIBUTING.md) — I understand the pre-1.0 contribution policy (external PRs by invitation; issues welcome).
           required: true

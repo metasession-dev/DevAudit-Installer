@@ -104,4 +104,4 @@ Every framework PR should also be smoke-synced (`devaudit update`) against at le
 
 - [`README.md`](./README.md) — repo landing page
 - [`sdlc/ai-rules/INSTRUCTIONS-SDLC.md`](./sdlc/ai-rules/INSTRUCTIONS-SDLC.md) — the SDLC instructions that get **synced to consumers** (different audience from this file)
-- [`docs/devaudit-cli/`](./docs/devaudit-cli/README.md) — design of the future polished CLI that replaces the bash installer
+- [`cli/`](./cli/) — the published `@metasession.co/devaudit-cli` npm package (the polished CLI that replaced the original bash installer in v0.1.x)

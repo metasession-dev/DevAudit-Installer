@@ -25,7 +25,7 @@ Start at the portal for the big picture:
 | [`@metasession.co/devaudit-plugin-prisma`](https://www.npmjs.com/package/@metasession.co/devaudit-plugin-prisma)                   | First-party plugin — Prisma migration hooks      |
 | [`@metasession.co/devaudit-plugin-evidence-export`](https://www.npmjs.com/package/@metasession.co/devaudit-plugin-evidence-export) | First-party plugin — bulk evidence bundle export |
 
-Native binaries (no Node runtime) via brew / scoop / `curl | sh` are on the roadmap — see [`docs/devaudit-cli/`](./docs/devaudit-cli/README.md).
+Native binaries (no Node runtime) via brew / scoop / `curl | sh` are on the roadmap — file an issue if you'd find one useful for your distribution.
 
 ### When to use which command
 
