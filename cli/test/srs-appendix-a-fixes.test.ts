@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { promises as fs } from 'node:fs';
-import { join, dirname, resolve } from 'node:path';
+import { join, dirname, resolve, relative, sep } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
@@ -31,11 +31,10 @@ describe('ci-upload collectFiles (#155)', () => {
     await fs.writeFile(join(dir, 'a', 'mid.txt'), 'x');
     await fs.writeFile(join(dir, 'a', 'b', 'deep.txt'), 'x');
     const files = await collectFiles(dir);
-    expect(files.map((f) => f.replace(dir + '/', '')).sort()).toEqual([
-      'a/b/deep.txt',
-      'a/mid.txt',
-      'top.txt',
-    ]);
+    // Normalise to forward slashes so the assertion is cross-platform (Windows
+    // uses `\` as the path separator).
+    const rel = files.map((f) => relative(dir, f).split(sep).join('/')).sort();
+    expect(rel).toEqual(['a/b/deep.txt', 'a/mid.txt', 'top.txt']);
   });
 });
 
