@@ -103,7 +103,11 @@ export async function main(argv: readonly string[]): Promise<void> {
         '(defaults to the running CLI version). So a bare `devaudit update` syncs ' +
         'the current project.',
     )
-    .action(async (version: string | undefined, paths: string[] | undefined, cmd) => {
+    // commander passes (…declared-args, optionsObject, command). `update` has
+    // two declared args, so the Command is the FOURTH parameter — the options
+    // object sits third. Binding `cmd` to the third param made
+    // `cmd.optsWithGlobals()` throw (DevAudit-Installer#162).
+    .action(async (version: string | undefined, paths: string[] | undefined, _options, cmd) => {
       // `version` is purely informational. Disambiguate the single-arg case so
       // `devaudit update <path>` treats a path-like token as a path, not a label.
       let resolvedVersion = version;

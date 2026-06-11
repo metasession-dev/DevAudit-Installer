@@ -4,6 +4,8 @@ import { join, dirname, resolve, relative, sep } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
+import { execa } from 'execa';
+
 import { collectFiles } from '../src/lib/ci-upload.js';
 import { loadStackAdapter, loadHostAdapter } from '../src/lib/adapter.js';
 import { validateOptions } from '../src/commands/push.js';
@@ -11,6 +13,7 @@ import { runUpdate } from '../src/commands/update.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const INSTALLER_ROOT = resolve(HERE, '..', '..');
+const BIN = resolve(HERE, '..', 'bin', 'devaudit.js');
 
 const tmps: string[] = [];
 async function mktmp(prefix: string): Promise<string> {
@@ -97,5 +100,20 @@ describe('update --dry-run (#154)', () => {
     await runUpdate({ version: 'vTEST', paths: [dir], dryRun: true, plugins: [] });
     const after = await fs.readdir(dir);
     expect(after.sort()).toEqual(before.sort()); // no SDLC/, .github/, CLAUDE.md, etc.
+  });
+});
+
+// #162 — driving the real binary (not runUpdate directly) catches the action
+// arg-binding regression where commander bound `cmd` to the options object, so
+// `cmd.optsWithGlobals()` threw "is not a function". Runs the built bin/ — CI
+// builds before testing (cli.yml); run `npm run build` first locally.
+describe('devaudit update via the CLI (#162)', () => {
+  it('runs `update --dry-run <path>` exit 0 without the optsWithGlobals crash', async () => {
+    const dir = await mktmp('update-cli-');
+    await fs.writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'x', version: '0.0.0' }));
+    const res = await execa('node', [BIN, 'update', '--dry-run', dir], { reject: false });
+    expect(res.stderr).not.toMatch(/optsWithGlobals is not a function/);
+    expect(res.exitCode).toBe(0);
+    expect(await fs.readdir(dir)).toEqual(['package.json']); // dry-run wrote nothing
   });
 });

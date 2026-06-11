@@ -4,6 +4,12 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+## [0.1.58] — 2026-06-11
+
+### Fixed
+
+- **#162 (regression in 0.1.56)** — `devaudit update` crashed on every invocation with `TypeError: cmd.optsWithGlobals is not a function`, introduced by the #154 dry-run wiring. commander calls an action with `(…declared-args, options, command)`; `update` has two declared args, so the `Command` is the **fourth** parameter, but the handler bound `cmd` to the third (the options object). The parameter list is corrected. A regression test now drives the **built binary** through commander — the existing `runUpdate` unit tests call the function directly and never exercised the action's argument binding, which is why 0.1.56/0.1.57 shipped broken.
+
 ## [0.1.57] — 2026-06-11
 
 ### Changed
