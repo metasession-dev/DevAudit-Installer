@@ -291,23 +291,27 @@ See [`change-workflows.md`](./change-workflows.md) for the version-pattern triag
 
 ## Enforcing the SDLC via AI Assistants
 
-Drop-in instruction files in `sdlc/ai-rules/` make AI coding assistants (Claude Code, Windsurf, Cursor) enforce the SDLC process on every code change. When added to a project, the AI will:
+DevAudit is **agent-agnostic by design**. The framework ships drop-in rule files for the four AI coding agents with a native rule-file mechanism, plus the canonical `INSTRUCTIONS.md` that any LLM-driven agent can consume:
+
+| Agent                                                 | File installed                                                                                                                                  | Integration depth                                                                                                                                                                            |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Claude Code**                                       | `CLAUDE.md` + `.claude/skills/{sdlc-implementer,e2e-test-engineer,governance-doc-author,requirements-aligner,adr-author,risk-register-keeper}/` | **Deepest** — six skills auto-fire from natural-language prompts. See [`skills.md`](./skills.md) for the full catalog and per-skill trigger phrases.                                          |
+| **Cursor**                                            | `.cursorrules` (pointer → `INSTRUCTIONS.md`)                                                                                                    | Rules load automatically; the agent reads the SDLC content on demand.                                                                                                                        |
+| **Windsurf**                                          | `.windsurfrules` (pointer → `INSTRUCTIONS.md`)                                                                                                  | Same as Cursor — rules-on-load, content-on-demand.                                                                                                                                            |
+| **Gemini CLI**                                        | `GEMINI.md` (pointer → `INSTRUCTIONS.md`)                                                                                                       | Same pattern as Cursor + Windsurf.                                                                                                                                                            |
+| **GitHub Copilot / Aider / Continue / any other LLM** | `INSTRUCTIONS.md` (canonical)                                                                                                                   | No native rule-file integration; the agent reads `INSTRUCTIONS.md` when you point it at the SDLC content.                                                                                     |
+
+All five files are written by `npx @metasession.co/devaudit-cli@latest install` and refreshed by `npx @metasession.co/devaudit-cli@latest update`. The pointer files (`.cursorrules`, `.windsurfrules`, `CLAUDE.md`, `GEMINI.md`) are slim CLI-owned files; the SDLC content underneath them lives in `INSTRUCTIONS.md` as the single source of truth, and the per-skill SKILL.md files under `.claude/skills/<name>/`.
+
+Once installed, the AI will:
 
 - Ask **"which GitHub Issue is this for?"** before writing any code
 - Block implementation until requirement planning is complete (RTM entry, test scope, evidence directory)
 - Enforce commit conventions (`Ref: REQ-XXX`, `Co-Authored-By` tags)
-- Run all four compliance gates before allowing a push
-- Guide evidence compilation after implementation
+- Run the [five compliance gates](./compliance-gates.md) before allowing a push
+- Drive evidence compilation through Stages 3 + 4
 
-All agent config files use a **single source of truth** pattern: `.cursorrules`, `.windsurfrules`, `CLAUDE.md`, and `GEMINI.md` are pointer files that reference `INSTRUCTIONS.md`. The SDLC rules are maintained in `INSTRUCTIONS.md` as the canonical source, synced by the sync script from `sdlc/ai-rules/INSTRUCTIONS-SDLC.md`.
-
-Setup is automatic via the sync script:
-
-```bash
-devaudit update v1.5.0 ../your-project
-```
-
-This generates pointer files and appends/replaces the SDLC section in `INSTRUCTIONS.md`. See `sdlc/ai-rules/README.md` for full details.
+Claude Code's auto-firing skills give the most ergonomic integration today; the other agents do the same work via on-demand instruction-reading. The framework + gates + portal work the same regardless of which agent your team uses.
 
 ## Example Prompts
 
@@ -316,7 +320,7 @@ Once the AI rules are installed, every change begins with a GitHub Issue:
 **Starting from an existing issue:**
 
 ```
-Work on issue #42
+Implement issue #42
 ```
 
 **Describing new work (AI will create the issue for you):**
@@ -337,4 +341,22 @@ Pick up #15 — the client wants the share link expiry default changed to 30 day
 What open issues do we have?
 ```
 
-In each case the AI will fetch (or create) the GitHub Issue, assign the next `REQ-XXX`, classify risk using issue labels, add the RTM entry with the issue reference, and scaffold the evidence directory -- all before any code is written.
+**Resuming after UAT approval:**
+
+```
+Resume REQ-066
+```
+
+In each case the orchestrator skill (`sdlc-implementer`) fetches the GitHub Issue, runs Phase 0 triage (classify → announce → confirm → route), and either drives the tracked path through Stages 1–5 (delegating to the five sibling specialists at the right phases) or the Lightweight path through to merge. See [`skills.md`](./skills.md) for the full catalog and [`change-workflows.md`](./change-workflows.md) for the routing rules.
+
+## See also
+
+- [`skills.md`](./skills.md) — the six AI skills + when each fires + what artefact each leaves on the portal
+- [`compliance-gates.md`](./compliance-gates.md) — the five CI workflows + how to interpret a red badge
+- [`evidence-tiers.md`](./evidence-tiers.md) — the Tier 1 / 2 / 3 evidence taxonomy + upload-path split
+- [`e2e-test-tiers.md`](./e2e-test-tiers.md) — the 3-tier E2E gating model (smoke / critical / regression)
+- [`change-workflows.md`](./change-workflows.md) — change-type → workflow routing; tracked vs housekeeping releases
+- [`governance-templates.md`](./governance-templates.md) — the five Tier 2 governance starters + framework attribution
+- [`onboarding.md`](./onboarding.md) — `install` walkthrough for a new project
+- [`consuming-projects.md`](./consuming-projects.md) — `update` walkthrough for an existing project
+- [`adding-a-stack.md`](./adding-a-stack.md) / [`adding-a-host.md`](./adding-a-host.md) / [`adding-a-skill.md`](./adding-a-skill.md) — extending the framework with new adapters or skills
