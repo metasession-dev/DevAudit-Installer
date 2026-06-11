@@ -484,8 +484,21 @@ jobs:
           # moment each acceptance criterion is demonstrated, NOT the Playwright
           # report's trailing/failure capture. evidenceType `screenshot` →
           # image/png renders inline. Only when a pending release ticket defines
-          # the in-scope REQ(s); skipped on ordinary dev pushes. Best-effort: a
-          # screenshot upload failure warns but never blocks the gate.
+          # the in-scope REQ(s); skipped on ordinary dev pushes.
+          #
+          # devaudit-installer#147 — per-REQ glob scoping + UPLOAD_FAILURES
+          # accounting. Previously the SHOTS glob was project-wide
+          # (`ci-evidence/compliance/evidence/*/screenshots/*.png`) and the
+          # for-REQ loop uploaded that cross-product against every in-scope
+          # REQ. Out-of-scope REQs' legacy PNGs whose filenames don't match
+          # `REQ-XXX-AC<n>-<slug>.png` then 400'd at the portal — and the
+          # `|| echo "::warning::..."` swallowed the failure so the step
+          # reported SUCCESS while screenshots were quietly missing. Now each
+          # in-scope REQ globs its OWN screenshots/ directory; out-of-scope
+          # legacy folders are intentionally ignored. To re-upload an older
+          # REQ's screenshots, add its release ticket back under
+          # compliance/pending-releases/. Failures now bump UPLOAD_FAILURES
+          # so the step exits non-zero and the release PR turns red.
           SHOT_REQS=()
           if [ -d compliance/pending-releases ]; then
             for TICKET in compliance/pending-releases/RELEASE-TICKET-REQ-*.md; do
@@ -494,14 +507,8 @@ jobs:
             done
           fi
           shopt -s nullglob
-          # Only this run's freshly-generated screenshots (from the ci-results
-          # artifact). The full pack regenerates them every run, so the committed
-          # copies under compliance/evidence/ are redundant here — globbing both
-          # uploaded every image twice (deduped on display, but wasteful + rate-limit
-          # pressure) and swept in legacy screenshots from unrelated past releases.
-          SHOTS=(ci-evidence/compliance/evidence/*/screenshots/*.png)
-          if [ "${#SHOT_REQS[@]}" -gt 0 ] && [ "${#SHOTS[@]}" -gt 0 ]; then
-            echo "Uploading ${#SHOTS[@]} evidence screenshot(s) for: ${SHOT_REQS[*]}"
+          if [ "${#SHOT_REQS[@]}" -gt 0 ]; then
+            echo "Uploading per-AC evidence screenshots for: ${SHOT_REQS[*]}"
             SHOT_TMP="$(mktemp -d)"
             for REQ in "${SHOT_REQS[@]}"; do
               # Per-REQ release metadata for the portal (no-clobbered on existing rows):
@@ -518,7 +525,16 @@ jobs:
               REQ_META=()
               [ -n "$REQ_TITLE" ] && REQ_META+=(--release-title "$REQ_TITLE")
               [ -n "$REQ_CT" ] && REQ_META+=(--change-type "$REQ_CT")
-              for PNG in "${SHOTS[@]}"; do
+              # devaudit-installer#147 — per-REQ scoped glob. ONLY this REQ's
+              # own screenshots/ directory; legacy folders for REQs not in
+              # SHOT_REQS are intentionally ignored.
+              REQ_SHOTS=(ci-evidence/compliance/evidence/"$REQ"/screenshots/*.png)
+              if [ "${#REQ_SHOTS[@]}" -eq 0 ]; then
+                echo "No per-AC screenshots for ${REQ} (none captured by evidenceShot this run)"
+                continue
+              fi
+              echo "Uploading ${#REQ_SHOTS[@]} screenshot(s) for ${REQ}"
+              for PNG in "${REQ_SHOTS[@]}"; do
                 # The basename is the canonical evidenceShot filename
                 # `REQ-XXX-AC<n>-<slug>.png`. The portal validates this
                 # shape on upload — anything else is rejected with 400.
@@ -540,12 +556,22 @@ jobs:
                   fi
                 fi
 
-                bash scripts/upload-evidence.sh \
+                if bash scripts/upload-evidence.sh \
                   {{PROJECT_SLUG}} "$REQ" screenshot "$NAMED" \
                   --category test_report ${FLAGS} --release "$REQ" \
                   "${REQ_META[@]}" \
-                  "${ORIGIN_META[@]}" \
-                  || echo "::warning::evidence screenshot upload failed: ${PNG} -> ${REQ}"
+                  "${ORIGIN_META[@]}"
+                then
+                  :
+                else
+                  # devaudit-installer#147 — feed the same UPLOAD_FAILURES
+                  # counter that gate uploads use, so a screenshot
+                  # rejected by the portal's filename validator (or any
+                  # other failure mode) turns the step RED instead of
+                  # silently warning.
+                  echo "::warning::evidence screenshot upload failed: ${PNG} -> ${REQ}"
+                  UPLOAD_FAILURES=$((UPLOAD_FAILURES + 1))
+                fi
               done
             done
           fi

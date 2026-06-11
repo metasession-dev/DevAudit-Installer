@@ -25,14 +25,29 @@ on:
     branches: [develop]
     paths:
       - 'compliance/**'
+  # devaudit-installer#149 — listen for completion of the E2E Regression
+  # workflow so the critical-tier run on the release PR + the full
+  # regression on post-merge to main both upload their JSON results +
+  # HTML report to the portal under the right release. Without this hook
+  # the UAT four-eyes reviewer only sees smoke-tier evidence from the
+  # feature PR's develop merge — the broader sweep against the
+  # about-to-be-promoted integration code never reaches the portal.
+  workflow_run:
+    workflows: ['E2E Regression']
+    types: [completed]
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event.workflow_run.id || '' }}
   cancel-in-progress: true
 
 jobs:
   upload-compliance-evidence:
     name: Upload Compliance Evidence
+    # devaudit-installer#149 — only the push/dispatch paths run the
+    # compliance-doc upload. The workflow_run path is handled by the
+    # sibling job below; running both on a workflow_run event would
+    # double-upload every compliance doc.
+    if: github.event_name != 'workflow_run'
     runs-on: {{RUNNER}}
     # Permissions are needed because the "Auto-generate housekeeping stubs"
     # step pushes a new branch + opens a PR via `gh pr create` when the
@@ -412,22 +427,58 @@ jobs:
               REQ_META_ARGS=$(req_meta_args "$REQ_ID")
               for ARTIFACT in "$REQ_DIR"*.md; do
                 [ -f "$ARTIFACT" ] || continue
-                # Per-REQ test-execution-summary.md is the ISO 29119-3 §3.5.6
-                # Test Completion Report for THIS release cycle (populated by
-                # the e2e-test-engineer skill in Stage 3 — scope, results, AC
-                # mapping, defects). Upload as `test_report` so it satisfies
-                # the portal's Test Reports gate with per-release evidence
-                # instead of the project-level evergreen TSR (which from
-                # v0.1.32 downgrades to `compliance_document`). See
-                # DevAudit-Installer#101.
+                # Per-REQ basename → (evidence_type, evidence_category) routing.
+                # The bare default (compliance_document, planning) is the
+                # historical catch-all; the named cases route specific
+                # artefacts to their dedicated evidence types so the portal's
+                # framework-coverage matrix attributes them correctly:
+                #
+                #   - test-execution-summary.md / test-summary-report.md
+                #       → test_report : ISO 29119-3 §3.5.6 Test Completion
+                #         Report per release cycle. Satisfies the portal's
+                #         Test Reports gate with per-release evidence
+                #         instead of the project-level evergreen TSR (which
+                #         from v0.1.32 downgrades to compliance_document).
+                #         DevAudit-Installer#101.
+                #
+                #   - srs-alignment.md
+                #       → srs_alignment : output of the requirements-aligner
+                #         skill at Stage 3. Orphan-by-design at v1 per
+                #         META-COMPLY framework-registry-auditor review;
+                #         surfaces in Documents tab + audit-pack export.
+                #         DevAudit-Installer#119.
+                #
+                #   - architecture-decision.md
+                #       → architecture_decision : output of the adr-author
+                #         skill at Stage 3. Closes ISO 27001 A.8.25 (Secure
+                #         development life cycle) via the dedicated type
+                #         predicate. DevAudit-Installer#120.
+                #
+                #   - risk-assessment.md
+                #       → risk_assessment : output of the risk-register-keeper
+                #         skill at Stage 3. Closes SOC 2 CC3.2 (Risk
+                #         identification and assessment) via the dedicated
+                #         type predicate. DevAudit-Installer#121.
+                #
+                # Until this routing existed the new artefacts uploaded as
+                # compliance_document, which matches the project-baseline
+                # docs predicate but NOT the per-REQ Tier 3 clause
+                # predicates that expect the dedicated types — so the matrix
+                # reported MISSING / PARTIAL for SOC2.CC3.2 + ISO27001.A.8.25
+                # despite the files being present. DevAudit-Installer#146.
                 BASENAME=$(basename "$ARTIFACT")
-                if [ "$BASENAME" = "test-execution-summary.md" ] || [ "$BASENAME" = "test-summary-report.md" ]; then
-                  EVTYPE=test_report
-                  EVCAT=test_report
-                else
-                  EVTYPE=compliance_document
-                  EVCAT=planning
-                fi
+                case "$BASENAME" in
+                  test-execution-summary.md|test-summary-report.md)
+                    EVTYPE=test_report; EVCAT=test_report ;;
+                  srs-alignment.md)
+                    EVTYPE=srs_alignment; EVCAT=planning ;;
+                  architecture-decision.md)
+                    EVTYPE=architecture_decision; EVCAT=planning ;;
+                  risk-assessment.md)
+                    EVTYPE=risk_assessment; EVCAT=planning ;;
+                  *)
+                    EVTYPE=compliance_document; EVCAT=planning ;;
+                esac
                 echo "Uploading: ${REQ_ID}/${BASENAME} (${EVTYPE})"
                 eval "bash scripts/upload-evidence.sh \
                   {{PROJECT_SLUG}} \"${REQ_ID}\" ${EVTYPE} \"$ARTIFACT\" \
@@ -440,3 +491,174 @@ jobs:
 
       - name: Summary
         run: echo "Compliance evidence uploaded for ${{ steps.version.outputs.version }}"
+
+  # devaudit-installer#149 — upload the E2E Regression artefacts to the
+  # portal so the critical-tier run on the release PR + the full
+  # regression on post-merge to main both land as portal evidence (not
+  # just GitHub Actions artifacts).
+  #
+  # Fires only on `workflow_run` events. The triggering workflow is the
+  # consumer's `E2E Regression` (project-owned per the v0.1.53 3-tier
+  # gating model) which writes:
+  #   - e2e-regression-results.json (Playwright JSON reporter)
+  #   - playwright-report/          (HTML report)
+  #   - test-results/               (per-spec traces / videos / screenshots)
+  # to GitHub Actions artifact storage under the name `e2e-regression-report`.
+  # We download that artifact via the workflow_run.id, derive the release
+  # version against the triggering run's head_sha, then upload the
+  # canonical artefacts as `evidence_type=e2e_result` + `test_report`
+  # against each in-scope REQ.
+  upload-e2e-regression-evidence:
+    name: Upload E2E Regression Evidence
+    if: github.event_name == 'workflow_run'
+    runs-on: {{RUNNER}}
+    # actions: read is required so `actions/download-artifact@v4` with
+    # `run-id` can read another workflow's artifacts. Without it the
+    # download step fails with a 404 even when the artifact exists.
+    permissions:
+      contents: read
+      actions: read
+    env:
+      DEVAUDIT_BASE_URL_VAR: ${{ vars.DEVAUDIT_BASE_URL }}
+      DEVAUDIT_API_KEY: ${{ secrets.DEVAUDIT_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Check out the SHA the E2E Regression ran against — that
+          # determines the release version + the in-scope REQs via the
+          # pending release tickets at that snapshot, not whatever
+          # default branch currently points to.
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      - name: Resolve DevAudit base URL
+        id: resolve
+        run: |
+          CONFIG_URL=""
+          if [ -f sdlc-config.json ]; then
+            CONFIG_URL=$(jq -r '.devaudit.base_url // empty' sdlc-config.json 2>/dev/null || true)
+          fi
+          if [ -n "$CONFIG_URL" ]; then
+            BASE="$CONFIG_URL"
+          elif [ -n "$DEVAUDIT_BASE_URL_VAR" ]; then
+            BASE="$DEVAUDIT_BASE_URL_VAR"
+          else
+            echo "::warning::No DevAudit base URL configured — skipping E2E evidence upload."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ -z "${DEVAUDIT_API_KEY}" ]; then
+            echo "::warning::DEVAUDIT_API_KEY not set — skipping E2E evidence upload."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+          echo "DEVAUDIT_BASE_URL=${BASE%/}" >> "$GITHUB_ENV"
+
+      - name: Download E2E Regression artifact
+        if: steps.resolve.outputs.skip != 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: e2e-regression-report
+          path: e2e-artifacts/
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      - name: Derive release version
+        if: steps.resolve.outputs.skip != 'true'
+        id: version
+        run: |
+          chmod +x scripts/derive-release-version.sh 2>/dev/null || true
+          VERSION=$(./scripts/derive-release-version.sh)
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Resolved release version: ${VERSION}"
+
+      - name: Upload E2E Regression evidence to DevAudit
+        if: steps.resolve.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+          DERIVED_RELEASE="${{ steps.version.outputs.version }}"
+
+          # Tier metadata for the portal (the operator filters/groups by
+          # this on the release detail). pull_request → critical;
+          # push to main → regression; otherwise dispatch/schedule.
+          PRIOR_EVENT="${{ github.event.workflow_run.event }}"
+          PRIOR_BRANCH="${{ github.event.workflow_run.head_branch }}"
+          case "$PRIOR_EVENT" in
+            pull_request) TIER=critical ;;
+            push)         TIER=regression ;;
+            *)            TIER="${PRIOR_EVENT}" ;;
+          esac
+
+          # Common flags for upload-evidence.sh. Branch + SHA come from
+          # the triggering run, not from this workflow_run dispatch.
+          FLAGS="--create-release-if-missing --environment uat \
+                 --git-sha ${{ github.event.workflow_run.head_sha }} \
+                 --ci-run-id ${{ github.event.workflow_run.id }} \
+                 --branch ${PRIOR_BRANCH}"
+
+          # In-scope REQs from pending release tickets at the triggering
+          # SHA. Fall back to `_compliance-docs` if no tickets present so
+          # the artefact at least lands somewhere visible.
+          REQS=()
+          if [ -d compliance/pending-releases ]; then
+            for TICKET in compliance/pending-releases/RELEASE-TICKET-REQ-*.md; do
+              [ -f "$TICKET" ] || continue
+              REQS+=("$(basename "$TICKET" .md | sed 's/^RELEASE-TICKET-//')")
+            done
+          fi
+          if [ "${#REQS[@]}" -eq 0 ]; then
+            REQS=(_compliance-docs)
+          fi
+          echo "Uploading E2E ${TIER}-tier evidence to: ${REQS[*]} (release: ${DERIVED_RELEASE})"
+
+          UPLOAD_FAILURES=0
+          for REQ in "${REQS[@]}"; do
+            # 1. JSON reporter output → e2e_result. The single canonical
+            # machine-readable artefact for the run.
+            if [ -f e2e-artifacts/e2e-regression-results.json ]; then
+              if bash scripts/upload-evidence.sh \
+                {{PROJECT_SLUG}} "$REQ" e2e_result \
+                e2e-artifacts/e2e-regression-results.json \
+                --category test_report ${FLAGS} --release "${DERIVED_RELEASE}" \
+                --meta-key "tier=${TIER}"
+              then
+                :
+              else
+                echo "::warning::e2e_result upload failed for ${REQ}"
+                UPLOAD_FAILURES=$((UPLOAD_FAILURES + 1))
+              fi
+            fi
+            # 2. Playwright HTML report index → test_report. Operator-
+            # facing artefact (the formatted run summary). Skipped if
+            # the report directory is missing (e.g. an upstream
+            # infrastructure failure aborted before reporting).
+            if [ -f e2e-artifacts/playwright-report/index.html ]; then
+              if bash scripts/upload-evidence.sh \
+                {{PROJECT_SLUG}} "$REQ" test_report \
+                e2e-artifacts/playwright-report/index.html \
+                --category test_report ${FLAGS} --release "${DERIVED_RELEASE}" \
+                --meta-key "tier=${TIER}"
+              then
+                :
+              else
+                echo "::warning::playwright HTML report upload failed for ${REQ}"
+                UPLOAD_FAILURES=$((UPLOAD_FAILURES + 1))
+              fi
+            fi
+          done
+
+          # Per-spec failure screenshots from test-results/ are NOT
+          # uploaded: Playwright names them `test-failed-1.png` /
+          # `test-finished-1.png`, which the portal's filename
+          # validator (REQ-XXX-AC<n>-<slug>.png) rejects. Use the
+          # evidenceShot(page, REQ, AC, slug) helper from the
+          # e2e-test-engineer skill for per-AC named captures; those
+          # upload via ci.yml's per-REQ screenshot loop.
+
+          if [ "$UPLOAD_FAILURES" -gt 0 ]; then
+            echo "::error::${UPLOAD_FAILURES} E2E evidence upload(s) failed — portal release matrix may be incomplete"
+            exit 1
+          fi
+          echo "E2E ${TIER}-tier evidence uploaded for ${#REQS[@]} requirement(s)"
