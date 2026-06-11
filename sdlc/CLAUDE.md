@@ -8,8 +8,7 @@ This is a compliance-grade SDLC template system — a set of 12 documents across
 
 ## Repository Structure
 
-- `article.md` — Long-form article explaining the system's design and rationale
-- `files/` — The 12 template documents:
+- `files/` — The template documents:
   - **Tier 1 (universal, never project-specific):** `Test_Policy.md`, `Test_Strategy.md`, `Test_Architecture.md`, `Periodic_Security_Review_Schedule.md`
   - **Tier 2 (project-specific, customized per project):** `0-project-setup.md` through `5-deploy-main.md` (workflows), `Test_Plan_TEMPLATE.md`, `README_TEMPLATE.md`
 
@@ -57,7 +56,6 @@ All templates assume these gates: TypeScript (0 errors), SAST/Semgrep (0 high/cr
 - Maintain the separation between Tier 1 and Tier 2 — if content applies universally, it belongs in Tier 1; if project-specific, Tier 2.
 - Keep workflow documents as executable procedures with concrete commands, not abstract guidance.
 - Risk classification rules and AI governance controls are defined in Test_Policy.md and Test_Strategy.md — don't duplicate them in workflow files.
-- The article (`article.md`) should stay consistent with the templates; if you change a process in a template, check whether the article describes the old process.
 
 ## Syncing Templates to Consuming Projects
 

@@ -14,7 +14,9 @@ export function makeStub(info: StubInfo): () => Promise<never> {
     if (info.trackedIn) {
       log.info(`Tracked in: ${info.trackedIn}`);
     }
-    log.info('See ./docs/devaudit-cli/build-plan.md for the full implementation plan.');
+    log.info(
+      'File an issue at https://github.com/metasession-dev/DevAudit-Installer/issues if you need this command.',
+    );
     process.exit(1);
   };
 }

@@ -59,16 +59,13 @@ sdlc/
 │   │   └── railway/
 │   │       └── adapter.json
 │   └── sdlc-config.example.json              # Example consumer configuration
-├── ai-rules/                                 # Drop-in SDLC enforcement for AI tools
-│   ├── README.md                             # Setup and configuration guide
-│   ├── INSTRUCTIONS-SDLC.md                  # Canonical SDLC rules (synced to INSTRUCTIONS.md)
-│   ├── SDLC_RULES.md                         # Full rules with detailed explanations
-│   ├── claude/CLAUDE.md                      # Legacy Claude format (superseded by pointer pattern)
-│   ├── windsurf/.windsurfrules               # Legacy Windsurf format
-│   └── cursor/.cursorrules                   # Legacy Cursor format
+├── ai-rules/
+│   ├── README.md                             # Setup + the canonical source-of-truth pattern
+│   ├── INSTRUCTIONS-SDLC.md                  # Canonical SDLC rules synced into every consumer's INSTRUCTIONS.md
+│   ├── SDLC_RULES.md                         # Legacy long-form rules (kept for backcompat; not actively maintained — new consumers use the pointer pattern)
+│   ├── claude/, cursor/, windsurf/           # Legacy per-editor format files (kept for backcompat; the CLI generates pointer files into the consumer's repo on every install/update)
 ├── STACK_ADAPTER.md                          # Stack-adapter contract
 ├── HOST_ADAPTER.md                           # Host-adapter contract
-├── article.md                                # Long-form design explanation
 └── CLAUDE.md                                 # Claude Code guidance for editing templates
 ```
 
