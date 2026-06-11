@@ -33,7 +33,7 @@ jobs:
       PROJECT_SLUG: {{PROJECT_SLUG}}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           # The default `pull_request` checkout is a synthetic merge commit
           # with an empty body, so `derive-release-version.sh` can't see the

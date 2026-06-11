@@ -332,7 +332,7 @@ upload-evidence:
   needs: [e2e-tests]
   if: github.event_name == 'pull_request'
   steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
 
     # Upload test artifacts
     - name: Upload E2E evidence
@@ -367,7 +367,7 @@ sync-compliance-docs:
   runs-on: ubuntu-latest
   if: github.event_name == 'push' && github.ref == 'refs/heads/main'
   steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     - name: Upload compliance documents
       run: |
         for doc in compliance/RTM.md compliance/test-plan.md compliance/test-cases.md compliance/test-summary-report.md; do

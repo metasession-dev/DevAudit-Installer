@@ -4,6 +4,12 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+## [0.1.57] — 2026-06-11
+
+### Changed
+
+- **Node 24 GitHub Actions.** Bumped all first-party actions off the Node 20 runtime GitHub is deprecating (Node-20 actions forced to Node 24 from 2026-06-16, Node 20 removed from runners 2026-09-16). This repo's own workflows and the rendered consumer CI templates move `actions/checkout@v4 → v6` and `actions/setup-node@v4 → v6`; the templates additionally move `actions/setup-python@v5 → v6`, `actions/upload-artifact@v4 → v7`, and `actions/download-artifact@v4 → v8`. All target majors were verified to run on `node24`. Consumers pick up the updated workflow actions on their next `devaudit update`.
+
 ## [0.1.56] — 2026-06-11
 
 ### Fixed

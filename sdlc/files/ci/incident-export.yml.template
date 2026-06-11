@@ -38,7 +38,7 @@ jobs:
     # skips this job entirely on unlabelled issue closes.
     if: contains(github.event.issue.labels.*.name, 'incident')
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
           token: ${{ secrets.DEVAUDIT_USER_TOKEN || github.token }}

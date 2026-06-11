@@ -34,7 +34,7 @@ jobs:
     name: Generate quarterly periodic-review.md
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
           # Need write access for the chore branch.

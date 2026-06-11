@@ -69,7 +69,7 @@ jobs:
       DEVAUDIT_BASE_URL_VAR: ${{ vars.DEVAUDIT_BASE_URL }}
       DEVAUDIT_API_KEY: ${{ secrets.DEVAUDIT_API_KEY }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           # Full history so `req_meta_args` can `git log --grep "[REQ-XXX]|Ref: REQ-XXX"`
           # against the implementation commits (the merge commit alone never
@@ -512,7 +512,7 @@ jobs:
     name: Upload E2E Regression Evidence
     if: github.event_name == 'workflow_run'
     runs-on: {{RUNNER}}
-    # actions: read is required so `actions/download-artifact@v4` with
+    # actions: read is required so `actions/download-artifact@v8` with
     # `run-id` can read another workflow's artifacts. Without it the
     # download step fails with a 404 even when the artifact exists.
     permissions:
@@ -522,7 +522,7 @@ jobs:
       DEVAUDIT_BASE_URL_VAR: ${{ vars.DEVAUDIT_BASE_URL }}
       DEVAUDIT_API_KEY: ${{ secrets.DEVAUDIT_API_KEY }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           # Check out the SHA the E2E Regression ran against — that
           # determines the release version + the in-scope REQs via the
@@ -557,7 +557,7 @@ jobs:
 
       - name: Download E2E Regression artifact
         if: steps.resolve.outputs.skip != 'true'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: e2e-regression-report
           path: e2e-artifacts/

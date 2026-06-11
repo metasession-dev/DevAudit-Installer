@@ -41,7 +41,7 @@ jobs:
 {{APP_ENV}}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           # Full history so the "new specs on this branch" calculation
           # (E2E_NEW_SPECS, below) can do a real diff against the merge
@@ -51,7 +51,7 @@ jobs:
 
       # ── Cached installs (skip if already present on self-hosted runner) ──
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: {{NODE_VERSION}}
 
@@ -209,7 +209,7 @@ jobs:
 
       # ── Upload artifacts ──
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         continue-on-error: true
         with:
@@ -238,7 +238,7 @@ jobs:
       DEVAUDIT_BASE_URL_VAR: ${{ vars.DEVAUDIT_BASE_URL }}
       DEVAUDIT_API_KEY: ${{ secrets.DEVAUDIT_API_KEY }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Resolve DevAudit base URL
         run: |
@@ -369,7 +369,7 @@ jobs:
       DEVAUDIT_BASE_URL_VAR: ${{ vars.DEVAUDIT_BASE_URL }}
       DEVAUDIT_API_KEY: ${{ secrets.DEVAUDIT_API_KEY }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Resolve DevAudit base URL
         run: |
@@ -392,7 +392,7 @@ jobs:
           echo "DEVAUDIT_BASE_URL=${BASE%/}" >> "$GITHUB_ENV"
 
       - name: Download CI gate artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         continue-on-error: true
         with:
           name: ci-results

@@ -45,9 +45,9 @@ jobs:
 {{APP_ENV}}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '{{PYTHON_VERSION}}'
           cache: pip
@@ -164,11 +164,11 @@ jobs:
 
       # ── Upload artifacts ──
 
-      # actions/upload-artifact@v4 doesn't honour the job's `working-directory`;
+      # actions/upload-artifact@v7 doesn't honour the job's `working-directory`;
       # paths are workspace-relative. Prefix with WORKING_DIR_PREFIX so artifacts
       # uploaded from a subdir project (e.g. mission-control-api/) include the
       # subdir in their stored path, matching where the gate steps wrote them.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         continue-on-error: true
         with:
@@ -191,7 +191,7 @@ jobs:
       DEVAUDIT_BASE_URL: ${{ vars.DEVAUDIT_BASE_URL }}
       DEVAUDIT_API_KEY: ${{ secrets.DEVAUDIT_API_KEY }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Validate DevAudit env
         run: |
@@ -293,7 +293,7 @@ jobs:
       DEVAUDIT_BASE_URL: ${{ vars.DEVAUDIT_BASE_URL }}
       DEVAUDIT_API_KEY: ${{ secrets.DEVAUDIT_API_KEY }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       # Download to workspace root: upload-artifact@v4 preserves the file's
       # workspace-relative path (e.g. mission-control-api/ci-evidence/sast.json
@@ -301,7 +301,7 @@ jobs:
       # those exact paths so the upload-evidence.sh references below resolve
       # without nesting.
       - name: Download CI gate artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         continue-on-error: true
         with:
           name: ci-results
