@@ -30,7 +30,7 @@
     "test": "ci-evidence/e2e-results.json"
   },
   "runtime_setup": {
-    "action": "actions/setup-node@v4",
+    "action": "actions/setup-node@v6",
     "with": { "node-version": "{{NODE_VERSION}}", "cache": "npm" }
   },
   "config_keys": {

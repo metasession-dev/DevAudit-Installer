@@ -123,7 +123,7 @@
         "action": {
           "type": "string",
           "pattern": "^[^@]+@v[0-9]+$",
-          "description": "GitHub Actions reference — e.g. actions/setup-node@v4, actions/setup-python@v5."
+          "description": "GitHub Actions reference — e.g. actions/setup-node@v6, actions/setup-python@v6."
         },
         "with": {
           "type": "object",

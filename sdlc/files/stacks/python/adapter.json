@@ -21,7 +21,7 @@
     "test": "ci-evidence/junit.xml"
   },
   "runtime_setup": {
-    "action": "actions/setup-python@v5",
+    "action": "actions/setup-python@v6",
     "with": { "python-version": "{{PYTHON_VERSION}}", "cache": "pip" }
   },
   "config_keys": {

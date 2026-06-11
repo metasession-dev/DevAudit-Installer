@@ -40,7 +40,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       DEVAUDIT_API_KEY: ${{ secrets.DEVAUDIT_API_KEY }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: develop
           fetch-depth: 0

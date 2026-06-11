@@ -44,7 +44,7 @@ jobs:
       RELEASE_INPUT: ${{ github.event.inputs.release }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0   # full history so merged commits' REQ tags are readable
 
