@@ -412,22 +412,58 @@ jobs:
               REQ_META_ARGS=$(req_meta_args "$REQ_ID")
               for ARTIFACT in "$REQ_DIR"*.md; do
                 [ -f "$ARTIFACT" ] || continue
-                # Per-REQ test-execution-summary.md is the ISO 29119-3 §3.5.6
-                # Test Completion Report for THIS release cycle (populated by
-                # the e2e-test-engineer skill in Stage 3 — scope, results, AC
-                # mapping, defects). Upload as `test_report` so it satisfies
-                # the portal's Test Reports gate with per-release evidence
-                # instead of the project-level evergreen TSR (which from
-                # v0.1.32 downgrades to `compliance_document`). See
-                # DevAudit-Installer#101.
+                # Per-REQ basename → (evidence_type, evidence_category) routing.
+                # The bare default (compliance_document, planning) is the
+                # historical catch-all; the named cases route specific
+                # artefacts to their dedicated evidence types so the portal's
+                # framework-coverage matrix attributes them correctly:
+                #
+                #   - test-execution-summary.md / test-summary-report.md
+                #       → test_report : ISO 29119-3 §3.5.6 Test Completion
+                #         Report per release cycle. Satisfies the portal's
+                #         Test Reports gate with per-release evidence
+                #         instead of the project-level evergreen TSR (which
+                #         from v0.1.32 downgrades to compliance_document).
+                #         DevAudit-Installer#101.
+                #
+                #   - srs-alignment.md
+                #       → srs_alignment : output of the requirements-aligner
+                #         skill at Stage 3. Orphan-by-design at v1 per
+                #         META-COMPLY framework-registry-auditor review;
+                #         surfaces in Documents tab + audit-pack export.
+                #         DevAudit-Installer#119.
+                #
+                #   - architecture-decision.md
+                #       → architecture_decision : output of the adr-author
+                #         skill at Stage 3. Closes ISO 27001 A.8.25 (Secure
+                #         development life cycle) via the dedicated type
+                #         predicate. DevAudit-Installer#120.
+                #
+                #   - risk-assessment.md
+                #       → risk_assessment : output of the risk-register-keeper
+                #         skill at Stage 3. Closes SOC 2 CC3.2 (Risk
+                #         identification and assessment) via the dedicated
+                #         type predicate. DevAudit-Installer#121.
+                #
+                # Until this routing existed the new artefacts uploaded as
+                # compliance_document, which matches the project-baseline
+                # docs predicate but NOT the per-REQ Tier 3 clause
+                # predicates that expect the dedicated types — so the matrix
+                # reported MISSING / PARTIAL for SOC2.CC3.2 + ISO27001.A.8.25
+                # despite the files being present. DevAudit-Installer#146.
                 BASENAME=$(basename "$ARTIFACT")
-                if [ "$BASENAME" = "test-execution-summary.md" ] || [ "$BASENAME" = "test-summary-report.md" ]; then
-                  EVTYPE=test_report
-                  EVCAT=test_report
-                else
-                  EVTYPE=compliance_document
-                  EVCAT=planning
-                fi
+                case "$BASENAME" in
+                  test-execution-summary.md|test-summary-report.md)
+                    EVTYPE=test_report; EVCAT=test_report ;;
+                  srs-alignment.md)
+                    EVTYPE=srs_alignment; EVCAT=planning ;;
+                  architecture-decision.md)
+                    EVTYPE=architecture_decision; EVCAT=planning ;;
+                  risk-assessment.md)
+                    EVTYPE=risk_assessment; EVCAT=planning ;;
+                  *)
+                    EVTYPE=compliance_document; EVCAT=planning ;;
+                esac
                 echo "Uploading: ${REQ_ID}/${BASENAME} (${EVTYPE})"
                 eval "bash scripts/upload-evidence.sh \
                   {{PROJECT_SLUG}} \"${REQ_ID}\" ${EVTYPE} \"$ARTIFACT\" \
