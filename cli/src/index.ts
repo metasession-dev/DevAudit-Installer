@@ -103,7 +103,7 @@ export async function main(argv: readonly string[]): Promise<void> {
         '(defaults to the running CLI version). So a bare `devaudit update` syncs ' +
         'the current project.',
     )
-    .action(async (version: string | undefined, paths: string[] | undefined) => {
+    .action(async (version: string | undefined, paths: string[] | undefined, cmd) => {
       // `version` is purely informational. Disambiguate the single-arg case so
       // `devaudit update <path>` treats a path-like token as a path, not a label.
       let resolvedVersion = version;
@@ -114,7 +114,12 @@ export async function main(argv: readonly string[]): Promise<void> {
         resolvedVersion = undefined;
       }
       if (resolvedPaths.length === 0) resolvedPaths = ['.'];
-      await runUpdate({ version: resolvedVersion ?? CLI_VERSION, paths: resolvedPaths });
+      const globals = cmd.optsWithGlobals();
+      await runUpdate({
+        version: resolvedVersion ?? CLI_VERSION,
+        paths: resolvedPaths,
+        ...(globals.dryRun !== undefined ? { dryRun: Boolean(globals.dryRun) } : {}),
+      });
     });
   program
     .command('push <project-slug> <requirement-id> <evidence-type> <file>')
@@ -125,7 +130,16 @@ export async function main(argv: readonly string[]): Promise<void> {
     .option('--category <cat>', 'ci_pipeline | local_dev | planning | test_report | security_scan | release_artifact')
     .option('--git-sha <sha>', 'attached to metadata.gitSha')
     .option('--ci-run-id <id>', 'attached to metadata.ciRunId')
-    .option('--branch <name>', 'attached to metadata.branch')
+    .option('--branch <name>', 'git branch — sent as releaseBranch + metadata.branch')
+    .option('--release-title <text>', 'human title for the release row (releaseTitle; portal no-clobbers)')
+    .option('--change-type <type>', 'conventional-commit prefix for the release row (changeType)')
+    .option('--gate-status <status>', 'passed | failed | skipped (gateStatus)')
+    .option(
+      '--meta-key <pair>',
+      'repeatable key=value merged into the metadata JSON',
+      (val: string, acc: string[]) => [...acc, val],
+      [] as string[],
+    )
     .option('--base-url <url>', 'override portal URL (defaults to DEVAUDIT_BASE_URL env or production)')
     .option('--api-key <key>', 'override DEVAUDIT_API_KEY env var')
     .action(
@@ -142,6 +156,10 @@ export async function main(argv: readonly string[]): Promise<void> {
           gitSha?: string;
           ciRunId?: string;
           branch?: string;
+          releaseTitle?: string;
+          changeType?: string;
+          gateStatus?: string;
+          metaKey?: string[];
           baseUrl?: string;
           apiKey?: string;
         },
@@ -162,6 +180,10 @@ export async function main(argv: readonly string[]): Promise<void> {
           ...(opts.gitSha !== undefined ? { gitSha: opts.gitSha } : {}),
           ...(opts.ciRunId !== undefined ? { ciRunId: opts.ciRunId } : {}),
           ...(opts.branch !== undefined ? { branch: opts.branch } : {}),
+          ...(opts.releaseTitle !== undefined ? { releaseTitle: opts.releaseTitle } : {}),
+          ...(opts.changeType !== undefined ? { changeType: opts.changeType } : {}),
+          ...(opts.gateStatus !== undefined ? { gateStatus: opts.gateStatus } : {}),
+          ...(opts.metaKey !== undefined && opts.metaKey.length > 0 ? { metaKeys: opts.metaKey } : {}),
           ...(opts.baseUrl !== undefined ? { baseUrl: opts.baseUrl } : {}),
           ...(opts.apiKey !== undefined ? { apiKey: opts.apiKey } : {}),
           ...(globals.dryRun !== undefined ? { dryRun: Boolean(globals.dryRun) } : {}),
@@ -179,7 +201,7 @@ export async function main(argv: readonly string[]): Promise<void> {
     });
   program
     .command('doctor')
-    .description('Verify the local install: required tools on PATH, auth state, config validity')
+    .description('Verify the local install: required tools on PATH (node>=22, git, gh, jq, curl) + a release close-out drift check')
     .action(runDoctor);
   program
     .command('status [path]')

@@ -232,22 +232,41 @@ jobs:
   register-release:
     name: Register Release
     runs-on: {{RUNNER}}
-    if: ${{ vars.DEVAUDIT_BASE_URL != '' }}
     outputs:
       version: ${{ steps.version.outputs.version }}
     env:
-      DEVAUDIT_BASE_URL: ${{ vars.DEVAUDIT_BASE_URL }}
+      DEVAUDIT_BASE_URL_VAR: ${{ vars.DEVAUDIT_BASE_URL }}
       DEVAUDIT_API_KEY: ${{ secrets.DEVAUDIT_API_KEY }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Validate DevAudit env
+      - name: Resolve DevAudit base URL
         run: |
-          if [ -z "${DEVAUDIT_BASE_URL}" ] || [ -z "${DEVAUDIT_API_KEY}" ]; then
-            echo "::error::DEVAUDIT_BASE_URL (variable) and DEVAUDIT_API_KEY (secret) must both be set."
+          # Prefer sdlc-config.json devaudit.base_url (PR-visible) over the
+          # deprecated repo Variable — matching compliance-evidence.yml and
+          # check-release-approval.yml. DevAudit-Installer#156: gating this job
+          # on `vars.DEVAUDIT_BASE_URL` silently skipped release registration +
+          # evidence upload for consumers that moved base_url into
+          # sdlc-config.json (the v1.23.0 direction).
+          BASE=""
+          if [ -f sdlc-config.json ]; then
+            CONFIG_URL=$(jq -r '.devaudit.base_url // empty' sdlc-config.json 2>/dev/null || true)
+            [ -n "$CONFIG_URL" ] && BASE="$CONFIG_URL"
+          fi
+          if [ -n "$BASE" ]; then
+            echo "Using devaudit.base_url from sdlc-config.json: $BASE"
+          elif [ -n "$DEVAUDIT_BASE_URL_VAR" ]; then
+            BASE="$DEVAUDIT_BASE_URL_VAR"
+            echo "::warning::Using repo Variable DEVAUDIT_BASE_URL (deprecated in v1.23.0). Move base_url to sdlc-config.json devaudit.base_url for PR-visible config."
+          else
+            echo "::warning::No DevAudit base URL configured — skipping release registration. Set devaudit.base_url in sdlc-config.json."
+          fi
+          if [ -n "$BASE" ] && [ -z "${DEVAUDIT_API_KEY}" ]; then
+            echo "::error::DEVAUDIT_API_KEY (secret) must be set when a DevAudit base URL is configured."
             exit 1
           fi
-          echo "BASE=${DEVAUDIT_BASE_URL%/}" >> "$GITHUB_ENV"
+          echo "BASE=${BASE%/}" >> "$GITHUB_ENV"
+          echo "DEVAUDIT_BASE_URL=${BASE%/}" >> "$GITHUB_ENV"
 
       - name: Determine release version
         id: version
@@ -263,6 +282,7 @@ jobs:
           echo "Release version: ${VERSION}"
 
       - name: Ensure release exists
+        if: env.DEVAUDIT_BASE_URL != ''
         run: |
           chmod +x scripts/upload-evidence.sh 2>/dev/null || true
           # Create the release in DevAudit (no evidence yet — just registration)
@@ -273,6 +293,7 @@ jobs:
             --git-sha ${{ github.sha }} --branch ${{ github.ref_name }} || true
 
       - name: Sync known requirements from RTM
+        if: env.DEVAUDIT_BASE_URL != ''
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -343,12 +364,32 @@ jobs:
     # evidence — `status=failed` is itself the audit trail. `!cancelled()`
     # still guards against partial state on operator-cancel.
     # DevAudit-Installer#96.
-    if: ${{ always() && !cancelled() && vars.DEVAUDIT_BASE_URL != '' && needs.register-release.result == 'success' }}
+    if: ${{ always() && !cancelled() && needs.register-release.result == 'success' }}
     env:
-      DEVAUDIT_BASE_URL: ${{ vars.DEVAUDIT_BASE_URL }}
+      DEVAUDIT_BASE_URL_VAR: ${{ vars.DEVAUDIT_BASE_URL }}
       DEVAUDIT_API_KEY: ${{ secrets.DEVAUDIT_API_KEY }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Resolve DevAudit base URL
+        run: |
+          # Prefer sdlc-config.json devaudit.base_url over the deprecated repo
+          # Variable (DevAudit-Installer#156). When neither is set the upload
+          # step below no-ops via `if: env.DEVAUDIT_BASE_URL != ''`.
+          BASE=""
+          if [ -f sdlc-config.json ]; then
+            CONFIG_URL=$(jq -r '.devaudit.base_url // empty' sdlc-config.json 2>/dev/null || true)
+            [ -n "$CONFIG_URL" ] && BASE="$CONFIG_URL"
+          fi
+          if [ -n "$BASE" ]; then
+            echo "Using devaudit.base_url from sdlc-config.json: $BASE"
+          elif [ -n "$DEVAUDIT_BASE_URL_VAR" ]; then
+            BASE="$DEVAUDIT_BASE_URL_VAR"
+            echo "::warning::Using repo Variable DEVAUDIT_BASE_URL (deprecated in v1.23.0). Move base_url to sdlc-config.json devaudit.base_url for PR-visible config."
+          else
+            echo "::warning::No DevAudit base URL configured — skipping evidence upload. Set devaudit.base_url in sdlc-config.json."
+          fi
+          echo "DEVAUDIT_BASE_URL=${BASE%/}" >> "$GITHUB_ENV"
 
       - name: Download CI gate artifacts
         uses: actions/download-artifact@v4

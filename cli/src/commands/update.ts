@@ -1,3 +1,4 @@
+import { resolve } from 'node:path';
 import { syncAll } from '../update/index.js';
 import { logger } from '../lib/logger.js';
 import {
@@ -11,6 +12,12 @@ export interface UpdateOptions {
   readonly version?: string;
   readonly paths: readonly string[];
   readonly plugins?: readonly LoadedPlugin[];
+  /**
+   * Preview only — do not write any files or fire mutating plugin hooks.
+   * Mirrors the `install` dry-run semantics (see install/sync-templates.ts):
+   * the sync is short-circuited rather than run against a write-guarded fs.
+   */
+  readonly dryRun?: boolean;
 }
 
 /**
@@ -29,6 +36,14 @@ export async function runUpdate(options: UpdateOptions): Promise<void> {
   if (options.paths.length === 0) {
     log.error('No project paths provided. Usage: devaudit update <version> <path> [path...]');
     process.exit(2);
+  }
+  if (options.dryRun) {
+    log.warn('DRY RUN — no files will be written and no plugin hooks will fire');
+    for (const projectPath of options.paths) {
+      log.info(`  [dry-run] would sync SDLC templates via syncProject() against ${resolve(projectPath)}`);
+    }
+    log.success('=== Dry run complete (no mutations performed) ===');
+    return;
   }
   const plugins = options.plugins ?? (await discoverPlugins()).loaded;
   for (const projectPath of options.paths) {

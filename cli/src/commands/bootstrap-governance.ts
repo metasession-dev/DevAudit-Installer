@@ -8,7 +8,7 @@
  * portal then read those starters as the canonical RoPA / DPIA /
  * AI-disclosure / etc. for the project, which they aren't (they're
  * pure placeholders with the literal text "STARTER TEMPLATE — REPLACE
- * BEFORE GOING TO PRODUCTION" at the top).
+ * BEFORE COMMITTING" at the top).
  *
  * v0.1.36 removes the auto-seed. Operators who genuinely want the
  * starters on disk run this command explicitly. Each target is skipped
