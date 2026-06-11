@@ -4,12 +4,12 @@
 
 Onboarding collapses the v1.23.0 manual onboarding sequence (9 steps) into **two operator actions**:
 
-1. Issue a Personal Access Token at `https://devaudit.metasession.co/settings/tokens`.
-2. Run `devaudit install <consumer-path>` with the token exported.
+1. Issue a Personal Access Token at `https://devaudit.ai/settings/tokens`.
+2. Run `npx @metasession.co/devaudit-cli@latest install <consumer-path>` with the token exported.
 
 Everything else — DevAudit project creation, API key issuance, GitHub secrets/variables, hook framework install, branch protection, first template sync — is handled by the CLI.
 
-Onboarding is driven by the **`@metasession.co/devaudit-cli`** npm package (binary `devaudit`) — a cross-platform, native TypeScript tool with JSON output mode (`--json`) for CI. The package **ships the framework templates inside it**, so no DevAudit-Installer checkout is required. (The earlier bash installer, `scripts/sdlc-onboard.sh`, has been removed; the CLI is the only supported path.)
+Onboarding is driven by the **`@metasession.co/devaudit-cli`** npm package (binary `devaudit`) — a cross-platform, native TypeScript tool with JSON output mode (`--json`) for CI. The package **ships the framework templates inside it**, so no DevAudit-Installer checkout is required. (The earlier bash installer, `scripts/sdlc-onboard.sh`, has been removed; the CLI is the only supported path.) `npx` is the canonical zero-install invocation and pulls the latest version on first run; for a permanent install run `npm install -g @metasession.co/devaudit-cli` once, then the short forms `devaudit install` / `devaudit update` / `devaudit join` work everywhere.
 
 This document describes the underlying flow.
 
@@ -20,16 +20,16 @@ On the operator's machine:
 - `git`, `gh` (GitHub CLI), `jq`, `curl`.
 - `gh` authenticated against the consumer's GitHub repo with admin scope (`gh auth login`).
 - Either `pre-commit` (for Python stacks) or `npx` (for Node stacks) available — the installer bootstraps the hook framework via these.
-- Node ≥ 22 and the CLI installed: `npm install -g @metasession.co/devaudit-cli`.
+- Node ≥ 22. The CLI itself does not need a global install — `npx @metasession.co/devaudit-cli@latest …` pulls it on first run. For repeat use, install globally: `npm install -g @metasession.co/devaudit-cli`.
 
 On the DevAudit side:
 
 - The operator has a DevAudit user account.
-- That user is signed in to `https://devaudit.metasession.co`.
+- That user is signed in to `https://devaudit.ai`.
 
 ## Step 1 — Issue a Personal Access Token
 
-1. Visit `https://devaudit.metasession.co/settings/tokens`.
+1. Visit `https://devaudit.ai/settings/tokens`.
 2. Click **Create token**. Name it something memorable, e.g. `onboarding-cli`.
 3. Copy the plaintext token shown once (`mctok_…`).
 
@@ -41,6 +41,11 @@ Provide the token either by exporting it or with `devaudit auth login` (caches t
 
 ```bash
 export DEVAUDIT_USER_TOKEN="mctok_…"     # or: devaudit auth login
+
+# Canonical zero-install invocation:
+npx @metasession.co/devaudit-cli@latest install ../path/to/new-consumer
+
+# Equivalent if you've run `npm install -g @metasession.co/devaudit-cli`:
 devaudit install ../path/to/new-consumer
 ```
 
@@ -83,7 +88,7 @@ Open the PR for review. Once merged, the project is fully active under the SDLC 
 
 **Skill-driven (recommended).** Invoke the `governance-doc-author` skill — synced into every consumer at `.claude/skills/governance-doc-author/`. Six-phase flow per doc: route → confirm starter → gather source data → author → verify framework attribution → commit + portal-verify. The skill names which framework clauses each doc closes and ticks the per-section checklist as you go.
 
-**Manual.** Run `devaudit bootstrap-governance` to drop five starters into `compliance/governance/`:
+**Manual.** Run `npx @metasession.co/devaudit-cli@latest bootstrap-governance` (or `devaudit bootstrap-governance` if globally installed) to drop five starters into `compliance/governance/`:
 
 - `ropa.md` — GDPR Art. 30
 - `dpia.md` — GDPR Art. 35

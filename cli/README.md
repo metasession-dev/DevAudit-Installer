@@ -6,12 +6,24 @@ This is the source of `@metasession.co/devaudit-cli` (binary name: `devaudit`). 
 
 ## Install
 
+`npx` is the canonical zero-install invocation — pulls the latest version on first run:
+
+```bash
+npx @metasession.co/devaudit-cli@latest --help
+npx @metasession.co/devaudit-cli@latest install ../path/to/your-project
+npx @metasession.co/devaudit-cli@latest update
+```
+
+Prefer a permanent install? Run once, then the short forms work everywhere:
+
 ```bash
 npm install -g @metasession.co/devaudit-cli
 devaudit --help
+devaudit install ../path/to/your-project
+devaudit update
 ```
 
-Requires Node ≥ 22. Native binaries (no Node runtime needed) are on the roadmap.
+Requires Node ≥ 22. Native binaries (no Node runtime needed) are on the roadmap — see the [trajectory doc](../docs/devaudit-cli/README.md).
 
 ## Status — v0.1.1
 
