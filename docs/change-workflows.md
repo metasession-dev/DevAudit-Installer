@@ -79,8 +79,11 @@ Three structural cases:
 
 For the **lifecycle states** a release moves through (`draft → uat_review → uat_approved → prod_review → prod_approved → released`), the `prod_review` vs `released` terminal-status options, and the four-eyes (`dual_actor`) rules, see the portal's [Releases & approvals](https://github.com/metasession-dev/devaudit/blob/main/docs/releases-and-approvals.md).
 
+> **Want the step-by-step?** [`release-playbooks/`](./release-playbooks/) walks a **high-risk**, a **low-risk**, and a **housekeeping** release end-to-end — each written twice, once for driving it with an AI agent (the prompts you type) and once by hand.
+
 ## See also
 
+- [`release-playbooks/`](./release-playbooks/) — step-by-step playbooks for high-risk / low-risk / housekeeping releases, with the AI prompts and the manual commands side by side.
 - [`implementing-an-sdlc-issue.md`](../sdlc/files/_common/implementing-an-sdlc-issue.md) — the operational stage-by-stage walkthrough (also synced into every consumer).
 - [`e2e-local-db-ci.md`](./e2e-local-db-ci.md) — run the E2E gate against a disposable local database (never test against prod) via `e2e_setup_command` + `e2e_env`.
 - [`sdlc-framework.md`](./sdlc-framework.md) — the framework's structure, tiers, and adapter layering.
