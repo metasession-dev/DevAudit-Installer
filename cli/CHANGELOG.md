@@ -4,6 +4,15 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+## [0.1.55] — 2026-06-11
+
+### Changed
+
+- **Documentation overhaul (docs-only release).** Three docs PRs bundled — no CLI behaviour changes; the published tarball's bundled `sdlc/files/` snapshot picks up one minor SKILL.md edit (broken cross-reference removed in `adr-author/SKILL.md`).
+  - **#150** — `npm install -g …` no longer the documented canonical CLI invocation. `npx @metasession.co/devaudit-cli@latest <command>` is now the canonical zero-install form across `README.md`, `cli/README.md`, `docs/onboarding.md`, `docs/consuming-projects.md`. Adds four new client-facing reference docs: `docs/skills.md` (the six AI skills), `docs/compliance-gates.md` (the five CI workflows), `docs/evidence-tiers.md` (Tier 1/2/3 split), `docs/e2e-test-tiers.md` (smoke/critical/regression). `sdlc-framework.md` refreshed with cross-references to the new docs. README documentation table restructured into "concept overviews / operator walkthroughs / extending the framework" groups.
+  - **#152** — Stale planning docs removed (-875 lines): `docs/devaudit-cli/README.md` (pre-v0.1.0 design brief), `docs/devaudit-cli/build-plan.md` (executed engineering plan), `docs/devaudit-cli/ADR-001-language-and-distribution.md` (engineering ADR), `sdlc/article.md` (long-form essay superseded by the new client-facing docs). 8 active references scrubbed across `README.md` / `cli/README.md` / `cli/src/commands/stub.ts` / `INSTRUCTIONS.md` / `.github/ISSUE_TEMPLATE/requirement.yml` / `sdlc/CLAUDE.md` / `sdlc/files/_common/skills/adr-author/SKILL.md` / `docs/sdlc-framework.md`.
+  - **#153** — New `docs/SRS.md` (190 requirements, Given/When/Then) reverse-engineered from the CLI + framework templates. 87 Must / 72 Should / 27 Could / 4 Won't. Identified vitest 4 + msw + execa as the existing test stack; recommends an execa-against-`bin/devaudit.js` CLI-integration layer between the existing unit tests and the consumer-side smoke runs. Appendix A flags real CLI bugs / brief-vs-code divergences for follow-up.
+
 ## [0.1.54] — 2026-06-11
 
 ### Fixed
