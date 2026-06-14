@@ -596,7 +596,7 @@ dependencies (tier 3) — which is exactly the coverage the current unit-only su
 | REQ-SKILL-RISK-003           | Phase 3 drops risk-assessment.md with summary table + framework cross-refs + sign-off                 | Should   | `sdlc/files/_common/skills/risk-register-keeper/SKILL.md`                                                                     |
 | REQ-SKILL-RISK-004           | Phase 2 post-incident entry cross-links incident report ↔ register both directions                    | Could    | `sdlc/files/_common/skills/risk-register-keeper/SKILL.md`                                                                     |
 | REQ-SKILL-RISK-005           | Phase 4 solo_with_gap PAUSE: refuse approval until the control-gap entry is signed off                | Could    | `sdlc/files/_common/skills/risk-register-keeper/SKILL.md`                                                                     |
-| REQ-FRAMEWORK-CIYML-001      | ci.yml triggers only on develop code pushes, skipping compliance-only paths                           | Must     | `sdlc/files/ci/ci.yml.template`                                                                                               |
+| REQ-FRAMEWORK-CIYML-001      | ci.yml triggers on develop PRs and develop code pushes                                                | Must     | `sdlc/files/ci/ci.yml.template`                                                                                               |
 | REQ-FRAMEWORK-CIYML-002      | Single quality-gates job enforces TypeScript, SAST, dep-audit, E2E, build (node)                      | Must     | `sdlc/files/ci/ci.yml.template`                                                                                               |
 | REQ-FRAMEWORK-CIYML-003      | SAST and dep-audit gates honour baseline/accepted-risk allowances                                     | Must     | `sdlc/files/ci/ci.yml.template`                                                                                               |
 | REQ-FRAMEWORK-CIYML-004      | E2E origin tagging via E2E_NEW_SPECS diff against merge base                                          | Should   | `sdlc/files/ci/ci.yml.template`                                                                                               |
@@ -1559,7 +1559,7 @@ Scope note: The six entries below are **Claude Code skills** — directories und
 - **Preconditions / inputs:** Phase 0 routed to housekeeping/trivial/compliance-doc-only.
 - **Given** a housekeeping/doc-only issue **When** the Lightweight path runs **Then** the skill branches off `$INTEGRATION_BRANCH` with a `chore/` `docs/` `ci/` `build/` `test/` `compliance/` prefix, runs all gates locally (never `--no-verify`), commits with a housekeeping type and **no** `[REQ-XXX]` (compliance: references existing REQ), opens a PR into `$INTEGRATION_BRANCH`, and guides review→merge — with **no** RTM row, evidence pack, UAT four-eyes, or Production approval.
 - **Error paths:** the change touches runtime behaviour in `app/`/`lib/` → stop and reclassify as tracked (commit-type rule is the backstop); a `ci:` change → verify-via-dispatch (`gh workflow run <file> --ref <branch>`) before merge.
-- **Fixtures/env:** a docs-only issue and a `ci:`-workflow-tweak issue; a `ci.yml` with post-merge-only triggers to exercise step 7's "no PR-time checks" reporting.
+- **Fixtures/env:** a docs-only issue and a `ci:`-workflow-tweak issue; current generated `ci.yml` with PR-time Quality Gates plus an older post-merge-only fixture to exercise step 7's legacy "no PR-time checks" reporting.
 
 #### REQ-SKILL-IMPLEMENTER-006 — Phase 1 writes the implementation plan from the template at a fixed path
 
@@ -1919,12 +1919,12 @@ Area codes: FRAMEWORK-CIYML (ci.yml quality gates + evidence job), FRAMEWORK-EVI
 
 ---
 
-#### REQ-FRAMEWORK-CIYML-001 — ci.yml triggers only on develop code pushes, skipping compliance-only paths
+#### REQ-FRAMEWORK-CIYML-001 — ci.yml triggers on develop PRs and develop code pushes
 
 - **Priority:** Must — the main pipeline's scope (which commits run the heavy gates) is the foundational contract.
-- **Source:** `sdlc/files/ci/ci.yml.template` (`on: push: branches: [develop]`, `paths-ignore: {{PATHS_IGNORE}} - 'sdlc-config.json'`, `workflow_dispatch`)
+- **Source:** `sdlc/files/ci/ci.yml.template` (`on: pull_request: branches: [develop]`, `push: branches: [develop]`, `paths-ignore: {{PATHS_IGNORE}} - 'sdlc-config.json'`, `workflow_dispatch`)
 - **Preconditions / inputs:** Consumer repo with rendered `ci.yml`; `paths_ignore` array in `sdlc-config.json`.
-- **Given** the rendered `ci.yml` **When** a commit is pushed to `develop` touching only paths in `paths-ignore` (rendered from `{{PATHS_IGNORE}}`) plus `sdlc-config.json` **Then** the `CI Pipeline` workflow does NOT run; **When** a commit touches any non-ignored path **Then** it runs. The workflow is also dispatchable manually (`workflow_dispatch`) and uses a `concurrency` group `${{ github.workflow }}-${{ github.ref }}` with `cancel-in-progress: true`.
+- **Given** the rendered `ci.yml` **When** a PR targets `develop` **Then** the `CI Pipeline` workflow runs and reports the `Quality Gates` check on the PR. **When** a commit is pushed to `develop` touching only paths in `paths-ignore` (rendered from `{{PATHS_IGNORE}}`) plus `sdlc-config.json` **Then** the push-side `CI Pipeline` workflow does NOT run; **When** a pushed commit touches any non-ignored path **Then** it runs. The workflow is also dispatchable manually (`workflow_dispatch`) and uses a `concurrency` group `${{ github.workflow }}-${{ github.ref }}` with `cancel-in-progress: true`. Release registration and evidence upload jobs are skipped on `pull_request` events.
 - **Error paths:** A push to a branch other than `develop` produces no run (PRs to main inherit status via branch protection per the header comment).
 - **Fixtures/env:** Rendered consumer repo on `develop`; a docs-only commit fixture and a code commit fixture.
 

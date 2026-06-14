@@ -133,7 +133,7 @@ This is the **independent verification gate**. Tests run locally during developm
 | CI | Push to `develop` | TypeScript + SAST + dependency audit + E2E + build | Quality gates + independent verification |
 | Deploy | Merge to `main` | Auto-deploy to hosting platform | Production release |
 
-PRs to `main` do not trigger a separate CI run. Branch protection required status checks ensure the commit already passed Quality Gates on the develop push. This avoids duplicate CI runs.
+PRs to the integration branch run `Quality Gates` before merge. PRs to `main` do not trigger a duplicate quality-gates run; branch protection required status checks ensure the commit already passed Quality Gates on the integration branch.
 
 ### GitHub Actions Workflow File
 
