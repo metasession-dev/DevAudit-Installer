@@ -390,7 +390,7 @@ If any step fails, fix the configuration before starting real work.
 | Local tooling installed (Semgrep, Playwright) | [ ] |
 | Git hooks configured (Husky, Commitlint, lint-staged) | [ ] |
 | Hook verification passed (commitlint, pre-push tsc) | [ ] |
-| AI assistant SDLC rules configured (CLAUDE.md / .windsurfrules / .cursorrules) | [ ] |
+| AI assistant SDLC rules configured (AGENTS.md / CLAUDE.md / GEMINI.md / .windsurfrules / .cursorrules) | [ ] |
 | DevAudit evidence upload configured in CI | [ ] |
 | Project Test Plan created | [ ] |
 | End-to-end pipeline verified with test change | [ ] |

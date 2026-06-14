@@ -209,7 +209,7 @@ If production smoke fails:
 
 ## Sample prompts
 
-Copy-paste these into Claude Code, Cursor, or any agent with shell access to kick off each stage. The agent should already have `AGENT.md` (portal) or the consumer's `INSTRUCTIONS.md` loaded as the canonical rules file.
+Copy-paste these into Claude Code, Cursor, or any agent with shell access to kick off each stage. The agent should already have `AGENTS.md` (consumer), `AGENT.md` (portal), or the consumer's `INSTRUCTIONS.md` loaded as the canonical rules file.
 
 > **Replace placeholders.** `{ISSUE_NUMBER}`, `{REQ_ID}`, `{PROJECT_SLUG}`, `{VERSION}` etc. are placeholders — substitute the real values before invoking.
 
@@ -231,7 +231,7 @@ stage 1 (plan-requirement) for it:
 
 STOP after the plan is posted. Do NOT begin implementation.
 
-Reference: AGENT.md (or INSTRUCTIONS.md for consumer repos), and the canonical
+Reference: AGENTS.md / INSTRUCTIONS.md for consumer repos (or AGENT.md for the portal), and the canonical
 sdlc/_common/1-plan-requirement.md from DevAudit-Installer.
 ```
 

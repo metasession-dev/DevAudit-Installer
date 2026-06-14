@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { promises as fs } from 'node:fs';
 import { join, dirname, resolve, relative, sep } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 import { execa } from 'execa';
 
-import { collectFiles } from '../src/lib/ci-upload.js';
+import { collectFiles, uploadEvidence } from '../src/lib/ci-upload.js';
 import { loadStackAdapter, loadHostAdapter } from '../src/lib/adapter.js';
 import { validateOptions } from '../src/commands/push.js';
 import { runUpdate } from '../src/commands/update.js';
@@ -22,6 +22,9 @@ async function mktmp(prefix: string): Promise<string> {
   return dir;
 }
 afterEach(async () => {
+  vi.restoreAllMocks();
+  delete process.env['UPLOAD_MAX_ATTEMPTS'];
+  delete process.env['UPLOAD_MAX_TIME_SECONDS'];
   while (tmps.length) await fs.rm(tmps.pop()!, { recursive: true, force: true });
 });
 
@@ -38,6 +41,44 @@ describe('ci-upload collectFiles (#155)', () => {
     // uses `\` as the path separator).
     const rel = files.map((f) => relative(dir, f).split(sep).join('/')).sort();
     expect(rel).toEqual(['a/b/deep.txt', 'a/mid.txt', 'top.txt']);
+  });
+});
+
+// wawagardenbar-app#382 — hung evidence uploads must be bounded.
+describe('ci-upload upload timeout (#382)', () => {
+  it('aborts a hung POST and returns a bounded failure result', async () => {
+    const dir = await mktmp('ci-upload-timeout-');
+    const file = join(dir, 'evidence.txt');
+    await fs.writeFile(file, 'real evidence');
+    process.env['UPLOAD_MAX_ATTEMPTS'] = '1';
+    process.env['UPLOAD_MAX_TIME_SECONDS'] = '0.01';
+
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(((_input: unknown, init?: RequestInit) => {
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => {
+          const err = new Error('aborted');
+          err.name = 'AbortError';
+          reject(err);
+        });
+      });
+    }) as typeof fetch);
+
+    const [result] = await uploadEvidence({
+      projectSlug: 'my-project',
+      requirementId: 'REQ-001',
+      evidenceType: 'test_report',
+      filePath: file,
+      apiKey: 'mc_test_dummy',
+      baseUrl: 'https://devaudit.example.test',
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({
+      file,
+      ok: false,
+      status: 0,
+      error: 'upload timed out after 0.01s',
+    });
   });
 });
 

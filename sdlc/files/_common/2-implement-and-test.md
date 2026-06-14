@@ -1,5 +1,5 @@
 ---
-description: Implement changes on develop, run all local gates (tests + security scans), commit with compliance-aware conventions
+description: Implement changes on develop, run scoped local gates, and let CI/UAT provide authoritative full E2E verification when local prerequisites are unavailable
 ---
 
 # Implement & Test
@@ -14,11 +14,9 @@ description: Implement changes on develop, run all local gates (tests + security
 ## Prerequisites
 
 - On the `develop` branch
-- Dev server starts
-- Database running locally
-- Playwright browsers installed
-- Test data seeded
+- Dev server starts when the local test scope requires it
 - Semgrep installed
+- For a full local E2E suite only: database/services running locally, required secrets available, Playwright browsers installed, test data seeded, and auth/session setup configured
 
 ## Steps
 
@@ -124,7 +122,7 @@ npm test
 
 Write or update E2E tests **after** implementation. E2E tests need working UI/API to test against — writing Playwright tests against routes and selectors that don't exist is impractical.
 
-> **Skill available:** invoke the **`e2e-test-engineer`** skill for this step (at `.claude/skills/e2e-test-engineer/SKILL.md`). It derives scenarios from the requirement's acceptance criteria, reconciles with the existing test pack (flags obsoletes — but never deletes without confirmation), runs the suite, and files defects for failures or missed ACs. Framework-agnostic (Playwright, Cypress, pytest-playwright, etc.) and tracker-agnostic (GitHub, Linear, Jira, etc.). For projects with no e2e suite yet, the skill also covers bootstrapping one. See [`sdlc/SKILLS.md`](../sdlc/SKILLS.md) for the full list of available skills.
+> **Skill available:** invoke the **`e2e-test-engineer`** skill for this step (at `.claude/skills/e2e-test-engineer/SKILL.md`). It derives scenarios from the requirement's acceptance criteria, reconciles with the existing test pack (flags obsoletes — but never deletes without confirmation), checks local full-suite prerequisites before running broad E2E locally, and files defects for failures or missed ACs. Framework-agnostic (Playwright, Cypress, pytest-playwright, etc.) and tracker-agnostic (GitHub, Linear, Jira, etc.). For projects with no e2e suite yet, the skill also covers bootstrapping one. See [`sdlc/SKILLS.md`](../sdlc/SKILLS.md) for the full list of available skills.
 
 > **Run authenticated flows in CI.** Tests that need a logged-in session (admin forms, role-gated flows) belong in their own Playwright project that depends on `auth-setup`. Register that project name in `sdlc-config.json` `e2e_projects` and set `e2e_seed_command` / `e2e_env` so CI seeds fixtures and runs it as a **report-only** gate (continue-on-error — it surfaces failures as evidence without blocking the merge until proven stable). Prove each UI-driven AC with an `evidenceShot(page, 'REQ-XXX', acN, 'slug')` so the PNG lands in `compliance/evidence/REQ-XXX/screenshots/`. This is what lets Stage 3 Step 10 reduce manual UAT to a light smoke instead of a full re-click.
 
@@ -146,14 +144,23 @@ cat compliance/evidence/REQ-XXX/test-plan.md
 
 **4d. Remove obsolete E2E tests** listed in the "Tests to Remove" section (if any).
 
-### WAIT CHECKPOINT: E2E Tests Green
+### WAIT CHECKPOINT: E2E Scope Complete
 
-All E2E tests must pass:
+Run the E2E checks required by the approved test plan. Before running the full local suite, confirm the local prerequisites are present:
+
+- Required services/databases are running locally
+- Required secrets/env vars point to disposable local or test resources
+- Test data and authenticated fixtures are seeded
+- Playwright browsers and project dependencies are installed
+
+If those prerequisites are confirmed, run:
 ```bash
 npx playwright test
 ```
 
-**Do NOT proceed** until all E2E tests are green.
+If prerequisites are missing, do **not** start the full local suite. Run the targeted local checks listed in the test plan and record that full E2E verification is delegated to CI/UAT. For LOW-risk docs/tooling/script-only changes, targeted local verification is expected unless the operator explicitly requests a full local E2E run.
+
+**Do NOT proceed** until the scoped E2E/test-plan checks are complete and any local limitations are called out.
 
 ### Step 5: Stage Selectively
 
@@ -184,7 +191,7 @@ EOF
 
 Types: `feat`, `fix`, `docs`, `test`, `refactor`, `chore`, `compliance`, `security`
 
-### Step 7: Run All Local Gates (Mandatory)
+### Step 7: Run Applicable Local Gates (Mandatory)
 
 #### Gate 1: TypeScript
 ```bash
@@ -205,9 +212,12 @@ npm audit
 ```
 
 #### Gate 3: E2E Tests
+Run the E2E scope from the approved test plan. Use full local Playwright only after confirming local services, secrets, seeded data, auth fixtures, and browser dependencies are ready:
 ```bash
 npx playwright test
 ```
+
+For LOW-risk docs/tooling/script-only changes or environments without the required local prerequisites, do not run the full local suite by default. Run the targeted commands in the test plan and rely on CI/UAT for the authoritative full E2E gate.
 
 #### Exit Criteria
 
@@ -216,7 +226,7 @@ npx playwright test
 | TypeScript | 0 errors |
 | SAST (high/critical) | 0 findings |
 | Dependencies (high/critical) | 0 vulnerabilities |
-| E2E tests | All pass |
+| E2E tests | Scoped local E2E checks pass; full CI/UAT E2E passes before PR/release |
 | Severity-1 defects | 0 open |
 
 For Medium/High risk, also verify access control and audit log tests pass (see Test Plan and test-scope.md).
@@ -235,7 +245,7 @@ git push origin develop
 If rejected:
 ```bash
 git pull --rebase origin develop
-# Re-run ALL local gates after rebase
+# Re-run applicable local gates after rebase
 git push origin develop
 ```
 
@@ -251,7 +261,7 @@ gh run list --branch develop --limit 1
 gh run watch
 ```
 
-**Do NOT proceed** until CI is green. If CI fails, diagnose the failure, fix locally, re-run all local gates, and push again. Do not push repeatedly hoping CI will pass — fix the root cause.
+**Do NOT proceed** until CI is green. If CI fails, diagnose the failure, fix locally, re-run the applicable local gates, and push again. Do not push repeatedly hoping CI will pass — fix the root cause. CI/UAT is the authoritative full E2E environment when local services/secrets/seeded auth state are not available.
 
 ### Step 9: Update Evidence
 
@@ -264,7 +274,7 @@ git push origin develop
 
 ## Iteration
 
-Repeat Steps 3-9. Every commit must leave all local gates green. Step 2 (implementation plan) is done once per requirement. Each push triggers full CI and auto-deploys to UAT.
+Repeat Steps 3-9. Every commit must leave the applicable local gates green. Step 2 (implementation plan) is done once per requirement. Each push triggers full CI and auto-deploys to UAT.
 
 ## Output
 

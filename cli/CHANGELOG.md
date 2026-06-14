@@ -4,6 +4,20 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+## [0.1.59] — 2026-06-13
+
+### Added
+
+- **wawagardenbar-app#378** — `devaudit update` now generates a root `AGENTS.md` pointer for Codex / AGENTS-compatible agents. `AGENTS.md`, `CLAUDE.md`, `.cursorrules`, `.windsurfrules`, and `GEMINI.md` all defer to `INSTRUCTIONS.md` as the single source of truth; `AGENTS.md` also reminds agents to read the relevant `SDLC/` workflow file for the current stage. `devaudit status` now checks for `AGENTS.md`.
+
+### Changed
+
+- **wawagardenbar-app#379** — SDLC instructions now distinguish targeted local verification from CI/UAT-owned full E2E gates. Agents must confirm local services, secrets, seeded data, auth fixtures, and browser dependencies before starting a full local Playwright run; LOW-risk docs/tooling/script-only changes use the approved targeted local checks unless the operator explicitly requests a full local suite.
+
+### Fixed
+
+- **wawagardenbar-app#382** — Evidence uploads now use bounded per-attempt network timeouts in both `scripts/upload-evidence.sh` and `devaudit push`. A stalled portal connection fails clearly, retries within the configured attempt budget, and no longer leaves consumer CI hanging indefinitely on "Generate and upload gate evidence".
+
 ## [0.1.58] — 2026-06-11
 
 ### Fixed

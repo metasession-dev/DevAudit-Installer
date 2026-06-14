@@ -231,6 +231,8 @@ TOTAL_SIZE=0
 UPLOAD_URL="${DEVAUDIT_BASE_URL}/api/evidence/upload"
 MAX_ATTEMPTS=${UPLOAD_MAX_ATTEMPTS:-5}
 INITIAL_BACKOFF_SECONDS=${UPLOAD_INITIAL_BACKOFF_SECONDS:-1}
+UPLOAD_CONNECT_TIMEOUT_SECONDS=${UPLOAD_CONNECT_TIMEOUT_SECONDS:-10}
+UPLOAD_MAX_TIME_SECONDS=${UPLOAD_MAX_TIME_SECONDS:-120}
 
 is_unedited_starter_stub() {
   # Match BOTH banner phrasings the SDLC has shipped (v0.1.36 changed
@@ -254,7 +256,10 @@ for FILE in "${FILES[@]}"; do
   # every consumer's CI silently fails on a stale base URL. `--max-redirs 3`
   # bounds the follow so a misconfigured redirect loop can't hang CI.
   CURL_ARGS=(
-    -X POST -L --max-redirs 3 "$UPLOAD_URL"
+    -X POST -L --max-redirs 3
+    --connect-timeout "$UPLOAD_CONNECT_TIMEOUT_SECONDS"
+    --max-time "$UPLOAD_MAX_TIME_SECONDS"
+    "$UPLOAD_URL"
     -H "Authorization: Bearer ${DEVAUDIT_API_KEY}"
     -F "file=@${FILE}"
     -F "projectSlug=${PROJECT_SLUG}"
@@ -277,11 +282,31 @@ for FILE in "${FILES[@]}"; do
   BACKOFF=$INITIAL_BACKOFF_SECONDS
   HTTP_CODE=0
   RESP_BODY_FILE=""
+  RESP_HEADERS_FILE=""
+  LAST_CURL_ERROR=""
   while [ "$ATTEMPT" -le "$MAX_ATTEMPTS" ]; do
     [ -n "$RESP_BODY_FILE" ] && rm -f "$RESP_BODY_FILE"
     RESP_BODY_FILE=$(mktemp)
     RESP_HEADERS_FILE=$(mktemp)
-    HTTP_CODE=$(curl -s -o "$RESP_BODY_FILE" -D "$RESP_HEADERS_FILE" -w "%{http_code}" "${CURL_ARGS[@]}")
+    CURL_EXIT=0
+    HTTP_CODE=$(curl -s -o "$RESP_BODY_FILE" -D "$RESP_HEADERS_FILE" -w "%{http_code}" "${CURL_ARGS[@]}") || CURL_EXIT=$?
+    if [ "$CURL_EXIT" -ne 0 ]; then
+      LAST_CURL_ERROR="curl exit ${CURL_EXIT}"
+      if [ "$CURL_EXIT" -eq 28 ]; then
+        LAST_CURL_ERROR="${LAST_CURL_ERROR} (timed out after ${UPLOAD_MAX_TIME_SECONDS}s)"
+      fi
+      if [ "$ATTEMPT" -lt "$MAX_ATTEMPTS" ]; then
+        WAIT_SECONDS=$BACKOFF
+        echo -n "(${LAST_CURL_ERROR}, retry in ${WAIT_SECONDS}s) "
+        rm -f "$RESP_HEADERS_FILE"
+        sleep "$WAIT_SECONDS"
+        ATTEMPT=$((ATTEMPT + 1))
+        BACKOFF=$((BACKOFF * 2))
+        continue
+      fi
+      rm -f "$RESP_HEADERS_FILE"
+      break
+    fi
     if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
       rm -f "$RESP_HEADERS_FILE"
       break
@@ -317,8 +342,14 @@ for FILE in "${FILES[@]}"; do
     SUCCEEDED=$((SUCCEEDED + 1))
     TOTAL_SIZE=$((TOTAL_SIZE + FILE_SIZE))
   else
-    echo "FAILED (HTTP ${HTTP_CODE} after ${ATTEMPT} attempt(s))"
-    echo "  Response: $(head -c 500 "$RESP_BODY_FILE")"
+    if [ -n "$LAST_CURL_ERROR" ]; then
+      echo "FAILED (${LAST_CURL_ERROR} after ${ATTEMPT} attempt(s))"
+    else
+      echo "FAILED (HTTP ${HTTP_CODE} after ${ATTEMPT} attempt(s))"
+    fi
+    if [ -s "$RESP_BODY_FILE" ]; then
+      echo "  Response: $(head -c 500 "$RESP_BODY_FILE")"
+    fi
     rm -f "$RESP_BODY_FILE"
     FAILED=$((FAILED + 1))
   fi

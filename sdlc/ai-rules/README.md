@@ -22,6 +22,7 @@ devaudit update v1.5.0 ../your-project
 ```
 
 This generates:
+- `AGENTS.md` → pointer to `INSTRUCTIONS.md` and relevant `SDLC/` workflows
 - `.cursorrules` → pointer to `INSTRUCTIONS.md`
 - `.windsurfrules` → pointer to `INSTRUCTIONS.md`
 - `CLAUDE.md` → preserves project header, adds pointer to `INSTRUCTIONS.md`
@@ -95,7 +96,7 @@ Only `wawagardenbar-app` is an active consumer as of 2026-05-19; META-AGENT / ME
 This:
 1. Tags DevAudit as `sdlc-v1.1.0` and pushes the tag
 2. Copies SDLC files, hooks, scripts, and CI templates to each project
-3. Generates AI agent pointer files (.cursorrules, .windsurfrules, CLAUDE.md, GEMINI.md) referencing `INSTRUCTIONS.md`
+3. Generates AI agent pointer files (AGENTS.md, .cursorrules, .windsurfrules, CLAUDE.md, GEMINI.md) referencing `INSTRUCTIONS.md`
 4. Appends/replaces the SDLC section in `INSTRUCTIONS.md` from `INSTRUCTIONS-SDLC.md`
 5. Updates tag references in consuming project CI workflows
 6. Reports what was synced — review the diff before committing

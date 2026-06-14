@@ -84,6 +84,8 @@ describe('syncProject — native TS sync against a fixture', () => {
     expect(await fs.readFile(join(fixtureDir, '.cursorrules'), 'utf-8')).toContain('INSTRUCTIONS.md');
     expect(await fs.readFile(join(fixtureDir, '.windsurfrules'), 'utf-8')).toContain('INSTRUCTIONS.md');
     expect(await fs.readFile(join(fixtureDir, 'GEMINI.md'), 'utf-8')).toContain('INSTRUCTIONS.md');
+    expect(await fs.readFile(join(fixtureDir, 'AGENTS.md'), 'utf-8')).toContain('INSTRUCTIONS.md');
+    expect(await fs.readFile(join(fixtureDir, 'AGENTS.md'), 'utf-8')).toContain('SDLC/');
     expect(await fs.readFile(join(fixtureDir, 'CLAUDE.md'), 'utf-8')).toContain('INSTRUCTIONS.md');
     expect(await fs.readFile(join(fixtureDir, 'INSTRUCTIONS.md'), 'utf-8')).toContain('SDLC Compliance Process');
     // Section 2c — husky hooks
