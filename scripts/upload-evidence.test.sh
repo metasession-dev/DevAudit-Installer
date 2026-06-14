@@ -158,10 +158,53 @@ case_md_template_not_matched_by_glob() {
   fi
 }
 
+case_upload_uses_bounded_curl_timeouts() {
+  echo "case: upload curl call carries bounded connect and max-time options"
+  local tmp tmpdir curl_log
+  tmp=$(mktemp --suffix=.md)
+  tmpdir=$(mktemp -d)
+  curl_log="$tmpdir/curl.log"
+  cat > "$tmp" <<'REAL'
+---
+title: "Incident Report"
+---
+
+# Real Incident
+REAL
+  cat > "$tmpdir/curl" <<'STUB'
+#!/usr/bin/env bash
+printf 'CALL:%s\n' "$*" >> "$CURL_LOG"
+printf '201'
+STUB
+  chmod +x "$tmpdir/curl"
+  local out exit_code
+  out=$(PATH="$tmpdir:$PATH" \
+    CURL_LOG="$curl_log" \
+    DEVAUDIT_BASE_URL="https://devaudit.example.test" \
+    DEVAUDIT_API_KEY="mc_test_dummy" \
+    UPLOAD_MAX_ATTEMPTS=1 \
+    UPLOAD_CONNECT_TIMEOUT_SECONDS=7 \
+    UPLOAD_MAX_TIME_SECONDS=11 \
+    "$UPLOADER" my-project _compliance-docs incident_report "$tmp" 2>&1) && exit_code=0 || exit_code=$?
+  rm -f "$tmp"
+  if [ "$exit_code" -eq 0 ]; then
+    ok "exit code 0"
+  else
+    no "expected upload success through curl stub; output:\n$out"
+  fi
+  if grep -q -- '-X POST.*--connect-timeout 7.*--max-time 11' "$curl_log"; then
+    ok "POST upload uses configured timeout bounds"
+  else
+    no "POST upload missing timeout bounds; curl log:\n$(cat "$curl_log")"
+  fi
+  rm -rf "$tmpdir"
+}
+
 case_stub_skipped
 case_pre_v0136_banner_skipped
 case_non_stub_attempts_upload
 case_md_template_not_matched_by_glob
+case_upload_uses_bounded_curl_timeouts
 
 echo ""
 echo "=== upload-evidence.test.sh ==="

@@ -4,6 +4,7 @@ import { emitJsonResult, isJsonMode, logger } from '../lib/logger.js';
 
 const FRAMEWORK_FILES = [
   'INSTRUCTIONS.md',
+  'AGENTS.md',
   'CLAUDE.md',
   '.cursorrules',
   '.windsurfrules',

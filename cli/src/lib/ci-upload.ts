@@ -36,6 +36,7 @@ export interface UploadResult {
 
 const RETRYABLE_STATUSES = new Set([429, 500, 502, 503, 504]);
 const DEFAULT_MAX_ATTEMPTS = 5;
+const DEFAULT_UPLOAD_MAX_TIME_SECONDS = 120;
 const INITIAL_BACKOFF_MS = 1000;
 
 /**
@@ -46,6 +47,16 @@ const INITIAL_BACKOFF_MS = 1000;
 function maxAttempts(): number {
   const raw = Number.parseInt(process.env['UPLOAD_MAX_ATTEMPTS'] ?? '', 10);
   return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_MAX_ATTEMPTS;
+}
+
+/**
+ * Per-attempt upload timeout — defaults to 120s, overridable via
+ * `UPLOAD_MAX_TIME_SECONDS` (parity with scripts/upload-evidence.sh). Read at
+ * call time so tests/CI can set the env var after import.
+ */
+function uploadMaxTimeSeconds(): number {
+  const raw = Number(process.env['UPLOAD_MAX_TIME_SECONDS'] ?? '');
+  return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_UPLOAD_MAX_TIME_SECONDS;
 }
 
 /**
@@ -86,6 +97,32 @@ function delay(ms: number): Promise<void> {
   return new Promise((res) => setTimeout(res, ms));
 }
 
+function buildUploadForm(file: string, buf: Buffer, opts: UploadOptions): FormData {
+  const form = new FormData();
+  const blob = new Blob([new Uint8Array(buf)]);
+  form.set('file', blob, basename(file));
+  form.set('projectSlug', opts.projectSlug);
+  form.set('requirementId', opts.requirementId);
+  form.set('evidenceType', opts.evidenceType);
+  form.set('metadata', JSON.stringify(opts.metadata ?? {}));
+  if (opts.releaseVersion) form.set('releaseVersion', opts.releaseVersion);
+  if (opts.createReleaseIfMissing) form.set('createReleaseIfMissing', 'true');
+  if (opts.environment) form.set('environment', opts.environment);
+  if (opts.evidenceCategory) form.set('evidenceCategory', opts.evidenceCategory);
+  if (opts.releaseBranch) form.set('releaseBranch', opts.releaseBranch);
+  if (opts.releaseTitle) form.set('releaseTitle', opts.releaseTitle);
+  if (opts.changeType) form.set('changeType', opts.changeType);
+  if (opts.gateStatus) form.set('gateStatus', opts.gateStatus);
+  return form;
+}
+
+function uploadFailureMessage(err: unknown, timeoutSeconds: number): string {
+  if (err instanceof Error && err.name === 'AbortError') {
+    return `upload timed out after ${timeoutSeconds}s`;
+  }
+  return err instanceof Error ? err.message : String(err);
+}
+
 /**
  * Probe `${baseUrl}/api/health` and warn if the host issues a cross-host
  * redirect (parity with the shell's base-URL drift check, devaudit-installer#143).
@@ -122,30 +159,33 @@ export async function probeBaseUrlDrift(baseUrl: string): Promise<string | null>
 
 async function uploadOne(file: string, buf: Buffer, opts: UploadOptions): Promise<UploadResult> {
   const attempts = maxAttempts();
-  const form = new FormData();
-  const blob = new Blob([new Uint8Array(buf)]);
-  form.set('file', blob, basename(file));
-  form.set('projectSlug', opts.projectSlug);
-  form.set('requirementId', opts.requirementId);
-  form.set('evidenceType', opts.evidenceType);
-  form.set('metadata', JSON.stringify(opts.metadata ?? {}));
-  if (opts.releaseVersion) form.set('releaseVersion', opts.releaseVersion);
-  if (opts.createReleaseIfMissing) form.set('createReleaseIfMissing', 'true');
-  if (opts.environment) form.set('environment', opts.environment);
-  if (opts.evidenceCategory) form.set('evidenceCategory', opts.evidenceCategory);
-  if (opts.releaseBranch) form.set('releaseBranch', opts.releaseBranch);
-  if (opts.releaseTitle) form.set('releaseTitle', opts.releaseTitle);
-  if (opts.changeType) form.set('changeType', opts.changeType);
-  if (opts.gateStatus) form.set('gateStatus', opts.gateStatus);
+  const timeoutSeconds = uploadMaxTimeSeconds();
   const url = `${opts.baseUrl.replace(/\/$/, '')}/api/evidence/upload`;
   let attempt = 1;
   let backoff = INITIAL_BACKOFF_MS;
   while (attempt <= attempts) {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { authorization: `Bearer ${opts.apiKey}` },
-      body: form,
-    });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutSeconds * 1000);
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${opts.apiKey}` },
+        body: buildUploadForm(file, buf, opts),
+        signal: controller.signal,
+      });
+    } catch (err) {
+      const error = uploadFailureMessage(err, timeoutSeconds);
+      if (attempt < attempts) {
+        await delay(backoff);
+        backoff *= 2;
+        attempt += 1;
+        continue;
+      }
+      return { file, ok: false, status: 0, error };
+    } finally {
+      clearTimeout(timer);
+    }
     if (res.ok) {
       const body = await res.json().catch(() => null);
       return { file, ok: true, status: res.status, body };

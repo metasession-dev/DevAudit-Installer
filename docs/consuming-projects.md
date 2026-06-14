@@ -39,7 +39,7 @@ For projects using new languages/hosts not yet supported by an adapter, see [doc
 
 ## AI Agent Configuration (Single Source of Truth)
 
-All Metasession projects adopting DevAudit use the **single source of truth** model for AI coding agent configuration. This ensures every AI tool (Claude Code, Cursor, Windsurf, Gemini) enforces the same SDLC rules from the same canonical file.
+All Metasession projects adopting DevAudit use the **single source of truth** model for AI coding agent configuration. This ensures every AI tool (Claude Code, Cursor, Windsurf, Gemini, Codex) enforces the same SDLC rules from the same canonical file.
 
 ### The Model
 
@@ -48,6 +48,7 @@ your-project/
 ├── INSTRUCTIONS.md          ← Single source of truth
 │                              Part 1: Project-specific standards (you maintain)
 │                              Part 2: SDLC rules (sync script maintains)
+├── AGENTS.md                ← Pointer → INSTRUCTIONS.md + SDLC/ workflows (sync script generates)
 ├── .cursorrules             ← Pointer → INSTRUCTIONS.md (sync script generates)
 ├── .windsurfrules           ← Pointer → INSTRUCTIONS.md (sync script generates)
 ├── CLAUDE.md                ← Project header + pointer → INSTRUCTIONS.md (sync script generates)
@@ -58,7 +59,7 @@ your-project/
 
 The sync step (`devaudit update`, also run once as part of `devaudit install` and re-runnable for ongoing updates) handles the AI config files as follows:
 
-1. **Generates pointer files** for `.cursorrules`, `.windsurfrules`, and `GEMINI.md` — these are identical one-line redirects to `INSTRUCTIONS.md`, overwritten on every sync.
+1. **Generates pointer files** for `AGENTS.md`, `.cursorrules`, `.windsurfrules`, and `GEMINI.md` — these are thin redirects to `INSTRUCTIONS.md`, overwritten on every sync. `AGENTS.md` also reminds agents to read the relevant `SDLC/` workflow file for the current stage.
 2. **Updates `CLAUDE.md`** — preserves the project-specific header (repo overview, build commands, key directories) and replaces or appends a pointer section directing to `INSTRUCTIONS.md`. If no `CLAUDE.md` exists, creates one with the pointer.
 3. **Manages the SDLC section in `INSTRUCTIONS.md`** — appends or replaces the `## SDLC Compliance Process (MANDATORY)` section using the content from `sdlc/ai-rules/INSTRUCTIONS-SDLC.md`. If no `INSTRUCTIONS.md` exists, creates one with a header and the SDLC rules.
 
@@ -70,6 +71,7 @@ The SDLC rules source lives in `sdlc/ai-rules/INSTRUCTIONS-SDLC.md`. This is the
 | ------------------------------------- | ----------------- | ----------------------------------------------------------------------- |
 | `INSTRUCTIONS.md` (project standards) | Project developer | Untouched — everything before `## SDLC Compliance Process` is preserved |
 | `INSTRUCTIONS.md` (SDLC section)      | Sync script       | Replaced from `INSTRUCTIONS-SDLC.md`                                    |
+| `AGENTS.md`                           | Sync script       | Overwritten with pointer                                                |
 | `.cursorrules`                        | Sync script       | Overwritten with pointer                                                |
 | `.windsurfrules`                      | Sync script       | Overwritten with pointer                                                |
 | `GEMINI.md`                           | Sync script       | Overwritten with pointer                                                |

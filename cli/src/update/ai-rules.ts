@@ -30,6 +30,19 @@ This file provides guidance to Gemini CLI when working in this repository.
 Please adhere to the instructions in \`INSTRUCTIONS.md\` as the **Single Source of Truth**.
 `;
 
+const AGENTS_POINTER = `# AGENTS.md
+
+This file provides guidance to Codex and AGENTS-compatible coding agents when working in this repository.
+
+## Project Standards
+
+All project rules, architectural standards, and development workflows are consolidated in:
+
+- [INSTRUCTIONS.md](./INSTRUCTIONS.md)
+
+Read and follow \`INSTRUCTIONS.md\` as the single source of truth. When working through an SDLC stage, also read the relevant workflow file in \`SDLC/\`.
+`;
+
 const CLAUDE_POINTER_TAIL = `
 ## Project Standards
 
@@ -94,7 +107,7 @@ async function updateInstructionsFile(target: string, sdlcContent: string): Prom
 
 /**
  * Section 2b: AI rule files (single source of truth pattern).
- * - .cursorrules / .windsurfrules / GEMINI.md → pointer files (overwritten)
+ * - .cursorrules / .windsurfrules / GEMINI.md / AGENTS.md → pointer files (overwritten)
  * - CLAUDE.md → preserve project header, append pointer if missing,
  *   strip any prior SDLC section
  * - INSTRUCTIONS.md → preserve project section, append/replace SDLC section
@@ -109,7 +122,8 @@ export async function syncAiRules(ctx: SyncContext): Promise<SectionResult> {
   await writePointerFile(join(ctx.projectPath, '.cursorrules'), CURSOR_POINTER);
   await writePointerFile(join(ctx.projectPath, '.windsurfrules'), WINDSURF_POINTER);
   await writePointerFile(join(ctx.projectPath, 'GEMINI.md'), GEMINI_POINTER);
+  await writePointerFile(join(ctx.projectPath, 'AGENTS.md'), AGENTS_POINTER);
   await updateClaudeFile(join(ctx.projectPath, 'CLAUDE.md'));
   await updateInstructionsFile(join(ctx.projectPath, 'INSTRUCTIONS.md'), sdlcContent);
-  return { name: 'AI rule pointers + INSTRUCTIONS.md', filesSynced: 5, message: 'synced' };
+  return { name: 'AI rule pointers + INSTRUCTIONS.md', filesSynced: 6, message: 'synced' };
 }

@@ -4,6 +4,10 @@ All notable changes to `@metasession.co/devaudit-plugin-sdk` are documented here
 
 ## [Unreleased]
 
+## [0.1.59] — 2026-06-13
+
+Version bump in lockstep with `@metasession.co/devaudit-cli@0.1.59`. No source changes.
+
 ## [0.1.1] — 2026-05-19
 
 Version bump in lockstep with `@metasession.co/devaudit-cli@0.1.1`. No source changes.
