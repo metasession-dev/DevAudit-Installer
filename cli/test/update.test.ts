@@ -9,6 +9,10 @@ import { syncProject } from '../src/update/index.js';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const INSTALLER_ROOT = resolve(HERE, '..', '..');
 
+function normalizeNewlines(value: string): string {
+  return value.replace(/\r\n/g, '\n');
+}
+
 async function buildFixture(): Promise<string> {
   const dir = await fs.mkdtemp(join(tmpdir(), 'cli-update-fixture-'));
   await fs.writeFile(
@@ -104,10 +108,16 @@ describe('syncProject — native TS sync against a fixture', () => {
     expect(await fs.stat(join(fixtureDir, 'e2e', 'helpers', 'evidence.ts'))).toBeTruthy();
     expect(await fs.stat(join(fixtureDir, 'e2e', 'helpers', 'evidence-shot-core.ts'))).toBeTruthy();
     // Section 2f — CI workflows
-    const ciYml = await fs.readFile(join(fixtureDir, '.github', 'workflows', 'ci.yml'), 'utf-8');
+    const ciYml = normalizeNewlines(
+      await fs.readFile(join(fixtureDir, '.github', 'workflows', 'ci.yml'), 'utf-8'),
+    );
     expect(ciYml).toContain('fixture-app');
     expect(ciYml).not.toContain('{{PROJECT_SLUG}}');
     expect(ciYml).not.toContain('{{NODE_VERSION}}');
+    // wawagardenbar-app#383: PRs to develop must surface Quality Gates, while
+    // release registration/evidence upload stay push/dispatch-only side effects.
+    expect(ciYml).toContain('pull_request:\n    branches: [develop]');
+    expect(ciYml).toMatch(/register-release:[\s\S]*if: \$\{\{ github\.event_name != 'pull_request' \}\}/);
     // DevAudit-Installer#98 WS3 + WS4: governance auto-generation workflows
     // sync into .github/workflows/ alongside the gate workflows.
     expect(await fs.stat(join(fixtureDir, '.github', 'workflows', 'periodic-review.yml'))).toBeTruthy();
@@ -290,6 +300,44 @@ describe('syncProject — native TS sync against a fixture', () => {
       expect(ciYml).not.toContain('{{E2E_SETUP_STEP}}');
       expect(ciYml).not.toContain('{{E2E_DEV_SERVER_STEP}}');
       expect(ciYml).not.toContain('{{E2E_TEST_STEP}}');
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it('renders Python CI with PR-time Quality Gates and push-only release side effects', async () => {
+    const dir = await fs.mkdtemp(join(tmpdir(), 'cli-update-python-ci-'));
+    try {
+      await fs.writeFile(
+        join(dir, 'sdlc-config.json'),
+        JSON.stringify({
+          project_slug: 'fixture-python',
+          stack: 'python',
+          host: 'railway',
+          python_version: '3.11',
+          runner: 'ubuntu-latest',
+          working_directory: '.',
+          source_dirs: 'src/',
+          sast_baseline: 0,
+          accepted_dep_risks: '',
+          production_url_secret: 'FIXTURE_PROD_URL',
+          database_service: '',
+          database_image: '',
+          database_port: '',
+          database_env: {},
+          app_env: {},
+          build_env: {},
+          paths_ignore: ['SDLC/**', 'compliance/**'],
+        }),
+      );
+      await fs.mkdir(join(dir, '.github', 'workflows'), { recursive: true });
+      await syncProject(dir);
+      const ciYml = normalizeNewlines(
+        await fs.readFile(join(dir, '.github', 'workflows', 'ci.yml'), 'utf-8'),
+      );
+      expect(ciYml).toContain('actions/setup-python@v6');
+      expect(ciYml).toContain('pull_request:\n    branches: [develop]');
+      expect(ciYml).toContain("github.event_name != 'pull_request' && vars.DEVAUDIT_BASE_URL != ''");
     } finally {
       await fs.rm(dir, { recursive: true, force: true });
     }

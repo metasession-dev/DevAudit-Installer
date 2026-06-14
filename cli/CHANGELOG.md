@@ -4,6 +4,12 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+## [0.1.60] — 2026-06-14
+
+### Fixed
+
+- **wawagardenbar-app#383** — Generated `ci.yml` workflows now run `Quality Gates` on pull requests targeting `develop`, so `gh pr checks <PR>` reports the merge-time gate before integration. Release registration and evidence upload remain push/manual-dispatch only, preventing PR checks from mutating DevAudit release records.
+
 ## [0.1.59] — 2026-06-13
 
 ### Added
