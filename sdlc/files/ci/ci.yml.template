@@ -412,6 +412,7 @@ jobs:
           FLAGS="--git-sha ${{ github.sha }} --ci-run-id ${{ github.run_id }} --branch ${{ github.ref_name }}"
           FLAGS="${FLAGS} --release ${{ needs.register-release.outputs.version }} --create-release-if-missing"
           FLAGS="${FLAGS} --environment uat"
+          FLAGS="${FLAGS} --sdlc-stage 2"
 
           # Track failures across all uploads so we can fail the job at the
           # end with the full picture. Previously each upload used
