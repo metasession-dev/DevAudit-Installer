@@ -35,7 +35,7 @@
     "@clack/prompts": "^0.8.2",
     "@metasession.co/devaudit-plugin-sdk": "file:../plugin-sdk",
     "ajv": "^8.20.0",
-    "commander": "^12.1.0",
+    "commander": "^15.0.0",
     "consola": "^3.2.3",
     "env-paths": "^3.0.0",
     "execa": "^9.5.1"
