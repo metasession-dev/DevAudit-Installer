@@ -237,7 +237,7 @@ jobs:
           # untagged docs commit must not sweep every in-scope REQ into a date
           # release. Note: upload-evidence.sh keeps the LAST --release seen.
           FLAGS="--git-sha ${{ github.sha }} --ci-run-id ${{ github.run_id }} --branch ${{ github.ref_name }}"
-          FLAGS="${FLAGS} --create-release-if-missing --environment uat"
+          FLAGS="${FLAGS} --create-release-if-missing --environment uat --sdlc-stage 3"
           DERIVED_RELEASE="${{ steps.version.outputs.version }}"
 
           # Derive change_type for the bare-date (housekeeping) DERIVED_RELEASE:
@@ -586,9 +586,9 @@ jobs:
           PRIOR_EVENT="${{ github.event.workflow_run.event }}"
           PRIOR_BRANCH="${{ github.event.workflow_run.head_branch }}"
           case "$PRIOR_EVENT" in
-            pull_request) TIER=critical ;;
-            push)         TIER=regression ;;
-            *)            TIER="${PRIOR_EVENT}" ;;
+            pull_request) TIER=critical; STAGE=2 ;;
+            push)         TIER=regression; STAGE=5 ;;
+            *)            TIER="${PRIOR_EVENT}"; STAGE="" ;;
           esac
 
           # Common flags for upload-evidence.sh. Branch + SHA come from
@@ -597,6 +597,7 @@ jobs:
                  --git-sha ${{ github.event.workflow_run.head_sha }} \
                  --ci-run-id ${{ github.event.workflow_run.id }} \
                  --branch ${PRIOR_BRANCH}"
+          [ -n "$STAGE" ] && FLAGS="${FLAGS} --sdlc-stage ${STAGE}"
 
           # In-scope REQs from pending release tickets at the triggering
           # SHA. Fall back to `_compliance-docs` if no tickets present so
@@ -634,10 +635,13 @@ jobs:
             # facing artefact (the formatted run summary). Skipped if
             # the report directory is missing (e.g. an upstream
             # infrastructure failure aborted before reporting).
-            if [ -f e2e-artifacts/playwright-report/index.html ]; then
+            if [ -d e2e-artifacts/playwright-report ]; then
+              (cd e2e-artifacts && zip -qr playwright-report.zip playwright-report/) 2>/dev/null || true
+            fi
+            if [ -f e2e-artifacts/playwright-report.zip ]; then
               if bash scripts/upload-evidence.sh \
                 {{PROJECT_SLUG}} "$REQ" test_report \
-                e2e-artifacts/playwright-report/index.html \
+                e2e-artifacts/playwright-report.zip \
                 --category test_report ${FLAGS} --release "${DERIVED_RELEASE}" \
                 --meta-key "tier=${TIER}"
               then

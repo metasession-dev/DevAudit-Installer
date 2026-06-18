@@ -1,0 +1,27 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/cli"
+    schedule:
+      interval: "weekly"
+    target-branch: "develop"
+  - package-ecosystem: "npm"
+    directory: "/plugin-sdk"
+    schedule:
+      interval: "weekly"
+    target-branch: "develop"
+  - package-ecosystem: "npm"
+    directory: "/plugins/devaudit-plugin-evidence-export"
+    schedule:
+      interval: "weekly"
+    target-branch: "develop"
+  - package-ecosystem: "npm"
+    directory: "/plugins/devaudit-plugin-prisma"
+    schedule:
+      interval: "weekly"
+    target-branch: "develop"
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    target-branch: "develop"
