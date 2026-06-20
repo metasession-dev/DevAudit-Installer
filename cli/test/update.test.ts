@@ -347,9 +347,11 @@ describe('syncProject — native TS sync against a fixture', () => {
     // Use the same fixture from the first test (no DB configured) to assert
     // that feature-e2e.yml is rendered, has no residual block tokens, and
     // has its services block stripped (no database_service).
-    const featureE2eYml = await fs.readFile(
-      join(fixtureDir, '.github', 'workflows', 'feature-e2e.yml'),
-      'utf-8',
+    const featureE2eYml = normalizeNewlines(
+      await fs.readFile(
+        join(fixtureDir, '.github', 'workflows', 'feature-e2e.yml'),
+        'utf-8',
+      ),
     );
     expect(featureE2eYml).toContain('Feature In-Scope E2E');
     expect(featureE2eYml).toContain('pull_request:\n    branches: [develop]');
