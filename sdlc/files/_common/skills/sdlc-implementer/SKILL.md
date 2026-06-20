@@ -59,6 +59,39 @@ The only pauses in the whole workflow are the explicitly-named checkpoints:
 
 Everything else is silent continuation. The rule is **opt-in-to-pause, not opt-out-of-pause**. If you find yourself stopping after a sub-skill's "Return to the running `sdlc-implementer` context" line and waiting for the operator to ask _"is anything happening?"_ — that is the bug this section exists to prevent. Keep going.
 
+## Scope-expansion halt gate (devaudit-installer#171)
+
+The change-request loop's scope-expansion halt rule (see [`references/change-request-loop.md`](./references/change-request-loop.md) §"If the change-request is fundamentally a different REQ") only fires during Phase 5 — after a UAT reviewer clicks "Request Changes" and the portal state is `uat_changes_requested`. In practice, scope-expanding requests also arrive from the user at any point after Phase 1:
+
+- During Phase 2 (implementation) — user spots a related improvement and asks the agent to add it
+- During Phase 3 (evidence compile) — user asks for an additional evidence artefact not in the plan
+- During Phase 4 (UAT submission) — user exercises the deployed app and asks for a behaviour change
+- Between UAT submission and approval — same scenario
+- After approval but before merge — user makes a last-minute request
+
+In all these cases, the portal state is NOT `uat_changes_requested`, so the change-request loop's halt rule never fires. The agent implements the out-of-scope change without flagging it.
+
+**This gate fires on every user work request while a REQ is active, in any phase.**
+
+When the user asks for a change that goes beyond the current REQ's acceptance criteria:
+
+1. **Read the current REQ's `test-scope.md`** (or `implementation-plan.md` § Acceptance Criteria if no test-scope exists yet) to identify the defined ACs.
+
+2. **Check whether the user's request maps to an existing AC.** If yes — proceed (or enter the change-request loop if in Phase 5).
+
+3. **If no — halt with the scope-expansion message:**
+
+   > This request adds behaviour outside REQ-XXX's acceptance criteria (AC1–ACn defined in test-scope.md). Recommend filing a separate issue for \<subject\> and shipping REQ-XXX as originally scoped.
+
+4. **Wait for the user to confirm one of:**
+   - **(a) File a separate issue** (new REQ) — ship the current REQ as-is. The agent continues with the original scope.
+   - **(b) Amend REQ-XXX's scope** — explicitly expand `test-scope.md` / `implementation-plan.md`, update the plan, invalidate existing evidence, and re-walk Stage 3. This option carries a warning: *"Amending scope after evidence is compiled (Stage 3+) invalidates the existing test-execution-summary, screenshots, and UAT verification. All Stage 3 evidence must be re-compiled."*
+   - **(c) Abandon the request** — do nothing, continue with the original scope.
+
+**Do not implement the out-of-scope change before the user picks (a), (b), or (c).** The inertia trap is real: the agent is mid-flow, the codebase is open, and the request sounds reasonable. The gate exists to interrupt that inertia — STOP, surface the scope gap, and let the user decide.
+
+This gate is distinct from Phase 2 step 4's "any deviation from the plan must be noted" rule: that covers implementation *approach* deviations (how to build something the plan says to build), not *scope* expansions (building something the plan doesn't say to build at all).
+
 ## SDLC navigability — LAST/NEXT status sticky (devaudit#131)
 
 Long-running SDLC issues accumulate dozens of comments across multiple Claude Code sessions. The operator returning to the thread should be able to answer two questions in under five seconds:

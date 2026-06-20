@@ -166,6 +166,28 @@ function buildAuthenticatedE2eStep(cfg: SdlcConfig): string {
   return lines.join('\n');
 }
 
+/**
+ * Build the "Run in-scope E2E" step for feature-e2e.yml. Mirrors
+ * buildE2eTestStep (same env wiring for e2e_env + JSON reporter) but uses
+ * `--grep "$REQ_ID"` to run only the specs tagged with the branch's REQ,
+ * instead of `--project=` which runs the full suite. The REQ_ID shell
+ * variable is populated from the detect-req job output at runtime.
+ */
+function buildFeatureE2eTestStep(cfg: SdlcConfig): string {
+  const env = cfg.e2e_env ?? {};
+  const lines = [
+    '      - name: Run in-scope E2E',
+    '        env:',
+    '          PLAYWRIGHT_HTML_REPORTER_OPEN: never',
+    '          PLAYWRIGHT_JSON_OUTPUT_NAME: e2e-results.json',
+  ];
+  if (Object.keys(env).length > 0) lines.push(indentEnvBlock({ ...env }, 10));
+  lines.push('        run: |');
+  lines.push('          REQ_ID="${{ needs.detect-req.outputs.req_id }}"');
+  lines.push('          npx playwright test --grep "$REQ_ID" --reporter=json,html');
+  return lines.join('\n');
+}
+
 function buildDbUriStep(dbService: string, dbPort: string): string {
   if (dbService !== 'mongodb') return '';
   return [
@@ -226,6 +248,7 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
     E2E_SETUP_STEP: buildE2eSetupStep(cfg),
     E2E_DEV_SERVER_STEP: buildE2eDevServerStep(cfg),
     E2E_TEST_STEP: buildE2eTestStep(cfg),
+    E2E_FEATURE_TEST_STEP: buildFeatureE2eTestStep(cfg),
     E2E_AUTHENTICATED_STEP: buildAuthenticatedE2eStep(cfg),
   };
   let count = 0;

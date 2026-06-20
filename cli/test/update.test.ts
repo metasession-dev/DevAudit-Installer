@@ -343,6 +343,102 @@ describe('syncProject — native TS sync against a fixture', () => {
     }
   }, 60_000);
 
+  it('renders feature-e2e.yml with full E2E infrastructure and no residual tokens (#186)', async () => {
+    // Use the same fixture from the first test (no DB configured) to assert
+    // that feature-e2e.yml is rendered, has no residual block tokens, and
+    // has its services block stripped (no database_service).
+    const featureE2eYml = await fs.readFile(
+      join(fixtureDir, '.github', 'workflows', 'feature-e2e.yml'),
+      'utf-8',
+    );
+    expect(featureE2eYml).toContain('Feature In-Scope E2E');
+    expect(featureE2eYml).toContain('pull_request:\n    branches: [develop]');
+    expect(featureE2eYml).toContain('detect-req');
+    expect(featureE2eYml).toContain('run-feature-e2e');
+    // No residual block tokens
+    expect(featureE2eYml).not.toContain('{{E2E_FEATURE_TEST_STEP}}');
+    expect(featureE2eYml).not.toContain('{{E2E_SETUP_STEP}}');
+    expect(featureE2eYml).not.toContain('{{E2E_DEV_SERVER_STEP}}');
+    expect(featureE2eYml).not.toContain('{{DATABASE_ENV}}');
+    expect(featureE2eYml).not.toContain('{{APP_ENV}}');
+    expect(featureE2eYml).not.toContain('{{DATABASE_URI_STEP}}');
+    // No database_service configured → services block stripped
+    expect(featureE2eYml).not.toContain('services:');
+    // The feature test step is rendered (uses --grep not --project)
+    expect(featureE2eYml).toContain('npx playwright test --grep "$REQ_ID"');
+    // Evidence upload with origin=feature and stage 2
+    expect(featureE2eYml).toContain('--sdlc-stage 2');
+    expect(featureE2eYml).toContain('--meta-key "origin=feature"');
+  }, 30_000);
+
+  it('renders feature-e2e.yml with services block when database_service is configured (#186)', async () => {
+    const dir = await fs.mkdtemp(join(tmpdir(), 'cli-update-fe2e-db-'));
+    try {
+      await fs.writeFile(
+        join(dir, 'sdlc-config.json'),
+        JSON.stringify({
+          project_slug: 'fixture-db',
+          stack: 'node',
+          host: 'railway',
+          node_version: '20',
+          runner: 'ubuntu-latest',
+          working_directory: '.',
+          source_dirs: 'app/ lib/',
+          sast_baseline: 0,
+          accepted_dep_risks: '',
+          production_url_secret: 'FIXTURE_PROD_URL',
+          database_service: 'mongodb',
+          database_image: 'mongo:7',
+          database_port: '27017:27017',
+          database_env: { MONGODB_URI: 'mongodb://localhost:27017' },
+          app_env: {},
+          build_env: {},
+          e2e_project: 'chromium',
+          e2e_start_command: 'npm run dev',
+          paths_ignore: ['SDLC/**', 'compliance/**'],
+        }),
+      );
+      await fs.writeFile(
+        join(dir, 'package.json'),
+        JSON.stringify({
+          name: 'fixture-db',
+          private: true,
+          version: '0.0.0',
+          devDependencies: {
+            husky: '*',
+            '@commitlint/cli': '*',
+            '@commitlint/config-conventional': '*',
+            'lint-staged': '*',
+            prettier: '*',
+            eslint: '*',
+            typescript: '*',
+            '@playwright/test': '*',
+          },
+        }),
+      );
+      await fs.mkdir(join(dir, '.husky'), { recursive: true });
+      await fs.mkdir(join(dir, 'scripts'), { recursive: true });
+      await fs.mkdir(join(dir, '.github', 'workflows'), { recursive: true });
+      process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
+      await syncProject(dir);
+      const featureE2eYml = normalizeNewlines(
+        await fs.readFile(join(dir, '.github', 'workflows', 'feature-e2e.yml'), 'utf-8'),
+      );
+      // Services block present with mongodb
+      expect(featureE2eYml).toContain('services:');
+      expect(featureE2eYml).toContain('mongodb:');
+      expect(featureE2eYml).toContain('mongo:7');
+      // Database env rendered
+      expect(featureE2eYml).toContain('MONGODB_URI:');
+      // Database URI step rendered (mongodb-specific)
+      expect(featureE2eYml).toContain('Set database URI from dynamic port');
+      // No residual template tokens (GitHub Actions ${{ }} is fine)
+      expect(featureE2eYml).not.toMatch(/\{\{[A-Z][A-Z0-9_]*\}\}/);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
   it('rejects an unknown stack', async () => {
     const badDir = await fs.mkdtemp(join(tmpdir(), 'cli-update-bad-'));
     try {

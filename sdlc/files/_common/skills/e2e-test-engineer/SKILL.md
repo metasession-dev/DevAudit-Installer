@@ -189,6 +189,30 @@ For **visual regression** specifically:
 
 Do additions, updates, and (approved) deletions in the same change so the suite stays internally consistent.
 
+### Phase 5½ — Evidence wiring validation
+
+Before running the suite (Phase 6), verify that the evidence traceability wiring is in place. A spec can pass Phase 6's "AC covered" check by having a correct assertion without ever calling `evidenceShot()` or tagging `@requirement` — producing zero portal evidence and letting the release reach UAT with no traceable screenshots (DevAudit-Installer #170, #169).
+
+**For each in-scope REQ and its ACs from Phase 2's scenario table:**
+
+1. **Check `@requirement` annotation.** Grep the authored/modified spec files for `@requirement REQ-XXX` tags. Every spec file that covers an in-scope REQ must carry at least one `@requirement REQ-XXX` annotation so the CI's `detect-req` step and the portal's evidence-by-requirement view can find it.
+
+2. **Check `evidenceShot()` calls.** For each UI spec covering an in-scope REQ, grep for at least one `evidenceShot(page, 'REQ-XXX', <ac>, ...)` call per AC. The call must be placed **at the assertion that proves the AC**, before any further interaction or navigation. API-only specs that don't have a visual surface are exempt — note the exemption in the test-execution-summary.
+
+3. **Check test title annotations.** Each test for an in-scope REQ must carry a `[REQ-XXX]` tag in the test title or `test.info().annotations` so the Playwright JSON reporter emits the REQ association. The portal uses this to map test results to requirements.
+
+**If any check fails:**
+
+Halt and report the gap to the user:
+> Evidence wiring incomplete for REQ-XXX:
+> - Missing `@requirement REQ-XXX` annotation in `e2e/<area>/foo.spec.ts`
+> - Missing `evidenceShot()` call for AC2 in `e2e/<area>/bar.spec.ts`
+> - Missing `[REQ-XXX]` tag in test title for "should filter by status"
+>
+> These must be fixed before running the suite — without them the portal will show zero screenshots and zero tagged tests for this REQ, and the CI gate (#169) will block the release.
+
+Do **not** proceed to Phase 6 until all gaps are resolved. The user may choose to skip an AC (e.g. API-only, transport-only) — that's valid, but it must be an explicit decision recorded in the test-execution-summary, not an omission.
+
 ### Phase 6 — Execute and report
 
 Run the suite. Strategy:
