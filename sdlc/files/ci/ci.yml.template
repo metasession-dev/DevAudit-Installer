@@ -412,6 +412,7 @@ jobs:
           FLAGS="--git-sha ${{ github.sha }} --ci-run-id ${{ github.run_id }} --branch ${{ github.ref_name }}"
           FLAGS="${FLAGS} --release ${{ needs.register-release.outputs.version }} --create-release-if-missing"
           FLAGS="${FLAGS} --environment uat"
+          FLAGS="${FLAGS} --sdlc-stage 2"
 
           # Track failures across all uploads so we can fail the job at the
           # end with the full picture. Previously each upload used
@@ -548,6 +549,8 @@ jobs:
           # compliance/pending-releases/. Failures now bump UPLOAD_FAILURES
           # so the step exits non-zero and the release PR turns red.
           SHOT_REQS=()
+          ZERO_Screenshot_REQS=()
+          EVIDENCE_GAPS=0
           if [ -d compliance/pending-releases ]; then
             for TICKET in compliance/pending-releases/RELEASE-TICKET-REQ-*.md; do
               [ -f "$TICKET" ] || continue
@@ -579,6 +582,12 @@ jobs:
               REQ_SHOTS=(ci-evidence/compliance/evidence/"$REQ"/screenshots/*.png)
               if [ "${#REQ_SHOTS[@]}" -eq 0 ]; then
                 echo "No per-AC screenshots for ${REQ} (none captured by evidenceShot this run)"
+                # devaudit-installer#169 — track REQs with zero screenshots
+                # so the evidence-completeness gate below can fail the job
+                # if the REQ also has zero tagged tests in the Playwright
+                # report. Previously this was a silent continue — the release
+                # proceeded to UAT with no traceable evidence.
+                ZERO_Screenshot_REQS+=("$REQ")
                 continue
               fi
               echo "Uploading ${#REQ_SHOTS[@]} screenshot(s) for ${REQ}"
@@ -624,6 +633,52 @@ jobs:
             done
           fi
           shopt -u nullglob
+
+          # devaudit-installer#169 — Evidence-completeness gate.
+          # For each in-scope REQ that had zero screenshots, check whether
+          # the Playwright JSON report contains at least one test tagged
+          # with that REQ. If a REQ has zero screenshots AND zero tagged
+          # tests, the release has no traceable evidence and must not
+          # proceed to UAT. Previously this was a silent pass — the release
+          # arrived in UAT review with "SCREENSHOTS: none" and "TESTS: no
+          # tests in report tagged with this REQ" on the portal.
+          if [ "${#ZERO_Screenshot_REQS[@]}" -gt 0 ]; then
+            for REQ in "${ZERO_Screenshot_REQS[@]}"; do
+              TAGGED_COUNT=0
+              if [ -f ci-evidence/e2e-results.json ]; then
+                TAGGED_COUNT=$(python3 -c "
+          import json, sys
+          with open('ci-evidence/e2e-results.json') as f:
+            data = json.load(f)
+          def count(specs):
+            n = 0
+            for s in specs:
+              tags = []
+              for a in s.get('annotations', []):
+                tags.append(a.get('type','') + ':' + a.get('description',''))
+              for t in s.get('tags', []):
+                tags.append(t)
+              title = s.get('title', '')
+              if '${REQ}' in title or any('${REQ}' in t for t in tags):
+                n += 1
+              n += count(s.get('suites', []))
+            return n
+          print(count(data.get('suites', [])))
+          " 2>/dev/null || echo "0")
+              fi
+              if [ "$TAGGED_COUNT" -eq 0 ]; then
+                echo "::error::Evidence completeness gate: ${REQ} has zero tagged tests AND zero per-AC screenshots. The release cannot proceed to UAT with no traceable evidence. Ensure specs carry @requirement ${REQ} annotations and evidenceShot() calls (skill Phase 5½, issue #170)."
+                EVIDENCE_GAPS=$((EVIDENCE_GAPS + 1))
+              else
+                echo "${REQ} has zero screenshots but ${TAGGED_COUNT} tagged test(s) — evidence-completeness gate passed (screenshot gap is non-blocking)"
+              fi
+            done
+          fi
+
+          if [ "$EVIDENCE_GAPS" -gt 0 ]; then
+            echo "::error::${EVIDENCE_GAPS} in-scope REQ(s) have zero traceable evidence (no tagged tests, no screenshots) — release cannot pass UAT review"
+            exit 1
+          fi
 
           # NOTE: committed compliance docs (planning category: RTM/test-plan/
           # test-cases, release tickets, and per-requirement

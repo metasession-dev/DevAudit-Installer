@@ -4,6 +4,18 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+## [0.1.61] — 2026-06-18
+
+### Added
+
+- **#175** — SDLC stage evidence dimension. `scripts/upload-evidence.sh` accepts `--sdlc-stage <1-5>` (validated, forwarded as `sdlcStage` form field). All CI templates now stamp the producing stage: `ci.yml` → stage 2 (implement & test), `compliance-evidence.yml` committed docs → stage 3 (compile evidence), `compliance-evidence.yml` E2E regression → event-derived stage 2 (PR) / 5 (push), `post-deploy-prod.yml` → stage 5 (deploy). Backward-compatible: absent flag = no field sent; older portals ignore it.
+
+- **#174** — New `feature-e2e.yml.template` workflow for feature-branch in-scope E2E. Runs specs tagged with the branch's REQ on PRs to `develop`, uploads the Playwright report as stage-2 with `origin=feature` metadata so the portal can exclude it from release/UAT completeness. Registered in `CI_TEMPLATES` array for `devaudit install` / `devaudit update`.
+
+### Changed
+
+- **#175** — `compliance-evidence.yml` E2E regression upload now zips the full `playwright-report/` directory and uploads the `.zip` bundle instead of bare `index.html`, matching the pattern already used in `ci.yml`. Ensures screenshots and traces are included in the portal-rendered report.
+
 ## [0.1.60] — 2026-06-14
 
 ### Fixed

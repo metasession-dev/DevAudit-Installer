@@ -164,7 +164,7 @@ jobs:
               bash scripts/upload-evidence.sh \
                 "${PROJECT_SLUG}" "${VERSION}" test_report prod-smoke-results.json \
                 --release "${VERSION}" --create-release-if-missing --environment production \
-                --category test_report --git-sha "${GIT_SHA}" --ci-run-id "${CI_RUN}" --branch main \
+                --category test_report --sdlc-stage 5 --git-sha "${GIT_SHA}" --ci-run-id "${CI_RUN}" --branch main \
                 || echo "Warning: smoke upload failed for ${VERSION}"
             fi
             # Carry the release ticket into the production environment so the
@@ -179,7 +179,7 @@ jobs:
               bash scripts/upload-evidence.sh \
                 "${PROJECT_SLUG}" "${VERSION}" compliance_document "$TICKET" \
                 --release "${VERSION}" --create-release-if-missing --environment production \
-                --category release_artifact --git-sha "${GIT_SHA}" --ci-run-id "${CI_RUN}" --branch main \
+                --category release_artifact --sdlc-stage 5 --git-sha "${GIT_SHA}" --ci-run-id "${CI_RUN}" --branch main \
                 || echo "Warning: ticket upload failed for ${VERSION}"
             else
               echo "No RELEASE-TICKET-${VERSION}.md found — skipping ticket (date-versioned or archived)."

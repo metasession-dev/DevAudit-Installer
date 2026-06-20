@@ -206,6 +206,52 @@ case_non_stub_attempts_upload
 case_md_template_not_matched_by_glob
 case_upload_uses_bounded_curl_timeouts
 
+case_sdlc_stage_invalid_rejected() {
+  echo "case: --sdlc-stage 9 is rejected (exit non-zero, error message)"
+  local tmp
+  tmp=$(mktemp --suffix=.png)
+  echo "fake png" > "$tmp"
+  local out exit_code
+  out=$(run_uploader my-project REQ-001 screenshot "$tmp" --sdlc-stage 9 2>&1) && exit_code=0 || exit_code=$?
+  rm -f "$tmp"
+  if [ "$exit_code" -ne 0 ]; then
+    ok "exit code non-zero for invalid --sdlc-stage"
+  else
+    no "expected non-zero exit for --sdlc-stage 9; output:\n$out"
+    return
+  fi
+  if printf '%s\n' "$out" | grep -q -- '--sdlc-stage must be an integer'; then
+    ok "stderr includes '--sdlc-stage must be an integer'"
+  else
+    no "stderr missing error message; output:\n$out"
+  fi
+}
+
+case_sdlc_stage_valid_on_stub_skipped() {
+  echo "case: --sdlc-stage 3 on a stub file is skipped (exit 0)"
+  local tmp
+  tmp=$(mktemp --suffix=.md)
+  cat > "$tmp" <<'STUB'
+> ⚠️ **STARTER TEMPLATE — REPLACE BEFORE COMMITTING.**
+STUB
+  local out exit_code
+  out=$(run_uploader my-project _compliance-docs compliance_document "$tmp" --sdlc-stage 3 2>&1) && exit_code=0 || exit_code=$?
+  rm -f "$tmp"
+  if [ "$exit_code" -eq 0 ]; then
+    ok "exit code 0 with --sdlc-stage 3 on stub"
+  else
+    no "expected exit 0 for --sdlc-stage 3 on stub; got $exit_code; output:\n$out"
+  fi
+  if printf '%s\n' "$out" | grep -q 'SKIPPED'; then
+    ok "stub file skipped with --sdlc-stage 3"
+  else
+    no "stub file not skipped; output:\n$out"
+  fi
+}
+
+case_sdlc_stage_invalid_rejected
+case_sdlc_stage_valid_on_stub_skipped
+
 echo ""
 echo "=== upload-evidence.test.sh ==="
 echo "PASS: $PASS  FAIL: $FAIL"

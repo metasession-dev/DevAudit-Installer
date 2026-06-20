@@ -32,6 +32,11 @@
 #                               as `gateStatus`; unknown values are
 #                               silently dropped server-side.
 #                               DevAudit-Installer#96.
+#   --sdlc-stage <1-5>          SDLC stage that produced this artefact:
+#                               1 plan, 2 implement/test, 3 compile-evidence,
+#                               4 submit-for-review, 5 deploy. Forwarded as
+#                               `sdlcStage`; unknown to older portals (ignored
+#                               server-side, no error).
 #
 # Required environment variables:
 #   DEVAUDIT_BASE_URL  e.g. https://meta-comply-production.up.railway.app
@@ -72,6 +77,7 @@ EVIDENCE_CATEGORY=""
 RELEASE_TITLE=""
 CHANGE_TYPE=""
 GATE_STATUS=""
+SDLC_STAGE=""
 # Repeatable `--meta-key key=value` accumulator. Each pair gets merged
 # into the metadata JSON sent to the portal. Used by the screenshot
 # upload loop to pass `origin=feature|regression` from the per-PNG
@@ -96,6 +102,7 @@ while [ "$#" -gt 0 ]; do
     # ran-and-failed != never-ran. Unknown values dropped server-side.
     # DevAudit-Installer#96.
     --gate-status) GATE_STATUS="$2"; shift 2 ;;
+    --sdlc-stage) SDLC_STAGE="$2"; shift 2 ;;
     # --meta-key key=value (repeatable). Merged into the metadata JSON
     # before posting. Validates the `key=value` shape; rejects bare
     # keys without `=`.
@@ -117,6 +124,10 @@ if [ -n "$ENVIRONMENT" ] && [ -z "$RELEASE_VERSION" ]; then
 fi
 if [ -n "$RELEASE_VERSION" ] && [ -z "$EVIDENCE_CATEGORY" ]; then
   echo "Error: --category is required when --release is specified (gate validation)"
+  exit 1
+fi
+if [ -n "$SDLC_STAGE" ] && ! [[ "$SDLC_STAGE" =~ ^[1-5]$ ]]; then
+  echo "Error: --sdlc-stage must be an integer 1-5 (got: $SDLC_STAGE)"
   exit 1
 fi
 
@@ -277,6 +288,7 @@ for FILE in "${FILES[@]}"; do
   [ -n "$RELEASE_TITLE" ] && CURL_ARGS+=(-F "releaseTitle=${RELEASE_TITLE}")
   [ -n "$CHANGE_TYPE" ] && CURL_ARGS+=(-F "changeType=${CHANGE_TYPE}")
   [ -n "$GATE_STATUS" ] && CURL_ARGS+=(-F "gateStatus=${GATE_STATUS}")
+  [ -n "$SDLC_STAGE" ] && CURL_ARGS+=(-F "sdlcStage=${SDLC_STAGE}")
 
   ATTEMPT=1
   BACKOFF=$INITIAL_BACKOFF_SECONDS
