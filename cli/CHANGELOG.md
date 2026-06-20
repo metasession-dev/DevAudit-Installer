@@ -4,6 +4,22 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+## [0.1.62] — 2026-06-20
+
+### Added
+
+- **#186** — `feature-e2e.yml.template` now includes full E2E infrastructure: services block, `DATABASE_ENV`/`APP_ENV` env blocks, `DATABASE_URI_STEP` for dynamic port resolution, `E2E_SETUP_STEP` for pre-test seeding, dev server startup + `wait-on`, `E2E_NEW_SPECS` computation for origin tagging, and `E2E_FEATURE_TEST_STEP` block token (built by `buildFeatureE2eTestStep` in `ci-templates.ts`). Mirrors `ci.yml.template`'s E2E setup — without this, consumers with databases, seeding, or auth env vars would see the workflow fail before tests execute.
+
+- **#170** — `e2e-test-engineer` SKILL.md now includes Phase 5½ (evidence wiring validation) between Phase 5 and Phase 6. For each in-scope REQ, checks `@requirement` annotations, `evidenceShot()` calls per AC, and `[REQ-XXX]` test title tags. Halts before Phase 6 if any check fails — prevents specs from passing Phase 6's "AC covered" check without producing portal evidence.
+
+- **#169** — `ci.yml.template` now includes an evidence-completeness gate in the `upload-evidence` job. REQs with zero screenshots are tracked in `ZERO_Screenshot_REQS` and checked against the Playwright JSON report for tagged tests. If a REQ has zero screenshots AND zero tagged tests, the step exits 1 — the release cannot proceed to UAT with no traceable evidence.
+
+- **#171** — `sdlc-implementer` SKILL.md now includes a cross-phase scope-expansion halt gate. Fires on any user work request while a REQ is active, in any phase (2–5). If the request doesn't map to an existing acceptance criterion, the agent halts with options: (a) file a separate issue, (b) amend REQ scope, (c) abandon. Generalises the change-request loop's scope-expansion halt to all phases.
+
+### Changed
+
+- **#186** — `RENDER-002` block map now includes `E2E_FEATURE_TEST_STEP` alongside `E2E_TEST_STEP`. `feature-e2e.yml.template` uses the same `stripServicesBlock` and block substitution pipeline as `ci.yml.template`.
+
 ## [0.1.61] — 2026-06-18
 
 ### Added
