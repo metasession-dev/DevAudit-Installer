@@ -1,6 +1,6 @@
 {
   "name": "@metasession.co/devaudit-plugin-evidence-export",
-  "version": "0.1.63",
+  "version": "0.1.64",
   "description": "Bulk evidence bundle export for DevAudit consumers — for handing evidence to external auditors.",
   "type": "module",
   "main": "./dist/plugin.js",
