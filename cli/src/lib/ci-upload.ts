@@ -21,6 +21,8 @@ export interface UploadOptions {
   readonly changeType?: string;
   /** `passed` | `failed` | `skipped` — forwarded as `gateStatus`. */
   readonly gateStatus?: string;
+  /** SDLC stage 1-5 — forwarded as `sdlcStage` (parity with upload-evidence.sh). */
+  readonly sdlcStage?: string;
   readonly metadata?: Readonly<Record<string, unknown>>;
 }
 
@@ -38,6 +40,13 @@ const RETRYABLE_STATUSES = new Set([429, 500, 502, 503, 504]);
 const DEFAULT_MAX_ATTEMPTS = 5;
 const DEFAULT_UPLOAD_MAX_TIME_SECONDS = 120;
 const INITIAL_BACKOFF_MS = 1000;
+
+// DevAudit-Installer#189 — files above this size use the presigned R2 URL
+// upload flow (3-step: request URL → PUT to R2 → notify portal) instead of
+// the multipart POST. Parity with scripts/upload-evidence.sh.
+const DEFAULT_PRESIGNED_THRESHOLD_BYTES = 26214400; // 25MB
+const DEFAULT_PRESIGNED_MAX_ATTEMPTS = 3;
+const DEFAULT_PRESIGNED_UPLOAD_MAX_TIME_SECONDS = 300;
 
 /**
  * Retry budget — defaults to 5, overridable via `UPLOAD_MAX_ATTEMPTS`
@@ -113,6 +122,7 @@ function buildUploadForm(file: string, buf: Buffer, opts: UploadOptions): FormDa
   if (opts.releaseTitle) form.set('releaseTitle', opts.releaseTitle);
   if (opts.changeType) form.set('changeType', opts.changeType);
   if (opts.gateStatus) form.set('gateStatus', opts.gateStatus);
+  if (opts.sdlcStage) form.set('sdlcStage', opts.sdlcStage);
   return form;
 }
 
@@ -204,6 +214,177 @@ async function uploadOne(file: string, buf: Buffer, opts: UploadOptions): Promis
   return { file, ok: false, status: 0, error: 'max retries exhausted' };
 }
 
+const PRESIGNED_FALLBACK = Symbol('presigned-fallback');
+
+async function uploadPresigned(file: string, buf: Buffer, opts: UploadOptions): Promise<UploadResult | typeof PRESIGNED_FALLBACK> {
+  const baseUrl = opts.baseUrl.replace(/\/$/, '');
+  const presignUrl = `${baseUrl}/api/evidence/upload-url`;
+  const completeUrl = `${baseUrl}/api/evidence/upload-complete`;
+  const maxAttemptsPresigned = DEFAULT_PRESIGNED_MAX_ATTEMPTS;
+  const timeoutSeconds = uploadMaxTimeSeconds();
+  const presignedTimeoutSeconds = DEFAULT_PRESIGNED_UPLOAD_MAX_TIME_SECONDS;
+
+  const mimeType = deriveMimeType(file);
+  const metadata = opts.metadata ?? {};
+
+  // Step 1: Request presigned upload URL
+  let uploadUrl = '';
+  let evidenceId = '';
+  let attempt = 1;
+  let backoff = INITIAL_BACKOFF_MS;
+  while (attempt <= maxAttemptsPresigned) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutSeconds * 1000);
+    let res: Response;
+    try {
+      res = await fetch(presignUrl, {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${opts.apiKey}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          projectSlug: opts.projectSlug,
+          requirementId: opts.requirementId,
+          evidenceType: opts.evidenceType,
+          fileName: basename(file),
+          fileSizeBytes: buf.byteLength,
+          mimeType,
+          metadata,
+          ...(opts.releaseVersion ? { releaseVersion: opts.releaseVersion } : {}),
+          ...(opts.createReleaseIfMissing ? { createReleaseIfMissing: true } : {}),
+          ...(opts.releaseBranch ? { releaseBranch: opts.releaseBranch } : {}),
+          ...(opts.environment ? { environment: opts.environment } : {}),
+          ...(opts.evidenceCategory ? { evidenceCategory: opts.evidenceCategory } : {}),
+          ...(opts.sdlcStage ? { sdlcStage: opts.sdlcStage } : {}),
+        }),
+        signal: controller.signal,
+      });
+    } catch (err) {
+      if (attempt < maxAttemptsPresigned) {
+        await delay(backoff);
+        backoff *= 2;
+        attempt += 1;
+        continue;
+      }
+      return { file, ok: false, status: 0, error: uploadFailureMessage(err, timeoutSeconds) };
+    } finally {
+      clearTimeout(timer);
+    }
+    if (res.ok) {
+      const body = await res.json().catch(() => null) as { uploadUrl?: string; evidenceId?: string } | null;
+      if (body?.uploadUrl && body?.evidenceId) {
+        uploadUrl = body.uploadUrl;
+        evidenceId = body.evidenceId;
+        break;
+      }
+      // Portal responded 2xx but didn't return presigned URL fields —
+      // presigned URL flow not configured. Fall back to multipart.
+      return PRESIGNED_FALLBACK;
+    }
+    if (RETRYABLE_STATUSES.has(res.status) && attempt < maxAttemptsPresigned) {
+      await delay(backoff);
+      backoff *= 2;
+      attempt += 1;
+      continue;
+    }
+    // Non-retriable error (4xx other than 429)
+    const errText = await res.text().catch(() => '(no body)');
+    return { file, ok: false, status: res.status, error: `presigned step 1: ${errText}` };
+  }
+  if (!uploadUrl || !evidenceId) {
+    return { file, ok: false, status: 0, error: 'presigned step 1: no URL after retries' };
+  }
+
+  // Step 2: Upload directly to R2 via presigned URL
+  attempt = 1;
+  backoff = INITIAL_BACKOFF_MS;
+  while (attempt <= maxAttemptsPresigned) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), presignedTimeoutSeconds * 1000);
+    let res: Response;
+    try {
+      res = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: { 'content-type': mimeType },
+        body: new Uint8Array(buf),
+        signal: controller.signal,
+      });
+    } catch (err) {
+      if (attempt < maxAttemptsPresigned) {
+        await delay(backoff);
+        backoff *= 2;
+        attempt += 1;
+        continue;
+      }
+      return { file, ok: false, status: 0, error: `presigned step 2: ${uploadFailureMessage(err, presignedTimeoutSeconds)}` };
+    } finally {
+      clearTimeout(timer);
+    }
+    if (res.ok) break;
+    if (RETRYABLE_STATUSES.has(res.status) && attempt < maxAttemptsPresigned) {
+      await delay(backoff);
+      backoff *= 2;
+      attempt += 1;
+      continue;
+    }
+    return { file, ok: false, status: res.status, error: `presigned step 2: HTTP ${res.status}` };
+  }
+
+  // Step 3: Notify portal that upload is complete
+  attempt = 1;
+  backoff = INITIAL_BACKOFF_MS;
+  while (attempt <= maxAttemptsPresigned) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutSeconds * 1000);
+    let res: Response;
+    try {
+      res = await fetch(completeUrl, {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${opts.apiKey}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ evidenceId }),
+        signal: controller.signal,
+      });
+    } catch (err) {
+      if (attempt < maxAttemptsPresigned) {
+        await delay(backoff);
+        backoff *= 2;
+        attempt += 1;
+        continue;
+      }
+      return { file, ok: false, status: 0, error: `presigned step 3: ${uploadFailureMessage(err, timeoutSeconds)}` };
+    } finally {
+      clearTimeout(timer);
+    }
+    if (res.ok) {
+      const body = await res.json().catch(() => null);
+      return { file, ok: true, status: res.status, body };
+    }
+    if (RETRYABLE_STATUSES.has(res.status) && attempt < maxAttemptsPresigned) {
+      await delay(backoff);
+      backoff *= 2;
+      attempt += 1;
+      continue;
+    }
+    return { file, ok: false, status: res.status, error: `presigned step 3: HTTP ${res.status}` };
+  }
+  return { file, ok: false, status: 0, error: 'presigned step 3: max retries exhausted' };
+}
+
+function deriveMimeType(file: string): string {
+  const lower = file.toLowerCase();
+  if (lower.endsWith('.zip')) return 'application/zip';
+  if (lower.endsWith('.json')) return 'application/json';
+  if (lower.endsWith('.png')) return 'image/png';
+  if (lower.endsWith('.pdf')) return 'application/pdf';
+  if (lower.endsWith('.md')) return 'text/markdown';
+  if (lower.endsWith('.html')) return 'text/html';
+  return 'application/octet-stream';
+}
+
 export async function uploadEvidence(opts: UploadOptions): Promise<readonly UploadResult[]> {
   const files = await collectFiles(opts.filePath);
   if (files.length === 0) {
@@ -216,6 +397,16 @@ export async function uploadEvidence(opts: UploadOptions): Promise<readonly Uplo
     if (isUneditedStub(buf)) {
       results.push({ file, ok: true, status: 0, skipped: true });
       continue;
+    }
+    // DevAudit-Installer#189 — large files use the presigned R2 URL flow.
+    // Falls back to multipart if the portal doesn't support presigned URLs.
+    if (buf.byteLength >= DEFAULT_PRESIGNED_THRESHOLD_BYTES) {
+      // eslint-disable-next-line no-await-in-loop
+      const presignedResult = await uploadPresigned(file, buf, opts);
+      if (presignedResult !== PRESIGNED_FALLBACK) {
+        results.push(presignedResult);
+        continue;
+      }
     }
     // eslint-disable-next-line no-await-in-loop
     results.push(await uploadOne(file, buf, opts));

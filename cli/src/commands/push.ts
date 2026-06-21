@@ -18,6 +18,8 @@ export interface PushOptions {
   readonly releaseTitle?: string;
   readonly changeType?: string;
   readonly gateStatus?: string;
+  /** SDLC stage 1-5 — forwarded as `sdlcStage` (parity with upload-evidence.sh --sdlc-stage). */
+  readonly sdlcStage?: string;
   /** Repeatable `key=value` pairs merged into the metadata JSON. */
   readonly metaKeys?: readonly string[];
   readonly baseUrl?: string;
@@ -134,6 +136,7 @@ export async function runPush(options: PushOptions): Promise<void> {
     ...(options.releaseTitle !== undefined ? { releaseTitle: options.releaseTitle } : {}),
     ...(options.changeType !== undefined ? { changeType: options.changeType } : {}),
     ...(options.gateStatus !== undefined ? { gateStatus: options.gateStatus } : {}),
+    ...(options.sdlcStage !== undefined ? { sdlcStage: options.sdlcStage } : {}),
     metadata,
   });
   let okCount = 0;
