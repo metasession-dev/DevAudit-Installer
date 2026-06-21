@@ -138,6 +138,7 @@ export async function main(argv: readonly string[]): Promise<void> {
     .option('--release-title <text>', 'human title for the release row (releaseTitle; portal no-clobbers)')
     .option('--change-type <type>', 'conventional-commit prefix for the release row (changeType)')
     .option('--gate-status <status>', 'passed | failed | skipped (gateStatus)')
+    .option('--sdlc-stage <stage>', 'SDLC stage 1-5 (sdlcStage)')
     .option(
       '--meta-key <pair>',
       'repeatable key=value merged into the metadata JSON',
@@ -163,6 +164,7 @@ export async function main(argv: readonly string[]): Promise<void> {
           releaseTitle?: string;
           changeType?: string;
           gateStatus?: string;
+          sdlcStage?: string;
           metaKey?: string[];
           baseUrl?: string;
           apiKey?: string;
@@ -187,6 +189,7 @@ export async function main(argv: readonly string[]): Promise<void> {
           ...(opts.releaseTitle !== undefined ? { releaseTitle: opts.releaseTitle } : {}),
           ...(opts.changeType !== undefined ? { changeType: opts.changeType } : {}),
           ...(opts.gateStatus !== undefined ? { gateStatus: opts.gateStatus } : {}),
+          ...(opts.sdlcStage !== undefined ? { sdlcStage: opts.sdlcStage } : {}),
           ...(opts.metaKey !== undefined && opts.metaKey.length > 0 ? { metaKeys: opts.metaKey } : {}),
           ...(opts.baseUrl !== undefined ? { baseUrl: opts.baseUrl } : {}),
           ...(opts.apiKey !== undefined ? { apiKey: opts.apiKey } : {}),

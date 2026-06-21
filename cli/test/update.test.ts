@@ -337,7 +337,7 @@ describe('syncProject — native TS sync against a fixture', () => {
       );
       expect(ciYml).toContain('actions/setup-python@v6');
       expect(ciYml).toContain('pull_request:\n    branches: [develop]');
-      expect(ciYml).toContain("github.event_name != 'pull_request' && vars.DEVAUDIT_BASE_URL != ''");
+      expect(ciYml).toContain("github.event_name != 'pull_request' }}");
     } finally {
       await fs.rm(dir, { recursive: true, force: true });
     }
