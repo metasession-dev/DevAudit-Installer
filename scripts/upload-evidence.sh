@@ -244,6 +244,13 @@ MAX_ATTEMPTS=${UPLOAD_MAX_ATTEMPTS:-5}
 INITIAL_BACKOFF_SECONDS=${UPLOAD_INITIAL_BACKOFF_SECONDS:-1}
 UPLOAD_CONNECT_TIMEOUT_SECONDS=${UPLOAD_CONNECT_TIMEOUT_SECONDS:-10}
 UPLOAD_MAX_TIME_SECONDS=${UPLOAD_MAX_TIME_SECONDS:-120}
+# DevAudit-Installer#189 — files above this size use the presigned R2 URL
+# upload flow (3-step: request URL → PUT to R2 → notify portal) instead of
+# the multipart POST. Avoids the portal's FormData body parser limit.
+# 25MB = 26214400 bytes.
+PRESIGNED_THRESHOLD_BYTES=${PRESIGNED_THRESHOLD:-26214400}
+PRESIGNED_MAX_ATTEMPTS=${PRESIGNED_MAX_ATTEMPTS:-3}
+PRESIGNED_UPLOAD_MAX_TIME_SECONDS=${PRESIGNED_UPLOAD_MAX_TIME_SECONDS:-300}
 
 is_unedited_starter_stub() {
   # Match BOTH banner phrasings the SDLC has shipped (v0.1.36 changed
@@ -251,6 +258,153 @@ is_unedited_starter_stub() {
   # -a forces binary→text so we don't error on PNGs/PDFs; the regex
   # won't match either of those formats by accident.
   grep -aqE 'STARTER TEMPLATE.+REPLACE BEFORE' "$1"
+}
+
+# DevAudit-Installer#189 — Presigned R2 URL upload for large files (>25MB).
+# 3-step flow: (1) request presigned URL from portal, (2) PUT file to R2,
+# (3) notify portal that upload is complete. Each step retries on 429/5xx
+# and connection errors. Returns 0 on success, 1 on failure.
+upload_presigned() {
+  local file="$1"
+  local filename
+  filename=$(basename "$file")
+  local file_size
+  file_size=$(stat -c%s "$file" 2>/dev/null || stat -f%z "$file")
+
+  # Derive a MIME type from the extension (best-effort).
+  local mime_type="application/octet-stream"
+  case "$filename" in
+    *.zip)  mime_type="application/zip" ;;
+    *.json) mime_type="application/json" ;;
+    *.png)  mime_type="image/png" ;;
+    *.pdf)  mime_type="application/pdf" ;;
+    *.md)   mime_type="text/markdown" ;;
+    *.html) mime_type="text/html" ;;
+  esac
+
+  local presign_url="${DEVAUDIT_BASE_URL}/api/evidence/upload-url"
+  local complete_url="${DEVAUDIT_BASE_URL}/api/evidence/upload-complete"
+
+  # --- Step 1: Request presigned upload URL ---
+  local attempt backoff http_code curl_exit resp_body upload_url evidence_id
+  attempt=1
+  backoff=$INITIAL_BACKOFF_SECONDS
+  upload_url=""
+  evidence_id=""
+  while [ "$attempt" -le "$PRESIGNED_MAX_ATTEMPTS" ]; do
+    resp_body=$(mktemp)
+    http_code=$(curl -s -o "$resp_body" -w "%{http_code}" \
+      -X POST -L --max-redirs 3 \
+      --connect-timeout "$UPLOAD_CONNECT_TIMEOUT_SECONDS" \
+      --max-time "$UPLOAD_MAX_TIME_SECONDS" \
+      "$presign_url" \
+      -H "Authorization: Bearer ${DEVAUDIT_API_KEY}" \
+      -H "Content-Type: application/json" \
+      -d "{
+        \"projectSlug\": \"${PROJECT_SLUG}\",
+        \"requirementId\": \"${REQUIREMENT_ID}\",
+        \"evidenceType\": \"${EVIDENCE_TYPE}\",
+        \"fileName\": \"${filename}\",
+        \"fileSizeBytes\": ${file_size},
+        \"mimeType\": \"${mime_type}\",
+        \"metadata\": ${METADATA},
+        \"releaseVersion\": \"${RELEASE_VERSION}\",
+        \"createReleaseIfMissing\": \"${CREATE_RELEASE_IF_MISSING}\",
+        \"releaseBranch\": \"${BRANCH}\",
+        \"environment\": \"${ENVIRONMENT}\",
+        \"evidenceCategory\": \"${EVIDENCE_CATEGORY}\",
+        \"sdlcStage\": \"${SDLC_STAGE}\"
+      }") || curl_exit=$?
+    curl_exit=${curl_exit:-0}
+    if [ "$curl_exit" -eq 0 ] && [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
+      upload_url=$(jq -r '.uploadUrl // empty' "$resp_body" 2>/dev/null || true)
+      evidence_id=$(jq -r '.evidenceId // empty' "$resp_body" 2>/dev/null || true)
+      rm -f "$resp_body"
+      if [ -n "$upload_url" ] && [ -n "$evidence_id" ] && [ "$upload_url" != "null" ] && [ "$evidence_id" != "null" ]; then
+        break
+      fi
+      # Portal responded 2xx but didn't return presigned URL fields —
+      # presigned URL flow not configured. Fall back to multipart.
+      echo -n "(portal did not return presigned URL, falling back to multipart) "
+      return 255
+    fi
+    rm -f "$resp_body"
+    if [ "$curl_exit" -ne 0 ] || [ "$http_code" = "429" ] || { [ "$http_code" -ge 500 ] && [ "$http_code" -lt 600 ]; }; then
+      if [ "$attempt" -lt "$PRESIGNED_MAX_ATTEMPTS" ]; then
+        echo -n "(step 1: HTTP ${http_code}, retry in ${backoff}s) "
+        sleep "$backoff"
+        attempt=$((attempt + 1))
+        backoff=$((backoff * 2))
+        continue
+      fi
+    fi
+    # Non-retriable error (4xx other than 429).
+    echo -n "(step 1 failed: HTTP ${http_code}) "
+    return 1
+  done
+
+  if [ -z "$upload_url" ] || [ -z "$evidence_id" ]; then
+    echo -n "(step 1: no presigned URL after ${attempt} attempts) "
+    return 1
+  fi
+
+  # --- Step 2: Upload directly to R2 via presigned URL ---
+  attempt=1
+  backoff=$INITIAL_BACKOFF_SECONDS
+  while [ "$attempt" -le "$PRESIGNED_MAX_ATTEMPTS" ]; do
+    http_code=$(curl -s -o /dev/null -w "%{http_code}" \
+      -X PUT \
+      -H "Content-Type: ${mime_type}" \
+      --connect-timeout "$UPLOAD_CONNECT_TIMEOUT_SECONDS" \
+      --max-time "$PRESIGNED_UPLOAD_MAX_TIME_SECONDS" \
+      --data-binary @"$file" \
+      "$upload_url") || curl_exit=$?
+    curl_exit=${curl_exit:-0}
+    if [ "$curl_exit" -eq 0 ] && [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
+      break
+    fi
+    if [ "$curl_exit" -ne 0 ] || [ "$http_code" = "429" ] || { [ "$http_code" -ge 500 ] && [ "$http_code" -lt 600 ]; }; then
+      if [ "$attempt" -lt "$PRESIGNED_MAX_ATTEMPTS" ]; then
+        echo -n "(step 2: HTTP ${http_code}, retry in ${backoff}s) "
+        sleep "$backoff"
+        attempt=$((attempt + 1))
+        backoff=$((backoff * 2))
+        continue
+      fi
+    fi
+    echo -n "(step 2 failed: HTTP ${http_code}) "
+    return 1
+  done
+
+  # --- Step 3: Notify portal that upload is complete ---
+  attempt=1
+  backoff=$INITIAL_BACKOFF_SECONDS
+  while [ "$attempt" -le "$PRESIGNED_MAX_ATTEMPTS" ]; do
+    http_code=$(curl -s -o /dev/null -w "%{http_code}" \
+      -X POST -L --max-redirs 3 \
+      --connect-timeout "$UPLOAD_CONNECT_TIMEOUT_SECONDS" \
+      --max-time "$UPLOAD_MAX_TIME_SECONDS" \
+      "$complete_url" \
+      -H "Authorization: Bearer ${DEVAUDIT_API_KEY}" \
+      -H "Content-Type: application/json" \
+      -d "{\"evidenceId\": \"${evidence_id}\"}") || curl_exit=$?
+    curl_exit=${curl_exit:-0}
+    if [ "$curl_exit" -eq 0 ] && [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
+      return 0
+    fi
+    if [ "$curl_exit" -ne 0 ] || [ "$http_code" = "429" ] || { [ "$http_code" -ge 500 ] && [ "$http_code" -lt 600 ]; }; then
+      if [ "$attempt" -lt "$PRESIGNED_MAX_ATTEMPTS" ]; then
+        echo -n "(step 3: HTTP ${http_code}, retry in ${backoff}s) "
+        sleep "$backoff"
+        attempt=$((attempt + 1))
+        backoff=$((backoff * 2))
+        continue
+      fi
+    fi
+    echo -n "(step 3 failed: HTTP ${http_code}) "
+    return 1
+  done
+  return 1
 }
 
 for FILE in "${FILES[@]}"; do
@@ -262,6 +416,27 @@ for FILE in "${FILES[@]}"; do
   fi
   FILE_SIZE=$(stat -c%s "$FILE" 2>/dev/null || stat -f%z "$FILE")
   echo -n "Uploading ${FILENAME}... "
+
+  # DevAudit-Installer#189 — large files use the presigned R2 URL flow
+  # to bypass the portal's multipart body parser limit. If the portal
+  # doesn't support presigned URLs (returns 255), fall back to multipart.
+  if [ "$FILE_SIZE" -ge "$PRESIGNED_THRESHOLD_BYTES" ]; then
+    PRESIGNED_RESULT=0
+    upload_presigned "$FILE" || PRESIGNED_RESULT=$?
+    if [ "$PRESIGNED_RESULT" -eq 0 ]; then
+      echo "OK (${FILE_SIZE} bytes, presigned R2 upload)"
+      SUCCEEDED=$((SUCCEEDED + 1))
+      TOTAL_SIZE=$((TOTAL_SIZE + FILE_SIZE))
+      continue
+    elif [ "$PRESIGNED_RESULT" -ne 255 ]; then
+      echo "FAILED (presigned upload after ${PRESIGNED_MAX_ATTEMPTS} attempts)"
+      FAILED=$((FAILED + 1))
+      continue
+    fi
+    # Result 255 — portal doesn't support presigned URLs, fall through
+    # to the existing multipart flow.
+  fi
+
   # `-L` follows 3xx redirects (devaudit-installer#143). The portal host
   # has moved before (devaudit.metasession.co → devaudit.ai); without -L
   # every consumer's CI silently fails on a stale base URL. `--max-redirs 3`
