@@ -96,6 +96,7 @@ describe('syncProject — native TS sync against a fixture', () => {
     expect(await fs.stat(join(fixtureDir, '.husky', 'commit-msg'))).toBeTruthy();
     expect(await fs.stat(join(fixtureDir, '.husky', 'pre-commit'))).toBeTruthy();
     expect(await fs.stat(join(fixtureDir, '.husky', 'pre-push'))).toBeTruthy();
+    expect(await fs.stat(join(fixtureDir, '.husky', 'prepare-commit-msg'))).toBeTruthy();
     // Hook config files at repo root
     expect(await fs.stat(join(fixtureDir, 'commitlint.config.mjs'))).toBeTruthy();
     expect(await fs.stat(join(fixtureDir, 'lint-staged.config.mjs'))).toBeTruthy();

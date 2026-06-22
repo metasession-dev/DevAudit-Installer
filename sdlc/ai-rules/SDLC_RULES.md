@@ -192,10 +192,20 @@ Tell the user: **"Let me create a test plan that maps the acceptance criteria to
 
 ### Step 9: Document AI involvement (if applicable)
 
-Create `compliance/evidence/REQ-XXX/ai-use-note.md`:
+Create `compliance/evidence/REQ-XXX/ai-use-note.md` with YAML frontmatter (devaudit-installer#197):
 
 ```markdown
-AI Tool: [tool name]
+---
+ai_contributors:
+  - tool: "[tool name]"
+    version: "[tool version]"
+    session_id: "[session id]"
+    date_range: "[YYYY-MM-DD to YYYY-MM-DD]"
+    commits: []
+---
+
+# AI Use Record — REQ-XXX
+
 Risk Classification Impact: [original risk] → [adjusted risk if AI involved]
 Areas of AI involvement: [list]
 ```
@@ -391,7 +401,8 @@ Evidence uploaded to DevAudit project: [PROJECT_SLUG]
 Verify these also exist in git:
 - `compliance/evidence/REQ-XXX/test-scope.md` (from planning)
 - `compliance/evidence/REQ-XXX/implementation-plan.md` (MEDIUM/HIGH risk — from implementation plan step)
-- `compliance/evidence/REQ-XXX/ai-use-note.md` (if AI was used)
+- `compliance/evidence/REQ-XXX/ai-use-note.md` (if AI was used — YAML frontmatter, devaudit-installer#197)
+- `compliance/evidence/REQ-XXX/ai-agent-handoff.md` (if AI agent changed mid-implementation — devaudit-installer#197)
 - `compliance/evidence/REQ-XXX/ai-prompts.md` (if AI was used, MEDIUM/HIGH risk)
 
 ### Step 4: Update RTM status
@@ -402,10 +413,11 @@ Change the requirement status from `DRAFT` or `IN PROGRESS` to `TESTED - PENDING
 
 Create `compliance/pending-releases/RELEASE-TICKET-REQ-XXX.md` with:
 - Summary of changes
+- AI Contributors table (tool, version, session, commits, date range) — devaudit-installer#197
+- AI handoffs (if any — reference `ai-agent-handoff.md`)
 - Test changes (which test files were added/modified, what they cover, any gaps)
 - Test evidence table (reference DevAudit portal for binary evidence)
 - Security evidence (reference `security-summary.md` in git)
-- AI involvement summary
 - Post-deploy actions (data migrations, backfill scripts, or "None required")
 - Audit trail
 

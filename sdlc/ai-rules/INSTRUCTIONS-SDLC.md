@@ -109,7 +109,14 @@ Upload to DevAudit (NEVER commit to git):
 - E2E results (JSON), screenshots (PNG/JPG), SAST results (JSON), dependency audit (JSON), unit test output (TXT), test reports (HTML)
 
 Keep in git (small markdown, needs PR review):
-- compliance/RTM.md, test-scope.md, security-summary.md, ai-use-note.md, ai-prompts.md, release tickets
+- compliance/RTM.md, test-scope.md, security-summary.md, ai-use-note.md (YAML frontmatter — devaudit-installer#197), ai-agent-handoff.md (if AI agent changed mid-implementation), ai-prompts.md, release tickets
+
+### AI Contributor Tracking (devaudit-installer#197)
+
+- `ai-use-note.md` uses YAML frontmatter with an `ai_contributors` list supporting multiple entries (tool, version, session_id, date_range, commits).
+- The `prepare-commit-msg` git hook warns when the `Co-Authored-By` trailer changes between commits on the same branch, prompting creation of an `ai-agent-handoff.md` entry.
+- The release ticket template includes an AI Contributors table with handoff and verification fields.
+- Legacy `ai-use-note.md` files without YAML frontmatter are still accepted (portal falls back to text parsing).
 
 ### After Implementation
 

@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "..",
+    "noEmit": true
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts", "../sdlc/files/_common/skills/e2e-test-engineer/references/evidence-shot-core.ts"],
+  "exclude": ["node_modules", "dist"]
+}

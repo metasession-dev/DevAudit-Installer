@@ -5,7 +5,7 @@
   "manifest_file": "package.json",
   "hook_framework": "husky",
   "hook_install_dir": ".husky",
-  "hooks": ["commit-msg", "pre-commit", "pre-push"],
+  "hooks": ["commit-msg", "pre-commit", "pre-push", "prepare-commit-msg"],
   "hook_config_files": ["commitlint.config.mjs", "lint-staged.config.mjs", ".prettierrc.json"],
   "stack_scripts": ["check-requirement-jsdoc.sh"],
   "required_dev_dependencies": [

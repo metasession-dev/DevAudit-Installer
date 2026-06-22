@@ -407,9 +407,17 @@ If AI will generate code (Medium/High risk):
 
 ```bash
 cat > compliance/evidence/REQ-XXX/ai-use-note.md << 'EOF'
+---
+ai_contributors:
+  - tool: "[tool name]"
+    version: "[tool version]"
+    session_id: "[session id]"
+    date_range: "[YYYY-MM-DD to YYYY-MM-DD]"
+    commits: []
+---
+
 # AI Use Record — REQ-XXX
 
-**AI Tool:** [tool name]
 **Planned AI Use:** [implementation / test generation / both / none]
 **Risk Classification Impact:** [note if risk was raised due to AI involvement]
 EOF

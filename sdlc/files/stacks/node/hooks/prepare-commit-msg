@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# Husky prepare-commit-msg hook — detects AI agent changes mid-branch.
+#
+# When the Co-Authored-By trailer in the new commit message differs from
+# the AI tool signature in the previous commit on the same branch, warns
+# the operator to create an ai-agent-handoff.md entry (devaudit-installer#197).
+#
+# This is a WARNING-only hook — it never blocks the commit. The operator
+# decides whether a handoff entry is warranted (e.g. same tool, different
+# session → no handoff needed; different tool → handoff recommended).
+#
+# Install: cp this file to .husky/prepare-commit-msg && chmod +x .husky/prepare-commit-msg
+#
+# To disable: delete .husky/prepare-commit-msg or set DEVAUDIT_NO_AI_HOOK=1
+
+# Allow opt-out
+if [ -n "${DEVAUDIT_NO_AI_HOOK:-}" ]; then
+  exit 0
+fi
+
+COMMIT_MSG_FILE="$1"
+COMMIT_SOURCE="$2"
+
+# Skip merge commits, squash, etc. — only check normal commits
+if [ -n "$COMMIT_SOURCE" ] && [ "$COMMIT_SOURCE" != "message" ]; then
+  exit 0
+fi
+
+# Extract Co-Authored-By from the incoming commit message (if present)
+CURRENT_AI=$(grep -i 'Co-Authored-By:' "$COMMIT_MSG_FILE" 2>/dev/null | head -1 | sed 's/.*Co-Authored-By:[[:space:]]*//' | tr -d '\r')
+
+# Extract Co-Authored-By from the previous commit on this branch
+LAST_AI=$(git log -1 --format='%b' 2>/dev/null | grep -i 'Co-Authored-By:' | head -1 | sed 's/.*Co-Authored-By:[[:space:]]*//' | tr -d '\r')
+
+# Only warn if both exist and differ — a missing trailer on either side
+# is not an agent change (the commitlint hook handles missing trailers)
+if [ -z "$CURRENT_AI" ] || [ -z "$LAST_AI" ]; then
+  exit 0
+fi
+
+if [ "$CURRENT_AI" != "$LAST_AI" ]; then
+  echo ""
+  echo "⚠️  AI agent change detected (devaudit-installer#197):"
+  echo "    Previous: $LAST_AI"
+  echo "    Current:  $CURRENT_AI"
+  echo ""
+  echo "    Consider creating an ai-agent-handoff.md entry in"
+  echo "    compliance/evidence/REQ-XXX/ to document the handoff."
+  echo "    See SDLC/3-compile-evidence.md Step 5b for the template."
+  echo ""
+  echo "    To suppress this warning: DEVAUDIT_NO_AI_HOOK=1"
+  echo ""
+fi
+
+exit 0
