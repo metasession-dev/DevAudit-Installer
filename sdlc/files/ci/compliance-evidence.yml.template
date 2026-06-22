@@ -483,6 +483,8 @@ jobs:
                     EVTYPE=architecture_decision; EVCAT=planning ;;
                   risk-assessment.md)
                     EVTYPE=risk_assessment; EVCAT=planning ;;
+                  ai-agent-handoff.md)
+                    EVTYPE=compliance_document; EVCAT=ai_handoff ;;
                   *)
                     EVTYPE=compliance_document; EVCAT=planning ;;
                 esac
