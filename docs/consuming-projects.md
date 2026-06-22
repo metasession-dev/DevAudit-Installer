@@ -92,6 +92,29 @@ On subsequent syncs, only the SDLC section and pointer files are updated. Projec
 
 The framework uses a **copy-and-customize** model. `_common/` docs define universal policy/strategy; stack and host adapters provide language- and platform-specific bits; `ci/` workflow templates wire it all together. Consumers periodically re-sync when the framework evolves.
 
+### Finding the latest version
+
+The CLI is distributed via **npm** — not GitHub releases. To check what version you have and what's latest:
+
+```bash
+# Your installed version:
+devaudit --version
+
+# Latest version on npm:
+npm view @metasession.co/devaudit-cli version
+
+# All published versions:
+npm view @metasession.co/devaudit-cli versions --json
+```
+
+If you have a global install that's behind, upgrade:
+
+```bash
+npm install -g @metasession.co/devaudit-cli@latest
+```
+
+Or skip the global install entirely — `npx @metasession.co/devaudit-cli@latest` always pulls the latest from npm on first run.
+
 ### Re-syncing existing consumers
 
 After framework changes land in DevAudit's `main`:

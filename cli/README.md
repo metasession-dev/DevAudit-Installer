@@ -25,6 +25,16 @@ devaudit update
 
 Requires Node ≥ 22. Native binaries (no Node runtime needed) are on the roadmap.
 
+### Checking for updates
+
+The CLI is distributed via **npm** — not GitHub releases. Check your version against the latest:
+
+```bash
+devaudit --version                              # your installed version
+npm view @metasession.co/devaudit-cli version   # latest on npm
+npm install -g @metasession.co/devaudit-cli@latest   # upgrade
+```
+
 ## Status — v0.1.1
 
 ### Working

@@ -59,6 +59,8 @@ The 11-step interactive flow validates the PAT, detects your stack (Node / Pytho
 
 When the framework ships a new version, re-sync each consumer. The CLI is idempotent — re-running it against an unchanged framework version is a no-op.
 
+> **Finding the latest version:** The CLI is distributed via **npm**, not GitHub releases. Check your installed version with `devaudit --version` and the latest published version with `npm view @metasession.co/devaudit-cli version`. The `npx @metasession.co/devaudit-cli@latest` invocation always pulls the latest from npm.
+
 ```bash
 # Inside the consumer's repo (the common case):
 cd ../path/to/your-project

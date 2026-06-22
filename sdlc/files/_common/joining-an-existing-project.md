@@ -55,6 +55,30 @@ npm install -g @metasession.co/devaudit-cli
 devaudit --version   # ≥ 0.1.23 — earlier versions don't have the dev-mode safety net
 ```
 
+#### Checking for updates
+
+The CLI is distributed via **npm** — not GitHub releases. To check your current version against the latest published on npm:
+
+```bash
+# Your installed version:
+devaudit --version
+
+# Latest version on npm:
+npm view @metasession.co/devaudit-cli version
+
+# All published versions (if you need to pin to a specific one):
+npm view @metasession.co/devaudit-cli versions --json
+```
+
+If your installed version is behind `npm view` output, upgrade:
+
+```bash
+npm install -g @metasession.co/devaudit-cli@latest
+devaudit --version   # confirm the bump
+```
+
+The `npx @metasession.co/devaudit-cli@latest` invocation always pulls the latest npm version on first run — no global install needed. Use this for CI or one-off commands to guarantee you're on the current release.
+
 ### 2. Issue + paste a personal access token
 
 Visit `https://devaudit.metasession.co/settings/tokens`, create a token (it starts with `mctok_`), then:
