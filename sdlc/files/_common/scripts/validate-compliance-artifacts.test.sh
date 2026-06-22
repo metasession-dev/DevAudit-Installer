@@ -156,6 +156,36 @@ assert_grep "no missing-ticket ERROR" 'ERROR: Release ticket missing' 0
 assert_exit "validator exits 0 with SUPERSEDED ticket location" 0
 cd "$WORKDIR"
 
+# --- case 7: duplicate ticket in pending + approved → ERROR + exit 1 ---
+#
+# Regression for devaudit-installer#193: a stale pending copy left behind
+# after close-out (carried back by a stale-branch merge) must be caught
+# here with an actionable message, not silently pass and poison the
+# evidence-completeness gate downstream (#192).
+
+echo "Case 7: duplicate ticket in pending + approved directories fails"
+make_fixture "$WORKDIR/case7" "Ref: REQ-077"
+{
+  echo '# RTM'
+  echo
+  echo '| ID | Description | Status |'
+  echo '| --- | --- | --- |'
+  echo '| REQ-077 | Duplicate ticket test | TESTED - PENDING SIGN-OFF |'
+} > compliance/RTM.md
+mkdir -p compliance/evidence/REQ-077
+echo "scope" > compliance/evidence/REQ-077/test-scope.md
+echo "plan" > compliance/evidence/REQ-077/test-plan.md
+echo "summary" > compliance/evidence/REQ-077/test-execution-summary.md
+# Ticket in BOTH pending and approved — the duplicate
+touch compliance/pending-releases/RELEASE-TICKET-REQ-077.md
+touch compliance/approved-releases/RELEASE-TICKET-REQ-077.md
+git add . && git commit -q --amend --no-edit
+run_validator
+assert_grep "duplicate-ticket ERROR emitted" 'ERROR: RELEASE-TICKET-REQ-077 exists in more than one release directory' 1
+assert_grep "no OK for duplicate ticket" 'OK: Release ticket exists' 0
+assert_exit "validator exits 1 on duplicate ticket" 1
+cd "$WORKDIR"
+
 # --- case 5: bare-filename reference resolves to file at depth ≥2 ---
 #
 # Regression for the broken `compgen -G "**/$TF"` search: bash globstar

@@ -59,6 +59,17 @@ The only pauses in the whole workflow are the explicitly-named checkpoints:
 
 Everything else is silent continuation. The rule is **opt-in-to-pause, not opt-out-of-pause**. If you find yourself stopping after a sub-skill's "Return to the running `sdlc-implementer` context" line and waiting for the operator to ask _"is anything happening?"_ — that is the bug this section exists to prevent. Keep going.
 
+### False stopping points (devaudit-installer#194)
+
+The following milestones **feel** like completion boundaries but are mid-flow — do NOT halt at any of them:
+
+- **Sub-skill return** — covered above (#144).
+- **Phase 2 integration PR merged to `develop`** — the merge is the trigger for CI to upload binary gate evidence, not a handoff to the operator. Once CI is green on `develop`, immediately begin Phase 3 (compile evidence). The next required operator handoff is Phase 4 step 5 (release PR opened, awaiting portal UAT approval), not the develop merge.
+- **CI going green on `develop`** — this is the signal to proceed, not to stop and report.
+- **Evidence upload completing** — the `devaudit push` calls in Phase 3 are intermediate steps; proceed to the next artefact or the next phase.
+
+If you find yourself halting at any of these, state the literal line `Continuing — this is not a checkpoint.` and proceed to the next step in the same turn. The only thing that may interrupt the auto-continue is the scope-expansion halt gate (#171) firing on a new user request.
+
 ## Scope-expansion halt gate (devaudit-installer#171)
 
 The change-request loop's scope-expansion halt rule (see [`references/change-request-loop.md`](./references/change-request-loop.md) §"If the change-request is fundamentally a different REQ") only fires during Phase 5 — after a UAT reviewer clicks "Request Changes" and the portal state is `uat_changes_requested`. In practice, scope-expanding requests also arrive from the user at any point after Phase 1:
@@ -341,6 +352,12 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
    This is the post-hoc check that catches anything step 3 missed. If both gates fire (declaration before the spec edit + audit before Phase 3) and you still see a direct authoring path, that's evidence the gates need to be stronger and worth a follow-up issue.
 
 10. **Update SDLC status sticky** before exiting Phase 2: `bash scripts/update-sdlc-status.sh "$ISSUE_NUM" "Phase 2 complete — feat branch landed on $INTEGRATION_BRANCH; all gates green" "Phase 3 — sdlc-implementer auto-continuing (evidence compile)"`.
+
+11. **Auto-continue to Phase 3 — mandatory, NOT a checkpoint (devaudit-installer#194).** After the integration PR merges and `develop` CI is green, do NOT return control to the operator. State the literal line:
+
+    > `Phase 2 complete — auto-continuing to Phase 3 (compile evidence).`
+
+    Then proceed to Phase 3 step 1 in the same turn. The integration-PR merge *feels* terminal — that is the inertia trap. The next required operator handoff is Phase 4 step 5 (release PR opened, awaiting portal UAT approval), not the develop merge. The only thing that interrupts this auto-continue is the scope-expansion halt gate (#171) firing on a new user request.
 
 ### Phase 3 — Compile evidence (SDLC stage 3)
 

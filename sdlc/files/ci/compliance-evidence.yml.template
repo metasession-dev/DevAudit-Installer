@@ -410,6 +410,13 @@ jobs:
             for TICKET in compliance/pending-releases/RELEASE-TICKET-REQ-*.md; do
               [ -f "$TICKET" ] || continue
               REQ_ID=$(basename "$TICKET" .md | sed 's/^RELEASE-TICKET-//')
+              # devaudit-installer#192 — skip REQs already in a terminal
+              # release directory. See ci.yml.template for full rationale.
+              if compgen -G "compliance/approved-releases/RELEASE-TICKET-${REQ_ID}.md" > /dev/null 2>&1 \
+                 || compgen -G "compliance/superseded-releases/RELEASE-TICKET-${REQ_ID}.md" > /dev/null 2>&1; then
+                echo "Skipping ${REQ_ID}: already in a terminal release directory (stale pending ticket)"
+                continue
+              fi
               IN_SCOPE_REQS+=("$REQ_ID")
             done
           fi
@@ -606,7 +613,14 @@ jobs:
           if [ -d compliance/pending-releases ]; then
             for TICKET in compliance/pending-releases/RELEASE-TICKET-REQ-*.md; do
               [ -f "$TICKET" ] || continue
-              REQS+=("$(basename "$TICKET" .md | sed 's/^RELEASE-TICKET-//')")
+              REQ_ID=$(basename "$TICKET" .md | sed 's/^RELEASE-TICKET-//')
+              # devaudit-installer#192 — skip REQs already in a terminal
+              # release directory. See ci.yml.template for full rationale.
+              if compgen -G "compliance/approved-releases/RELEASE-TICKET-${REQ_ID}.md" > /dev/null 2>&1 \
+                 || compgen -G "compliance/superseded-releases/RELEASE-TICKET-${REQ_ID}.md" > /dev/null 2>&1; then
+                continue
+              fi
+              REQS+=("$REQ_ID")
             done
           fi
           if [ "${#REQS[@]}" -eq 0 ]; then

@@ -169,9 +169,21 @@ for REQ in $REQUIREMENTS; do
   TICKET_PATTERN="compliance/pending-releases/RELEASE-TICKET-${REQ}*"
   APPROVED_PATTERN="compliance/approved-releases/RELEASE-TICKET-${REQ}*"
   SUPERSEDED_PATTERN="compliance/superseded-releases/RELEASE-TICKET-${REQ}*"
-  if compgen -G "$TICKET_PATTERN" > /dev/null 2>&1 \
-     || compgen -G "$APPROVED_PATTERN" > /dev/null 2>&1 \
-     || compgen -G "$SUPERSEDED_PATTERN" > /dev/null 2>&1; then
+
+  # devaudit-installer#193 — duplicate-ticket guard. A ticket must live
+  # in exactly ONE release directory. A pending copy left behind after
+  # close-out (e.g. carried back by a stale-branch merge) poisons the
+  # evidence-completeness gate for unrelated REQs (#192). Fail fast with
+  # an actionable message instead of letting the duplicate surface as an
+  # opaque gate failure downstream.
+  LOCATIONS=0
+  compgen -G "$TICKET_PATTERN"     > /dev/null 2>&1 && LOCATIONS=$((LOCATIONS+1))
+  compgen -G "$APPROVED_PATTERN"   > /dev/null 2>&1 && LOCATIONS=$((LOCATIONS+1))
+  compgen -G "$SUPERSEDED_PATTERN" > /dev/null 2>&1 && LOCATIONS=$((LOCATIONS+1))
+  if [ "$LOCATIONS" -gt 1 ]; then
+    echo "  ERROR: RELEASE-TICKET-${REQ} exists in more than one release directory (pending/approved/superseded). Remove the stale pending copy — it will break the evidence-completeness gate (#192)."
+    EXIT_CODE=1
+  elif [ "$LOCATIONS" -eq 1 ]; then
     echo "  OK: Release ticket exists"
   else
     echo "  ERROR: Release ticket missing: compliance/pending-releases/RELEASE-TICKET-${REQ}.md"

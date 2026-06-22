@@ -554,7 +554,19 @@ jobs:
           if [ -d compliance/pending-releases ]; then
             for TICKET in compliance/pending-releases/RELEASE-TICKET-REQ-*.md; do
               [ -f "$TICKET" ] || continue
-              SHOT_REQS+=("$(basename "$TICKET" .md | sed 's/^RELEASE-TICKET-//')")
+              REQ_ID=$(basename "$TICKET" .md | sed 's/^RELEASE-TICKET-//')
+              # devaudit-installer#192 — skip REQs already in a terminal
+              # release directory (approved/superseded). A stale pending
+              # duplicate (e.g. carried back by a stale-branch merge)
+              # retains its pre-close-out Status, so a Status-field check
+              # is insufficient — the approved/superseded ticket is the
+              # authoritative "this REQ is done" signal.
+              if compgen -G "compliance/approved-releases/RELEASE-TICKET-${REQ_ID}.md" > /dev/null 2>&1 \
+                 || compgen -G "compliance/superseded-releases/RELEASE-TICKET-${REQ_ID}.md" > /dev/null 2>&1; then
+                echo "Skipping ${REQ_ID}: already in a terminal release directory (stale pending ticket)"
+                continue
+              fi
+              SHOT_REQS+=("$REQ_ID")
             done
           fi
           shopt -s nullglob
