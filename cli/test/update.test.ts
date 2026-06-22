@@ -103,10 +103,12 @@ describe('syncProject — native TS sync against a fixture', () => {
     // Section 2d — scripts
     expect(await fs.stat(join(fixtureDir, 'scripts', 'upload-evidence.sh'))).toBeTruthy();
     expect(await fs.stat(join(fixtureDir, 'scripts', 'validate-compliance-artifacts.sh'))).toBeTruthy();
-    // Section 2e-iii — evidence helper (node only). Both files: the
-    // Playwright wrapper + the pure helpers it imports.
+    // Section 2e-iii — evidence helper (node only). All three files: the
+    // Playwright wrapper, the pure helpers it imports, and the test-tags
+    // annotation helper (#196).
     expect(await fs.stat(join(fixtureDir, 'e2e', 'helpers', 'evidence.ts'))).toBeTruthy();
     expect(await fs.stat(join(fixtureDir, 'e2e', 'helpers', 'evidence-shot-core.ts'))).toBeTruthy();
+    expect(await fs.stat(join(fixtureDir, 'e2e', 'helpers', 'test-tags.ts'))).toBeTruthy();
     // Section 2f — CI workflows
     const ciYml = normalizeNewlines(
       await fs.readFile(join(fixtureDir, '.github', 'workflows', 'ci.yml'), 'utf-8'),

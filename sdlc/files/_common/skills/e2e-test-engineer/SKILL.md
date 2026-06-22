@@ -183,6 +183,27 @@ Write the tests in the project's existing style.
 - **Read 2–3 nearby tests before writing.** Fastest way to absorb conventions you wouldn't have noticed otherwise.
 - **Check `references/common-patterns.md` before writing role-based locators** for component-library UI (shadcn/ui, Radix, MUI, etc.). A short appendix of known framework × library gotchas — `CardTitle` is a `<div>` not a heading; Radix `<Select>` renders two `role="combobox"` nodes; Next.js `<Link>` clicks don't fire network requests — saves a round-trip through a failing selector each time.
 
+#### Tag every test with its REQ and AC (devaudit-installer#196)
+
+Every test spec covering an in-scope REQ **must** call `tagTest()` at the top of the test body, before any assertions or interactions:
+
+```ts
+import { tagTest } from './helpers/test-tags';
+
+test('verification code submit', async ({ page }) => {
+  tagTest('REQ-083', 1);  // REQ-083, acceptance criterion 1
+  // ... test body
+});
+```
+
+For tests covering multiple ACs, pass an array: `tagTest('REQ-083', [1, 2])`.
+
+For transport-layer specs (no `page` object), `tagTest` works identically — it only touches `test.info()`, no Playwright `page` required.
+
+**Why this is mandatory:** The DevAudit portal's per-REQ approval card (`ReqApprovalCard`) joins test results with screenshots by acceptance criteria using `test.info().annotations`. Without `tagTest()`, every REQ shows "no tests in report tagged with this REQ" even though the test ran and passed — defeating the AC-by-AC breakdown that reviewers rely on (#196).
+
+The helper is synced to `e2e/helpers/test-tags.ts` by `devaudit update` alongside `evidence.ts`. Do not inline annotation logic — use the helper so the annotation format stays consistent with what the portal parser expects.
+
 For **visual regression** specifically:
 - New tests need baseline images. Generate them, but **do not auto-approve** — surface them for the user to verify before they're committed.
 - Use the project's existing breakpoints, viewports, and element-masking conventions.
@@ -199,7 +220,14 @@ Before running the suite (Phase 6), verify that the evidence traceability wiring
 
 2. **Check `evidenceShot()` calls.** For each UI spec covering an in-scope REQ, grep for at least one `evidenceShot(page, 'REQ-XXX', <ac>, ...)` call per AC. The call must be placed **at the assertion that proves the AC**, before any further interaction or navigation. API-only specs that don't have a visual surface are exempt — note the exemption in the test-execution-summary.
 
-3. **Check test title annotations.** Each test for an in-scope REQ must carry a `[REQ-XXX]` tag in the test title or `test.info().annotations` so the Playwright JSON reporter emits the REQ association. The portal uses this to map test results to requirements.
+3. **Check `tagTest()` calls (devaudit-installer#196).** Grep the authored/modified spec files for `tagTest('REQ-XXX', …)` imports and calls. Every test covering an in-scope REQ must call `tagTest()` at the top of the test body so the Playwright JSON reporter emits the REQ/AC association in `test.info().annotations`. The portal's `ReqApprovalCard` uses this to map test results to requirements — without it, the per-REQ approval card shows "no tests in report tagged with this REQ" even though the test ran and passed.
+
+   ```bash
+   # Quick check — should find at least one tagTest call per in-scope REQ
+   grep -rn "tagTest('REQ-" e2e/ --include='*.spec.ts'
+   ```
+
+   Also verify the import is present: `import { tagTest } from './helpers/test-tags'` (or the correct relative path from the spec's location to `e2e/helpers/test-tags.ts`).
 
 **If any check fails:**
 
@@ -207,7 +235,7 @@ Halt and report the gap to the user:
 > Evidence wiring incomplete for REQ-XXX:
 > - Missing `@requirement REQ-XXX` annotation in `e2e/<area>/foo.spec.ts`
 > - Missing `evidenceShot()` call for AC2 in `e2e/<area>/bar.spec.ts`
-> - Missing `[REQ-XXX]` tag in test title for "should filter by status"
+> - Missing `tagTest('REQ-XXX', …)` call in `e2e/<area>/baz.spec.ts`
 >
 > These must be fixed before running the suite — without them the portal will show zero screenshots and zero tagged tests for this REQ, and the CI gate (#169) will block the release.
 

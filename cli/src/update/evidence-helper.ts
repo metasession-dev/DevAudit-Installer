@@ -15,7 +15,7 @@ import type { SyncContext, SectionResult } from './types.js';
  * that sibling file. Pre-0.1.35 sync omitted it and broke tsc on the
  * consumer side.
  */
-const HELPER_FILES = ['evidence.ts', 'evidence-shot-core.ts'] as const;
+const HELPER_FILES = ['evidence.ts', 'evidence-shot-core.ts', 'test-tags.ts'] as const;
 
 export async function syncEvidenceHelper(ctx: SyncContext): Promise<SectionResult> {
   if (ctx.stack !== 'node') {

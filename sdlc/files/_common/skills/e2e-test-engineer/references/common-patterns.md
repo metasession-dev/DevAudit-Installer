@@ -96,3 +96,30 @@ await page.locator('[data-slot="card-title"]').filter({ hasText: 'Filter Tabs' }
 The same pattern bites any title slot that mixes a text label with a
 count-badge, status pill, or icon-with-tooltip sibling. Default to `exact: false`
 for component-library titles, and use `getByTestId` when ambiguity is real.
+
+## Missing `tagTest()` — portal shows "no tests tagged with this REQ"
+
+**Symptom.** The DevAudit portal's per-REQ approval card shows "no tests
+in report tagged with this REQ" even though the e2e test ran and passed
+and `e2e-results.json` was uploaded successfully.
+
+**Cause.** The test spec never called `tagTest()` to push REQ/AC annotations
+onto `test.info().annotations`. The portal's `extractReqAndAc()` parser
+checks three sources (annotations → bracket tags in title → bare regex)
+and all three miss, so `reqId` is null for every test and
+`composeReqApproval` filters them all out.
+
+**Fix.** Import and call `tagTest()` at the top of every test body:
+
+```ts
+import { tagTest } from './helpers/test-tags';
+
+test('verification code submit', async ({ page }) => {
+  tagTest('REQ-083', 1);
+  // ... test body
+});
+```
+
+The helper is synced to `e2e/helpers/test-tags.ts` by `devaudit update`.
+Do not inline the annotation logic — the helper ensures the format
+matches what the portal parser expects (`{ type: 'req', description: 'REQ-XXX AC<n>' }`).
