@@ -679,8 +679,21 @@ jobs:
           " 2>/dev/null || echo "0")
               fi
               if [ "$TAGGED_COUNT" -eq 0 ]; then
-                echo "::error::Evidence completeness gate: ${REQ} has zero tagged tests AND zero per-AC screenshots. The release cannot proceed to UAT with no traceable evidence. Ensure specs carry @requirement ${REQ} annotations and evidenceShot() calls (skill Phase 5½, issue #170)."
-                EVIDENCE_GAPS=$((EVIDENCE_GAPS + 1))
+                # devaudit-installer#195 — before failing, scan spec files on
+                # disk for the REQ ID. CI runs --project=smoke (a fast subset),
+                # so specs outside e2e/smoke/ (e2e/realtime/, e2e/critical/,
+                # e2e/admin/, etc.) never appear in e2e-results.json. A REQ
+                # whose tests live there would be falsely flagged as having
+                # "zero traceable evidence" even though well-written, REQ-tagged
+                # specs exist on disk. If specs are found but weren't run in
+                # this tier, emit a non-blocking warning instead of an error.
+                SPECS_ON_DISK=$(grep -rl --include='*.spec.ts' -e "@requirement ${REQ}" -e "tagTest.*${REQ}" -e "'${REQ}'" e2e/ 2>/dev/null | wc -l)
+                if [ "$SPECS_ON_DISK" -gt 0 ]; then
+                  echo "::warning::Evidence completeness gate: ${REQ} has zero tagged tests in this smoke run and zero per-AC screenshots, but ${SPECS_ON_DISK} spec file(s) on disk reference it (outside the smoke project). Evidence exists but was not executed in this CI tier. Consider running --project=critical or --grep \"${REQ}\" to capture evidence."
+                else
+                  echo "::error::Evidence completeness gate: ${REQ} has zero tagged tests AND zero per-AC screenshots. The release cannot proceed to UAT with no traceable evidence. Ensure specs carry @requirement ${REQ} annotations and evidenceShot() calls (skill Phase 5½, issue #170)."
+                  EVIDENCE_GAPS=$((EVIDENCE_GAPS + 1))
+                fi
               else
                 echo "${REQ} has zero screenshots but ${TAGGED_COUNT} tagged test(s) — evidence-completeness gate passed (screenshot gap is non-blocking)"
               fi
