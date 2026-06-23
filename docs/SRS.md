@@ -531,6 +531,7 @@ dependencies (tier 3) — which is exactly the coverage the current unit-only su
 | REQ-CLI-PUSH-013             | --dry-run --json structured plan payload                                                              | Should   | `cli/src/commands/push.ts`                                                                                                    |
 | REQ-CLI-PUSH-014             | Base-URL redirect handling / drift warning (parity note)                                              | Should   | `scripts/upload-evidence.sh`                                                                                                  |
 | REQ-CLI-PUSH-015             | beforePush / afterPush plugin hooks fire around a real upload                                         | Could    | `cli/src/commands/push.ts`                                                                                                    |
+| REQ-CLI-PUSH-016             | --test-cycle forwards testCycleId form field for portal cycle grouping (#209)                         | Should   | `cli/src/commands/push.ts`, `cli/src/lib/ci-upload.ts`                                                                        |
 | REQ-CLI-AUTH-001             | auth login --token validates against the portal then caches at mode 0600                              | Must     | `cli/src/commands/auth/login.ts`                                                                                              |
 | REQ-CLI-AUTH-002             | auth login interactive PAT paste with mctok\_ validation                                              | Should   | `cli/src/commands/auth/login.ts`                                                                                              |
 | REQ-CLI-AUTH-003             | auth login rejects an invalid token (exit 3) without caching                                          | Must     | `cli/src/commands/auth/login.ts`                                                                                              |
@@ -572,6 +573,7 @@ dependencies (tier 3) — which is exactly the coverage the current unit-only su
 | REQ-SKILL-IMPLEMENTER-017    | LAST/NEXT status sticky maintained on every transition + handoff                                      | Should   | `sdlc/files/_common/skills/sdlc-implementer/SKILL.md`                                                                         |
 | REQ-SKILL-IMPLEMENTER-018    | Over-scoped issue refused at Phase 1                                                                  | Should   | `sdlc/files/_common/skills/sdlc-implementer/SKILL.md`                                                                         |
 | REQ-SKILL-IMPLEMENTER-019    | Scope-expansion halt gate fires on any user request outside ACs, across all phases                   | Should   | `sdlc/files/_common/skills/sdlc-implementer/SKILL.md`                                                                         |
+| REQ-SKILL-IMPLEMENTER-020    | Phase 3 test-execution-summary.md includes Test Cycles section (ISO 29119-3 Test Completion Report)   | Should   | `sdlc/files/_common/3-compile-evidence.md`                                                                                    |
 | REQ-SKILL-E2E-001            | Trigger phrases fire the e2e pack maintainer / bootstrapper                                           | Must     | `sdlc/files/_common/skills/e2e-test-engineer/SKILL.md`                                                                        |
 | REQ-SKILL-E2E-002            | Bootstrap (Phase 1b) only when no suite exists, with confirmation gates                               | Must     | `sdlc/files/_common/skills/e2e-test-engineer/SKILL.md`                                                                        |
 | REQ-SKILL-E2E-003            | evidenceShot helper produces per-AC PNG + sidecar at the canonical path                               | Must     | `sdlc/files/_common/skills/e2e-test-engineer/SKILL.md`                                                                        |
@@ -609,12 +611,14 @@ dependencies (tier 3) — which is exactly the coverage the current unit-only su
 | REQ-FRAMEWORK-CIYML-009      | Per-AC E2E screenshots uploaded scoped to in-scope REQs only + evidence-completeness gate (stage 2)   | Should   | `sdlc/files/ci/ci.yml.template`                                                                                               |
 | REQ-FRAMEWORK-CIYML-010      | ci.yml does not upload committed compliance docs (single-owner rule)                                  | Should   | `sdlc/files/ci/ci.yml.template`                                                                                               |
 | REQ-FRAMEWORK-CIYML-011      | Evidence-completeness gate: zero tagged tests AND zero screenshots fails the release                  | Should   | `sdlc/files/ci/ci.yml.template`                                                                                               |
+| REQ-FRAMEWORK-CIYML-012      | CI templates stamp --test-cycle on all uploads for portal cycle grouping (#209)                      | Should   | `sdlc/files/ci/ci.yml.template`, `sdlc/files/ci/compliance-evidence.yml.template`             |
 | REQ-FRAMEWORK-EVIDENCE-001   | compliance-evidence.yml triggers on compliance pushes and E2E Regression completion                   | Must     | `sdlc/files/ci/compliance-evidence.yml.template`                                                                              |
 | REQ-FRAMEWORK-EVIDENCE-002   | base URL resolution prefers sdlc-config.json with reachability pre-flight                             | Must     | `sdlc/files/ci/compliance-evidence.yml.template`                                                                              |
 | REQ-FRAMEWORK-EVIDENCE-003   | Per-requirement evidence uploaded with correct evidence_type routing (stage 3)                        | Must     | `sdlc/files/ci/compliance-evidence.yml.template`                                                                              |
 | REQ-FRAMEWORK-EVIDENCE-004   | Audit-log export uploaded as audit_log evidence (90-day window)                                       | Should   | `sdlc/files/ci/compliance-evidence.yml.template`                                                                              |
 | REQ-FRAMEWORK-EVIDENCE-005   | Housekeeping stub auto-PR on bare-date pushes                                                         | Should   | `sdlc/files/ci/compliance-evidence.yml.template`                                                                              |
 | REQ-FRAMEWORK-EVIDENCE-006   | E2E Regression evidence uploaded on workflow_run with tier + stage metadata                           | Should   | `sdlc/files/ci/compliance-evidence.yml.template`                                                                              |
+| REQ-FRAMEWORK-EVIDENCE-007   | test-execution-summary.md template carries Test Cycles section (ISO 29119-3 Test Completion Report)  | Should   | `sdlc/files/_common/3-compile-evidence.md`                                                                                    |
 | REQ-FRAMEWORK-VALIDATION-001 | compliance-validation.yml gates PRs to main on artifact + commit validity                             | Should   | `sdlc/files/ci/compliance-validation.yml.template`                                                                            |
 | REQ-FRAMEWORK-VALIDATION-002 | ci-status-fallback emits the Quality Gates status on docs-only commits                                | Could    | `sdlc/files/ci/ci-status-fallback.yml.template`                                                                               |
 | REQ-FRAMEWORK-VALIDATION-003 | Governance auto-PR workflows (periodic-review, incident-export, close-out)                            | Could    | `sdlc/files/ci/periodic-review.yml.template`                                                                                  |
@@ -1315,6 +1319,15 @@ Key cross-cutting facts (asserted once, relied on below):
 - **Error paths:** a throwing hook is reported but push continues.
 - **Fixtures/env:** temp `PLUGINS_DIR` with a fixture plugin; assert hook ordering relative to upload.
 
+#### REQ-CLI-PUSH-016 — `--test-cycle` forwards `testCycleId` form field for portal cycle grouping
+
+- **Priority:** Should — enables the portal to group evidence by test cycle (ISO/IEC/IEEE 29119-3 per-cycle Test Execution Logs / Test Status Reports); additive/optional, no regression without it (DevAudit-Installer#209).
+- **Source:** `cli/src/commands/push.ts` (`PushOptions.testCycle`, forwarded as `testCycleId` to `uploadEvidence`), `cli/src/lib/ci-upload.ts` (`UploadOptions.testCycleId`, `buildUploadForm` sets `form.set('testCycleId', opts.testCycleId)`), `cli/src/index.ts` (`.option('--test-cycle <id>', …)`).
+- **Preconditions / inputs:** `--test-cycle <id>` flag on the `push` command. The value is an opaque grouping key (typically a GitHub Actions `run_id`).
+- **Given** `--test-cycle 1234567` **When** push runs **Then** the multipart form additionally contains `testCycleId=1234567`. **Given** no `--test-cycle` flag **When** push runs **Then** the form omits `testCycleId` entirely (the portal defaults to `null` — legacy/ungrouped). The field is orthogonal to `evidenceType`, `evidenceCategory`, and `sdlcStage`.
+- **Error paths:** n/a — the value is an opaque string; no client-side validation.
+- **Fixtures/env:** msw handler asserting the form field presence/absence.
+
 ---
 
 #### REQ-CLI-AUTH-001 — `auth login --token` validates against the portal then caches at mode 0600
@@ -1692,6 +1705,15 @@ Scope note: The six entries below are **Claude Code skills** — directories und
 - **Error paths:** The agent must not implement the out-of-scope change before the user decides — the inertia trap is the failure mode this gate exists to interrupt.
 - **Fixtures/env:** A REQ in Phase 2 with a user request for a behaviour not in any AC; a REQ in Phase 3 with a user request to add an evidence artefact not in the plan; a REQ in Phase 5 where the request maps to an existing AC (proceeds to change-request loop).
 
+#### REQ-SKILL-IMPLEMENTER-020 — Phase 3 test-execution-summary.md includes Test Cycles section (ISO 29119-3 Test Completion Report)
+
+- **Priority:** Should — the Test Completion Report (ISO/IEC/IEEE 29119-3 §4.14) is the encompassing artefact summarising all test cycles for a release; the Test Cycles section is what distinguishes it from a single-run log (DevAudit-Installer#209).
+- **Source:** `sdlc/files/_common/3-compile-evidence.md` (Step 1a — Generate Test Execution Summary): the `test-execution-summary.md` template includes a `## Test Cycles` section after `## Gate Results`, carrying a table of cycles (CI Run, Gate Status, E2E Result, Coverage, Date) and a final assessment line. Populated at Stage 3 after all cycles for a release are complete.
+- **Preconditions / inputs:** At least one CI run (test cycle) has completed for the release; cycle data available from the portal API or local `compliance/evidence/REQ-XXX/` directory.
+- **Given** a release with N completed test cycles **When** Stage 3 generates `test-execution-summary.md` **Then** the Test Cycles section lists each cycle (run ID, gate status, E2E pass/fail, coverage %, date) and a final assessment line (e.g. "All cycles passed. No outstanding incidents."). **Given** a release with a single cycle **When** Stage 3 generates the summary **Then** the Test Cycles section lists that one cycle. **Given** a release where a cycle failed **When** Stage 3 generates the summary **Then** the final assessment notes the failure and any outstanding incidents.
+- **Error paths:** No cycle data available → the section is populated with placeholder rows and a note that cycle data was unavailable; the summary still uploads (the Test Completion Report is required evidence, not optional).
+- **Fixtures/env:** A REQ with 2 completed CI runs (cycle data from portal stub or local evidence directory); a REQ with a single cycle; a REQ with a failed cycle.
+
 #### REQ-SKILL-E2E-001 — Trigger phrases fire the e2e pack maintainer / bootstrapper
 
 - **Priority:** Must — discovery of the test-pack skill, including its invocation by `sdlc-implementer` Phase 2.
@@ -2041,6 +2063,15 @@ Area codes: FRAMEWORK-CIYML (ci.yml quality gates + evidence job), FRAMEWORK-EVI
 - **Error paths:** Missing `e2e-results.json` → Python script returns 0 (fails the gate); Python parse error → 0 (fails the gate).
 - **Fixtures/env:** A REQ with zero screenshots and a Playwright JSON with no tagged tests; a REQ with zero screenshots but tagged tests (passes); missing `e2e-results.json` (fails).
 
+#### REQ-FRAMEWORK-CIYML-012 — CI templates stamp `--test-cycle` on all uploads for portal cycle grouping
+
+- **Priority:** Should — enables the portal to group evidence by test cycle (DevAudit-Installer#209); additive/optional, no regression for portals that don't yet accept `testCycleId`.
+- **Source:** `sdlc/files/ci/ci.yml.template` (`FLAGS` variable in `upload-evidence` job: `--test-cycle ${{ github.run_id }}` appended alongside `--ci-run-id` and `--sdlc-stage`; also added to `FANOUT_FLAGS`), `sdlc/files/ci/compliance-evidence.yml.template` (same `FLAGS` addition), `scripts/upload-evidence.sh` (`--test-cycle` flag parsed → `TEST_CYCLE` → forwarded as `testCycleId` form field).
+- **Preconditions / inputs:** CI run on a rendered consumer repo; `DEVAUDIT_BASE_URL` + `DEVAUDIT_API_KEY` configured.
+- **Given** a CI run with `github.run_id=1234567` **When** the `upload-evidence` job runs **Then** every `upload-evidence.sh` invocation carries `--test-cycle 1234567`, which forwards `testCycleId=1234567` as a form field to the portal. **Given** the portal does not yet accept `testCycleId` **When** an upload arrives **Then** the portal silently drops the unknown field (tolerant-read, same pattern as `sdlcStage`) — no error, no regression.
+- **Error paths:** Missing `--test-cycle` flag → `testCycleId` omitted from the form; portal defaults to `null` (legacy/ungrouped).
+- **Fixtures/env:** Rendered consumer repo; portal stub asserting `testCycleId` form field on each upload; portal stub ignoring `testCycleId` (tolerant-read).
+
 ---
 
 #### REQ-FRAMEWORK-EVIDENCE-001 — compliance-evidence.yml triggers on compliance pushes and E2E Regression completion
@@ -2096,6 +2127,15 @@ Area codes: FRAMEWORK-CIYML (ci.yml quality gates + evidence job), FRAMEWORK-EVI
 - **Given** the `E2E Regression` workflow completed **When** this job runs **Then** the JSON + zipped report bundle upload against each in-scope REQ (fallback `_compliance-docs`) with the correct `tier` meta and event-derived `sdlcStage` (2 for PR-to-develop, 5 for push-to-main); the portal receives the whole Playwright report (screenshots/traces included), not a shell HTML. **When** any upload fails **Then** `UPLOAD_FAILURES>0` and the step exits 1.
 - **Error paths:** Missing artifact dir → individual uploads skipped; no base URL/API key → skip.
 - **Fixtures/env:** `workflow_run` event fixture + `e2e-regression-report` artifact stub + portal stub.
+
+#### REQ-FRAMEWORK-EVIDENCE-007 — `test-execution-summary.md` template carries Test Cycles section (ISO 29119-3 Test Completion Report)
+
+- **Priority:** Should — the Test Completion Report is the encompassing artefact after all test cycles; the Test Cycles section is the cycle-aggregation view that distinguishes it from per-cycle logs (DevAudit-Installer#209, ISO/IEC/IEEE 29119-3 §4.14).
+- **Source:** `sdlc/files/_common/3-compile-evidence.md` (Step 1a template): the `test-execution-summary.md` markdown template includes a `## Test Cycles` section (table: Cycle | CI Run | Gate Status | E2E Result | Coverage | Date) followed by a `**Final assessment:**` line. The section is populated at Stage 3 by the `sdlc-implementer` skill (or operator) after all cycles for a release are complete.
+- **Preconditions / inputs:** The release has at least one completed test cycle; cycle data is available from the portal API or from local evidence directories.
+- **Given** the `test-execution-summary.md` template in `3-compile-evidence.md` **When** Stage 3 generates the file **Then** it contains a `## Test Cycles` section with a table row per cycle and a final assessment line. **Given** a release with multiple cycles (e.g. initial run + re-run after flake fix) **When** the summary is generated **Then** each cycle appears as a separate row with its own gate status, E2E result, coverage, and date. **Given** a release with a single cycle **When** the summary is generated **Then** the table has one row.
+- **Error paths:** No cycle data available → the section carries placeholder rows with a note; the summary still uploads as required evidence.
+- **Fixtures/env:** A REQ with 2 completed CI runs; a REQ with a single cycle; a REQ with a failed cycle (final assessment notes the failure).
 
 ---
 
