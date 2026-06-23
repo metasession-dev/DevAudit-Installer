@@ -294,7 +294,7 @@ jobs:
           chmod +x scripts/upload-evidence.sh 2>/dev/null || true
           # Create the release in DevAudit (no evidence yet — just registration)
           bash scripts/upload-evidence.sh \
-            {{PROJECT_SLUG}} _compliance-docs compliance_document README.md \
+            {{PROJECT_SLUG}} _compliance-docs release_registration README.md \
             --release ${{ steps.version.outputs.version }} --create-release-if-missing \
             --environment uat --category planning \
             --git-sha ${{ github.sha }} --branch ${{ github.ref_name }} || true
@@ -488,28 +488,34 @@ jobs:
               --category security_scan --gate-status "$STATUS_DEPAUDIT" ${FLAGS}
           fi
 
-          # Upload E2E test results (ci_pipeline category)
+          # Upload E2E test results (e2e_result category)
           if [ -f ci-evidence/e2e-results.json ]; then
             upload e2e-results.json \
               {{PROJECT_SLUG}} _compliance-docs e2e_result ci-evidence/e2e-results.json \
-              --category ci_pipeline ${FLAGS}
+              --category e2e_result ${FLAGS}
           fi
 
-          # Upload Playwright HTML report (test_report category)
+          # Upload Playwright HTML report (e2e_report — run context, NOT
+          # a test completion report). Uses evidence_type=e2e_report so
+          # the portal can distinguish it from per-REQ test-execution-
+          # summary.md (DevAudit-Installer#207).
           if [ -d ci-evidence/playwright-report ]; then
             (cd ci-evidence && zip -qr playwright-report.zip playwright-report/) 2>/dev/null || true
             if [ -f ci-evidence/playwright-report.zip ]; then
               upload playwright-report.zip \
-                {{PROJECT_SLUG}} _compliance-docs test_report ci-evidence/playwright-report.zip \
-                --category test_report ${FLAGS}
+                {{PROJECT_SLUG}} _compliance-docs e2e_report ci-evidence/playwright-report.zip \
+                --category e2e_report ${FLAGS}
             fi
           fi
 
-          # Upload Jest coverage summary (test_report category)
+          # Upload Jest coverage summary (coverage_report category).
+          # Uses evidence_type=coverage_report (NOT test_report) so the
+          # portal can distinguish run-context coverage data from per-REQ
+          # test completion reports (DevAudit-Installer#207).
           if [ -f ci-evidence/coverage/coverage-summary.json ]; then
             upload coverage-summary.json \
-              {{PROJECT_SLUG}} _compliance-docs test_report ci-evidence/coverage/coverage-summary.json \
-              --category test_report ${FLAGS}
+              {{PROJECT_SLUG}} _compliance-docs coverage_report ci-evidence/coverage/coverage-summary.json \
+              --category coverage_report ${FLAGS}
           fi
 
           # Upload project-level Test Summary Report as a baseline
@@ -570,7 +576,7 @@ jobs:
               if [ -f ci-evidence/e2e-results.json ]; then
                 upload "e2e-results.json -> ${REQ_ID}" \
                   {{PROJECT_SLUG}} "${REQ_ID}" e2e_result ci-evidence/e2e-results.json \
-                  --category ci_pipeline ${FANOUT_FLAGS}
+                  --category e2e_result ${FANOUT_FLAGS}
               fi
             done
           fi
@@ -676,7 +682,7 @@ jobs:
 
                 if bash scripts/upload-evidence.sh \
                   {{PROJECT_SLUG}} "$REQ" screenshot "$NAMED" \
-                  --category test_report ${FLAGS} --release "$REQ" \
+                  --category screenshot ${FLAGS} --release "$REQ" \
                   "${REQ_META[@]}" \
                   "${ORIGIN_META[@]}"
                 then

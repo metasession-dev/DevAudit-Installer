@@ -356,7 +356,7 @@ jobs:
             echo "Uploading: audit-log.json (audit_log — 90-day window)"
             bash scripts/upload-evidence.sh \
               {{PROJECT_SLUG}} _compliance-docs audit_log "$AUDIT_LOG_FILE" \
-              --category compliance_document ${FLAGS} --release "${DERIVED_RELEASE}" \
+              --category audit_log ${FLAGS} --release "${DERIVED_RELEASE}" \
               "${DERIVED_META[@]}" \
               || echo "Warning: Failed to upload audit-log.json"
           else
@@ -410,7 +410,7 @@ jobs:
               esac
               echo "Uploading: $(basename "$TICKET") -> release ${TICKET_RELEASE}"
               eval "bash scripts/upload-evidence.sh \
-                {{PROJECT_SLUG}} \"${TICKET_OWNER}\" compliance_document \"$TICKET\" \
+                {{PROJECT_SLUG}} \"${TICKET_OWNER}\" release_ticket \"$TICKET\" \
                 --category release_artifact ${FLAGS} --release \"${TICKET_RELEASE}\" \
                 ${TICKET_META_ARGS}" \
                 || echo "Warning: Failed to upload $(basename "$TICKET")"
@@ -678,7 +678,7 @@ jobs:
               if bash scripts/upload-evidence.sh \
                 {{PROJECT_SLUG}} "$REQ" e2e_result \
                 e2e-artifacts/e2e-regression-results.json \
-                --category test_report ${FLAGS} --release "${DERIVED_RELEASE}" \
+                --category e2e_result ${FLAGS} --release "${DERIVED_RELEASE}" \
                 --meta-key "tier=${TIER}"
               then
                 :
@@ -687,10 +687,13 @@ jobs:
                 UPLOAD_FAILURES=$((UPLOAD_FAILURES + 1))
               fi
             fi
-            # 2. Playwright HTML report index → test_report. Operator-
+            # 2. Playwright HTML report zip → e2e_report. Operator-
             # facing artefact (the formatted run summary). Skipped if
             # the report directory is missing (e.g. an upstream
             # infrastructure failure aborted before reporting).
+            # Uses evidence_type=e2e_report (NOT test_report) so the
+            # portal can distinguish run-context bundles from per-REQ
+            # test completion reports (DevAudit-Installer#207).
             if [ -d e2e-artifacts/playwright-report ]; then
               (cd e2e-artifacts && zip -qr playwright-report.zip playwright-report/) 2>/dev/null || true
             fi
@@ -703,9 +706,9 @@ jobs:
               # Once the portal's presigned R2 URL flow is live (#189
               # Option C), this can be reverted to a hard fail.
               if bash scripts/upload-evidence.sh \
-                {{PROJECT_SLUG}} "$REQ" test_report \
+                {{PROJECT_SLUG}} "$REQ" e2e_report \
                 e2e-artifacts/playwright-report.zip \
-                --category test_report ${FLAGS} --release "${DERIVED_RELEASE}" \
+                --category e2e_report ${FLAGS} --release "${DERIVED_RELEASE}" \
                 --meta-key "tier=${TIER}"
               then
                 :
