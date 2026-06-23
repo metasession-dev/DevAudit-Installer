@@ -526,6 +526,55 @@ jobs:
               --category planning ${FLAGS}
           fi
 
+          # devaudit-installer#200 Fix 4 — Per-REQ gate evidence fan-out.
+          # The gate evidence above was uploaded to the single commit-derived
+          # release (FLAGS carries --release <derived>). When multiple REQs
+          # have pending release tickets, only that one REQ gets gate evidence
+          # on the portal — other in-scope REQs show "no gate evidence" and
+          # "no tests tagged with this REQ" even though the gates ran and
+          # passed. Fan out gate-outcomes.json + e2e-results.json to each
+          # in-scope REQ's release so the portal's per-REQ test parser can
+          # extract REQ-tagged tests from the e2e-results.json associated with
+          # that REQ's release. Heavy run-context artefacts (SAST, dep-audit,
+          # playwright zip, coverage) remain on the commit-derived release
+          # only — they are run-level, not per-REQ.
+          COMMIT_REQ="${{ needs.register-release.outputs.version }}"
+          FANOUT_REQS=()
+          if [ -d compliance/pending-releases ]; then
+            for TICKET in compliance/pending-releases/RELEASE-TICKET-REQ-*.md; do
+              [ -f "$TICKET" ] || continue
+              REQ_ID=$(basename "$TICKET" .md | sed 's/^RELEASE-TICKET-//')
+              # #192 — skip REQs already in a terminal release directory.
+              if compgen -G "compliance/approved-releases/RELEASE-TICKET-${REQ_ID}.md" > /dev/null 2>&1 \
+                 || compgen -G "compliance/superseded-releases/RELEASE-TICKET-${REQ_ID}.md" > /dev/null 2>&1; then
+                continue
+              fi
+              # Skip the commit-derived REQ — it already has the evidence.
+              if [ "$REQ_ID" = "$COMMIT_REQ" ]; then
+                continue
+              fi
+              FANOUT_REQS+=("$REQ_ID")
+            done
+          fi
+          if [ "${#FANOUT_REQS[@]}" -gt 0 ]; then
+            echo "Fanning out gate evidence to in-scope REQs: ${FANOUT_REQS[*]}"
+            for REQ_ID in "${FANOUT_REQS[@]}"; do
+              FANOUT_FLAGS="--git-sha ${{ github.sha }} --ci-run-id ${{ github.run_id }} --branch ${{ github.ref_name }}"
+              FANOUT_FLAGS="${FANOUT_FLAGS} --release ${REQ_ID} --create-release-if-missing"
+              FANOUT_FLAGS="${FANOUT_FLAGS} --environment uat --sdlc-stage 2"
+              if [ -f ci-evidence/gate-outcomes.json ]; then
+                upload "gate-outcomes.json -> ${REQ_ID}" \
+                  {{PROJECT_SLUG}} "${REQ_ID}" compliance_document ci-evidence/gate-outcomes.json \
+                  --category ci_pipeline ${FANOUT_FLAGS}
+              fi
+              if [ -f ci-evidence/e2e-results.json ]; then
+                upload "e2e-results.json -> ${REQ_ID}" \
+                  {{PROJECT_SLUG}} "${REQ_ID}" e2e_result ci-evidence/e2e-results.json \
+                  --category ci_pipeline ${FANOUT_FLAGS}
+              fi
+            done
+          fi
+
           # Upload per-AC e2e evidence screenshots, scoped to each in-scope
           # requirement so they render under "Evidence by requirement" in the
           # portal. These are the per-assertion `evidenceShot(page, REQ, 'ACn-…')`

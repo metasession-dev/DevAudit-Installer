@@ -338,7 +338,9 @@ This defect, once closed with the `incident` label, will be auto-exported as `in
 - [ ] `GDPR.Art-34` — data-subject notification required: <REPLACE — yes/no>
 - [ ] `EUAIA.Art-9 / Art-14 / Art-15` — AI failure: <REPLACE — yes/no, which article(s)>
 
-Once closed, the `incident-export.yml` workflow exports this issue's body to `compliance/governance/incident-report-<N>.md`, auto-files a PR with the GDPR triage + sign-off sections to fill in. Merge that PR → `compliance-evidence.yml` uploads as `incident_report`.
+Once closed, the `incident-export.yml` workflow exports this issue's body to `compliance/governance/incident-report-<N>.md`. Routing depends on the Framework attribution ticks (DevAudit-Installer#200 Fix 1):
+- **Path A (baseline-only — only `ISO29119.3.5.4` ticked):** direct-committed to `develop`, no PR. GDPR triage pre-filled as N/A. Next `compliance-evidence.yml` run uploads as `incident_report`.
+- **Path B (any of SOC2/GDPR/EUAIA ticked):** auto-files a PR with the GDPR triage + sign-off sections to fill in. Merge that PR → `compliance-evidence.yml` uploads as `incident_report`.
 ```
 
 Pre-tick boxes you're confident about. Leave the operator-judgement ones (GDPR triage, AI-failure classification) for the operator to confirm in the export PR.
