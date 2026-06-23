@@ -451,7 +451,7 @@ jobs:
             STATUS_DEPAUDIT=$(gate_status "$(jq -r '.dependency_audit // "skipped"' ci-evidence/gate-outcomes.json)")
             STATUS_BUILD=$(gate_status "$(jq -r '.build // "skipped"' ci-evidence/gate-outcomes.json)")
             upload gate-outcomes.json \
-              {{PROJECT_SLUG}} _compliance-docs compliance_document ci-evidence/gate-outcomes.json \
+              {{PROJECT_SLUG}} _compliance-docs gate_outcome ci-evidence/gate-outcomes.json \
               --category ci_pipeline ${FLAGS}
           fi
 
@@ -564,7 +564,7 @@ jobs:
               FANOUT_FLAGS="${FANOUT_FLAGS} --environment uat --sdlc-stage 2"
               if [ -f ci-evidence/gate-outcomes.json ]; then
                 upload "gate-outcomes.json -> ${REQ_ID}" \
-                  {{PROJECT_SLUG}} "${REQ_ID}" compliance_document ci-evidence/gate-outcomes.json \
+                  {{PROJECT_SLUG}} "${REQ_ID}" gate_outcome ci-evidence/gate-outcomes.json \
                   --category ci_pipeline ${FANOUT_FLAGS}
               fi
               if [ -f ci-evidence/e2e-results.json ]; then

@@ -73,6 +73,19 @@ for REQ in $REQUIREMENTS; do
   fi
   echo "  OK: Evidence directory exists"
 
+  # Check for unrecognized .md filenames in the evidence directory
+  # (DevAudit-Installer#205). The CI upload pipeline now skips unknown
+  # filenames with a warning — this check surfaces the issue at PR
+  # time so the operator can rename or add routing before merge.
+  KNOWN_ARTIFACTS="test-scope.md test-plan.md test-execution-summary.md test-summary-report.md implementation-plan.md srs-alignment.md architecture-decision.md risk-assessment.md security-summary.md ai-use-note.md ai-prompts.md ai-agent-handoff.md"
+  for ARTIFACT in compliance/evidence/$REQ/*.md; do
+    [ -f "$ARTIFACT" ] || continue
+    ARTIFACT_BASE=$(basename "$ARTIFACT")
+    if ! echo " $KNOWN_ARTIFACTS " | grep -q " $ARTIFACT_BASE "; then
+      echo "  WARNING: Unrecognized artifact filename: compliance/evidence/$REQ/$ARTIFACT_BASE — CI upload will skip this file. Use a known filename or add routing in compliance-evidence.yml. (DevAudit-Installer#205)"
+    fi
+  done
+
   # Check test-scope.md exists
   if [ ! -f "compliance/evidence/$REQ/test-scope.md" ]; then
     echo "  ERROR: Test scope missing: compliance/evidence/$REQ/test-scope.md"
