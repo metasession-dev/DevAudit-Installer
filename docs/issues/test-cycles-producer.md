@@ -104,6 +104,45 @@ Add a "Test Cycles" section to the template (after the "Gate Results" section):
 
 This section is the ISO 29119-3 Test Completion Report's cycle summary — populated at Stage 3 after all cycles for a release are complete.
 
+### 8. `sdlc/files/_common/3-compile-evidence.md` — add Step 4a: Query portal for test cycle data
+
+Add a new step between the current Step 4 (re-run test pack) and Step 5 (organise artefacts) in the Stage 3 walkthrough:
+
+```markdown
+### Step 4a: Query portal for test cycle data
+
+Before generating the Test Execution Summary, query the portal API for all
+evidence records for this release, grouped by `testCycleId`. Populate the
+Test Cycles table in `test-execution-summary.md` from the API response —
+do not hand-assemble cycle data from memory or manual inspection.
+
+If the portal does not yet support `testCycleId` grouping (pre-deployment
+of devaudit#535), fall back to local CI run IDs from
+`compliance/evidence/REQ-XXX/` artefact filenames and note the fallback
+in the summary.
+```
+
+This keeps cycle aggregation within the guided SDLC flow — the operator
+doesn't manually assemble cycle data outside the skill's control.
+
+### 9. `sdlc/files/_common/skills/sdlc-implementer/SKILL.md` — Phase 3 step 4a delegation
+
+Add a new step 4a to Phase 3 (between the current step 4 "re-run the full
+test pack" and step 5 "organise artefacts"):
+
+```markdown
+4a. **Query the portal for test cycle data and populate the Test Cycles
+section of `test-execution-summary.md`.** Query the portal API for all
+evidence records for this release, grouped by `testCycleId`. Populate the
+Test Cycles table (CI Run, Gate Status, E2E Result, Coverage, Date) from
+the API response. If the portal doesn't yet support `testCycleId`
+grouping (pre-deployment of devaudit#535), fall back to local CI run IDs
+from `compliance/evidence/REQ-XXX/` artefact filenames and note the
+fallback. Do not hand-assemble cycle data — the skill queries, populates,
+and uploads. This prevents the operator from going rogue and manually
+assembling cycle data outside the guided SDLC flow.
+```
+
 ---
 
 ## Acceptance criteria
@@ -112,9 +151,11 @@ This section is the ISO 29119-3 Test Completion Report's cycle summary — popul
 - AC2: `devaudit push --test-cycle <id>` forwards `testCycleId` in the multipart form data.
 - AC3: Both CI templates (`ci.yml.template`, `compliance-evidence.yml.template`) stamp `--test-cycle ${{ github.run_id }}` on every upload.
 - AC4: The `test-execution-summary.md` template in `3-compile-evidence.md` includes a "Test Cycles" section.
-- AC5: `bash -n scripts/upload-evidence.sh` passes (syntax check).
-- AC6: `npm --prefix cli run build` and `npm --prefix cli test` pass.
-- AC7: Uploads from pre-`--test-cycle` producers still work (portal tolerant-read — `testCycleId` is additive/optional).
+- AC5: `3-compile-evidence.md` includes Step 4a (query portal for test cycle data) with fallback for pre-devaudit#535 portals.
+- AC6: `sdlc-implementer/SKILL.md` Phase 3 includes step 4a delegation for cycle data population — the skill queries the portal, not the operator.
+- AC7: `bash -n scripts/upload-evidence.sh` passes (syntax check).
+- AC8: `npm --prefix cli run build` and `npm --prefix cli test` pass.
+- AC9: Uploads from pre-`--test-cycle` producers still work (portal tolerant-read — `testCycleId` is additive/optional).
 
 ---
 
