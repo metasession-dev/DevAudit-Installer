@@ -214,6 +214,77 @@ Two additional changes address this:
 - [ ] Test: CI fails when RTM row for the commit's REQ-XXX has no provenance stamp
 - [ ] Test: CI passes when RTM row has `sdlc-implementer@<version>` provenance stamp
 
+## Phase-artifact creation gaps (discovered in wawagardenbar-app PR #413)
+
+A second real-world deployment in `wawagardenbar-app` (PR #413) revealed three additional gaps that the original six changes do not address. In this deployment, `sdlc-implementer` **was** invoked and drove Phase 1 (planning) and Phase 2 (implementation) correctly. The E2E suite was delegated to `e2e-test-engineer`. The failure occurred later, after an environment debugging detour (MongoDB port conflict, dev server startup, Playwright browser install) forced the native agent to take over hands-on debugging. The native agent then continued through Phase 3 (evidence) and Phase 4 (PR) without re-invoking `sdlc-implementer`. CI Compliance Validation failed with 3 missing files.
+
+### Gap A: `test-scope.md` and `test-plan.md` are never created by any skill step
+
+`validate-compliance-artifacts.sh` (CI) hard-fails if `compliance/evidence/REQ-XXX/test-scope.md` or `test-plan.md` are missing. The PR review checklist in `4-submit-for-review.md` also requires them. The scope-expansion halt in `sdlc-implementer` references `test-scope.md` as if it always exists.
+
+But no step in `sdlc-implementer` (Phase 1 or Phase 3) or any sub-skill creates these files. The implementation plan template (`Implementation_Plan_TEMPLATE.md`) contains acceptance criteria and test strategy sections that are the natural source for these artifacts, but the skill never extracts them into separate files.
+
+**This gap would cause CI failure even with perfect skill invocation end-to-end.** The skill can drive Phase 1 → Phase 2 → Phase 3 → Phase 4 correctly and still fail Compliance Validation because these files were never created.
+
+### Gap B: `implementation-plan.md` location mismatch
+
+`sdlc-implementer` Phase 1 step 5 writes `implementation-plan.md` to `compliance/plans/REQ-XXX/implementation-plan.md`. But `validate-compliance-artifacts.sh` checks `compliance/evidence/$REQ/implementation-plan.md`. Phase 3 step 6 organises artifacts under `compliance/evidence/REQ-XXX/` but the listed artifacts don't include `implementation-plan.md` — so it's never copied.
+
+### Gap C: No re-invocation enforcement after environment detour
+
+The `.sdlc-implementer-invoked` sentinel (Change 5) is written once at Phase 0. It proves the skill was invoked *at some point*, not that it drove *every* phase. After an environment debugging detour (MongoDB, dev server, Playwright install), the native agent continued through Phase 3 and Phase 4 without re-invoking the skill. The sentinel check passes. The RTM provenance check passes. But the skill's Phase 3 artifact checklist — which might have caught the missing files — was never run by the skill.
+
+This is the same class of gap as the original E2E gate problem: prose-level enforcement says "auto-continue to Phase 3" (Phase 2 step 11), but nothing enforces that the *skill* does the continuing vs. the native agent doing it manually.
+
+## Additional required changes (from PR #413 findings)
+
+### 7. Create `test-scope.md` and `test-plan.md` in `sdlc-implementer` Phase 1
+
+**File:** `sdlc/files/_common/skills/sdlc-implementer/SKILL.md`
+
+**Change:** Add a new step after Phase 1 step 5 (write implementation plan) that extracts the acceptance criteria and test strategy from the plan into two separate files under `compliance/evidence/REQ-XXX/`:
+- `test-scope.md` — acceptance criteria (AC table from the plan), risk classification, verification methods per AC
+- `test-plan.md` — test file listing, which ACs each file covers, test depth per risk class
+
+These are derived from the implementation plan's existing sections (Acceptance Criteria, Test Strategy). The extraction is mechanical — the skill already authors this content in the plan; it just needs to write it to the CI-expected location as separate files.
+
+### 8. Copy `implementation-plan.md` to `compliance/evidence/` in Phase 3
+
+**File:** `sdlc/files/_common/skills/sdlc-implementer/SKILL.md`
+
+**Change:** In Phase 3 step 6 (organise artefacts), add `implementation-plan.md` to the list of files placed under `compliance/evidence/REQ-XXX/`. The skill should copy (not move) the file from `compliance/plans/REQ-XXX/` so the plan directory retains the original.
+
+### 9. Phase-transition sentinel — re-invocation enforcement
+
+**File:** `sdlc/files/_common/skills/sdlc-implementer/SKILL.md`, `sdlc/files/stacks/node/hooks/pre-push`
+
+**Change:** Instead of a single `.sdlc-implementer-invoked` sentinel written once at Phase 0, the skill writes a phase-tracking sentinel at each phase transition:
+
+```
+echo "phase=1 complete=true timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> .sdlc-implementer-invoked
+echo "phase=2 complete=true timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> .sdlc-implementer-invoked
+echo "phase=3 complete=true timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> .sdlc-implementer-invoked
+```
+
+The pre-push hook checks that the sentinel contains `phase=3 complete=true` (evidence compiled) before allowing `feat`/`fix`/`refactor`/`perf` commits to be pushed. This catches the case where the skill was invoked for Phase 0–2 but the native agent continued through Phase 3–4 without re-invoking.
+
+**Note:** This is a lighter alternative to requiring skill re-invocation at every phase. The skill's Phase 2 step 11 already says "auto-continue to Phase 3" — the sentinel verifies the skill actually did the continuation, not just that it was invoked once.
+
+## Acceptance criteria (additional, from PR #413 findings)
+
+### Phase-artifact creation
+- [ ] `sdlc-implementer` Phase 1 creates `compliance/evidence/REQ-XXX/test-scope.md` with AC table, risk class, and verification methods
+- [ ] `sdlc-implementer` Phase 1 creates `compliance/evidence/REQ-XXX/test-plan.md` with test file listing and AC coverage mapping
+- [ ] `sdlc-implementer` Phase 3 step 6 copies `implementation-plan.md` from `compliance/plans/` to `compliance/evidence/`
+- [ ] Test: a REQ driven through Phase 1 by `sdlc-implementer` produces `test-scope.md` and `test-plan.md` in `compliance/evidence/`
+- [ ] Test: `validate-compliance-artifacts.sh` passes when `sdlc-implementer` drives the full Phase 1 → Phase 3 flow
+
+### Phase-transition enforcement
+- [ ] `.sdlc-implementer-invoked` sentinel contains per-phase completion lines (not just a single INVOKED line)
+- [ ] Pre-push hook checks for `phase=3 complete=true` in sentinel before allowing `feat`/`fix`/`refactor`/`perf` commits
+- [ ] Test: a push with `phase=2 complete=true` but no `phase=3` is blocked at pre-push
+- [ ] Test: a push with `phase=3 complete=true` passes the pre-push hook
+
 ## Out of scope
 
 - Enforcing E2E for non-node stacks (python pre-commit hooks would need a separate implementation)
@@ -228,12 +299,14 @@ Two additional changes address this:
 
 ## References
 
-- `sdlc/files/_common/skills/sdlc-implementer/SKILL.md` Phase 0 (sentinel write point), Phase 1 step 9 (RTM update — provenance stamp point), Phase 2 steps 3, 5, 9 — E2E delegation gate, gate execution, self-audit
+- `sdlc/files/_common/skills/sdlc-implementer/SKILL.md` Phase 0 (sentinel write point), Phase 1 step 5 (implementation plan — source for test-scope/test-plan extraction), Phase 1 step 9 (RTM update — provenance stamp point), Phase 2 steps 3, 5, 9, 11 — E2E delegation gate, gate execution, self-audit, auto-continue, Phase 3 step 6 (artifact organisation — plan copy point)
 - `sdlc/files/_common/skills/e2e-test-engineer/SKILL.md` Phase 5 — E2E execution
+- `sdlc/files/_common/scripts/validate-compliance-artifacts.sh:69-95` — CI checks for `test-scope.md`, `test-plan.md`, `implementation-plan.md` in `compliance/evidence/`
 - `sdlc/files/ci/ci.yml.template:291-300` — `register-release` with `--create-release-if-missing`
 - `sdlc/files/ci/ci.yml.template:366-374` — `upload-evidence` job (runs after gates)
 - `sdlc/files/stacks/node/hooks/pre-push` — existing pre-push hook
 - `sdlc/files/_common/scripts/validate-commits.sh` — CI commit validation (unskippable)
 - `sdlc/ai-rules/INSTRUCTIONS-SDLC.md:24-37` — #199 mandatory prompt gate (prose-level)
-- wawagardenbar-app deployment failure — E2E suite never run, spec unverified, sdlc-implementer never invoked
+- wawagardenbar-app first deployment failure — E2E suite never run, spec unverified, sdlc-implementer never invoked
+- wawagardenbar-app PR #413 deployment failure — sdlc-implementer invoked for Phase 1–2, native agent took over after MongoDB debugging detour, continued Phase 3–4 without re-invoking skill, CI Compliance Validation failed with 3 missing files (`test-scope.md`, `test-plan.md`, `implementation-plan.md` in wrong location)
 - Issues #132, #170, #196, #174, #169, #199, #211, #212 — prior E2E/skill gap fixes
