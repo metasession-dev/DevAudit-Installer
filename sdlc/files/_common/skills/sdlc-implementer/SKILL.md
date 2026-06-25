@@ -551,6 +551,9 @@ Invoked separately by the user after UAT activity on the portal. Trigger: "resum
 
    - **Changes requested** → run change-request loop:
      - Fetch change-request comments from the PR (`gh pr view <M> --comments`) and from the portal release page.
+     - **Classify the change request (devaudit-installer#210 §6b):** Assess whether the change request is a **defect** (the implementation doesn't match the AC — the reviewer found a bug) or a **scope change** (the AC itself needs amendment — the reviewer wants new behaviour the AC didn't specify).
+       - **If it's a defect:** Delegate to `e2e-test-engineer` to file the incident with the `incident` label + `### Framework attribution` section before fixing. Invoke `Skill(name: "e2e-test-engineer", args: "Phase 6 triage — UAT reviewer found defect in REQ-XXX. Change-request comment: <summary>. Triage and file application defects with the `incident` label + `### Framework attribution` section per the standard convention.")`. `e2e-test-engineer` returns with a summary of filed incidents. Then fix the defect in the same Phase 2 re-run. This ensures UAT-discovered defects produce `incident_report` evidence, closing `ISO29119.3.5.4` for the defect — not just silently fixing it.
+       - **If it's a scope change:** Use the existing scope-expansion halt gate (REQ-SKILL-IMPLEMENTER-019) — file a separate issue or amend the REQ scope. Do NOT file an incident — the AC itself needs amendment, not a defect fix.
      - Add a new `## Change-request iteration N` section to `compliance/plans/REQ-XXX/implementation-plan.md` describing what changed and why.
      - **Update the release ticket status** (`compliance/pending-releases/RELEASE-TICKET-REQ-XXX.md`): set `**Status:**` to `CHANGES REQUESTED — ITERATION N` when entering the iteration. Commit the ticket update alongside the delta-plan section in the same iteration commit.
      - Re-run Phase 2 (implement + test) for the requested changes — same delegation to `e2e-test-engineer` for any e2e work.
@@ -580,6 +583,7 @@ Hard rules — the skill's SKILL.md fails review if any of these are violated. A
 4. **Change-request loop triggers full UAT re-review.** The portal's release-approval state resets when new commits land on the PR — respect it. Surface a "UAT re-review needed" comment; never rely on prior approval covering subsequent changes.
 5. **AI involvement disclosed on every commit** via `Co-Authored-By: Claude`. (ISO 27001 disclosure norms + EU AI Act Art. 13 transparency.)
 6. **All portal mutations through audit-logged APIs.** Use `devaudit push` and the standard portal-API endpoints — never a private back-channel.
+7. **Never file incidents inline (devaudit-installer#210).** Incident filing (label application, framework attribution, severity classification) is delegated to `e2e-test-engineer` (for E2E-discovered defects) or `governance-doc-author` (for non-E2E incidents). The orchestrator's job is to detect the defect, delegate the filing, receive the return summary, and act on it (halt, rollback, re-review). This keeps the incident filing convention in one place — the sub-skills — and prevents silent evidence gaps where defects are found and fixed but never recorded on the portal.
 
 Plus one process risk surfaced explicitly in the principles below (rubber-stamping at UAT). Not enforceable architecturally — the UAT reviewer is the load-bearing human.
 
