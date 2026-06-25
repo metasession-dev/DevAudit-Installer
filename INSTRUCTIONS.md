@@ -30,11 +30,17 @@ No application code. No framework dependencies beyond `jq`, `curl`, `gh`, `git`,
 
 ## Conventions
 
-### Branching
+### Branching — GitFlow
 
-- `develop` for active work. `main` for the stable, tagged framework versions.
-- Develop-main with merge commits to preserve audit trail.
+- `main` for stable, tagged framework versions. **No direct push** — PR only.
+- `develop` for integration. **No direct push** — PR only.
+- `feature/<issue#>-<short-slug>` branched from `develop` for new work.
+- `fix/<issue#>-<short-slug>` branched from `develop` for bug fixes.
+- `hotfix/<issue#>-<short-slug>` branched from `main` for production hotfixes.
+- Workflow: branch from `develop` → implement → PR into `develop` → merge. Ship: PR `develop` → `main` → merge.
+- Merge commits to preserve audit trail.
 - Tag a release with `sdlc-vX.Y.Z` via `git tag` before announcing it to consumers.
+- CI must pass on `develop` before merging to `main`.
 
 ### Commits
 

@@ -42,6 +42,57 @@ Conventions:
 - **One PR per logical change**. Keep PRs reviewable; split refactors from behaviour changes when you can.
 - **Co-author tags** for AI assistance. Use `Co-Authored-By:` on the commit when an AI tool contributed substantively. The `git log` history shows the current pattern.
 
+## Branching Strategy — GitFlow
+
+This repository uses a **GitFlow** branching model with five branch types:
+
+### Branch roles
+
+| Branch | Purpose | Direct push? |
+|---|---|---|
+| `main` | Production — stable, tagged framework versions | **No** — PR only |
+| `develop` | Integration — active work merges here | **No** — PR only |
+| `feature/*` | New work — branched from `develop` | Yes (to the feature branch) |
+| `fix/*` | Bug fixes — branched from `develop` | Yes (to the fix branch) |
+| `hotfix/*` | Production hotfixes — branched from `main` | Yes (to the hotfix branch) |
+
+### Workflow
+
+**Developing a feature or fix:**
+
+1. Branch from `develop`: `git checkout develop && git pull && git checkout -b feature/<issue#>-<short-slug>`
+2. Implement the change, committing with Conventional Commits
+3. Open a PR into `develop`: `gh pr create --base develop --head feature/<issue#>-<short-slug>`
+4. CI must pass on the PR before merging
+5. Merge into `develop` (merge commits to preserve audit trail)
+
+**Shipping a release:**
+
+1. Open a PR from `develop` into `main`: `gh pr create --base main --head develop`
+2. CI must pass on `develop` before merging to `main`
+3. Merge `develop` → `main` (merge commits)
+4. Tag the release: `git tag sdlc-vX.Y.Z`
+
+**Hotfixing production:**
+
+1. Branch from `main`: `git checkout main && git pull && git checkout -b hotfix/<issue#>-<short-slug>`
+2. Implement the fix
+3. Open a PR into `main`: `gh pr create --base main --head hotfix/<issue#>-<short-slug>`
+4. After merge, also merge `main` back into `develop` to keep them in sync
+
+### Branch naming
+
+- **Feature branches:** `feature/<issue#>-<short-slug>` (e.g. `feature/213-fix-terminology`)
+- **Fix branches:** `fix/<issue#>-<short-slug>` (e.g. `fix/205-ci-gate-timeout`)
+- **Hotfix branches:** `hotfix/<issue#>-<short-slug>` (e.g. `hotfix/301-prod-crash`)
+
+### Commit conventions
+
+- **Conventional Commits** for all messages: `feat(cli): …`, `fix(sdlc): …`, `docs(sdlc): …`, `chore(docs): …`
+- Reference the issue number in the commit body where relevant
+- Include `Co-Authored-By:` for AI-assisted commits
+- CI must pass on `develop` before merging to `main`
+
 ## What lives where
 
 | Path | Contents |

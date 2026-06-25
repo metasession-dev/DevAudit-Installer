@@ -25,7 +25,7 @@ Each project follows a **single owner-developer partnered with AI coding agents*
 
 - **Owner-developer** provides direction, judgment, and approval. They are accountable for the project.
 - **AI agent** (Claude Code, Windsurf, Cursor) acts as implementation partner, compliance enforcer, and reviewer. The SDLC process is enforced by the AI on every code change via drop-in rules (`sdlc/ai-rules/`).
-- **Branching is develop-main** with a permanent `develop` branch — no feature branches. Parallel work is handled by the AI within a single stream, not by multiple developers on separate branches.
+- **Branching is GitFlow** with permanent `main` and `develop` branches plus `feature/*`, `fix/*`, and `hotfix/*` branches. See the Branching Strategy section below for details.
 - **PR reviews** are owner-reviewed with AI-assisted verification. CI provides independent, tamper-resistant evidence. The SDLC workflows and compliance gates replace traditional team ceremonies (standups, sprint planning).
 - **The AI is the second pair of eyes.** It asks which requirement a change is for, blocks implementation until planning is complete, enforces commit conventions, runs compliance gates, and guides evidence compilation.
 
@@ -47,9 +47,32 @@ All templates assume these gates: TypeScript (0 errors), SAST/Semgrep (0 high/cr
 - **Commit format:** Conventional Commits with `Co-Authored-By` tags for AI, `Ref: REQ-XXX` for tracked requirements
 - **Requirement IDs:** `REQ-XXX` format, tracked in `compliance/RTM.md`
 - **Status lifecycle:** DRAFT → IN PROGRESS → TESTED - PENDING SIGN-OFF → APPROVED - DEPLOYED
-- **Branching:** permanent `develop` branch, protected `main` (production), merge commits to preserve audit trail
+- **Branching:** GitFlow — permanent `develop` branch, protected `main` (production), `feature/*` and `fix/*` from `develop`, `hotfix/*` from `main`, merge commits to preserve audit trail
 - **Evidence model:** local testing (comprehensive) + CI testing (independent verification, tamper-resistant)
 - **Placeholders:** Templates use `[BRACKETED_VALUES]` and `# UPDATE` markers for project-specific customization
+
+## Branching Strategy — GitFlow
+
+This repository uses a **GitFlow** branching model. AI agents (Claude Code, Cursor, Windsurf, Gemini CLI) and human contributors must follow these rules.
+
+### Branch roles
+
+| Branch | Purpose | Direct push? |
+|---|---|---|
+| `main` | Production — stable, tagged framework versions | **No** — PR only |
+| `develop` | Integration — active work merges here | **No** — PR only |
+| `feature/*` | New work — branched from `develop` | Yes (to the feature branch) |
+| `fix/*` | Bug fixes — branched from `develop` | Yes (to the fix branch) |
+| `hotfix/*` | Production hotfixes — branched from `main` | Yes (to the hotfix branch) |
+
+### AI agent rules
+
+1. **Never commit directly to `main` or `develop`.** Always use a `feature/`, `fix/`, or `hotfix/` branch.
+2. **Branch naming:** `feature/<issue#>-<short-slug>`, `fix/<issue#>-<short-slug>`, `hotfix/<issue#>-<short-slug>`.
+3. **Workflow:** branch from `develop` → implement → PR into `develop` → merge. Ship: PR `develop` → `main` → merge.
+4. **Conventional Commits** for all commit messages. Reference issue numbers in the body.
+5. **CI must pass on `develop`** before merging to `main`.
+6. **Merge commits** (not squash or rebase) to preserve the audit trail.
 
 ## When Editing These Templates
 

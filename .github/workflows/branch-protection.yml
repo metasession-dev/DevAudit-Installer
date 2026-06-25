@@ -1,0 +1,93 @@
+name: Enforce GitFlow
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  enforce-gitflow:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Enforce GitFlow branch rules
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          PR_HEAD="${{ github.event.pull_request.head.ref }}"
+          PR_BASE="${{ github.event.pull_request.base.ref }}"
+          EVENT_NAME="${{ github.event_name }}"
+          REF_NAME="${{ github.ref_name }}"
+
+          echo "Event: $EVENT_NAME"
+          echo "PR base: $PR_BASE"
+          echo "PR head: $PR_HEAD"
+          echo "Ref: $REF_NAME"
+
+          # ── Push to main: verify all commits are on develop ──
+          if [ "$EVENT_NAME" = "push" ] && [ "$REF_NAME" = "main" ]; then
+            echo "Checking push to main: all commits must be on origin/develop"
+            if ! git fetch origin develop:refs/remotes/origin/develop 2>/dev/null; then
+              echo "::error::Could not fetch origin/develop to verify push to main."
+              exit 1
+            fi
+            # Get the range of commits in this push
+            BEFORE="${{ github.event.before }}"
+            AFTER="${{ github.event.after }}"
+            # Handle new-branch case (before is all zeros)
+            if [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+              COMMITS=$(git rev-list "origin/develop..$AFTER" 2>/dev/null || true)
+            else
+              COMMITS=$(git rev-list "$BEFORE..$AFTER" --not origin/develop 2>/dev/null || true)
+            fi
+            if [ -n "$COMMITS" ]; then
+              echo "::error::Push to main contains commits not on origin/develop:"
+              echo "$COMMITS" | while read -r sha; do
+                echo "  $sha $(git log -1 --format='%s' "$sha" 2>/dev/null || echo '<unknown>')"
+              done
+              echo "::error::All commits on main must first land on develop. Use a PR from develop to main."
+              exit 1
+            fi
+            echo "All commits on main are present on origin/develop. OK."
+            exit 0
+          fi
+
+          # ── PR to main: only from develop or hotfix/* ──
+          if [ "$PR_BASE" = "main" ]; then
+            case "$PR_HEAD" in
+              develop)
+                echo "PR develop → main: allowed."
+                ;;
+              hotfix/*)
+                echo "PR $PR_HEAD → main: allowed (hotfix)."
+                ;;
+              *)
+                echo "::error::PRs to main must come from 'develop' or 'hotfix/*' branches. Got: $PR_HEAD"
+                exit 1
+                ;;
+            esac
+          fi
+
+          # ── PR to develop: never from main ──
+          if [ "$PR_BASE" = "develop" ]; then
+            case "$PR_HEAD" in
+              main|main/*)
+                echo "::error::PRs from main to develop are not allowed. Use a feature/ or fix/ branch instead."
+                exit 1
+                ;;
+              *)
+                echo "PR $PR_HEAD → develop: allowed."
+                ;;
+            esac
+          fi
+
+          echo "GitFlow rules passed."
