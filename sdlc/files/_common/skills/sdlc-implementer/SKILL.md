@@ -447,9 +447,20 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
    - **Requirements gap** — the test is correct, the implementation is correct, but the AC the test derives from is wrong or incomplete. The test reveals behaviour the AC didn't anticipate. Trigger the [requirements gap flow](#requirements-gap-flow-devaudit-installer212) instead of fixing code or test.
    
    The classification question: "Is the test testing the right thing? Is the implementation doing the right thing? If both are 'right' but they disagree, the AC they both derive from is wrong."
+
+   **On test failure — delegate incident filing to `e2e-test-engineer` (devaudit-installer#210 §6a).** When the test pack re-run fails, do NOT file incidents inline. Instead, invoke `Skill(name: "e2e-test-engineer", args: "Phase 6 triage — test pack re-run failed for REQ-XXX. Triage failures and file application defects with the `incident` label + `### Framework attribution` section per the standard convention.")`. `e2e-test-engineer` returns with a summary of filed incidents. This ensures all incidents follow the correct filing convention (label + attribution) so `incident-export.yml` fires on close → `incident_report` evidence lands on the portal → `ISO29119.3.5.4` flips to COVERED.
+
    - `npm run test:e2e -- --reporter=html` (produces `playwright-report/`)
    - `npx vitest run --coverage` (produces `coverage/`)
-5. **Organise artefacts** under `compliance/evidence/REQ-XXX/` with date-prefixed naming:
+
+5. **Generate nil incident report if no incidents were closed (devaudit-installer#210 §8a).** After the test pack re-run passes, check whether any `incident`-labelled issues were closed during this REQ's lifecycle (`gh issue list --label incident --state closed --search "REQ-XXX" --json number`). If none were closed and the test pack re-run passes:
+   - Create `compliance/governance/nil-incident-report-<version>.md` from the `nil-incident-report.md.template` template.
+   - Fill in the scope section (test cases executed/passed/failed, defects filed, incidents reported).
+   - Leave the sign-off section with REPLACE markers — the operator fills it in.
+   - The nil report uploads as `incident_report` evidence via `compliance-evidence.yml`'s `upload_incident_report` function, flipping `ISO29119.3.5.4` to COVERED for clean releases.
+   - If incidents WERE closed, skip nil report generation — the populated incident report(s) from `incident-export.yml` serve as the evidence.
+
+6. **Organise artefacts** under `compliance/evidence/REQ-XXX/` with date-prefixed naming:
 
    ```
    compliance/evidence/REQ-XXX/
@@ -536,10 +547,13 @@ Invoked separately by the user after UAT activity on the portal. Trigger: "resum
      - Comment on the issue: "Released. Production smoke evidence: <link>." (only after release status is `released`)
      - **Update SDLC status sticky** to the terminal state: `bash scripts/update-sdlc-status.sh "$ISSUE_NUM" "Phase 5 complete — release marked Released; production smoke evidence uploaded" "Done — close issue + retire feature branch (sdlc-implementer halts)"`.
      - Close the issue.
-     - If production smoke fails: do NOT mark as Released. File an `[INCIDENT]` defect issue, page the on-call per the project's incident playbook, follow the rollback plan from the implementation plan. If the rollback also fails: update the sticky to "Phase 5 CRITICAL — production smoke failed AND rollback failed. Production is in a broken state. Operator action — page on-call immediately, engage hosting platform support, declare incident per the project's incident playbook. This is beyond the skill's scope." File the incident issue with severity `blocker` + `SOC2.CC7.2` attribution. Do NOT attempt further automated remediation. **Update the sticky** to reflect the incident state: `… "Phase 5 BLOCKED — production smoke failed; INCIDENT issue #N filed" "Operator action — read INCIDENT #N + execute rollback per plan"`.
+     - If production smoke fails: do NOT mark as Released. **Delegate incident filing to `governance-doc-author` (devaudit-installer#210 §6c)** — invoke `Skill(name: "governance-doc-author", args: "Production smoke failure for REQ-XXX. File an incident issue with the `incident` label + `### Framework attribution` section (ISO29119.3.5.4 + SOC2.CC7.2), severity `blocker`. Include the production URL, git SHA, testCycleId (CI run ID), and smoke results in the issue body.")`. Page the on-call per the project's incident playbook, follow the rollback plan from the implementation plan. If the rollback also fails: update the sticky to "Phase 5 CRITICAL — production smoke failed AND rollback failed. Production is in a broken state. Operator action — page on-call immediately, engage hosting platform support, declare incident per the project's incident playbook. This is beyond the skill's scope." Do NOT attempt further automated remediation. **Update the sticky** to reflect the incident state: `… "Phase 5 BLOCKED — production smoke failed; INCIDENT issue #N filed" "Operator action — read INCIDENT #N + execute rollback per plan"`.
 
    - **Changes requested** → run change-request loop:
      - Fetch change-request comments from the PR (`gh pr view <M> --comments`) and from the portal release page.
+     - **Classify the change request (devaudit-installer#210 §6b):** Assess whether the change request is a **defect** (the implementation doesn't match the AC — the reviewer found a bug) or a **scope change** (the AC itself needs amendment — the reviewer wants new behaviour the AC didn't specify).
+       - **If it's a defect:** Delegate to `e2e-test-engineer` to file the incident with the `incident` label + `### Framework attribution` section before fixing. Invoke `Skill(name: "e2e-test-engineer", args: "Phase 6 triage — UAT reviewer found defect in REQ-XXX. Change-request comment: <summary>. Triage and file application defects with the `incident` label + `### Framework attribution` section per the standard convention.")`. `e2e-test-engineer` returns with a summary of filed incidents. Then fix the defect in the same Phase 2 re-run. This ensures UAT-discovered defects produce `incident_report` evidence, closing `ISO29119.3.5.4` for the defect — not just silently fixing it.
+       - **If it's a scope change:** Use the existing scope-expansion halt gate (REQ-SKILL-IMPLEMENTER-019) — file a separate issue or amend the REQ scope. Do NOT file an incident — the AC itself needs amendment, not a defect fix.
      - Add a new `## Change-request iteration N` section to `compliance/plans/REQ-XXX/implementation-plan.md` describing what changed and why.
      - **Update the release ticket status** (`compliance/pending-releases/RELEASE-TICKET-REQ-XXX.md`): set `**Status:**` to `CHANGES REQUESTED — ITERATION N` when entering the iteration. Commit the ticket update alongside the delta-plan section in the same iteration commit.
      - Re-run Phase 2 (implement + test) for the requested changes — same delegation to `e2e-test-engineer` for any e2e work.
@@ -569,6 +583,7 @@ Hard rules — the skill's SKILL.md fails review if any of these are violated. A
 4. **Change-request loop triggers full UAT re-review.** The portal's release-approval state resets when new commits land on the PR — respect it. Surface a "UAT re-review needed" comment; never rely on prior approval covering subsequent changes.
 5. **AI involvement disclosed on every commit** via `Co-Authored-By: Claude`. (ISO 27001 disclosure norms + EU AI Act Art. 13 transparency.)
 6. **All portal mutations through audit-logged APIs.** Use `devaudit push` and the standard portal-API endpoints — never a private back-channel.
+7. **Never file incidents inline (devaudit-installer#210).** Incident filing (label application, framework attribution, severity classification) is delegated to `e2e-test-engineer` (for E2E-discovered defects) or `governance-doc-author` (for non-E2E incidents). The orchestrator's job is to detect the defect, delegate the filing, receive the return summary, and act on it (halt, rollback, re-review). This keeps the incident filing convention in one place — the sub-skills — and prevents silent evidence gaps where defects are found and fixed but never recorded on the portal.
 
 Plus one process risk surfaced explicitly in the principles below (rubber-stamping at UAT). Not enforceable architecturally — the UAT reviewer is the load-bearing human.
 

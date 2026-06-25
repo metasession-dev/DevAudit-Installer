@@ -139,10 +139,85 @@ jobs:
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           OUT: ${{ steps.paths.outputs.out }}
           SEVERITY: ${{ steps.route.outputs.severity }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_LABELS: ${{ toJSON(github.event.issue.labels.*.name) }}
         run: |
           mkdir -p compliance/governance
           ISSUE_JSON=$(gh issue view "$ISSUE_NUMBER" \
             --json title,body,labels,author,createdAt,closedAt,comments,url,assignees,number,state)
+
+          # DevAudit-Installer#210 §4 — enrich the auto-export with
+          # structured sections parsed from the issue body + linked PRs.
+          # This populates §4 (Root cause), §5 (Impact), §6 (Containment),
+          # the test case from the Evidence line, disposition, and
+          # sign-off with REPLACE markers (not auto/auto).
+
+          # §4a — Root cause: find the PR that closed this issue.
+          CLOSING_PRS=$(gh pr list --state merged --search "linked:issue $ISSUE_NUMBER" --json number,title,body,mergeCommit --jq '.[]' 2>/dev/null || true)
+          ROOT_CAUSE="REPLACE — root cause not documented in fix PR"
+          if [ -n "$CLOSING_PRS" ]; then
+            # Try to extract a root cause from the first linked PR's body.
+            PR_BODY=$(echo "$CLOSING_PRS" | jq -r '.body' 2>/dev/null || true)
+            if echo "$PR_BODY" | grep -qi '## Root cause'; then
+              ROOT_CAUSE=$(echo "$PR_BODY" | sed -n '/^## Root cause/,/^## /p' | head -n -1 | tail -n +2 | sed 's/^/  /' | tr -d '\r')
+            elif echo "$PR_BODY" | grep -qiE '^fix\(' ; then
+              # Conventional-commit format: extract the description.
+              ROOT_CAUSE=$(echo "$PR_BODY" | head -1 | sed -E 's/^fix\([^)]*\): //')
+            fi
+          fi
+
+          # §4d — Test case that found it: parse the Evidence line from the issue body.
+          TEST_CASE=$(printf '%s' "$ISSUE_BODY" | grep -oP '\*\*Evidence\*\*.*?—\s*\K.*' | head -1 || true)
+          [ -z "$TEST_CASE" ] && TEST_CASE="REPLACE — extract from issue body Evidence line"
+
+          # §4e — Disposition: from issue close state + linked PRs.
+          DISPOSITION="Fixed"
+          if [ -z "$CLOSING_PRS" ]; then
+            DISPOSITION="REPLACE — issue closed without a merged PR; verify disposition (won't fix / duplicate / other)"
+          fi
+
+          # §4b — Impact: map severity to impact tier.
+          IMPACT_TIER="low"
+          case "$SEVERITY" in
+            critical|blocker) IMPACT_TIER="high — users affected, potential data impact" ;;
+            high|major)       IMPACT_TIER="medium — significant user impact" ;;
+            *)                IMPACT_TIER="low — limited user impact" ;;
+          esac
+          # Check for additional impact labels.
+          IMPACT_NOTES=""
+          if printf '%s' "$ISSUE_LABELS" | grep -qi 'gdpr\|security'; then
+            IMPACT_NOTES="- **Regulatory:** REPLACE — potential GDPR / security implications; verify scope"
+          fi
+          if printf '%s' "$ISSUE_LABELS" | grep -qi 'ops-impact'; then
+            IMPACT_NOTES="${IMPACT_NOTES}- **Operational:** REPLACE — production impact documented in incident"
+          fi
+
+          # §4c — Containment: list linked PRs.
+          CONTAINMENT=""
+          if [ -n "$CLOSING_PRS" ]; then
+            MERGE_SHA=$(echo "$CLOSING_PRS" | jq -r '.mergeCommit.oid // .mergeCommit // "unknown"' 2>/dev/null | head -1)
+            PR_TITLE=$(echo "$CLOSING_PRS" | jq -r '.title' 2>/dev/null | head -1)
+            PR_NUM=$(echo "$CLOSING_PRS" | jq -r '.number' 2>/dev/null | head -1)
+            CONTAINMENT="- **Containment actions:** auto-derived from PR #${PR_NUM}: ${PR_TITLE}
+- **Mitigation deployed:** [PR #${PR_NUM}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/pull/${PR_NUM}) (${MERGE_SHA})
+- **Recovery actions:** REPLACE — if additional recovery steps were taken
+- **Verification that the incident is resolved:** REPLACE — how was the fix verified (re-run E2E, manual check, etc.)"
+          else
+            CONTAINMENT="- **Containment actions:** REPLACE — no linked PR found
+- **Mitigation deployed:** REPLACE
+- **Recovery actions:** REPLACE
+- **Verification that the incident is resolved:** REPLACE"
+          fi
+
+          # §4g — Lessons learned: scan comments for follow-up issue references.
+          FOLLOW_UPS=$(echo "$ISSUE_JSON" | jq -r '.comments[].body' | grep -oP '#\d+' | sort -u | head -5 || true)
+          LESSONS=""
+          if [ -n "$FOLLOW_UPS" ]; then
+            LESSONS="- **Follow-up actions:** ${FOLLOW_UPS}"
+          else
+            LESSONS="- **Follow-up actions:** REPLACE — file GitHub issues for any preventive actions; one row per action"
+          fi
+
           {
             echo "$ISSUE_JSON" | jq -r '
               "---",
@@ -162,6 +237,8 @@ jobs:
               "> ℹ️ Auto-exported by Incident Export workflow on issue close (Path A — baseline-only).",
               "> The narrative below is the original issue body + comments.",
               "> No GDPR triage required — framework attribution confirmed baseline-only.",
+              "> DevAudit-Installer#210: structured sections (§4-§9) auto-populated from linked PRs + issue body.",
+              "> Sign-off section has REPLACE markers — complete before pushing to develop.",
               "",
               "# Incident Report — " + .title,
               "",
@@ -176,20 +253,29 @@ jobs:
               "**Assignees:** " + (if .assignees == [] then "_unassigned_" else (.assignees | map("@" + .login) | join(", ")) end) + "  ",
               "**Labels:** " + (.labels | map("`" + .name + "`") | join(", ")),
               "",
-              "## 1. Personal data scope (GDPR triage)",
+              "## 1. Summary",
+              "",
+              "- **Incident ID:** INC-" + (.createdAt[:10] | gsub("-";"")) + "-" + (.number|tostring),
+              "- **Severity:** '"${SEVERITY}"'",
+              "- **One-line description:** " + (.title | gsub("^\\[.*?\\]\\s*"; "")),
+              "- **Detected at:** " + .createdAt,
+              "- **Resolved at:** " + .closedAt,
+              "- **Test case that detected this incident:** '"${TEST_CASE}"'",
+              "- **Disposition:** '"${DISPOSITION}"'",
+              "",
+              "## 2. Personal data scope (GDPR triage)",
               "",
               "| Question | Answer |",
               "| --- | --- |",
-              "| Did the incident involve personal data? | No |
+              "| Did the incident involve personal data? | No |",
               "| Notify supervisory authority (Art. 33)? | N/A — no personal data scope |",
               "| Notify data subjects (Art. 34)? | N/A — no personal data scope |",
               "| 72-hour notification window | N/A |",
               "",
-              "## 2. Narrative (from the GitHub issue)",
+              "## 3. Timeline (from issue comments)",
               "",
               .body,
-              "",
-              "## 3. Timeline (from issue comments)"
+              ""
             '
             echo ""
             # Comments — one section each, ordered by createdAt.
@@ -197,21 +283,52 @@ jobs:
               .comments | sort_by(.createdAt) | .[] |
               "### " + .createdAt + " — @" + .author.login + "\n\n" + .body + "\n"
             '
-            cat <<'TAIL'
+            cat <<TAIL
 
-          ## 4. Sign-off
+          ## 4. Root cause
+
+          - **What happened:** ${ROOT_CAUSE}
+          - **Why it happened:** REPLACE — 5-whys or equivalent
+          - **Why it wasn't caught earlier:** REPLACE — gap in monitoring / testing / review
+
+          ## 5. Impact
+
+          - **Users affected:** REPLACE — count + segment
+          - **Impact tier:** ${IMPACT_TIER}
+          - **Data confidentiality / integrity / availability impact:** REPLACE
+          - **Financial / reputational:** REPLACE
+          ${IMPACT_NOTES}
+
+          ## 6. Containment, mitigation, and recovery
+
+          ${CONTAINMENT}
+
+          ## 7. Communications
+
+          - **Internal:** REPLACE — who was notified, when
+          - **Customer / data subjects:** N/A — no personal data scope (Path A baseline-only)
+          - **Supervisory authority:** N/A
+          - **Public statement:** REPLACE — link if any
+
+          ## 8. Lessons learned and follow-ups
+
+          - **What worked well:** REPLACE
+          - **What didn't:** REPLACE
+          ${LESSONS}
+
+          ## 9. Sign-off
 
           | Role                                | Name    | Date    |
           | ----------------------------------- | ------- | ------- |
-          | Incident Commander                  | auto    | auto    |
-          | Engineering lead                    | auto    | auto    |
+          | Incident Commander                  | REPLACE | REPLACE |
+          | Engineering lead                    | REPLACE | REPLACE |
 
           ---
 
-          _Source: auto-exported by `.github/workflows/incident-export.yml` when the originating issue was closed (Path A — baseline-only, direct commit)._
+          _Source: auto-exported by `.github/workflows/incident-export.yml` when the originating issue was closed (Path A — baseline-only, direct commit). Structured sections auto-populated from linked PRs + issue body (DevAudit-Installer#210). Sign-off requires human attestation._
           TAIL
           } > "$OUT"
-          echo "Wrote $OUT (Path A)"
+          echo "Wrote $OUT (Path A — enriched)"
 
       - name: Export issue to markdown (Path B — PR with REPLACE markers)
         if: steps.route.outputs.path == 'B'

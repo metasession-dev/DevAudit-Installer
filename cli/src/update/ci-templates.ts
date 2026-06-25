@@ -19,6 +19,9 @@ const CI_TEMPLATES = [
   // DevAudit-Installer#98 WS4: fires on `label:incident` issue close →
   // auto-PR with the issue exported to compliance/governance/.
   'incident-export.yml.template',
+  // DevAudit-Installer#210: enforces the `incident` label survives to
+  // issue close so incident-export.yml fires and evidence lands on the portal.
+  'label-retention.yml.template',
 ];
 
 const OLD_WORKFLOWS_TO_REMOVE = ['test-on-pr.yml', 'check-uat-approval.yml'];

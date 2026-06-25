@@ -125,6 +125,12 @@ describe('syncProject — native TS sync against a fixture', () => {
     // sync into .github/workflows/ alongside the gate workflows.
     expect(await fs.stat(join(fixtureDir, '.github', 'workflows', 'periodic-review.yml'))).toBeTruthy();
     expect(await fs.stat(join(fixtureDir, '.github', 'workflows', 'incident-export.yml'))).toBeTruthy();
+    // DevAudit-Installer#210: label-retention.yml enforces the incident
+    // label survives to issue close so incident-export.yml fires.
+    expect(await fs.stat(join(fixtureDir, '.github', 'workflows', 'label-retention.yml'))).toBeTruthy();
+    const labelRetentionYml = await fs.readFile(join(fixtureDir, '.github', 'workflows', 'label-retention.yml'), 'utf-8');
+    expect(labelRetentionYml).toContain('types: [labeled, unlabeled]');
+    expect(labelRetentionYml).toContain('incident');
     const periodicYml = await fs.readFile(join(fixtureDir, '.github', 'workflows', 'periodic-review.yml'), 'utf-8');
     expect(periodicYml).toContain("cron: '0 9 1 */3 *'");
     expect(periodicYml).toContain('compliance/governance/periodic-review.md');
