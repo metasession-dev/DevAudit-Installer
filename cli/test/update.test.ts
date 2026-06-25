@@ -104,6 +104,7 @@ describe('syncProject — native TS sync against a fixture', () => {
     // Section 2d — scripts
     expect(await fs.stat(join(fixtureDir, 'scripts', 'upload-evidence.sh'))).toBeTruthy();
     expect(await fs.stat(join(fixtureDir, 'scripts', 'validate-compliance-artifacts.sh'))).toBeTruthy();
+    expect(await fs.stat(join(fixtureDir, 'scripts', 'generate-bundled-changes.sh'))).toBeTruthy();
     // Section 2e-iii — evidence helper (node only). All three files: the
     // Playwright wrapper, the pure helpers it imports, and the test-tags
     // annotation helper (#196).
