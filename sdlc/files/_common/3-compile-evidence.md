@@ -340,7 +340,7 @@ If the AI tool changed mid-implementation (detected by the `prepare-commit-msg` 
 - REQ release ticket: compliance/pending-releases/RELEASE-TICKET-REQ-XXX.md
 ```
 
-This file is uploaded as evidence with `evidence_type: compliance_document` and `evidence_category: ai_handoff` so the portal can query for it specifically.
+This file is uploaded as evidence with `evidence_type: ai_agent_handoff` and `evidence_category: ai_governance` so the portal can query for it specifically (DevAudit-Installer#205).
 
 ### Step 6: Verify Test Scope and Implementation Plan
 
