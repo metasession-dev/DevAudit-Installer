@@ -55,7 +55,7 @@ jobs:
             VIOLATIONS=""
             if [ -n "$COMMITS" ]; then
               while IFS= read -r sha; do
-                PARENTS=$(git rev-list --no-walk --count "$sha" 2>/dev/null || echo "1")
+                PARENTS=$(git show -s --format='%P' "$sha" 2>/dev/null | wc -w)
                 if [ "$PARENTS" -lt 2 ]; then
                   VIOLATIONS="${VIOLATIONS}${sha}"$'\n'
                 fi
