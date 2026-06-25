@@ -4,6 +4,14 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+### Added
+
+- **#220** — New `generate-bundled-changes.sh` script in `sdlc/files/_common/scripts/`. Scans commits since a given ref, filters for housekeeping commit types (chore/docs/ci/build/test/revert/style/perf/refactor), outputs a markdown summary. Auto-synced to consumers via the scripts sync module. Used by the new "Generate and upload bundled changes" CI step in `ci.yml.template` to attach `bundled_changes` evidence to REQ-tagged releases.
+
+### Changed
+
+- **#220** — `devaudit update` suggested commit message now includes `[skip ci]` so automated template syncs don't trigger CI or create portal release records. Housekeeping changes from skipped syncs are bundled into the next REQ-tagged release via `generate-bundled-changes.sh`.
+
 ## [0.1.62] — 2026-06-20
 
 ### Added
