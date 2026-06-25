@@ -49,9 +49,22 @@ jobs:
             else
               COMMITS=$(git rev-list "$BEFORE..$AFTER" --not origin/develop 2>/dev/null || true)
             fi
+            # Filter out merge commits (2+ parents) — these are the expected
+            # result of develop→main PR merges and don't exist on develop.
+            # Only non-merge commits not on develop are violations (direct pushes).
+            VIOLATIONS=""
             if [ -n "$COMMITS" ]; then
-              echo "::error::Push to main contains commits not on origin/develop:"
-              echo "$COMMITS" | while read -r sha; do
+              while IFS= read -r sha; do
+                PARENTS=$(git rev-list --no-walk --count "$sha" 2>/dev/null || echo "1")
+                if [ "$PARENTS" -lt 2 ]; then
+                  VIOLATIONS="${VIOLATIONS}${sha}"$'\n'
+                fi
+              done <<< "$COMMITS"
+            fi
+            if [ -n "$VIOLATIONS" ]; then
+              echo "::error::Push to main contains non-merge commits not on origin/develop:"
+              echo "$VIOLATIONS" | while read -r sha; do
+                [ -z "$sha" ] && continue
                 echo "  $sha $(git log -1 --format='%s' "$sha" 2>/dev/null || echo '<unknown>')"
               done
               echo "::error::All commits on main must first land on develop. Use a PR from develop to main."
