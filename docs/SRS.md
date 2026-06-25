@@ -1656,9 +1656,9 @@ Scope note: The six entries below are **Claude Code skills** — directories und
 - **Priority:** Must — the second explicit human pause; the UAT review gate is the load-bearing control and must never be skipped or merged with the check red.
 - **Source:** `sdlc/files/_common/skills/sdlc-implementer/SKILL.md` (§ Phase 4 steps 1, 4–6; § Sub-skill return semantics bullet 2; § Compliance constraints #1)
 - **Preconditions / inputs:** evidence uploaded; branch targets resolved from `sdlc-config.json`.
-- **Given** Stage 3 complete **When** Phase 4 runs **Then** the skill opens the release PR into `$RELEASE_BRANCH` (develop-first: `--base $RELEASE_BRANCH --head $INTEGRATION_BRANCH`; trunk-only: head = the feature branch) with a body containing Closes #N, REQ-XXX, Risk, Evidence link, (HIGH/CRITICAL) four-eyes attestation + rollback reference, test plan, SDLC checklist; comments the resume instruction on the issue; then **hard stops** — it does not merge; the next action is the human reviewing on the portal.
+- **Given** Stage 3 complete **When** Phase 4 runs **Then** the skill opens the release PR into `$RELEASE_BRANCH` (`--base $RELEASE_BRANCH --head $INTEGRATION_BRANCH`, e.g. `develop → main`) with a body containing Closes #N, REQ-XXX, Risk, Evidence link, (HIGH/CRITICAL) four-eyes attestation + rollback reference, test plan, SDLC checklist; comments the resume instruction on the issue; then **hard stops** — it does not merge; the next action is the human reviewing on the portal.
 - **Error paths:** external gate hangs for unrelated reasons → cancel-and-admin-merge allowed only when all three hold (≥3 other gates green, no scope overlap, fallback verification exists), documented on PR + release ticket `## Verification`.
-- **Fixtures/env:** develop-first and trunk-only `sdlc-config.json` variants; `check-release-approval.yml` present.
+- **Fixtures/env:** `sdlc-config.json` with `integration_branch` and `release_branch` configured; `check-release-approval.yml` present.
 
 #### REQ-SKILL-IMPLEMENTER-015 — Phase 4 four-eyes reviewer ≠ trigger user for HIGH/CRITICAL
 

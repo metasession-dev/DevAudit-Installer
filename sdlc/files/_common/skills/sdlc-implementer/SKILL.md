@@ -236,7 +236,7 @@ INTEGRATION_BRANCH=$(jq -r '.integration_branch // "develop"' sdlc-config.json) 
 RELEASE_BRANCH=$(jq -r '.release_branch // "main"' sdlc-config.json)             # the protected production branch
 ```
 
-For a **develop-first** repo these are `develop` and `main`: implementation lands on `$INTEGRATION_BRANCH`, and the UAT-approved release PR is `$INTEGRATION_BRANCH → $RELEASE_BRANCH`. A **trunk-only** repo sets both to `main`, collapsing the two hops into a single `feature → main` PR. Where the two branches differ, the release PR's head is `$INTEGRATION_BRANCH`; where they're equal, it's the feature branch.
+The framework uses a **develop-first** branching model: implementation lands on `$INTEGRATION_BRANCH` (default `develop`), and the UAT-approved release PR is `$INTEGRATION_BRANCH → $RELEASE_BRANCH` (default `main`). The release PR's head is always `$INTEGRATION_BRANCH`.
 
 ### Phase 0 — Workflow triage (classify → announce → confirm → route)
 
@@ -403,9 +403,7 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
 
 6. **On gate failure**, iterate up to N=3 attempts. Each iteration: read the failure output, propose a fix, apply, re-run. On exhausted attempts, halt with the full failure output and explicit resume instructions: "Gate <name> failed after N=3 attempts. Last failure: <output>. Operator action — fix the failure, commit to the feature branch, push, then ping `resume REQ-XXX`. The skill will re-run the gate from where it left off." Update the sticky with the same. Never use `--no-verify`, `eslint-disable`, `@ts-expect-error`, `xfail`, or any other bypass.
 7. **Commit** using Conventional Commits with `Ref: REQ-XXX` trailer and `Co-Authored-By: Claude` trailer. One commit per logical step; never amend a commit that's already been pushed.
-8. **Land the work on `$INTEGRATION_BRANCH`.** Push the feature branch, then:
-   - **If `$INTEGRATION_BRANCH` ≠ `$RELEASE_BRANCH`** (develop-first): open a PR `feat/REQ-XXX-<slug> → $INTEGRATION_BRANCH` and merge it once CI is green. This is the **integration hop** — there is no UAT four-eyes gate here (that's the release PR in Phase 4); for MEDIUM+ risk get a peer review on this PR per the project's norms. The push to `$INTEGRATION_BRANCH` is what triggers `ci.yml` to register the release and upload gate evidence. **Merge conflict resolution:** if the PR has merge conflicts (another feature branch merged first), pull the latest `$INTEGRATION_BRANCH` into the feature branch (`git merge "$INTEGRATION_BRANCH" --no-edit`), resolve conflicts (preferring the feature branch's changes for files this REQ touches), push, wait for CI. If conflicts are in files this REQ doesn't touch, halt — "Merge conflict in <files> from another feature. Operator action — review the conflict, these files are outside REQ-XXX's scope."
-   - **If `$INTEGRATION_BRANCH` = `$RELEASE_BRANCH`** (trunk-only): do **not** merge to the protected branch here — leave the work on the feature branch; it becomes the release PR's head in Phase 4.
+8. **Land the work on `$INTEGRATION_BRANCH`.** Push the feature branch, then open a PR `feat/REQ-XXX-<slug> → $INTEGRATION_BRANCH` and merge it once CI is green. This is the **integration hop** — there is no UAT four-eyes gate here (that's the release PR in Phase 4); for MEDIUM+ risk get a peer review on this PR per the project's norms. The push to `$INTEGRATION_BRANCH` is what triggers `ci.yml` to register the release and upload gate evidence. **Merge conflict resolution:** if the PR has merge conflicts (another feature branch merged first), pull the latest `$INTEGRATION_BRANCH` into the feature branch (`git merge "$INTEGRATION_BRANCH" --no-edit`), resolve conflicts (preferring the feature branch's changes for files this REQ touches), push, wait for CI. If conflicts are in files this REQ doesn't touch, halt — "Merge conflict in <files> from another feature. Operator action — review the conflict, these files are outside REQ-XXX's scope."
 
 9. **E2E delegation self-audit — mandatory before Phase 3 (devaudit#132).** Run `git diff "$INTEGRATION_BRANCH"...HEAD --name-only` and walk the file list. For **every** entry matching `e2e/**/*.spec.ts`, state out loud one of:
 
@@ -491,9 +489,7 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
 
 ### Phase 4 — Submit for UAT review (SDLC stage 4)
 
-1. **Open the release PR** — the PR that carries the UAT four-eyes approval gate (`check-release-approval.yml`), always into `$RELEASE_BRANCH`:
-   - develop-first (`$INTEGRATION_BRANCH` ≠ `$RELEASE_BRANCH`): `gh pr create --base "$RELEASE_BRANCH" --head "$INTEGRATION_BRANCH"` (e.g. `develop → main`). The implementation already landed on `$INTEGRATION_BRANCH` in Phase 2; this promotes it. (Note: if other work is also waiting on `$INTEGRATION_BRANCH`, this is a bundled release — every in-scope REQ keeps its own release record and Production approval.)
-   - trunk-only (`$INTEGRATION_BRANCH` = `$RELEASE_BRANCH`): `gh pr create --base "$RELEASE_BRANCH" --head feat/REQ-XXX-<slug>` (the feature branch from Phase 2).
+1. **Open the release PR** — the PR that carries the UAT four-eyes approval gate (`check-release-approval.yml`), always into `$RELEASE_BRANCH`: `gh pr create --base "$RELEASE_BRANCH" --head "$INTEGRATION_BRANCH"` (e.g. `develop → main`). The implementation already landed on `$INTEGRATION_BRANCH` in Phase 2; this promotes it. (Note: if other work is also waiting on `$INTEGRATION_BRANCH`, this is a bundled release — every in-scope REQ keeps its own release record and Production approval.)
 
    PR body per the SDLC PR template (see [`.github/pull_request_template.md`](../../../../../.github/pull_request_template.md)):
    - Closes #N
