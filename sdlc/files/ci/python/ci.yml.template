@@ -244,7 +244,7 @@ jobs:
         run: |
           chmod +x scripts/upload-evidence.sh 2>/dev/null || true
           bash scripts/upload-evidence.sh \
-            {{PROJECT_SLUG}} _compliance-docs compliance_document README.md \
+            {{PROJECT_SLUG}} _compliance-docs release_registration README.md \
             --release ${{ steps.version.outputs.version }} --create-release-if-missing \
             --environment uat --category planning \
             --git-sha ${{ github.sha }} --branch ${{ github.ref_name }} || true
@@ -392,7 +392,7 @@ jobs:
             STATUS_DEPAUDIT=$(gate_status "$(jq -r '.dependency_audit // "skipped"' "$OUTCOMES_FILE")")
             STATUS_TESTS=$(gate_status "$(jq -r '.tests // "skipped"' "$OUTCOMES_FILE")")
             upload gate-outcomes.json \
-              {{PROJECT_SLUG}} _compliance-docs compliance_document "$OUTCOMES_FILE" \
+              {{PROJECT_SLUG}} _compliance-docs gate_outcome "$OUTCOMES_FILE" \
               --category ci_pipeline ${FLAGS}
           fi
 
@@ -414,33 +414,45 @@ jobs:
               --category security_scan --gate-status "$STATUS_DEPAUDIT" ${FLAGS}
           fi
 
-          # pytest junit.xml is the Python equivalent of e2e-results.json — same `e2e_result` evidence type
+          # pytest junit.xml is the Python equivalent of e2e-results.json —
+          # same `e2e_result` evidence type, `e2e_result` category (NOT
+          # `ci_pipeline` — category collision fix, DevAudit-Installer#207).
           if [ -f {{WORKING_DIR_PREFIX}}ci-evidence/junit.xml ]; then
             upload junit.xml \
               {{PROJECT_SLUG}} _compliance-docs e2e_result {{WORKING_DIR_PREFIX}}ci-evidence/junit.xml \
-              --category ci_pipeline --gate-status "$STATUS_TESTS" ${FLAGS}
+              --category e2e_result --gate-status "$STATUS_TESTS" ${FLAGS}
           fi
 
+          # Project-level Test Summary Report — intentional compliance_document
+          # use (baseline, NOT per-release test evidence). Matches the node
+          # template. DevAudit-Installer#205.
           if [ -f "compliance/test-summary-report.md" ]; then
             upload test-summary-report.md \
               {{PROJECT_SLUG}} _compliance-docs compliance_document compliance/test-summary-report.md \
-              --category test_report ${FLAGS}
+              --category planning ${FLAGS}
           fi
 
-          for DOC in compliance/RTM.md compliance/test-plan.md compliance/test-cases.md; do
-            if [ -f "$DOC" ]; then
-              upload "$(basename "$DOC")" \
-                {{PROJECT_SLUG}} _compliance-docs compliance_document "$DOC" \
-                --category planning ${FLAGS}
-            fi
-          done
+          # Project-level planning docs with specific evidence_type so the
+          # portal's framework-coverage predicates attribute them correctly
+          # (DevAudit-Installer#205).
+          upload_project_doc() {
+            local DOC="$1" EVTYPE="$2"
+            if [ ! -f "$DOC" ]; then return 0; fi
+            upload "$(basename "$DOC")" \
+              {{PROJECT_SLUG}} _compliance-docs "$EVTYPE" "$DOC" \
+              --category planning ${FLAGS}
+          }
+          upload_project_doc compliance/RTM.md         rtm
+          upload_project_doc compliance/test-plan.md   test_plan
+          upload_project_doc compliance/test-cases.md  test_cases
 
+          # Release tickets — evidence_type=release_ticket (DevAudit-Installer#207).
           for DIR in compliance/pending-releases; do
             if [ -d "$DIR" ]; then
               for TICKET in "$DIR"/*.md; do
                 [ -f "$TICKET" ] || continue
                 upload "$(basename "$TICKET")" \
-                  {{PROJECT_SLUG}} _compliance-docs compliance_document "$TICKET" \
+                  {{PROJECT_SLUG}} _compliance-docs release_ticket "$TICKET" \
                   --category release_artifact ${FLAGS}
               done
             fi
@@ -467,9 +479,40 @@ jobs:
               fi
               for ARTIFACT in "$REQ_DIR"*.md; do
                 [ -f "$ARTIFACT" ] || continue
-                upload "${REQ_ID}/$(basename "$ARTIFACT")" \
-                  {{PROJECT_SLUG}} "${REQ_ID}" compliance_document "$ARTIFACT" \
-                  --category planning ${FLAGS}
+                # Per-REQ basename → (evidence_type, evidence_category) routing.
+                # Explicit cases for every SDLC-expected artifact; unrecognized
+                # filenames are skipped with a warning (DevAudit-Installer#205).
+                BASENAME=$(basename "$ARTIFACT")
+                case "$BASENAME" in
+                  test-execution-summary.md|test-summary-report.md)
+                    EVTYPE=test_report; EVCAT=test_report ;;
+                  srs-alignment.md)
+                    EVTYPE=srs_alignment; EVCAT=planning ;;
+                  architecture-decision.md)
+                    EVTYPE=architecture_decision; EVCAT=planning ;;
+                  risk-assessment.md)
+                    EVTYPE=risk_assessment; EVCAT=planning ;;
+                  test-scope.md)
+                    EVTYPE=test_scope; EVCAT=planning ;;
+                  test-plan.md)
+                    EVTYPE=test_plan; EVCAT=planning ;;
+                  implementation-plan.md)
+                    EVTYPE=implementation_plan; EVCAT=planning ;;
+                  security-summary.md)
+                    EVTYPE=security_summary; EVCAT=security ;;
+                  ai-use-note.md)
+                    EVTYPE=ai_use_note; EVCAT=ai_governance ;;
+                  ai-prompts.md)
+                    EVTYPE=ai_prompt_log; EVCAT=ai_governance ;;
+                  ai-agent-handoff.md)
+                    EVTYPE=ai_agent_handoff; EVCAT=ai_governance ;;
+                  *)
+                    echo "::warning::Unrecognized artifact ${REQ_ID}/${BASENAME} — skipping upload. Add explicit routing in ci.yml if this is a new evidence type. (DevAudit-Installer#205)"
+                    continue ;;
+                esac
+                upload "${REQ_ID}/${BASENAME}" \
+                  {{PROJECT_SLUG}} "${REQ_ID}" "$EVTYPE" "$ARTIFACT" \
+                  --category "$EVCAT" ${FLAGS}
               done
             done
           fi
