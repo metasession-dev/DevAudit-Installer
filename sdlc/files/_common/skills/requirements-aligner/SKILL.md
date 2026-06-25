@@ -132,7 +132,12 @@ I have reviewed the AC-to-SRS-item traces above and confirm:
 
 **Step 2 — Tag for upload.** The CI's `compliance-evidence.yml` uploads this file as `evidence_type=srs_alignment` (added to META-COMPLY's `EVIDENCE_TYPE_REGISTRY` in the paired sub-PR). The framework-coverage matrix then closes `ISO29119.3.4` (Test Plan — requirements traceability) and `SOC2.CC2.1` (Communication of policies — when paired with INSTRUCTIONS.md) for this REQ.
 
-**Step 3 — Return to the running `sdlc-implementer` context.** The skill's job ends at the artefact + the operator sign-off. The orchestrator immediately continues with the rest of Stage 3 (security summary, evidence upload, release ticket) inline — no pause, no operator nudge needed. (Skills run in the same invocation context; control returns synchronously when this skill exits. See `sdlc-implementer/SKILL.md` § *Sub-skill return semantics*.)
+**Step 3 — Return gap status to the running `sdlc-implementer` context (devaudit-installer#212 Gap 3).** In addition to producing the artefact, the skill returns a **gap status** to `sdlc-implementer`:
+
+- `CLEAN` — all ACs trace to SRS items, no unresolved drift. The orchestrator continues with the rest of Stage 3.
+- `GAPS_FOUND` — one or more ACs don't trace to SRS items, or drift is unresolved (no `@srs-deferred` annotation). Return the gap details (which ACs, what's missing). The orchestrator handles the gap per its [requirements gap flow](../sdlc-implementer/SKILL.md#requirements-gap-flow-devaudit-installer212): if `block_on_stage_3: true`, halt for the operator to resolve; if false, warn and continue.
+
+The `block_on_stage_3` check verifies **artefact content** (no unresolved gaps without `@srs-deferred`), not just artefact existence. A `srs-alignment.md` with unresolved gaps and no `@srs-deferred` annotations fails the block. (Skills run in the same invocation context; control returns synchronously when this skill exits. See `sdlc-implementer/SKILL.md` § *Sub-skill return semantics*.)
 
 ### Phase 3 — Per-REQ ad-hoc audit
 
