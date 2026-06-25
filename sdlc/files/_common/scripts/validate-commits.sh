@@ -74,6 +74,29 @@ while IFS= read -r sha; do
         EXIT_CODE=1
         continue
       fi
+
+      # RTM provenance check (devaudit-installer#226): verify the REQ-XXX
+      # cited in the commit has an sdlc-implementer@<version> provenance
+      # stamp in compliance/RTM.md. Without the stamp, the skill was not
+      # invoked and the RTM row was created manually.
+      REQ_ID=$(echo "$SUBJECT" | grep -oP '\[REQ-\d{3,}\]' | tr -d '[]' || true)
+      if [ -z "$REQ_ID" ]; then
+        REQ_ID=$(echo "$BODY" | grep -oiP 'Ref:\s*REQ-\d{3,}' | grep -oP 'REQ-\d{3,}' | tail -1 || true)
+      fi
+      if [ -n "$REQ_ID" ] && [ -f compliance/RTM.md ]; then
+        RTM_ROW=$(grep -m1 -E "^\| ${REQ_ID} " compliance/RTM.md || true)
+        if [ -n "$RTM_ROW" ]; then
+          if ! echo "$RTM_ROW" | grep -q 'sdlc-implementer@'; then
+            echo "ERROR [$SHORT]: $REQ_ID in commit message has no sdlc-implementer provenance in RTM.md."
+            echo "       The RTM row for $REQ_ID was not created by the sdlc-implementer skill."
+            echo "       Either invoke sdlc-implementer and re-run, or add the provenance marker"
+            echo "       'sdlc-implementer@<version>' to the RTM row manually with operator sign-off."
+            FAILED=$((FAILED + 1))
+            EXIT_CODE=1
+            continue
+          fi
+        fi
+      fi
       ;;
   esac
 

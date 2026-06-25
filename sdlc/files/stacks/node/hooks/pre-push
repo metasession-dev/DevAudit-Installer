@@ -1,9 +1,19 @@
 #!/usr/bin/env bash
-# Husky pre-push hook — runs TypeScript check as a fast gate before push.
-# The full test suite (E2E, SAST, dependency audit) runs in CI.
+# Husky pre-push hook — fast gates + E2E evidence + skill-invocation sentinel.
+#
+# Runs three checks before allowing a push:
+# 1. TypeScript check (fast gate)
+# 2. E2E evidence check — if UI-facing files changed, verify Playwright ran
+# 3. Skill-invocation sentinel — if feat/fix/refactor/perf commits present,
+#    verify sdlc-implementer was invoked
+#
+# Bypass with --no-verify (last resort, not a habit).
 #
 # Install: cp this file to .husky/pre-push && chmod +x .husky/pre-push
 
+set -euo pipefail
+
+# ── 1. TypeScript check ──────────────────────────────────────────────
 echo "Pre-push: running TypeScript check..."
 npx tsc --noEmit
 if [ $? -ne 0 ]; then
@@ -13,3 +23,85 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 echo "Pre-push: TypeScript check passed."
+
+# ── 2. E2E evidence check (devaudit-installer#226) ───────────────────
+# Only fires if UI-facing files are in the push. Checks for either
+# playwright-report/ directory or .e2e-gate-passed sentinel (written by
+# e2e-test-engineer after a successful run).
+INTEGRATION_BRANCH=$(jq -r '.integration_branch // "develop"' sdlc-config.json 2>/dev/null || echo "develop")
+
+# Read stdin to get the pushed refs (husky pre-push protocol)
+while read -r local_ref local_sha remote_ref remote_sha; do
+  # Check if pushing to the integration branch
+  if [[ "$remote_ref" != *"refs/heads/$INTEGRATION_BRANCH" ]]; then
+    continue
+  fi
+
+  # Determine the commit range being pushed
+  if [ "$remote_sha" = "0000000000000000000000000000000000000000" ]; then
+    RANGE="$local_sha"
+  else
+    RANGE="${remote_sha}..${local_sha}"
+  fi
+
+  # Check for UI-facing files in the push
+  UI_FILES=$(git diff --name-only "$RANGE" -- 'app/**/*.tsx' 'src/**/*.tsx' 'pages/**/*.tsx' 'app/**/*.jsx' 'src/**/*.jsx' 'pages/**/*.jsx' 2>/dev/null || true)
+
+  if [ -n "$UI_FILES" ]; then
+    E2E_PASSED=false
+    if [ -f .e2e-gate-passed ]; then
+      E2E_PASSED=true
+    elif [ -d playwright-report ] && [ "$(find playwright-report -type f -newer .git/HEAD 2>/dev/null | head -1)" ]; then
+      E2E_PASSED=true
+    fi
+
+    if [ "$E2E_PASSED" = "false" ]; then
+      echo ""
+      echo "ERROR: E2E gate was not run before pushing."
+      echo "       UI-facing files changed in this push:"
+      echo "$UI_FILES" | sed 's/^/         /'
+      echo ""
+      echo "       Run 'npx playwright test' (or invoke e2e-test-engineer) before pushing."
+      echo "       Bypass with --no-verify (last resort, not a habit)."
+      exit 1
+    fi
+    echo "Pre-push: E2E evidence check passed."
+  fi
+done
+
+# ── 3. Skill-invocation sentinel (devaudit-installer#226) ────────────
+# If feat/fix/refactor/perf commits are in the push, verify the
+# sdlc-implementer skill was invoked (writes .sdlc-implementer-invoked).
+# Housekeeping types (docs/chore/ci/build/test/revert) are exempt.
+TRACKED_TYPES='^(feat|fix|refactor|perf)(\(.+\))?!?:'
+HAS_TRACKED=false
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  if [[ "$remote_ref" != *"refs/heads/$INTEGRATION_BRANCH" ]]; then
+    continue
+  fi
+  if [ "$remote_sha" = "0000000000000000000000000000000000000000" ]; then
+    RANGE="$local_sha"
+  else
+    RANGE="${remote_sha}..${local_sha}"
+  fi
+  COMMITS=$(git log "$RANGE" --format='%s' 2>/dev/null || true)
+  if echo "$COMMITS" | grep -qE "$TRACKED_TYPES"; then
+    HAS_TRACKED=true
+  fi
+done
+
+if [ "$HAS_TRACKED" = "true" ]; then
+  if [ ! -f .sdlc-implementer-invoked ]; then
+    echo ""
+    echo "ERROR: sdlc-implementer skill was not invoked."
+    echo "       This push contains feat/fix/refactor/perf commits which require"
+    echo "       the SDLC skill flow. Invoke sdlc-implementer to drive the process,"
+    echo "       or use --no-verify to bypass (not recommended — CI will also check"
+    echo "       RTM provenance via validate-commits.sh)."
+    exit 1
+  fi
+  echo "Pre-push: skill-invocation sentinel check passed."
+fi
+
+echo "Pre-push: all checks passed."

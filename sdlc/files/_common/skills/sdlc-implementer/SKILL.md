@@ -254,7 +254,7 @@ Runs **first**, before any `REQ-XXX` is assigned. It decides which of the six ch
 3. **Announce a "Workflow Decision" block** (template below): change-type, commit-type, whether a `REQ-XXX` is needed, risk class, which stages/gates run, which approvals the **operator** must perform (UAT four-eyes, Production approval), and what is **skipped**.
 4. **Pause policy — pause-when-it-matters.** Pause for explicit confirmation on **tracked / heavier** paths, or when classification is **ambiguous**; **announce-and-auto-proceed** on trivial / housekeeping. The operator can always reclassify ("treat this as housekeeping" / "this is HIGH risk").
 5. **Route — and stay on to completion.** A route is a choice of _which workflow to drive_, never a hand-off that abandons the operator. Whatever the path, the skill keeps guiding step by step until no further action is required (typically: merged).
-   - **tracked** (feature / bug fix / refactor / perf) → continue into Phase 1 below (full Stages 1–5).
+   - **tracked** (feature / bug fix / refactor / perf) → continue into Phase 1 below (full Stages 1–5). **Write the skill-invocation sentinel** (devaudit-installer#226): `echo "INVOKED $(date -u +%Y-%m-%dT%H:%M:%SZ)" > .sdlc-implementer-invoked`. This file is gitignored and never committed — it's a local-only signal that the pre-push hook checks before allowing `feat`/`fix`/`refactor`/`perf` commits to be pushed. Without this sentinel, the pre-push hook will refuse the push and `validate-commits.sh` in CI will flag missing RTM provenance.
    - **housekeeping / trivial** → drive the **Lightweight path** below to completion. No `REQ-XXX`, no RTM row, no evidence pack, no portal release approvals — but the skill still branches, runs the gates, opens the PR, and walks the operator through review → merge.
    - **compliance-doc-only** → drive the same Lightweight path as a docs push (or PR, per the project's flow) referencing the **existing** `REQ-XXX`: no new requirement and no quality-gate ceremony, but driven through to merge.
 6. **Write labels back.** Apply the inferred `type:*` / `risk:*` labels so the issue ends up labelled — `gh label create <label> --force` to ensure the label exists (idempotent; no failure if a label-seeding step never ran), then `gh issue edit <N> --add-label <label>`. Future triage is then a glance.
@@ -364,7 +364,7 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
 - **`requirements-aligner` fails** (e.g. no `docs/SRS.md`): If `block_on_stage_1` is true, halt — "requirements-aligner could not find SRS.md. Operator action — create `docs/SRS.md` or disable `requirements_aligner.block_on_stage_1` in `sdlc-config.json`." If false, warn and continue with `@srs-deferred` on all ACs.
 - **`adr-author` fails**: Warn and continue — ADR is advisory by default. Mark the plan's "Architecture decisions" section as "ADR assessment skipped — <error>".
 - **`risk-register-keeper` fails**: If `block_on_stage_1` is true, halt. If false, warn and continue — mark the plan's "Risk register entries" section as "Risk assessment skipped — <error>".
-9. **Update `compliance/RTM.md`** with the new entry: REQ-XXX, title, risk class, linked issue, linked test cases (placeholder).
+9. **Update `compliance/RTM.md`** with the new entry: REQ-XXX, title, risk class, linked issue, linked test cases (placeholder), and a provenance marker `sdlc-implementer@<version>` (devaudit-installer#226). The provenance column is the last column in the RTM row — `validate-commits.sh` in CI checks for its presence when `feat`/`fix`/`refactor`/`perf` commits cite a REQ-XXX. Without the stamp, CI fails with "no sdlc-implementer provenance in RTM.md." If the RTM table doesn't have a provenance column, add one with header `Provenance`.
 10. **Post plan summary as an issue comment.** Format: TL;DR; Risk class + signals; Acceptance criteria (with SRS-IDs); Architectural decisions (ADR-NNN reference or no-ADR rationale); Risk register entries (RISK-NNN list); Technical approach (one paragraph); Dependencies; Test scope.
 11. **Checkpoint** — pause for human approval **iff** risk class is HIGH or CRITICAL. LOW and MEDIUM pass through to Phase 2 automatically. The checkpoint can be forced on for all classes via the `--require-plan-approval` flag (or `DEVAUDIT_REQUIRE_PLAN_APPROVAL=1` env var) for orgs that want it always-on.
 12. **Update SDLC status sticky** before exiting Phase 1: `bash scripts/update-sdlc-status.sh "$ISSUE_NUM" "Phase 1 complete — plan written to compliance/plans/REQ-XXX/implementation-plan.md (risk class <CLASS>)" "Phase 2 — sdlc-implementer auto-continuing"` (or "Operator action — review plan + ping resume" if the HIGH/CRITICAL checkpoint paused).
@@ -400,6 +400,17 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
 
    **E2E gate** — run _once_, after the fast gates are clean:
    - `npx playwright test` (delegated to `e2e-test-engineer`, which has its own focused-iteration discipline for within-e2e fix-and-verify loops)
+
+5b. **E2E gate verification — mandatory before commit (devaudit-installer#226).** After running gates in step 5, verify the E2E gate actually ran before proceeding to step 7 (commit). This is the skill-level enforcement that backs the pre-push hook.
+
+   Check whether the change touches UI-facing files:
+   ```bash
+   git diff --name-only "$INTEGRATION_BRANCH"...HEAD -- 'app/**/*.tsx' 'src/**/*.tsx' 'pages/**/*.tsx' 'app/**/*.jsx' 'src/**/*.jsx' 'pages/**/*.jsx'
+   ```
+
+   - **If UI-facing files are present:** check for `.e2e-gate-passed` sentinel file (written by `e2e-test-engineer` after a successful run) or `playwright-report/` directory with recent content. If neither exists, **HALT**: "E2E gate was not run. The change touches UI-facing files. Run `npx playwright test` (or invoke `e2e-test-engineer`) before committing. The pre-push hook will also block this push."
+   - **If no UI-facing files (API-only, config, docs):** skip the check. Note the exemption in the commit body: "E2E gate skipped — no UI-facing files in this change."
+   - **If `e2e-test-engineer` was invoked and determined e2e is not needed** (e.g. schema-only change): the skill writes `.e2e-gate-passed` with a `NOT_NEEDED` reason. The sentinel check passes. Note the exemption in the commit body: "E2E gate not needed — e2e-test-engineer assessed no UI surface (turn N)."
 
 6. **On gate failure**, iterate up to N=3 attempts. Each iteration: read the failure output, propose a fix, apply, re-run. On exhausted attempts, halt with the full failure output and explicit resume instructions: "Gate <name> failed after N=3 attempts. Last failure: <output>. Operator action — fix the failure, commit to the feature branch, push, then ping `resume REQ-XXX`. The skill will re-run the gate from where it left off." Update the sticky with the same. Never use `--no-verify`, `eslint-disable`, `@ts-expect-error`, `xfail`, or any other bypass.
 7. **Commit** using Conventional Commits with `Ref: REQ-XXX` trailer and `Co-Authored-By: Claude` trailer. One commit per logical step; never amend a commit that's already been pushed.

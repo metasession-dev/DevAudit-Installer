@@ -288,14 +288,18 @@ jobs:
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "Release version: ${VERSION}"
 
-      - name: Ensure release exists
+      - name: Check release exists (no creation — deferred to upload-evidence)
         if: env.DEVAUDIT_BASE_URL != ''
         run: |
+          # Release creation is deferred to the upload-evidence job (which
+          # runs after gates pass) so the portal never shows a release from
+          # a push where gates weren't verified (devaudit-installer#226).
+          # This step only checks whether the release already exists (e.g.
+          # created earlier by sdlc-implementer Phase 1 step 3).
           chmod +x scripts/upload-evidence.sh 2>/dev/null || true
-          # Create the release in DevAudit (no evidence yet — just registration)
           bash scripts/upload-evidence.sh \
             {{PROJECT_SLUG}} _compliance-docs release_registration README.md \
-            --release ${{ steps.version.outputs.version }} --create-release-if-missing \
+            --release ${{ steps.version.outputs.version }} \
             --environment uat --category planning \
             --git-sha ${{ github.sha }} --branch ${{ github.ref_name }} || true
 
@@ -438,6 +442,11 @@ jobs:
         if: env.DEVAUDIT_BASE_URL != ''
         run: |
           chmod +x scripts/upload-evidence.sh 2>/dev/null || true
+          # --create-release-if-missing is intentionally here (post-gate) rather
+          # than in register-release. This ensures the portal release record only
+          # appears after gates have run — even if gates failed, the release
+          # record is created here so failure evidence attaches to it.
+          # (devaudit-installer#226)
           FLAGS="--git-sha ${{ github.sha }} --ci-run-id ${{ github.run_id }} --branch ${{ github.ref_name }}"
           FLAGS="${FLAGS} --release ${{ needs.register-release.outputs.version }} --create-release-if-missing"
           FLAGS="${FLAGS} --environment uat"
