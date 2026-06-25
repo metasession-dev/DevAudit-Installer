@@ -207,6 +207,7 @@ git checkout develop
 1. **Hosting dashboard:** Redeploy previous version
 2. **Git:** `git checkout main && git revert HEAD --no-edit && git push origin main`
 3. **Document:** Add rollback entry to release ticket audit trail
+4. **Correlate with incident (DevAudit-Installer#210 §10a):** If the rollback was triggered by a post-deploy smoke failure, the `post-deploy-prod.yml` workflow files an incident issue with the `incident` label. Reference this incident in the rollback commit message (`Fixes #N` or a comment on the issue) so the incident report captures the containment action. This ensures `incident-export.yml` exports the full incident timeline including the rollback.
 
 ### Environment Summary
 

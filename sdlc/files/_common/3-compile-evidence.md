@@ -266,6 +266,59 @@ EOF
 
 For Medium/High risk, add access control and audit log verification to the security summary.
 
+### Step 4b: Nil Incident Report (DevAudit-Installer#210 §8a)
+
+After the test pack re-run passes, check whether any `incident`-labelled issues were closed during this REQ's lifecycle:
+
+```bash
+gh issue list --label incident --state closed --search "REQ-XXX" --json number
+```
+
+If **no** incidents were closed and the test pack re-run passes, generate a nil incident report — a per-release "no incidents" attestation that flips `ISO29119.3.5.4` to COVERED on the portal:
+
+```bash
+cat > compliance/governance/nil-incident-report-<version>.md << 'EOF'
+---
+incident_id: "NIL-<version>"
+severity: "N/A"
+detected_at: "<release date>"
+resolved_at: "N/A"
+status: "nil"
+---
+
+# Nil Incident Report — <version>
+
+## Attestation
+
+No incidents or defects were discovered during the test cycle for release `<version>`.
+
+## Scope
+
+- **Release:** <version>
+- **Test cycle:** <description>
+- **Test cases executed:** <count>
+- **Test cases passed:** <count>
+- **Test cases failed:** 0
+- **Defects filed:** 0
+- **Incidents reported:** 0
+
+## Framework attribution
+
+- [x] `ISO29119.3.5.4` (Test incident report — nil report for this release cycle)
+
+## Sign-off
+
+| Role | Name | Date |
+|---|---|---|
+| Test lead | REPLACE — assign | REPLACE |
+| Engineering lead | REPLACE — assign | REPLACE |
+EOF
+```
+
+Fill in the scope section with actual test counts. Leave the sign-off section with REPLACE markers — the operator fills it in. The nil report uploads as `incident_report` evidence via `compliance-evidence.yml`'s `upload_incident_report` function.
+
+If incidents **were** closed during this REQ's lifecycle, skip nil report generation — the populated incident report(s) from `incident-export.yml` serve as the evidence.
+
 ### Step 5: Save AI Evidence (If Applicable)
 
 Verify `ai-use-note.md` and `ai-prompts.md` exist (if AI was used). If missing, create `ai-use-note.md` with YAML frontmatter (devaudit-installer#197):

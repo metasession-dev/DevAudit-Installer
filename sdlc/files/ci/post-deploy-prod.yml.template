@@ -148,6 +148,81 @@ jobs:
           }
           RESULTS_EOF
 
+      - name: File incident on smoke failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.DEVAUDIT_USER_TOKEN || github.token }}
+          PROD_URL: ${{ secrets.{{PRODUCTION_URL_SECRET}} }}
+          GIT_SHA: ${{ github.sha }}
+          CI_RUN: ${{ github.run_id }}
+          WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          # DevAudit-Installer#210 §10a — file an incident issue when the
+          # production smoke tests fail. The `incident` label ensures
+          # incident-export.yml fires on close → incident_report evidence
+          # lands on the portal → ISO29119.3.5.4 + SOC2.CC7.2 flip to COVERED.
+          #
+          # testCycleId (CI run ID) cross-references #209 so the incident
+          # report traces back to the specific test cycle that detected
+          # the production failure.
+          #
+          # Ensure the incident label exists (idempotent).
+          gh label list --json name --jq '.[].name' | grep -qx incident || \
+            gh label create incident --color 'B60205' \
+              --description 'Operational, test, or compliance incident; close to auto-archive as portal evidence'
+
+          SMOKE_RESULTS="No prod-smoke-results.json file found (smoke tests failed before producing output)."
+          if [ -f prod-smoke-results.json ]; then
+            SMOKE_RESULTS=$(cat prod-smoke-results.json)
+          fi
+
+          DATE=$(date -u +%Y-%m-%d)
+          ISSUE_BODY=$(cat <<BODY_EOF
+          ## Production Smoke Test Failure
+
+          **Production URL:** ${PROD_URL}
+          **Git SHA:** ${GIT_SHA}
+          **testCycleId:** ${CI_RUN}
+          **Workflow run:** ${WORKFLOW_URL}
+          **Date:** ${DATE}
+
+          ### Smoke Results
+
+          \`\`\`json
+          ${SMOKE_RESULTS}
+          \`\`\`
+
+          This incident was detected by the autonomous post-deploy production smoke workflow. The production health check failed after deploying ${GIT_SHA}. Page the on-call per the project's incident playbook. The \`incident\` label ensures an \`incident_report\` will be generated on close.
+
+          ### Framework attribution
+
+          This defect, once closed with the \`incident\` label, will be auto-exported as \`incident_report\` evidence and attribute to:
+
+          - [x] \`ISO29119.3.5.4\` (baseline — every incident_report)
+          - [x] \`SOC2.CC7.2\` — ops impact: production health check failure means the app is down or degraded
+          - [ ] \`GDPR.Art-33\` — personal data scope: <REPLACE — yes/no>
+          - [ ] \`GDPR.Art-34\` — data-subject notification required: <REPLACE — yes/no>
+          - [ ] \`EUAIA.Art-9 / Art-14 / Art-15\` — AI failure: <REPLACE — yes/no, which article(s)>
+
+          Once closed, the \`incident-export.yml\` workflow exports this issue's body to \`compliance/governance/incident-report-<N>.md\`. Routing depends on the Framework attribution ticks (DevAudit-Installer#200 Fix 1):
+          - **Path A (baseline-only — only \`ISO29119.3.5.4\` ticked):** direct-committed to \`develop\`, no PR. GDPR triage pre-filled as N/A. Next \`compliance-evidence.yml\` run uploads as \`incident_report\`.
+          - **Path B (any of SOC2/GDPR/EUAIA ticked):** auto-files a PR with the GDPR triage + sign-off sections to fill in. Merge that PR → \`compliance-evidence.yml\` uploads as \`incident_report\`.
+          BODY_EOF
+          )
+
+          # Check for existing open incident issue for this smoke failure (dedup).
+          EXISTING=$(gh issue list --label incident --state open --search "[PROD-SMOKE] ${DATE}" --json number --jq '.[0].number' || true)
+          if [ -n "$EXISTING" ]; then
+            echo "Existing incident #$EXISTING already open for this date — posting comment instead of filing duplicate."
+            gh issue comment "$EXISTING" --body "Additional smoke failure detected in workflow run ${WORKFLOW_URL} (SHA ${GIT_SHA})."
+          else
+            gh issue create \
+              --title "[PROD-SMOKE] Production health check failed — ${DATE}" \
+              --label "incident,blocker" \
+              --body "$ISSUE_BODY"
+            echo "Incident issue filed for production smoke failure."
+          fi
+
       - name: Promote in-scope releases (evidence + status)
         run: |
           chmod +x scripts/upload-evidence.sh 2>/dev/null || true
