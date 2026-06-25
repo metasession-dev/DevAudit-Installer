@@ -165,6 +165,7 @@ jobs:
                 "${PROJECT_SLUG}" "${VERSION}" smoke_test prod-smoke-results.json \
                 --release "${VERSION}" --create-release-if-missing --environment production \
                 --category smoke_test --sdlc-stage 5 --git-sha "${GIT_SHA}" --ci-run-id "${CI_RUN}" --branch main \
+                --test-cycle "${CI_RUN}" \
                 || echo "Warning: smoke upload failed for ${VERSION}"
             fi
             # Carry the release ticket into the production environment so the
@@ -180,6 +181,7 @@ jobs:
                 "${PROJECT_SLUG}" "${VERSION}" release_ticket "$TICKET" \
                 --release "${VERSION}" --create-release-if-missing --environment production \
                 --category release_artifact --sdlc-stage 5 --git-sha "${GIT_SHA}" --ci-run-id "${CI_RUN}" --branch main \
+                --test-cycle "${CI_RUN}" \
                 || echo "Warning: ticket upload failed for ${VERSION}"
             else
               echo "No RELEASE-TICKET-${VERSION}.md found — skipping ticket (date-versioned or archived)."

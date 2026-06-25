@@ -133,6 +133,7 @@ jobs:
               --environment uat --sdlc-stage 2 \
               --git-sha "${{ github.event.pull_request.head.sha }}" \
               --ci-run-id "${{ github.run_id }}" --branch "${{ github.head_ref }}" \
+              --test-cycle "${{ github.run_id }}" \
               --meta-key "origin=feature" \
               || echo "::warning::feature E2E report upload failed"
           fi

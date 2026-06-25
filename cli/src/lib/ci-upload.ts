@@ -23,6 +23,8 @@ export interface UploadOptions {
   readonly gateStatus?: string;
   /** SDLC stage 1-5 — forwarded as `sdlcStage` (parity with upload-evidence.sh). */
   readonly sdlcStage?: string;
+  /** Test cycle identifier — forwarded as `testCycleId` (parity with upload-evidence.sh --test-cycle). */
+  readonly testCycleId?: string;
   readonly metadata?: Readonly<Record<string, unknown>>;
 }
 
@@ -123,6 +125,7 @@ function buildUploadForm(file: string, buf: Buffer, opts: UploadOptions): FormDa
   if (opts.changeType) form.set('changeType', opts.changeType);
   if (opts.gateStatus) form.set('gateStatus', opts.gateStatus);
   if (opts.sdlcStage) form.set('sdlcStage', opts.sdlcStage);
+  if (opts.testCycleId) form.set('testCycleId', opts.testCycleId);
   return form;
 }
 
@@ -257,6 +260,7 @@ async function uploadPresigned(file: string, buf: Buffer, opts: UploadOptions): 
           ...(opts.environment ? { environment: opts.environment } : {}),
           ...(opts.evidenceCategory ? { evidenceCategory: opts.evidenceCategory } : {}),
           ...(opts.sdlcStage ? { sdlcStage: opts.sdlcStage } : {}),
+          ...(opts.testCycleId ? { testCycleId: opts.testCycleId } : {}),
         }),
         signal: controller.signal,
       });

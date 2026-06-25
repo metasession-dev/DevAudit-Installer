@@ -360,6 +360,7 @@ jobs:
           FLAGS="--git-sha ${{ github.sha }} --ci-run-id ${{ github.run_id }} --branch ${{ github.ref_name }}"
           FLAGS="${FLAGS} --release ${{ needs.register-release.outputs.version }} --create-release-if-missing"
           FLAGS="${FLAGS} --environment uat"
+          FLAGS="${FLAGS} --test-cycle ${{ github.run_id }}"
 
           UPLOAD_FAILURES=0
           upload() {

@@ -238,6 +238,7 @@ jobs:
           # release. Note: upload-evidence.sh keeps the LAST --release seen.
           FLAGS="--git-sha ${{ github.sha }} --ci-run-id ${{ github.run_id }} --branch ${{ github.ref_name }}"
           FLAGS="${FLAGS} --create-release-if-missing --environment uat --sdlc-stage 3"
+          FLAGS="${FLAGS} --test-cycle ${{ github.run_id }}"
           DERIVED_RELEASE="${{ steps.version.outputs.version }}"
 
           # Derive change_type for the bare-date (housekeeping) DERIVED_RELEASE:
@@ -647,6 +648,7 @@ jobs:
                  --ci-run-id ${{ github.event.workflow_run.id }} \
                  --branch ${PRIOR_BRANCH}"
           [ -n "$STAGE" ] && FLAGS="${FLAGS} --sdlc-stage ${STAGE}"
+          FLAGS="${FLAGS} --test-cycle ${{ github.event.workflow_run.id }}"
 
           # In-scope REQs from pending release tickets at the triggering
           # SHA. Fall back to `_compliance-docs` if no tickets present so

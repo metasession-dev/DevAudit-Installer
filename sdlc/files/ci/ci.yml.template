@@ -413,6 +413,7 @@ jobs:
           FLAGS="${FLAGS} --release ${{ needs.register-release.outputs.version }} --create-release-if-missing"
           FLAGS="${FLAGS} --environment uat"
           FLAGS="${FLAGS} --sdlc-stage 2"
+          FLAGS="${FLAGS} --test-cycle ${{ github.run_id }}"
 
           # Track failures across all uploads so we can fail the job at the
           # end with the full picture. Previously each upload used
@@ -568,6 +569,7 @@ jobs:
               FANOUT_FLAGS="--git-sha ${{ github.sha }} --ci-run-id ${{ github.run_id }} --branch ${{ github.ref_name }}"
               FANOUT_FLAGS="${FANOUT_FLAGS} --release ${REQ_ID} --create-release-if-missing"
               FANOUT_FLAGS="${FANOUT_FLAGS} --environment uat --sdlc-stage 2"
+              FANOUT_FLAGS="${FANOUT_FLAGS} --test-cycle ${{ github.run_id }}"
               if [ -f ci-evidence/gate-outcomes.json ]; then
                 upload "gate-outcomes.json -> ${REQ_ID}" \
                   {{PROJECT_SLUG}} "${REQ_ID}" gate_outcome ci-evidence/gate-outcomes.json \
