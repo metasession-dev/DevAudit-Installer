@@ -163,6 +163,14 @@ Records the design-time decisions before listing run results — what was tested
 | E2E Tests | PASS | [N]/[N] passed |
 | Build | PASS | Production build succeeded |
 
+## Test Cycles
+
+| Cycle | CI Run | Gate Status | E2E Result | Coverage | Date |
+|-------|--------|-------------|------------|----------|------|
+| #1    | [run_id] | [PASS/FAIL] | [N/N]   | [N%]     | [YYYY-MM-DD] |
+
+**Final assessment:** [All cycles passed / N cycles failed — see incidents]
+
 ## Test Changes in This Release
 
 **Added:**

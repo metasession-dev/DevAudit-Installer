@@ -37,6 +37,11 @@
 #                               4 submit-for-review, 5 deploy. Forwarded as
 #                               `sdlcStage`; unknown to older portals (ignored
 #                               server-side, no error).
+#   --test-cycle <id>           Test cycle identifier (typically the CI run
+#                               ID). Forwarded as `testCycleId`; lets the
+#                               portal group evidence by test cycle per
+#                               ISO/IEC/IEEE 29119-3. Optional — older
+#                               portals ignore the field (no error).
 #
 # Required environment variables:
 #   DEVAUDIT_BASE_URL  e.g. https://meta-comply-production.up.railway.app
@@ -78,6 +83,7 @@ RELEASE_TITLE=""
 CHANGE_TYPE=""
 GATE_STATUS=""
 SDLC_STAGE=""
+TEST_CYCLE=""
 # Repeatable `--meta-key key=value` accumulator. Each pair gets merged
 # into the metadata JSON sent to the portal. Used by the screenshot
 # upload loop to pass `origin=feature|regression` from the per-PNG
@@ -103,6 +109,7 @@ while [ "$#" -gt 0 ]; do
     # DevAudit-Installer#96.
     --gate-status) GATE_STATUS="$2"; shift 2 ;;
     --sdlc-stage) SDLC_STAGE="$2"; shift 2 ;;
+    --test-cycle) TEST_CYCLE="$2"; shift 2 ;;
     # --meta-key key=value (repeatable). Merged into the metadata JSON
     # before posting. Validates the `key=value` shape; rejects bare
     # keys without `=`.
@@ -313,7 +320,8 @@ upload_presigned() {
         \"releaseBranch\": \"${BRANCH}\",
         \"environment\": \"${ENVIRONMENT}\",
         \"evidenceCategory\": \"${EVIDENCE_CATEGORY}\",
-        \"sdlcStage\": \"${SDLC_STAGE}\"
+        \"sdlcStage\": \"${SDLC_STAGE}\",
+        \"testCycleId\": \"${TEST_CYCLE}\"
       }") || curl_exit=$?
     curl_exit=${curl_exit:-0}
     if [ "$curl_exit" -eq 0 ] && [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
@@ -464,6 +472,7 @@ for FILE in "${FILES[@]}"; do
   [ -n "$CHANGE_TYPE" ] && CURL_ARGS+=(-F "changeType=${CHANGE_TYPE}")
   [ -n "$GATE_STATUS" ] && CURL_ARGS+=(-F "gateStatus=${GATE_STATUS}")
   [ -n "$SDLC_STAGE" ] && CURL_ARGS+=(-F "sdlcStage=${SDLC_STAGE}")
+  [ -n "$TEST_CYCLE" ] && CURL_ARGS+=(-F "testCycleId=${TEST_CYCLE}")
 
   ATTEMPT=1
   BACKOFF=$INITIAL_BACKOFF_SECONDS
