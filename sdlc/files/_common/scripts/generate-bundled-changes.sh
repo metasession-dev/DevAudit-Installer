@@ -44,7 +44,9 @@ fi
 
 # Housekeeping commit type prefixes (Conventional Commits).
 # feat/fix are tracked changes — excluded. Anything else is housekeeping.
-HOUSEKEEPING_TYPES='^(chore|docs|ci|build|test|revert|style|perf|refactor)(\(.+\))?!?:'
+# The git log format is "<short-sha>\t<subject>", so the regex matches
+# the commit type after the tab character.
+HOUSEKEEPING_TYPES='^[0-9a-f]+	(chore|docs|ci|build|test|revert|style|perf|refactor)(\(.+\))?!?:'
 
 # Collect commits since the ref, filtering for housekeeping types.
 # Format: <short-sha>\t<subject>
