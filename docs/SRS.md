@@ -59,9 +59,9 @@ This repo carries **two** observable surfaces, both specified here:
 ### 1.3 Framework template surface (`sdlc/files/`)
 
 - **Six skills** (`_common/skills/*/SKILL.md`): `sdlc-implementer` (orchestrator, stages 1–5), `e2e-test-engineer`, `governance-doc-author`, `requirements-aligner`, `adr-author`, `risk-register-keeper`. Synced to the consumer's `.claude/skills/`.
-- **CI workflow templates** (`ci/*.yml.template`): the five core — `ci.yml`, `compliance-evidence.yml`, `compliance-validation.yml`, `check-release-approval.yml`, `post-deploy-prod.yml` — plus secondary `ci-status-fallback`, `close-out-release`, `incident-export`, `periodic-review`, `feature-e2e` (feature-branch in-scope E2E, issue #174), and a `ci/python/` override.
-- **Adapters:** stacks `node` + `python` (`adapter.json` + `hooks/` + node `scripts/`), host `railway` (`adapter.json`). `_schema/adapter.schema.json` exists but is **not enforced at runtime** (plain `JSON.parse`).
-- **Governance starters** (`_common/governance/*.md.template`): `ai-disclosure`, `dpia`, `incident-report`, `periodic-review`, `risk-register`, `ropa` — opt-in via `bootstrap-governance`.
+- **CI workflow templates** (`ci/*.yml.template`): the five core — `ci.yml`, `compliance-evidence.yml`, `compliance-validation.yml`, `check-release-approval.yml`, `post-deploy-prod.yml` — plus secondary `ci-status-fallback`, `close-out-release`, `incident-export`, `label-retention` (incident label enforcement, #210), `periodic-review`, `feature-e2e` (feature-branch in-scope E2E, issue #174), and a `ci/python/` override.
+- **Adapters:** stacks `node` + `python` (`adapter.json` + `hooks/` + node `scripts/`), host `railway` (`adapter.json`). `_schema/adapter.schema.json` enforced at runtime via Ajv (`cli/src/lib/adapter.ts`).
+- **Governance starters** (`_common/governance/*.md.template`): `ai-disclosure`, `dpia`, `incident-report`, `nil-incident-report` (per-release "no incidents" attestation, #210), `periodic-review`, `risk-register`, `ropa` — opt-in via `bootstrap-governance`.
 - **Single-source-of-truth AI rule files** synced per agent: `CLAUDE.md`, `.cursorrules`, `.windsurfrules`, `GEMINI.md`, `INSTRUCTIONS.md` — content sourced from `sdlc/ai-rules/INSTRUCTIONS-SDLC.md` (the canonical `INSTRUCTIONS.md` holds the content; the others point to it).
 - **Stage + Tier-1 docs:** `_common/0-project-setup.md … 5-deploy-main.md`, `Test_Policy.md`, `Test_Strategy.md`, `Test_Architecture.md`, `Periodic_Security_Review_Schedule.md` — synced verbatim.
 
@@ -574,6 +574,10 @@ dependencies (tier 3) — which is exactly the coverage the current unit-only su
 | REQ-SKILL-IMPLEMENTER-018    | Over-scoped issue refused at Phase 1                                                                  | Should   | `sdlc/files/_common/skills/sdlc-implementer/SKILL.md`                                                                         |
 | REQ-SKILL-IMPLEMENTER-019    | Scope-expansion halt gate fires on any user request outside ACs, across all phases                   | Should   | `sdlc/files/_common/skills/sdlc-implementer/SKILL.md`                                                                         |
 | REQ-SKILL-IMPLEMENTER-020    | Phase 3 test-execution-summary.md includes Test Cycles section (ISO 29119-3 Test Completion Report)   | Should   | `sdlc/files/_common/3-compile-evidence.md`                                                                                    |
+| REQ-SKILL-IMPLEMENTER-021    | Phase 3 delegates incident filing to e2e-test-engineer, never files inline (#210 AC10)               | Must     | `sdlc/files/_common/skills/sdlc-implementer/SKILL.md`                                                                         |
+| REQ-SKILL-IMPLEMENTER-022    | Phase 5 change-request loop classifies defect vs scope change, delegates defect filing (#210 AC11)   | Must     | `sdlc/files/_common/skills/sdlc-implementer/SKILL.md`                                                                         |
+| REQ-SKILL-IMPLEMENTER-023    | Compliance constraint: never file incidents inline — delegate to sub-skills (#210 AC13)              | Must     | `sdlc/files/_common/skills/sdlc-implementer/SKILL.md`                                                                         |
+| REQ-SKILL-IMPLEMENTER-024    | Phase 3 generates nil-incident report when no incidents occurred (#210 AC15-AC18)                    | Should   | `sdlc/files/_common/3-compile-evidence.md`                                                                                    |
 | REQ-SKILL-E2E-001            | Trigger phrases fire the e2e pack maintainer / bootstrapper                                           | Must     | `sdlc/files/_common/skills/e2e-test-engineer/SKILL.md`                                                                        |
 | REQ-SKILL-E2E-002            | Bootstrap (Phase 1b) only when no suite exists, with confirmation gates                               | Must     | `sdlc/files/_common/skills/e2e-test-engineer/SKILL.md`                                                                        |
 | REQ-SKILL-E2E-003            | evidenceShot helper produces per-AC PNG + sidecar at the canonical path                               | Must     | `sdlc/files/_common/skills/e2e-test-engineer/SKILL.md`                                                                        |
@@ -619,6 +623,12 @@ dependencies (tier 3) — which is exactly the coverage the current unit-only su
 | REQ-FRAMEWORK-EVIDENCE-005   | Housekeeping stub auto-PR on bare-date pushes                                                         | Should   | `sdlc/files/ci/compliance-evidence.yml.template`                                                                              |
 | REQ-FRAMEWORK-EVIDENCE-006   | E2E Regression evidence uploaded on workflow_run with tier + stage metadata                           | Should   | `sdlc/files/ci/compliance-evidence.yml.template`                                                                              |
 | REQ-FRAMEWORK-EVIDENCE-007   | test-execution-summary.md template carries Test Cycles section (ISO 29119-3 Test Completion Report)  | Should   | `sdlc/files/_common/3-compile-evidence.md`                                                                                    |
+| REQ-FRAMEWORK-EVIDENCE-008   | Incident export enriched with structured sections from PR/issue body (#210 AC6)                      | Should   | `sdlc/files/ci/incident-export.yml.template`                                                                                  |
+| REQ-FRAMEWORK-EVIDENCE-009   | Completeness gate blocks incomplete incident reports with unresolved REPLACE markers (#210 AC9)       | Must     | `sdlc/files/ci/compliance-evidence.yml.template`                                                                              |
+| REQ-FRAMEWORK-EVIDENCE-010   | E2E regression incident filing with heuristic triage on test failure (#210 AC19-AC27)               | Should   | `sdlc/files/ci/compliance-evidence.yml.template`                                                                              |
+| REQ-FRAMEWORK-EVIDENCE-011   | Nil incident report generated and uploaded as compliance_document when no incidents (#210 AC15-AC18) | Should   | `sdlc/files/ci/compliance-evidence.yml.template`                                                                              |
+| REQ-FRAMEWORK-EVIDENCE-012   | Catch-all compliance_document fallback eliminated; unrecognized files skip-with-warning (#205)       | Must     | `sdlc/files/ci/compliance-evidence.yml.template`                                                                              |
+| REQ-FRAMEWORK-EVIDENCE-013   | Typed evidence_type per artifact: sast_report, dependency_audit, e2e_report, e2e_result, smoke_test, release_ticket, coverage_report, gate_outcome (#207) | Must | `sdlc/files/ci/compliance-evidence.yml.template`, `sdlc/files/ci/ci.yml.template` |
 | REQ-FRAMEWORK-VALIDATION-001 | compliance-validation.yml gates PRs to main on artifact + commit validity                             | Should   | `sdlc/files/ci/compliance-validation.yml.template`                                                                            |
 | REQ-FRAMEWORK-VALIDATION-002 | ci-status-fallback emits the Quality Gates status on docs-only commits                                | Could    | `sdlc/files/ci/ci-status-fallback.yml.template`                                                                               |
 | REQ-FRAMEWORK-VALIDATION-003 | Governance auto-PR workflows (periodic-review, incident-export, close-out)                            | Could    | `sdlc/files/ci/periodic-review.yml.template`                                                                                  |
@@ -628,6 +638,8 @@ dependencies (tier 3) — which is exactly the coverage the current unit-only su
 | REQ-FRAMEWORK-APPROVAL-004   | Gate links the PR to the release and posts a portal link comment                                      | Should   | `sdlc/files/ci/check-release-approval.yml.template`                                                                           |
 | REQ-FRAMEWORK-POSTDEPLOY-001 | post-deploy-prod.yml runs read-only prod verification on push to main                                 | Should   | `sdlc/files/ci/post-deploy-prod.yml.template`                                                                                 |
 | REQ-FRAMEWORK-POSTDEPLOY-002 | Promotes every in-scope release and uploads production evidence (stage 5)                             | Should   | `sdlc/files/ci/post-deploy-prod.yml.template`                                                                                 |
+| REQ-FRAMEWORK-POSTDEPLOY-003 | Post-deploy smoke failure files incident issue with structured sections (#210 AC28-AC29)             | Should   | `sdlc/files/ci/post-deploy-prod.yml.template`                                                                                 |
+| REQ-FRAMEWORK-LABELRET-001   | label-retention.yml enforces incident label survives to issue close (#210 AC1-AC5)                   | Must     | `sdlc/files/ci/label-retention.yml.template`                                                                                  |
 | REQ-FRAMEWORK-FEATUREE2E-001 | feature-e2e.yml runs in-scope E2E on PRs to develop, uploads stage-2 origin=feature evidence          | Should   | `sdlc/files/ci/feature-e2e.yml.template`                                                                                      |
 | REQ-FRAMEWORK-SDLCSTAGE-001  | upload-evidence.sh --sdlc-stage flag validates 1-5 and forwards as sdlcStage multipart field          | Should   | `scripts/upload-evidence.sh`                                                                                                  |
 | REQ-FRAMEWORK-RENDER-001     | Scalar token substitution populates runner, slug, versions, gate params                               | Must     | `cli/src/lib/templates.ts:substituteTokens`                                                                                   |
@@ -648,7 +660,7 @@ dependencies (tier 3) — which is exactly the coverage the current unit-only su
 | REQ-FRAMEWORK-ADAPTER-010    | Node dev-dependencies auto-installed when missing (node only)                                         | Should   | `cli/src/update/stack-deps.ts`                                                                                                |
 | REQ-FRAMEWORK-ADAPTER-011    | Railway host adapter substitutes deploy trigger, production-URL secret resolution and wait-for-deploy | Must     | `sdlc/files/hosts/railway/adapter.json`                                                                                       |
 | REQ-FRAMEWORK-ADAPTER-012    | Host adapter loaded only by name; ci-templates consume the substituted deploy bits                    | Should   | `cli/src/lib/adapter.ts`                                                                                                      |
-| REQ-FRAMEWORK-ADAPTER-013    | Malformed adapter manifest aborts the sync at parse time                                              | Could    | `cli/src/lib/adapter.ts`                                                                                                      |
+| REQ-FRAMEWORK-ADAPTER-013    | Malformed adapter manifest aborts the sync at parse time or schema validation (Ajv)                  | Should   | `cli/src/lib/adapter.ts`                                                                                                      |
 | REQ-FRAMEWORK-GOVERNANCE-001 | Governance starters are opt-in (NOT auto-seeded on install since v0.1.36)                             | Should   | `cli/src/install/index.ts`                                                                                                    |
 | REQ-FRAMEWORK-GOVERNANCE-002 | bootstrap-governance copies the six starters, dropping .template, skip-if-exists                      | Should   | `cli/src/install/bootstrap-governance.ts`                                                                                     |
 | REQ-FRAMEWORK-GOVERNANCE-003 | Each starter carries required frontmatter + the REPLACE banner                                        | Should   | `sdlc/files/_common/governance/{ai-disclosure,dpia,incident-report,periodic-review,risk-register,ropa}.md.template`           |
@@ -1656,9 +1668,9 @@ Scope note: The six entries below are **Claude Code skills** — directories und
 - **Priority:** Must — the second explicit human pause; the UAT review gate is the load-bearing control and must never be skipped or merged with the check red.
 - **Source:** `sdlc/files/_common/skills/sdlc-implementer/SKILL.md` (§ Phase 4 steps 1, 4–6; § Sub-skill return semantics bullet 2; § Compliance constraints #1)
 - **Preconditions / inputs:** evidence uploaded; branch targets resolved from `sdlc-config.json`.
-- **Given** Stage 3 complete **When** Phase 4 runs **Then** the skill opens the release PR into `$RELEASE_BRANCH` (develop-first: `--base $RELEASE_BRANCH --head $INTEGRATION_BRANCH`; trunk-only: head = the feature branch) with a body containing Closes #N, REQ-XXX, Risk, Evidence link, (HIGH/CRITICAL) four-eyes attestation + rollback reference, test plan, SDLC checklist; comments the resume instruction on the issue; then **hard stops** — it does not merge; the next action is the human reviewing on the portal.
+- **Given** Stage 3 complete **When** Phase 4 runs **Then** the skill opens the release PR into `$RELEASE_BRANCH` (`--base $RELEASE_BRANCH --head $INTEGRATION_BRANCH`, e.g. `develop → main`) with a body containing Closes #N, REQ-XXX, Risk, Evidence link, (HIGH/CRITICAL) four-eyes attestation + rollback reference, test plan, SDLC checklist; comments the resume instruction on the issue; then **hard stops** — it does not merge; the next action is the human reviewing on the portal.
 - **Error paths:** external gate hangs for unrelated reasons → cancel-and-admin-merge allowed only when all three hold (≥3 other gates green, no scope overlap, fallback verification exists), documented on PR + release ticket `## Verification`.
-- **Fixtures/env:** develop-first and trunk-only `sdlc-config.json` variants; `check-release-approval.yml` present.
+- **Fixtures/env:** `sdlc-config.json` with `integration_branch` and `release_branch` configured; `check-release-approval.yml` present.
 
 #### REQ-SKILL-IMPLEMENTER-015 — Phase 4 four-eyes reviewer ≠ trigger user for HIGH/CRITICAL
 
@@ -1713,6 +1725,42 @@ Scope note: The six entries below are **Claude Code skills** — directories und
 - **Given** a release with N completed test cycles **When** the `sdlc-implementer` skill runs Phase 3 Step 4a **Then** it queries the portal API for evidence grouped by `testCycleId` and populates the Test Cycles table from the response — the operator does not manually assemble cycle data. **Given** the portal does not yet support `testCycleId` grouping **When** Step 4a runs **Then** the skill falls back to local CI run IDs from artefact filenames and notes the fallback in the summary. **Given** a release with a single cycle **When** Stage 3 generates the summary **Then** the Test Cycles section lists that one cycle. **Given** a release where a cycle failed **When** Stage 3 generates the summary **Then** the final assessment notes the failure and any outstanding incidents.
 - **Error paths:** No cycle data available from portal or local → the section is populated with placeholder rows and a note that cycle data was unavailable; the summary still uploads (the Test Completion Report is required evidence, not optional). The skill must not skip Step 4a — even an empty query result is recorded, preventing silent gaps in the audit trail.
 - **Fixtures/env:** A REQ with 2 completed CI runs (cycle data from portal stub or local evidence directory); a REQ with a single cycle; a REQ with a failed cycle.
+
+#### REQ-SKILL-IMPLEMENTER-021 — Phase 3 delegates incident filing to e2e-test-engineer, never files inline (#210 AC10)
+
+- **Priority:** Must — the sdlc-implementer must not file incident issues directly; incident filing is delegated to `e2e-test-engineer` which emits the `### Framework attribution` section and applies the `incident` label.
+- **Source:** `sdlc/files/_common/skills/sdlc-implementer/SKILL.md` Phase 3: when a test failure is discovered during evidence compilation, the skill delegates to `e2e-test-engineer` to file the incident issue rather than filing it inline.
+- **Preconditions / inputs:** Test failure discovered during Phase 3 evidence compilation.
+- **Given** a test failure during Phase 3 **When** the skill discovers it **Then** it invokes `e2e-test-engineer` to file the incident issue with `incident` label and `### Framework attribution` section; the skill does not file the issue itself.
+- **Error paths:** e2e-test-engineer unavailable → halt with "Cannot file incident — e2e-test-engineer skill required for incident filing."
+- **Fixtures/env:** Phase 3 with a test failure; verify issue is filed by e2e-test-engineer, not sdlc-implementer.
+
+#### REQ-SKILL-IMPLEMENTER-022 — Phase 5 change-request loop classifies defect vs scope change, delegates defect filing (#210 AC11)
+
+- **Priority:** Must — the change-request loop must distinguish defects (implementation doesn't match ACs) from scope changes (user wants more), and delegate defect filing to `e2e-test-engineer`.
+- **Source:** `sdlc/files/_common/skills/sdlc-implementer/SKILL.md` Phase 5 change-request loop: classifies each change request as **defect** (delegate to `e2e-test-engineer` to file incident before fixing) or **scope change** (use the existing scope-expansion halt gate).
+- **Preconditions / inputs:** Change-request comments from the PR or portal release page.
+- **Given** a change request classified as a defect **When** the change-request loop processes it **Then** it delegates to `e2e-test-engineer` to file the incident issue before fixing; **Given** a change request classified as a scope change **When** the loop processes it **Then** it triggers the scope-expansion halt gate.
+- **Error paths:** Misclassification risk — the skill must err on the side of "defect" when ambiguous (filing an incident is safer than silently absorbing a defect as scope change).
+- **Fixtures/env:** Change request that is a defect (expect incident filed by e2e-test-engineer); change request that is a scope change (expect halt gate).
+
+#### REQ-SKILL-IMPLEMENTER-023 — Compliance constraint: never file incidents inline — delegate to sub-skills (#210 AC13)
+
+- **Priority:** Must — the sdlc-implementer must never file incident issues directly; it must delegate to `e2e-test-engineer` or `governance-doc-author` for incident filing.
+- **Source:** `sdlc/files/_common/skills/sdlc-implementer/SKILL.md` compliance constraints #7: "Never file incidents inline. Delegate incident filing to `e2e-test-engineer` (test-related incidents) or `governance-doc-author` (governance/process incidents). The sdlc-implementer orchestrates; sub-skills execute."
+- **Preconditions / inputs:** Any phase where an incident is discovered.
+- **Given** an incident is discovered during any phase **When** the skill needs to file it **Then** it delegates to the appropriate sub-skill (`e2e-test-engineer` for test-related, `governance-doc-author` for governance/process); it never files the issue itself.
+- **Error paths:** N/A — this is a constraint, not a flow.
+- **Fixtures/env:** Incident discovered in Phase 2, 3, 5; verify delegation to sub-skill in each case.
+
+#### REQ-SKILL-IMPLEMENTER-024 — Phase 3 generates nil-incident report when no incidents occurred (#210 AC15-AC18)
+
+- **Priority:** Should — when no incidents occurred during the release cycle, a nil-incident report must be generated as a positive attestation.
+- **Source:** `sdlc/files/_common/3-compile-evidence.md` Step 4b: nil-report generation walkthrough; `sdlc/files/_common/governance/nil-incident-report.md.template`: when no `incident-report-*.md` files exist, generates `nil-incident-report.md` with the release version, date, and "no incidents" attestation.
+- **Preconditions / inputs:** No incident reports in `compliance/governance/`; release version and date available.
+- **Given** a release with no incidents **When** Phase 3 Step 4b runs **Then** `nil-incident-report.md` is generated from the template with the release version and date; the file is uploaded as `compliance_document` evidence. **Given** incident reports exist **Then** Step 4b is skipped.
+- **Error paths:** Template missing → warning, continue.
+- **Fixtures/env:** Release with no incidents (expect nil report generated and uploaded); release with incidents (expect no nil report).
 
 #### REQ-SKILL-E2E-001 — Trigger phrases fire the e2e pack maintainer / bootstrapper
 
@@ -2139,6 +2187,62 @@ Area codes: FRAMEWORK-CIYML (ci.yml quality gates + evidence job), FRAMEWORK-EVI
 
 ---
 
+#### REQ-FRAMEWORK-EVIDENCE-008 — Incident export enriched with structured sections from PR/issue body (#210 AC6)
+
+- **Priority:** Should — incident reports must carry structured root-cause/impact/containment/lessons sections for SOC2.CC7.2 / ISO29119.3.5.4 / GDPR.Art-33 compliance.
+- **Source:** `sdlc/files/ci/incident-export.yml.template` Path A: when an `incident`-labelled issue closes, the workflow exports the issue body into `compliance/governance/incident-report-<n>.md` with structured sections (`### Root cause`, `### Impact`, `### Containment`, `### Lessons learned`) extracted from the issue body and PR comments.
+- **Preconditions / inputs:** Issue closed with `incident` label; `permissions: contents:write, pull-requests:write`.
+- **Given** an incident issue with `incident` label is closed **When** the workflow fires **Then** it generates `incident-report-<n>.md` with the structured sections populated from the issue body; **When** sections are missing from the issue body **Then** REPLACE markers are inserted for human attestation.
+- **Error paths:** PR-create failure degrades to warning; idempotent no-op when no diff.
+- **Fixtures/env:** Issue-close event fixture with `incident` label; issue body with/without structured sections.
+
+#### REQ-FRAMEWORK-EVIDENCE-009 — Completeness gate blocks incomplete incident reports with unresolved REPLACE markers (#210 AC9)
+
+- **Priority:** Must — an incident report with unresolved REPLACE markers is not valid evidence; the gate must block the release.
+- **Source:** `sdlc/files/ci/compliance-evidence.yml.template` completeness gate step: scans `compliance/governance/incident-report-*.md` for unresolved `REPLACE` markers; if any are found, the gate fails with `::error::` listing the file and marker count.
+- **Preconditions / inputs:** Incident report files in `compliance/governance/`.
+- **Given** an incident report with unresolved REPLACE markers **When** the completeness gate runs **Then** the gate fails and the release is blocked; **Given** all REPLACE markers are resolved **Then** the gate passes.
+- **Error paths:** This requirement is itself the error path.
+- **Fixtures/env:** Incident report with REPLACE markers (expect gate failure); incident report with all markers resolved (expect pass).
+
+#### REQ-FRAMEWORK-EVIDENCE-010 — E2E regression incident filing with heuristic triage on test failure (#210 AC19-AC27)
+
+- **Priority:** Should — E2E regression failures must file an incident issue with structured triage sections for traceability.
+- **Source:** `sdlc/files/ci/compliance-evidence.yml.template` E2E regression incident step: on E2E test failure, the workflow files a GitHub issue with `incident` label and structured sections (`### Framework attribution`, `### Failing scenarios`, `### Heuristic triage`, `### Test cycle`); the triage heuristics classify the failure (flaky, environment, regression, or unknown).
+- **Preconditions / inputs:** E2E regression workflow with failing tests; `GH_TOKEN` with issue-write permission.
+- **Given** an E2E regression run with test failures **When** the incident step runs **Then** it files a GitHub issue with `incident` label, structured sections, and `testCycleId` cross-reference; **When** the failure is classified as flaky **Then** the triage section notes the flaky classification; **When** the failure is a regression **Then** the triage section identifies the likely causing commit.
+- **Error paths:** Issue-create failure degrades to warning; no in-scope REQs → skip.
+- **Fixtures/env:** E2E regression with failing tests; portal/gh stubs recording issue creation.
+
+#### REQ-FRAMEWORK-EVIDENCE-011 — Nil incident report generated and uploaded when no incidents occurred (#210 AC15-AC18)
+
+- **Priority:** Should — a per-release "no incidents" attestation is required evidence when no incidents occurred during the release cycle.
+- **Source:** `sdlc/files/ci/compliance-evidence.yml.template` nil-report step: when no `incident-report-*.md` files exist in `compliance/governance/`, generates `nil-incident-report.md` from `nil-incident-report.md.template` and uploads it as `compliance_document`; `sdlc/files/_common/3-compile-evidence.md` Step 4b documents the nil-report generation walkthrough.
+- **Preconditions / inputs:** No incident reports in `compliance/governance/`; `nil-incident-report.md.template` present.
+- **Given** a release with no incidents **When** the evidence compile step runs **Then** `nil-incident-report.md` is generated with the release version and date, and uploaded as `compliance_document`; **Given** incident reports exist **Then** the nil report is not generated.
+- **Error paths:** Template missing → warning, continue.
+- **Fixtures/env:** Release with no incidents (expect nil report); release with incidents (expect no nil report).
+
+#### REQ-FRAMEWORK-EVIDENCE-012 — Catch-all compliance_document fallback eliminated; unrecognized files skip-with-warning (#205)
+
+- **Priority:** Must — the catch-all `compliance_document` fallback caused evidence_type collisions, making the portal's per-type panels show incorrect content (DevAudit-Installer#205).
+- **Source:** `sdlc/files/ci/compliance-evidence.yml.template` evidence routing: unrecognized file basenames no longer default to `compliance_document`; instead they are skipped with a `::warning::` naming the file and stating it has no evidence_type mapping.
+- **Preconditions / inputs:** Per-REQ evidence folders with files.
+- **Given** an unrecognized file basename in `compliance/evidence/<REQ>/` **When** the routing runs **Then** the file is skipped with a warning (not uploaded as `compliance_document`); **Given** a recognized basename **Then** it uploads under its dedicated evidence_type.
+- **Error paths:** Unrecognized file → warning, continue (not a hard failure).
+- **Fixtures/env:** Evidence folder with recognized and unrecognized basenames; portal stub asserting only recognized files are uploaded.
+
+#### REQ-FRAMEWORK-EVIDENCE-013 — Typed evidence_type per artifact (#207)
+
+- **Priority:** Must — each artifact type must upload under its dedicated evidence_type so the portal's per-type panels render correctly (DevAudit-Installer#207).
+- **Source:** `sdlc/files/ci/compliance-evidence.yml.template`, `sdlc/files/ci/ci.yml.template`, `sdlc/files/ci/python/ci.yml.template`: SAST → `sast_report`, dependency audit → `dependency_audit`, E2E HTML report → `e2e_report`, E2E JSON results → `e2e_result`, smoke test → `smoke_test`, release ticket → `release_ticket`, coverage report → `coverage_report`, gate outcomes → `gate_outcome`. Each upload carries the correct `--category` and `--evidence_type`.
+- **Preconditions / inputs:** CI artifacts in `ci-evidence/`; in-scope REQs from pending release tickets.
+- **Given** a CI run producing SAST, dep-audit, E2E, coverage, and gate-outcome artifacts **When** the upload step runs **Then** each artifact uploads under its dedicated evidence_type (not a shared `audit_log` or `compliance_document`); the portal receives correctly typed evidence for each panel.
+- **Error paths:** Individual upload failures are soft (`|| echo Warning`); `UPLOAD_FAILURES` tracked across all uploads.
+- **Fixtures/env:** CI run with all artifact types; portal stub asserting evidence_type per upload.
+
+---
+
 #### REQ-FRAMEWORK-VALIDATION-001 — compliance-validation.yml gates PRs to main on artifact + commit validity
 
 - **Priority:** Should — a merge-gate but delegated entirely to consumer-side scripts (black-box: it must run them on PRs to main).
@@ -2223,6 +2327,28 @@ Area codes: FRAMEWORK-CIYML (ci.yml quality gates + evidence job), FRAMEWORK-EVI
 - **Given** a develop→main merge bundling several REQs **When** the workflow runs **Then** ALL in-scope releases are promoted to `${TERMINAL_STATUS}` (not just the first) with production smoke + ticket evidence attached (both carrying `sdlcStage=5`); status PATCH is idempotent. **When** `terminal_status` is invalid **Then** `::error::` exit 1. **When** `prod_review` **Then** a human must click Approve/Mark-as-Released in the portal; **When** `released` **Then** auto-release (v1.21.x behaviour).
 - **Error paths:** No `release_id` resolved → `::warning::` skip status patch for that release; evidence uploads `|| echo Warning` (soft).
 - **Fixtures/env:** Portal stub recording PATCH status + uploads (asserting `sdlcStage=5`); multi-REQ pending-tickets fixture; both terminal_status values.
+
+---
+
+#### REQ-FRAMEWORK-POSTDEPLOY-003 — Post-deploy smoke failure files incident issue with structured sections (#210 AC28-AC29)
+
+- **Priority:** Should — production smoke failures must file an incident issue for traceability and post-incident review.
+- **Source:** `sdlc/files/ci/post-deploy-prod.yml.template` incident step: on smoke test failure, the workflow files a GitHub issue with `incident` label and structured sections (`### Framework attribution`, `### Smoke failure detail`, `### Production URL`, `### Release version`); the issue is cross-referenced with the release ticket.
+- **Preconditions / inputs:** Smoke test failure; `GH_TOKEN` with issue-write permission; `incident` label exists.
+- **Given** a post-deploy smoke test failure **When** the incident step runs **Then** it files a GitHub issue with `incident` label, structured sections, and release version cross-reference; **When** the smoke test passes **Then** no incident is filed.
+- **Error paths:** Issue-create failure degrades to warning (smoke failure still fails the job).
+- **Fixtures/env:** Smoke test failure fixture; gh stub recording issue creation; smoke pass fixture (expect no issue).
+
+---
+
+#### REQ-FRAMEWORK-LABELRET-001 — label-retention.yml enforces incident label survives to issue close (#210 AC1-AC5)
+
+- **Priority:** Must — the `incident` label must survive to issue close so `incident-export.yml` fires and evidence lands on the portal.
+- **Source:** `sdlc/files/ci/label-retention.yml.template`: runs on `issues: types: [labeled, unlabeled, reopened]`; if the `incident` label is removed from an issue that had it, the workflow re-applies it with a comment explaining the enforcement. A daily cron scan catches any issues where the label was removed between events (belt-and-suspenders). Opt-in via `sdlc-config.json: incident_label_retention: true`.
+- **Preconditions / inputs:** `incident` label exists in the repo; `sdlc-config.json` with `incident_label_retention: true`; `GH_TOKEN` with label-write permission.
+- **Given** an issue with `incident` label **When** the label is removed **Then** the workflow re-applies it within seconds and posts a comment explaining the enforcement; **Given** the daily cron runs **When** it finds an issue that lost the label **Then** it re-applies it. **Given** `incident_label_retention` is not set or false **Then** the workflow does not run.
+- **Error paths:** Label-write failure → warning (non-blocking); issue not found → skip.
+- **Fixtures/env:** Issue with `incident` label removed (expect re-applied); issue without `incident` label (expect no action); opt-out config fixture.
 
 ---
 
@@ -2465,14 +2591,14 @@ The observable contract is derived entirely from source: adapter manifests under
 - **Error paths:** N/A in this area.
 - **Fixtures/env:** railway fixture with full `sdlc-config.json`; cross-ref FRAMEWORK-CI for the rendered-workflow assertions.
 
-#### REQ-FRAMEWORK-ADAPTER-013 — Malformed adapter manifest aborts the sync at parse time
+#### REQ-FRAMEWORK-ADAPTER-013 — Malformed adapter manifest aborts the sync at parse time or schema validation
 
-- **Priority:** Could — adapters are first-party and rarely malformed; runtime rejection is by JSON parse / missing-file, not by JSON-Schema validation.
-- **Source:** `cli/src/lib/adapter.ts` (`loadStackAdapter`, `loadHostAdapter` — `JSON.parse`); `cli/src/update/resolve-adapters.ts` (existence checks); `sdlc/files/stacks/_schema/adapter.schema.json`, `sdlc/files/hosts/_schema/adapter.schema.json` (authoring-time only)
-- **Preconditions / inputs:** A resolved stack/host whose `adapter.json` is syntactically invalid or absent.
-- **Given** `sdlc/files/stacks/<stack>/adapter.json` contains invalid JSON **When** `loadStackAdapter`/`loadHostAdapter` runs **Then** `JSON.parse` throws and the sync aborts; **Given** the file is absent **Then** `resolveAdapters` throws the `… adapter not found … Available: …` error before load. NOTE: there is no runtime JSON-Schema validation of adapter.json against `adapter.schema.json` in `cli/src/` (no Ajv/validate call references the stack/host schema); the `$schema` keys and the `_schema/adapter.schema.json` files are editor/authoring aids. A semantically malformed-but-parseable adapter (e.g. missing `required` properties, bad `runtime_setup.action` pattern) is NOT rejected at runtime.
+- **Priority:** Should — adapters are first-party and rarely malformed, but runtime schema validation catches contributor errors early (DevAudit-Installer#158).
+- **Source:** `cli/src/lib/adapter.ts` (`loadStackAdapter`, `loadHostAdapter` — `JSON.parse` + Ajv validation against `adapter.schema.json`); `cli/src/update/resolve-adapters.ts` (existence checks); `sdlc/files/stacks/_schema/adapter.schema.json`, `sdlc/files/hosts/_schema/adapter.schema.json` (enforced at runtime via Ajv).
+- **Preconditions / inputs:** A resolved stack/host whose `adapter.json` is syntactically invalid, schema-invalid, or absent.
+- **Given** `sdlc/files/stacks/<stack>/adapter.json` contains invalid JSON **When** `loadStackAdapter`/`loadHostAdapter` runs **Then** `JSON.parse` throws and the sync aborts; **Given** the file is absent **Then** `resolveAdapters` throws the `… adapter not found … Available: …` error before load. **Given** the file is parseable but schema-invalid (e.g. missing `required` properties, bad `runtime_setup.action` pattern) **Then** Ajv validation fails and the sync aborts with a clear error listing all schema violations.
 - **Error paths:** This requirement is itself the error path.
-- **Fixtures/env:** fixture installer-root with a stack `adapter.json` containing a syntax error (expect abort); a fixture with a parseable-but-schema-invalid adapter (document current behaviour: NOT rejected). See Assumptions.
+- **Fixtures/env:** fixture installer-root with a stack `adapter.json` containing a syntax error (expect abort); a fixture with a parseable-but-schema-invalid adapter (expect abort with schema error); a fixture with a valid adapter (expect success).
 
 ---
 
@@ -2613,7 +2739,7 @@ The observable contract is derived entirely from source: adapter manifests under
 
 #### Assumptions — Adapters/Governance/Rules
 
-- **No runtime JSON-Schema validation of adapters.** `sdlc/files/stacks/_schema/adapter.schema.json` and `sdlc/files/hosts/_schema/adapter.schema.json` are referenced only via the `$schema` key and are not loaded by any Ajv/validate call in `cli/src/`. The prompt's "REQ a malformed adapter is rejected" is satisfied only for _syntactically_ invalid JSON (rejected at `JSON.parse` in `loadStackAdapter`/`loadHostAdapter`) and for _missing_ adapter files (rejected in `resolveAdapters`). A parseable-but-schema-invalid adapter is NOT rejected at runtime. ADAPTER-013 is written to document the actual behaviour; if schema enforcement is intended it is a gap.
+- **Runtime JSON-Schema validation of adapters** is enforced via Ajv in `cli/src/lib/adapter.ts` (DevAudit-Installer#158). Both `loadStackAdapter` and `loadHostAdapter` compile the appropriate `adapter.schema.json` and validate the parsed adapter before returning it. Schema-invalid adapters are rejected with a clear error listing all violations.
 - **`cli/src/update/scripts.ts` not fully read.** ADAPTER-009 infers that `stack_scripts` (node's `check-requirement-jsdoc.sh`) is rendered into the consumer's `scripts/` by the `2d` section runner (`syncScripts`); the exact target path and skip semantics were taken from the adapter manifest + schema description (`copied to the consumer's scripts/ directory`), not from reading `scripts.ts` line-by-line.
 - **Host-adapter deploy substitution rendering is owned by FRAMEWORK-CI.** This area resolves and loads the host adapter (by name) and documents the substituted fields; the actual placement of `deploy_trigger`/`production_url`/`wait_for_deploy` into `.github/workflows/*.yml` happens in `cli/src/update/ci-templates.ts` (section `2f`), which is scoped to the CI SRS section. ADAPTER-011/012 assert the contract values and the cross-area boundary, not the rendered-YAML bytes.
 - **`bootstrap-governance` command surface owned by another section.** GOVERNANCE-001/002 reference `cli/src/commands/bootstrap-governance.ts` only to establish the opt-in boundary and idempotent copy behaviour of `bootstrapGovernanceDocs`; the command's CLI flags/output formatting are owned elsewhere.

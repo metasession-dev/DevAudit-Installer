@@ -6,7 +6,7 @@
   "node_version": 20,
   "runner": "self-hosted",
 
-  "_comment_branches": "Branch model the sdlc-implementer skill follows. integration_branch = where implementation PRs land and ci.yml uploads gate evidence on push (develop-first default). release_branch = the protected production branch the integration branch is promoted to via the UAT-approved release PR. Trunk-only projects set both to \"main\".",
+  "_comment_branches": "Branch model the sdlc-implementer skill follows. integration_branch = where implementation PRs land and ci.yml uploads gate evidence on push. release_branch = the protected production branch the integration branch is promoted to via the UAT-approved release PR.",
   "integration_branch": "develop",
   "release_branch": "main",
 

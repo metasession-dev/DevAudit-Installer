@@ -256,7 +256,7 @@ Every requirement must be traceable through the complete chain: Requirement → 
 
 ### Branching Strategy
 
-Projects may use develop-main with integration branch or direct trunk-only flow. The specific pattern is defined in each project's Test Plan.
+Projects use a develop-main branching model with a permanent integration branch (`develop`) and a protected release branch (`main`). The specific branch names are defined in each project's `sdlc-config.json`.
 
 **Universal requirements:**
 
