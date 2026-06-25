@@ -128,8 +128,8 @@ jobs:
           fi
           if [ -f playwright-report.zip ]; then
             bash scripts/upload-evidence.sh \
-              {{PROJECT_SLUG}} "$REQ_ID" test_report playwright-report.zip \
-              --category test_report --release "$REQ_ID" --create-release-if-missing \
+              {{PROJECT_SLUG}} "$REQ_ID" feature_e2e_report playwright-report.zip \
+              --category e2e_report --release "$REQ_ID" --create-release-if-missing \
               --environment uat --sdlc-stage 2 \
               --git-sha "${{ github.event.pull_request.head.sha }}" \
               --ci-run-id "${{ github.run_id }}" --branch "${{ github.head_ref }}" \

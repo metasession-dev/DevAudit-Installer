@@ -25,7 +25,7 @@ Each project follows a **single owner-developer partnered with AI coding agents*
 
 - **Owner-developer** provides direction, judgment, and approval. They are accountable for the project.
 - **AI agent** (Claude Code, Windsurf, Cursor) acts as implementation partner, compliance enforcer, and reviewer. The SDLC process is enforced by the AI on every code change via drop-in rules (`sdlc/ai-rules/`).
-- **Branching is trunk-based** with a permanent `develop` branch — no feature branches. Parallel work is handled by the AI within a single stream, not by multiple developers on separate branches.
+- **Branching is develop-main** with a permanent `develop` branch — no feature branches. Parallel work is handled by the AI within a single stream, not by multiple developers on separate branches.
 - **PR reviews** are owner-reviewed with AI-assisted verification. CI provides independent, tamper-resistant evidence. The SDLC workflows and compliance gates replace traditional team ceremonies (standups, sprint planning).
 - **The AI is the second pair of eyes.** It asks which requirement a change is for, blocks implementation until planning is complete, enforces commit conventions, runs compliance gates, and guides evidence compilation.
 

@@ -40,12 +40,14 @@ For each requested change, mark it as one of:
 - **Must address** — the reviewer is asking for a specific code/test/doc change.
 - **Question** — the reviewer is asking for clarification, not asking for a code change.
 - **Out of scope** — the reviewer is asking for something this REQ doesn't intend to deliver.
+- **Requirements gap** (devaudit-installer#212) — the reviewer identified behaviour that should have been an AC but wasn't. The plan was incomplete, not the implementation. This is distinct from "Out of scope" (the reviewer is asking for something this REQ genuinely shouldn't deliver) and from "Must address" (the reviewer is asking for a code change within existing ACs).
 
 For Questions: post a reply on the PR or portal explaining; do NOT change code.
 For Out-of-scope items: post a reply proposing a follow-up issue; do NOT silently expand REQ-XXX.
+For Requirements gap items: trigger the [requirements gap flow](../SKILL.md#requirements-gap-flow-devaudit-installer212) in `sdlc-implementer` SKILL.md with the reviewer's feedback as the gap report. The operator decides: accept the gap (ship without the edge case), amend the ACs (add the edge case as a new AC, update plan + SRS, re-walk Phase 2-3), or file a follow-up REQ. If "amend" is chosen, the change-request iteration includes the new AC in the delta-plan section, `requirements-aligner` is re-invoked for the new AC, and the SRS is updated.
 For Must-address items: collect into a delta-plan section.
 
-### Step 3 — Add a delta-plan section to the implementation plan
+### Step 3 — Add a delta-plan section to the implementation plan and update the release ticket
 
 Append a new section to `compliance/plans/REQ-XXX/implementation-plan.md`:
 
@@ -74,6 +76,8 @@ Append a new section to `compliance/plans/REQ-XXX/implementation-plan.md`:
 ```
 
 This section is append-only — never rewrite a prior iteration's delta-plan section.
+
+**Update the release ticket status** (`compliance/pending-releases/RELEASE-TICKET-REQ-XXX.md`): set `**Status:**` to `CHANGES REQUESTED — ITERATION N`. Commit the ticket update alongside the delta-plan section in the same iteration commit. The status transitions mirror the portal's state machine but are recorded in the ticket file for audit trail completeness.
 
 ### Step 4 — Re-run Phase 2 (Implement and test)
 
@@ -117,6 +121,8 @@ devaudit push <slug> REQ-XXX <type> <file> \
 
 **Existing evidence stays.** Iteration N adds; it does not replace. The audit trail wants to see what each iteration's evidence looked like.
 
+**After evidence re-compile completes**, update the release ticket status to `TESTED - PENDING SIGN-OFF (ITERATION N)`.
+
 ### Step 6 — Push to the same branch
 
 `git push` — no `--force`. The PR auto-updates.
@@ -151,7 +157,10 @@ The skill halts. The human's next move is reviewing the iteration N changes on t
 A few rules that keep iteration N+1 distinguishable from iteration N:
 
 - **One iteration per UAT cycle**, not one per commit. If the reviewer asks for three changes, address all three in iteration N, push once, request re-review once. Don't fire iteration boundaries per commit.
-- **Cap at 5 iterations** as a heuristic. If a REQ goes through 5+ iterations without converging, the original plan was probably wrong — halt and ask the user whether to abandon the REQ, split it, or restart from a fresh plan.
+- **Cap at 5 iterations** as a heuristic. If a REQ goes through 5+ iterations without converging, the original plan was probably wrong — halt and ask the user to choose one of three branches:
+  - **Abandon:** Close the PR (`gh pr close <M>`), close the issue with "REQ-XXX abandoned after N=5 change-request iterations without convergence", update RTM status to `ABANDONED`, update release ticket status to `ABANDONED — ITERATION CAP REACHED (N=5)`, update sticky to terminal. Skill halts.
+  - **Split:** Halt with "Recommend filing separate issues for: <inferred sub-scopes>. Close this PR after splitting. Each new issue gets its own `sdlc-implementer` invocation." The skill does not perform the split — it surfaces the recommendation and stops.
+  - **Restart from fresh plan:** Keep the same REQ-XXX number (the portal release already exists). Archive the current implementation plan (`mv compliance/plans/REQ-XXX/implementation-plan.md compliance/plans/REQ-XXX/implementation-plan-v1-archived.md`), re-run Phase 1 from step 5 (write new plan). The PR stays open — the new plan's implementation replaces the code on the feature branch. Reset the iteration counter to 0.
 - **Never rewrite the original plan's body** in response to iteration feedback. Use the delta-plan sections; the original plan stays as a historical record of what was first proposed.
 - **Iteration commits are still SDLC-conformant.** Conventional Commits format, `Ref: REQ-XXX`, `Co-Authored-By: Claude`, all gates green locally. No exceptions because "it's just a fix to the previous iteration."
 
@@ -179,6 +188,21 @@ If the portal state is `uat_rejected` (not `uat_changes_requested`), the reviewe
 2. Post on the issue: "UAT rejected this release. Awaiting user direction — options are to (a) close the PR and re-plan from scratch, (b) escalate the rejection to a different reviewer, or (c) appeal the rejection with new context."
 3. Wait for the user to decide. The skill does not unilaterally reopen, force-merge, or escalate.
 
+## Release ticket status transitions
+
+The release ticket (`compliance/pending-releases/RELEASE-TICKET-REQ-XXX.md`) `**Status:**` field is updated at each transition in the change-request loop, mirroring the portal's state machine for audit trail completeness:
+
+| Transition | Release ticket status |
+|---|---|
+| Entering iteration N | `CHANGES REQUESTED — ITERATION N` |
+| After evidence re-compile (Step 5) | `TESTED - PENDING SIGN-OFF (ITERATION N)` |
+| After UAT re-approval (Phase 5 happy path) | `APPROVED — READY FOR MERGE` |
+| After merge + deploy + prod verification | `RELEASED` |
+| If rejected | `REJECTED — AWAITING OPERATOR DIRECTION` |
+| If iteration cap hit and abandoned | `ABANDONED — ITERATION CAP REACHED (N=5)` |
+
+Commit each ticket update alongside the corresponding delta-plan or evidence commit in the same iteration commit.
+
 ## Summary
 
 The change-request loop preserves the controls a one-shot approval cycle would skip. Every iteration:
@@ -187,6 +211,7 @@ The change-request loop preserves the controls a one-shot approval cycle would s
 - Documents what was changed and why.
 - Captures fresh evidence tagged by iteration.
 - Triggers an explicit UAT re-review on the portal.
+- Updates the release ticket status to reflect the current state.
 - Maintains the full audit trail.
 
 By doing so, even REQs that take five iterations to land have the same compliance posture as REQs that pass UAT on the first try.

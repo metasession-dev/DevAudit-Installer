@@ -265,7 +265,14 @@ Then bucket each failure:
 - **Visual diff — intended** — the snapshot changed because the change intentionally changed the UI. Update the baseline and surface it for user approval.
 - **Visual diff — unintended** — a snapshot changed somewhere the change shouldn't have affected. File it as a regression.
 
-**Then check for missed requirements.** For each numbered acceptance criterion from Phase 2, confirm at least one *passing* test covers it. An AC with no passing test — because no test was written, or because the test fails — is a missed requirement. File it.
+**Then check for missed requirements.** For each numbered acceptance criterion from Phase 2, confirm at least one *passing* test covers it. **Classify each missed AC (devaudit-installer#212 Gap 4):**
+
+- **AC not tested** (no test was written) — file a defect as today. The implementation may be correct but untested. This is a testing gap, not a requirements gap.
+- **AC test fails** (test exists but fails) — file a defect as today. The implementation doesn't match the AC. This is a defect.
+- **AC impossible to test** (the test can't be written because the AC is ambiguous, contradictory, or assumes behaviour the system doesn't have) — **do not file a defect**. Return a requirements gap report to `sdlc-implementer`: "AC<N> cannot be tested because <reason>. The AC itself may be wrong." `sdlc-implementer` triggers its [requirements gap flow](../sdlc-implementer/SKILL.md#requirements-gap-flow-devaudit-installer212).
+- **Missing AC** (a scenario is necessary for the feature to work but no AC covers it) — **do not file a defect**. Return a requirements gap report: "Scenario <description> is necessary but not covered by any AC. A new AC may be needed." `sdlc-implementer` triggers its [requirements gap flow](../sdlc-implementer/SKILL.md#requirements-gap-flow-devaudit-installer212).
+
+The classification is: "Is the AC correct but untested/buggy? → defect. Is the AC itself wrong/missing? → requirements gap."
 
 ### Phase 7 — Regression-pack handoff
 
@@ -338,7 +345,9 @@ This defect, once closed with the `incident` label, will be auto-exported as `in
 - [ ] `GDPR.Art-34` — data-subject notification required: <REPLACE — yes/no>
 - [ ] `EUAIA.Art-9 / Art-14 / Art-15` — AI failure: <REPLACE — yes/no, which article(s)>
 
-Once closed, the `incident-export.yml` workflow exports this issue's body to `compliance/governance/incident-report-<N>.md`, auto-files a PR with the GDPR triage + sign-off sections to fill in. Merge that PR → `compliance-evidence.yml` uploads as `incident_report`.
+Once closed, the `incident-export.yml` workflow exports this issue's body to `compliance/governance/incident-report-<N>.md`. Routing depends on the Framework attribution ticks (DevAudit-Installer#200 Fix 1):
+- **Path A (baseline-only — only `ISO29119.3.5.4` ticked):** direct-committed to `develop`, no PR. GDPR triage pre-filled as N/A. Next `compliance-evidence.yml` run uploads as `incident_report`.
+- **Path B (any of SOC2/GDPR/EUAIA ticked):** auto-files a PR with the GDPR triage + sign-off sections to fill in. Merge that PR → `compliance-evidence.yml` uploads as `incident_report`.
 ```
 
 Pre-tick boxes you're confident about. Leave the operator-judgement ones (GDPR triage, AI-failure classification) for the operator to confirm in the export PR.
@@ -375,6 +384,7 @@ Wrap up with a summary the user can drop into the PR or ticket:
 - Tests deleted — count, with rationale.
 - Suite result — passing, failing, flaky.
 - Defects filed — count, with links.
+- Requirements gap reports — count, with details (devaudit-installer#212 Gap 4). These are ACs classified as "impossible to test" or "missing AC" — returned to `sdlc-implementer` for the requirements gap flow, not filed as defects.
 - Missed requirements — count, with links.
 
 **Then feed the test-design record (devaudit#50).** The Stage 3 `test-execution-summary.md` (generated per `3-compile-evidence.md` Step 1a) carries a `## Test design` section at the top. Before Stage 3 finalises the file, populate that section with the design-time decisions this skill made, so the SDLC has a recorded trace that scope was *decided*, not implicit:

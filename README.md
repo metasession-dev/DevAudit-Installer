@@ -97,7 +97,7 @@ Full guide: [`sdlc/files/_common/joining-an-existing-project.md`](./sdlc/files/_
 
 ## The SDLC at a glance
 
-Trunk-based (`develop` → `main`), one owner-developer partnered with AI agents. The framework has **two release shapes** — tracked and housekeeping — and CI auto-classifies each develop push into the correct shape.
+Develop-main (`develop` → `main`), one owner-developer partnered with AI agents. The framework has **two release shapes** — tracked and housekeeping — and CI auto-classifies each develop push into the correct shape.
 
 ### Which AI agent? Any of them.
 

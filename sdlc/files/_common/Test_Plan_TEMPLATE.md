@@ -35,7 +35,7 @@ For tools, patterns, and code standards: Test Architecture.
 
 ## Branching Strategy
 
-Trunk-based with develop branch (per Test Strategy branching patterns):
+Develop-main with develop branch (per Test Strategy branching patterns):
 
 - **`main`** — Production. Auto-deploys to hosting platform. PR approval + all checks required.
 - **`develop`** — Working branch. All implementation here. Permanent, never deleted.

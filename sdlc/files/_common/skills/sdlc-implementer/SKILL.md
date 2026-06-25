@@ -103,6 +103,56 @@ When the user asks for a change that goes beyond the current REQ's acceptance cr
 
 This gate is distinct from Phase 2 step 4's "any deviation from the plan must be noted" rule: that covers implementation *approach* deviations (how to build something the plan says to build), not *scope* expansions (building something the plan doesn't say to build at all).
 
+## Requirements gap flow (devaudit-installer#212)
+
+A **requirements gap** is "the ACs themselves were wrong, incomplete, or missing" — discovered by the skill or sub-skills mid-cycle, not by a user request. This is distinct from:
+
+- **Scope expansion** (user asks for something beyond the ACs → scope-expansion halt gate above)
+- **Defect** (implementation doesn't match the ACs → incident filing)
+
+### When it fires
+
+The requirements gap flow is triggered by:
+
+- **Phase 2 step 4** — plan deviation classified as "requirements deviation" (an AC is wrong/incomplete/missing, not just the implementation approach)
+- **Phase 3 step 1** — `requirements-aligner` returns `GAPS_FOUND` (ACs that don't trace to SRS items, or unresolved drift)
+- **Phase 2** — `e2e-test-engineer` classifies an AC as "impossible to test" or "missing AC" (returns a requirements gap report instead of filing a defect)
+- **Phase 3 step 4** — test failure classified as "requirements gap" (test is correct, implementation is correct, but the AC they both derive from is wrong)
+- **Phase 5** — change-request loop classifies feedback as "requirements gap" (reviewer identified behaviour that should have been an AC but wasn't)
+
+### The flow
+
+When any skill or sub-skill discovers a requirements gap, it surfaces a **requirements gap report**:
+
+- Which AC is affected (or which missing AC should exist)
+- What's wrong (impossible to satisfy / incomplete / incorrect / missing)
+- What the corrected or new AC should be
+- Impact on existing evidence (what needs re-compilation)
+
+The `sdlc-implementer` presents the operator with three options:
+
+**(a) Accept the gap** — proceed as-is. Mark the AC with `@requirements-gap-accepted: <reason>` in the plan. Document in a `## Requirements gap accepted` section: the gap, the reason for acceptance, and the operator's name + date. Appropriate for LOW-risk or when the gap is cosmetic. Continue from the current phase.
+
+**(b) Amend the ACs** — update the plan's AC table, re-invoke `requirements-aligner` to propose new/updated SRS stubs, operator edits SRS stubs into canonical prose, update the RTM, invalidate affected evidence, re-walk affected phases. This carries the same evidence-invalidation warning as the scope-expansion halt gate option (b): *"Amending ACs after evidence is compiled (Phase 3+) invalidates the existing test-execution-summary, screenshots, and UAT verification. All affected Stage 3 evidence must be re-compiled."*
+
+Amendment steps:
+1. Update `compliance/plans/REQ-XXX/implementation-plan.md` AC table
+2. Re-invoke `requirements-aligner` → propose new/updated SRS stubs
+3. Operator edits SRS stubs into canonical Given/When/Then prose in `docs/SRS.md`
+4. Update `compliance/RTM.md`
+5. Commit: `compliance: [REQ-XXX] amend ACs — requirements gap <description>`
+6. If Phase 2+: re-run affected tests (delegating to `e2e-test-engineer` if e2e)
+7. If Phase 3+: re-compile affected evidence
+8. Continue from current phase
+
+**(c) File a follow-up REQ** — ship the current REQ as-is, file a separate issue for the requirements gap. Appropriate when the gap is a genuine new behaviour that deserves its own cycle. Continue with the current REQ unchanged.
+
+### Distinction from scope-expansion halt gate
+
+- Triggered by **skill/sub-skill discovery**, not by a user request
+- Includes "accept the gap" option (scope-expansion gate doesn't — scope expansion is always halt-or-amend)
+- Classification is "the requirements were wrong" not "the user wants more"
+
 ## SDLC navigability — LAST/NEXT status sticky (devaudit#131)
 
 Long-running SDLC issues accumulate dozens of comments across multiple Claude Code sessions. The operator returning to the thread should be able to answer two questions in under five seconds:
@@ -172,6 +222,8 @@ Skip it for trivial turns (acknowledging a "merged" / one-line confirmations / c
 - On error halt (gate failure exhausted retries, operator-only decision needed)
 
 Do **not** update on every internal step within a phase — that just spams the sticky. The transition + handoff cadence is the right frequency.
+
+**Sticky update failure (devaudit-installer#211 Gap 14).** Check the exit code of `update-sdlc-status.sh`. If it fails (gh auth expired, GitHub API rate-limited, network error), log a warning in the chat: "⚠️ SDLC status sticky update failed (gh CLI error). The LAST/NEXT pointer on issue #N may be stale. Operator — update manually if needed." Continue the workflow — the sticky is a navigation aid, not a control gate.
 
 ## The workflow
 
@@ -265,7 +317,9 @@ Reached from Phase 0 for non-tracked change-types. The skill drives this end-to-
 **CI trigger shape — read once before step 7.** DevAudit-Installer-generated `ci.yml.template` runs `Quality Gates` on PRs to the integration branch and on pushes to the integration branch. Older consumers may still have post-merge-only CI (`push: branches: [<integration>]`, no `pull_request:` trigger) until they re-run `devaudit update`. The skill must adapt step 7's wording to whichever shape the project uses; never poll a PR for checks that won't arrive on that consumer yet.
 
 1. **Branch off `$INTEGRATION_BRANCH`** with a housekeeping prefix — `chore/…`, `docs/…`, `ci/…`, `build/…`, `test/…`, or `compliance/…` for a doc-only change against an existing REQ.
-2. **Make the change**, single-purpose. If it turns out to touch runtime behaviour in `app/` / `lib/`, stop and reclassify as tracked — the commit-type rule is the backstop.
+2. **Make the change**, single-purpose. If it turns out to touch runtime behaviour in `app/` / `lib/`, stop and reclassify as tracked — the commit-type rule is the backstop. **Transition:**
+   - **PR not yet merged:** Close the PR (`gh pr close <N>`), delete the branch, restart from Phase 0 with the tracked classification. The housekeeping commit is abandoned (branch deleted).
+   - **PR already merged:** Halt — "This change was classified as housekeeping and merged, but implementation touched runtime behaviour (`app/` / `lib/`). The commit <SHA> is on `$INTEGRATION_BRANCH` without REQ tracking, evidence, or portal release. Operator action — decide: (a) revert the merge and re-run as tracked (`git revert <SHA>` + new `sdlc-implementer` invocation), or (b) accept the gap and file a retroactive REQ-XXX to backfill evidence. Option (b) leaves a compliance gap — the change shipped without plan, test scope, or UAT review."
 3. **Run all gates locally** (`npm run lint`, `npx tsc --noEmit`, the test suite, `semgrep`, `npm audit` — or the stack-adapter equivalents). Trivial ≠ unverified; never `--no-verify`.
 4. **Commit** with a housekeeping type and **no** `REQ-XXX` — `docs:` / `chore:` / `ci:` / `build:` / `test:` / `revert:` are exempt from the `[REQ-XXX]` rule; a `compliance:` doc-only change references the existing REQ. `Co-Authored-By: Claude` if AI-assisted.
 5. **Push and open the PR** into `$INTEGRATION_BRANCH` (`gh pr create --base "$INTEGRATION_BRANCH" --head <branch>`). CI runs the same quality gates; `compliance-validation.yml` finds no `REQ-XXX` and skips artifact validation.
@@ -285,7 +339,7 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
 0. **Initialise SDLC status sticky** on the issue: `bash scripts/update-sdlc-status.sh "$ISSUE_NUM" "Phase 0 complete — classified as tracked SDLC work" "Phase 1 — sdlc-implementer authoring implementation plan"`. From now until the issue closes, the sticky is the always-current pointer to "what's next" — the operator scans it on every return to the issue.
 1. **Confirm the issue scope.** Re-read the `gh issue view <N>` output from Phase 0 — title, body, all comments — with implementation in mind.
 2. **Classify risk** per `Test_Policy.md` §Risk-Based Testing. Emit a one-paragraph rationale citing the signals you used (auth surface, financial calc, data egress, RBAC, AI decisioning, etc.).
-3. **Assign REQ-XXX.** Inspect `compliance/RTM.md` for existing entries; take the next free number. If the issue references an existing REQ, use that instead.
+3. **Assign REQ-XXX.** Inspect `compliance/RTM.md` for existing entries; take the next free number. If the issue references an existing REQ, use that instead. **Create the portal release immediately** (DevAudit-Installer#200 Fix 3) by running `bash scripts/upload-evidence.sh {{PROJECT_SLUG}} REQ-XXX compliance_document compliance/evidence/REQ-XXX/test-scope.md --category planning --release REQ-XXX --create-release-if-missing --environment uat --sdlc-stage 1` (or a placeholder file if test-scope.md isn't written yet). This ensures: (a) incident reports during Stage 2 implementation attach to the correct `REQ-XXX` release instead of a bare-date housekeeping release, (b) planning evidence can upload as Stage 1 evidence, (c) CI `register-release` on push to `develop` becomes a safety net (finds the existing release) rather than the primary creation mechanism.
 4. **Detect over-scoping.** If the issue spans clearly distinct deliverables (e.g. "build SAML SSO + reorganise the admin dashboard + migrate from Postgres 14 to 16"), halt with a clear message asking the user to split the issue into separate ones. Do not proceed past Phase 1.
 5. **Write the implementation plan.** Create `compliance/plans/REQ-XXX/implementation-plan.md` from `sdlc/files/_common/Implementation_Plan_TEMPLATE.md` (synced into the consumer's `SDLC/` directory at install). The template's shape is load-bearing — it carries the **Framework attribution** section that closes four framework clauses on upload:
 
@@ -301,8 +355,15 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
    **Don't delete sections** — mark with `N/A — <reason>` if a clause genuinely doesn't apply (e.g. UI-only change with no personal-data scope). Empty stubs commit-then-upload as placeholder evidence and break the audit trail.
 
 6. **Invoke `requirements-aligner` to populate the SRS-ID column on the AC table.** The plan's "Acceptance criteria" table carries an SRS-ID column per AC; `requirements-aligner` fuzzy-matches each AC against `docs/SRS.md` and proposes new `REQ-AREA-NNN` stubs, flags stale items, or annotates `@srs-deferred`. Don't author the SRS-ID column inline — call via the standard Claude Code Skill mechanism (`Skill(name: "requirements-aligner", …)`). Block plan APPROVAL until every AC has a resolved SRS-ID per the skill's Phase 1 contract (configurable via `sdlc-config.json:requirements_aligner.block_on_stage_1`; ramp-up mode default-on for legacy projects).
+
+   **SRS stub editing (devaudit-installer#212 Gap 5).** After `requirements-aligner` returns, the plan's SRS items proposed/touched section may contain N new stubs and M stale items. The operator must edit `docs/SRS.md` to flesh out the stubs into canonical Given/When/Then prose and update stale items. Do not proceed to Phase 2 until the SRS is updated. The skill enforces this by checking that no stub placeholders remain in `docs/SRS.md` for the proposed SRS-IDs before auto-continuing. A stub placeholder is any SRS entry containing `<TODO>` or the `@srs-stub` marker.
 7. **Invoke `adr-author` to decide ADR-worthiness + draft the ADR if needed.** The plan's "Architecture decisions" section is no longer authored inline as bullets — `adr-author` applies its decision tree (new third-party dependency / new database/cache/queue / new external service / pattern change spanning >3 files / HIGH-CRITICAL risk class / file-path signals from `sdlc-config.json:adr_author.file_paths_signal_architecture`), allocates the next `ADR-NNN`, drafts a Context/Decision/Consequences/Alternatives/Status stub at `docs/ADR/ADR-NNN-<slug>.md`, and injects either _"Produced ADR-NNN: <title>"_ or _"No ADR needed — <rationale>"_ into the plan's section. Call via the standard Claude Code Skill mechanism (`Skill(name: "adr-author", …)`). Configurable via `sdlc-config.json:adr_author.block_on_stage_1`; advisory by default in v1.
 8. **Invoke `risk-register-keeper` for MEDIUM/HIGH risk classifications.** The plan's "Threat model" / Risks section is no longer authored as orphan bullets — when risk class is MEDIUM or HIGH (LOW skipped by default per `sdlc-config.json:risk_register_keeper.stage_1_min_risk_class`), `risk-register-keeper` reads the plan + diff, identifies discrete risks the change introduces, allocates `RISK-NNN` per project, drafts canonical rows in `compliance/risk-register.md`, and injects the RISK-NNN reference list into the plan's "Risk register entries" sub-section. The skill also enforces the `solo_with_gap` control-gap entry exists for projects in that approval mode. Call via the standard Claude Code Skill mechanism (`Skill(name: "risk-register-keeper", …)`). Configurable via `sdlc-config.json:risk_register_keeper.block_on_stage_1`; advisory by default in v1.
+
+**Sub-skill failure behavior (devaudit-installer#211 Gap 15).** If a sub-skill fails during steps 6–8, behavior is defined per-skill:
+- **`requirements-aligner` fails** (e.g. no `docs/SRS.md`): If `block_on_stage_1` is true, halt — "requirements-aligner could not find SRS.md. Operator action — create `docs/SRS.md` or disable `requirements_aligner.block_on_stage_1` in `sdlc-config.json`." If false, warn and continue with `@srs-deferred` on all ACs.
+- **`adr-author` fails**: Warn and continue — ADR is advisory by default. Mark the plan's "Architecture decisions" section as "ADR assessment skipped — <error>".
+- **`risk-register-keeper` fails**: If `block_on_stage_1` is true, halt. If false, warn and continue — mark the plan's "Risk register entries" section as "Risk assessment skipped — <error>".
 9. **Update `compliance/RTM.md`** with the new entry: REQ-XXX, title, risk class, linked issue, linked test cases (placeholder).
 10. **Post plan summary as an issue comment.** Format: TL;DR; Risk class + signals; Acceptance criteria (with SRS-IDs); Architectural decisions (ADR-NNN reference or no-ADR rationale); Risk register entries (RISK-NNN list); Technical approach (one paragraph); Dependencies; Test scope.
 11. **Checkpoint** — pause for human approval **iff** risk class is HIGH or CRITICAL. LOW and MEDIUM pass through to Phase 2 automatically. The checkpoint can be forced on for all classes via the `--require-plan-approval` flag (or `DEVAUDIT_REQUIRE_PLAN_APPROVAL=1` env var) for orgs that want it always-on.
@@ -310,7 +371,7 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
 
 ### Phase 2 — Implement and test (SDLC stage 2)
 
-1. **Branch off `$INTEGRATION_BRANCH`.** `git checkout "$INTEGRATION_BRANCH" && git pull && git checkout -b feat/REQ-XXX-<slug>`. The slug is a kebab-case fragment of the issue title (max 6 words).
+1. **Branch off `$INTEGRATION_BRANCH`.** `git checkout "$INTEGRATION_BRANCH" && git pull && git checkout -b feat/REQ-XXX-<slug>`. The slug is a kebab-case fragment of the issue title (max 6 words). **Advisory — concurrent REQ check:** check for existing open PRs to `$INTEGRATION_BRANCH` that touch overlapping files (`gh pr list --base "$INTEGRATION_BRANCH" --state open --json files`). If overlap is detected: warn the operator — "PR #M (REQ-YYY) is open and touches <overlapping files>. Merging this REQ first may cause conflicts for REQ-YYY. Proceed with caution." This is advisory, not blocking.
 2. **Write failing tests first** per [`Test_Architecture.md`](../../Test_Architecture.md). Depth scales with risk class:
    - LOW — unit tests on the changed function(s); no e2e required unless the change touches a user-facing flow.
    - MEDIUM — unit + integration; e2e for any UI-facing change.
@@ -323,7 +384,11 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
    c. **Do not author or edit any `e2e/**/*.spec.ts` file in this skill's own tool calls.** The e2e-test-engineer skill owns spec authoring end-to-end — including the "this AC needs no e2e" decision. If you feel the urge to write a spec inline, that's the inertia trap — STOP and re-invoke the skill.
 
    When in doubt about whether work qualifies: visual-regression tests, screenshot diffs, browser-driven flows, any file ending in `.spec.ts` under `e2e/`, and any `playwright.config.ts`/`evidence/`/`baselines/` directory all qualify. Unit/integration tests under `tests/unit/`, `tests/integration/`, or stack-equivalent paths stay with this orchestrator.
-4. **Implement against the plan.** Reference `compliance/plans/REQ-XXX/implementation-plan.md` as you go. Any deviation from the plan must be noted in the plan itself under a `## Plan deviation` section — never silently diverge.
+4. **Implement against the plan.** Reference `compliance/plans/REQ-XXX/implementation-plan.md` as you go. Any deviation from the plan must be classified:
+   - **Implementation deviation** (approach changed, ACs still correct) — note in a `## Plan deviation` section of the plan. Continue.
+   - **Requirements deviation** (an AC is wrong, incomplete, or missing) — trigger the [requirements gap flow](#requirements-gap-flow-devaudit-installer212). Do NOT just note it as a plan deviation. The AC table must be updated, `requirements-aligner` must be re-invoked to re-check SRS alignment, and the RTM must be updated.
+   
+   The classification question: "Did the implementation deviate from the plan's approach (how to build it), or did the plan's requirements deviate from reality (what to build)?" If the former, note and continue. If the latter, trigger the requirements gap flow.
 5. **Run gates locally, cheap-first.** The gates are not equivalent-cost — `npm run lint` is seconds, `npx playwright test` is 30–60 minutes. Iterate on the fast gates; spend the e2e cost once.
 
    **Fast gates** (run on every change, ideally pre-commit):
@@ -336,10 +401,10 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
    **E2E gate** — run _once_, after the fast gates are clean:
    - `npx playwright test` (delegated to `e2e-test-engineer`, which has its own focused-iteration discipline for within-e2e fix-and-verify loops)
 
-6. **On gate failure**, iterate up to N=3 attempts. Each iteration: read the failure output, propose a fix, apply, re-run. On exhausted attempts, halt with the full failure output and surface to the human — never use `--no-verify`, `eslint-disable`, `@ts-expect-error`, `xfail`, or any other bypass.
+6. **On gate failure**, iterate up to N=3 attempts. Each iteration: read the failure output, propose a fix, apply, re-run. On exhausted attempts, halt with the full failure output and explicit resume instructions: "Gate <name> failed after N=3 attempts. Last failure: <output>. Operator action — fix the failure, commit to the feature branch, push, then ping `resume REQ-XXX`. The skill will re-run the gate from where it left off." Update the sticky with the same. Never use `--no-verify`, `eslint-disable`, `@ts-expect-error`, `xfail`, or any other bypass.
 7. **Commit** using Conventional Commits with `Ref: REQ-XXX` trailer and `Co-Authored-By: Claude` trailer. One commit per logical step; never amend a commit that's already been pushed.
 8. **Land the work on `$INTEGRATION_BRANCH`.** Push the feature branch, then:
-   - **If `$INTEGRATION_BRANCH` ≠ `$RELEASE_BRANCH`** (develop-first): open a PR `feat/REQ-XXX-<slug> → $INTEGRATION_BRANCH` and merge it once CI is green. This is the **integration hop** — there is no UAT four-eyes gate here (that's the release PR in Phase 4); for MEDIUM+ risk get a peer review on this PR per the project's norms. The push to `$INTEGRATION_BRANCH` is what triggers `ci.yml` to register the release and upload gate evidence.
+   - **If `$INTEGRATION_BRANCH` ≠ `$RELEASE_BRANCH`** (develop-first): open a PR `feat/REQ-XXX-<slug> → $INTEGRATION_BRANCH` and merge it once CI is green. This is the **integration hop** — there is no UAT four-eyes gate here (that's the release PR in Phase 4); for MEDIUM+ risk get a peer review on this PR per the project's norms. The push to `$INTEGRATION_BRANCH` is what triggers `ci.yml` to register the release and upload gate evidence. **Merge conflict resolution:** if the PR has merge conflicts (another feature branch merged first), pull the latest `$INTEGRATION_BRANCH` into the feature branch (`git merge "$INTEGRATION_BRANCH" --no-edit`), resolve conflicts (preferring the feature branch's changes for files this REQ touches), push, wait for CI. If conflicts are in files this REQ doesn't touch, halt — "Merge conflict in <files> from another feature. Operator action — review the conflict, these files are outside REQ-XXX's scope."
    - **If `$INTEGRATION_BRANCH` = `$RELEASE_BRANCH`** (trunk-only): do **not** merge to the protected branch here — leave the work on the feature branch; it becomes the release PR's head in Phase 4.
 
 9. **E2E delegation self-audit — mandatory before Phase 3 (devaudit#132).** Run `git diff "$INTEGRATION_BRANCH"...HEAD --name-only` and walk the file list. For **every** entry matching `e2e/**/*.spec.ts`, state out loud one of:
@@ -359,12 +424,29 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
 
     Then proceed to Phase 3 step 1 in the same turn. The integration-PR merge *feels* terminal — that is the inertia trap. The next required operator handoff is Phase 4 step 5 (release PR opened, awaiting portal UAT approval), not the develop merge. The only thing that interrupts this auto-continue is the scope-expansion halt gate (#171) firing on a new user request.
 
+    **CI failure on `$INTEGRATION_BRANCH` post-merge.** If CI on `$INTEGRATION_BRANCH` fails after the integration PR merges:
+    - Read the failure output, attempt fix-forward (commit fix to `$INTEGRATION_BRANCH` directly, push, wait for CI) up to N=3 attempts.
+    - If fix-forward succeeds: auto-continue to Phase 3.
+    - If fix-forward exhausts attempts: halt — "CI on `$INTEGRATION_BRANCH` failed after integration merge. N=3 fix-forward attempts exhausted. Last failure: <output>. Operator action — fix CI on `$INTEGRATION_BRANCH`, then ping `resume REQ-XXX`."
+    - If the failure is unrelated to this REQ's changes (e.g. another feature broke `$INTEGRATION_BRANCH`): document on the PR, attempt cancel-and-admin-merge per the existing external-gate rule (adapted for post-merge context), or halt and surface.
+
 ### Phase 3 — Compile evidence (SDLC stage 3)
 
-1. **Invoke `requirements-aligner` to drop the per-REQ SRS-alignment artefact.** The skill's Phase 2 produces `compliance/evidence/REQ-XXX/srs-alignment.md` — the per-REQ trace from each AC to its SRS item, with an operator sign-off block. The artefact uploads with `evidence_type=srs_alignment` (visible in Documents tab + audit-pack export; v1 orphan-by-design per META-COMPLY framework-registry-auditor). Call via the standard Skill mechanism; don't inline the alignment logic.
+1. **Invoke `requirements-aligner` to drop the per-REQ SRS-alignment artefact.** The skill's Phase 2 produces `compliance/evidence/REQ-XXX/srs-alignment.md` — the per-REQ trace from each AC to its SRS item, with an operator sign-off block. The artefact uploads with `evidence_type=srs_alignment` (visible in Documents tab + audit-pack export; v1 orphan-by-design per META-COMPLY framework-registry-auditor). Call via the standard Skill mechanism; don't inline the alignment logic. **Gap status return (devaudit-installer#212 Gap 3):** `requirements-aligner` returns a gap status to `sdlc-implementer`:
+   - `CLEAN` — all ACs trace to SRS items, no drift. Continue to step 2.
+   - `GAPS_FOUND` — one or more ACs don't trace, or drift is unresolved. Return the gap details.
+   
+   When `sdlc-implementer` receives `GAPS_FOUND`:
+   - If `block_on_stage_3: true` (configurable via `sdlc-config.json:requirements_aligner.block_on_stage_3`) — halt with the [requirements gap flow](#requirements-gap-flow-devaudit-installer212). The operator must resolve the gaps (edit SRS stubs, update ACs, or accept with `@requirements-gap-accepted`) before evidence upload proceeds. The block verifies artefact content (no unresolved gaps without `@srs-deferred`), not just artefact existence.
+   - If `block_on_stage_3: false` — warn: "SRS alignment gaps found: <details>. Evidence will upload with gaps recorded. Consider resolving before UAT review." Continue to step 2.
 2. **Invoke `adr-author` to drop the per-REQ architecture-decision artefact.** The skill's Phase 2 produces `compliance/evidence/REQ-XXX/architecture-decision.md` — either _"Produced ADR-NNN: <title>"_ with the file pointer, or _"No ADR needed — <rationale>"_. Operator sign-off block at the bottom. The artefact uploads with `evidence_type=architecture_decision`; clause attribution per the META-COMPLY framework-registry-auditor review. Call via the standard Skill mechanism.
 3. **Invoke `risk-register-keeper` to drop the per-REQ risk-assessment artefact.** The skill's Phase 3 produces `compliance/evidence/REQ-XXX/risk-assessment.md` — a summary table of RISK-NNN entries this REQ opened / mitigated / accepted, framework cross-references, and an operator sign-off block. The artefact uploads with `evidence_type=risk_assessment`; clause attribution per the META-COMPLY framework-registry-auditor review. Call via the standard Skill mechanism.
-4. **Re-run the full test pack** with artefact capture:
+4. **Re-run the full test pack** with artefact capture. **Classify test failures (devaudit-installer#212 Gap 7):**
+   - **Implementation bug** — test is correct, implementation is wrong. Fix the implementation. (Current behaviour.)
+   - **Test bug** — test is wrong, implementation is correct. Fix the test. (Already handled by `e2e-test-engineer` Phase 6 triage.)
+   - **Requirements gap** — the test is correct, the implementation is correct, but the AC the test derives from is wrong or incomplete. The test reveals behaviour the AC didn't anticipate. Trigger the [requirements gap flow](#requirements-gap-flow-devaudit-installer212) instead of fixing code or test.
+   
+   The classification question: "Is the test testing the right thing? Is the implementation doing the right thing? If both are 'right' but they disagree, the AC they both derive from is wrong."
    - `npm run test:e2e -- --reporter=html` (produces `playwright-report/`)
    - `npx vitest run --coverage` (produces `coverage/`)
 5. **Organise artefacts** under `compliance/evidence/REQ-XXX/` with date-prefixed naming:
@@ -383,7 +465,7 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
 
    Copy Playwright's `test-results/` folder verbatim into `YYYY-MM-DD_traces/` so trace-by-test-name is available for audit without walking the HTML report's hash-name index. For HIGH/CRITICAL releases the traces are part of the audit trail — _"what state was the page in when test X failed and was overridden?"_ answers in one `ls` instead of an HTML-report walk.
 
-6. **Upload each artefact to the portal**:
+6. **Upload each artefact to the portal** — retry each upload up to 3 times with backoff (5s, 15s, 45s). If an upload still fails after 3 retries, mark it in the RTM as `UPLOAD_FAILED` and surface a warning. Do not mark the RTM as verified for failed uploads. On `resume REQ-XXX`, re-attempt failed uploads before proceeding to Phase 4.
    ```bash
    devaudit push <project-slug> REQ-XXX <evidence-type> <file> \
      --release "v$(date +%Y.%m.%d)" --create-release-if-missing \
@@ -392,8 +474,8 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
      --branch "$(git rev-parse --abbrev-ref HEAD)"
    ```
    Evidence types: `screenshot`, `e2e_result`, `test_report`, `audit_log`, `compliance_document`, `manual_upload`, `srs_alignment` (from step 1), `architecture_decision` (from step 2), `risk_assessment` (from step 3).
-7. **Verify uploads landed.** `gh api` or `curl` against `https://devaudit.metasession.co/projects/<slug>/requirements/REQ-XXX/evidence` should show every artefact.
-8. **Update `compliance/RTM.md`** with portal links for each evidence row.
+7. **Verify uploads landed.** `gh api` or `curl` against `https://devaudit.metasession.co/projects/<slug>/requirements/REQ-XXX/evidence` should show every artefact. Any artefact marked `UPLOAD_FAILED` in step 6 should be re-attempted here.
+8. **Update `compliance/RTM.md`** with portal links for each evidence row. Rows with `UPLOAD_FAILED` status remain marked as failed — do not mark them verified.
 9. **Update SDLC status sticky** before exiting Phase 3: `bash scripts/update-sdlc-status.sh "$ISSUE_NUM" "Phase 3 complete — evidence uploaded; SRS-alignment + ADR + risk-assessment artefacts attached" "Phase 4 — sdlc-implementer auto-continuing (open release PR)"`.
 
 ### Phase 4 — Submit for UAT review (SDLC stage 4)
@@ -428,35 +510,54 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
 3. **Cancel-and-admin-merge is allowed** when **all three** hold: (a) ≥3 other required gates are green, (b) the change has no scope-overlap with the failing gate (e.g. service-layer fix vs hung UI e2e, or an `E2E: N/A by scope` test-plan), and (c) a fallback verification exists (nightly e2e on `$INTEGRATION_BRANCH`, post-deploy smoke, etc.). If any of the three fail, hold the merge and surface the blocker to the operator.
 4. **Record the decision in the release ticket.** The release ticket's `## Verification` section must mention the cancelled gate by run-ID and the fallback that justifies bypassing it. Auditors look here first.
 
+**When the cancel-and-admin-merge conditions are NOT met.** If only one or two of the three conditions hold, the skill cannot bypass the gate. Escalation path:
+- Update the sticky: "Phase 4 BLOCKED — gate <name> failing for unrelated reasons. Cancel-and-admin-merge conditions not met (<which condition failed>). Operator action — resolve the gate, re-classify it as unrelated with evidence, or accept the risk and admin-merge manually."
+- If the operator chooses to admin-merge manually (outside the skill), on `resume REQ-XXX` the skill should detect the PR is merged and proceed to Phase 5.
+- Timeout escalation: if the gate hasn't resolved in 24 hours (configurable via `sdlc-config.json:phase4.gate_timeout_hours`), escalate the sticky to "Phase 4 BLOCKED 24h — gate <name> still failing. Escalation required."
+
+**Release Approval Gate retry (devaudit-installer#211 Gap 17).** If the Release Approval Gate check fails on the PR and the portal approval was already given (API sync delay, stale cache), retry logic: re-run the Release Approval Gate workflow up to 3 times with 30-second intervals (`gh workflow run check-release-approval.yml` or trigger via `workflow_dispatch`). If it still fails after 3 retries: halt — "Release Approval Gate still failing after 3 retries. Portal may show approval but the gate can't verify it. Operator action — check the portal release status manually, verify the API key is valid, and re-run the workflow from GitHub Actions if needed."
+
 ### Phase 5 — Finalise or change-request loop (SDLC stage 5)
 
 Invoked separately by the user after UAT activity on the portal. Trigger: "resume REQ-XXX", "REQ-XXX UAT done", or just re-firing the skill on the same issue.
 
-1. **Read portal state.** `curl` `https://devaudit.metasession.co/api/projects/<slug>/releases/<version>` and inspect the approval status.
+1. **Read portal state.** `curl` `https://devaudit.metasession.co/api/projects/<slug>/releases/<version>` and inspect the approval status. Retry up to 3 times with exponential backoff (5s, 15s, 45s) on 5xx responses. If all retries fail, halt — "Portal unreachable at <URL>. Cannot determine UAT approval state. Operator action — verify portal availability + API key, then ping `resume REQ-XXX`." If the API returns 401/403, halt — "Portal API key rejected (HTTP 401/403). The `DEVAUDIT_API_KEY` secret may be expired or revoked. Operator action — rotate the API key, then ping `resume REQ-XXX`." Never guess the portal state.
 
 2. **Branch on state:**
    - **UAT approved** → run stage 5:
+     - **Enumerate all in-scope REQs** from `compliance/pending-releases/RELEASE-TICKET-REQ-*.md` and check each one's portal state before merging. If ANY are `uat_changes_requested`: halt — "REQ-YYY has changes requested on the portal. Cannot merge bundled PR until all in-scope REQs are approved." If ANY are still `uat_review`: halt — "REQ-YYY is still pending UAT review." If ALL are `uat_approved` (or `prod_review`/`prod_approved`/`released`): proceed with merge.
      - `gh pr merge <M> --merge` (merge commit; `--squash` and `--rebase` are blocked by branch protection on SDLC repos and would break the audit trail).
-     - Watch `post-deploy-prod.yml` via `gh run watch` — block until the workflow reaches a terminal state.
+     - **Before watching `post-deploy-prod.yml`**, verify the workflow exists and has triggered: `gh run list --workflow post-deploy-prod.yml --limit 1 --json status,conclusion`. If no run appears within 5 minutes of the merge, halt — "post-deploy-prod.yml did not trigger after merge. Check workflow configuration, secrets, and deployment platform. Operator action — run `gh workflow run post-deploy-prod.yml` manually, then ping `resume REQ-XXX`."
+     - Watch `post-deploy-prod.yml` via `gh run watch` — block until the workflow reaches a terminal state. Wrap in a timeout (30 minutes default, configurable via `sdlc-config.json:post_deploy.timeout_minutes`). If the timeout fires: halt — "post-deploy-prod.yml has not reached a terminal state in N minutes. The deployment may be stuck. Operator action — check hosting platform logs, decide whether to wait or rollback, then ping `resume REQ-XXX`."
      - Verify production smoke evidence uploaded (`--environment production`) at `https://devaudit.metasession.co/projects/<slug>/releases/<version>`.
-     - Mark release as `Released` via portal API: `PATCH /releases/<version>` with `{"status": "released"}`.
-     - Comment on the issue: "Released. Production smoke evidence: <link>."
+     - **Read `production_review.terminal_status` from `sdlc-config.json`** (default: `prod_review`). Branch:
+       - If `released` (Option B): PATCH directly to `released` — `PATCH /releases/<version>` with `{"status": "released"}`.
+       - If `prod_review` (Option A, default): after `post-deploy-prod.yml` completes, the release is at `prod_review`. Update the sticky to "Phase 5 — production deployed; awaiting prod approval on portal" and halt. The operator clicks "Approve Production" (`prod_review` → `prod_approved`) then "Mark as Released" (`prod_approved` → `released`) in the portal. On next `resume REQ-XXX`, the skill reads the portal state — if `released`, finalise (close issue, update sticky to terminal). If `prod_approved`, prompt the operator to click "Mark as Released". If still `prod_review`, report "awaiting production approval" and stop.
+     - Comment on the issue: "Released. Production smoke evidence: <link>." (only after release status is `released`)
      - **Update SDLC status sticky** to the terminal state: `bash scripts/update-sdlc-status.sh "$ISSUE_NUM" "Phase 5 complete — release marked Released; production smoke evidence uploaded" "Done — close issue + retire feature branch (sdlc-implementer halts)"`.
      - Close the issue.
-     - If production smoke fails: do NOT mark as Released. File an `[INCIDENT]` defect issue, page the on-call per the project's incident playbook, follow the rollback plan from the implementation plan. **Update the sticky** to reflect the incident state: `… "Phase 5 BLOCKED — production smoke failed; INCIDENT issue #N filed" "Operator action — read INCIDENT #N + execute rollback per plan"`.
+     - If production smoke fails: do NOT mark as Released. File an `[INCIDENT]` defect issue, page the on-call per the project's incident playbook, follow the rollback plan from the implementation plan. If the rollback also fails: update the sticky to "Phase 5 CRITICAL — production smoke failed AND rollback failed. Production is in a broken state. Operator action — page on-call immediately, engage hosting platform support, declare incident per the project's incident playbook. This is beyond the skill's scope." File the incident issue with severity `blocker` + `SOC2.CC7.2` attribution. Do NOT attempt further automated remediation. **Update the sticky** to reflect the incident state: `… "Phase 5 BLOCKED — production smoke failed; INCIDENT issue #N filed" "Operator action — read INCIDENT #N + execute rollback per plan"`.
 
    - **Changes requested** → run change-request loop:
      - Fetch change-request comments from the PR (`gh pr view <M> --comments`) and from the portal release page.
      - Add a new `## Change-request iteration N` section to `compliance/plans/REQ-XXX/implementation-plan.md` describing what changed and why.
+     - **Update the release ticket status** (`compliance/pending-releases/RELEASE-TICKET-REQ-XXX.md`): set `**Status:**` to `CHANGES REQUESTED — ITERATION N` when entering the iteration. Commit the ticket update alongside the delta-plan section in the same iteration commit.
      - Re-run Phase 2 (implement + test) for the requested changes — same delegation to `e2e-test-engineer` for any e2e work.
-     - Re-run Phase 3 (evidence) for the new/changed artefacts only; existing evidence stays.
+     - Re-run Phase 3 (evidence) for the new/changed artefacts only; existing evidence stays. After evidence re-compile completes, update the release ticket status to `TESTED - PENDING SIGN-OFF (ITERATION N)`.
      - Push to the same branch (no force-push). The PR auto-updates.
      - Re-request UAT review on the portal: `POST /api/projects/<slug>/releases/<version>/approval-requests`.
      - Comment on the issue: "Change requests addressed in commits <SHAs>. UAT re-review requested."
      - **Update SDLC status sticky** for the re-review handoff: `bash scripts/update-sdlc-status.sh "$ISSUE_NUM" "Change-request iteration N applied; PR pushed; re-review requested" "Operator action — re-review on portal; sdlc-implementer halts until you ping resume REQ-XXX"`.
      - Hard stop again. The portal's release-approval state has reset; UAT must explicitly re-approve.
+     - **After UAT re-approval (Phase 5 happy path):** update the release ticket status to `APPROVED — READY FOR MERGE`. After merge + deploy + prod verification: update to `RELEASED`. If rejected: update to `REJECTED — AWAITING OPERATOR DIRECTION`.
+     - **Iteration cap (N=5).** If the change-request loop reaches 5 iterations without convergence, halt and ask the user to choose:
+       - **Abandon:** Close the PR (`gh pr close <M>`), close the issue with "REQ-XXX abandoned after N=5 change-request iterations without convergence", update RTM status to `ABANDONED`, update release ticket status to `ABANDONED — ITERATION CAP REACHED (N=5)`, update sticky to terminal. Skill halts.
+       - **Split:** Halt with "Recommend filing separate issues for: <inferred sub-scopes>. Close this PR after splitting. Each new issue gets its own `sdlc-implementer` invocation." The skill does not perform the split — it surfaces the recommendation and stops.
+       - **Restart from fresh plan:** Keep the same REQ-XXX number (the portal release already exists). Archive the current implementation plan (`mv compliance/plans/REQ-XXX/implementation-plan.md compliance/plans/REQ-XXX/implementation-plan-v1-archived.md`), re-run Phase 1 from step 5 (write new plan). The PR stays open — the new plan's implementation replaces the code on the feature branch. Reset the iteration counter to 0.
 
    - **Still pending UAT (no approval, no change-request)** → report "UAT review still pending on the portal at <link>" and stop. Do not act.
+
+   - **UAT rejected** → halt. Post on the issue: "UAT rejected this release. Options: (a) close PR and re-plan from scratch, (b) escalate to a different reviewer, (c) appeal the rejection with new context." See [`references/change-request-loop.md`](./references/change-request-loop.md) §"If the change-request is a rejection" for details. Do not attempt to address — the reviewer has marked the release fundamentally broken. Wait for the user to decide.
 
 ## Compliance constraints
 

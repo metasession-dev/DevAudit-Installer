@@ -294,7 +294,7 @@ jobs:
           chmod +x scripts/upload-evidence.sh 2>/dev/null || true
           # Create the release in DevAudit (no evidence yet — just registration)
           bash scripts/upload-evidence.sh \
-            {{PROJECT_SLUG}} _compliance-docs compliance_document README.md \
+            {{PROJECT_SLUG}} _compliance-docs release_registration README.md \
             --release ${{ steps.version.outputs.version }} --create-release-if-missing \
             --environment uat --category planning \
             --git-sha ${{ github.sha }} --branch ${{ github.ref_name }} || true
@@ -451,7 +451,7 @@ jobs:
             STATUS_DEPAUDIT=$(gate_status "$(jq -r '.dependency_audit // "skipped"' ci-evidence/gate-outcomes.json)")
             STATUS_BUILD=$(gate_status "$(jq -r '.build // "skipped"' ci-evidence/gate-outcomes.json)")
             upload gate-outcomes.json \
-              {{PROJECT_SLUG}} _compliance-docs compliance_document ci-evidence/gate-outcomes.json \
+              {{PROJECT_SLUG}} _compliance-docs gate_outcome ci-evidence/gate-outcomes.json \
               --category ci_pipeline ${FLAGS}
           fi
 
@@ -488,28 +488,34 @@ jobs:
               --category security_scan --gate-status "$STATUS_DEPAUDIT" ${FLAGS}
           fi
 
-          # Upload E2E test results (ci_pipeline category)
+          # Upload E2E test results (e2e_result category)
           if [ -f ci-evidence/e2e-results.json ]; then
             upload e2e-results.json \
               {{PROJECT_SLUG}} _compliance-docs e2e_result ci-evidence/e2e-results.json \
-              --category ci_pipeline ${FLAGS}
+              --category e2e_result ${FLAGS}
           fi
 
-          # Upload Playwright HTML report (test_report category)
+          # Upload Playwright HTML report (e2e_report — run context, NOT
+          # a test completion report). Uses evidence_type=e2e_report so
+          # the portal can distinguish it from per-REQ test-execution-
+          # summary.md (DevAudit-Installer#207).
           if [ -d ci-evidence/playwright-report ]; then
             (cd ci-evidence && zip -qr playwright-report.zip playwright-report/) 2>/dev/null || true
             if [ -f ci-evidence/playwright-report.zip ]; then
               upload playwright-report.zip \
-                {{PROJECT_SLUG}} _compliance-docs test_report ci-evidence/playwright-report.zip \
-                --category test_report ${FLAGS}
+                {{PROJECT_SLUG}} _compliance-docs e2e_report ci-evidence/playwright-report.zip \
+                --category e2e_report ${FLAGS}
             fi
           fi
 
-          # Upload Jest coverage summary (test_report category)
+          # Upload Jest coverage summary (coverage_report category).
+          # Uses evidence_type=coverage_report (NOT test_report) so the
+          # portal can distinguish run-context coverage data from per-REQ
+          # test completion reports (DevAudit-Installer#207).
           if [ -f ci-evidence/coverage/coverage-summary.json ]; then
             upload coverage-summary.json \
-              {{PROJECT_SLUG}} _compliance-docs test_report ci-evidence/coverage/coverage-summary.json \
-              --category test_report ${FLAGS}
+              {{PROJECT_SLUG}} _compliance-docs coverage_report ci-evidence/coverage/coverage-summary.json \
+              --category coverage_report ${FLAGS}
           fi
 
           # Upload project-level Test Summary Report as a baseline
@@ -524,6 +530,55 @@ jobs:
             upload test-summary-report.md \
               {{PROJECT_SLUG}} _compliance-docs compliance_document compliance/test-summary-report.md \
               --category planning ${FLAGS}
+          fi
+
+          # devaudit-installer#200 Fix 4 — Per-REQ gate evidence fan-out.
+          # The gate evidence above was uploaded to the single commit-derived
+          # release (FLAGS carries --release <derived>). When multiple REQs
+          # have pending release tickets, only that one REQ gets gate evidence
+          # on the portal — other in-scope REQs show "no gate evidence" and
+          # "no tests tagged with this REQ" even though the gates ran and
+          # passed. Fan out gate-outcomes.json + e2e-results.json to each
+          # in-scope REQ's release so the portal's per-REQ test parser can
+          # extract REQ-tagged tests from the e2e-results.json associated with
+          # that REQ's release. Heavy run-context artefacts (SAST, dep-audit,
+          # playwright zip, coverage) remain on the commit-derived release
+          # only — they are run-level, not per-REQ.
+          COMMIT_REQ="${{ needs.register-release.outputs.version }}"
+          FANOUT_REQS=()
+          if [ -d compliance/pending-releases ]; then
+            for TICKET in compliance/pending-releases/RELEASE-TICKET-REQ-*.md; do
+              [ -f "$TICKET" ] || continue
+              REQ_ID=$(basename "$TICKET" .md | sed 's/^RELEASE-TICKET-//')
+              # #192 — skip REQs already in a terminal release directory.
+              if compgen -G "compliance/approved-releases/RELEASE-TICKET-${REQ_ID}.md" > /dev/null 2>&1 \
+                 || compgen -G "compliance/superseded-releases/RELEASE-TICKET-${REQ_ID}.md" > /dev/null 2>&1; then
+                continue
+              fi
+              # Skip the commit-derived REQ — it already has the evidence.
+              if [ "$REQ_ID" = "$COMMIT_REQ" ]; then
+                continue
+              fi
+              FANOUT_REQS+=("$REQ_ID")
+            done
+          fi
+          if [ "${#FANOUT_REQS[@]}" -gt 0 ]; then
+            echo "Fanning out gate evidence to in-scope REQs: ${FANOUT_REQS[*]}"
+            for REQ_ID in "${FANOUT_REQS[@]}"; do
+              FANOUT_FLAGS="--git-sha ${{ github.sha }} --ci-run-id ${{ github.run_id }} --branch ${{ github.ref_name }}"
+              FANOUT_FLAGS="${FANOUT_FLAGS} --release ${REQ_ID} --create-release-if-missing"
+              FANOUT_FLAGS="${FANOUT_FLAGS} --environment uat --sdlc-stage 2"
+              if [ -f ci-evidence/gate-outcomes.json ]; then
+                upload "gate-outcomes.json -> ${REQ_ID}" \
+                  {{PROJECT_SLUG}} "${REQ_ID}" gate_outcome ci-evidence/gate-outcomes.json \
+                  --category ci_pipeline ${FANOUT_FLAGS}
+              fi
+              if [ -f ci-evidence/e2e-results.json ]; then
+                upload "e2e-results.json -> ${REQ_ID}" \
+                  {{PROJECT_SLUG}} "${REQ_ID}" e2e_result ci-evidence/e2e-results.json \
+                  --category e2e_result ${FANOUT_FLAGS}
+              fi
+            done
           fi
 
           # Upload per-AC e2e evidence screenshots, scoped to each in-scope
@@ -627,7 +682,7 @@ jobs:
 
                 if bash scripts/upload-evidence.sh \
                   {{PROJECT_SLUG}} "$REQ" screenshot "$NAMED" \
-                  --category test_report ${FLAGS} --release "$REQ" \
+                  --category screenshot ${FLAGS} --release "$REQ" \
                   "${REQ_META[@]}" \
                   "${ORIGIN_META[@]}"
                 then
@@ -679,8 +734,21 @@ jobs:
           " 2>/dev/null || echo "0")
               fi
               if [ "$TAGGED_COUNT" -eq 0 ]; then
-                echo "::error::Evidence completeness gate: ${REQ} has zero tagged tests AND zero per-AC screenshots. The release cannot proceed to UAT with no traceable evidence. Ensure specs carry @requirement ${REQ} annotations and evidenceShot() calls (skill Phase 5½, issue #170)."
-                EVIDENCE_GAPS=$((EVIDENCE_GAPS + 1))
+                # devaudit-installer#195 — before failing, scan spec files on
+                # disk for the REQ ID. CI runs --project=smoke (a fast subset),
+                # so specs outside e2e/smoke/ (e2e/realtime/, e2e/critical/,
+                # e2e/admin/, etc.) never appear in e2e-results.json. A REQ
+                # whose tests live there would be falsely flagged as having
+                # "zero traceable evidence" even though well-written, REQ-tagged
+                # specs exist on disk. If specs are found but weren't run in
+                # this tier, emit a non-blocking warning instead of an error.
+                SPECS_ON_DISK=$(grep -rl --include='*.spec.ts' -e "@requirement ${REQ}" -e "tagTest.*${REQ}" -e "'${REQ}'" e2e/ 2>/dev/null | wc -l)
+                if [ "$SPECS_ON_DISK" -gt 0 ]; then
+                  echo "::warning::Evidence completeness gate: ${REQ} has zero tagged tests in this smoke run and zero per-AC screenshots, but ${SPECS_ON_DISK} spec file(s) on disk reference it (outside the smoke project). Evidence exists but was not executed in this CI tier. Consider running --project=critical or --grep \"${REQ}\" to capture evidence."
+                else
+                  echo "::error::Evidence completeness gate: ${REQ} has zero tagged tests AND zero per-AC screenshots. The release cannot proceed to UAT with no traceable evidence. Ensure specs carry @requirement ${REQ} annotations and evidenceShot() calls (skill Phase 5½, issue #170)."
+                  EVIDENCE_GAPS=$((EVIDENCE_GAPS + 1))
+                fi
               else
                 echo "${REQ} has zero screenshots but ${TAGGED_COUNT} tagged test(s) — evidence-completeness gate passed (screenshot gap is non-blocking)"
               fi

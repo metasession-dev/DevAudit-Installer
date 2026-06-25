@@ -9,15 +9,23 @@
 #   all want incident records as portal-resident evidence — not lost in
 #   GitHub issue threads.
 # - When an issue labelled `incident` is closed, this workflow exports its
-#   title + body + comments + timeline into a structured markdown report,
-#   opens a PR adding it to compliance/governance/, and lets the next
-#   push to develop pick it up via compliance-evidence.yml's
-#   upload_governance helper (uploads as `incident_report`).
+#   title + body + comments + timeline into a structured markdown report.
+#
+# Routing (DevAudit-Installer#200 Fix 1):
+# - Path A (baseline-only): If the issue's `### Framework attribution`
+#   section ticks ONLY `ISO29119.3.5.4` (no GDPR/SOC2/EUAIA), the report
+#   is direct-committed to develop — no PR, no REPLACE markers. The next
+#   compliance-evidence.yml run uploads it as `incident_report` evidence.
+# - Path B (GDPR/SOC2/AI Act): If any of SOC2.CC7.2, GDPR.Art-33,
+#   GDPR.Art-34, or EUAIA.* are ticked, a PR is opened with REPLACE
+#   markers for GDPR triage + sign-off (current behaviour preserved).
+# - Missing `### Framework attribution` section defaults to Path B
+#   (conservative — human review required).
 #
 # Operator setup (one-time):
 #   gh label create incident --color 'B60205' --description 'Operational or test incident; close to auto-archive as portal evidence'
 #
-# DevAudit-Installer#98 WS4.
+# DevAudit-Installer#98 WS4, #200 Fix 1.
 
 name: Incident Export
 
@@ -43,6 +51,77 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.DEVAUDIT_USER_TOKEN || github.token }}
 
+      - name: Classify routing (Path A vs Path B)
+        id: route
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_LABELS: ${{ toJSON(github.event.issue.labels.*.name) }}
+        run: |
+          # DevAudit-Installer#200 Fix 1 — Parse the `### Framework attribution`
+          # section from the issue body to determine routing.
+          #
+          # Path A (baseline-only): only ISO29119.3.5.4 is ticked → direct
+          # commit to develop, no PR, pre-filled GDPR triage as N/A.
+          #
+          # Path B (GDPR/SOC2/AI Act): any of SOC2.CC7.2, GDPR.Art-33,
+          # GDPR.Art-34, or EUAIA.* are ticked → open PR with REPLACE markers
+          # (current behaviour preserved).
+          #
+          # Missing `### Framework attribution` section → default to Path B
+          # (conservative — human review required).
+
+          # Extract the Framework attribution section from the issue body.
+          # Look for `- [x]` lines after the `### Framework attribution` header.
+          ATTRIB_SECTION=$(printf '%s' "$ISSUE_BODY" | \
+            sed -n '/^### *Framework attribution/,/^### /p' | \
+            grep -oP '\[x\] *`?\K[^`]+(?=`)?' || true)
+
+          # Check which frameworks are ticked.
+          HAS_ISO_ONLY=false
+          HAS_GDPR=false
+          HAS_SOC2=false
+          HAS_EUAIA=false
+
+          if printf '%s' "$ATTRIB_SECTION" | grep -qi 'ISO29119.3.5.4'; then
+            HAS_ISO_ONLY=true
+          fi
+          if printf '%s' "$ATTRIB_SECTION" | grep -qi 'SOC2.CC7.2'; then
+            HAS_SOC2=true
+          fi
+          if printf '%s' "$ATTRIB_SECTION" | grep -qi 'GDPR.Art-33\|GDPR.Art-34'; then
+            HAS_GDPR=true
+          fi
+          if printf '%s' "$ATTRIB_SECTION" | grep -qi 'EUAIA'; then
+            HAS_EUAIA=true
+          fi
+
+          # If no attribution section found at all, default to Path B.
+          if [ -z "$ATTRIB_SECTION" ]; then
+            echo "No Framework attribution section found — defaulting to Path B (PR with REPLACE markers)"
+            echo "path=B" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Path A: only ISO29119.3.5.4 ticked, no GDPR/SOC2/EUAIA.
+          if [ "$HAS_ISO_ONLY" = true ] && [ "$HAS_SOC2" = false ] && [ "$HAS_GDPR" = false ] && [ "$HAS_EUAIA" = false ]; then
+            echo "Path A: baseline-only (ISO29119.3.5.4) — direct commit to develop"
+            echo "path=A" >> "$GITHUB_OUTPUT"
+          else
+            echo "Path B: GDPR/SOC2/EUAIA attribution — PR with REPLACE markers"
+            echo "path=B" >> "$GITHUB_OUTPUT"
+          fi
+
+          # Derive severity from issue labels if available.
+          SEVERITY="low"
+          if printf '%s' "$ISSUE_LABELS" | grep -qi 'severity:critical\|critical'; then
+            SEVERITY="critical"
+          elif printf '%s' "$ISSUE_LABELS" | grep -qi 'severity:high\|high'; then
+            SEVERITY="high"
+          elif printf '%s' "$ISSUE_LABELS" | grep -qi 'severity:medium\|medium'; then
+            SEVERITY="medium"
+          fi
+          echo "severity=${SEVERITY}" >> "$GITHUB_OUTPUT"
+
       - name: Compute paths
         id: paths
         env:
@@ -53,11 +132,94 @@ jobs:
           echo "out=${OUT}" >> "$GITHUB_OUTPUT"
           echo "branch=${BRANCH}" >> "$GITHUB_OUTPUT"
 
-      - name: Export issue to markdown
+      - name: Export issue to markdown (Path A — baseline-only)
+        if: steps.route.outputs.path == 'A'
         env:
           GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           OUT: ${{ steps.paths.outputs.out }}
+          SEVERITY: ${{ steps.route.outputs.severity }}
+        run: |
+          mkdir -p compliance/governance
+          ISSUE_JSON=$(gh issue view "$ISSUE_NUMBER" \
+            --json title,body,labels,author,createdAt,closedAt,comments,url,assignees,number,state)
+          {
+            echo "$ISSUE_JSON" | jq -r '
+              "---",
+              ("title: " + (.title | @json)),
+              ("incident_id: \"INC-" + (.createdAt[:10] | gsub("-";"")) + "-" + (.number|tostring) + "\""),
+              ("severity: \"'"${SEVERITY}"'\""),
+              ("detected_at: " + (.createdAt | @json)),
+              ("resolved_at: " + (.closedAt | @json)),
+              ("involves_personal_data: \"false\""),
+              ("reported_to_supervisory_authority: \"n/a\""),
+              ("notification_window_72h: \"n/a\""),
+              ("last_reviewed_at: " + (.closedAt[:10] | @json)),
+              ("source_issue: " + (.url | @json)),
+              ("source_issue_number: " + (.number|tostring)),
+              "---",
+              "",
+              "> ℹ️ Auto-exported by Incident Export workflow on issue close (Path A — baseline-only).",
+              "> The narrative below is the original issue body + comments.",
+              "> No GDPR triage required — framework attribution confirmed baseline-only.",
+              "",
+              "# Incident Report — " + .title,
+              "",
+              "**Framework coverage:**",
+              "",
+              "- `ISO29119.3.5.4` (Test incident report)",
+              "",
+              "**Source:** [#" + (.number|tostring) + "](" + .url + ")  ",
+              "**Detected:** " + .createdAt + "  ",
+              "**Closed:** " + .closedAt + "  ",
+              "**Reporter:** @" + .author.login + "  ",
+              "**Assignees:** " + (if .assignees == [] then "_unassigned_" else (.assignees | map("@" + .login) | join(", ")) end) + "  ",
+              "**Labels:** " + (.labels | map("`" + .name + "`") | join(", ")),
+              "",
+              "## 1. Personal data scope (GDPR triage)",
+              "",
+              "| Question | Answer |",
+              "| --- | --- |",
+              "| Did the incident involve personal data? | No |
+              "| Notify supervisory authority (Art. 33)? | N/A — no personal data scope |",
+              "| Notify data subjects (Art. 34)? | N/A — no personal data scope |",
+              "| 72-hour notification window | N/A |",
+              "",
+              "## 2. Narrative (from the GitHub issue)",
+              "",
+              .body,
+              "",
+              "## 3. Timeline (from issue comments)"
+            '
+            echo ""
+            # Comments — one section each, ordered by createdAt.
+            echo "$ISSUE_JSON" | jq -r '
+              .comments | sort_by(.createdAt) | .[] |
+              "### " + .createdAt + " — @" + .author.login + "\n\n" + .body + "\n"
+            '
+            cat <<'TAIL'
+
+          ## 4. Sign-off
+
+          | Role                                | Name    | Date    |
+          | ----------------------------------- | ------- | ------- |
+          | Incident Commander                  | auto    | auto    |
+          | Engineering lead                    | auto    | auto    |
+
+          ---
+
+          _Source: auto-exported by `.github/workflows/incident-export.yml` when the originating issue was closed (Path A — baseline-only, direct commit)._
+          TAIL
+          } > "$OUT"
+          echo "Wrote $OUT (Path A)"
+
+      - name: Export issue to markdown (Path B — PR with REPLACE markers)
+        if: steps.route.outputs.path == 'B'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          OUT: ${{ steps.paths.outputs.out }}
+          SEVERITY: ${{ steps.route.outputs.severity }}
         run: |
           mkdir -p compliance/governance
           ISSUE_JSON=$(gh issue view "$ISSUE_NUMBER" \
@@ -142,9 +304,28 @@ jobs:
           _Source: auto-exported by `.github/workflows/incident-export.yml` when the originating issue was closed._
           TAIL
           } > "$OUT"
-          echo "Wrote $OUT"
+          echo "Wrote $OUT (Path B)"
 
-      - name: Open export PR
+      - name: Direct commit to develop (Path A)
+        if: steps.route.outputs.path == 'A'
+        env:
+          GH_TOKEN: ${{ secrets.DEVAUDIT_USER_TOKEN || github.token }}
+          OUT: ${{ steps.paths.outputs.out }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+        run: |
+          git config user.name 'devaudit-bot'
+          git config user.email 'devaudit-bot@users.noreply.github.com'
+          git add "$OUT"
+          if git diff --cached --quiet; then
+            echo "No change — already exported."
+            exit 0
+          fi
+          git commit -m "chore(compliance): export incident #${ISSUE_NUMBER} (baseline-only, Path A)" -m "Auto-exported by Incident Export workflow." -m "" -m "Source: ${ISSUE_URL}" -m "" -m "Framework attribution: ISO29119.3.5.4 only — no GDPR/SOC2/EUAIA. Direct commit (no PR required)."
+          git push origin HEAD:develop
+
+      - name: Open export PR (Path B)
+        if: steps.route.outputs.path == 'B'
         env:
           GH_TOKEN: ${{ secrets.DEVAUDIT_USER_TOKEN || github.token }}
           BRANCH: ${{ steps.paths.outputs.branch }}

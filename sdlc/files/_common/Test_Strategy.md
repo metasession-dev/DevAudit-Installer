@@ -256,7 +256,7 @@ Every requirement must be traceable through the complete chain: Requirement → 
 
 ### Branching Strategy
 
-Projects may use trunk-based with integration branch or direct trunk-based flow. The specific pattern is defined in each project's Test Plan.
+Projects may use develop-main with integration branch or direct trunk-only flow. The specific pattern is defined in each project's Test Plan.
 
 **Universal requirements:**
 

@@ -33,7 +33,7 @@ No application code. No framework dependencies beyond `jq`, `curl`, `gh`, `git`,
 ### Branching
 
 - `develop` for active work. `main` for the stable, tagged framework versions.
-- Trunk-based with merge commits to preserve audit trail.
+- Develop-main with merge commits to preserve audit trail.
 - Tag a release with `sdlc-vX.Y.Z` via `git tag` before announcing it to consumers.
 
 ### Commits

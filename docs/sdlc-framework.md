@@ -75,7 +75,7 @@ Metasession projects follow a **single owner-developer partnered with AI coding 
 
 - Each project has an **owner-developer** who provides direction, judgment, and approval
 - An **AI agent** acts as implementation partner, compliance enforcer, and reviewer. **Claude Code, Cursor, Windsurf, Gemini CLI, and Codex/AGENTS-compatible agents** ship with drop-in rule files (`CLAUDE.md` + auto-firing `.claude/skills/`, `.cursorrules`, `.windsurfrules`, `GEMINI.md`, `AGENTS.md` respectively); any other LLM-driven agent (GitHub Copilot, Aider, Continue, etc.) reads the canonical `INSTRUCTIONS.md` synced into every consumer. Claude Code's skills give the deepest auto-firing integration; the other agents do the same work via on-demand instruction-reading. See [Enforcing the SDLC via AI Assistants](#enforcing-the-sdlc-via-ai-assistants) below for the single-source-of-truth pattern.
-- **Branching is trunk-based** with a permanent `develop` branch.
+- **Branching is develop-main** with a permanent `develop` branch.
 - **The `sdlc-implementer` skill is the default entry point** for any issue — it **triages at pickup** (Phase 0: classify → announce → confirm → route), then drives the chosen path to completion. A tracked change runs Stages 1–5 (delegating e2e work to `e2e-test-engineer`, pausing at the portal's UAT gate for a human); a trivial / housekeeping / doc-only change is driven down a lightweight path (branch → gates → PR → merge) with no tracked ceremony. See [change-workflows.md](./change-workflows.md) for which workflow applies to which change type (and the pickup-time triage decision), and [`implementing-an-sdlc-issue.md`](../sdlc/files/_common/implementing-an-sdlc-issue.md) for the stage-by-stage walkthrough.
 - **SDLC compliance is AI-enforced** via drop-in rules in `sdlc/ai-rules/` -- the AI asks which GitHub Issue a change is for, blocks implementation until planning is complete, runs compliance gates, and guides evidence to the right destination. Implementation commits (`feat`/`fix`/`refactor`/`perf`) must cite a `[REQ-XXX]` — enforced by commitlint and `validate-commits.sh`, not merely advised
 - **PR reviews** are owner-reviewed with AI-assisted verification; CI provides independent, tamper-resistant evidence
@@ -114,7 +114,7 @@ See [`change-workflows.md`](./change-workflows.md) for the version-pattern triag
 │                              METASESSION SDLC PROCESS                                   │
 │                                                                                         │
 │   Developer + AI Partner Model                                                          │
-│   Trunk-based: develop (work) → main (production)                                       │
+│   Develop-main: develop (work) → main (production)                                      │
 └─────────────────────────────────────────────────────────────────────────────────────────┘
 
 ┌─ STAGE 1: PLAN ─────────────────────────────────────────────────────────────────────────┐
