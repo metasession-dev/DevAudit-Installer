@@ -63,7 +63,7 @@ export async function runUpdate(options: UpdateOptions): Promise<void> {
   log.log('');
   log.log('Next steps for each consuming project:');
   log.log('  1. Review the diff: git diff');
-  log.log("  2. Commit: git add -A && git commit -m 'chore: sync SDLC templates from DevAudit'");
+  log.log("  2. Commit: git add -A && git commit -m 'chore: sync SDLC templates from DevAudit [skip ci]'");
   log.log('  3. Push to develop');
   log.log('');
   log.warn('Do NOT auto-commit — review the changes first.');

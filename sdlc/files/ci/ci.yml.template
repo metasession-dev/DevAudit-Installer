@@ -299,6 +299,35 @@ jobs:
             --environment uat --category planning \
             --git-sha ${{ github.sha }} --branch ${{ github.ref_name }} || true
 
+      - name: Generate and upload bundled changes (REQ releases only)
+        if: env.DEVAUDIT_BASE_URL != ''
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          # Only generate bundled changes for REQ-tagged releases —
+          # housekeeping (bare-date) releases don't bundle other housekeeping.
+          if [[ "$VERSION" =~ ^v[0-9]{4}\.[0-9]{2}\.[0-9]{2}(\.[0-9]+)?$ ]]; then
+            echo "Version ${VERSION} is housekeeping — skipping bundled changes."
+            exit 0
+          fi
+          chmod +x scripts/generate-bundled-changes.sh 2>/dev/null || true
+          chmod +x scripts/upload-evidence.sh 2>/dev/null || true
+          # Find the previous release tag to scan from. Fall back to last 50
+          # commits if no prior tag exists.
+          SINCE_REF=$(git tag --sort=-creatordate | head -1 || true)
+          if [ -z "$SINCE_REF" ]; then
+            SINCE_REF="HEAD~50"
+          fi
+          echo "Scanning bundled changes since ${SINCE_REF} for ${VERSION}"
+          BUNDLED_FILE="compliance/pending-releases/BUNDLED-CHANGES-${VERSION}.md"
+          mkdir -p compliance/pending-releases
+          bash scripts/generate-bundled-changes.sh "$SINCE_REF" "$VERSION" > "$BUNDLED_FILE"
+          # Upload as bundled_changes evidence against the REQ release.
+          bash scripts/upload-evidence.sh \
+            {{PROJECT_SLUG}} _compliance-docs bundled_changes "$BUNDLED_FILE" \
+            --release "$VERSION" \
+            --environment uat --category planning \
+            --git-sha ${{ github.sha }} --branch ${{ github.ref_name }} || true
+
       - name: Sync known requirements from RTM
         if: env.DEVAUDIT_BASE_URL != ''
         env:

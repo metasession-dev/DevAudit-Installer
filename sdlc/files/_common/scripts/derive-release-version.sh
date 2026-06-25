@@ -26,6 +26,13 @@
 # bare date — when exactly one ticket is open, attribute to it.
 # Multiple open tickets stays ambiguous → bare-date fallback.
 #
+# Note (DevAudit-Installer#220): `devaudit update` syncs now include
+# `[skip ci]` in their commit message, so they no longer trigger CI
+# at all. The bare-date fallback (step 5) is therefore reached only by
+# human-authored housekeeping commits — the intended use case. Skipped
+# housekeeping changes are bundled into the next REQ release via
+# `generate-bundled-changes.sh` (run by the register-release CI job).
+#
 # Step 4-bis (DevAudit-Installer#95) is the zero-ceremony equivalent:
 # RTM.md is the file the operator already maintains as the source of
 # truth for release state. When step 4 finds no ticket and exactly one

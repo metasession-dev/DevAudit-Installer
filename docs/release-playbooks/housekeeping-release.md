@@ -130,6 +130,15 @@ git checkout main && git merge develop --no-edit && git push origin main
 
 What it keeps, unchanged from tracked: **all four CI gates**, the **two release-scoped artefacts** (just CI-generated), and the **full UAT → production four-eyes lifecycle** with no auto-approval.
 
+## Automated tooling syncs (devaudit update)
+
+`devaudit update` syncs are **machine-generated template refreshes**, not operator-authored changes. To prevent portal noise from these syncs:
+
+- The suggested commit message includes `[skip ci]` — the sync push does not trigger `ci.yml` or `compliance-evidence.yml`, so no housekeeping release record is created on the portal.
+- Housekeeping changes from skipped syncs are **bundled into the next REQ-tagged release**. The `generate-bundled-changes.sh` script (run by CI during `register-release` for REQ releases) scans commits since the last release tag, filters for housekeeping types, and uploads a `bundled_changes` summary as evidence against the REQ release.
+- Gate evidence on the REQ release covers the full `develop` state at CI time, including the skipped housekeeping changes — no testing gap.
+- Human-authored `chore`/`docs` commits (without `[skip ci]`) still create housekeeping releases as before. The `[skip ci]` convention is specifically for automated tooling syncs.
+
 ## Quick reference
 
 | Step | Track A (Claude) | Track B (manual) |
