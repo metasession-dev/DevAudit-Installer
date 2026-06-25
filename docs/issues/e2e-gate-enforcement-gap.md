@@ -22,6 +22,64 @@ Despite all these fixes, a real-world deployment in `wawagardenbar-app` demonstr
 4. The E2E spec was unverified — selectors, routes, and DB seed structure were all guessed
 5. The `e2e-test-engineer` skill was never invoked, so its scenario-derivation, convention-matching, and suite-execution discipline never fired
 
+## Scenarios that break the skill-driven workflow
+
+The wawagardenbar-app deployments (first failure and PR #413) are not isolated incidents. They are instances of a broader pattern: the skill-driven SDLC workflow breaks whenever the native agent must step outside the skill's file-read/write boundary. The following taxonomy maps all observed failure modes.
+
+### 1. Environment setup & infrastructure
+
+- **MongoDB/Redis/Postgres not running** — permission issues, stale locks, wrong ports, missing binaries
+- **Missing system dependencies** — Playwright browsers not installed, `mongod` not on PATH, missing native libraries
+- **Port conflicts** — another process occupying 3000, 27017, etc.
+- **Filesystem permission errors** — can't write to `/var/lib/mongodb`, `/tmp` full, read-only mounts
+
+### 2. Test debugging iteration loops
+
+- **E2E tests fail against a live dev server** — need to inspect page snapshots, error contexts, DOM structure, then adjust locators/selectors and re-run. Each iteration requires: read error → edit test → restart server (sometimes) → re-run → read new error. This tight loop is impossible without direct environment access.
+- **Test data doesn't match Mongoose schema** — e.g. `OrderItemsTable` crashed because test orders were missing `subtotal`, `dineInDetails`, `guestName`, `statusHistory`. Discovering this requires seeing the runtime error dialog in the browser, which only the native agent can do.
+- **Flaky parallel tests** — tests pass in isolation but fail in parallel due to shared DB state. Requires re-running, adjusting test isolation, adding cleanup.
+
+### 3. CI feedback loops
+
+- **CI compliance validation failures** — CI expects artifacts in `compliance/evidence/` but skills put them in `compliance/plans/`. Requires reading CI logs, understanding the validator script, creating/copying files, pushing again.
+- **CI semgrep findings above baseline** — requires reading the finding, deciding if it's a false positive, adjusting code or baseline, re-running.
+- **CI TypeScript errors** — `tsc --noEmit` catches type errors that only appear in the CI environment (different Node version, different tsconfig resolution).
+- **CI npm audit failures** — new vulnerability published between local run and CI run.
+
+### 4. Git & GitHub operations
+
+- **Commit message format rejections** — husky/commitlint rejects non-conventional formats. Requires understanding the configured enum and retrying.
+- **Pre-push hook failures** — TypeScript check or lint-staged fails, blocking push. Requires fixing the issue and re-pushing.
+- **Merge conflicts** — `develop` diverged while working on a feature branch. Requires conflict resolution.
+- **PR creation** — `gh pr create` with the right title, body, labels, reviewers.
+
+### 5. External service interactions
+
+- **DevAudit portal approval** — can't be done from code; requires human login to the portal
+- **Railway deployment status** — checking if deploy succeeded, reading build logs, diagnosing startup failures
+- **UAT health checks** — curling the UAT URL, verifying the app is responsive
+- **Monnify webhook mocking** — E2E tests for gateway payments would require either mocking the webhook or using a test API key
+
+### 6. Skill workflow gaps
+
+- **Directory convention mismatches** — skills say `compliance/plans/`, CI validates `compliance/evidence/`. The skill doesn't know about the CI validator's expectations.
+- **Missing Phase 1 artifacts** — `sdlc-implementer` should create `test-scope.md` and `test-plan.md` during planning, but if the native agent skips Phase 1 or rushes through it, these get missed.
+- **Skill can't verify its own output** — the skill can write an artifact file, but can't run `./scripts/validate-compliance-artifacts.sh` to check if it would pass CI.
+
+### 7. Cross-skill handoff failures
+
+- **e2e-test-engineer writes tests but can't run them** — it can design and author test files, but executing `npx playwright test` requires the native agent's environment access.
+- **sdlc-implementer delegates but loses track** — after delegating to e2e-test-engineer, the native agent continues without re-invoking sdlc-implementer for subsequent phases (exactly what happened in PR #413).
+
+### Root causes
+
+All of these fall into two root causes:
+
+1. **Skills lack environment access** — they can read/write files and provide instructions, but can't run commands, start services, inspect browser state, or interact with external APIs. The native agent bridges this gap but doesn't re-invoke the skill after the fix, losing the workflow structure.
+2. **Skills lack feedback loops** — they can produce artifacts but can't verify them against CI validators, test runners, or deployment targets. The native agent bridges this gap but doesn't re-invoke the skill after the fix, losing the workflow structure.
+
+The changes in this issue (1–9) address the *symptoms* — missing sentinels, missing artifacts, wrong directories. The root causes (environment access and feedback loops) are architectural limitations of the skill mechanism itself and are out of scope for this issue. They are tracked here as context for future architectural work.
+
 ## Problem statement
 
 Every existing defence is either:
