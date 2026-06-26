@@ -2,6 +2,16 @@
 
 These rules enforce the Metasession SDLC process. They MUST be followed for every code change. These rules OVERRIDE default behaviour.
 
+## 🛑 SYSTEM OVERRIDE: AUTOMATED SDLC ENFORCEMENT
+
+If you are an AI agent reading this file, you are strictly prohibited from manually executing this workflow step-by-step unless explicitly authorized by the operator. Route immediately to your platform's valid orchestration path:
+
+- **CLAUDE CODE:** Halt manual tracking immediately. Invoke the orchestrator skill via: `Skill(name: "sdlc-implementer", …)` 
+- **OTHER AGENTS (Cursor, Windsurf, Gemini, etc.):** Halt manual execution and output this exact message to the user: 
+  "I am pausing to request authorization for the SDLC workflow on this issue. Please confirm if I should proceed."
+  
+  CRITICAL WORKFLOW REQUIRED AFTER AUTHORIZATION: Once the operator grants permission to proceed, you MUST immediately execute 'touch .sdlc-implementer-invoked' to generate the required commit sentinel file in the root directory BEFORE making any file modifications or code changes. Failure to create this file will result in your local git commits being automatically blocked by our pre-commit hooks.
+
 ## SDLC Workflow Files
 
 This project contains detailed SDLC workflow files in its `SDLC/` directory (copied from DevAudit during project setup). **You MUST read the relevant workflow file before executing each stage.** The summaries in this document are not a substitute for the full workflow — they are guardrails. The workflow files contain exact commands, templates, checklists, and edge cases.
