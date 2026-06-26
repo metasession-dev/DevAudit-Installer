@@ -4,6 +4,10 @@ All notable changes to `@metasession.co/devaudit-plugin-evidence-export` are doc
 
 ## [Unreleased]
 
+## [0.1.72] — 2026-06-26
+
+Version bump in lockstep with `@metasession.co/devaudit-cli@0.1.72`. No source changes.
+
 ## [0.1.60] — 2026-06-14
 
 Version bump in lockstep with `@metasession.co/devaudit-cli@0.1.60`. No source changes.

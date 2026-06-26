@@ -4,6 +4,8 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+## [0.1.72] — 2026-06-26
+
 ### Added
 
 - **#220** — New `generate-bundled-changes.sh` script in `sdlc/files/_common/scripts/`. Scans commits since a given ref, filters for housekeeping commit types (chore/docs/ci/build/test/revert/style/perf/refactor), outputs a markdown summary. Auto-synced to consumers via the scripts sync module. Used by the new "Generate and upload bundled changes" CI step in `ci.yml.template` to attach `bundled_changes` evidence to REQ-tagged releases.
@@ -24,6 +26,10 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 - **#220** — `devaudit update` suggested commit message now includes `[skip ci]` so automated template syncs don't trigger CI or create portal release records. Housekeeping changes from skipped syncs are bundled into the next REQ-tagged release via `generate-bundled-changes.sh`.
 - **#226** — `ci.yml.template` `register-release` job no longer creates portal release records with `--create-release-if-missing`. Release creation moved to the `upload-evidence` job (which runs after gates), so the portal never shows a release from a push where gates weren't verified.
 - **#226** — `sdlc-implementer` Phase 2 now includes step 5b — E2E gate verification that halts before commit if UI-facing files changed and no E2E evidence exists.
+
+### Fixed
+
+- **#228** — `compliance-evidence.yml.template` and `incident-export.yml.template` had multi-line shell string assignments (`ISSUE_BODY`, `SUMMARY`, `CONTAINMENT`) whose continuation lines were at 0 indentation. This terminated the YAML literal block scalar, causing `**` markdown bold to be parsed as YAML alias references — producing invalid workflows that GitHub Actions could not load. Fixed by replacing inline string assignments with `cat <<EOF` heredocs, with content indented to match the `run: |` block. A `sed` step strips the extra indentation before the variable is used. YAML validation test added to `cli/test/update.test.ts` across all fixture variants.
 
 ## [0.1.62] — 2026-06-20
 
