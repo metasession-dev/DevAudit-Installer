@@ -163,6 +163,10 @@ describe('syncProject — native TS sync against a fixture', () => {
     expect(ciYml).toContain('compliance/evidence/*/screenshots/*.png');
     expect(ciYml).toContain('Upload per-AC e2e evidence screenshots');
     expect(ciYml).toMatch(/"\$REQ" screenshot "\$NAMED"/);
+    // Section 2g — gitignore sentinel entries (devaudit-installer#226)
+    const gitignoreContent = await fs.readFile(join(fixtureDir, '.gitignore'), 'utf-8');
+    expect(gitignoreContent).toContain('.e2e-gate-passed');
+    expect(gitignoreContent).toContain('.sdlc-implementer-invoked');
   }, 60_000);
 
   it('is idempotent — re-running produces no errors and same file count', async () => {
