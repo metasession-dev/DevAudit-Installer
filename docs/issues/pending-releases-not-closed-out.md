@@ -10,6 +10,12 @@ When a tracked REQ's release ticket remains in `compliance/pending-releases/` af
 
 The portal release for REQ-085 showed three requirements under "Evidence by requirement": REQ-083, REQ-084, and REQ-085. Only REQ-085 should have been visible.
 
+### GitHub confirmation
+
+PR #407 ("Release REQ-083 + REQ-084 — Order status revert fix + Checkout separation") was **merged to `main`** on 2026-06-24 at 20:59:53Z. Both REQs were promoted to production via this single release PR. However, the release tickets were never moved from `pending-releases/` to `approved-releases/`, and the ticket status remains `TESTED - PENDING SIGN-OFF` with the audit trail still showing `TBD — PR to main pending UAT approval`.
+
+The prior release (REQ-082, PR #403) was properly closed out — its ticket is in `approved-releases/`. The close-out step was performed for REQ-082 but skipped for REQ-083 and REQ-084.
+
 ## Root cause
 
 The CI `upload-evidence` job determines which REQs are in-scope by iterating over every file matching `compliance/pending-releases/RELEASE-TICKET-REQ-*.md`:
@@ -32,14 +38,16 @@ The skip check only fires if a matching ticket exists in `compliance/approved-re
 
 ### Why the tickets weren't moved
 
-REQ-083 (PR #405) and REQ-084 (PR #406) were completed and their RTM status updated to `TESTED - PENDING SIGN-OFF`. However, the release close-out step (moving the pending ticket to `approved-releases/`) was never performed. This is a manual step in the SDLC workflow — there is no automated mechanism that moves pending tickets to terminal directories after portal approval.
+REQ-083 and REQ-084 were implemented via PRs #405 and #406 (to `develop`), then promoted to `main` via release PR #407 (merged 2026-06-24 20:59:53Z). The release close-out step — moving the pending ticket to `approved-releases/`, updating ticket status to `APPROVED - DEPLOYED`, and updating the RTM status — was never performed. This is a manual step in the SDLC workflow — there is no automated mechanism that moves pending tickets to terminal directories after the release PR is merged.
+
+The prior release (REQ-082, PR #403) was properly closed out — its ticket is in `approved-releases/`. This confirms the close-out step is known and was being performed, but was skipped for the REQ-083 + REQ-084 release.
 
 ### State at time of discovery
 
 ```
 compliance/pending-releases/
-├── RELEASE-TICKET-REQ-083.md    ← stale (completed, PR #405 merged)
-├── RELEASE-TICKET-REQ-084.md    ← stale (completed, PR #406 merged)
+├── RELEASE-TICKET-REQ-083.md    ← stale (PR #407 merged to main, ticket not closed out)
+├── RELEASE-TICKET-REQ-084.md    ← stale (PR #407 merged to main, ticket not closed out)
 ├── RELEASE-TICKET-REQ-085.md    ← current (in progress, PR #413)
 ├── RELEASE-TICKET-v2026.06.05.md
 ├── RELEASE-TICKET-v2026.06.06.md
@@ -48,11 +56,20 @@ compliance/pending-releases/
 └── RELEASE-TICKET-v2026.06.10.md
 
 compliance/approved-releases/
-└── (empty — no REQ-083 or REQ-084 tickets)
+├── RELEASE-TICKET-REQ-082.md    ← prior release, properly closed out
+├── RELEASE-TICKET-REQ-081.md
+├── ... (REQ-001 through REQ-082)
+└── (no REQ-083 or REQ-084 tickets)
 
 compliance/superseded-releases/
 └── (empty)
 ```
+
+Ticket status for both stale tickets:
+- **Status field:** `TESTED - PENDING SIGN-OFF` (should be `APPROVED - DEPLOYED`)
+- **PR field:** `TBD — develop → main PR pending UAT approval` (should reference PR #407)
+- **Audit trail last entry:** `TBD — Submitted for review — William — PR to main pending UAT approval` (should show merge date and approval)
+- **RTM status:** `TESTED - PENDING SIGN-OFF` (should be `APPROVED - DEPLOYED`)
 
 ## Impact
 
@@ -137,6 +154,8 @@ This stops CI from treating them as in-scope for the REQ-085 release.
 - DevAudit-Installer #147 — per-REQ glob scoping (the skip check for terminal directories)
 - DevAudit-Installer #192 — skip REQs already in terminal release directories
 - DevAudit-Installer #169 — evidence-completeness gate (may false-positive on stale REQs)
-- wawagardenbar-app PR #405 — REQ-083 (completed, ticket not closed out)
-- wawagardenbar-app PR #406 — REQ-084 (completed, ticket not closed out)
+- wawagardenbar-app PR #405 — REQ-083 implementation (to develop)
+- wawagardenbar-app PR #406 — REQ-084 implementation (to develop)
+- wawagardenbar-app PR #407 — Release REQ-083 + REQ-084 (to main, merged 2026-06-24 20:59:53Z, close-out skipped)
+- wawagardenbar-app PR #403 — Release REQ-082 (to main, merged, properly closed out to approved-releases/)
 - wawagardenbar-app PR #413 — REQ-085 (current, portal showing stale REQs)
