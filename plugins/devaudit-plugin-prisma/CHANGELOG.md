@@ -4,6 +4,10 @@ All notable changes to `@metasession.co/devaudit-plugin-prisma` are documented h
 
 ## [Unreleased]
 
+## [0.1.73] — 2026-06-26
+
+Version bump in lockstep with `@metasession.co/devaudit-cli@0.1.73`. No source changes.
+
 ## [0.1.72] — 2026-06-26
 
 Version bump in lockstep with `@metasession.co/devaudit-cli@0.1.72`. No source changes.
