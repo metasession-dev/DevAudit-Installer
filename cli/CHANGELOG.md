@@ -4,6 +4,12 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+## [0.1.73] — 2026-06-26
+
+### Fixed
+
+- **wawagardenbar-app#415** — `pre-push` hook template used bash-only constructs (`set -euo pipefail`, `[[ ]]` pattern matching) that fail under husky v9's `/bin/sh` (dash) execution model. Replaced with POSIX-compatible equivalents: `set -eu`, `case` statements for pattern matching. The hook now runs under both bash and dash.
+
 ## [0.1.72] — 2026-06-26
 
 ### Added

@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/sh
 # Husky pre-push hook — fast gates + E2E evidence + skill-invocation sentinel + compliance validator.
 #
 # Runs four checks before allowing a push:
@@ -13,7 +13,7 @@
 #
 # Install: cp this file to .husky/pre-push && chmod +x .husky/pre-push
 
-set -euo pipefail
+set -eu
 
 # ── 1. TypeScript check ──────────────────────────────────────────────
 echo "Pre-push: running TypeScript check..."
@@ -35,9 +35,10 @@ INTEGRATION_BRANCH=$(jq -r '.integration_branch // "develop"' sdlc-config.json 2
 # Read stdin to get the pushed refs (husky pre-push protocol)
 while read -r local_ref local_sha remote_ref remote_sha; do
   # Check if pushing to the integration branch
-  if [[ "$remote_ref" != *"refs/heads/$INTEGRATION_BRANCH" ]]; then
-    continue
-  fi
+  case "$remote_ref" in
+    *"refs/heads/$INTEGRATION_BRANCH") ;;
+    *) continue ;;
+  esac
 
   # Determine the commit range being pushed
   if [ "$remote_sha" = "0000000000000000000000000000000000000000" ]; then
@@ -79,9 +80,10 @@ TRACKED_TYPES='^(feat|fix|refactor|perf)(\(.+\))?!?:'
 HAS_TRACKED=false
 
 while read -r local_ref local_sha remote_ref remote_sha; do
-  if [[ "$remote_ref" != *"refs/heads/$INTEGRATION_BRANCH" ]]; then
-    continue
-  fi
+  case "$remote_ref" in
+    *"refs/heads/$INTEGRATION_BRANCH") ;;
+    *) continue ;;
+  esac
   if [ "$remote_sha" = "0000000000000000000000000000000000000000" ]; then
     RANGE="$local_sha"
   else
