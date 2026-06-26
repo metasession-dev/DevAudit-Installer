@@ -7,10 +7,23 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 ### Added
 
 - **#220** — New `generate-bundled-changes.sh` script in `sdlc/files/_common/scripts/`. Scans commits since a given ref, filters for housekeeping commit types (chore/docs/ci/build/test/revert/style/perf/refactor), outputs a markdown summary. Auto-synced to consumers via the scripts sync module. Used by the new "Generate and upload bundled changes" CI step in `ci.yml.template` to attach `bundled_changes` evidence to REQ-tagged releases.
+- **#226** — Pre-push hook (`sdlc/files/stacks/node/hooks/pre-push`) now checks for E2E evidence (`.e2e-gate-passed` sentinel or `playwright-report/`) before allowing pushes with UI-facing file changes. Also checks for `.sdlc-implementer-invoked` sentinel when `feat`/`fix`/`refactor`/`perf` commits are present. Both checks are bypassable with `--no-verify` (CI provides the unskippable safety net).
+- **#226** — `e2e-test-engineer` skill now writes `.e2e-gate-passed` sentinel after a successful E2E run (or `NOT_NEEDED` reason when e2e is not required). The sentinel is gitignored and checked by the pre-push hook and `sdlc-implementer` Phase 2 step 5b.
+- **#226** — `sdlc-implementer` skill now writes `.sdlc-implementer-invoked` sentinel at Phase 0 when routing to the tracked path. The sentinel is gitignored and checked by the pre-push hook before allowing `feat`/`fix`/`refactor`/`perf` commits.
+- **#226** — `sdlc-implementer` Phase 1 step 9 now stamps RTM rows with `sdlc-implementer@<version>` provenance marker. `validate-commits.sh` in CI checks for the stamp and fails if missing — unskippable safety net for `--no-verify` bypass.
+- **#226** — New `gitignore.ts` sync module ensures `.e2e-gate-passed` and `.sdlc-implementer-invoked` are added to the consumer's `.gitignore` during `devaudit update`.
+- **#226** — `sdlc-implementer` Phase 1 step 5b now extracts `test-scope.md` and `test-plan.md` from the implementation plan into `compliance/evidence/REQ-XXX/`. These are the CI validator's expected artefacts — without them, `validate-compliance-artifacts.sh` fails and the pre-push hook blocks the push. Includes drift management: re-extract when AC table changes.
+- **#226** — `sdlc-implementer` Phase 3 step 6b now copies `implementation-plan.md` from `compliance/plans/` to `compliance/evidence/` so the CI validator finds it in the expected location.
+- **#226** — `sdlc-implementer` SKILL.md now includes "Native agent responsibilities and re-invocation protocol" section. Documents the skill/native-agent boundary, the resume protocol (`resume REQ-XXX — <detour>, re-enter at Phase N`), idempotent state re-read on re-entry, and the "PR merged to main ≠ done" rule.
+- **#226** — `sdlc-implementer` SKILL.md now includes commit-scoping rule for SRS updates: commit subject must cite the active REQ only; other REQs appear in the body for traceability. Prevents the portal's commit scanner from associating out-of-scope REQs with the current release.
+- **#226** — `sdlc-implementer` Phase 5 now includes explicit close-out steps: update RTM to `APPROVED - DEPLOYED`, move release ticket from `pending-releases/` to `approved-releases/`, verify portal approval, commit and push the close-out. Phase 5 step 0 re-reads state on resume.
+- **#226** — Pre-push hook now runs `validate-compliance-artifacts.sh` as a fourth check for tracked commits. Blocks push if `test-scope.md`, `test-plan.md`, or `implementation-plan.md` is missing from `compliance/evidence/`.
 
 ### Changed
 
 - **#220** — `devaudit update` suggested commit message now includes `[skip ci]` so automated template syncs don't trigger CI or create portal release records. Housekeeping changes from skipped syncs are bundled into the next REQ-tagged release via `generate-bundled-changes.sh`.
+- **#226** — `ci.yml.template` `register-release` job no longer creates portal release records with `--create-release-if-missing`. Release creation moved to the `upload-evidence` job (which runs after gates), so the portal never shows a release from a push where gates weren't verified.
+- **#226** — `sdlc-implementer` Phase 2 now includes step 5b — E2E gate verification that halts before commit if UI-facing files changed and no E2E evidence exists.
 
 ## [0.1.62] — 2026-06-20
 

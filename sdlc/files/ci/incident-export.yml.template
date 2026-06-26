@@ -198,15 +198,25 @@ jobs:
             MERGE_SHA=$(echo "$CLOSING_PRS" | jq -r '.mergeCommit.oid // .mergeCommit // "unknown"' 2>/dev/null | head -1)
             PR_TITLE=$(echo "$CLOSING_PRS" | jq -r '.title' 2>/dev/null | head -1)
             PR_NUM=$(echo "$CLOSING_PRS" | jq -r '.number' 2>/dev/null | head -1)
-            CONTAINMENT="- **Containment actions:** auto-derived from PR #${PR_NUM}: ${PR_TITLE}
-- **Mitigation deployed:** [PR #${PR_NUM}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/pull/${PR_NUM}) (${MERGE_SHA})
-- **Recovery actions:** REPLACE — if additional recovery steps were taken
-- **Verification that the incident is resolved:** REPLACE — how was the fix verified (re-run E2E, manual check, etc.)"
+            # DevAudit-Installer#228 — heredoc to keep markdown content
+            # inside the YAML literal block scalar.
+            CONTAINMENT=$(cat <<EOF
+            - **Containment actions:** auto-derived from PR #${PR_NUM}: ${PR_TITLE}
+            - **Mitigation deployed:** [PR #${PR_NUM}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/pull/${PR_NUM}) (${MERGE_SHA})
+            - **Recovery actions:** REPLACE — if additional recovery steps were taken
+            - **Verification that the incident is resolved:** REPLACE — how was the fix verified (re-run E2E, manual check, etc.)
+            EOF
+            )
+            CONTAINMENT=$(echo "$CONTAINMENT" | sed 's/^            //')
           else
-            CONTAINMENT="- **Containment actions:** REPLACE — no linked PR found
-- **Mitigation deployed:** REPLACE
-- **Recovery actions:** REPLACE
-- **Verification that the incident is resolved:** REPLACE"
+            CONTAINMENT=$(cat <<EOF
+            - **Containment actions:** REPLACE — no linked PR found
+            - **Mitigation deployed:** REPLACE
+            - **Recovery actions:** REPLACE
+            - **Verification that the incident is resolved:** REPLACE
+            EOF
+            )
+            CONTAINMENT=$(echo "$CONTAINMENT" | sed 's/^            //')
           fi
 
           # §4g — Lessons learned: scan comments for follow-up issue references.

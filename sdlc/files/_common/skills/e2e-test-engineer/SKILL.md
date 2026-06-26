@@ -288,6 +288,20 @@ There is no `regression/` sub-directory, no `@regression` tag, no manifest file.
 
 You don't need to do anything explicit for this step — it's a property of the pipeline, not an action. Surface it in the final report so the reviewer knows the new tests are now load-bearing for every future release.
 
+**Write the E2E gate sentinel (devaudit-installer#226).** After a successful full regression run (Phase 6 step 2), write a `.e2e-gate-passed` sentinel file in the repo root so the pre-push hook and `sdlc-implementer` Phase 2 step 5b can verify the E2E gate ran:
+
+```bash
+echo "PASSED $(date -u +%Y-%m-%dT%H:%M:%SZ) ${{ github.run_id }}" > .e2e-gate-passed
+```
+
+If you determined e2e is not needed for this REQ (schema-only, API-only, no UI surface), write the sentinel with a `NOT_NEEDED` reason instead:
+
+```bash
+echo "NOT_NEEDED $(date -u +%Y-%m-%dT%H:%M:%SZ) <reason>" > .e2e-gate-passed
+```
+
+The file is gitignored and never committed — it's a local-only signal that the gate was run in this working directory.
+
 ### Filing defects
 
 Use whatever tracker integration you found in Phase 1: `gh issue create`, `glab issue create`, a Jira or Linear MCP tool, `az boards work-item create`. If nothing is available, produce a markdown report with each defect formatted ready to paste.

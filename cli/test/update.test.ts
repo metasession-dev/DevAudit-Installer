@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { basename, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { load as yamlLoad } from 'js-yaml';
 import { syncProject } from '../src/update/index.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -11,6 +12,19 @@ const INSTALLER_ROOT = resolve(HERE, '..', '..');
 
 function normalizeNewlines(value: string): string {
   return value.replace(/\r\n/g, '\n');
+}
+
+// DevAudit-Installer#228 — validate that every generated workflow file in
+// .github/workflows/ is parseable YAML. Catches structural bugs like literal
+// block scalar termination from 0-indent continuation lines.
+async function expectAllWorkflowsValidYaml(dir: string): Promise<void> {
+  const workflowDir = join(dir, '.github', 'workflows');
+  const files = await fs.readdir(workflowDir);
+  for (const wf of files) {
+    if (!wf.endsWith('.yml') && !wf.endsWith('.yaml')) continue;
+    const content = await fs.readFile(join(workflowDir, wf), 'utf-8');
+    expect(() => yamlLoad(content), `YAML parse: ${wf}`).not.toThrow();
+  }
 }
 
 async function buildFixture(): Promise<string> {
@@ -146,6 +160,8 @@ describe('syncProject — native TS sync against a fixture', () => {
     );
     expect(complianceEvidenceYml).toContain('/api/ci/projects/fixture-app/audit-log/export');
     expect(complianceEvidenceYml).toContain('audit_log "$AUDIT_LOG_FILE"');
+    // DevAudit-Installer#228 — every generated workflow must be valid YAML.
+    await expectAllWorkflowsValidYaml(fixtureDir);
     // Backward compat: with no e2e_projects/e2e_seed_command configured, the
     // authenticated-e2e token is dropped and no extra step is emitted.
     expect(ciYml).not.toContain('{{E2E_AUTHENTICATED_STEP}}');
@@ -163,6 +179,10 @@ describe('syncProject — native TS sync against a fixture', () => {
     expect(ciYml).toContain('compliance/evidence/*/screenshots/*.png');
     expect(ciYml).toContain('Upload per-AC e2e evidence screenshots');
     expect(ciYml).toMatch(/"\$REQ" screenshot "\$NAMED"/);
+    // Section 2g — gitignore sentinel entries (devaudit-installer#226)
+    const gitignoreContent = await fs.readFile(join(fixtureDir, '.gitignore'), 'utf-8');
+    expect(gitignoreContent).toContain('.e2e-gate-passed');
+    expect(gitignoreContent).toContain('.sdlc-implementer-invoked');
   }, 60_000);
 
   it('is idempotent — re-running produces no errors and same file count', async () => {
@@ -235,6 +255,8 @@ describe('syncProject — native TS sync against a fixture', () => {
       expect(ciYml).toContain('E2E_ADMIN_USERNAME: ${{ secrets.E2E_ADMIN_USERNAME }}');
       expect(ciYml).toContain('e2e-auth-results.json');
       expect(ciYml).not.toContain('{{E2E_AUTHENTICATED_STEP}}');
+      // DevAudit-Installer#228 — validate all generated workflows are valid YAML.
+      await expectAllWorkflowsValidYaml(dir);
     } finally {
       await fs.rm(dir, { recursive: true, force: true });
     }
@@ -310,6 +332,8 @@ describe('syncProject — native TS sync against a fixture', () => {
       expect(ciYml).not.toContain('{{E2E_SETUP_STEP}}');
       expect(ciYml).not.toContain('{{E2E_DEV_SERVER_STEP}}');
       expect(ciYml).not.toContain('{{E2E_TEST_STEP}}');
+      // DevAudit-Installer#228 — validate all generated workflows are valid YAML.
+      await expectAllWorkflowsValidYaml(dir);
     } finally {
       await fs.rm(dir, { recursive: true, force: true });
     }
@@ -348,6 +372,8 @@ describe('syncProject — native TS sync against a fixture', () => {
       expect(ciYml).toContain('actions/setup-python@v6');
       expect(ciYml).toContain('pull_request:\n    branches: [develop]');
       expect(ciYml).toContain("github.event_name != 'pull_request' }}");
+      // DevAudit-Installer#228 — validate all generated workflows are valid YAML.
+      await expectAllWorkflowsValidYaml(dir);
     } finally {
       await fs.rm(dir, { recursive: true, force: true });
     }
@@ -446,6 +472,8 @@ describe('syncProject — native TS sync against a fixture', () => {
       expect(featureE2eYml).toContain('Set database URI from dynamic port');
       // No residual template tokens (GitHub Actions ${{ }} is fine)
       expect(featureE2eYml).not.toMatch(/\{\{[A-Z][A-Z0-9_]*\}\}/);
+      // DevAudit-Installer#228 — validate all generated workflows are valid YAML.
+      await expectAllWorkflowsValidYaml(dir);
     } finally {
       await fs.rm(dir, { recursive: true, force: true });
     }

@@ -909,35 +909,43 @@ jobs:
 
               echo "  [INCIDENT] $TEST_NAME — filing with incident label"
 
-              ISSUE_BODY="## E2E Regression Failure — ${CLASSIFICATION}
+              # DevAudit-Installer#228 — heredoc to keep markdown content
+              # inside the YAML literal block scalar (0-indent continuation
+              # lines were terminating the block and ** was parsed as YAML
+              # alias references).
+              ISSUE_BODY=$(cat <<EOF
+              ## E2E Regression Failure — ${CLASSIFICATION}
 
-**Test name:** ${TEST_NAME}
-**Error message:**
-\`\`\`
-${ERROR_MSG}
-\`\`\`
+              **Test name:** ${TEST_NAME}
+              **Error message:**
+              \`\`\`
+              ${ERROR_MSG}
+              \`\`\`
 
-**Classification:** ${CLASSIFICATION}
-**Classification rationale:** ${RATIONALE}
+              **Classification:** ${CLASSIFICATION}
+              **Classification rationale:** ${RATIONALE}
 
-**testCycleId:** ${CI_RUN_ID}
-**Workflow run:** ${WORKFLOW_URL}
-**Git SHA:** ${GIT_SHA}
+              **testCycleId:** ${CI_RUN_ID}
+              **Workflow run:** ${WORKFLOW_URL}
+              **Git SHA:** ${GIT_SHA}
 
-This regression was detected and classified by the autonomous E2E Regression CI run. A human should confirm the classification, adjust severity if needed, and close once fixed. The \`incident\` label ensures an \`incident_report\` will be generated on close.
+              This regression was detected and classified by the autonomous E2E Regression CI run. A human should confirm the classification, adjust severity if needed, and close once fixed. The \`incident\` label ensures an \`incident_report\` will be generated on close.
 
-### Framework attribution
+              ### Framework attribution
 
-This defect, once closed with the \`incident\` label, will be auto-exported as \`incident_report\` evidence and attribute to:
+              This defect, once closed with the \`incident\` label, will be auto-exported as \`incident_report\` evidence and attribute to:
 
-- [x] \`ISO29119.3.5.4\` (baseline — every incident_report)
-- [x] \`SOC2.CC7.2\` — ops impact: a regression in production-adjacent code is an ops concern
-- [ ] \`GDPR.Art-33\` — personal data scope: <REPLACE — yes/no>
-- [ ] \`GDPR.Art-34\` — data-subject notification required: <REPLACE — yes/no>
-- [ ] \`EUAIA.Art-9 / Art-14 / Art-15\` — AI failure: <REPLACE — yes/no, which article(s)>
+              - [x] \`ISO29119.3.5.4\` (baseline — every incident_report)
+              - [x] \`SOC2.CC7.2\` — ops impact: a regression in production-adjacent code is an ops concern
+              - [ ] \`GDPR.Art-33\` — personal data scope: <REPLACE — yes/no>
+              - [ ] \`GDPR.Art-34\` — data-subject notification required: <REPLACE — yes/no>
+              - [ ] \`EUAIA.Art-9 / Art-14 / Art-15\` — AI failure: <REPLACE — yes/no, which article(s)>
 
-Once closed, the \`incident-export.yml\` workflow exports this issue's body to \`compliance/governance/incident-report-<N>.md\`.
-"
+              Once closed, the \`incident-export.yml\` workflow exports this issue's body to \`compliance/governance/incident-report-<N>.md\`.
+              EOF
+              )
+              # Strip the 14-space heredoc indentation so the issue body is clean.
+              ISSUE_BODY=$(echo "$ISSUE_BODY" | sed 's/^              //')
 
               gh issue create \
                 --title "[REGRESSION] ${TEST_NAME}" \
@@ -947,23 +955,27 @@ Once closed, the \`incident-export.yml\` workflow exports this issue's body to \
             elif [ "$FILE_LABEL" = "test-bug" ]; then
               echo "  [TEST-BUG] $TEST_NAME — filing with test-bug label (no incident label)"
 
-              ISSUE_BODY="## E2E Regression Failure — ${CLASSIFICATION}
+              # DevAudit-Installer#228 — heredoc (see comment above).
+              ISSUE_BODY=$(cat <<EOF
+              ## E2E Regression Failure — ${CLASSIFICATION}
 
-**Test name:** ${TEST_NAME}
-**Error message:**
-\`\`\`
-${ERROR_MSG}
-\`\`\`
+              **Test name:** ${TEST_NAME}
+              **Error message:**
+              \`\`\`
+              ${ERROR_MSG}
+              \`\`\`
 
-**Classification:** ${CLASSIFICATION}
-**Classification rationale:** ${RATIONALE}
+              **Classification:** ${CLASSIFICATION}
+              **Classification rationale:** ${RATIONALE}
 
-**testCycleId:** ${CI_RUN_ID}
-**Workflow run:** ${WORKFLOW_URL}
-**Git SHA:** ${GIT_SHA}
+              **testCycleId:** ${CI_RUN_ID}
+              **Workflow run:** ${WORKFLOW_URL}
+              **Git SHA:** ${GIT_SHA}
 
-This failure appears to be a ${CLASSIFICATION} (not an application defect). A human should confirm and fix the ${CLASSIFICATION}, not the application. Filed with the \`test-bug\` label — this does NOT produce \`incident_report\` evidence.
-"
+              This failure appears to be a ${CLASSIFICATION} (not an application defect). A human should confirm and fix the ${CLASSIFICATION}, not the application. Filed with the \`test-bug\` label — this does NOT produce \`incident_report\` evidence.
+              EOF
+              )
+              ISSUE_BODY=$(echo "$ISSUE_BODY" | sed 's/^              //')
 
               gh issue create \
                 --title "[TEST-BUG] ${TEST_NAME}" \
@@ -974,13 +986,19 @@ This failure appears to be a ${CLASSIFICATION} (not an application defect). A hu
           done <<< "$FAILING_TESTS"
 
           # --- Post summary comment on the workflow run ---
-          SUMMARY="E2E Regression triage summary:
-- Flakes (not filed): ${FLAKE_COUNT}
-- Test bugs (filed without incident label): ${TEST_BUG_COUNT}
-- Seed-data gaps (filed without incident label): ${SEED_GAP_COUNT}
-- Visual diffs intended (not filed): ${VISUAL_INTENDED_COUNT}
-- Visual diffs unintended (filed as incident): ${VISUAL_UNINTENDED_COUNT}
-- Application defects (filed as incident): ${APP_DEFECT_COUNT}"
+          # DevAudit-Installer#228 — heredoc to keep continuation lines
+          # inside the YAML literal block scalar.
+          SUMMARY=$(cat <<EOF
+          E2E Regression triage summary:
+          - Flakes (not filed): ${FLAKE_COUNT}
+          - Test bugs (filed without incident label): ${TEST_BUG_COUNT}
+          - Seed-data gaps (filed without incident label): ${SEED_GAP_COUNT}
+          - Visual diffs intended (not filed): ${VISUAL_INTENDED_COUNT}
+          - Visual diffs unintended (filed as incident): ${VISUAL_UNINTENDED_COUNT}
+          - Application defects (filed as incident): ${APP_DEFECT_COUNT}
+          EOF
+          )
+          SUMMARY=$(echo "$SUMMARY" | sed 's/^          //')
 
           echo "$SUMMARY"
           # Post summary as a workflow run comment (using gh api).
