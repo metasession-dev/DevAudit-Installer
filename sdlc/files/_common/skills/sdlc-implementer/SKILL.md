@@ -206,14 +206,24 @@ NEXT: Done — close issue + retire feature branch (sdlc-implementer halts)
 
 ### 2. In-chat LAST/NEXT line (Claude Code surface)
 
-Lead every substantive turn with the same two-line shape so the operator can `Ctrl-F NEXT:` in the chat transcript to find the current pointer without re-reading:
+Lead every substantive turn with a driver tag on the **first line**, then the two-line LAST/NEXT shape so the operator can `Ctrl-F NEXT:` in the chat transcript to find the current pointer without re-reading:
 
 ```
+[Agent driving]   — or —   [Operator driving]   — or —   [Blocked]
+
 **LAST:** <one sentence>
 **NEXT:** <one sentence with actor>
 ```
 
-Skip it for trivial turns (acknowledging a "merged" / one-line confirmations / chitchat). It's for SDLC work, not every message. The two surfaces (sticky comment + chat line) should always agree — if they diverge, the comment is canonical (it's what the operator scrolling the issue sees).
+The driver tag is mandatory and comes **before** the LAST/NEXT lines:
+
+- **`[Agent driving]`** — the skill is auto-continuing; no human action needed right now. The operator can look away.
+- **`[Operator driving]`** — the skill has halted; the human must do something (review, approve, merge, answer a question). The NEXT line states the specific action needed.
+- **`[Blocked]`** — something failed and the skill cannot proceed. State the blocker and the operator action needed to unblock.
+
+The tag reflects the **final** state of the response — if the skill was driving but hits a halt mid-turn, the tag is `[Operator driving]` or `[Blocked]`.
+
+Skip the tag and LAST/NEXT for trivial turns (acknowledging a "merged" / one-line confirmations / chitchat). It's for SDLC work, not every message. The two surfaces (sticky comment + chat line) should always agree — if they diverge, the comment is canonical (it's what the operator scrolling the issue sees).
 
 ### When to update
 

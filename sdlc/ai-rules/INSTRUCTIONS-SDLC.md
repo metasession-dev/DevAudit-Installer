@@ -36,6 +36,36 @@ This prompt is **mandatory and structural** — it is not advisory. The `sdlc-im
 
 The only exception: if the user's request is clearly housekeeping ("bump a dep", "fix a typo", "update docs") and does not involve `feat`/`fix`/`refactor`/`perf` commit types, skip the prompt and proceed directly.
 
+### Anti-pattern: manually walking through SDLC stages instead of invoking the skill (devaudit-installer#199)
+
+The most common failure mode for this rule is **not skipping the prompt entirely** — it is **prompting (or being told to use the skill) and then manually reading the SDLC workflow files and walking through the steps yourself** instead of invoking the `sdlc-implementer` skill. The skill exists to orchestrate this. Manually reading `SDLC/1-plan-requirement.md`, `SDLC/2-implement-and-test.md`, etc. and executing their steps by hand is the exact failure mode this rule exists to prevent.
+
+**Self-check — if you find yourself doing any of these, STOP:**
+- Reading `SDLC/1-plan-requirement.md` directly instead of invoking the skill
+- Manually classifying risk, writing an implementation plan, or updating the RTM by hand instead of letting the skill drive it
+- Walking through Stage 1 → Stage 2 → Stage 3 sequentially by reading each workflow file
+- Saying "let me read the SDLC workflow files" or "let me follow the SDLC process" without invoking the skill
+
+**When you catch yourself:** Stop immediately. Invoke the skill with `Skill(name: "sdlc-implementer", …)`. Do not attempt to continue the manual walkthrough — the skill will re-read state and resume correctly.
+
+This anti-pattern is the same class of bug as #132 (e2e delegation bypass): the agent has a purpose-built tool and defaults to hand-rolling the procedure it automates. The skill is the tool. Use it.
+
+### Driver clarity — always state who is driving (devaudit-installer#199)
+
+The operator must be able to tell at a glance whether they need to act or whether the agent is handling it. **Every substantive response during SDLC work MUST open with a driver tag** on the first line, before any other content:
+
+- **`[Agent driving]`** — the agent is auto-continuing; no human action needed right now. The operator can look away.
+- **`[Operator driving]`** — the agent has halted; the human must do something (review, approve, merge, answer a question). State the specific action needed.
+- **`[Blocked]`** — something failed and the agent cannot proceed. State the blocker and the operator action needed to unblock.
+
+Rules:
+- The tag is the **first thing** in the response — no preamble, no acknowledgement, no "Great question" before it.
+- If the driver changes mid-response (e.g. the agent was driving, hits a gate failure, and halts), the tag at the top of the response reflects the **final** state. If the agent stops mid-work, the tag is `[Operator driving]` or `[Blocked]`.
+- The tag is mandatory for any response that does work, reports status, or hands off. Skip it only for pure chitchat or one-word confirmations.
+- The tag works alongside the LAST/NEXT sticky convention — the tag says *who* is driving right now; the sticky says *what* just happened and *what* is next.
+
+**Why this exists:** Without an explicit driver tag, the operator cannot distinguish "the agent is working and I can wait" from "the agent stopped and I need to act" without reading the entire response. That ambiguity is the root cause of both false-waits (operator thinks the agent is working when it has halted) and false-stops (operator thinks they need to act when the agent is auto-continuing).
+
 ### Before ANY Code Change
 
 1. If the user has NOT been prompted for `sdlc-implementer` and the change is not trivial housekeeping, stop and run the mandatory prompt above before continuing.
