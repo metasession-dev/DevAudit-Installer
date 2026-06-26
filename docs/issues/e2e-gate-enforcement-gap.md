@@ -78,7 +78,76 @@ All of these fall into two root causes:
 1. **Skills lack environment access** — they can read/write files and provide instructions, but can't run commands, start services, inspect browser state, or interact with external APIs. The native agent bridges this gap but doesn't re-invoke the skill after the fix, losing the workflow structure.
 2. **Skills lack feedback loops** — they can produce artifacts but can't verify them against CI validators, test runners, or deployment targets. The native agent bridges this gap but doesn't re-invoke the skill after the fix, losing the workflow structure.
 
-The changes in this issue (1–9) address the *symptoms* — missing sentinels, missing artifacts, wrong directories. The root causes (environment access and feedback loops) are architectural limitations of the skill mechanism itself and are out of scope for this issue. They are tracked here as context for future architectural work.
+The changes in this issue (1–11) address the *symptoms* — missing sentinels, missing artifacts, wrong directories, no re-invocation protocol. The root causes (environment access and feedback loops) are architectural limitations of the skill mechanism itself. Six architectural decisions (below) define the direction for resolving them; some are implementable now as skill-level changes, others are future architectural work.
+
+## Architectural decisions
+
+Six architectural decisions were resolved to address the root causes. Each decision shapes how the required changes are implemented.
+
+### Decision 1: Should skills execute commands? — **B: Command manifest**
+
+Skills gain a "command manifest" — the skill declares commands it needs (e.g. `npx playwright test`, `npm run dev`, `./scripts/validate-compliance-artifacts.sh`), the native agent executes them and returns output to the skill. The skill stays in control of the workflow but delegates execution.
+
+- **Rejected: A (pure instructions)** — relies on discipline, native agent can "forget" to re-invoke the skill (PR #413).
+- **Rejected: C (executable agents)** — breaks "skill as portable markdown" design, security concerns, major architecture overhaul.
+- **Implementation status:** Future architectural work. The current issue's changes are designed to be compatible with this direction (e.g. the resume protocol in Change 9, the explicit boundary in Change 11) but the command manifest itself is not implemented here.
+
+### Decision 2: Re-invocation protocol after environment detours? — **B: Resume protocol**
+
+After an environment detour, the native agent must call `Skill(name: "sdlc-implementer", args: "resume REQ-XXX — environment detour complete, re-enter at Phase N")`. The skill re-reads state (git log, file tree, RTM, existing artifacts) and continues from where it left off. The skill must be idempotent on re-entry — re-reading state rather than assuming prior context.
+
+- **Rejected: A (phase-transition sentinel)** — bypassable, doesn't verify the skill drove the phase, just that the sentinel line exists.
+- **Rejected: C (state file checkpoints)** — adds state management burden, too much ceremony.
+- **Implementation:** Change 9 (revised) — replaces the phase-transition sentinel with a resume protocol in SKILL.md.
+
+### Decision 3: Directory convention unification? — **C: Phase 3 copy**
+
+Phase 1 writes `implementation-plan.md` to `compliance/plans/REQ-XXX/`. Phase 3 copies it to `compliance/evidence/REQ-XXX/`. Preserves the semantic distinction (plans = working documents, evidence = uploaded artifacts). With the resume protocol (Decision 2B), Phase 3 is more likely to run under skill control.
+
+- **Rejected: A (write to evidence/ directly)** — breaks the plans/evidence semantic distinction.
+- **Rejected: B (CI checks both locations)** — plan still needs to reach evidence/ for portal upload, doesn't solve the upload pipeline gap.
+- **Implementation:** Change 8 (unchanged).
+
+### Decision 4: Local CI validator as a skill step? — **B: Pre-push hook runs validator**
+
+The pre-push hook (already checking E2E evidence and skill sentinel) adds a third check: run `validate-compliance-artifacts.sh` and block push if it fails. Machine-enforced, fires before push, no skill architecture change needed. Catches the PR #413 failure class (missing `test-scope.md`, `test-plan.md`, `implementation-plan.md`) before the push lands.
+
+- **Rejected: A (prose-level verify step)** — same class of gap as the original E2E gate problem, can be skipped.
+- **Rejected: C (skill calls validator via command manifest)** — requires Decision 1B to be implemented first.
+- **Implementation:** Change 10 (new) — add compliance validator check to pre-push hook.
+
+### Decision 5: Boundary between skill and native agent? — **A: Explicit in SKILL.md**
+
+Add a "Native agent responsibilities" section listing what the skill expects the native agent to handle (command execution, environment debugging, service startup) and a "Re-invocation protocol" section specifying when the native agent must hand control back (after environment detours, before phase transitions). Pairs with the resume protocol (Decision 2B) — the boundary section tells the native agent *when* to resume, the resume protocol tells it *how*.
+
+- **Rejected: B (structural boundary)** — adds ceremony to every step, many steps are already implicitly "native agent executes this".
+- **Rejected: C (no explicit boundary)** — status quo that PR #413 demonstrated doesn't work.
+- **Implementation:** Change 11 (new) — add boundary and re-invocation protocol sections to SKILL.md.
+
+### Decision 6: `test-scope.md` and `test-plan.md` — separate files or plan sections? — **A: Extract in Phase 1**
+
+Phase 1 step 5b mechanically extracts the AC table → `test-scope.md` and test file listing → `test-plan.md` from the implementation plan. Files exist before E2E execution in Phase 2, so they can be reviewed and updated before tests run.
+
+- **Rejected: B (CI accepts plan sections)** — couples CI to plan structure, affects portal upload pipeline.
+- **Rejected: C (generate in Phase 3)** — too late, test scope is needed before E2E runs in Phase 2.
+- **Implementation:** Change 7 (revised) — extract in Phase 1 with drift management protocol (see below).
+
+#### Drift management protocol
+
+The scope-expansion halt already updates `test-scope.md` on option (b). But it doesn't mention `test-plan.md`. The drift management protocol ensures extracted files stay in sync with the plan:
+
+1. **Any AC change in `implementation-plan.md` triggers a re-extraction** — the skill re-runs the Phase 1 step 5b extraction to regenerate `test-scope.md` and `test-plan.md` from the updated plan.
+2. **The scope-expansion halt (option b) explicitly re-extracts both files** — add `test-plan.md` to the existing list of files updated on scope amendment (currently only mentions `test-scope.md` / `implementation-plan.md`).
+3. **Phase 2 step 5b (E2E gate verification) checks for plan ↔ test-scope consistency** — before running E2E, verify the AC table in `implementation-plan.md` matches `test-scope.md`. If they diverge, halt: "test-scope.md is out of sync with implementation-plan.md. Re-extract before running E2E."
+
+This makes drift a **machine-caught halt**, not a silent inconsistency. The check is simple — compare the AC IDs in both files. If they don't match, the skill halts.
+
+| When | What happens |
+|------|-------------|
+| Phase 1 step 5b | Extract `test-scope.md` + `test-plan.md` from plan |
+| Phase 2 scope-expansion (option b) | Update plan → re-extract both files → invalidate evidence |
+| Phase 2 step 5b (pre-E2E) | Check plan ↔ test-scope AC consistency → halt if diverged |
+| Pre-push hook (Change 10) | Run `validate-compliance-artifacts.sh` → blocks if files missing |
 
 ## Problem statement
 
@@ -296,7 +365,7 @@ This is the same class of gap as the original E2E gate problem: prose-level enfo
 
 ## Additional required changes (from PR #413 findings)
 
-### 7. Create `test-scope.md` and `test-plan.md` in `sdlc-implementer` Phase 1
+### 7. Create `test-scope.md` and `test-plan.md` in `sdlc-implementer` Phase 1 (Architectural Decision 6A)
 
 **File:** `sdlc/files/_common/skills/sdlc-implementer/SKILL.md`
 
@@ -306,45 +375,113 @@ This is the same class of gap as the original E2E gate problem: prose-level enfo
 
 These are derived from the implementation plan's existing sections (Acceptance Criteria, Test Strategy). The extraction is mechanical — the skill already authors this content in the plan; it just needs to write it to the CI-expected location as separate files.
 
+**Drift management protocol:**
+
+1. **Any AC change in `implementation-plan.md` triggers a re-extraction** — the skill re-runs the Phase 1 step 5b extraction to regenerate `test-scope.md` and `test-plan.md` from the updated plan.
+2. **The scope-expansion halt (option b) explicitly re-extracts both files** — add `test-plan.md` to the existing list of files updated on scope amendment (currently only mentions `test-scope.md` / `implementation-plan.md`).
+3. **Phase 2 step 5b (E2E gate verification) checks for plan ↔ test-scope consistency** — before running E2E, verify the AC table in `implementation-plan.md` matches `test-scope.md`. If they diverge, halt: "test-scope.md is out of sync with implementation-plan.md. Re-extract before running E2E."
+
+This makes drift a **machine-caught halt**, not a silent inconsistency. The check is simple — compare the AC IDs in both files. If they don't match, the skill halts.
+
+| When | What happens |
+|------|-------------|
+| Phase 1 step 5b | Extract `test-scope.md` + `test-plan.md` from plan |
+| Phase 2 scope-expansion (option b) | Update plan → re-extract both files → invalidate evidence |
+| Phase 2 step 5b (pre-E2E) | Check plan ↔ test-scope AC consistency → halt if diverged |
+| Pre-push hook (Change 10) | Run `validate-compliance-artifacts.sh` → blocks if files missing |
+
 ### 8. Copy `implementation-plan.md` to `compliance/evidence/` in Phase 3
 
 **File:** `sdlc/files/_common/skills/sdlc-implementer/SKILL.md`
 
 **Change:** In Phase 3 step 6 (organise artefacts), add `implementation-plan.md` to the list of files placed under `compliance/evidence/REQ-XXX/`. The skill should copy (not move) the file from `compliance/plans/REQ-XXX/` so the plan directory retains the original.
 
-### 9. Phase-transition sentinel — re-invocation enforcement
+### 9. Resume protocol — re-invocation enforcement (Architectural Decision 2B)
 
-**File:** `sdlc/files/_common/skills/sdlc-implementer/SKILL.md`, `sdlc/files/stacks/node/hooks/pre-push`
+**File:** `sdlc/files/_common/skills/sdlc-implementer/SKILL.md`
 
-**Change:** Instead of a single `.sdlc-implementer-invoked` sentinel written once at Phase 0, the skill writes a phase-tracking sentinel at each phase transition:
+**Change:** Replace the single `.sdlc-implementer-invoked` sentinel (Change 5) with a resume protocol. The skill still writes the sentinel at Phase 0 to prove invocation, but the core enforcement is the resume protocol:
 
-```
-echo "phase=1 complete=true timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> .sdlc-implementer-invoked
-echo "phase=2 complete=true timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> .sdlc-implementer-invoked
-echo "phase=3 complete=true timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> .sdlc-implementer-invoked
-```
+- After an environment detour (MongoDB, dev server, Playwright install, test debugging), the native agent must call `Skill(name: "sdlc-implementer", args: "resume REQ-XXX — environment detour complete, re-enter at Phase N")`.
+- The skill re-reads state (git log, file tree, RTM, existing artifacts in `compliance/evidence/REQ-XXX/`) and continues from where it left off.
+- The skill must be idempotent on re-entry — re-reading state rather than assuming prior context. Specifically:
+  - Re-read `compliance/RTM.md` to confirm REQ-XXX row exists and has provenance stamp.
+  - Re-read `compliance/evidence/REQ-XXX/` to see which artifacts already exist.
+  - Check `git log` for commits already made on this branch.
+  - Resume at the appropriate phase: if Phase 2 implementation is complete but Phase 3 artifacts are missing, resume at Phase 3 step 1.
+- The skill's Phase 2 step 11 (auto-continue to Phase 3) is updated to explicitly state: "If you are resuming after an environment detour, re-read state before continuing. Do not assume prior context is valid."
 
-The pre-push hook checks that the sentinel contains `phase=3 complete=true` (evidence compiled) before allowing `feat`/`fix`/`refactor`/`perf` commits to be pushed. This catches the case where the skill was invoked for Phase 0–2 but the native agent continued through Phase 3–4 without re-invoking.
+The pre-push hook (Change 5) still checks for the `.sdlc-implementer-invoked` sentinel as a baseline — it proves the skill was invoked at least once. The resume protocol ensures the skill re-enters after detours, not just that it was invoked once.
 
-**Note:** This is a lighter alternative to requiring skill re-invocation at every phase. The skill's Phase 2 step 11 already says "auto-continue to Phase 3" — the sentinel verifies the skill actually did the continuation, not just that it was invoked once.
+### 10. Pre-push hook runs compliance validator (Architectural Decision 4B)
 
-## Acceptance criteria (additional, from PR #413 findings)
+**File:** `sdlc/files/stacks/node/hooks/pre-push`
 
-### Phase-artifact creation
-- [ ] `sdlc-implementer` Phase 1 creates `compliance/evidence/REQ-XXX/test-scope.md` with AC table, risk class, and verification methods
-- [ ] `sdlc-implementer` Phase 1 creates `compliance/evidence/REQ-XXX/test-plan.md` with test file listing and AC coverage mapping
+**Change:** Add a fourth check to the pre-push hook: run `./scripts/validate-compliance-artifacts.sh` and block push if it fails. This catches the PR #413 failure class — missing `test-scope.md`, `test-plan.md`, `implementation-plan.md` in `compliance/evidence/` — before the push lands.
+
+Logic:
+- After the E2E evidence check and skill sentinel check, run `bash scripts/validate-compliance-artifacts.sh origin/develop`
+- If the validator exits non-zero, refuse the push with: "Compliance artifact validation failed. Missing or incomplete artifacts. Run './scripts/validate-compliance-artifacts.sh' locally to see details. Bypass with --no-verify (last resort, not a habit)."
+- This check fires for all pushes to `$INTEGRATION_BRANCH`, not just UI-facing changes — compliance artifacts are required for any tracked REQ.
+
+### 11. Explicit skill/native-agent boundary in SKILL.md (Architectural Decision 5A)
+
+**File:** `sdlc/files/_common/skills/sdlc-implementer/SKILL.md`
+
+**Change:** Add two new sections to SKILL.md:
+
+**"Native agent responsibilities" section:**
+- Command execution — running `npx playwright test`, `npm run dev`, `mongod`, etc.
+- Environment debugging — port conflicts, stale locks, missing binaries, Playwright browser installs
+- Browser inspection — reading page snapshots, DOM state, error dialogs during E2E debugging
+- External service interaction — Railway deploy status, UAT health checks, DevAudit portal (human-only)
+- Git operations — merge conflicts, push retries
+
+**"Re-invocation protocol" section:**
+- After any environment detour (service startup, test debugging iteration, CI failure fix), the native agent must re-invoke `sdlc-implementer` with `Skill(name: "sdlc-implementer", args: "resume REQ-XXX — <detour description>, re-enter at Phase N")`.
+- The skill re-reads state and continues from the appropriate phase.
+- The native agent must NOT continue to the next phase (Phase 3 → Phase 4, Phase 2 → Phase 3) without re-invoking the skill.
+- The only exception: the skill's own "auto-continue" steps (Phase 2 step 11) where the skill explicitly says it will continue to the next phase in the same turn.
+
+## Acceptance criteria (additional, from PR #413 findings + architectural decisions)
+
+### Phase-artifact creation (Decision 6A)
+- [ ] `sdlc-implementer` Phase 1 step 5b creates `compliance/evidence/REQ-XXX/test-scope.md` with AC table, risk class, and verification methods
+- [ ] `sdlc-implementer` Phase 1 step 5b creates `compliance/evidence/REQ-XXX/test-plan.md` with test file listing and AC coverage mapping
 - [ ] `sdlc-implementer` Phase 3 step 6 copies `implementation-plan.md` from `compliance/plans/` to `compliance/evidence/`
 - [ ] Test: a REQ driven through Phase 1 by `sdlc-implementer` produces `test-scope.md` and `test-plan.md` in `compliance/evidence/`
 - [ ] Test: `validate-compliance-artifacts.sh` passes when `sdlc-implementer` drives the full Phase 1 → Phase 3 flow
 
-### Phase-transition enforcement
-- [ ] `.sdlc-implementer-invoked` sentinel contains per-phase completion lines (not just a single INVOKED line)
-- [ ] Pre-push hook checks for `phase=3 complete=true` in sentinel before allowing `feat`/`fix`/`refactor`/`perf` commits
-- [ ] Test: a push with `phase=2 complete=true` but no `phase=3` is blocked at pre-push
-- [ ] Test: a push with `phase=3 complete=true` passes the pre-push hook
+### Drift management (Decision 6A)
+- [ ] Any AC change in `implementation-plan.md` triggers re-extraction of `test-scope.md` and `test-plan.md`
+- [ ] Scope-expansion halt (option b) explicitly re-extracts both `test-scope.md` and `test-plan.md`
+- [ ] Phase 2 step 5b checks plan ↔ test-scope AC consistency before running E2E
+- [ ] Test: diverged AC IDs between plan and test-scope.md cause a halt before E2E
+- [ ] Test: re-extraction after scope expansion produces consistent files
+
+### Resume protocol (Decision 2B)
+- [ ] `sdlc-implementer` SKILL.md documents the resume protocol: `Skill(name: "sdlc-implementer", args: "resume REQ-XXX — <description>, re-enter at Phase N")`
+- [ ] Skill is idempotent on re-entry — re-reads git log, file tree, RTM, existing artifacts
+- [ ] Phase 2 step 11 updated to instruct re-reading state after environment detours
+- [ ] Test: skill resumed after environment detour re-reads state and continues at correct phase
+- [ ] Test: skill resumed when Phase 3 artifacts are missing resumes at Phase 3 step 1
+
+### Pre-push hook runs compliance validator (Decision 4B)
+- [ ] Pre-push hook runs `./scripts/validate-compliance-artifacts.sh` as a fourth check
+- [ ] Push is blocked if compliance validator exits non-zero
+- [ ] Test: a push with missing `test-scope.md` is blocked by the pre-push hook
+- [ ] Test: a push with all compliance artifacts present passes the pre-push hook
+
+### Explicit skill/native-agent boundary (Decision 5A)
+- [ ] SKILL.md includes "Native agent responsibilities" section listing command execution, environment debugging, browser inspection, external services, git operations
+- [ ] SKILL.md includes "Re-invocation protocol" section specifying when native agent must hand control back
+- [ ] Re-invocation protocol states native agent must NOT continue to next phase without re-invoking skill
+- [ ] Exception documented for skill's own auto-continue steps (Phase 2 step 11)
+- [ ] Test: SKILL.md boundary section is present and references the resume protocol
 
 ## Out of scope
 
+- **Command manifest architecture (Decision 1B)** — skills declaring commands for the native agent to execute is the chosen architectural direction, but implementing it requires changes to the skill mechanism itself (Claude Code Skills). Tracked here as direction; implementation is future work.
 - Enforcing E2E for non-node stacks (python pre-commit hooks would need a separate implementation)
 - Verifying E2E test *quality* (coverage, assertion depth) — this issue is about whether the suite *ran*, not whether it's comprehensive
 - Portal-side changes to release record creation timing (portal API already supports late creation)
@@ -357,7 +494,7 @@ The pre-push hook checks that the sentinel contains `phase=3 complete=true` (evi
 
 ## References
 
-- `sdlc/files/_common/skills/sdlc-implementer/SKILL.md` Phase 0 (sentinel write point), Phase 1 step 5 (implementation plan — source for test-scope/test-plan extraction), Phase 1 step 9 (RTM update — provenance stamp point), Phase 2 steps 3, 5, 9, 11 — E2E delegation gate, gate execution, self-audit, auto-continue, Phase 3 step 6 (artifact organisation — plan copy point)
+- `sdlc/files/_common/skills/sdlc-implementer/SKILL.md` Phase 0 (sentinel write point), Phase 1 step 5 (implementation plan — source for test-scope/test-plan extraction), Phase 1 step 5b (new — test-scope/test-plan extraction + drift management), Phase 1 step 9 (RTM update — provenance stamp point), Phase 2 steps 3, 5, 5b, 9, 11 — E2E delegation gate, gate execution, E2E gate verification + plan↔test-scope consistency check, self-audit, auto-continue (updated for resume protocol), Phase 3 step 6 (artifact organisation — plan copy point), new "Native agent responsibilities" section, new "Re-invocation protocol" section
 - `sdlc/files/_common/skills/e2e-test-engineer/SKILL.md` Phase 5 — E2E execution
 - `sdlc/files/_common/scripts/validate-compliance-artifacts.sh:69-95` — CI checks for `test-scope.md`, `test-plan.md`, `implementation-plan.md` in `compliance/evidence/`
 - `sdlc/files/ci/ci.yml.template:291-300` — `register-release` with `--create-release-if-missing`
