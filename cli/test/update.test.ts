@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { basename, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { load as yamlLoad } from 'js-yaml';
 import { syncProject } from '../src/update/index.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -146,6 +147,18 @@ describe('syncProject — native TS sync against a fixture', () => {
     );
     expect(complianceEvidenceYml).toContain('/api/ci/projects/fixture-app/audit-log/export');
     expect(complianceEvidenceYml).toContain('audit_log "$AUDIT_LOG_FILE"');
+    // DevAudit-Installer#228 — every generated workflow must be valid YAML.
+    // The compliance-evidence.yml.template had a structural bug where
+    // multi-line shell string continuations at 0 indentation terminated the
+    // YAML literal block scalar, causing ** markdown bold to be parsed as
+    // YAML alias references.
+    const workflowDir = join(fixtureDir, '.github', 'workflows');
+    const workflowFiles = await fs.readdir(workflowDir);
+    for (const wf of workflowFiles) {
+      if (!wf.endsWith('.yml') && !wf.endsWith('.yaml')) continue;
+      const content = await fs.readFile(join(workflowDir, wf), 'utf-8');
+      expect(() => yamlLoad(content), `YAML parse: ${wf}`).not.toThrow();
+    }
     // Backward compat: with no e2e_projects/e2e_seed_command configured, the
     // authenticated-e2e token is dropped and no extra step is emitted.
     expect(ciYml).not.toContain('{{E2E_AUTHENTICATED_STEP}}');
