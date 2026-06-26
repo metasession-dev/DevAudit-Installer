@@ -71,6 +71,15 @@ The wawagardenbar-app deployments (first failure and PR #413) are not isolated i
 - **e2e-test-engineer writes tests but can't run them** — it can design and author test files, but executing `npx playwright test` requires the native agent's environment access.
 - **sdlc-implementer delegates but loses track** — after delegating to e2e-test-engineer, the native agent continues without re-invoking sdlc-implementer for subsequent phases (exactly what happened in PR #413).
 
+### 8. Phase 5 close-out skipped (post-merge compliance steps)
+
+- **RTM not updated to `APPROVED - DEPLOYED`** — the native agent treats "PR merged" as "done" and doesn't update the RTM status from `TESTED - PENDING SIGN-OFF`.
+- **Release ticket not moved** — `compliance/pending-releases/RELEASE-TICKET-REQ-XXX.md` is never moved to `compliance/approved-releases/`, so CI continues treating the REQ as in-scope for subsequent releases.
+- **Portal approval not verified** — the DevAudit portal release may remain in `draft` status, causing the portal's release scanner to associate the REQ with subsequent releases.
+- **Observed in wawagardenbar-app** — REQ-083 and REQ-084 were merged to `main` via PR #407, GitHub issues closed, but RTM still says `TESTED - PENDING SIGN-OFF`, release tickets still in `pending-releases/`, portal approval status unknown. This caused the portal to show REQ-083/084 alongside REQ-085 in the current release.
+
+This is the same class of gap as the E2E gate problem: the skill's Phase 5 has close-out steps, but nothing enforces that the *skill* drives them vs. the native agent treating the PR merge as completion.
+
 ### Root causes
 
 All of these fall into two root causes:
@@ -78,7 +87,44 @@ All of these fall into two root causes:
 1. **Skills lack environment access** — they can read/write files and provide instructions, but can't run commands, start services, inspect browser state, or interact with external APIs. The native agent bridges this gap but doesn't re-invoke the skill after the fix, losing the workflow structure.
 2. **Skills lack feedback loops** — they can produce artifacts but can't verify them against CI validators, test runners, or deployment targets. The native agent bridges this gap but doesn't re-invoke the skill after the fix, losing the workflow structure.
 
-The changes in this issue (1–11) address the *symptoms* — missing sentinels, missing artifacts, wrong directories, no re-invocation protocol. The root causes (environment access and feedback loops) are architectural limitations of the skill mechanism itself. Six architectural decisions (below) define the direction for resolving them; some are implementable now as skill-level changes, others are future architectural work.
+### The five handoff points where the skill loses control
+
+The `skill` tool is a **stateless instruction injection** — not a persistent sub-agent. When invoked, it returns a markdown document with step-by-step instructions. The native agent reads it and executes the steps. But the skill has no persistent state, no execution monitoring, no re-invoke triggers, and no environment access. The following five handoff points were observed in the wawagardenbar-app deployments where the native agent took over and never returned to the skill:
+
+**Point 1 — Environment blocker (E2E execution):**
+The skill said "run E2E tests." The native agent tried. MongoDB failed. The skill's instructions don't cover "what to do when MongoDB won't start." The native agent had to solve the environment problem directly. Once solved, it continued executing without re-invoking the skill because there was no signal telling it to go back.
+
+**Point 2 — Debugging loop (test failures):**
+E2E tests failed 5 times. Each iteration required: read error context → inspect page snapshot → edit test → re-run. This is a tight feedback loop that only the native agent can perform. The skill can't participate — it can't see browser screenshots, can't read Playwright error contexts, can't run `npx playwright test`.
+
+**Point 3 — Post-debugging continuation:**
+After E2E tests passed, the native agent should have re-invoked `sdlc-implementer` for Phase 3. But it had momentum — it knew the next steps (commit, merge, push, create evidence). So it continued. The skill's instructions don't include a "re-invoke me after you finish debugging" checkpoint. And the native agent didn't create one.
+
+**Point 4 — Phase 3 evidence compilation:**
+This is where the missing artifacts came from. The `sdlc-implementer` knows the full checklist (`test-scope.md`, `test-plan.md`, `implementation-plan.md` in `compliance/evidence/`). The native agent didn't — it was working from memory and missed 3 files. The skill has this knowledge baked in; the native agent doesn't.
+
+**Point 5 — Phase 5 close-out (REQ-083/084):**
+Same pattern. The code was merged, issues closed, but the RTM wasn't updated to `APPROVED - DEPLOYED`, release tickets weren't moved to `approved-releases/`, portal approval wasn't verified. The native agent treated "PR merged" as "done" — the skill knows there are post-merge compliance steps.
+
+### Why it happens structurally
+
+```
+Skill invocation → returns instructions → native agent executes
+                                              ↓
+                                    hits environment blocker
+                                              ↓
+                                    native agent solves it directly
+                                              ↓
+                                    native agent continues executing
+                                              ↓
+                                    never re-invokes skill
+                                              ↓
+                                    misses compliance steps
+```
+
+The skill system has no **control return mechanism**. In a true orchestration model, the skill would be a persistent controller that delegates environment work to the native agent, receives the result back, continues to the next step, and enforces the full checklist. Instead, the skill is a **fire-and-forget document**. Once returned, it has no further influence on execution. The native agent is the only persistent entity, and it doesn't have the skill's domain knowledge about compliance checklists.
+
+The changes in this issue (1–12) address the *symptoms* — missing sentinels, missing artifacts, wrong directories, no re-invocation protocol, no Phase 5 close-out enforcement. The root causes (environment access and feedback loops) are architectural limitations of the skill mechanism itself. Six architectural decisions (below) define the direction for resolving them; some are implementable now as skill-level changes, others are future architectural work.
 
 ## Architectural decisions
 
@@ -443,6 +489,23 @@ Logic:
 - The native agent must NOT continue to the next phase (Phase 3 → Phase 4, Phase 2 → Phase 3) without re-invoking the skill.
 - The only exception: the skill's own "auto-continue" steps (Phase 2 step 11) where the skill explicitly says it will continue to the next phase in the same turn.
 
+### 12. Phase 5 close-out as explicit skill step
+
+**File:** `sdlc/files/_common/skills/sdlc-implementer/SKILL.md`
+
+**Change:** Phase 5 (post-merge close-out) must be an explicit, skill-driven step — not something the native agent might remember to do after the PR is merged. The skill's Phase 5 must include:
+
+1. **Update RTM status** — change the REQ-XXX row from `TESTED - PENDING SIGN-OFF` to `APPROVED - DEPLOYED` after the release PR is merged to `main`.
+2. **Move release ticket** — move `compliance/pending-releases/RELEASE-TICKET-REQ-XXX.md` to `compliance/approved-releases/`.
+3. **Verify portal approval** — check that the DevAudit portal release record exists and is in `approved` status (or prompt the operator to approve if human-only).
+4. **Commit the close-out** — commit the RTM update and ticket move with `compliance: [REQ-XXX] close out release — RTM updated to APPROVED - DEPLOYED, ticket moved to approved-releases/`.
+
+The resume protocol (Change 9) must explicitly cover Phase 5: after the release PR is merged, the native agent must re-invoke `sdlc-implementer` with `Skill(name: "sdlc-implementer", args: "resume REQ-XXX — release PR merged to main, re-enter at Phase 5")`. The skill re-reads state (checks RTM status, checks if ticket is still in pending-releases/, checks git log for the merge commit) and drives the close-out.
+
+The boundary section (Change 11) must explicitly state: "PR merged to main ≠ done. The native agent must re-invoke the skill for Phase 5 close-out after the release PR is merged."
+
+This addresses the root cause of the stale pending-releases issue (separate issue: `docs/issues/pending-releases-not-closed-out.md`) — the native agent treated "PR merged" as completion, but the skill knows there are post-merge compliance steps.
+
 ## Acceptance criteria (additional, from PR #413 findings + architectural decisions)
 
 ### Phase-artifact creation (Decision 6A)
@@ -479,6 +542,14 @@ Logic:
 - [ ] Exception documented for skill's own auto-continue steps (Phase 2 step 11)
 - [ ] Test: SKILL.md boundary section is present and references the resume protocol
 
+### Phase 5 close-out (Change 12)
+- [ ] `sdlc-implementer` Phase 5 includes explicit post-merge close-out steps: RTM update, release ticket move, portal verification
+- [ ] Resume protocol explicitly covers Phase 5: `resume REQ-XXX — release PR merged to main, re-enter at Phase 5`
+- [ ] Boundary section states "PR merged to main ≠ done" and requires skill re-invocation for Phase 5
+- [ ] Test: skill resumed after release PR merge updates RTM to `APPROVED - DEPLOYED`
+- [ ] Test: skill resumed after release PR merge moves ticket from `pending-releases/` to `approved-releases/`
+- [ ] Test: a REQ with a ticket in `approved-releases/` is skipped by CI `upload-evidence`
+
 ## Out of scope
 
 - **Command manifest architecture (Decision 1B)** — skills declaring commands for the native agent to execute is the chosen architectural direction, but implementing it requires changes to the skill mechanism itself (Claude Code Skills). Tracked here as direction; implementation is future work.
@@ -504,4 +575,6 @@ Logic:
 - `sdlc/ai-rules/INSTRUCTIONS-SDLC.md:24-37` — #199 mandatory prompt gate (prose-level)
 - wawagardenbar-app first deployment failure — E2E suite never run, spec unverified, sdlc-implementer never invoked
 - wawagardenbar-app PR #413 deployment failure — sdlc-implementer invoked for Phase 1–2, native agent took over after MongoDB debugging detour, continued Phase 3–4 without re-invoking skill, CI Compliance Validation failed with 3 missing files (`test-scope.md`, `test-plan.md`, `implementation-plan.md` in wrong location)
+- wawagardenbar-app REQ-083/084 close-out failure — PR #407 merged to main, GitHub issues closed, but RTM still `TESTED - PENDING SIGN-OFF`, release tickets still in `pending-releases/`, portal approval not verified. Native agent treated "PR merged" as done, skipped Phase 5 close-out.
+- `docs/issues/pending-releases-not-closed-out.md` — separate issue for the stale pending release tickets + cross-REQ commit subject scoping (companion to this issue's Phase 5 close-out gap)
 - Issues #132, #170, #196, #174, #169, #199, #211, #212 — prior E2E/skill gap fixes
