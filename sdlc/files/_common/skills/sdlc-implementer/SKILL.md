@@ -96,7 +96,7 @@ When the user asks for a change that goes beyond the current REQ's acceptance cr
 
 4. **Wait for the user to confirm one of:**
    - **(a) File a separate issue** (new REQ) — ship the current REQ as-is. The agent continues with the original scope.
-   - **(b) Amend REQ-XXX's scope** — explicitly expand `test-scope.md` / `implementation-plan.md`, update the plan, invalidate existing evidence, and re-walk Stage 3. This option carries a warning: *"Amending scope after evidence is compiled (Stage 3+) invalidates the existing test-execution-summary, screenshots, and UAT verification. All Stage 3 evidence must be re-compiled."*
+   - **(b) Amend REQ-XXX's scope** — explicitly expand `test-scope.md` / `test-plan.md` / `implementation-plan.md`, update the plan, invalidate existing evidence, and re-walk Stage 3. Re-extract both `test-scope.md` and `test-plan.md` from the updated plan (Phase 1 step 5b drift management). This option carries a warning: *"Amending scope after evidence is compiled (Stage 3+) invalidates the existing test-execution-summary, screenshots, and UAT verification. All Stage 3 evidence must be re-compiled."*
    - **(c) Abandon the request** — do nothing, continue with the original scope.
 
 **Do not implement the out-of-scope change before the user picks (a), (b), or (c).** The inertia trap is real: the agent is mid-flow, the codebase is open, and the request sounds reasonable. The gate exists to interrupt that inertia — STOP, surface the scope gap, and let the user decide.
@@ -140,10 +140,11 @@ Amendment steps:
 2. Re-invoke `requirements-aligner` → propose new/updated SRS stubs
 3. Operator edits SRS stubs into canonical Given/When/Then prose in `docs/SRS.md`
 4. Update `compliance/RTM.md`
-5. Commit: `compliance: [REQ-XXX] amend ACs — requirements gap <description>`
-6. If Phase 2+: re-run affected tests (delegating to `e2e-test-engineer` if e2e)
-7. If Phase 3+: re-compile affected evidence
-8. Continue from current phase
+5. Re-extract `compliance/evidence/REQ-XXX/test-scope.md` and `compliance/evidence/REQ-XXX/test-plan.md` from the updated plan (Phase 1 step 5b drift management, devaudit-installer#226)
+6. Commit: `compliance: [REQ-XXX] amend ACs — requirements gap <description>`
+7. If Phase 2+: re-run affected tests (delegating to `e2e-test-engineer` if e2e)
+8. If Phase 3+: re-compile affected evidence
+9. Continue from current phase
 
 **(c) File a follow-up REQ** — ship the current REQ as-is, file a separate issue for the requirements gap. Appropriate when the gap is a genuine new behaviour that deserves its own cycle. Continue with the current REQ unchanged.
 
@@ -420,6 +421,8 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
    - **If UI-facing files are present:** check for `.e2e-gate-passed` sentinel file (written by `e2e-test-engineer` after a successful run) or `playwright-report/` directory with recent content. If neither exists, **HALT**: "E2E gate was not run. The change touches UI-facing files. Run `npx playwright test` (or invoke `e2e-test-engineer`) before committing. The pre-push hook will also block this push."
    - **If no UI-facing files (API-only, config, docs):** skip the check. Note the exemption in the commit body: "E2E gate skipped — no UI-facing files in this change."
    - **If `e2e-test-engineer` was invoked and determined e2e is not needed** (e.g. schema-only change): the skill writes `.e2e-gate-passed` with a `NOT_NEEDED` reason. The sentinel check passes. Note the exemption in the commit body: "E2E gate not needed — e2e-test-engineer assessed no UI surface (turn N)."
+
+   **Plan ↔ test-scope AC consistency check (devaudit-installer#226 drift management).** Before running E2E, verify the AC table in `compliance/plans/REQ-XXX/implementation-plan.md` matches `compliance/evidence/REQ-XXX/test-scope.md`. Compare the AC IDs in both files — if they diverge (new AC added to plan but not re-extracted, or AC removed from plan but still in test-scope), **HALT**: "test-scope.md is out of sync with implementation-plan.md. AC IDs differ: <diff>. Re-extract test-scope.md and test-plan.md from the updated plan (Phase 1 step 5b) before running E2E."
 
 6. **On gate failure**, iterate up to N=3 attempts. Each iteration: read the failure output, propose a fix, apply, re-run. On exhausted attempts, halt with the full failure output and explicit resume instructions: "Gate <name> failed after N=3 attempts. Last failure: <output>. Operator action — fix the failure, commit to the feature branch, push, then ping `resume REQ-XXX`. The skill will re-run the gate from where it left off." Update the sticky with the same. Never use `--no-verify`, `eslint-disable`, `@ts-expect-error`, `xfail`, or any other bypass.
 7. **Commit** using Conventional Commits with `Ref: REQ-XXX` trailer and `Co-Authored-By: Claude` trailer. One commit per logical step; never amend a commit that's already been pushed.

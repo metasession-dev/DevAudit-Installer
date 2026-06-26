@@ -114,7 +114,7 @@ fi
 if [ "$HAS_TRACKED" = "true" ]; then
   if [ -f scripts/validate-compliance-artifacts.sh ]; then
     echo "Pre-push: running compliance artifact validation..."
-    if ! bash scripts/validate-compliance-artifacts.sh "$INTEGRATION_BRANCH"; then
+    if ! bash scripts/validate-compliance-artifacts.sh "origin/$INTEGRATION_BRANCH"; then
       echo ""
       echo "ERROR: Compliance artifact validation failed."
       echo "       Missing or incomplete artifacts in compliance/evidence/."
