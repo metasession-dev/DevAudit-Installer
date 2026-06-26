@@ -4,6 +4,14 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+## [0.1.74] — 2026-06-26
+
+### Added
+
+- **#229** — Anti-pattern self-check section added to all AI rule surfaces (`INSTRUCTIONS-SDLC.md`, `SDLC_RULES.md`, `.windsurfrules`, `CLAUDE.md`). Names the exact failure mode where the agent manually reads SDLC workflow files instead of invoking the `sdlc-implementer` skill, with a self-check list and STOP-and-invoke recovery instruction.
+- **#229** — Driver clarity rule added to all AI rule surfaces. Every substantive SDLC response must open with a driver tag (`[Agent driving]` / `[Operator driving]` / `[Blocked]`) so the operator can tell at a glance whether they need to act.
+- **#229** — `sdlc-implementer` SKILL.md in-chat LAST/NEXT section now includes the driver tag as the first line, before the LAST/NEXT content.
+
 ## [0.1.73] — 2026-06-26
 
 ### Fixed

@@ -21,13 +21,55 @@ When a workflow step requires detailed commands or templates, **read the full wo
 
 Tier 1 reference documents (policy, strategy, architecture) are also in `SDLC/` if present, or in the DevAudit repository at `sdlc/files/`.
 
+### MANDATORY: `sdlc-implementer` prompt before implementation (devaudit-installer#199)
+
+When the user requests implementation of an issue (e.g. "implement issue #N", "fix issue #N", "do issue #N", "implement #N"), you MUST prompt before writing any code:
+
+> Implementing #N using sdlc-implementer, can I proceed?
+
+Wait for the user's yes/no response. Do NOT begin implementation until they answer.
+
+- **YES** → invoke the `sdlc-implementer` skill immediately. The skill drives Phase 0 (triage) through Phase 4 (PR + UAT review).
+- **NO** → proceed with manual implementation outside the skill. The user has explicitly opted out; respect their choice and do not ask again for the same issue.
+
+This prompt is **mandatory and structural** — it is not advisory. Skipping the prompt and jumping straight into code is the same class of inertia-trap bug as #132 (e2e delegation bypass).
+
+The only exception: if the user's request is clearly housekeeping ("bump a dep", "fix a typo", "update docs") and does not involve `feat`/`fix`/`refactor`/`perf` commit types, skip the prompt and proceed directly.
+
+### Anti-pattern: manually walking through SDLC stages instead of invoking the skill
+
+The most common failure mode is **prompting (or being told to use the skill) and then manually reading the SDLC workflow files and walking through the steps yourself** instead of invoking the `sdlc-implementer` skill. The skill exists to orchestrate this. Manually reading `SDLC/1-plan-requirement.md`, `SDLC/2-implement-and-test.md`, etc. and executing their steps by hand is the exact failure mode this rule exists to prevent.
+
+**Self-check — if you find yourself doing any of these, STOP:**
+- Reading `SDLC/1-plan-requirement.md` directly instead of invoking the skill
+- Manually classifying risk, writing an implementation plan, or updating the RTM by hand instead of letting the skill drive it
+- Walking through Stage 1 → Stage 2 → Stage 3 sequentially by reading each workflow file
+- Saying "let me read the SDLC workflow files" or "let me follow the SDLC process" without invoking the skill
+
+**When you catch yourself:** Stop immediately. Invoke the skill with `Skill(name: "sdlc-implementer", …)`. Do not attempt to continue the manual walkthrough — the skill will re-read state and resume correctly.
+
+### Driver clarity — always state who is driving (devaudit-installer#199)
+
+The operator must be able to tell at a glance whether they need to act or whether the agent is handling it. **Every substantive response during SDLC work MUST open with a driver tag** on the first line, before any other content:
+
+- **`[Agent driving]`** — the agent is auto-continuing; no human action needed right now. The operator can look away.
+- **`[Operator driving]`** — the agent has halted; the human must do something (review, approve, merge, answer a question). State the specific action needed.
+- **`[Blocked]`** — something failed and the agent cannot proceed. State the blocker and the operator action needed to unblock.
+
+Rules:
+- The tag is the **first thing** in the response — no preamble, no acknowledgement, no "Great question" before it.
+- If the driver changes mid-response (e.g. the agent was driving, hits a gate failure, and halts), the tag at the top of the response reflects the **final** state. If the agent stops mid-work, the tag is `[Operator driving]` or `[Blocked]`.
+- The tag is mandatory for any response that does work, reports status, or hands off. Skip it only for pure chitchat or one-word confirmations.
+- The tag works alongside the LAST/NEXT sticky convention — the tag says *who* is driving right now; the sticky says *what* just happened and *what* is next.
+
 ### Before ANY Code Change
 
-1. Ask: **"Which GitHub Issue is this for?"** before writing code. Fetch it with `gh issue view NNN`.
-2. If no issue exists: ask if one should be created. When creating via `gh issue create`, ALWAYS append the SDLC checklist to the body (see below).
-3. If new requirement needed: **read `SDLC/1-plan-requirement.md`** and follow it to create RTM entry (with issue reference), evidence directory, and test-scope.md BEFORE implementing.
-4. If trivial (typo/formatting): proceed without requirement but use conventional commit format.
-5. Verify `develop` branch: `git branch --show-current` — never implement on `main`.
+1. If the user has NOT been prompted for `sdlc-implementer` and the change is not trivial housekeeping, stop and run the mandatory prompt above before continuing.
+2. Ask: **"Which GitHub Issue is this for?"** before writing code. Fetch it with `gh issue view NNN`.
+3. If no issue exists: ask if one should be created. When creating via `gh issue create`, ALWAYS append the SDLC checklist to the body (see below).
+4. If new requirement needed: **read `SDLC/1-plan-requirement.md`** and follow it to create RTM entry (with issue reference), evidence directory, and test-scope.md BEFORE implementing.
+5. If trivial (typo/formatting): proceed without requirement but use conventional commit format.
+6. Verify `develop` branch: `git branch --show-current` — never implement on `main`.
 
 ### For ALL Code Changes (including bug fixes)
 
