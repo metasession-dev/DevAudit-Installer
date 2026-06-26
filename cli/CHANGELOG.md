@@ -4,6 +4,19 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+## [0.1.75] — 2026-06-26
+
+### Added
+
+- **#231** — Agent-agnostic SYSTEM OVERRIDE banners on all 6 SDLC stage docs (`1-plan-requirement.md` through `5-deploy-main.md` + `implementing-an-sdlc-issue.md`). Replaces Claude-specific STOP banners with branching logic: Claude Code invokes `sdlc-implementer` skill, other agents (Cursor, Windsurf, Gemini) ask operator for authorization and create `.sdlc-implementer-invoked` sentinel before proceeding.
+- **#231** — `commit-msg` hook now checks for `.sdlc-implementer-invoked` sentinel on `feat`/`fix`/`refactor`/`perf` commits. Blocks the commit itself (not just the push) if the skill was not invoked. Housekeeping types exempt.
+- **#231** — Agent-agnostic routing in all 4 AI rule files (`INSTRUCTIONS-SDLC.md`, `SDLC_RULES.md`, `.windsurfrules`, `CLAUDE.md`). The #199 prompt YES path and anti-pattern recovery now branch by platform instead of hardcoding Claude Code `Skill()` syntax.
+- **#231** — Structural enforcement documentation added to `INSTRUCTIONS-SDLC.md` listing all enforcement layers (SYSTEM OVERRIDE banners, commit-msg sentinel, pre-push sentinel, CI provenance).
+
+### Fixed
+
+- **#231** — Vendor-lock bug: SSoT (`INSTRUCTIONS.md`) was hardcoding Claude Code API syntax (`Skill(name: …)`), forcing non-Claude agents to either fail or ignore the rules entirely. Now all agents have an actionable path.
+
 ## [0.1.74] — 2026-06-26
 
 ### Added

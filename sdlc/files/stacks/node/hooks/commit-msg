@@ -1,7 +1,40 @@
 #!/usr/bin/env bash
-# Husky commit-msg hook — runs commitlint to validate commit message format.
-# Enforces Conventional Commits and checks for SDLC trailers.
+# Husky commit-msg hook — runs commitlint + skill-invocation sentinel check.
+#
+# 1. Runs commitlint to validate commit message format (Conventional Commits,
+#    SDLC trailers).
+# 2. If the commit is feat/fix/refactor/perf, checks for the
+#    .sdlc-implementer-invoked sentinel. If missing, blocks the commit —
+#    the sdlc-implementer skill was not invoked (devaudit-installer#199/#226).
+#    Housekeeping types (docs/chore/ci/build/test/revert) are exempt.
+#
+# Bypass with --no-verify (last resort — pre-push hook and CI also check).
 #
 # Install: cp this file to .husky/commit-msg && chmod +x .husky/commit-msg
 
-npx commitlint --edit "$1"
+COMMIT_MSG_FILE="$1"
+
+# ── 1. Commitlint ────────────────────────────────────────────────────
+npx commitlint --edit "$COMMIT_MSG_FILE"
+
+# ── 2. Skill-invocation sentinel (devaudit-installer#199/#226) ──────
+# If the commit type is feat/fix/refactor/perf, verify the
+# sdlc-implementer skill was invoked (writes .sdlc-implementer-invoked).
+# Housekeeping types are exempt. This fires at commit time — earlier
+# than the pre-push hook — so the agent hits the gate before it can
+# even create the commit.
+TRACKED_TYPES='^(feat|fix|refactor|perf)(\(.+\))?!?:'
+COMMIT_SUBJECT=$(head -1 "$COMMIT_MSG_FILE")
+
+if echo "$COMMIT_SUBJECT" | grep -qE "$TRACKED_TYPES"; then
+  if [ ! -f .sdlc-implementer-invoked ]; then
+    echo ""
+    echo "ERROR: sdlc-implementer skill was not invoked (devaudit-installer#199)."
+    echo "       This commit uses a tracked type ($COMMIT_SUBJECT) which requires"
+    echo "       the SDLC skill flow. The .sdlc-implementer-invoked sentinel is missing."
+    echo ""
+    echo "       Invoke sdlc-implementer to drive the process, or use --no-verify"
+    echo "       to bypass (not recommended — pre-push hook and CI will also check)."
+    exit 1
+  fi
+fi

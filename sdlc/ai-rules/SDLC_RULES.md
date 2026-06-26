@@ -25,8 +25,10 @@ When the user requests implementation of an issue (e.g. "implement issue #N", "f
 
 Wait for the user's yes/no response. Do NOT begin implementation until they answer.
 
-- **YES** → invoke the `sdlc-implementer` skill immediately. The skill drives Phase 0 (triage) through Phase 4 (PR + UAT review).
-- **NO** → proceed with manual implementation outside the skill. The user has explicitly opted out; respect their choice and do not ask again for the same issue.
+- **YES** → route to your platform's orchestration path:
+  - **Claude Code:** invoke the `sdlc-implementer` skill immediately via `Skill(name: "sdlc-implementer", …)`. The skill drives Phase 0 (triage) through Phase 4 (PR + UAT review).
+  - **Other agents (Cursor, Windsurf, Gemini, etc.):** proceed with the SDLC workflow manually, following the stage docs in `SDLC/`. **You MUST first create the commit sentinel:** `touch .sdlc-implementer-invoked` — without this file, the `commit-msg` and `pre-push` hooks will reject `feat`/`fix`/`refactor`/`perf` commits.
+- **NO** → proceed with manual implementation outside the SDLC workflow. The user has explicitly opted out; respect their choice and do not ask again for the same issue.
 
 This prompt is **mandatory and structural** — it is not advisory. Skipping the prompt and jumping straight into code is the same class of inertia-trap bug as #132 (e2e delegation bypass).
 
@@ -42,7 +44,9 @@ The most common failure mode is **prompting (or being told to use the skill) and
 - Walking through Stage 1 → Stage 2 → Stage 3 sequentially by reading each workflow file
 - Saying "let me read the SDLC workflow files" or "let me follow the SDLC process" without invoking the skill
 
-**When you catch yourself:** Stop immediately. Invoke the skill with `Skill(name: "sdlc-implementer", …)`. Do not attempt to continue the manual walkthrough — the skill will re-read state and resume correctly.
+**When you catch yourself:** Stop immediately and route to your platform's orchestration path:
+- **Claude Code:** Invoke the skill with `Skill(name: "sdlc-implementer", …)`. The skill will re-read state and resume correctly.
+- **Other agents (Cursor, Windsurf, Gemini, etc.):** Ensure you have operator authorization and have created the commit sentinel (`touch .sdlc-implementer-invoked`). Then follow the stage docs step by step, pausing at each gate for operator confirmation.
 
 ## Driver clarity — always state who is driving (devaudit-installer#199)
 
