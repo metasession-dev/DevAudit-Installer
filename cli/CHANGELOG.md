@@ -12,6 +12,12 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 - **#226** — `sdlc-implementer` skill now writes `.sdlc-implementer-invoked` sentinel at Phase 0 when routing to the tracked path. The sentinel is gitignored and checked by the pre-push hook before allowing `feat`/`fix`/`refactor`/`perf` commits.
 - **#226** — `sdlc-implementer` Phase 1 step 9 now stamps RTM rows with `sdlc-implementer@<version>` provenance marker. `validate-commits.sh` in CI checks for the stamp and fails if missing — unskippable safety net for `--no-verify` bypass.
 - **#226** — New `gitignore.ts` sync module ensures `.e2e-gate-passed` and `.sdlc-implementer-invoked` are added to the consumer's `.gitignore` during `devaudit update`.
+- **#226** — `sdlc-implementer` Phase 1 step 5b now extracts `test-scope.md` and `test-plan.md` from the implementation plan into `compliance/evidence/REQ-XXX/`. These are the CI validator's expected artefacts — without them, `validate-compliance-artifacts.sh` fails and the pre-push hook blocks the push. Includes drift management: re-extract when AC table changes.
+- **#226** — `sdlc-implementer` Phase 3 step 6b now copies `implementation-plan.md` from `compliance/plans/` to `compliance/evidence/` so the CI validator finds it in the expected location.
+- **#226** — `sdlc-implementer` SKILL.md now includes "Native agent responsibilities and re-invocation protocol" section. Documents the skill/native-agent boundary, the resume protocol (`resume REQ-XXX — <detour>, re-enter at Phase N`), idempotent state re-read on re-entry, and the "PR merged to main ≠ done" rule.
+- **#226** — `sdlc-implementer` SKILL.md now includes commit-scoping rule for SRS updates: commit subject must cite the active REQ only; other REQs appear in the body for traceability. Prevents the portal's commit scanner from associating out-of-scope REQs with the current release.
+- **#226** — `sdlc-implementer` Phase 5 now includes explicit close-out steps: update RTM to `APPROVED - DEPLOYED`, move release ticket from `pending-releases/` to `approved-releases/`, verify portal approval, commit and push the close-out. Phase 5 step 0 re-reads state on resume.
+- **#226** — Pre-push hook now runs `validate-compliance-artifacts.sh` as a fourth check for tracked commits. Blocks push if `test-scope.md`, `test-plan.md`, or `implementation-plan.md` is missing from `compliance/evidence/`.
 
 ### Changed
 

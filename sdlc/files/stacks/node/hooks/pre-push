@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
-# Husky pre-push hook — fast gates + E2E evidence + skill-invocation sentinel.
+# Husky pre-push hook — fast gates + E2E evidence + skill-invocation sentinel + compliance validator.
 #
-# Runs three checks before allowing a push:
+# Runs four checks before allowing a push:
 # 1. TypeScript check (fast gate)
 # 2. E2E evidence check — if UI-facing files changed, verify Playwright ran
 # 3. Skill-invocation sentinel — if feat/fix/refactor/perf commits present,
 #    verify sdlc-implementer was invoked
+# 4. Compliance artifact validation — if feat/fix/refactor/perf commits present,
+#    run validate-compliance-artifacts.sh to catch missing evidence files
 #
 # Bypass with --no-verify (last resort, not a habit).
 #
@@ -102,6 +104,28 @@ if [ "$HAS_TRACKED" = "true" ]; then
     exit 1
   fi
   echo "Pre-push: skill-invocation sentinel check passed."
+fi
+
+# ── 4. Compliance artifact validation (devaudit-installer#226) ──────
+# If feat/fix/refactor/perf commits are in the push, run
+# validate-compliance-artifacts.sh to catch missing test-scope.md,
+# test-plan.md, implementation-plan.md in compliance/evidence/.
+# Reuses HAS_TRACKED from check 3.
+if [ "$HAS_TRACKED" = "true" ]; then
+  if [ -f scripts/validate-compliance-artifacts.sh ]; then
+    echo "Pre-push: running compliance artifact validation..."
+    if ! bash scripts/validate-compliance-artifacts.sh "$INTEGRATION_BRANCH"; then
+      echo ""
+      echo "ERROR: Compliance artifact validation failed."
+      echo "       Missing or incomplete artifacts in compliance/evidence/."
+      echo "       Run 'bash scripts/validate-compliance-artifacts.sh' locally to see details."
+      echo "       Bypass with --no-verify (last resort, not a habit)."
+      exit 1
+    fi
+    echo "Pre-push: compliance artifact validation passed."
+  else
+    echo "Pre-push: compliance artifact validation skipped (script not found)."
+  fi
 fi
 
 echo "Pre-push: all checks passed."
