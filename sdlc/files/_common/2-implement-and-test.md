@@ -4,13 +4,13 @@ description: Implement changes on develop, run scoped local gates, and let CI/UA
 
 ### 🛑 SYSTEM OVERRIDE: AUTOMATED SDLC ENFORCEMENT
 
-If you are an AI agent reading this file, you are strictly prohibited from manually executing this workflow step-by-step unless explicitly authorized. Route immediately to your platform's orchestration path:
+If you are an AI agent reading this file, you are strictly prohibited from manually executing this workflow step-by-step unless explicitly authorized by the operator. Route immediately to your platform's valid orchestration path:
 
-- **CLAUDE CODE:** Halt manual tracking immediately. Invoke the orchestrator skill via: `Skill(name: "sdlc-implementer", …)`
-- **OTHER AGENTS (Cursor, Windsurf, Gemini, etc.):** Halt and output this exact message to the user:
+- **CLAUDE CODE:** Halt manual tracking immediately. Invoke the orchestrator skill via: `Skill(name: "sdlc-implementer", …)` 
+- **OTHER AGENTS (Cursor, Windsurf, Gemini, etc.):** Halt manual execution and output this exact message to the user: 
   "I am pausing to request authorization for the SDLC workflow on this issue. Please confirm if I should proceed."
   
-  CRITICAL: Once the operator grants permission, you MUST execute `touch .sdlc-implementer-invoked` to generate the required commit sentinel BEFORE making any file modifications. Failure to create this sentinel file will result in local git commits being automatically rejected by the pre-commit hooks.
+  CRITICAL WORKFLOW REQUIRED AFTER AUTHORIZATION: Once the operator grants permission to proceed, you MUST immediately execute 'touch .sdlc-implementer-invoked' to generate the required commit sentinel file in the root directory BEFORE making any file modifications or code changes. Failure to create this file will result in your local git commits being automatically blocked by our pre-commit hooks.
 
 ---
 
