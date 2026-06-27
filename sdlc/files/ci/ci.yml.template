@@ -246,6 +246,8 @@ jobs:
       DEVAUDIT_API_KEY: ${{ secrets.DEVAUDIT_API_KEY }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Resolve DevAudit base URL
         run: |
@@ -320,6 +322,14 @@ jobs:
           SINCE_REF=$(git tag --sort=-creatordate | head -1 || true)
           if [ -z "$SINCE_REF" ]; then
             SINCE_REF="HEAD~50"
+          fi
+          if ! git rev-parse --verify "$SINCE_REF" >/dev/null 2>&1; then
+            echo "::warning::Ref ${SINCE_REF} not found — falling back to HEAD~10"
+            SINCE_REF="HEAD~10"
+          fi
+          if ! git rev-parse --verify "$SINCE_REF" >/dev/null 2>&1; then
+            echo "::warning::Ref ${SINCE_REF} not found — skipping bundled changes"
+            exit 0
           fi
           echo "Scanning bundled changes since ${SINCE_REF} for ${VERSION}"
           BUNDLED_FILE="compliance/pending-releases/BUNDLED-CHANGES-${VERSION}.md"
