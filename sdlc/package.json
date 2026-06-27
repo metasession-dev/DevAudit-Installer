@@ -1,0 +1,21 @@
+{
+  "name": "devaudit-sdlc",
+  "version": "0.2.0",
+  "description": "DevAudit SDLC CLI Engine — cross-agent terminal-driven SDLC orchestrator.",
+  "bin": {
+    "devaudit-sdlc": "./src/bin/devaudit-sdlc.js"
+  },
+  "files": [
+    "src/bin/devaudit-sdlc.js",
+    "src/blueprints"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/metasession-dev/DevAudit-Installer",
+    "directory": "sdlc"
+  },
+  "license": "Apache-2.0"
+}
