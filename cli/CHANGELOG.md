@@ -4,6 +4,21 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-06-27
+
+### Added
+
+- **#235** — v0.2.0 CLI Engine Architecture. New `devaudit-sdlc` CLI engine (`npx devaudit-sdlc --phase=<1-5|issue>`) that replaces plain-text sentinel writes with a JSON array of phase records. Each invocation appends a record with `activatedAt`, `currentPhase`, `initializedBy`, and `status` keys to `.sdlc-implementer-invoked`.
+- **#235** — `--view` flag for `devaudit-sdlc` that outputs blueprint content to stdout without writing the sentinel. Allows human developers to read the full phase guides without triggering the SDLC gate.
+- **#235** — Six phase guide blueprints moved to `sdlc/src/blueprints/*.raw.md` (full-text preserved). Original files in `sdlc/files/_common/` replaced with stubs pointing to CLI invocation.
+- **#235** — `sdlc/package.json` with `devaudit-sdlc` bin entry (separate package from `@metasession.co/devaudit-cli`).
+- **#235** — 35 tests covering phase parsing, `--view` flag, sentinel JSON array format, append behaviour, corrupt/legacy sentinel recovery, and legacy single-object migration.
+- **#235** — `SKILL.md` sentinel write updated from `echo "INVOKED ..."` to `npx devaudit-sdlc --phase=issue`. All 6 blueprints updated from `touch .sdlc-implementer-invoked` to `npx devaudit-sdlc --phase=<N>`.
+
+### Fixed
+
+- CI `ci.yml.template` bundled-changes job: `fetch-depth: 0` on checkout + `SINCE_REF` fallback when ref cannot be resolved (prevents crashes on shallow clones and repos with short histories).
+
 ## [0.1.75] — 2026-06-26
 
 ### Added
