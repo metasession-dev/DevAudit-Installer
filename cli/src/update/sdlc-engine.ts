@@ -9,7 +9,7 @@ import type { SyncContext, SectionResult } from './types.js';
  * sdlc/src/bin/ and sdlc/src/blueprints/ into the consumer's
  * SDLC/bin/ and SDLC/blueprints/ so `node SDLC/bin/devaudit-sdlc.js --phase=X`
  * works without an npm install. This is the local-resilience fallback
- * for when `npx devaudit-sdlc` can't reach the registry.
+ * for when `npx @metasession.co/devaudit-sdlc` can't reach the registry.
  */
 export async function syncSdlcEngine(ctx: SyncContext): Promise<SectionResult> {
   const binSrc = join(ctx.installerRoot, 'sdlc', 'src', 'bin', 'devaudit-sdlc.js');

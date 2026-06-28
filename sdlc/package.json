@@ -1,5 +1,5 @@
 {
-  "name": "devaudit-sdlc",
+  "name": "@metasession.co/devaudit-sdlc",
   "version": "0.3.1",
   "description": "DevAudit SDLC CLI Engine — cross-agent terminal-driven SDLC orchestrator.",
   "bin": {
@@ -17,5 +17,8 @@
     "url": "https://github.com/metasession-dev/DevAudit-Installer",
     "directory": "sdlc"
   },
-  "license": "Apache-2.0"
+  "license": "Apache-2.0",
+  "publishConfig": {
+    "access": "public"
+  }
 }

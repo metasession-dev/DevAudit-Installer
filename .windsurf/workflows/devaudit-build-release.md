@@ -56,14 +56,14 @@ git push origin main
 for pkg in \
   "@metasession.co/devaudit-plugin-sdk" \
   "@metasession.co/devaudit-cli" \
-  "devaudit-sdlc" \
+  "@metasession.co/devaudit-sdlc" \
   "@metasession.co/devaudit-plugin-prisma" \
   "@metasession.co/devaudit-plugin-evidence-export"; do
   local_ver=""
   case "$pkg" in
     @metasession.co/devaudit-plugin-sdk) local_ver=$(jq -r .version plugin-sdk/package.json);;
     @metasession.co/devaudit-cli)         local_ver=$(jq -r .version cli/package.json);;
-    devaudit-sdlc)                        local_ver=$(jq -r .version sdlc/package.json);;
+    @metasession.co/devaudit-sdlc)        local_ver=$(jq -r .version sdlc/package.json);;
     @metasession.co/devaudit-plugin-prisma) local_ver=$(jq -r .version plugins/devaudit-plugin-prisma/package.json);;
     @metasession.co/devaudit-plugin-evidence-export) local_ver=$(jq -r .version plugins/devaudit-plugin-evidence-export/package.json);;
   esac
@@ -159,7 +159,7 @@ echo "Expecting all packages at $VERSION"
 for pkg in \
   "@metasession.co/devaudit-plugin-sdk" \
   "@metasession.co/devaudit-cli" \
-  "devaudit-sdlc" \
+  "@metasession.co/devaudit-sdlc" \
   "@metasession.co/devaudit-plugin-prisma" \
   "@metasession.co/devaudit-plugin-evidence-export"; do
   registry_ver=$(npm view "$pkg" version 2>/dev/null || echo "NOT_FOUND")
@@ -205,13 +205,13 @@ This syncs the new templates, binary, blueprints, hooks, scripts, and skills int
 After completing this workflow:
 - All 5 packages are published on npm at the same version
 - The CLI tarball is self-contained (includes `sdlc/` templates + binary + blueprints)
-- `devaudit-sdlc` is on npm as a fallback for `npx devaudit-sdlc`
+- `@metasession.co/devaudit-sdlc` is on npm as a fallback for `npx devaudit-sdlc`
 - Consumers run `devaudit update` to pull everything into their repo
 - The GitHub release is created with auto-generated notes
 
 ## Common failure modes
 
-- **`devaudit-sdlc` stale on npm** — check that `release.yml` step 5 ran successfully. If the step is missing from `release.yml`, add it.
+- **`@metasession.co/devaudit-sdlc` stale on npm** — check that `release.yml` step 5 ran successfully. If the step is missing from `release.yml`, add it.
 - **CLI tarball missing `sdlc/`** — `bundle-templates.mjs` didn't run. Check `prepack` hook: `npm run build && npm run bundle:templates`.
 - **Consumer gets `npx` prompt** — local `SDLC/bin/devaudit-sdlc.js` doesn't exist. Consumer needs `devaudit update` to sync section 2h.
 - **Version mismatch** — one `package.json` wasn't bumped. The release workflow publishes whatever version is in each `package.json` independently.

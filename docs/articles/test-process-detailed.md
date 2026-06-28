@@ -731,7 +731,7 @@ Requirement (REQ-XXX in RTM)
 
 - **Commit message validation** — Conventional Commits format enforced; `Ref: REQ-XXX` required for tracked requirements
 - **E2E gate sentinel** — `.e2e-gate-passed` file required if UI-facing files touched; pre-push hook checks for sentinel
-- **SDLC phase sentinel** — `npx devaudit-sdlc --phase=2` generates a commit sentinel file before any file modifications; without it, local git commits are blocked
+- **SDLC phase sentinel** — `node SDLC/bin/devaudit-sdlc.js --phase=2` generates a commit sentinel file before any file modifications; without it, local git commits are blocked
 
 ### CI Enforcement
 
