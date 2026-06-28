@@ -508,7 +508,7 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
    bash scripts/validate-test-summary.sh origin/main
    ```
 
-   If the validator fails, fix the summary before proceeding. E2E gate results must be one of: `PASS`, `FAIL`, `NOT_NEEDED` (with reason), or `SKIPPED` (with operator-approved rationale). The word "deferred" must never appear as a gate state — it is not a valid SDLC state. "Deferred to CI" and "Playwright browsers not installed locally" are environment issues, not gate states. The CI validator (`validate-test-summary.sh`) will reject any summary containing "deferred" or "browsers not installed" on PRs to main.
+   If the validator fails, fix the summary before proceeding. E2E gate results must be one of: `PASS`, `FAIL`, `NOT_NEEDED` (with reason), or `SKIPPED` (with operator-approved rationale). The word "deferred" must never appear in `test-execution-summary.md` — not as a gate state, not in prose, not in final assessment. "Deferred to CI" and "Playwright browsers not installed locally" are environment issues, not gate states. The CI validator (`validate-test-summary.sh`) will reject any summary containing "deferred" or "browsers not installed" on PRs to main.
 
 6. **Organise artefacts** under `compliance/evidence/REQ-XXX/` with date-prefixed naming:
 

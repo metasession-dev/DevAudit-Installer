@@ -243,6 +243,22 @@ EOF
 EXIT10=$(run_validator "$D10")
 assert_exit "summary with 'e2e deferred' in final assessment — should fail" 1 "$EXIT10"
 
+# --- Case 11: NOT_NEEDED without rationale — should fail ---
+D11="$WORK/case11"
+make_fixture "$D11" "REQ-011" << 'EOF'
+# Test Execution Summary — REQ-011
+
+## Gate Results
+
+| Gate             | Result       | Details    |
+| ---------------- | ------------ | ---------- |
+| E2E Tests        | NOT_NEEDED   |            |
+
+**Final assessment:** All gates passed.
+EOF
+EXIT11=$(run_validator "$D11")
+assert_exit "summary with NOT_NEEDED but no rationale — should fail" 1 "$EXIT11"
+
 echo ""
 echo "=== Summary: $PASS pass / $FAIL fail ==="
 
