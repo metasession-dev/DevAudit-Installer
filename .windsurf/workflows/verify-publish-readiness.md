@@ -1,24 +1,23 @@
 ---
-description: Verify all DevAudit packages are version-aligned, built, bundled, and published correctly before consumers run devaudit update
+description: Full release pipeline — verify, build, publish all 5 packages to npm, create GitHub release, and confirm consumers can install. Run this after changes are merged to main and you are ready to release.
 ---
 
-# Verify Publish Readiness
+# Verify, Build, Publish — Full Release Pipeline
 
-Run this before cutting a release tag or when diagnosing why a consumer's `devaudit update` is stale or broken.
+This workflow takes you from "changes are on main" to "all 5 packages are published on npm and consumers can install." No manual npm commands needed — everything is automated through the release workflow.
 
-## What this checks
+## Prerequisites
 
-1. **Version alignment** — all 5 `package.json` files declare the same version
-2. **Registry sync** — all 5 packages on npm match the local version
-3. **Bundle integrity** — `prepack` produces a self-contained CLI tarball with `sdlc/` and `scripts/`
-4. **Build health** — all packages compile (tsc + tsup) and tests pass
-5. **Consumer sync simulation** — `devaudit update` against a temp fixture produces expected files
+- All changes are merged to `main`
+- You know the target version (e.g. `0.3.1`, `0.4.0`)
+- `NPM_TOKEN` secret is set in the GitHub repo
+- You have push access to create tags
 
 ## Steps
 
-### 1. Check version alignment across all 5 packages
+### 1. Verify version alignment across all 5 packages
 
-Run this and verify all 5 lines print the same version:
+All `package.json` files must declare the same version before tagging. The release workflow publishes whatever version is in each file independently — a mismatch means one package gets a stale or skipped release.
 
 ```bash
 // turbo
@@ -29,9 +28,28 @@ echo "prisma:      $(jq -r .version plugins/devaudit-plugin-prisma/package.json)
 echo "evidence:    $(jq -r .version plugins/devaudit-plugin-evidence-export/package.json)"
 ```
 
-If any version differs, align them before proceeding. The release workflow publishes all 5 from their `package.json` — a mismatch means one package gets a stale or skipped release.
+If any version differs, bump it:
 
-### 2. Check registry versions match local
+```bash
+// turbo
+VERSION="0.3.1"
+jq --arg v "$VERSION" '.version = $v' plugin-sdk/package.json > plugin-sdk/package.json.tmp && mv plugin-sdk/package.json.tmp plugin-sdk/package.json
+jq --arg v "$VERSION" '.version = $v' cli/package.json > cli/package.json.tmp && mv cli/package.json.tmp cli/package.json
+jq --arg v "$VERSION" '.version = $v' sdlc/package.json > sdlc/package.json.tmp && mv sdlc/package.json.tmp sdlc/package.json
+jq --arg v "$VERSION" '.version = $v' plugins/devaudit-plugin-prisma/package.json > plugins/devaudit-plugin-prisma/package.json.tmp && mv plugins/devaudit-plugin-prisma/package.json.tmp plugins/devaudit-plugin-prisma/package.json
+jq --arg v "$VERSION" '.version = $v' plugins/devaudit-plugin-evidence-export/package.json > plugins/devaudit-plugin-evidence-export/package.json.tmp && mv plugins/devaudit-plugin-evidence-export/package.json.tmp plugins/devaudit-plugin-evidence-export/package.json
+```
+
+If you bumped versions, commit and push:
+
+```bash
+// turbo
+git add plugin-sdk/package.json cli/package.json sdlc/package.json plugins/devaudit-plugin-prisma/package.json plugins/devaudit-plugin-evidence-export/package.json
+git commit -m "chore: bump all packages to $(jq -r .version cli/package.json) for release"
+git push origin main
+```
+
+### 2. Verify registry state — what's currently published
 
 ```bash
 // turbo
@@ -51,24 +69,16 @@ for pkg in \
   esac
   registry_ver=$(npm view "$pkg" version 2>/dev/null || echo "NOT_PUBLISHED")
   if [ "$local_ver" = "$registry_ver" ]; then
-    echo "OK   $pkg @ $local_ver"
+    echo "OK        $pkg @ $local_ver"
   else
-    echo "MISMATCH  $pkg — local: $local_ver, registry: $registry_ver"
+    echo "PUBLISH   $pkg — local: $local_ver, registry: $registry_ver"
   fi
 done
 ```
 
-Any `MISMATCH` line means a package needs publishing. If `devaudit-sdlc` shows a mismatch, run `cd sdlc && npm publish` separately (it's not in `release.yml`).
+Any line showing `PUBLISH` means that package needs the new version. After the release workflow runs, all 5 should show `OK`.
 
-### 3. Verify the release workflow publishes all packages
-
-Check `.github/workflows/release.yml` includes a publish step for `devaudit-sdlc`. As of this writing, it publishes 4 packages but NOT `devaudit-sdlc` — that's a known gap tracked in #244. If #244 is still open, `devaudit-sdlc` must be published manually:
-
-```bash
-cd sdlc && npm publish --access public
-```
-
-### 4. Build all packages
+### 3. Build all packages locally to catch breakages early
 
 ```bash
 // turbo
@@ -80,9 +90,9 @@ cd plugins/devaudit-plugin-evidence-export && npm install --legacy-peer-deps && 
 
 If any build fails, fix before proceeding. The release workflow will fail at the same step.
 
-### 5. Verify CLI bundle integrity
+### 4. Verify CLI bundle integrity
 
-The CLI's `prepack` script runs `tsup` + `bundle-templates.mjs`. Verify the bundled snapshot contains the SDLC engine binary + blueprints (section 2h):
+The CLI's `prepack` runs `tsup` + `bundle-templates.mjs`. Verify the bundled snapshot contains the SDLC engine binary + blueprints:
 
 ```bash
 // turbo
@@ -92,87 +102,123 @@ cd cli && npm run bundle:templates && echo "---" && \
   echo "blueprint count:    $(ls sdlc/src/blueprints/*.raw.md 2>/dev/null | wc -l)" && \
   echo "upload-evidence:    $(test -f scripts/upload-evidence.sh && echo YES || echo NO)" && \
   echo "files dir:          $(test -d sdlc/files && echo YES || echo NO)" && \
-  echo "common skills:      $(ls sdlc/files/_common/skills/ 2>/dev/null | wc -l) skill(s)"
+  echo "common skills:      $(ls sdlc/files/_common/skills/ 2>/dev/null | wc -l) skill(s)" && cd ..
 ```
 
-Expected: `sdlc/bin exists: YES`, `blueprints exist: YES`, `blueprint count: 6`, `upload-evidence: YES`, `files dir: YES`, `common skills: 2+`.
+Expected: `sdlc/bin: YES`, `blueprints: YES`, `blueprint count: 6`, `upload-evidence: YES`, `files dir: YES`, `common skills: 2+`.
 
-### 6. Run tests
+### 5. Run tests
 
 ```bash
 // turbo
-cd cli && npm test
+cd cli && npm test && cd ..
 ```
 
-If tests hang or fail, fix before proceeding. The release workflow does not run tests — CI (cli.yml) does, but a green CI on `main` doesn't guarantee the tag you're about to push is clean.
+If tests fail, fix before proceeding.
 
-### 7. Dry-run npm pack to verify tarball contents
+### 6. Verify the release workflow includes devaudit-sdlc
+
+Check that `.github/workflows/release.yml` has a publish step for `devaudit-sdlc`. If it does NOT (the #244 gap), you have two options:
+
+**Option A — fix release.yml first** (recommended): Add a `devaudit-sdlc` publish step to `release.yml`, commit, push, then proceed to step 7.
+
+**Option B — publish manually after the release workflow runs**: Let `release.yml` publish the other 4 packages, then manually run `cd sdlc && npm publish --access public` after it completes.
+
+### 7. Cut the release tag
+
+This triggers `release.yml` which builds and publishes all packages to npm and creates a GitHub release.
 
 ```bash
 // turbo
-cd plugin-sdk && npm pack --dry-run 2>&1 | grep -E '^npm notice' | head -20 && cd ..
-cd cli && npm pack --dry-run 2>&1 | grep -E '^npm notice' | head -30 && cd ..
-cd sdlc && npm pack --dry-run 2>&1 | grep -E '^npm notice' | head -10 && cd ..
+VERSION=$(jq -r .version cli/package.json)
+git tag "v$VERSION"
+git push origin "v$VERSION"
 ```
 
-Verify:
-- `cli` tarball includes `dist/`, `bin/`, `sdlc/` (bundled templates), `scripts/`
-- `sdlc` tarball includes `src/bin/devaudit-sdlc.js` and `src/blueprints/`
-- `plugin-sdk` tarball includes `dist/`
-
-### 8. Simulate consumer sync
+### 8. Monitor the release workflow
 
 ```bash
 // turbo
-tmpdir=$(mktemp -d)
-mkdir -p "$tmpdir/scripts" "$tmpdir/.husky" "$tmpdir/e2e/helpers" "$tmpdir/.github/workflows"
-echo '{"stack":"node","host":"railway"}' > "$tmpdir/sdlc-config.json"
-DEVAUDIT_INSTALLER_ROOT="$(pwd)" npx tsx -e "
-import { syncProject } from './cli/src/update/index.ts';
-syncProject('$tmpdir').then(r => {
-  console.log('Total files synced:', r.totalFilesSynced);
-  for (const s of r.sections) {
-    console.log('  [' + s.name + ']:', s.filesSynced, 'file(s)', s.skipped ? '(SKIPPED)' : '');
-  }
-});
-"
-echo "---"
-echo "SDLC/bin:     $(test -f $tmpdir/SDLC/bin/devaudit-sdlc.js && echo YES || echo NO)"
-echo "SDLC/blueprints: $(ls $tmpdir/SDLC/blueprints/*.raw.md 2>/dev/null | wc -l) file(s)"
-echo "SDLC docs:    $(ls $tmpdir/SDLC/*.md 2>/dev/null | wc -l) file(s)"
-echo "Skills:       $(ls -d $tmpdir/.claude/skills/*/ 2>/dev/null | wc -l) skill(s)"
-echo "CI workflow:  $(test -f $tmpdir/.github/workflows/ci.yml && echo YES || echo NO)"
-rm -rf "$tmpdir"
+gh run watch --exit-status
 ```
 
-If `SDLC/bin` shows `NO` or blueprints count is `0`, the `syncSdlcEngine` section (2h) is broken.
-
-### 9. Cut the release (if all checks pass)
+This blocks until the release workflow completes. If it fails, check the logs:
 
 ```bash
-git tag "v$(jq -r .version cli/package.json)"
-git push origin "v$(jq -r .version cli/package.json)"
+gh run view --log-failed
 ```
 
-This triggers `release.yml` which publishes plugin-sdk → cli → prisma → evidence-export and creates a GitHub release.
+Common failures:
+- `npm publish` 403 — `NPM_TOKEN` expired or lacks publish permission
+- `npm publish` 409 — version already exists on npm (bump the version)
+- `tsup` build failure — TypeScript error in the package
+- `bundle-templates` failure — `sdlc/` directory missing from repo root
 
-### 10. Post-release verification
-
-After the release workflow completes:
+### 9. Post-release verification — confirm all 5 packages on npm
 
 ```bash
 // turbo
+VERSION=$(jq -r .version cli/package.json)
+echo "Expecting all packages at $VERSION"
 for pkg in \
   "@metasession.co/devaudit-plugin-sdk" \
   "@metasession.co/devaudit-cli" \
   "devaudit-sdlc" \
   "@metasession.co/devaudit-plugin-prisma" \
   "@metasession.co/devaudit-plugin-evidence-export"; do
-  echo "$pkg: $(npm view "$pkg" version 2>/dev/null || echo 'NOT_FOUND')"
+  registry_ver=$(npm view "$pkg" version 2>/dev/null || echo "NOT_FOUND")
+  if [ "$registry_ver" = "$VERSION" ]; then
+    echo "OK        $pkg @ $registry_ver"
+  else
+    echo "MISMATCH  $pkg — expected: $VERSION, registry: $registry_ver"
+  fi
 done
 ```
 
-All 5 should print the version you just tagged. If `devaudit-sdlc` is still stale, publish it manually (step 3).
+If `devaudit-sdlc` shows `MISMATCH` and you chose Option B in step 6, publish it now:
+
+```bash
+// turbo
+cd sdlc && npm publish --access public && cd ..
+```
+
+Then re-run the verification.
+
+### 10. Verify consumer install works
+
+Simulate what a consumer experiences after the release:
+
+```bash
+// turbo
+tmpdir=$(mktemp -d)
+cd "$tmpdir"
+npm install @metasession.co/devaudit-cli@$VERSION
+npx devaudit --version
+npx devaudit --help
+cd /
+rm -rf "$tmpdir"
+```
+
+If `npx devaudit --version` prints the expected version, the release is complete and consumers can install.
+
+### 11. Notify consumers (if applicable)
+
+Consumers update by running:
+
+```bash
+npx @metasession.co/devaudit-cli update
+```
+
+This syncs the new templates, binary, blueprints, hooks, scripts, and skills into their repo. No npm install of `devaudit-sdlc` required — the binary is copied locally to `SDLC/bin/`.
+
+## Summary
+
+After completing this workflow:
+- All 5 packages are published on npm at the same version
+- The CLI tarball is self-contained (includes `sdlc/` templates + binary + blueprints)
+- `devaudit-sdlc` is on npm as a fallback for `npx devaudit-sdlc`
+- Consumers run `devaudit update` to pull everything into their repo
+- The GitHub release is created with auto-generated notes
 
 ## Common failure modes
 
