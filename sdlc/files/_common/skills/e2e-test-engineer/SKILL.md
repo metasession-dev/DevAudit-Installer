@@ -243,6 +243,16 @@ Do **not** proceed to Phase 6 until all gaps are resolved. The user may choose t
 
 ### Phase 6 — Execute and report
 
+**Pre-flight: browser availability (devaudit-installer#238).** Before running the suite, verify Playwright browsers are installed:
+
+```bash
+npx playwright install --dry-run 2>&1 | grep -q "is already installed" || npx playwright install
+```
+
+If the install fails (e.g. missing system dependencies on Linux), run `npx playwright install --with-deps` (requires sudo on some systems — ask the operator). Do not defer E2E execution to CI because browsers are not installed. Installing browsers takes ~30 seconds; deferring breaks the evidence trail.
+
+**Do not defer E2E to CI (devaudit-installer#238).** If browsers are not installed, install them. If the dev server will not start, debug it. If the database is not running, start it. CI is a safety net, not a replacement for local E2E execution. The `.e2e-gate-passed` sentinel must be written by a local run — skipping it by deferring to CI breaks the evidence-completeness chain and causes the evidence-completeness gate (#237) to fire with false negatives. "Deferred to CI" is not a valid gate state and must never appear in `test-execution-summary.md` (see #240).
+
 Run the suite. Strategy:
 
 1. **Iterate focused.** During fix-and-verify, run only the failing specs (`--grep`, spec-path args, or a CI input that scopes to a subset). Cycle time is what makes the loop tractable — full regression for every iteration burns CI budget and operator patience. Expect to loop: fix → focused run → fix → focused run, many times.
