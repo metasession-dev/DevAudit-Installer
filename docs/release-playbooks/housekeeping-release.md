@@ -139,6 +139,20 @@ What it keeps, unchanged from tracked: **all four CI gates**, the **two release-
 - Gate evidence on the REQ release covers the full `develop` state at CI time, including the skipped housekeeping changes — no testing gap.
 - Human-authored `chore`/`docs` commits (without `[skip ci]`) still create housekeeping releases as before. The `[skip ci]` convention is specifically for automated tooling syncs.
 
+## When the release PR HEAD is a housekeeping commit
+
+The `check-release-approval` gate runs `derive-release-version.sh` against the PR HEAD commit (not the synthetic merge commit). If the HEAD is a housekeeping commit with no `[REQ-XXX]` tag, the version derives to a bare-date (`v2026.06.28`). The gate then requires that bare-date release to be `uat_approved` on the portal.
+
+This is **not a bug** — the housekeeping release has gate evidence and a CI-generated ticket stub. But it's a **weaker sign-off** than a REQ-tagged release (no REQ association, no test scope, no security summary until the stub is filled in). Three options, cheapest first:
+
+1. **Tag the release PR commit with a REQ** (preferred). If a REQ is ready to release, reference it in the PR commit message: `compliance: [REQ-085] release to main`. The gate resolves to the REQ release (full evidence), and the housekeeping release stays as a harmless CI record.
+
+2. **Batch housekeeping into the next REQ release.** If no REQ is ready, wait. The housekeeping commits are bundled into the next REQ release by `generate-bundled-changes.sh` — no evidence gap.
+
+3. **Approve the housekeeping release.** Fill in the `generate-housekeeping-release-ticket.sh` stub (REPLACE markers), merge the auto-PR, submit for UAT review, and approve on the portal. This is the documented Track A/B flow above — it works, but the sign-off has no REQ-level traceability.
+
+> **`devaudit update` syncs are not affected** — they include `[skip ci]` and don't trigger CI or create portal releases. This section applies only to human-authored housekeeping commits (dependency bumps, doc tweaks, CI config changes).
+
 ## Quick reference
 
 | Step | Track A (Claude) | Track B (manual) |
