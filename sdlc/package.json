@@ -1,6 +1,6 @@
 {
   "name": "devaudit-sdlc",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "DevAudit SDLC CLI Engine — cross-agent terminal-driven SDLC orchestrator.",
   "bin": {
     "devaudit-sdlc": "./src/bin/devaudit-sdlc.js"
