@@ -131,6 +131,12 @@ if [ -f "$RTM" ] && grep -qE "^\| ${REQ_ID} " "$RTM"; then
   # (`|---|---|…`) are left intact and don't affect `statuscol`.
   awk -v req="$REQ_ID" '
     BEGIN { FS="|"; OFS="|"; statuscol=0 }
+    # Protect escaped pipes (\|) from being treated as column delimiters.
+    # Replacing \| with \001 in $0 forces awk to re-split on only unescaped
+    # pipes, so literal pipes inside cell content (e.g. regex patterns like
+    # stop\|unsubscribe, enum values open\|in_progress\|closed) do not create
+    # phantom extra columns. Placeholders are restored to \| before output.
+    /\\\|/ { gsub(/\\\|/, "\001", $0) }
     # Header detection: scan every row; require both a "Status" header cell
     # AND an ID-like header cell in the same row before locking statuscol to
     # this row''s column index.
@@ -149,9 +155,10 @@ if [ -f "$RTM" ] && grep -qE "^\| ${REQ_ID} " "$RTM"; then
       if (match(cell, /\(/)) note=substr(cell, RSTART)   # preserve any " (requirement note)"
       gsub(/^[[:space:]]+|[[:space:]]+$/, "", note)
       $statuscol = (note != "" ? " RELEASED " note " " : " RELEASED ")
+      gsub(/\001/, "\\|", $0)
       print; next
     }
-    { print }
+    { gsub(/\001/, "\\|", $0); print }
   ' "$RTM" > "$TMP" && mv "$TMP" "$RTM"
   git add "$RTM" 2>/dev/null || true
   echo "RTM row ${REQ_ID} -> RELEASED."

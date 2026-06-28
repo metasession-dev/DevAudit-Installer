@@ -114,7 +114,8 @@ if [ -f "$RTM_PATH" ]; then
   # Variable padding between REQ-ID and Status (Issue/Risk/Evidence
   # columns) is fine — only the leading REQ-XXX and the status-cell
   # marker matter.
-  IN_PROGRESS_REQS=$(grep -E '\|[[:space:]]+IN PROGRESS' "$RTM_PATH" 2>/dev/null \
+  IN_PROGRESS_REQS=$(sed 's/\\|/  /g' "$RTM_PATH" 2>/dev/null \
+    | grep -E '\|[[:space:]]+IN PROGRESS' \
     | grep -oE '^\|[[:space:]]*REQ-[0-9]+' \
     | grep -oE 'REQ-[0-9]+' | sort -u || true)
   if [ -n "$IN_PROGRESS_REQS" ]; then

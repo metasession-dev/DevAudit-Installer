@@ -136,6 +136,65 @@ EOF
   rm -rf "$(dirname "$dir")"
 }
 
+# ── Case 3: RTM row with escaped pipes (\|) in Status column ─────────────────
+# The Status cell contains literal pipe characters escaped as \| (markdown
+# table convention). Without the fix, awk's FS="|" splits on these escaped
+# pipes too, creating phantom extra columns and mangling the row on close-out.
+{
+  dir="$(mktemp -d)/cli-close-out-fixture-3"
+  mkdir -p "$dir/compliance/pending-releases" "$dir/compliance/approved-releases"
+  cd "$dir"
+  git init -q --initial-branch=main >/dev/null
+  git config user.email "test@example.com"
+  git config user.name "test"
+  cat > compliance/RTM.md <<'EOF'
+# Requirements Traceability Matrix
+
+| REQ-ID  | Issue | Risk        | Evidence                     | Status                                                                | Approver   | Date       |
+| ------- | ----- | ----------- | ---------------------------- | --------------------------------------------------------------------- | ---------- | ---------- |
+| REQ-056 | #117  | MEDIUM-HIGH | compliance/evidence/REQ-056/ | IN PROGRESS (regex: /^\s*(stop\|unsubscribe\|opt[-\s]?out)\s*$/i)    | ostendo-io | 2026-06-01 |
+| REQ-064 | #121  | MEDIUM      | compliance/evidence/REQ-064/ | IN PROGRESS (enum: open\|in_progress\|awaiting_customer\|resolved\|closed) | dev | 2026-06-02 |
+| REQ-075 | #135  | LOW         | compliance/evidence/REQ-075/ | TESTED - PENDING SIGN-OFF (union: 'food'\|'drinks')                  | dev        | 2026-06-03 |
+EOF
+  cat > compliance/pending-releases/RELEASE-TICKET-REQ-056.md <<'EOF'
+# Release Ticket: REQ-056
+
+**Status:** TESTED - PENDING SIGN-OFF
+**DevAudit Release:** REQ-056
+EOF
+  git add -A
+  git commit -q -m "fixture: escaped pipes in status"
+  unset DEVAUDIT_API_KEY DEVAUDIT_BASE_URL || true
+  bash "$HELPER" REQ-056 >/dev/null 2>&1 || true
+  # Assert: REQ-056 col-1 stays REQ-056, col-5 flips to RELEASED with note preserved
+  # Use sed to neutralize \| before awk field splitting (same technique as the
+  # production fix in derive-release-version.sh).
+  row=$(grep -m1 -E "^\| REQ-056 " compliance/RTM.md || true)
+  col1=$(echo "$row" | sed 's/\\|/  /g' | awk -F '|' '{gsub(/^[[:space:]]+|[[:space:]]+$/,"",$2); print $2}')
+  col5=$(echo "$row" | sed 's/\\|/  /g' | awk -F '|' '{gsub(/^[[:space:]]+|[[:space:]]+$/,"",$6); print $6}')
+  assert_eq "escaped-pipe: REQ-056 col-1 unchanged" "REQ-056" "$col1"
+  # col5 starts with RELEASED (the parenthetical note is preserved by close-out)
+  case "$col5" in RELEASED*) assert_eq "escaped-pipe: REQ-056 col-5 flipped" "RELEASED" "RELEASED" ;; *) assert_eq "escaped-pipe: REQ-056 col-5 flipped" "RELEASED" "$col5" ;; esac
+  # Assert: the parenthetical note with escaped pipes is preserved
+  echo "$row" | grep -qF 'stop\|unsubscribe\|opt' \
+    && assert_eq "escaped-pipe: note preserved" "yes" "yes" \
+    || assert_eq "escaped-pipe: note preserved" "yes" "no"
+  # Assert: REQ-064 row untouched (still has escaped pipes in status)
+  row64=$(grep -m1 -E "^\| REQ-064 " compliance/RTM.md || true)
+  echo "$row64" | grep -qF 'open\|in_progress' \
+    && assert_eq "escaped-pipe: REQ-064 untouched" "yes" "yes" \
+    || assert_eq "escaped-pipe: REQ-064 untouched" "yes" "no"
+  # Assert: REQ-075 row untouched (text has 'food'\|'drinks' with quotes)
+  row75=$(grep -m1 -E "^\| REQ-075 " compliance/RTM.md || true)
+  echo "$row75" | grep -qF "food" && echo "$row75" | grep -qF "drinks" \
+    && assert_eq "escaped-pipe: REQ-075 untouched" "yes" "yes" \
+    || assert_eq "escaped-pipe: REQ-075 untouched" "yes" "no"
+  # Assert: row still has exactly 7 columns (9 fields with leading/trailing empty)
+  nfields=$(echo "$row" | sed 's/\\|/  /g' | awk -F '|' '{print NF}')
+  assert_eq "escaped-pipe: REQ-056 still 7 columns" "9" "$nfields"
+  rm -rf "$(dirname "$dir")"
+}
+
 echo
 echo "Result: $PASS passed, $FAIL failed"
 [ "$FAIL" = "0" ]
