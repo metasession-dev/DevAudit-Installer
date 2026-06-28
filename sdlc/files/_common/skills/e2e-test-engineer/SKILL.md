@@ -251,7 +251,9 @@ npx playwright install --dry-run 2>&1 | grep -q "is already installed" || npx pl
 
 If the install fails (e.g. missing system dependencies on Linux), run `npx playwright install --with-deps` (requires sudo on some systems — ask the operator). Do not defer E2E execution to CI because browsers are not installed. Installing browsers takes ~30 seconds; deferring breaks the evidence trail.
 
-**Do not defer E2E to CI (devaudit-installer#238).** If browsers are not installed, install them. If the dev server will not start, debug it. If the database is not running, start it. CI is a safety net, not a replacement for local E2E execution. The `.e2e-gate-passed` sentinel must be written by a local run — skipping it by deferring to CI breaks the evidence-completeness chain and causes the evidence-completeness gate (#237) to fire with false negatives. "Deferred to CI" is not a valid gate state and must never appear in `test-execution-summary.md` (see #240).
+**Do not defer E2E to CI (devaudit-installer#238).** If browsers are not installed, install them. If the dev server will not start, debug it. If the database is not running, start it. CI is a safety net, not a replacement for local E2E execution. The `.e2e-gate-passed` sentinel must be written by a local run — skipping it by deferring to CI breaks the evidence-completeness chain and causes the evidence-completeness gate (#237) to fire with false negatives.
+
+**Gate state vocabulary (devaudit-installer#240).** In `test-execution-summary.md`, E2E gate results must be one of: `PASS`, `FAIL`, `NOT_NEEDED` (with reason), or `SKIPPED` (with operator-approved rationale). The word "deferred" must never appear as a gate state — `validate-test-summary.sh` will reject it in CI. If E2E was not run locally, record it as `SKIPPED` with the reason and flag it as a gate failure for the reviewer. Do not write "E2E deferred to CI" or "Playwright browsers not installed locally" — these are environment issues, not gate states.
 
 Run the suite. Strategy:
 
@@ -414,8 +416,8 @@ Wrap up with a summary the user can drop into the PR or ticket:
 **Then feed the test-design record (devaudit#50).** The Stage 3 `test-execution-summary.md` (generated per `3-compile-evidence.md` Step 1a) carries a `## Test design` section at the top. Before Stage 3 finalises the file, populate that section with the design-time decisions this skill made, so the SDLC has a recorded trace that scope was *decided*, not implicit:
 
 - **Layers planned** — which of `unit | integration | e2e | visual | manual` applied to this REQ
-- **Layers covered** — same list with ✓ or `deferred`
-- **Deferrals** — explicit one-line rationale per deferred layer (`e2e N/A — schema-only, no UI yet` rather than silent absence)
+- **Layers covered** — same list with ✓ or `NOT_NEEDED` (with reason)
+- **Exemptions** — explicit one-line rationale per exempt layer (`e2e NOT_NEEDED — schema-only, no UI yet` rather than silent absence). Do not use "deferred" as a gate state — it is not a valid SDLC state (devaudit-installer#240). The CI validator (`validate-test-summary.sh`) will reject any summary containing "deferred".
 - **Skill invocation** — _"`e2e-test-engineer` invoked on turn N during Phase 2"_, with a turn pointer the reviewer can verify against the chat transcript
 
 If you authored or modified `e2e/**/*.spec.ts` directly without invoking this skill, that's a delegation gap — the `sdlc-implementer` Phase 2 audit (devaudit#132) will catch it before Phase 3. The honest record is: the skill ran (or didn't), the layers were chosen for stated reasons, and the test-execution-summary attribution points back at the chat turn where the decision happened.

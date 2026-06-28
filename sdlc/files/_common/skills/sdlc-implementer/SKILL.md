@@ -491,6 +491,14 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
    - The nil report uploads as `incident_report` evidence via `compliance-evidence.yml`'s `upload_incident_report` function, flipping `ISO29119.3.5.4` to COVERED for clean releases.
    - If incidents WERE closed, skip nil report generation — the populated incident report(s) from `incident-export.yml` serve as the evidence.
 
+5b. **Validate test-execution-summary.md gate states (devaudit-installer#240).** Before uploading evidence, verify that `compliance/evidence/REQ-XXX/test-execution-summary.md` does not contain invalid gate states. Run:
+
+   ```bash
+   bash scripts/validate-test-summary.sh origin/main
+   ```
+
+   If the validator fails, fix the summary before proceeding. E2E gate results must be one of: `PASS`, `FAIL`, `NOT_NEEDED` (with reason), or `SKIPPED` (with operator-approved rationale). The word "deferred" must never appear as a gate state — it is not a valid SDLC state. "Deferred to CI" and "Playwright browsers not installed locally" are environment issues, not gate states. The CI validator (`validate-test-summary.sh`) will reject any summary containing "deferred" or "browsers not installed" on PRs to main.
+
 6. **Organise artefacts** under `compliance/evidence/REQ-XXX/` with date-prefixed naming:
 
    ```
