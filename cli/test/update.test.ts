@@ -184,6 +184,12 @@ describe('syncProject — native TS sync against a fixture', () => {
     expect(gitignoreContent).toContain('.e2e-gate-passed');
     expect(gitignoreContent).toContain('.e2e-evidence-wired');
     expect(gitignoreContent).toContain('.sdlc-implementer-invoked');
+    // Section 2h — SDLC CLI engine (binary + blueprints)
+    expect(await fs.stat(join(fixtureDir, 'SDLC', 'bin', 'devaudit-sdlc.js'))).toBeTruthy();
+    expect(await fs.stat(join(fixtureDir, 'SDLC', 'blueprints', '1-plan-requirement.raw.md'))).toBeTruthy();
+    expect(await fs.stat(join(fixtureDir, 'SDLC', 'blueprints', 'implementing-an-sdlc-issue.raw.md'))).toBeTruthy();
+    const engineContent = await fs.readFile(join(fixtureDir, 'SDLC', 'bin', 'devaudit-sdlc.js'), 'utf-8');
+    expect(engineContent).toContain('SDLC Gateway Initialized');
   }, 60_000);
 
   it('is idempotent — re-running produces no errors and same file count', async () => {

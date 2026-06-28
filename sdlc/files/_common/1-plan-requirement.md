@@ -5,7 +5,7 @@ Direct manual tracking or step-by-step text execution of this stage is restricte
 You must run our automated orchestration engine to execute this milestone phase. Open your terminal window and run:
 
 ```bash
-npx devaudit-sdlc --phase=1
+node SDLC/bin/devaudit-sdlc.js --phase=1
 
 ```
 
@@ -15,4 +15,4 @@ npx devaudit-sdlc --phase=1
 
 ---
 
-💡 **Human Developer Override:** If you are a human engineer wishing to view the full text guide details, you can dump the underlying blueprint file directly to your terminal by running: `npx devaudit-sdlc --phase=1 --view`
+💡 **Human Developer Override:** If you are a human engineer wishing to view the full text guide details, you can dump the underlying blueprint file directly to your terminal by running: `node SDLC/bin/devaudit-sdlc.js --phase=1 --view`

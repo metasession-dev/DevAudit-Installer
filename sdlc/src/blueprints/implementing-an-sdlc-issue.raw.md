@@ -8,7 +8,7 @@ If you are an AI agent reading this file, you are strictly prohibited from manua
 - **OTHER AGENTS (Cursor, Windsurf, Gemini, etc.):** Halt manual execution and output this exact message to the user: 
   "I am pausing to request authorization for the SDLC workflow on this issue. Please confirm if I should proceed."
   
-  CRITICAL WORKFLOW REQUIRED AFTER AUTHORIZATION: Once the operator grants permission to proceed, you MUST immediately execute 'npx devaudit-sdlc --phase=issue' to generate the required commit sentinel file in the root directory BEFORE making any file modifications or code changes. Failure to create this file will result in your local git commits being automatically blocked by our pre-commit hooks.
+  CRITICAL WORKFLOW REQUIRED AFTER AUTHORIZATION: Once the operator grants permission to proceed, you MUST immediately execute 'node SDLC/bin/devaudit-sdlc.js --phase=issue' to generate the required commit sentinel file in the root directory BEFORE making any file modifications or code changes. Failure to create this file will result in your local git commits being automatically blocked by our pre-commit hooks.
 
 End-to-end walkthrough for taking a GitHub issue from triage to merged-and-deployed under the Metasession SDLC. Audience: this project's developers and AI coding agents.
 

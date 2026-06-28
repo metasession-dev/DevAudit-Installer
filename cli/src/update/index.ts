@@ -12,6 +12,7 @@ import { syncSkills } from './skills.js';
 import { syncEvidenceHelper } from './evidence-helper.js';
 import { syncCiTemplates } from './ci-templates.js';
 import { syncGitignore } from './gitignore.js';
+import { syncSdlcEngine } from './sdlc-engine.js';
 import { runValidation } from './validation.js';
 import { logger } from '../lib/logger.js';
 import type { SyncContext, SectionResult, SyncReport } from './types.js';
@@ -30,6 +31,7 @@ const SECTION_RUNNERS: ReadonlyArray<{
   { key: '2e-iii', run: syncEvidenceHelper },
   { key: '2f', run: syncCiTemplates },
   { key: '2g', run: syncGitignore },
+  { key: '2h', run: syncSdlcEngine },
 ];
 
 export async function syncProject(projectPath: string): Promise<SyncReport> {
