@@ -241,6 +241,20 @@ Halt and report the gap to the user:
 
 Do **not** proceed to Phase 6 until all gaps are resolved. The user may choose to skip an AC (e.g. API-only, transport-only) — that's valid, but it must be an explicit decision recorded in the test-execution-summary, not an omission.
 
+**Write the evidence-wiring sentinel (devaudit-installer#226).** After all Phase 5½ checks pass (all `@requirement`, `evidenceShot()`, and `tagTest()` calls verified), write a `.e2e-evidence-wired` sentinel file in the repo root so the pre-push hook and `sdlc-implementer` Phase 2 step 5b can verify evidence wiring was validated:
+
+```bash
+echo "WIRED $(date -u +%Y-%m-%dT%H:%M:%SZ) REQ-XXX" > .e2e-evidence-wired
+```
+
+If the user explicitly skipped an AC (e.g. API-only), note it in the sentinel:
+
+```bash
+echo "WIRED $(date -u +%Y-%m-%dT%H:%M:%SZ) REQ-XXX (AC3 skipped — API-only)" > .e2e-evidence-wired
+```
+
+The file is gitignored and never committed — it's a local-only signal that evidence wiring was validated in this working directory.
+
 ### Phase 6 — Execute and report
 
 **Pre-flight: browser availability (devaudit-installer#238).** Before running the suite, verify Playwright browsers are installed:

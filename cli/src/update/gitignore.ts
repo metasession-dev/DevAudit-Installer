@@ -5,6 +5,7 @@ import type { SyncContext, SectionResult } from './types.js';
 
 const SENTINEL_ENTRIES = [
   '.e2e-gate-passed',
+  '.e2e-evidence-wired',
   '.sdlc-implementer-invoked',
 ];
 

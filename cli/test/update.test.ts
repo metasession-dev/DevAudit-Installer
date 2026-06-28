@@ -182,6 +182,7 @@ describe('syncProject — native TS sync against a fixture', () => {
     // Section 2g — gitignore sentinel entries (devaudit-installer#226)
     const gitignoreContent = await fs.readFile(join(fixtureDir, '.gitignore'), 'utf-8');
     expect(gitignoreContent).toContain('.e2e-gate-passed');
+    expect(gitignoreContent).toContain('.e2e-evidence-wired');
     expect(gitignoreContent).toContain('.sdlc-implementer-invoked');
   }, 60_000);
 

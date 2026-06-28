@@ -30,6 +30,8 @@ echo "Pre-push: TypeScript check passed."
 # Only fires if UI-facing files are in the push. Checks for either
 # playwright-report/ directory or .e2e-gate-passed sentinel (written by
 # e2e-test-engineer after a successful run).
+# Also checks .e2e-evidence-wired sentinel if e2e spec files changed
+# (written by e2e-test-engineer Phase 5½ after validating tagTest/evidenceShot).
 INTEGRATION_BRANCH=$(jq -r '.integration_branch // "develop"' sdlc-config.json 2>/dev/null || echo "develop")
 
 # Read stdin to get the pushed refs (husky pre-push protocol)
@@ -69,6 +71,23 @@ while read -r local_ref local_sha remote_ref remote_sha; do
       exit 1
     fi
     echo "Pre-push: E2E evidence check passed."
+  fi
+
+  # Check for E2E spec file changes — require .e2e-evidence-wired sentinel
+  SPEC_FILES=$(git diff --name-only "$RANGE" -- 'e2e/**/*.spec.ts' 2>/dev/null || true)
+
+  if [ -n "$SPEC_FILES" ]; then
+    if [ ! -f .e2e-evidence-wired ]; then
+      echo ""
+      echo "ERROR: Evidence wiring validation (Phase 5½) was not run."
+      echo "       E2E spec files changed in this push:"
+      echo "$SPEC_FILES" | sed 's/^/         /'
+      echo ""
+      echo "       Invoke e2e-test-engineer to validate tagTest() and evidenceShot() calls."
+      echo "       Bypass with --no-verify (last resort, not a habit)."
+      exit 1
+    fi
+    echo "Pre-push: E2E evidence wiring check passed."
   fi
 done
 

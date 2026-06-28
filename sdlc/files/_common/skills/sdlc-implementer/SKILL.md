@@ -429,6 +429,8 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
    ```
 
    - **If UI-facing files are present:** check for `.e2e-gate-passed` sentinel file (written by `e2e-test-engineer` after a successful run) or `playwright-report/` directory with recent content. If neither exists, **HALT**: "E2E gate was not run. The change touches UI-facing files. Run `npx playwright test` (or invoke `e2e-test-engineer`) before committing. Do not defer to CI — install Playwright browsers with `npx playwright install` if needed. The pre-push hook will also block this push."
+
+     **Also check for `.e2e-evidence-wired` sentinel (devaudit-installer#226).** If `e2e/**/*.spec.ts` files were authored or modified, verify the `.e2e-evidence-wired` sentinel exists (written by `e2e-test-engineer` Phase 5½ after validating `tagTest()` and `evidenceShot()` calls). If missing, **HALT**: "Evidence wiring validation (Phase 5½) was not run. The change includes E2E spec files but no evidence wiring sentinel. Invoke `e2e-test-engineer` to validate `tagTest()` and `evidenceShot()` calls before committing. The pre-push hook will also block this push."
    - **If no UI-facing files (API-only, config, docs):** skip the check. Note the exemption in the commit body: "E2E gate skipped — no UI-facing files in this change."
    - **If `e2e-test-engineer` was invoked and determined e2e is not needed** (e.g. schema-only change): the skill writes `.e2e-gate-passed` with a `NOT_NEEDED` reason. The sentinel check passes. Note the exemption in the commit body: "E2E gate not needed — e2e-test-engineer assessed no UI surface (turn N)."
 
