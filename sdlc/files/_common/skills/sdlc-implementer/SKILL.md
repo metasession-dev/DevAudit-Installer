@@ -409,6 +409,15 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
    - **Requirements deviation** (an AC is wrong, incomplete, or missing) — trigger the [requirements gap flow](#requirements-gap-flow-devaudit-installer212). Do NOT just note it as a plan deviation. The AC table must be updated, `requirements-aligner` must be re-invoked to re-check SRS alignment, and the RTM must be updated.
    
    The classification question: "Did the implementation deviate from the plan's approach (how to build it), or did the plan's requirements deviate from reality (what to build)?" If the former, note and continue. If the latter, trigger the requirements gap flow.
+
+4b. **Reconcile test-plan.md file paths with actual files (devaudit-installer#241).** After writing/updating tests (both unit and E2E), diff the actual test file paths against `compliance/evidence/REQ-XXX/test-plan.md`. The test plan was authored during Stage 1 with predicted file paths — during implementation, tests are often added to existing files instead of creating new ones. This is a natural drift, but it must be reconciled before committing so `validate-compliance-artifacts.sh` doesn't fail at PR time.
+
+   For each file path referenced in `test-plan.md`:
+   - If the file exists on disk → OK, no action needed.
+   - If the file does not exist → check whether a test covering the same AC was added to a different file. If so, update `test-plan.md` to reference the actual file path.
+   - If the file does not exist and no equivalent test was found → **HALT**: "test-plan.md references <file> but no test file exists and no equivalent test covering the same AC was found. Either create the test file, update test-plan.md to point to the actual test file, or remove the entry if the AC is no longer relevant."
+
+   Commit the updated `test-plan.md` alongside the test code. This is a file-path reconciliation — it does not change the AC table (that's the step 5b plan ↔ test-scope AC consistency check, which is separate and checks AC drift, not file-path drift).
 5. **Run gates locally, cheap-first.** The gates are not equivalent-cost — `npm run lint` is seconds, `npx playwright test` is 30–60 minutes. Iterate on the fast gates; spend the e2e cost once.
 
    **Fast gates** (run on every change, ideally pre-commit):

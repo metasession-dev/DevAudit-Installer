@@ -174,6 +174,18 @@ If prerequisites are missing, do **not** start the full local suite. Run the tar
 
 **Do NOT proceed** until the scoped E2E/test-plan checks are complete and any local limitations are called out.
 
+### Step 4b: Reconcile Test Plan (devaudit-installer#241)
+
+After writing/updating tests (both unit and E2E), verify that `test-plan.md` file paths still match reality. The test plan was authored during Stage 1 with predicted file paths — during implementation, tests are often added to existing files instead of creating new ones. This natural drift must be reconciled before committing so `validate-compliance-artifacts.sh` doesn't fail at PR time.
+
+For each file path referenced in `test-plan.md`:
+
+- If the file exists on disk → OK, no action needed.
+- If the file does not exist → check whether a test covering the same AC was added to a different file. If so, update `test-plan.md` to reference the actual file path.
+- If the file does not exist and no equivalent test was found → **STOP**: "test-plan.md references `<file>` but no test file exists and no equivalent test covering the same AC was found. Either create the test file, update test-plan.md to point to the actual test file, or remove the entry if the AC is no longer relevant."
+
+Commit the updated `test-plan.md` alongside the test code. This is a file-path reconciliation — it does not change the AC table (the plan ↔ test-scope AC consistency check in the skill handles AC drift separately).
+
 ### Step 5: Stage Selectively
 
 ```bash
