@@ -237,6 +237,35 @@ RTM
 GOT=$(RTM_PATH=docs/custom-RTM.md run_helper)
 assert_eq "RTM_PATH=docs/custom-RTM.md -> REQ-400" "REQ-400" "$GOT"
 
+# Case 19: step-4-bis with escaped pipes (\|) in the Status column.
+# The Status cell contains literal pipe characters escaped as \| (markdown
+# table convention). Without the sed pre-processing, the grep could match
+# a pipe inside the cell content followed by " IN PROGRESS", producing
+# false positives. With the fix, only unescaped pipe delimiters are matched.
+make_fixture "$WORK/c19" "chore: devaudit update to 0.1.29"
+mkdir -p compliance
+cat > compliance/RTM.md <<'RTM'
+# RTM
+| REQ-ID  | Issue | Risk        | Evidence                     | Status                                                                | Approver   | Date       |
+| ------- | ----- | ----------- | ---------------------------- | --------------------------------------------------------------------- | ---------- | ---------- |
+| REQ-056 | #117  | MEDIUM-HIGH | compliance/evidence/REQ-056/ | IN PROGRESS (regex: /^\s*(stop\|unsubscribe\|opt[-\s]?out)\s*$/i)    | ostendo-io | 2026-06-01 |
+| REQ-064 | #121  | MEDIUM      | compliance/evidence/REQ-064/ | RELEASED (enum: open\|in_progress\|awaiting_customer\|resolved\|closed) | dev | 2026-06-02 |
+RTM
+assert_eq "RTM escaped pipes -> REQ-056 (single IN PROGRESS)" "REQ-056" "$(run_helper)"
+
+# Case 20: step-4-bis with escaped pipes — ambiguity guard still works.
+# Two IN PROGRESS rows, both with escaped pipes in status → falls through
+# to bare date rather than guessing.
+make_fixture "$WORK/c20" "chore: devaudit update to 0.1.29"
+mkdir -p compliance
+cat > compliance/RTM.md <<'RTM'
+| REQ-ID  | Status                                                                |
+| ------- | -------------------------------------------------------------------- |
+| REQ-056 | IN PROGRESS (regex: stop\|unsubscribe\|opt[-\s]?out)                 |
+| REQ-064 | IN PROGRESS (enum: open\|in_progress\|awaiting_customer\|resolved)   |
+RTM
+assert_eq "RTM two IN PROGRESS w/ escaped pipes -> bare date $TODAY" "$TODAY" "$(run_helper)"
+
 echo ""
 echo "=== Summary: $PASS pass / $FAIL fail ==="
 
