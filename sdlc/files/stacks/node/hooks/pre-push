@@ -1,7 +1,8 @@
 #!/bin/sh
-# Husky pre-push hook — fast gates + E2E evidence + skill-invocation sentinel + compliance validator.
+# Husky pre-push hook — SDLC guard + fast gates + E2E evidence + skill-invocation sentinel + compliance validator.
 #
-# Runs four checks before allowing a push:
+# Runs five checks before allowing a push:
+# 0. SDLC guard — branch-name check for manual execution detection (#231)
 # 1. TypeScript check (fast gate)
 # 2. E2E evidence check — if UI-facing files changed, verify Playwright ran
 # 3. Skill-invocation sentinel — if feat/fix/refactor/perf commits present,
@@ -14,6 +15,13 @@
 # Install: cp this file to .husky/pre-push && chmod +x .husky/pre-push
 
 set -eu
+
+# ── 0. SDLC guard (devaudit-installer#231) ──────────────────────────
+# Fast-fail: if on a tracked branch (feat/fix/refactor/perf) and the
+# sentinel is missing, bail before running expensive test suites.
+if [ -f scripts/sdlc-guard.sh ]; then
+  bash scripts/sdlc-guard.sh
+fi
 
 # ── 1. TypeScript check ──────────────────────────────────────────────
 echo "Pre-push: running TypeScript check..."

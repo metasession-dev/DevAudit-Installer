@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# Husky pre-commit hook — runs lint-staged on staged files.
-# Catches linting issues before they enter the commit history.
+# Husky pre-commit hook — SDLC guard + lint-staged on staged files.
+#
+# 1. SDLC guard — blocks manual execution on tracked branches (#231)
+# 2. lint-staged — catches linting issues before they enter the commit history
 #
 # Install: cp this file to .husky/pre-commit && chmod +x .husky/pre-commit
 #
@@ -10,4 +12,10 @@
 #     "*.{ts,tsx,js,jsx,json,md}": ["prettier --write"]
 #   }
 
+# ── 1. SDLC guard (devaudit-installer#231) ──────────────────────────
+if [ -f scripts/sdlc-guard.sh ]; then
+  bash scripts/sdlc-guard.sh
+fi
+
+# ── 2. lint-staged ──────────────────────────────────────────────────
 npx lint-staged
