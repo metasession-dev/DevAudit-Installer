@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   publish:
-    name: Publish 4 packages to npmjs.org + create GitHub Release
+    name: Publish 5 packages to npmjs.org + create GitHub Release
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -81,7 +81,15 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      # ----- Step 5: GitHub Release with auto-generated notes -----
+      # ----- Step 5: devaudit-sdlc engine (#244) -----
+      - name: devaudit-sdlc — publish
+        working-directory: sdlc
+        run: |
+          npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # ----- Step 6: GitHub Release with auto-generated notes -----
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}

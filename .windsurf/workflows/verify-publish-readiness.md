@@ -118,11 +118,7 @@ If tests fail, fix before proceeding.
 
 ### 6. Verify the release workflow includes devaudit-sdlc
 
-Check that `.github/workflows/release.yml` has a publish step for `devaudit-sdlc`. If it does NOT (the #244 gap), you have two options:
-
-**Option A — fix release.yml first** (recommended): Add a `devaudit-sdlc` publish step to `release.yml`, commit, push, then proceed to step 7.
-
-**Option B — publish manually after the release workflow runs**: Let `release.yml` publish the other 4 packages, then manually run `cd sdlc && npm publish --access public` after it completes.
+Check that `.github/workflows/release.yml` has a publish step for `devaudit-sdlc`. It should publish all 5 packages: plugin-sdk, cli, prisma plugin, evidence-export plugin, and devaudit-sdlc. If the step is missing, add it before proceeding.
 
 ### 7. Cut the release tag
 
@@ -175,14 +171,7 @@ for pkg in \
 done
 ```
 
-If `devaudit-sdlc` shows `MISMATCH` and you chose Option B in step 6, publish it now:
-
-```bash
-// turbo
-cd sdlc && npm publish --access public && cd ..
-```
-
-Then re-run the verification.
+If any package shows `MISMATCH`, check the release workflow logs — the publish step for that package may have failed.
 
 ### 10. Verify consumer install works
 
@@ -222,7 +211,7 @@ After completing this workflow:
 
 ## Common failure modes
 
-- **`devaudit-sdlc` stale on npm** — `release.yml` doesn't publish it. Manual `cd sdlc && npm publish` required. Tracked in #244.
+- **`devaudit-sdlc` stale on npm** — check that `release.yml` step 5 ran successfully. If the step is missing from `release.yml`, add it.
 - **CLI tarball missing `sdlc/`** — `bundle-templates.mjs` didn't run. Check `prepack` hook: `npm run build && npm run bundle:templates`.
 - **Consumer gets `npx` prompt** — local `SDLC/bin/devaudit-sdlc.js` doesn't exist. Consumer needs `devaudit update` to sync section 2h.
 - **Version mismatch** — one `package.json` wasn't bumped. The release workflow publishes whatever version is in each `package.json` independently.
