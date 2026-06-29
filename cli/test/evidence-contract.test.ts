@@ -63,7 +63,9 @@ function loadContract(): Contract {
  *    (e.g. "upload the results so the portal can ...").
  */
 function preprocess(content: string): string {
-  const joined = content.replace(/\\\n\s*/g, ' ');
+  // Normalize CRLF to LF so regexes work consistently on Windows.
+  const normalized = content.replace(/\r\n/g, '\n');
+  const joined = normalized.replace(/\\\n\s*/g, ' ');
   return joined
     .split('\n')
     .filter((line) => {
