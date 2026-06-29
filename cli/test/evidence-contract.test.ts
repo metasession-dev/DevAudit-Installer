@@ -21,8 +21,11 @@ import { resolve, join } from 'node:path';
  * accept". Portal having extra types is forward compatibility, not drift.
  */
 
-const CONTRACT_PATH = resolve(process.cwd(), 'contracts/evidence-types.json');
-const CI_DIR = resolve(process.cwd(), 'sdlc/files/ci');
+// CI runs vitest from the cli/ directory, so use __dirname to locate
+// the repo root rather than process.cwd().
+const REPO_ROOT = resolve(__dirname, '..', '..');
+const CONTRACT_PATH = resolve(REPO_ROOT, 'contracts/evidence-types.json');
+const CI_DIR = resolve(REPO_ROOT, 'sdlc/files/ci');
 
 interface ContractEntry {
   category: string;
