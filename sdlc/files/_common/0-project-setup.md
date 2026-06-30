@@ -258,9 +258,20 @@ npm audit --help
 
 ### 5b. Playwright
 
+`devaudit install` / `devaudit update` automatically adds a `postinstall` script to `package.json` that runs `playwright install chromium` after `npm ci` / `npm install`. No manual browser install step is needed.
+
+If you prefer to install browsers manually, or the `postinstall` was skipped:
+
 ```bash
 npx playwright install chromium
 ```
+
+> **`devaudit install` / `devaudit update` automates this.** When `@playwright/test`
+> is in the stack's `required_dev_dependencies`, the CLI automatically adds a
+> `postinstall` script (`"playwright install chromium"`) to your `package.json`.
+> This ensures `npx playwright test` works without prompting to install browsers
+> after a fresh `npm ci`. If a `postinstall` script already exists, it is never
+> overwritten — a warning is logged instead.
 
 ### 5c. Git hooks (required — enforces commit conventions and pre-push gates)
 

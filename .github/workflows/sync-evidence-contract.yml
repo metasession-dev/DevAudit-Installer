@@ -1,0 +1,78 @@
+# Cross-repo contract sync — receives a repository_dispatch from the
+# portal repo (metasession-dev/devaudit) when the canonical
+# contracts/evidence-types.json changes on develop.
+#
+# Fetches the latest copy from the portal repo, updates the local
+# contracts/evidence-types.json, and opens a PR to develop so the
+# installer-side contract test validates the new file.
+
+name: Sync Evidence Contract
+
+on:
+  repository_dispatch:
+    types: [evidence-contract-updated]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    name: Sync contract file
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: develop
+          fetch-depth: 0
+
+      - name: Fetch latest contract from portal
+        run: |
+          curl -fsSL \
+            -o contracts/evidence-types.json \
+            https://raw.githubusercontent.com/metasession-dev/devaudit/develop/contracts/evidence-types.json
+          echo "Downloaded contract file:"
+          jq '.version' contracts/evidence-types.json
+
+      - name: Check for changes
+        id: diff
+        run: |
+          if git diff --quiet -- contracts/evidence-types.json; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Contract file is already up to date."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "Contract file differs — will open sync PR."
+          fi
+
+      - name: Open sync PR
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          BRANCH="chore/sync-evidence-contract"
+          git config user.name "devaudit-bot"
+          git config user.email "devaudit-bot@users.noreply.github.com"
+          git checkout -B "$BRANCH" origin/develop
+          git add contracts/evidence-types.json
+          git commit -m "chore: sync evidence-types.json from portal repo
+
+          Auto-synced by sync-evidence-contract.yml workflow triggered by
+          a repository_dispatch from metasession-dev/devaudit when
+          contracts/evidence-types.json changed on develop."
+
+          git push --force-with-lease origin "$BRANCH"
+
+          EXISTING=$(gh pr list --head "$BRANCH" --base develop --json number --jq '.[0].number' || true)
+          if [ -z "$EXISTING" ]; then
+            gh pr create \
+              --base develop \
+              --head "$BRANCH" \
+              --title "chore: sync evidence-types.json from portal repo" \
+              --body "Auto-synced from [metasession-dev/devaudit](https://github.com/metasession-dev/devaudit) when \`contracts/evidence-types.json\` changed on \`develop\`.
+
+          The installer-side contract test (\`cli/test/evidence-contract.test.ts\`) will validate the updated file in CI."
+          else
+            echo "PR #$EXISTING already open — branch updated in place."
+          fi
