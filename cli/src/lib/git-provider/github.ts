@@ -134,11 +134,13 @@ export class GitHubProvider implements GitProvider {
     cwd: string,
     branch: string,
     requiredChecks: readonly string[],
+    options?: { readonly requiredReviewCount?: number },
   ): Promise<BranchProtectionResult> {
+    const reviewCount = options?.requiredReviewCount ?? 0;
     const body = {
       required_status_checks: { strict: false, contexts: requiredChecks },
-      enforce_admins: false,
-      required_pull_request_reviews: { dismiss_stale_reviews: true, required_approving_review_count: 0 },
+      enforce_admins: true,
+      required_pull_request_reviews: { dismiss_stale_reviews: true, required_approving_review_count: reviewCount },
       restrictions: null,
     };
     if (this.preferGhCli && (await ghAvailable())) {

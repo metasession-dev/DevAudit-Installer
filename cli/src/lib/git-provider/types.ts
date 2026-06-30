@@ -39,6 +39,7 @@ export interface GitProvider {
     cwd: string,
     branch: string,
     requiredChecks: readonly string[],
+    options?: { readonly requiredReviewCount?: number },
   ): Promise<BranchProtectionResult>;
   createPullRequest(cwd: string, opts: PullRequestCreateOptions): Promise<PullRequestCreated>;
 }
