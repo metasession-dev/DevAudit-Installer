@@ -3,11 +3,16 @@ import { join } from 'node:path';
 import { execa } from 'execa';
 import { exists } from '../lib/fs-utils.js';
 import { loadStackAdapter } from '../lib/adapter.js';
+import { logger } from '../lib/logger.js';
 import type { SyncContext, SectionResult } from './types.js';
 
 interface PartialPackageJson {
   readonly devDependencies?: Readonly<Record<string, string>>;
+  readonly scripts?: Record<string, string>;
 }
+
+const PLAYWRIGHT_DEP = '@playwright/test';
+const POSTINSTALL_SCRIPT = 'playwright install chromium';
 
 /**
  * Section 2c-ii: Install missing stack devDependencies (node only for now).
@@ -34,23 +39,72 @@ export async function syncStackDeps(ctx: SyncContext): Promise<SectionResult> {
   const installed = new Set(Object.keys(pkg.devDependencies ?? {}));
   const missing = required.filter((dep) => !installed.has(dep));
   if (missing.length === 0) {
-    return { name: `${ctx.stack} deps`, filesSynced: 0, message: 'all present' };
+    const added = await ensurePostinstallScript(pkgPath, required);
+    return {
+      name: `${ctx.stack} deps`,
+      filesSynced: added ? 1 : 0,
+      message: added ? 'all present + postinstall added' : 'all present',
+    };
   }
   const args = ['install', '--save-dev', ...missing];
   const first = await execa('npm', args, { cwd: ctx.projectPath, reject: false, stdio: 'inherit' });
   if (first.exitCode === 0) {
-    return { name: `${ctx.stack} deps`, filesSynced: missing.length, message: `installed ${missing.join(' ')}` };
+    const added = await ensurePostinstallScript(pkgPath, required);
+    return {
+      name: `${ctx.stack} deps`,
+      filesSynced: missing.length + (added ? 1 : 0),
+      message: `installed ${missing.join(' ')}` + (added ? ' + postinstall' : ''),
+    };
   }
   const legacyArgs = ['install', '--save-dev', '--legacy-peer-deps', ...missing];
   const second = await execa('npm', legacyArgs, { cwd: ctx.projectPath, reject: false, stdio: 'inherit' });
   if (second.exitCode === 0) {
+    const added = await ensurePostinstallScript(pkgPath, required);
     return {
       name: `${ctx.stack} deps`,
-      filesSynced: missing.length,
-      message: `installed ${missing.join(' ')} (with --legacy-peer-deps)`,
+      filesSynced: missing.length + (added ? 1 : 0),
+      message: `installed ${missing.join(' ')} (with --legacy-peer-deps)` + (added ? ' + postinstall' : ''),
     };
   }
   throw new Error(
     `Failed to install ${ctx.stack} deps. Fix manually: cd ${ctx.projectPath} && npm install --save-dev ${missing.join(' ')}`,
   );
+}
+
+/**
+ * devaudit-installer#245 — Ensure the consumer's package.json has a
+ * postinstall script that installs Playwright browsers automatically.
+ *
+ * Called after syncStackDeps installs missing deps. If @playwright/test
+ * is in required_dev_dependencies:
+ * - No postinstall script → add "playwright install chromium"
+ * - postinstall exists and mentions playwright → leave it
+ * - postinstall exists but doesn't mention playwright → warn (don't overwrite)
+ *
+ * Returns true if the script was added (filesSynced += 1).
+ */
+export async function ensurePostinstallScript(
+  pkgPath: string,
+  requiredDeps: readonly string[],
+): Promise<boolean> {
+  if (!requiredDeps.includes(PLAYWRIGHT_DEP)) {
+    return false;
+  }
+  const raw = await fs.readFile(pkgPath, 'utf-8');
+  const pkg = JSON.parse(raw) as { scripts?: Record<string, string> };
+  const scripts = pkg.scripts ?? {};
+  const existing = scripts['postinstall'];
+  if (existing) {
+    if (existing.includes('playwright')) {
+      return false;
+    }
+    logger().warn(
+      `postinstall script already exists ("${existing}") — not overwriting. ` +
+        'Manually add "playwright install chromium" if you want browsers auto-installed.',
+    );
+    return false;
+  }
+  pkg.scripts = { ...scripts, postinstall: POSTINSTALL_SCRIPT };
+  await fs.writeFile(pkgPath, JSON.stringify(pkg, null, 2) + '\n', 'utf-8');
+  return true;
 }

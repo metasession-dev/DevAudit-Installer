@@ -1,0 +1,61 @@
+# devaudit-installer#247 — Evidence-type contract check.
+#
+# Runs on every push/PR that touches CI templates or the contract file.
+# Also runs on repository_dispatch from the portal repo
+# (evidence-contract-updated event) so a contract change in the portal
+# triggers a check here immediately.
+#
+# The test extracts all evidence_type values from CI templates and
+# verifies they exist in contracts/evidence-types.json. If a template
+# emits a type the contract doesn't know, the portal will reject the
+# upload at runtime — this test catches that at build time.
+
+name: Evidence Contract Check
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'sdlc/files/ci/**'
+      - 'contracts/evidence-types.json'
+      - 'cli/src/lib/evidence-type-extractor.ts'
+      - 'cli/test/evidence-contract*.test.ts'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'sdlc/files/ci/**'
+      - 'contracts/evidence-types.json'
+      - 'cli/src/lib/evidence-type-extractor.ts'
+      - 'cli/test/evidence-contract*.test.ts'
+  repository_dispatch:
+    types: [evidence-contract-updated]
+
+jobs:
+  contract-check:
+    name: Verify CI templates match evidence contract
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: cli/package.json
+
+      - name: Install CLI deps
+        working-directory: cli
+        run: npm ci
+
+      - name: Run evidence contract tests
+        working-directory: cli
+        run: npx vitest run --reporter=verbose test/evidence-contract.test.ts test/evidence-contract-extraction.test.ts
+
+      - name: Notify on dispatch (contract updated by portal)
+        if: github.event_name == 'repository_dispatch'
+        run: |
+          echo "Contract updated by portal (sha: ${{ github.event.client_payload.sha }})"
+          echo "Message: ${{ github.event.client_payload.message }}"
+          echo "If this check fails, update CI templates to match the new contract."

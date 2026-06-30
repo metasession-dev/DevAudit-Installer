@@ -1,0 +1,264 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/metasession-dev/devaudit/main/contracts/evidence-types.json",
+  "title": "DevAudit Evidence-Type Contract",
+  "description": "Authoritative list of evidence types, categories, and release shapes shared between the DevAudit portal and the DevAudit-Installer CLI. Both repos validate against this file to prevent silent drift.",
+  "version": "1.0.0",
+  "evidence_types": {
+    "screenshot": {
+      "category": "ci_pipeline",
+      "description": "Per-AC screenshot evidence from E2E tests",
+      "clause_predicates": ["ISO29119.3.5.6"],
+      "ac_proof": true
+    },
+    "e2e_result": {
+      "category": "ci_pipeline",
+      "description": "E2E test results (Playwright JSON reporter)",
+      "clause_predicates": ["ISO29119.3.5.6"],
+      "test_cycle_scoped": true
+    },
+    "playwright_report_bundle": {
+      "category": "ci_pipeline",
+      "description": "Playwright report bundle (ZIP with traces, screenshots, HTML)",
+      "clause_predicates": [],
+      "test_cycle_scoped": true
+    },
+    "test_report": {
+      "category": "test_report",
+      "description": "Per-REQ test execution summary",
+      "clause_predicates": ["ISO29119.3.5.6"]
+    },
+    "sast_report": {
+      "category": "security_scan",
+      "description": "SAST scan results (Semgrep JSON)",
+      "clause_predicates": ["ISO27001.A.8.28"],
+      "gate": true
+    },
+    "dependency_audit": {
+      "category": "security_scan",
+      "description": "Dependency audit results (npm audit JSON)",
+      "clause_predicates": ["ISO27001.A.8.28"],
+      "gate": true
+    },
+    "compliance_document": {
+      "category": "planning",
+      "description": "Catch-all for project-level compliance docs (Test_Policy, Test_Strategy, etc.)",
+      "clause_predicates": []
+    },
+    "ropa": {
+      "category": "planning",
+      "description": "Record of Processing Activities (GDPR Art. 30)",
+      "clause_predicates": ["GDPR.30"]
+    },
+    "dpia": {
+      "category": "planning",
+      "description": "Data Protection Impact Assessment (GDPR Art. 35)",
+      "clause_predicates": ["GDPR.35"]
+    },
+    "ai_disclosure": {
+      "category": "ai_handoff",
+      "description": "AI Use Disclosure (EU AI Act Art. 13)",
+      "clause_predicates": ["EUAIA.13"]
+    },
+    "periodic_review": {
+      "category": "planning",
+      "description": "Periodic security review schedule",
+      "clause_predicates": ["ISO27001.A.12.1"]
+    },
+    "audit_log": {
+      "category": "ci_pipeline",
+      "description": "Portal audit log export (90-day window)",
+      "clause_predicates": []
+    },
+    "incident_report": {
+      "category": "test_report",
+      "description": "Incident report (per-incident or nil attestation)",
+      "clause_predicates": ["ISO29119.3.5.4"]
+    },
+    "srs_alignment": {
+      "category": "planning",
+      "description": "Per-REQ SRS alignment artifact",
+      "clause_predicates": []
+    },
+    "architecture_decision": {
+      "category": "planning",
+      "description": "Per-REQ architecture decision record",
+      "clause_predicates": ["ISO27001.A.8.25"]
+    },
+    "risk_assessment": {
+      "category": "planning",
+      "description": "Per-REQ risk assessment from risk register",
+      "clause_predicates": ["SOC2.CC3.2"]
+    },
+    "test_scope": {
+      "category": "planning",
+      "description": "Per-REQ test scope document",
+      "clause_predicates": ["ISO29119.3.3"]
+    },
+    "test_plan": {
+      "category": "planning",
+      "description": "Per-REQ or project-level test plan",
+      "clause_predicates": ["ISO29119.3.4"]
+    },
+    "test_cases": {
+      "category": "planning",
+      "description": "Per-REQ test cases",
+      "clause_predicates": ["ISO29119.3.4"]
+    },
+    "rtm": {
+      "category": "planning",
+      "description": "Requirements Traceability Matrix",
+      "clause_predicates": ["ISO29119.3.3"]
+    },
+    "implementation_plan": {
+      "category": "planning",
+      "description": "Per-REQ implementation plan",
+      "clause_predicates": ["ISO27001.A.8.25"]
+    },
+    "security_summary": {
+      "category": "security_scan",
+      "description": "Per-REQ or release-scoped security summary",
+      "clause_predicates": ["ISO27001.A.8.28", "SOC2.CC6.1"]
+    },
+    "ai_use_note": {
+      "category": "ai_handoff",
+      "description": "Per-REQ AI usage note",
+      "clause_predicates": ["EUAIA.13"]
+    },
+    "ai_prompt_log": {
+      "category": "ai_handoff",
+      "description": "Per-REQ AI prompt log",
+      "clause_predicates": ["EUAIA.12"]
+    },
+    "ai_agent_handoff": {
+      "category": "ai_handoff",
+      "description": "Per-REQ AI agent handoff log",
+      "clause_predicates": ["EUAIA.14"]
+    },
+    "gate_outcome": {
+      "category": "ci_pipeline",
+      "description": "Gate outcome summary (pass/fail per gate)",
+      "clause_predicates": [],
+      "gate": true
+    },
+    "release_ticket": {
+      "category": "release_artifact",
+      "description": "Release ticket (operator-authored or CI-generated stub)",
+      "clause_predicates": []
+    },
+    "smoke_test": {
+      "category": "ci_pipeline",
+      "description": "Post-deploy production smoke test results",
+      "clause_predicates": []
+    },
+    "e2e_report": {
+      "category": "ci_pipeline",
+      "description": "E2E HTML report (Playwright ZIP)",
+      "clause_predicates": [],
+      "test_cycle_scoped": true
+    },
+    "feature_e2e_report": {
+      "category": "ci_pipeline",
+      "description": "Pre-merge feature-branch E2E report",
+      "clause_predicates": []
+    },
+    "release_registration": {
+      "category": "release_artifact",
+      "description": "Registers a release record in the portal",
+      "clause_predicates": []
+    },
+    "coverage_report": {
+      "category": "ci_pipeline",
+      "description": "Jest coverage summary (coverage-summary.json)",
+      "clause_predicates": []
+    },
+    "bundled_changes": {
+      "category": "release_artifact",
+      "description": "Summary of housekeeping commits folded into a REQ release",
+      "clause_predicates": []
+    },
+    "manual_upload": {
+      "category": "ci_pipeline",
+      "description": "Manual upload (other) — catch-all for types not in the registry",
+      "clause_predicates": []
+    }
+  },
+  "evidence_categories": [
+    "ci_pipeline",
+    "local_dev",
+    "planning",
+    "test_report",
+    "security_scan",
+    "release_artifact",
+    "ai_handoff"
+  ],
+  "release_shapes": {
+    "tracked": {
+      "version_pattern": "^REQ-\\d+$",
+      "description": "REQ-tagged release with full per-REQ evidence ceremony",
+      "expected_evidence_types": [
+        "release_ticket",
+        "security_summary",
+        "sast_report",
+        "dependency_audit",
+        "e2e_result",
+        "gate_outcome",
+        "test_scope",
+        "test_plan",
+        "implementation_plan",
+        "test_report",
+        "srs_alignment",
+        "architecture_decision",
+        "risk_assessment"
+      ],
+      "optional_evidence_types": [
+        "ai_use_note",
+        "ai_prompt_log",
+        "ai_agent_handoff",
+        "screenshot",
+        "coverage_report",
+        "e2e_report",
+        "incident_report",
+        "audit_log",
+        "bundled_changes",
+        "playwright_report_bundle"
+      ],
+      "not_applicable_evidence_types": []
+    },
+    "housekeeping": {
+      "version_pattern": "^v\\d{4}\\.\\d{2}\\.\\d{2}(\\.\\d+)?$",
+      "description": "Bare-date release for no-REQ pushes (docs, chore, ci, build, test, compliance, revert)",
+      "expected_evidence_types": [
+        "release_ticket",
+        "security_summary",
+        "sast_report",
+        "dependency_audit",
+        "e2e_result",
+        "gate_outcome"
+      ],
+      "optional_evidence_types": [
+        "coverage_report",
+        "e2e_report",
+        "incident_report",
+        "audit_log",
+        "rtm",
+        "test_plan",
+        "compliance_document",
+        "periodic_review"
+      ],
+      "not_applicable_evidence_types": [
+        "test_scope",
+        "implementation_plan",
+        "test_report",
+        "srs_alignment",
+        "architecture_decision",
+        "risk_assessment",
+        "ai_use_note",
+        "ai_prompt_log",
+        "ai_agent_handoff",
+        "screenshot",
+        "bundled_changes"
+      ]
+    }
+  }
+}
