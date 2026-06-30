@@ -182,6 +182,7 @@ If the CI workflow is missing or fails, the update may have overwritten a custom
 6. Issues an API key and stores it as a GitHub secret
 7. Applies branch protection rules
 8. Syncs scripts (evidence upload, compliance validation)
+9. Adds `postinstall` script (`playwright install chromium`) to `package.json` if `@playwright/test` is a required dep and no postinstall exists — ensures browsers auto-install after `npm ci`
 
 ## What update does (existing project)
 
@@ -191,7 +192,8 @@ If the CI workflow is missing or fails, the update may have overwritten a custom
 4. Syncs scripts — overwrites with latest
 5. Updates AI agent pointer files (`.cursorrules`, `.windsurfrules`, `CLAUDE.md`, etc.)
 6. Adds sentinel entries to `.gitignore` if missing
-7. Does NOT touch: `sdlc-config.json`, portal registration, API keys, secrets, branch protection
+7. Adds `postinstall` script (`playwright install chromium`) to `package.json` if `@playwright/test` is a required dep and no postinstall exists — ensures browsers auto-install after `npm ci`
+8. Does NOT touch: `sdlc-config.json`, portal registration, API keys, secrets, branch protection
 
 ## Common issues
 
@@ -199,4 +201,5 @@ If the CI workflow is missing or fails, the update may have overwritten a custom
 - **Install fails with 401/403** — `DEVAUDIT_USER_TOKEN` is missing, expired, or wrong. Get a new token from the DevAudit portal `/settings/api-keys`.
 - **Update overwrites custom CI config** — `devaudit update` regenerates `ci.yml` from the template. If you have project-specific customizations, keep them in a separate workflow file (e.g. `.github/workflows/project-specific.yml`) rather than editing `ci.yml` directly.
 - **`SDLC/bin/devaudit-sdlc.js` missing after update** — the sync section 2h failed. Check that the CLI version you're using is >= 0.3.2 (the version that added the engine sync).
+- **Postinstall script not added** — ensure you're using CLI >= 0.3.3. If a `postinstall` script already exists (and doesn't mention `playwright install`), it won't be overwritten — a warning is logged instead. Add `playwright install chromium` manually if needed.
 - **Pre-push hook blocks pushes** — the hook checks for `.sdlc-implementer-invoked`. Run `node SDLC/bin/devaudit-sdlc.js --phase=issue` before committing to write the sentinel.
