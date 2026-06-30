@@ -11,8 +11,8 @@ interface PartialPackageJson {
   readonly scripts?: Record<string, string>;
 }
 
+const PLAYWRIGHT_POSTINSTALL = 'playwright install chromium';
 const PLAYWRIGHT_DEP = '@playwright/test';
-const POSTINSTALL_SCRIPT = 'playwright install chromium';
 
 /**
  * Section 2c-ii: Install missing stack devDependencies (node only for now).
@@ -40,21 +40,13 @@ export async function syncStackDeps(ctx: SyncContext): Promise<SectionResult> {
   const missing = required.filter((dep) => !installed.has(dep));
   if (missing.length === 0) {
     const added = await ensurePostinstallScript(pkgPath, required);
-    return {
-      name: `${ctx.stack} deps`,
-      filesSynced: added ? 1 : 0,
-      message: added ? 'all present + postinstall added' : 'all present',
-    };
+    return { name: `${ctx.stack} deps`, filesSynced: 0, message: added ? 'all present, added postinstall' : 'all present' };
   }
   const args = ['install', '--save-dev', ...missing];
   const first = await execa('npm', args, { cwd: ctx.projectPath, reject: false, stdio: 'inherit' });
   if (first.exitCode === 0) {
     const added = await ensurePostinstallScript(pkgPath, required);
-    return {
-      name: `${ctx.stack} deps`,
-      filesSynced: missing.length + (added ? 1 : 0),
-      message: `installed ${missing.join(' ')}` + (added ? ' + postinstall' : ''),
-    };
+    return { name: `${ctx.stack} deps`, filesSynced: missing.length, message: `installed ${missing.join(' ')}${added ? ', added postinstall' : ''}` };
   }
   const legacyArgs = ['install', '--save-dev', '--legacy-peer-deps', ...missing];
   const second = await execa('npm', legacyArgs, { cwd: ctx.projectPath, reject: false, stdio: 'inherit' });
@@ -62,8 +54,8 @@ export async function syncStackDeps(ctx: SyncContext): Promise<SectionResult> {
     const added = await ensurePostinstallScript(pkgPath, required);
     return {
       name: `${ctx.stack} deps`,
-      filesSynced: missing.length + (added ? 1 : 0),
-      message: `installed ${missing.join(' ')} (with --legacy-peer-deps)` + (added ? ' + postinstall' : ''),
+      filesSynced: missing.length,
+      message: `installed ${missing.join(' ')} (with --legacy-peer-deps)${added ? ', added postinstall' : ''}`,
     };
   }
   throw new Error(
@@ -72,16 +64,12 @@ export async function syncStackDeps(ctx: SyncContext): Promise<SectionResult> {
 }
 
 /**
- * devaudit-installer#245 — Ensure the consumer's package.json has a
- * postinstall script that installs Playwright browsers automatically.
+ * Ensure the consumer's package.json has a `postinstall` script that
+ * installs Playwright browsers, but only if `@playwright/test` is in the
+ * adapter's `required_dev_dependencies`. Idempotent: does not overwrite
+ * an existing postinstall unless it's a bare match.
  *
- * Called after syncStackDeps installs missing deps. If @playwright/test
- * is in required_dev_dependencies:
- * - No postinstall script → add "playwright install chromium"
- * - postinstall exists and mentions playwright → leave it
- * - postinstall exists but doesn't mention playwright → warn (don't overwrite)
- *
- * Returns true if the script was added (filesSynced += 1).
+ * DevAudit-Installer#245.
  */
 export async function ensurePostinstallScript(
   pkgPath: string,
@@ -91,20 +79,22 @@ export async function ensurePostinstallScript(
     return false;
   }
   const raw = await fs.readFile(pkgPath, 'utf-8');
-  const pkg = JSON.parse(raw) as { scripts?: Record<string, string> };
+  const pkg = JSON.parse(raw) as PartialPackageJson & { scripts?: Record<string, string> };
   const scripts = pkg.scripts ?? {};
   const existing = scripts['postinstall'];
-  if (existing) {
-    if (existing.includes('playwright')) {
-      return false;
-    }
+
+  if (existing === PLAYWRIGHT_POSTINSTALL) {
+    return false;
+  }
+  if (existing && !existing.includes('playwright install')) {
     logger().warn(
-      `postinstall script already exists ("${existing}") — not overwriting. ` +
-        'Manually add "playwright install chromium" if you want browsers auto-installed.',
+      `  postinstall script already exists ("${existing}") — not overwriting. Add "playwright install chromium" manually if needed.`,
     );
     return false;
   }
-  pkg.scripts = { ...scripts, postinstall: POSTINSTALL_SCRIPT };
+
+  scripts['postinstall'] = PLAYWRIGHT_POSTINSTALL;
+  pkg.scripts = scripts;
   await fs.writeFile(pkgPath, JSON.stringify(pkg, null, 2) + '\n', 'utf-8');
   return true;
 }

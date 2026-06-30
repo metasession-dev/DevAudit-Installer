@@ -51,17 +51,30 @@ describe('ensurePostinstallScript — devaudit-installer#245', () => {
     expect(scripts['postinstall']).toBe('playwright install chromium');
   });
 
-  it('leaves existing postinstall that mentions playwright', async () => {
+  it('overwrites postinstall that mentions playwright install but differs', async () => {
     const dir = await fs.mkdtemp(join(tmpdir(), 'postinstall-pw-'));
     dirs.push(dir);
     const pkgPath = await writePkg(dir, {
       postinstall: 'npx playwright install --with-deps',
     });
     const added = await ensurePostinstallScript(pkgPath, REQUIRED_WITH_PW);
+    expect(added).toBe(true);
+    const pkg = await readPkg(pkgPath);
+    const scripts = pkg['scripts'] as Record<string, string>;
+    expect(scripts['postinstall']).toBe('playwright install chromium');
+  });
+
+  it('leaves exact-match postinstall unchanged', async () => {
+    const dir = await fs.mkdtemp(join(tmpdir(), 'postinstall-exact-'));
+    dirs.push(dir);
+    const pkgPath = await writePkg(dir, {
+      postinstall: 'playwright install chromium',
+    });
+    const added = await ensurePostinstallScript(pkgPath, REQUIRED_WITH_PW);
     expect(added).toBe(false);
     const pkg = await readPkg(pkgPath);
     const scripts = pkg['scripts'] as Record<string, string>;
-    expect(scripts['postinstall']).toBe('npx playwright install --with-deps');
+    expect(scripts['postinstall']).toBe('playwright install chromium');
   });
 
   it('does not overwrite existing postinstall without playwright', async () => {
