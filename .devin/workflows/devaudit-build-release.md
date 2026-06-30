@@ -1,5 +1,5 @@
 ---
-description: Full release pipeline — verify, build, publish all 5 packages to npm, create GitHub release, and confirm consumers can install. Run this after changes are merged to main and you are ready to release.
+description: Full release pipeline — verify, build, publish all 5 packages to npm, create GitHub release, and confirm consumers can install. Auto-detects when a version bump is needed. Run this after changes are merged to main and you are ready to release.
 ---
 
 # Verify, Build, Publish — Full Release Pipeline
@@ -48,6 +48,31 @@ git add plugin-sdk/package.json cli/package.json sdlc/package.json plugins/devau
 git commit -m "chore: bump all packages to $(jq -r .version cli/package.json) for release"
 git push origin main
 ```
+
+### 1b. Check if current version is already published on npm
+
+If all packages are aligned but the version is already on npm, you need to bump before tagging. This detects that situation automatically.
+
+```bash
+// turbo
+CURRENT_VERSION=$(jq -r .version cli/package.json)
+REGISTRY_VERSION=$(npm view @metasession.co/devaudit-cli version 2>/dev/null || echo "NOT_PUBLISHED")
+if [ "$CURRENT_VERSION" = "$REGISTRY_VERSION" ]; then
+  echo "Version $CURRENT_VERSION is already published on npm — bump is required."
+  echo ""
+  echo "Suggested next version (patch):"
+  MAJOR=$(echo "$CURRENT_VERSION" | cut -d. -f1)
+  MINOR=$(echo "$CURRENT_VERSION" | cut -d. -f2)
+  PATCH=$(echo "$CURRENT_VERSION" | cut -d. -f3)
+  echo "  $MAJOR.$MINOR.$((PATCH + 1))"
+  echo ""
+  echo "Set VERSION below and run the bump block from Step 1."
+else
+  echo "Version $CURRENT_VERSION is not yet published — ready to release."
+fi
+```
+
+If a bump is required, ask the user for the target version, then run the bump block from Step 1 with the new version before continuing.
 
 ### 2. Verify registry state — what's currently published
 
