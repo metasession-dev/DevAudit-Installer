@@ -190,6 +190,11 @@ describe('syncProject — native TS sync against a fixture', () => {
     expect(await fs.stat(join(fixtureDir, 'SDLC', 'blueprints', 'implementing-an-sdlc-issue.raw.md'))).toBeTruthy();
     const engineContent = await fs.readFile(join(fixtureDir, 'SDLC', 'bin', 'devaudit-sdlc.js'), 'utf-8');
     expect(engineContent).toContain('SDLC Gateway Initialized');
+    // Section 2i — Windsurf workflow files
+    expect(await fs.stat(join(fixtureDir, '.devin', 'workflows', 'devaudit-update-install.md'))).toBeTruthy();
+    const workflowContent = await fs.readFile(join(fixtureDir, '.devin', 'workflows', 'devaudit-update-install.md'), 'utf-8');
+    expect(workflowContent).toContain('devaudit install');
+    expect(workflowContent).toContain('devaudit update');
   }, 60_000);
 
   it('is idempotent — re-running produces no errors and same file count', async () => {
