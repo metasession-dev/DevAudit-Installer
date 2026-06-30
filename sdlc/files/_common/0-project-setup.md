@@ -266,6 +266,13 @@ If you prefer to install browsers manually, or the `postinstall` was skipped:
 npx playwright install chromium
 ```
 
+> **`devaudit install` / `devaudit update` automates this.** When `@playwright/test`
+> is in the stack's `required_dev_dependencies`, the CLI automatically adds a
+> `postinstall` script (`"playwright install chromium"`) to your `package.json`.
+> This ensures `npx playwright test` works without prompting to install browsers
+> after a fresh `npm ci`. If a `postinstall` script already exists, it is never
+> overwritten — a warning is logged instead.
+
 ### 5c. Git hooks (required — enforces commit conventions and pre-push gates)
 
 Install husky, commitlint, and lint-staged:
