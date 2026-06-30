@@ -42,7 +42,7 @@ function makeFakeProvider() {
       return false;
     },
     async applyBranchProtection(_cwd: string, branch: string, checks: readonly string[]) {
-      providerCalls.push({ method: 'applyBranchProtection', args: [branch, checks.length] });
+      providerCalls.push({ method: 'applyBranchProtection', args: [branch, [...checks]] });
       return { applied: true };
     },
     async createPullRequest() {
@@ -214,6 +214,14 @@ describe('runInstall — native TS install against a node fixture', () => {
       expect(variableCall?.args[0]).toBe('DEVAUDIT_BASE_URL');
       // branch protection applied via provider
       expect(providerCalls.find((c) => c.method === 'applyBranchProtection')).toBeDefined();
+      // DevAudit-Installer#264: only unconditional checks should be required
+      const bpCalls = providerCalls.filter((c) => c.method === 'applyBranchProtection');
+      for (const call of bpCalls) {
+        const checks = call.args[1] as readonly string[];
+        expect(checks).toEqual(['Quality Gates', 'CI Status Fallback']);
+        expect(checks).not.toContain('Compliance Validation');
+        expect(checks).not.toContain('DevAudit Release Approval');
+      }
     } finally {
       await fs.rm(dir, { recursive: true, force: true });
     }
