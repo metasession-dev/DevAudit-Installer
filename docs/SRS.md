@@ -492,7 +492,7 @@ dependencies (tier 3) — which is exactly the coverage the current unit-only su
 | REQ-CLI-UPDATE-003           | Stage docs (\_common/\*.md) sync into SDLC/                                                           | Must     | `cli/src/update/stage-docs.ts`                                                                                                |
 | REQ-CLI-UPDATE-004           | AI rule files: pointer files overwritten, CLAUDE.md/INSTRUCTIONS.md merged                            | Must     | `cli/src/update/ai-rules.ts`                                                                                                  |
 | REQ-CLI-UPDATE-005           | Stack hooks + hook config files (host-conditioned via stack adapter)                                  | Should   | `cli/src/update/stack-hooks.ts`                                                                                               |
-| REQ-CLI-UPDATE-006           | Stack dev-dependency install (node only) is the one section that runs a subprocess                    | Should   | `cli/src/update/stack-deps.ts`                                                                                                |
+| REQ-CLI-UPDATE-006           | Stack dev-dependency install + Playwright postinstall injection (node only) (#245)                    | Should   | `cli/src/update/stack-deps.ts`                                                                                                |
 | REQ-CLI-UPDATE-007           | Scripts merged into scripts/ (common + stack + upload-evidence.sh), executable                        | Should   | `cli/src/update/scripts.ts`                                                                                                   |
 | REQ-CLI-UPDATE-008           | GitHub issue templates synced to .github/ISSUE_TEMPLATE/                                              | Could    | `cli/src/update/issue-templates.ts`                                                                                           |
 | REQ-CLI-UPDATE-009           | Claude Code skills replaced wholesale into .claude/skills/                                            | Should   | `cli/src/update/skills.ts`                                                                                                    |
@@ -673,6 +673,10 @@ dependencies (tier 3) — which is exactly the coverage the current unit-only su
 | REQ-FRAMEWORK-RENDER-004     | Python stack renders the stack-specific ci.yml with python gates                                      | Should   | `cli/src/update/ci-templates.ts`                                                                                              |
 | REQ-FRAMEWORK-RENDER-005     | Railway host wiring: push-to-main deploy, prod URL from secret, no deploy step                        | Should   | `sdlc/files/hosts/railway/adapter.json`                                                                                       |
 | REQ-FRAMEWORK-RENDER-006     | Sync removes superseded workflows and writes all CI_TEMPLATES present                                 | Should   | `cli/src/update/ci-templates.ts`                                                                                              |
+| REQ-FRAMEWORK-CONTRACT-001   | Shared evidence-types.json contract file maintained in portal repo, synced to installer (#247)        | Must     | `contracts/evidence-types.json`, `cli/test/evidence-contract.test.ts`                                                         |
+| REQ-FRAMEWORK-CONTRACT-002   | Installer-side contract test extracts evidence types from CI templates and validates against contract (#247) | Must | `cli/test/evidence-contract.test.ts`                                                                                          |
+| REQ-FRAMEWORK-CONTRACT-003   | Cross-repo sync: portal dispatches on contract change, installer auto-PRs updated copy (#247)         | Should   | `.github/workflows/sync-evidence-contract.yml` (both repos)                                                                   |
+| REQ-FRAMEWORK-CONTRACT-004   | CLI CI triggers on sdlc/files/ci/** and contracts/evidence-types.json changes (#247)                  | Must     | `.github/workflows/cli.yml`                                                                                                   |
 | REQ-FRAMEWORK-ADAPTER-001    | Stack adapter resolved from sdlc-config.json, defaulting to node                                      | Must     | `cli/src/update/resolve-adapters.ts`                                                                                          |
 | REQ-FRAMEWORK-ADAPTER-002    | Host adapter resolved from sdlc-config.json, defaulting to railway                                    | Must     | `cli/src/update/resolve-adapters.ts`                                                                                          |
 | REQ-FRAMEWORK-ADAPTER-003    | Install-time stack auto-detection by manifest file (pyproject precedence over package.json)           | Must     | `cli/src/install/detect-stack.ts`                                                                                             |
@@ -682,7 +686,7 @@ dependencies (tier 3) — which is exactly the coverage the current unit-only su
 | REQ-FRAMEWORK-ADAPTER-007    | Node hook config files have required content                                                          | Should   | `sdlc/files/stacks/node/hooks/{pre-commit,pre-push,commit-msg,commitlint.config.mjs,lint-staged.config.mjs,.prettierrc.json}` |
 | REQ-FRAMEWORK-ADAPTER-008    | Python pre-commit config has required hook content                                                    | Should   | `sdlc/files/stacks/python/hooks/.pre-commit-config.yaml`                                                                      |
 | REQ-FRAMEWORK-ADAPTER-009    | Node stack scripts copied; python declares none                                                       | Should   | `adapter.json`                                                                                                                |
-| REQ-FRAMEWORK-ADAPTER-010    | Node dev-dependencies auto-installed when missing (node only)                                         | Should   | `cli/src/update/stack-deps.ts`                                                                                                |
+| REQ-FRAMEWORK-ADAPTER-010    | Node dev-dependencies auto-installed + Playwright postinstall injected when missing (node only, #245) | Should   | `cli/src/update/stack-deps.ts`                                                                                                |
 | REQ-FRAMEWORK-ADAPTER-011    | Railway host adapter substitutes deploy trigger, production-URL secret resolution and wait-for-deploy | Must     | `sdlc/files/hosts/railway/adapter.json`                                                                                       |
 | REQ-FRAMEWORK-ADAPTER-012    | Host adapter loaded only by name; ci-templates consume the substituted deploy bits                    | Should   | `cli/src/lib/adapter.ts`                                                                                                      |
 | REQ-FRAMEWORK-ADAPTER-013    | Malformed adapter manifest aborts the sync at parse time or schema validation (Ajv)                  | Should   | `cli/src/lib/adapter.ts`                                                                                                      |
@@ -987,14 +991,15 @@ Command registration: `cli/src/index.ts` (`main`). Installer-root / template-sou
 - **Error paths:** No `hook_install_dir` declared → SKIPPED (`no hook_install_dir declared`). Install dir absent → SKIPPED (`<dir>/ not found — bootstrap hook framework first`). Stack has no `hooks/` → SKIPPED (`stack has no hooks/`).
 - **Fixtures/env:** Fixture pre-creates `.husky/`; test asserts `commit-msg`, `pre-commit`, `pre-push`, and the three root config files exist.
 
-#### REQ-CLI-UPDATE-006 — Stack dev-dependency install (node only) is the one section that runs a subprocess
+#### REQ-CLI-UPDATE-006 — Stack dev-dependency install + Playwright postinstall injection (node only)
 
-- **Priority:** Should — convenience; only fires when deps are actually missing.
-- **Source:** `cli/src/update/stack-deps.ts` (`syncStackDeps`)
+- **Priority:** Should — convenience; only fires when deps are actually missing or postinstall is absent.
+- **Source:** `cli/src/update/stack-deps.ts` (`syncStackDeps`, `ensurePostinstallScript`)
 - **Preconditions / inputs:** `stack === 'node'`, a `package.json` present, adapter's `required_dev_dependencies` non-empty.
 - **Given** a node consumer whose `package.json` already lists every required dev-dep **When** update runs **Then** **no subprocess runs**; section reports `[2c-ii] node deps … all present` (0 files). **Given** missing deps **Then** runs `npm install --save-dev <missing…>` (stdio inherited) in the consumer dir; on failure retries with `--legacy-peer-deps`; success reports the installed list (with a `(with --legacy-peer-deps)` note on the retry path). **Network:** `npm install` reaches the npm registry only when deps are missing.
-- **Error paths:** Both npm attempts fail → throws `Failed to install node deps. Fix manually: cd <path> && npm install --save-dev <missing>` → `syncAll` rethrows → exit **1**. Non-node stack → SKIPPED. No `package.json` → SKIPPED (`no package.json`).
-- **Fixtures/env:** Fixture lists all node dev-deps so the test path is "all present" (no network).
+- **Postinstall injection (#245):** After the dep check (whether deps were missing or all present), if `@playwright/test` is in the adapter's `required_dev_dependencies`, the section also calls `ensurePostinstallScript` which reads the consumer's `package.json` and checks `scripts.postinstall`: (a) if already `"playwright install chromium"` → no-op; (b) if absent → adds `"postinstall": "playwright install chromium"` and writes the file; (c) if present but doesn't mention `playwright install` → logs a warning and does **not** overwrite. The section message includes `, added postinstall` when the script was added. This ensures `npm ci` in the consumer repo auto-installs Chromium browsers without a separate `npx playwright install` step.
+- **Error paths:** Both npm attempts fail → throws `Failed to install node deps. Fix manually: cd <path> && npm install --save-dev <missing>` → `syncAll` rethrows → exit **1**. Non-node stack → SKIPPED. No `package.json` → SKIPPED (`no package.json`). Existing postinstall without playwright → warning, continue (no overwrite).
+- **Fixtures/env:** Fixture lists all node dev-deps so the test path is "all present" (no network). Separate fixture with `@playwright/test` in deps but no `postinstall` script → assert script added. Fixture with existing `postinstall` mentioning playwright → no-op. Fixture with existing `postinstall` not mentioning playwright → warning, no overwrite.
 
 #### REQ-CLI-UPDATE-007 — Scripts merged into `scripts/` (common + stack + upload-evidence.sh), executable
 
@@ -2265,6 +2270,44 @@ Area codes: FRAMEWORK-CIYML (ci.yml quality gates + evidence job), FRAMEWORK-EVI
 - **Given** a CI run producing SAST, dep-audit, E2E, coverage, and gate-outcome artifacts **When** the upload step runs **Then** each artifact uploads under its dedicated evidence_type (not a shared `audit_log` or `compliance_document`); the portal receives correctly typed evidence for each panel.
 - **Error paths:** Individual upload failures are soft (`|| echo Warning`); `UPLOAD_FAILURES` tracked across all uploads.
 - **Fixtures/env:** CI run with all artifact types; portal stub asserting evidence_type per upload.
+
+---
+
+#### REQ-FRAMEWORK-CONTRACT-001 — Shared evidence-types.json contract file (#247)
+
+- **Priority:** Must — the contract file is the single source of truth for evidence type names shared between the installer CI templates and the portal's `EvidenceType` union.
+- **Source:** `contracts/evidence-types.json` (canonical copy in portal repo `metasession-dev/devaudit`); synced copy in installer repo at `contracts/evidence-types.json`.
+- **Preconditions / inputs:** Portal repo's `contracts/evidence-types.json` defines `evidence_types` (array of `{ value, label, category, ac_proof, group }`), `evidence_categories` (array matching portal's `EvidenceCategory` union), and `release_shapes` (patterns matching `classifyReleaseShape()`).
+- **Given** the portal repo **When** `contracts/evidence-types.json` is modified on `develop` **Then** the portal-side contract test (`tests/unit/contract/evidence-contract.test.ts`) validates that every type in the contract is in `VALID_EVIDENCE_TYPES` and vice versa, every category matches the `EvidenceCategory` union, and release shape patterns match `classifyReleaseShape()`. **Given** the installer repo **When** the contract test runs **Then** `contracts/evidence-types.json` is loaded from the local copy and every evidence type extracted from CI templates must exist in the contract's `evidence_types` array.
+- **Error paths:** Contract file missing → test fails with "Contract file not found". Type mismatch → test fails listing the diff. Category mismatch → test fails listing the diff.
+- **Fixtures/env:** Contract JSON file on disk; portal `EVIDENCE_TYPE_REGISTRY` loaded in test.
+
+#### REQ-FRAMEWORK-CONTRACT-002 — Installer-side contract test extracts evidence types from CI templates (#247)
+
+- **Priority:** Must — prevents drift where a CI template sends an evidence type the portal doesn't recognize.
+- **Source:** `cli/test/evidence-contract.test.ts` (`extractEvidenceTypes`, `preprocess`, `collectTemplateFiles`).
+- **Preconditions / inputs:** `contracts/evidence-types.json` present in repo root; `sdlc/files/ci/*.yml.template` files present.
+- **Given** the installer repo **When** the contract test runs **Then** it recursively collects all `.yml.template` files under `sdlc/files/ci/`, preprocesses each (normalizes CRLF → LF, joins line continuations `\` + newline → space, strips comments), and extracts evidence types via regex patterns matching: (a) `upload-evidence.sh ... <TYPE>` positional args, (b) `EVTYPE=<type>` assignments in case statements, (c) `upload_project_doc ... <TYPE>` patterns. The test asserts every extracted type exists in the contract's `evidence_types` array. Types in the contract but not sent by the installer are informational only (forward compatibility, not a failure).
+- **Error paths:** Extracted type not in contract → `AssertionError: Expected CI templates to send "<type>": expected false to be true`. No CI templates found → test fails with "No CI template files found". Contract file missing → test fails with "Contract file not found".
+- **Fixtures/env:** Real `sdlc/files/ci/` directory; real `contracts/evidence-types.json`. Test resolves paths via `__dirname` (not `process.cwd()`) for CI compatibility.
+
+#### REQ-FRAMEWORK-CONTRACT-003 — Cross-repo sync workflow (#247)
+
+- **Priority:** Should — automates the second PR when the portal contract changes, removing manual sync burden.
+- **Source:** `.github/workflows/sync-evidence-contract.yml` (both repos).
+- **Preconditions / inputs:** Portal repo: `INSTALLER_DISPATCH_TOKEN` secret (PAT with `repo` scope on `metasession-dev/DevAudit-Installer`). Installer repo: `repository_dispatch` trigger enabled.
+- **Given** the portal repo **When** `contracts/evidence-types.json` changes on `develop` **Then** `sync-evidence-contract.yml` fires a `repository_dispatch` event (type: `evidence-contract-updated`) to `metasession-dev/DevAudit-Installer` with `client_payload` containing source, SHA, and commit message. **Given** the installer repo **When** it receives the dispatch **Then** `sync-evidence-contract.yml` fetches the latest contract from `raw.githubusercontent.com/metasession-dev/devaudit/develop/contracts/evidence-types.json`, checks for diff against the local copy, and if changed: creates a branch `chore/sync-evidence-contract`, commits the updated file, force-pushes (with lease), and opens or updates a PR to `develop`. Also triggerable manually via `workflow_dispatch`.
+- **Error paths:** PAT missing or expired → dispatch fails with 401 (portal side). Fetch from raw.githubusercontent.com fails → workflow fails (installer side). No diff → workflow exits with "Contract file is already up to date". PR already open → branch updated in place, no duplicate PR created.
+- **Fixtures/env:** Both repos on `develop`; `INSTALLER_DISPATCH_TOKEN` secret configured in portal repo.
+
+#### REQ-FRAMEWORK-CONTRACT-004 — CLI CI triggers on CI template and contract file changes (#247)
+
+- **Priority:** Must — ensures the contract test runs when CI templates are modified, not just when `cli/` code changes.
+- **Source:** `.github/workflows/cli.yml` (`on.push.paths`, `on.pull_request.paths`).
+- **Preconditions / inputs:** PR or push touching files in `sdlc/files/ci/**`, `contracts/evidence-types.json`, `cli/**`, `plugin-sdk/**`, or `.github/workflows/cli.yml`.
+- **Given** a PR that adds a new evidence type to a `.yml.template` in `sdlc/files/ci/` without touching `cli/` **When** the PR opens **Then** `cli.yml` CI triggers (because `sdlc/files/ci/**` is in the paths trigger) and the contract test (`evidence-contract.test.ts`) runs, catching the new type if it's not in the contract. **Given** a PR that updates `contracts/evidence-types.json` **When** the PR opens **Then** CI triggers and the contract test validates the updated file.
+- **Error paths:** Paths not matched → CI does not run (no false trigger). Contract test failure → PR check fails, blocking merge.
+- **Fixtures/env:** PR touching only `sdlc/files/ci/ci.yml.template`; PR touching only `contracts/evidence-types.json`.
 
 ---
 
