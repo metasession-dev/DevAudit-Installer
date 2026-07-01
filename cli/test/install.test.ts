@@ -215,12 +215,20 @@ describe('runInstall — native TS install against a node fixture', () => {
       // branch protection applied via provider
       expect(providerCalls.find((c) => c.method === 'applyBranchProtection')).toBeDefined();
       // DevAudit-Installer#264: only unconditional checks should be required
+      // DevAudit-Installer#270: CI Status Fallback only fires on push (not pull_request),
+      // so it must NOT be a required check on develop — only on main.
       const bpCalls = providerCalls.filter((c) => c.method === 'applyBranchProtection');
       for (const call of bpCalls) {
+        const branch = call.args[0] as string;
         const checks = call.args[1] as readonly string[];
-        expect(checks).toEqual(['Quality Gates', 'CI Status Fallback']);
         expect(checks).not.toContain('Compliance Validation');
         expect(checks).not.toContain('DevAudit Release Approval');
+        if (branch === 'main') {
+          expect(checks).toEqual(['Quality Gates', 'CI Status Fallback']);
+        } else {
+          expect(checks).toEqual(['Quality Gates']);
+          expect(checks).not.toContain('CI Status Fallback');
+        }
       }
     } finally {
       await fs.rm(dir, { recursive: true, force: true });
