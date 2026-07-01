@@ -4,9 +4,13 @@ import { getGitProvider } from '../lib/git-provider/index.js';
 import { readSdlcConfig } from '../lib/sdlc-config.js';
 import type { SyncContext, SectionResult } from './types.js';
 
-const REQUIRED_CHECKS: readonly string[] = [
+const MAIN_REQUIRED_CHECKS: readonly string[] = [
   'Quality Gates',
   'CI Status Fallback',
+];
+
+const DEVELOP_REQUIRED_CHECKS: readonly string[] = [
+  'Quality Gates',
 ];
 
 const MAIN_REVIEW_COUNT = 1;
@@ -45,14 +49,14 @@ export async function verifyBranchProtection(ctx: SyncContext): Promise<SectionR
     };
   }
   const results: string[] = [];
-  const mainResult = await provider.applyBranchProtection(ctx.projectPath, meta.defaultBranch, REQUIRED_CHECKS, { requiredReviewCount: MAIN_REVIEW_COUNT });
+  const mainResult = await provider.applyBranchProtection(ctx.projectPath, meta.defaultBranch, MAIN_REQUIRED_CHECKS, { requiredReviewCount: MAIN_REVIEW_COUNT });
   if (mainResult.applied) {
     results.push(`${meta.defaultBranch}: ok`);
   } else {
     results.push(`${meta.defaultBranch}: failed — ${mainResult.message ?? 'unknown'}`);
   }
   if (integrationBranch !== meta.defaultBranch) {
-    const devResult = await provider.applyBranchProtection(ctx.projectPath, integrationBranch, REQUIRED_CHECKS, { requiredReviewCount: DEVELOP_REVIEW_COUNT });
+    const devResult = await provider.applyBranchProtection(ctx.projectPath, integrationBranch, DEVELOP_REQUIRED_CHECKS, { requiredReviewCount: DEVELOP_REVIEW_COUNT });
     if (devResult.applied) {
       results.push(`${integrationBranch}: ok`);
     } else {

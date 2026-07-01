@@ -3,9 +3,13 @@ import { promises as fs } from 'node:fs';
 import type { GitProvider } from '../lib/git-provider/index.js';
 import type { InstallContext, StepResult } from './types.js';
 
-const REQUIRED_CHECKS: readonly string[] = [
+const MAIN_REQUIRED_CHECKS: readonly string[] = [
   'Quality Gates',
   'CI Status Fallback',
+];
+
+const DEVELOP_REQUIRED_CHECKS: readonly string[] = [
+  'Quality Gates',
 ];
 
 const MAIN_REVIEW_COUNT = 1;
@@ -49,18 +53,18 @@ export async function configureBranchProtection(
     return {
       step: '9/11 Configure branch protection',
       status: 'planned',
-      message: `would apply branch protection on ${repo}:${meta.defaultBranch} (1 review) + ${integrationBranch} (0 reviews) with checks=${JSON.stringify(REQUIRED_CHECKS)}`,
+      message: `would apply branch protection on ${repo}:${meta.defaultBranch} (1 review, checks=${JSON.stringify(MAIN_REQUIRED_CHECKS)}) + ${integrationBranch} (0 reviews, checks=${JSON.stringify(DEVELOP_REQUIRED_CHECKS)})`,
     };
   }
   const results: string[] = [];
-  const mainResult = await provider.applyBranchProtection(ctx.projectPath, meta.defaultBranch, REQUIRED_CHECKS, { requiredReviewCount: MAIN_REVIEW_COUNT });
+  const mainResult = await provider.applyBranchProtection(ctx.projectPath, meta.defaultBranch, MAIN_REQUIRED_CHECKS, { requiredReviewCount: MAIN_REVIEW_COUNT });
   if (mainResult.applied) {
     results.push(`${meta.defaultBranch}: ok (${MAIN_REVIEW_COUNT} review)`);
   } else {
     results.push(`${meta.defaultBranch}: FAILED — ${mainResult.message ?? 'unknown'}`);
   }
   if (integrationBranch !== meta.defaultBranch) {
-    const devResult = await provider.applyBranchProtection(ctx.projectPath, integrationBranch, REQUIRED_CHECKS, { requiredReviewCount: DEVELOP_REVIEW_COUNT });
+    const devResult = await provider.applyBranchProtection(ctx.projectPath, integrationBranch, DEVELOP_REQUIRED_CHECKS, { requiredReviewCount: DEVELOP_REVIEW_COUNT });
     if (devResult.applied) {
       results.push(`${integrationBranch}: ok (${DEVELOP_REVIEW_COUNT} reviews)`);
     } else {
