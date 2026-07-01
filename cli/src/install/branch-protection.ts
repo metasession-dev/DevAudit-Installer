@@ -4,9 +4,8 @@ import type { GitProvider } from '../lib/git-provider/index.js';
 import type { InstallContext, StepResult } from './types.js';
 
 const REQUIRED_CHECKS: readonly string[] = [
-  'Compliance Validation',
-  'DevAudit Release Approval',
   'Quality Gates',
+  'CI Status Fallback',
 ];
 
 const MAIN_REVIEW_COUNT = 1;

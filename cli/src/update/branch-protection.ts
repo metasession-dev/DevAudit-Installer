@@ -5,9 +5,8 @@ import { readSdlcConfig } from '../lib/sdlc-config.js';
 import type { SyncContext, SectionResult } from './types.js';
 
 const REQUIRED_CHECKS: readonly string[] = [
-  'Compliance Validation',
-  'DevAudit Release Approval',
   'Quality Gates',
+  'CI Status Fallback',
 ];
 
 const MAIN_REVIEW_COUNT = 1;
