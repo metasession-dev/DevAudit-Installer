@@ -149,17 +149,17 @@ cat > compliance/evidence/REQ-XXX/test-execution-summary.md << 'EOF'
 
 ## Test design (devaudit#50)
 
-Records the design-time decisions before listing run results — what was tested, what was deliberately deferred, who/what decided. Auditors (and future maintainers) can see the scope decision was *made*, not implicit.
+Records the design-time decisions before listing run results — what was tested, what was deliberately exempted, who/what decided. Auditors (and future maintainers) can see the scope decision was *made*, not implicit.
 
 **Layers planned:** [unit | integration | e2e | visual | manual — pick the ones that apply to this REQ]
 
-**Layers covered:** [same list, marked ✓ for shipped layers / `deferred` for skipped ones]
+**Layers covered:** [same list, marked ✓ for shipped layers / `NOT_NEEDED` for skipped ones with reason]
 
-**Deferrals (if any):**
+**Exemptions (if any):**
 
-- [e.g. "e2e N/A — schema-only change, no UI surface reads the new fields yet; deferred to REQ-NNN when the admin form lands"]
-- [e.g. "visual regression N/A — backend service change, no UI affected"]
-- A deferral without a stated rationale is a gap, not a deferral. Either name *why* it was skipped or do the work.
+- [e.g. "e2e NOT_NEEDED — schema-only change, no UI surface reads the new fields yet; will be covered in REQ-NNN when the admin form lands"]
+- [e.g. "visual regression NOT_NEEDED — backend service change, no UI affected"]
+- An exemption without a stated rationale is a gap, not an exemption. Either name *why* it was skipped or do the work.
 
 **Skill invocation:** [`e2e-test-engineer` invoked on turn N during Phase 2 — verifiable from the chat transcript] / [`manual scope decision` — operator chose layers directly because <reason>]
 
@@ -174,6 +174,20 @@ Records the design-time decisions before listing run results — what was tested
 | Dependency Audit | PASS | [N] unaccepted high/critical |
 | E2E Tests | PASS | [N]/[N] passed |
 | Build | PASS | Production build succeeded |
+
+## Accepted skips
+
+Required when E2E gate result is `SKIPPED`. Optional when no accepted skips exist.
+
+| Spec | Test | REQ/AC | Classification | Resolution attempted | Approved by | Rationale |
+|------|------|--------|---------------|---------------------|-------------|----------|
+| e2e/foo.spec.ts | "AC3: bar dialog" | REQ-XXX/AC3 | intentional_non_applicability | N/A — API-only change | [operator] | API-only change, no UI surface |
+
+Rules:
+- Each row must have a non-empty `Approved by` value.
+- Classification must be one of: `environment_gap`, `precondition_gap`, `intentional_non_applicability`, `obsolete_or_quarantined`.
+- `environment_gap` and `precondition_gap` skips must be resolved before listing — if they appear here, the gate is not truly `SKIPPED` with operator approval.
+- A skipped test never proves an acceptance criterion.
 
 ## Test Cycles
 
