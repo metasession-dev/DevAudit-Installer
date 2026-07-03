@@ -34,16 +34,22 @@ if [ $? -ne 0 ]; then
 fi
 echo "Pre-push: TypeScript check passed."
 
+# Capture stdin once — all subsequent checks iterate over the captured refs.
+# Previous code had two `while read` loops; the second consumed nothing
+# because stdin was already exhausted by the first (devaudit-installer#278).
+PUSH_REFS="$(cat)"
+
+INTEGRATION_BRANCH=$(jq -r '.integration_branch // "develop"' sdlc-config.json 2>/dev/null || echo "develop")
+
 # ── 2. E2E evidence check (devaudit-installer#226) ───────────────────
 # Only fires if UI-facing files are in the push. Checks for either
 # playwright-report/ directory or .e2e-gate-passed sentinel (written by
 # e2e-test-engineer after a successful run).
 # Also checks .e2e-evidence-wired sentinel if e2e spec files changed
 # (written by e2e-test-engineer Phase 5½ after validating tagTest/evidenceShot).
-INTEGRATION_BRANCH=$(jq -r '.integration_branch // "develop"' sdlc-config.json 2>/dev/null || echo "develop")
+# Scoped to integration-branch pushes (correct for the normal workflow).
 
-# Read stdin to get the pushed refs (husky pre-push protocol)
-while read -r local_ref local_sha remote_ref remote_sha; do
+echo "$PUSH_REFS" | while read -r local_ref local_sha remote_ref remote_sha; do
   # Check if pushing to the integration branch
   case "$remote_ref" in
     *"refs/heads/$INTEGRATION_BRANCH") ;;
@@ -103,14 +109,17 @@ done
 # If feat/fix/refactor/perf commits are in the push, verify the
 # sdlc-implementer skill was invoked (writes .sdlc-implementer-invoked).
 # Housekeeping types (docs/chore/ci/build/test/revert) are exempt.
+# Fires on ANY push containing tracked commits, regardless of target branch
+# (devaudit-installer#278: previously only checked integration-branch pushes,
+# but feature-branch pushes also need the sentinel).
 TRACKED_TYPES='^(feat|fix|refactor|perf)(\(.+\))?!?:'
 HAS_TRACKED=false
 
-while read -r local_ref local_sha remote_ref remote_sha; do
-  case "$remote_ref" in
-    *"refs/heads/$INTEGRATION_BRANCH") ;;
-    *) continue ;;
-  esac
+# Parse stdin refs in the current shell (not a subshell) so HAS_TRACKED propagates.
+for ref_line in $PUSH_REFS; do
+  set -- $ref_line
+  local_sha="$2"
+  remote_sha="$4"
   if [ "$remote_sha" = "0000000000000000000000000000000000000000" ]; then
     RANGE="$local_sha"
   else
@@ -133,6 +142,47 @@ if [ "$HAS_TRACKED" = "true" ]; then
     exit 1
   fi
   echo "Pre-push: skill-invocation sentinel check passed."
+
+  # ── 3b. Phase-progression validation (devaudit-installer#278) ──────
+  # If the commit touches Phase 3 artifacts (compliance/evidence/REQ-XXX/),
+  # the sentinel must contain a phase "3" record. If it touches Phase 5
+  # close-out (approved-releases/ or RTM RELEASED), sentinel must have phase "5".
+  for ref_line in $PUSH_REFS; do
+    set -- $ref_line
+    local_sha="$2"
+    remote_sha="$4"
+    if [ "$remote_sha" = "0000000000000000000000000000000000000000" ]; then
+      RANGE="$local_sha"
+    else
+      RANGE="${remote_sha}..${local_sha}"
+    fi
+
+    PHASE3_FILES=$(git diff --name-only "$RANGE" -- 'compliance/evidence/REQ-*/' 2>/dev/null || true)
+    PHASE5_FILES=$(git diff --name-only "$RANGE" -- 'compliance/approved-releases/' 'compliance/RTM.md' 2>/dev/null || true)
+
+    if [ -n "$PHASE3_FILES" ]; then
+      PHASES_IN_SENTINEL=$(jq -r '.[].currentPhase // .[].phase // empty' .sdlc-implementer-invoked 2>/dev/null || true)
+      if ! echo "$PHASES_IN_SENTINEL" | grep -q '"3"\|3'; then
+        echo ""
+        echo "ERROR: Commit touches Phase 3 artifacts (compliance/evidence/) but"
+        echo "       the sentinel has no phase 3 record. Invoke sdlc-implementer"
+        echo "       at Phase 3 before pushing these changes."
+        exit 1
+      fi
+    fi
+
+    if [ -n "$PHASE5_FILES" ]; then
+      PHASES_IN_SENTINEL=$(jq -r '.[].currentPhase // .[].phase // empty' .sdlc-implementer-invoked 2>/dev/null || true)
+      if ! echo "$PHASES_IN_SENTINEL" | grep -q '"5"\|5'; then
+        echo ""
+        echo "ERROR: Commit touches Phase 5 close-out artifacts (approved-releases/ or RTM)"
+        echo "       but the sentinel has no phase 5 record. Invoke sdlc-implementer"
+        echo "       at Phase 5 before pushing these changes."
+        exit 1
+      fi
+    fi
+  done
+  echo "Pre-push: phase-progression check passed."
 fi
 
 # ── 4. Compliance artifact validation (devaudit-installer#226) ──────

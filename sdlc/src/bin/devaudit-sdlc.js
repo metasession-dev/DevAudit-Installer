@@ -50,11 +50,30 @@ if (viewOnly) {
 }
 
 try {
+    // Detect the invoking agent type (devaudit-installer#278):
+    // - 'skill' when invoked via a skill mechanism (Claude Code Skill, etc.)
+    // - 'native-agent' when invoked directly by the native agent (Cursor, Windsurf, etc.)
+    // - 'cli' when invoked manually from the terminal
+    const invokedBySkill = !!(process.env.DEVAUDIT_SKILL_NAME || process.env.DEVAUDIT_SKILL_INVOKED);
+    const invokedByAgent = !!(process.env.DEVAUDIT_AGENT || process.env.AI_AGENT_ID);
+    const initializedBy = invokedBySkill ? 'skill' : invokedByAgent ? 'native-agent' : 'cli';
+
+    // Extract REQ ID from args or environment (devaudit-installer#278)
+    let reqId = null;
+    const reqArg = args.find(arg => arg.startsWith('--req='));
+    if (reqArg) {
+        reqId = reqArg.split('=')[1];
+    } else if (process.env.DEVAUDIT_REQ_ID) {
+        reqId = process.env.DEVAUDIT_REQ_ID;
+    }
+
     const newRecord = {
         activatedAt: new Date().toISOString(),
         currentPhase: phase,
-        initializedBy: 'devaudit-cli-engine',
-        status: 'active'
+        initializedBy: initializedBy,
+        status: 'active',
+        reqId: reqId,
+        agentType: invokedBySkill ? (process.env.DEVAUDIT_SKILL_NAME || 'skill') : (invokedByAgent ? (process.env.DEVAUDIT_AGENT || 'native-agent') : 'manual'),
     };
 
     // Read existing sentinel and append, or create new array
@@ -83,6 +102,7 @@ try {
     console.log(`\n✅ SDLC Gateway Initialized: Appended phase ${phase} record to sentinel at ${sentinelPath}`);
     console.log(`🚀 Phase ${phase} orchestration active. Your local git commit gates are now open.`);
     console.log(`📋 Phase history: ${phaseHistory.map(r => r.currentPhase).join(' → ')}`);
+    console.log(`👤 Initialized by: ${initializedBy}${reqId ? ` (REQ-${reqId})` : ''}`);
 
     if (fs.existsSync(blueprintPath)) {
         console.log(`\n--- PHASE EXECUTION MANIFEST ---`);

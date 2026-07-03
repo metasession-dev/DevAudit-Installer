@@ -156,11 +156,13 @@ describe('devaudit-sdlc CLI engine', () => {
 
         const record = sentinel[0]!;
         expect(Object.keys(record).sort()).toEqual(
-          ['activatedAt', 'currentPhase', 'initializedBy', 'status'].sort(),
+          ['activatedAt', 'agentType', 'currentPhase', 'initializedBy', 'reqId', 'status'].sort(),
         );
         expect(record.currentPhase).toBe(phase);
-        expect(record.initializedBy).toBe('devaudit-cli-engine');
+        expect(record.initializedBy).toBe('cli');
         expect(record.status).toBe('active');
+        expect(record.agentType).toBe('manual');
+        expect(record.reqId).toBe(null);
         // activatedAt should be a valid ISO 8601 string
         expect(() => new Date(record.activatedAt!).toISOString()).not.toThrow();
       });
@@ -251,6 +253,8 @@ describe('devaudit-sdlc CLI engine', () => {
         currentPhase: '1',
         initializedBy: 'devaudit-cli-engine',
         status: 'active',
+        reqId: null,
+        agentType: 'manual',
       });
       await fs.writeFile(sentinelPath, legacyObject, 'utf8');
 
@@ -274,6 +278,54 @@ describe('devaudit-sdlc CLI engine', () => {
 
       expect(res.stdout).toContain('Phase history:');
       expect(res.stdout).toContain('1 → 2 → 3');
+    });
+  });
+
+  describe('reqId and agent type detection (devaudit-installer#278)', () => {
+    it('--req=XXX passes reqId into the sentinel record', async () => {
+      await runEngine(['--phase=1', '--req=042'], sandbox);
+      const sentinel = await readSentinel(sandbox) as Array<Record<string, unknown>>;
+      expect(sentinel[0]!.reqId).toBe('042');
+    });
+
+    it('DEVAUDIT_REQ_ID env var is picked up when --req is absent', async () => {
+      const res = await execa('node', [ENGINE_PATH, '--phase=1'], {
+        cwd: sandbox,
+        reject: false,
+        env: { ...process.env, DEVAUDIT_REQ_ID: '099' },
+      });
+      expect(res.exitCode).toBe(0);
+      const sentinel = await readSentinel(sandbox) as Array<Record<string, unknown>>;
+      expect(sentinel[0]!.reqId).toBe('099');
+    });
+
+    it('DEVAUDIT_SKILL_NAME env var sets initializedBy to "skill"', async () => {
+      const res = await execa('node', [ENGINE_PATH, '--phase=1'], {
+        cwd: sandbox,
+        reject: false,
+        env: { ...process.env, DEVAUDIT_SKILL_NAME: 'sdlc-implementer' },
+      });
+      expect(res.exitCode).toBe(0);
+      const sentinel = await readSentinel(sandbox) as Array<Record<string, unknown>>;
+      expect(sentinel[0]!.initializedBy).toBe('skill');
+      expect(sentinel[0]!.agentType).toBe('sdlc-implementer');
+    });
+
+    it('DEVAUDIT_AGENT env var sets initializedBy to "native-agent"', async () => {
+      const res = await execa('node', [ENGINE_PATH, '--phase=2'], {
+        cwd: sandbox,
+        reject: false,
+        env: { ...process.env, DEVAUDIT_AGENT: 'cursor' },
+      });
+      expect(res.exitCode).toBe(0);
+      const sentinel = await readSentinel(sandbox) as Array<Record<string, unknown>>;
+      expect(sentinel[0]!.initializedBy).toBe('native-agent');
+      expect(sentinel[0]!.agentType).toBe('cursor');
+    });
+
+    it('stdout shows "Initialized by" line with agent type', async () => {
+      const res = await runEngine(['--phase=1', '--req=055'], sandbox);
+      expect(res.stdout).toContain('Initialized by: cli (REQ-055)');
     });
   });
 });

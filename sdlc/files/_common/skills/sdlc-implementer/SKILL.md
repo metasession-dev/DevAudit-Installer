@@ -209,7 +209,7 @@ NEXT: Done — close issue + retire feature branch (sdlc-implementer halts)
 Lead every substantive turn with a driver tag on the **first line**, then the two-line LAST/NEXT shape so the operator can `Ctrl-F NEXT:` in the chat transcript to find the current pointer without re-reading:
 
 ```
-[Agent driving]   — or —   [Operator driving]   — or —   [Blocked]
+[Skill driving]   — or —   [Native agent driving]   — or —   [Operator driving]   — or —   [Blocked]
 
 **LAST:** <one sentence>
 **NEXT:** <one sentence with actor>
@@ -217,9 +217,10 @@ Lead every substantive turn with a driver tag on the **first line**, then the tw
 
 The driver tag is mandatory and comes **before** the LAST/NEXT lines:
 
-- **`[Agent driving]`** — the skill is auto-continuing; no human action needed right now. The operator can look away.
-- **`[Operator driving]`** — the skill has halted; the human must do something (review, approve, merge, answer a question). The NEXT line states the specific action needed.
-- **`[Blocked]`** — something failed and the skill cannot proceed. State the blocker and the operator action needed to unblock.
+- **`[Skill driving]`** — a skill (e.g. `sdlc-implementer`) is auto-continuing; no human action needed right now. The operator can look away.
+- **`[Native agent driving]`** — the native AI agent (Cursor, Windsurf, Claude Code, Gemini CLI, etc.) is executing steps without a skill invocation. The operator can look away but should monitor more closely since no skill protocol is governing phase transitions.
+- **`[Operator driving]`** — the skill/agent has halted; the human must do something (review, approve, merge, answer a question). The NEXT line states the specific action needed.
+- **`[Blocked]`** — something failed and the skill/agent cannot proceed. State the blocker and the operator action needed to unblock.
 
 The tag reflects the **final** state of the response — if the skill was driving but hits a halt mid-turn, the tag is `[Operator driving]` or `[Blocked]`.
 
