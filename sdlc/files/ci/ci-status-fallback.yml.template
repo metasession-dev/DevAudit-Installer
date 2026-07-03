@@ -13,6 +13,9 @@
 #   `Quality Gates` status. Branch protection is satisfied without running the heavy gates
 #   on a commit that has no code in it.
 #
+#   PRs to main are actively verified by quality-gates-provenance.yml, which checks
+#   for prior develop-side Quality Gates success on the same head SHA.
+#
 #   Mixed commits (some docs + some code) trigger BOTH workflows. Same status name, both
 #   green = branch protection happy.
 
