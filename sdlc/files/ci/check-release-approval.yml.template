@@ -22,6 +22,8 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+  repository_dispatch:
+    types: [release-approved]
 
 jobs:
   check-approval:
@@ -43,7 +45,11 @@ jobs:
           # produces the same release identity here (#81 — release-identity
           # coherence; was hardcoded to `v$(date +%Y.%m.%d)` which never
           # matched the `REQ-XXX` records the uploaders wrote).
-          ref: ${{ github.event.pull_request.head.sha }}
+          #
+          # devaudit#283 — repository_dispatch events don't have a
+          # pull_request payload. Fall back to the develop branch ref so
+          # the gate can resolve the release and post a status check.
+          ref: ${{ github.event.pull_request.head.sha || 'develop' }}
           fetch-depth: 0
 
       - name: Resolve DevAudit base URL
@@ -149,13 +155,22 @@ jobs:
         id: release
         if: env.BOOTSTRAP_MODE != 'true'
         run: |
-          # Derive the same release prefix the uploaders write to. The script
-          # priority is: subject `[REQ-XXX]` → body `Ref: REQ-XXX` → body
-          # `[REQ-XXX]` (merge-commit case) → bare-date fallback. Reusing it
-          # here makes the gate and the uploaders agree on release identity
-          # (#81). The 8 scenarios are covered by derive-release-version.test.sh.
-          chmod +x scripts/derive-release-version.sh 2>/dev/null || true
-          LOOKUP_PREFIX=$(bash scripts/derive-release-version.sh)
+          # devaudit#283 — repository_dispatch('release-approved') events
+          # carry the release version in client_payload. Use it directly
+          # when available to avoid re-deriving from git history.
+          if [ "${{ github.event_name }}" = "repository_dispatch" ] && [ -n "${{ github.event.client_payload.release }}" ]; then
+            LOOKUP_PREFIX="${{ github.event.client_payload.release }}"
+            echo "Using release version from repository_dispatch payload: ${LOOKUP_PREFIX}"
+          else
+            # Derive the same release prefix the uploaders write to. The script
+            # priority is: subject `[REQ-XXX]` → body `Ref: REQ-XXX` → body
+            # `[REQ-XXX]` (merge-commit case) → bare-date fallback. Reusing it
+            # here makes the gate and the uploaders agree on release identity
+            # (#81). The 8 scenarios are covered by derive-release-version.test.sh.
+            chmod +x scripts/derive-release-version.sh 2>/dev/null || true
+            LOOKUP_PREFIX=$(bash scripts/derive-release-version.sh)
+            echo "Derived release prefix from git history: ${LOOKUP_PREFIX}"
+          fi
           echo "Resolving release for prefix: ${LOOKUP_PREFIX}"
           RESOLVE_URL="${BASE}/api/ci/releases/resolve?projectSlug=${PROJECT_SLUG}&versionPrefix=${LOOKUP_PREFIX}"
           # Retry: register-release in ci.yml may still be racing with us.
@@ -234,8 +249,8 @@ jobs:
             echo "::warning::Approved SHA (${APPROVED_SHA:0:8}) differs from PR HEAD (${PR_HEAD_SHA:0:8}). Code may have changed after approval."
           fi
 
-      - name: Update PR status (workflow_dispatch re-trigger)
-        if: env.BOOTSTRAP_MODE != 'true' && github.event_name == 'workflow_dispatch'
+      - name: Update PR status (workflow_dispatch / repository_dispatch re-trigger)
+        if: env.BOOTSTRAP_MODE != 'true' && (github.event_name == 'workflow_dispatch' || github.event_name == 'repository_dispatch')
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
