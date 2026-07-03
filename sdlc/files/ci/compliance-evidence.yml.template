@@ -428,19 +428,17 @@ jobs:
           fi
           rm -f "$AUDIT_LOG_FILE"
 
-          # Helper: emit a `--release-title …` `--change-type …` pair for a given
-          # REQ, derived from its pending release-ticket H1 and the most recent
-          # commit attributed to that REQ. Empty pair when neither is available.
+          # Helper: emit `--release-title …` `--release-summary …` `--change-type …`
+          # args for a given REQ, derived from its release-ticket metadata and
+          # the most recent commit attributed to that REQ. Empty pair when
+          # neither is available. Uses the shared extraction helper so both
+          # workflow paths produce the same title/summary for the same REQ.
+          # DevAudit-Installer#285.
           req_meta_args() {
-            local REQ="$1"; local TITLE=""; local CT=""
-            for FILE in "compliance/pending-releases/RELEASE-TICKET-${REQ}.md" \
-                        "compliance/approved-releases/RELEASE-TICKET-${REQ}.md"; do
-              if [ -f "$FILE" ]; then
-                TITLE=$(grep -m1 '^# ' "$FILE" \
-                  | sed -E 's/^# *(REQ-[0-9]+)?[[:space:]]*[—:-]?[[:space:]]*//')
-                break
-              fi
-            done
+            local REQ="$1"; local CT=""
+            # Source the shared helper and extract canonical title + summary
+            source sdlc/files/_common/scripts/extract-release-metadata.sh 2>/dev/null || true
+            extract_release_metadata "$REQ" 2>/dev/null || true
             CT=$(git log --grep "\[${REQ}\]\|Ref: ${REQ}" --pretty=%s -1 2>/dev/null \
               | grep -oE '^(feat|fix|refactor|perf|chore|docs|ci|build|test|compliance|revert)' \
               | head -1 || true)
@@ -448,7 +446,8 @@ jobs:
             # trailing `[ … ] && cmd` whose test fails returns 1, and the
             # function inherits that exit code; calling via $(req_meta_args …)
             # then aborts the step silently (DevAudit-Installer#77).
-            if [ -n "$TITLE" ]; then printf -- '--release-title %q ' "$TITLE"; fi
+            if [ -n "$RELEASE_TITLE" ]; then printf -- '--release-title %q ' "$RELEASE_TITLE"; fi
+            if [ -n "$RELEASE_SUMMARY" ]; then printf -- '--release-summary %q ' "$RELEASE_SUMMARY"; fi
             if [ -n "$CT" ]; then printf -- '--change-type %q ' "$CT"; fi
           }
 
