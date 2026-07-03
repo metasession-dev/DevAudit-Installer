@@ -131,7 +131,7 @@ jobs:
           VERSION=$(./scripts/derive-release-version.sh)
           if [ -z "$VERSION" ]; then
             echo "version=skip" >> "$GITHUB_OUTPUT"
-            echo "Compliance evidence upload skipped: close-out reconciliation marker detected."
+            echo "Compliance evidence upload skipped: close-out reconciliation detected."
             exit 0
           fi
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
@@ -693,7 +693,7 @@ jobs:
           VERSION=$(./scripts/derive-release-version.sh)
           if [ -z "$VERSION" ]; then
             echo "version=skip" >> "$GITHUB_OUTPUT"
-            echo "E2E evidence upload skipped: close-out reconciliation marker detected."
+            echo "E2E evidence upload skipped: close-out reconciliation detected."
             exit 0
           fi
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"

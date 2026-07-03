@@ -289,7 +289,7 @@ jobs:
           VERSION=$(./scripts/derive-release-version.sh)
           if [ -z "$VERSION" ]; then
             echo "version=skip" >> "$GITHUB_OUTPUT"
-            echo "Release registration skipped: close-out reconciliation marker detected."
+            echo "Release registration skipped: close-out reconciliation detected."
             exit 0
           fi
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
