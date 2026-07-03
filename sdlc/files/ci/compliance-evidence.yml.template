@@ -143,6 +143,15 @@ jobs:
       # merged, the next compliance-evidence.yml run uploads them as
       # evidence and the matrix flips both items to ✓.
       #
+      # devaudit#284 — release reconciliation merges (from close-out-release.yml)
+      # carry a `Release-Closeout: REQ-XXX` marker in the commit body.
+      # derive-release-version.sh detects this marker and attributes the
+      # version to the existing tracked REQ instead of falling through to
+      # the bare-date housekeeping path. So reconciliation pushes never
+      # reach this stub-generation step — they converge on the already-
+      # released tracked record instead of creating a false housekeeping
+      # release candidate.
+      #
       # Mirrors the `incident-export.yml` pattern: auto-PR, operator fills
       # in sign-off, merge to land.
       - name: Auto-generate housekeeping stubs (if needed)
