@@ -6,8 +6,8 @@
 # Single consolidated job — on a self-hosted runner, parallel jobs run
 # sequentially anyway. One checkout + one cached npm ci = fast.
 #
-# PRs to develop run Quality Gates before integration. PRs to main inherit
-# commit status via branch protection.
+# PRs to develop run Quality Gates before integration. PRs to main are verified
+# by quality-gates-provenance.yml (same-SHA provenance check, not heavy CI rerun).
 # Compliance validation runs separately on PRs (compliance-validation.yml).
 
 name: CI Pipeline
