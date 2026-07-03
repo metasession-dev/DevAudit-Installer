@@ -113,17 +113,96 @@ function buildValidator(schema) {
 }
 
 function fallbackValidator(schema) {
-  const required = schema.required || [];
   return function (data) {
     const errors = [];
-    for (const key of required) {
-      if (data[key] === undefined) {
-        errors.push({ instancePath: `/${key}`, message: 'is required' });
-      }
-    }
+    validateSchema(data, schema, '', errors);
     fallbackValidator.errors = errors.length > 0 ? errors : null;
     return errors.length === 0;
   };
+}
+
+function validateSchema(data, schema, path, errors) {
+  if (typeof data === 'object' && data !== null) {
+    // additionalProperties: false
+    if (schema.additionalProperties === false && schema.properties) {
+      const allowed = new Set(Object.keys(schema.properties));
+      for (const key of Object.keys(data)) {
+        if (!allowed.has(key)) {
+          errors.push({
+            instancePath: `${path}/${key}`,
+            message: 'is not allowed (additionalProperties: false)',
+          });
+        }
+      }
+    }
+    // required — check even when type is not explicitly 'object'
+    if (schema.required) {
+      for (const key of schema.required) {
+        if (data[key] === undefined) {
+          errors.push({ instancePath: `${path}/${key}`, message: 'is required' });
+        }
+      }
+    }
+    // properties — recurse into nested objects
+    if (schema.properties) {
+      for (const [key, propSchema] of Object.entries(schema.properties)) {
+        if (data[key] !== undefined) {
+          validateSchema(data[key], propSchema, `${path}/${key}`, errors);
+        }
+      }
+    }
+    // allOf with if/then conditionals
+    if (schema.allOf) {
+      for (const cond of schema.allOf) {
+        if (cond.if && cond.then) {
+          if (matchesCondition(data, cond.if)) {
+            validateSchema(data, cond.then, path, errors);
+          }
+        }
+      }
+    }
+  }
+  // type: string
+  if (schema.type === 'string' && typeof data === 'string') {
+    if (schema.pattern) {
+      const re = new RegExp(schema.pattern);
+      if (!re.test(data)) {
+        errors.push({ instancePath: path, message: `does not match pattern ${schema.pattern}` });
+      }
+    }
+    if (schema.minLength !== undefined && data.length < schema.minLength) {
+      errors.push({
+        instancePath: path,
+        message: `is shorter than minLength ${schema.minLength}`,
+      });
+    }
+    if (schema.enum && !schema.enum.includes(data)) {
+      errors.push({
+        instancePath: path,
+        message: `is not one of allowed values [${schema.enum.join(', ')}]`,
+      });
+    }
+  }
+  // type: string with enum but data is not a string (still check enum)
+  if (schema.enum && typeof data !== 'string') {
+    if (!schema.enum.includes(data)) {
+      errors.push({
+        instancePath: path,
+        message: `is not one of allowed values [${schema.enum.join(', ')}]`,
+      });
+    }
+  }
+}
+
+function matchesCondition(data, ifSchema) {
+  if (ifSchema.properties) {
+    for (const [key, propSchema] of Object.entries(ifSchema.properties)) {
+      if (propSchema.const !== undefined) {
+        if (data[key] !== propSchema.const) return false;
+      }
+    }
+  }
+  return true;
 }
 
 function listAdapterPaths(parentDir) {
