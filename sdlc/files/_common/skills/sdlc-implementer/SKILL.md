@@ -588,6 +588,8 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
 
 **Release Approval Gate retry (devaudit-installer#211 Gap 17).** If the Release Approval Gate check fails on the PR and the portal approval was already given (API sync delay, stale cache), retry logic: re-run the Release Approval Gate workflow up to 3 times with 30-second intervals (`gh workflow run check-release-approval.yml` or trigger via `workflow_dispatch`). If it still fails after 3 retries: halt — "Release Approval Gate still failing after 3 retries. Portal may show approval but the gate can't verify it. Operator action — check the portal release status manually, verify the API key is valid, and re-run the workflow from GitHub Actions if needed."
 
+**Auto-refresh on UAT approval (devaudit#562, devaudit-installer#283).** When the portal's UAT approval is granted, the portal automatically sends a `repository_dispatch('release-approved')` event to the consuming project's repo. This triggers `check-release-approval.yml` to re-run without manual intervention. The retry logic above is still needed for edge cases (API sync delays, network issues), but the common path is now fully automated. If the auto-refresh doesn't fire (e.g. portal GitHub trigger misconfigured), the manual retry sequence above remains the fallback.
+
 ### Phase 5 — Finalise or change-request loop (SDLC stage 5)
 
 Invoked separately by the user after UAT activity on the portal. Trigger: "resume REQ-XXX", "REQ-XXX UAT done", or just re-firing the skill on the same issue.
