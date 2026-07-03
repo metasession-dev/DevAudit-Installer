@@ -21,6 +21,11 @@
 #                               release-ticket H1). Forwarded as
 #                               `releaseTitle`; the portal no-clobbers
 #                               existing non-null values.
+#   --release-summary <text>    Reviewer-facing short description of what
+#                               the release covers. Forwarded as
+#                               `releaseSummary`; the portal no-clobbers
+#                               existing non-null values.
+#                               DevAudit-Installer#285.
 #   --change-type <type>        Conventional-commit prefix (feat / fix /
 #                               refactor / perf / chore / docs / ci /
 #                               build / test / compliance / revert) for
@@ -80,6 +85,7 @@ CREATE_RELEASE_IF_MISSING=false
 ENVIRONMENT=""
 EVIDENCE_CATEGORY=""
 RELEASE_TITLE=""
+RELEASE_SUMMARY=""
 CHANGE_TYPE=""
 GATE_STATUS=""
 SDLC_STAGE=""
@@ -103,6 +109,7 @@ while [ "$#" -gt 0 ]; do
     # the portal's findOrCreateRelease no-clobber backfill. Both optional;
     # unknown change-type values are dropped server-side, not 400'd.
     --release-title) RELEASE_TITLE="$2"; shift 2 ;;
+    --release-summary) RELEASE_SUMMARY="$2"; shift 2 ;;
     --change-type) CHANGE_TYPE="$2"; shift 2 ;;
     # passed/failed/skipped — surfaces failed gates on the portal so
     # ran-and-failed != never-ran. Unknown values dropped server-side.
@@ -320,6 +327,8 @@ upload_presigned() {
         \"releaseBranch\": \"${BRANCH}\",
         \"environment\": \"${ENVIRONMENT}\",
         \"evidenceCategory\": \"${EVIDENCE_CATEGORY}\",
+        \"releaseTitle\": \"${RELEASE_TITLE}\",
+        \"releaseSummary\": \"${RELEASE_SUMMARY}\",
         \"sdlcStage\": \"${SDLC_STAGE}\",
         \"testCycleId\": \"${TEST_CYCLE}\"
       }") || curl_exit=$?
@@ -469,6 +478,7 @@ for FILE in "${FILES[@]}"; do
   [ -n "$ENVIRONMENT" ] && CURL_ARGS+=(-F "environment=${ENVIRONMENT}")
   [ -n "$EVIDENCE_CATEGORY" ] && CURL_ARGS+=(-F "evidenceCategory=${EVIDENCE_CATEGORY}")
   [ -n "$RELEASE_TITLE" ] && CURL_ARGS+=(-F "releaseTitle=${RELEASE_TITLE}")
+  [ -n "$RELEASE_SUMMARY" ] && CURL_ARGS+=(-F "releaseSummary=${RELEASE_SUMMARY}")
   [ -n "$CHANGE_TYPE" ] && CURL_ARGS+=(-F "changeType=${CHANGE_TYPE}")
   [ -n "$GATE_STATUS" ] && CURL_ARGS+=(-F "gateStatus=${GATE_STATUS}")
   [ -n "$SDLC_STAGE" ] && CURL_ARGS+=(-F "sdlcStage=${SDLC_STAGE}")

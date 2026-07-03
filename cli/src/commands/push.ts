@@ -16,6 +16,7 @@ export interface PushOptions {
   readonly ciRunId?: string;
   readonly branch?: string;
   readonly releaseTitle?: string;
+  readonly releaseSummary?: string;
   readonly changeType?: string;
   readonly gateStatus?: string;
   /** SDLC stage 1-5 — forwarded as `sdlcStage` (parity with upload-evidence.sh --sdlc-stage). */
@@ -136,6 +137,7 @@ export async function runPush(options: PushOptions): Promise<void> {
     ...(options.category !== undefined ? { evidenceCategory: options.category } : {}),
     ...(options.branch !== undefined ? { releaseBranch: options.branch } : {}),
     ...(options.releaseTitle !== undefined ? { releaseTitle: options.releaseTitle } : {}),
+    ...(options.releaseSummary !== undefined ? { releaseSummary: options.releaseSummary } : {}),
     ...(options.changeType !== undefined ? { changeType: options.changeType } : {}),
     ...(options.gateStatus !== undefined ? { gateStatus: options.gateStatus } : {}),
     ...(options.sdlcStage !== undefined ? { sdlcStage: options.sdlcStage } : {}),

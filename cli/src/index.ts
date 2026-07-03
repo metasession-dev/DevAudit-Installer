@@ -136,6 +136,7 @@ export async function main(argv: readonly string[]): Promise<void> {
     .option('--ci-run-id <id>', 'attached to metadata.ciRunId')
     .option('--branch <name>', 'git branch — sent as releaseBranch + metadata.branch')
     .option('--release-title <text>', 'human title for the release row (releaseTitle; portal no-clobbers)')
+    .option('--release-summary <text>', 'reviewer-facing short description (releaseSummary; portal no-clobbers)')
     .option('--change-type <type>', 'conventional-commit prefix for the release row (changeType)')
     .option('--gate-status <status>', 'passed | failed | skipped (gateStatus)')
     .option('--sdlc-stage <stage>', 'SDLC stage 1-5 (sdlcStage)')
@@ -163,6 +164,7 @@ export async function main(argv: readonly string[]): Promise<void> {
           ciRunId?: string;
           branch?: string;
           releaseTitle?: string;
+        releaseSummary?: string;
           changeType?: string;
           gateStatus?: string;
           sdlcStage?: string;
@@ -189,6 +191,7 @@ export async function main(argv: readonly string[]): Promise<void> {
           ...(opts.ciRunId !== undefined ? { ciRunId: opts.ciRunId } : {}),
           ...(opts.branch !== undefined ? { branch: opts.branch } : {}),
           ...(opts.releaseTitle !== undefined ? { releaseTitle: opts.releaseTitle } : {}),
+      ...(opts.releaseSummary !== undefined ? { releaseSummary: opts.releaseSummary } : {}),
           ...(opts.changeType !== undefined ? { changeType: opts.changeType } : {}),
           ...(opts.gateStatus !== undefined ? { gateStatus: opts.gateStatus } : {}),
           ...(opts.sdlcStage !== undefined ? { sdlcStage: opts.sdlcStage } : {}),

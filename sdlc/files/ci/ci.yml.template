@@ -680,18 +680,16 @@ jobs:
             SHOT_TMP="$(mktemp -d)"
             for REQ in "${SHOT_REQS[@]}"; do
               # Per-REQ release metadata for the portal (no-clobbered on existing rows):
-              # release title from the pending ticket's H1; change type from the
-              # latest commit that references the REQ.
-              REQ_TITLE=""
-              if [ -f "compliance/pending-releases/RELEASE-TICKET-${REQ}.md" ]; then
-                REQ_TITLE=$(grep -m1 '^# ' "compliance/pending-releases/RELEASE-TICKET-${REQ}.md" \
-                  | sed -E 's/^# *(REQ-[0-9]+)?[[:space:]]*[—:-]?[[:space:]]*//')
-              fi
+              # Uses the shared extraction helper so both workflow paths produce
+              # the same title/summary for the same REQ. DevAudit-Installer#285.
+              source sdlc/files/_common/scripts/extract-release-metadata.sh 2>/dev/null || true
+              extract_release_metadata "$REQ" 2>/dev/null || true
               REQ_CT=$(git log --grep "\[${REQ}\]\|Ref: ${REQ}" --pretty=%s -1 2>/dev/null \
                 | grep -oE '^(feat|fix|refactor|perf|chore|docs|ci|build|test|compliance|revert)' \
                 | head -1 || true)
               REQ_META=()
-              [ -n "$REQ_TITLE" ] && REQ_META+=(--release-title "$REQ_TITLE")
+              [ -n "$RELEASE_TITLE" ] && REQ_META+=(--release-title "$RELEASE_TITLE")
+              [ -n "$RELEASE_SUMMARY" ] && REQ_META+=(--release-summary "$RELEASE_SUMMARY")
               [ -n "$REQ_CT" ] && REQ_META+=(--change-type "$REQ_CT")
               # devaudit-installer#147 — per-REQ scoped glob. ONLY this REQ's
               # own screenshots/ directory; legacy folders for REQs not in
