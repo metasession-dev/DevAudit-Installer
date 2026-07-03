@@ -300,6 +300,21 @@ Then bucket each failure:
 
 The classification is: "Is the AC correct but untested/buggy? → defect. Is the AC itself wrong/missing? → requirements gap."
 
+**Then triage skipped tests (devaudit-installer#279).** After failure triage and missed-requirements check, inspect all skipped tests from the machine-readable Playwright reporter output (JSON reporter). For each skipped test:
+
+1. **Extract the best available reason** from: `test.skipReason`, annotations, `test.skip(...)` / `testInfo.skip(...)` descriptions, setup-project failures, or helper/guard messages. Do not hard-code to one field — use the richest available source.
+2. **Classify each skip into one of:**
+   - `environment_gap` — browser not installed, database down, port conflict, missing system dependency
+   - `precondition_gap` — seed data missing, auth fixture expired, test account locked
+   - `intentional_non_applicability` — API-only change with no UI surface, feature flag disabled for this environment
+   - `obsolete_or_quarantined` — test references removed functionality, spec is stale
+3. **Fix `environment_gap` and `precondition_gap` first** — these are never acceptable skip reasons. Resolve the underlying issue, rerun the focused tests, then rerun the full suite.
+4. **Only remaining `intentional_non_applicability` or unresolved skips** may be surfaced to the operator for approval. Each accepted skip must have an operator-approved rationale.
+5. **A skipped test never proves an acceptance criterion.** If a skipped test is the only coverage for an in-scope AC, that AC is unverified until a passing test proves it.
+6. **Do not write a `PASSED` E2E sentinel while unresolved or unapproved skips remain.**
+
+Record all accepted skips in the `## Accepted skips` section of `test-execution-summary.md` (see Stage 3 blueprint).
+
 ### Phase 7 — Regression-pack handoff
 
 After Phase 6 succeeds — green run, all ACs proved, defects filed for anything missing — the new spec(s) you authored move into the project's regression pack. There is **no separate graduation step**. The pack is defined as:
@@ -422,6 +437,7 @@ Wrap up with a summary the user can drop into the PR or ticket:
 - Tests added — count, with a list.
 - Tests updated — count.
 - Tests deleted — count, with rationale.
+- Tests skipped — count, classification, resolution status, and operator-approved rationale for any accepted skip (devaudit-installer#279).
 - Suite result — passing, failing, flaky.
 - Defects filed — count, with links.
 - Requirements gap reports — count, with details (devaudit-installer#212 Gap 4). These are ACs classified as "impossible to test" or "missing AC" — returned to `sdlc-implementer` for the requirements gap flow, not filed as defects.
