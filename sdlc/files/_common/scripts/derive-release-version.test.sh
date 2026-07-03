@@ -266,6 +266,15 @@ cat > compliance/RTM.md <<'RTM'
 RTM
 assert_eq "RTM two IN PROGRESS w/ escaped pipes -> bare date $TODAY" "$TODAY" "$(run_helper)"
 
+# Case 21: close-out reconciliation marker suppresses release registration.
+# The workflow caller translates this empty stdout to version=skip so the
+# reconciliation push neither creates housekeeping stubs nor attaches evidence
+# to an already released REQ.
+make_fixture "$WORK/c21" "chore(release): reconcile REQ-089 close-out
+
+Release-Closeout: REQ-089"
+assert_eq "close-out marker -> empty version" "" "$(run_helper)"
+
 echo ""
 echo "=== Summary: $PASS pass / $FAIL fail ==="
 

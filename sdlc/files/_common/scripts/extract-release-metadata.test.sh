@@ -248,6 +248,31 @@ assert_eq "Title" "Feature eight" "$RELEASE_TITLE"
 assert_eq "Summary trimmed" "Actual summary content." "$RELEASE_SUMMARY"
 echo ""
 
+# --- Test 11: RTM issue title fallback without release ticket ---
+echo "--- Test 11: RTM issue title fallback without release ticket ---"
+make_fixture "$WORK/test11"
+cat > compliance/RTM.md <<'RTM'
+| REQ-ID  | Issue | Risk | Evidence | Status |
+| ------- | ----- | ---- | -------- | ------ |
+| REQ-011 | #456  | LOW  | n/a      | DRAFT  |
+RTM
+mkdir -p bin
+cat > bin/gh <<'GH'
+#!/usr/bin/env bash
+if [ "$1" = "issue" ] && [ "$2" = "view" ] && [ "$3" = "456" ]; then
+  printf '%s\n' "Issue title from RTM"
+  exit 0
+fi
+exit 1
+GH
+chmod +x bin/gh
+PATH="$PWD/bin:$PATH"
+source "$HELPER"
+extract_release_metadata "REQ-011"
+assert_eq "RTM issue title fallback without ticket" "Issue title from RTM" "$RELEASE_TITLE"
+assert_empty "Summary empty without ticket" "$RELEASE_SUMMARY"
+echo ""
+
 echo ""
 echo "=== Results: $PASS passed, $FAIL failed ==="
 exit $FAIL

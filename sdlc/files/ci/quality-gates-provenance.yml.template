@@ -39,9 +39,12 @@ jobs:
           echo "Excluding current workflow run: $CURRENT_RUN_ID"
 
           # Query GitHub API for check runs on this SHA with name "Quality Gates"
+          CURRENT_RUN_URL="/actions/runs/${CURRENT_RUN_ID}"
           RESPONSE=$(gh api \
             "/repos/${{ github.repository }}/commits/${HEAD_SHA}/check-runs?name=Quality%20Gates" \
-            --jq ".check_runs[] | select(.conclusion == \"success\") | select(.id != ${CURRENT_RUN_ID})")
+            --jq ".check_runs[]
+              | select(.status == \"completed\" and .conclusion == \"success\")
+              | select((.details_url // \"\") | contains(\"${CURRENT_RUN_URL}\") | not)")
 
           if [ -n "$RESPONSE" ]; then
             echo "Found prior successful Quality Gates result:"

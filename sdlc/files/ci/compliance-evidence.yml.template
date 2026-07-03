@@ -129,6 +129,11 @@ jobs:
           # code or docs. See DevAudit #310.
           chmod +x scripts/derive-release-version.sh 2>/dev/null || true
           VERSION=$(./scripts/derive-release-version.sh)
+          if [ -z "$VERSION" ]; then
+            echo "version=skip" >> "$GITHUB_OUTPUT"
+            echo "Compliance evidence upload skipped: close-out reconciliation marker detected."
+            exit 0
+          fi
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "Release version: ${VERSION}"
 
@@ -145,17 +150,15 @@ jobs:
       #
       # devaudit#284 — release reconciliation merges (from close-out-release.yml)
       # carry a `Release-Closeout: REQ-XXX` marker in the commit body.
-      # derive-release-version.sh detects this marker and attributes the
-      # version to the existing tracked REQ instead of falling through to
-      # the bare-date housekeeping path. So reconciliation pushes never
-      # reach this stub-generation step — they converge on the already-
-      # released tracked record instead of creating a false housekeeping
-      # release candidate.
+      # derive-release-version.sh detects this marker and emits an empty
+      # version, which this workflow converts to the explicit `skip` sentinel.
+      # Reconciliation pushes therefore never create housekeeping stubs and
+      # never attach fresh evidence to an already released tracked record.
       #
       # Mirrors the `incident-export.yml` pattern: auto-PR, operator fills
       # in sign-off, merge to land.
       - name: Auto-generate housekeeping stubs (if needed)
-        if: steps.resolve.outputs.skip != 'true'
+        if: steps.resolve.outputs.skip != 'true' && steps.version.outputs.version != 'skip'
         env:
           # Use the workflow's GITHUB_TOKEN directly. The `permissions:`
           # block on the job grants `contents: write` + `pull-requests:
@@ -235,7 +238,7 @@ jobs:
           fi
 
       - name: Upload compliance documents
-        if: steps.resolve.outputs.skip != 'true'
+        if: steps.resolve.outputs.skip != 'true' && steps.version.outputs.version != 'skip'
         run: |
           chmod +x scripts/upload-evidence.sh 2>/dev/null || true
           # Common flags WITHOUT --release. Each upload appends its OWN
@@ -446,7 +449,7 @@ jobs:
           req_meta_args() {
             local REQ="$1"; local CT=""
             # Source the shared helper and extract canonical title + summary
-            source sdlc/files/_common/scripts/extract-release-metadata.sh 2>/dev/null || true
+            source scripts/extract-release-metadata.sh 2>/dev/null || true
             extract_release_metadata "$REQ" 2>/dev/null || true
             CT=$(git log --grep "\[${REQ}\]\|Ref: ${REQ}" --pretty=%s -1 2>/dev/null \
               | grep -oE '^(feat|fix|refactor|perf|chore|docs|ci|build|test|compliance|revert)' \
@@ -688,11 +691,16 @@ jobs:
         run: |
           chmod +x scripts/derive-release-version.sh 2>/dev/null || true
           VERSION=$(./scripts/derive-release-version.sh)
+          if [ -z "$VERSION" ]; then
+            echo "version=skip" >> "$GITHUB_OUTPUT"
+            echo "E2E evidence upload skipped: close-out reconciliation marker detected."
+            exit 0
+          fi
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "Resolved release version: ${VERSION}"
 
       - name: Upload E2E Regression evidence to DevAudit
-        if: steps.resolve.outputs.skip != 'true'
+        if: steps.resolve.outputs.skip != 'true' && steps.version.outputs.version != 'skip'
         run: |
           set -euo pipefail
           DERIVED_RELEASE="${{ steps.version.outputs.version }}"

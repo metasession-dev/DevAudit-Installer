@@ -11,7 +11,7 @@
 
 # Reserved branch prefix for automation. Humans should not use this for
 # unrelated housekeeping work.
-CLOSEOUT_BRANCH_PREFIX="chore/close-out-REQ-"
+CLOSEOUT_BRANCH_PREFIX="chore/close-out-"
 
 # Structured close-out marker emitted in the PR body / merge commit body.
 # Format: Release-Closeout: REQ-XXX
