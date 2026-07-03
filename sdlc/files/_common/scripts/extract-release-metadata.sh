@@ -41,21 +41,19 @@ extract_release_metadata() {
     fi
   done
 
-  if [ -z "$ticket_file" ]; then
-    return 0
-  fi
-
   # --- Title extraction ---
   # 1. Try **Requirement:** REQ-XXX — <human title>
-  local req_line
-  req_line=$(grep -m1 '^\*\*Requirement:\*\*' "$ticket_file" 2>/dev/null || true)
-  if [ -n "$req_line" ]; then
-    # Extract the human part after "REQ-XXX —"
-    # Format: **Requirement:** REQ-089 — Some human title here
-    RELEASE_TITLE=$(printf '%s' "$req_line" \
-      | sed -E 's/^\*\*Requirement:\*\*[[:space:]]*//' \
-      | sed -E 's/^REQ-[0-9]+[[:space:]]*[—–:-][[:space:]]*//' \
-      | sed -E 's/[[:space:]]*$//')
+  if [ -n "$ticket_file" ]; then
+    local req_line
+    req_line=$(grep -m1 '^\*\*Requirement:\*\*' "$ticket_file" 2>/dev/null || true)
+    if [ -n "$req_line" ]; then
+      # Extract the human part after "REQ-XXX —"
+      # Format: **Requirement:** REQ-089 — Some human title here
+      RELEASE_TITLE=$(printf '%s' "$req_line" \
+        | sed -E 's/^\*\*Requirement:\*\*[[:space:]]*//' \
+        | sed -E 's/^REQ-[0-9]+[[:space:]]*[—–:-][[:space:]]*//' \
+        | sed -E 's/[[:space:]]*$//')
+    fi
   fi
 
   # 2. Fallback: GitHub issue title from RTM row
@@ -73,7 +71,7 @@ extract_release_metadata() {
   fi
 
   # 3. Fallback: normalised ticket H1 (least preferred)
-  if [ -z "$RELEASE_TITLE" ]; then
+  if [ -z "$RELEASE_TITLE" ] && [ -n "$ticket_file" ]; then
     local h1_line
     h1_line=$(grep -m1 '^# ' "$ticket_file" 2>/dev/null || true)
     if [ -n "$h1_line" ]; then
@@ -91,11 +89,14 @@ extract_release_metadata() {
   # --- Summary extraction ---
   # Capture content between ## Summary and the next ## heading
   local summary_raw
-  summary_raw=$(awk '
-    /^## Summary/ { found=1; next }
-    /^## / { if (found) exit }
-    found { print }
-  ' "$ticket_file" 2>/dev/null || true)
+  summary_raw=""
+  if [ -n "$ticket_file" ]; then
+    summary_raw=$(awk '
+      /^## Summary/ { found=1; next }
+      /^## / { if (found) exit }
+      found { print }
+    ' "$ticket_file" 2>/dev/null || true)
+  fi
 
   if [ -n "$summary_raw" ]; then
     # Trim leading/trailing blank lines and trailing whitespace per line

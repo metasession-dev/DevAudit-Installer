@@ -21,7 +21,7 @@
 #                                      (devaudit#284 — suppresses false
 #                                      housekeeping stubs from release
 #                                      reconciliation merges)
-#                                                                    -> REQ-XXX
+#                                                                    -> empty/skip
 #   5. Fallback:                      bare date                      -> v2026.05.17
 #
 # Step 4 (DevAudit-Installer#92) handles `chore:` / `docs:` / `ci:`
@@ -138,12 +138,10 @@ fi
 # reconciliation/close-out path must not derive a bare-date housekeeping
 # release. The close-out workflow (devaudit#281) emits a structured
 # `Release-Closeout: REQ-XXX` marker in the merge commit body. When
-# present, attribute the version to that REQ so the release converges
-# on the existing tracked release record instead of creating a phantom
-# housekeeping release.
+# present, emit no version. Workflow callers translate the empty result
+# to an explicit `skip` sentinel so reconciliation pushes neither create
+# housekeeping releases nor attach new evidence to an already released REQ.
 if echo "$BODY" | grep -qE '^Release-Closeout:[[:space:]]*REQ-[0-9]{3,}'; then
-  echo "$BODY" | grep -oE '^Release-Closeout:[[:space:]]*REQ-[0-9]{3,}' \
-    | head -1 | grep -oE 'REQ-[0-9]{3,}'
   exit 0
 fi
 
