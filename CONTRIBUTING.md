@@ -108,3 +108,18 @@ This repository uses a **GitFlow** branching model with five branch types:
 ## Licensing of contributions
 
 By submitting a contribution, you agree it is licensed under the project's [Apache License 2.0](./LICENSE), per the License's contribution clause (§ 5).
+
+## Cross-repo payload contracts (#571)
+
+This repo and the Portal (`metasession-dev/devaudit`) communicate via `repository_dispatch` events. When changing a dispatch payload (adding/removing/renaming a field), **both sides must be updated in the same PR cycle** — the sender (Portal) and the consumer (DevAudit-Installer CI templates).
+
+### Contract file
+
+Dispatch payload schemas are defined in [`contracts/dispatch-payloads.json`](./contracts/dispatch-payloads.json). Both repos hold a copy and must stay in sync. The `sync-evidence-contract.yml` workflow notifies this repo when the Portal updates its copy.
+
+### Rules
+
+1. **Never remove a field from a dispatch payload without updating the consumer workflow.** The consumer reads `github.event.client_payload.<field>` — a missing field silently produces empty strings, not errors.
+2. **When adding a field, make it nullable or optional in the consumer.** The consumer workflow must handle the field being absent (e.g. `${{ github.event.client_payload.approved_sha || '' }}`).
+3. **When renaming a field, add the new name first, keep the old name as an alias for one release cycle, then remove it.** This gives the consumer time to migrate.
+4. **Test both sides.** The Portal has unit tests for dispatch payloads (`tests/unit/services/approval-service.test.ts`); the DevAudit-Installer has shell tests for the consumer workflows. Run both before merging.

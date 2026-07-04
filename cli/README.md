@@ -44,7 +44,7 @@ npm install -g @metasession.co/devaudit-cli@latest   # upgrade
 - `devaudit status [path]` — reads `sdlc-config.json` from a consumer project, prints stack/host/slug/source-dirs, and reports which framework files are present
 - `devaudit install [path]` — **native TS, 11-step interactive onboarding** under `src/install/` (auth-probe → detect-stack → prompts → write-config → project → api-key → github → hooks-bootstrap → branch-protection → sync-templates → done-report). Replaces the former `scripts/sdlc-onboard.sh` (removed); no shell-out.
 - `devaudit update <version> <paths...>` — **native TS, multi-project template sync** under `src/update/`. Reads each consumer's `sdlc-config.json`, copies framework files, fires `beforeSync` / `afterSync` plugin hooks. Replaces the former `scripts/sync-sdlc.sh` (removed); no shell-out.
-- `devaudit push <slug> <req-id> <type> <file>` — uploads evidence to the portal (port of `upload-evidence.sh`; file or directory; retries on 429/5xx with backoff)
+- `devaudit push <slug> <req-id> <type> <file>` — uploads evidence to the portal (port of `upload-evidence.sh`; file or directory; retries on 429/5xx with backoff). Files >=25MB use a presigned R2 upload flow (3-step: request URL → PUT to R2 → notify portal); large-file uploads require the Portal to be configured with R2 evidence storage (`R2_EVIDENCE_BUCKET`). If R2 is not configured, the Portal returns a clear error which is surfaced to the operator.
 - `devaudit auth login` — interactive PAT paste flow; validates against the portal; stores at `~/.config/devaudit/auth.json` (mode 0600)
 - `devaudit auth logout` — wipes the cached token
 - `devaudit auth status` — verifies the cached token (or `DEVAUDIT_USER_TOKEN` env var) by calling `GET /api/projects`
