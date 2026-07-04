@@ -273,6 +273,91 @@ assert_eq "RTM issue title fallback without ticket" "Issue title from RTM" "$REL
 assert_empty "Summary empty without ticket" "$RELEASE_SUMMARY"
 echo ""
 
+# --- Test 12 (#571 Gap 3): No ticket, no RTM, no gh CLI — all fallbacks empty ---
+echo "--- Test 12: All fallbacks unreachable ---"
+make_fixture "$WORK/test12"
+source "$HELPER"
+extract_release_metadata "REQ-999"
+assert_empty "Title empty when no ticket, no RTM, no gh" "$RELEASE_TITLE"
+assert_empty "Summary empty when no ticket" "$RELEASE_SUMMARY"
+echo ""
+
+# --- Test 13 (#571 Gap 3): Ticket exists but has no **Requirement:** line,
+# no H1, and no ## Summary — all extraction targets are unreachable ---
+echo "--- Test 13: Ticket with no extractable content ---"
+make_fixture "$WORK/test13"
+cat > "compliance/pending-releases/RELEASE-TICKET-REQ-012.md" <<'TICKET'
+Some prose without any standard headings.
+
+Just a paragraph.
+TICKET
+
+source "$HELPER"
+extract_release_metadata "REQ-012"
+assert_empty "Title empty when no Requirement line or H1" "$RELEASE_TITLE"
+assert_empty "Summary empty when no ## Summary section" "$RELEASE_SUMMARY"
+echo ""
+
+# --- Test 14 (#571 Gap 3): RTM row exists but has no issue number,
+# so the gh CLI fallback is unreachable. Title should be empty. ---
+echo "--- Test 14: RTM row without issue number ---"
+make_fixture "$WORK/test14"
+cat > compliance/RTM.md <<'RTM'
+| REQ-ID  | Issue | Risk | Evidence | Status |
+| ------- | ----- | ---- | -------- | ------ |
+| REQ-013 |       | LOW  | n/a      | DRAFT  |
+RTM
+source "$HELPER"
+extract_release_metadata "REQ-013"
+assert_empty "Title empty when RTM row has no issue number" "$RELEASE_TITLE"
+echo ""
+
+# --- Test 15 (#571 Gap 3): gh CLI exists but issue lookup fails —
+# must fall through to H1 fallback, not error out ---
+echo "--- Test 15: gh CLI fails, falls through to H1 ---"
+make_fixture "$WORK/test15"
+cat > "compliance/pending-releases/RELEASE-TICKET-REQ-014.md" <<'TICKET'
+# Fix critical payment bug
+
+## Summary
+Fixes the payment redirect issue.
+TICKET
+cat > compliance/RTM.md <<'RTM'
+| REQ-ID  | Issue | Risk | Evidence | Status |
+| ------- | ----- | ---- | -------- | ------ |
+| REQ-014 | #999  | LOW  | n/a      | DRAFT  |
+RTM
+mkdir -p bin
+cat > bin/gh <<'GH'
+#!/usr/bin/env bash
+# Simulate gh CLI failing (e.g. rate limited, issue not found)
+exit 1
+GH
+chmod +x bin/gh
+PATH="$PWD/bin:$PATH"
+source "$HELPER"
+extract_release_metadata "REQ-014"
+assert_eq "H1 fallback when gh CLI fails" "Fix critical payment bug" "$RELEASE_TITLE"
+echo ""
+
+# --- Test 16 (#571 Gap 3): Summary section exists but is only whitespace ---
+echo "--- Test 16: Whitespace-only summary is cleared ---"
+make_fixture "$WORK/test16"
+cat > "compliance/pending-releases/RELEASE-TICKET-REQ-015.md" <<'TICKET'
+**Requirement:** REQ-015 — Feature fifteen
+
+## Summary
+
+## Changes
+- Change A
+TICKET
+
+source "$HELPER"
+extract_release_metadata "REQ-015"
+assert_eq "Title extracted" "Feature fifteen" "$RELEASE_TITLE"
+assert_empty "Whitespace-only summary cleared" "$RELEASE_SUMMARY"
+echo ""
+
 echo ""
 echo "=== Results: $PASS passed, $FAIL failed ==="
 exit $FAIL
