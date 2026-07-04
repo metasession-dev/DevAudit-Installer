@@ -7,6 +7,9 @@ import type { SyncContext, SectionResult } from './types.js';
 const CI_TEMPLATES = [
   'ci.yml.template',
   'ci-status-fallback.yml.template',
+  // DevAudit-Installer#280: same-SHA provenance check on PRs to main.
+  // Verifies prior Quality Gates success without rerunning heavy CI.
+  'quality-gates-provenance.yml.template',
   'compliance-validation.yml.template',
   'check-release-approval.yml.template',
   'post-deploy-prod.yml.template',

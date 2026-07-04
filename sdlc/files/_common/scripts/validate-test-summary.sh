@@ -133,6 +133,43 @@ for REQ in $REQUIREMENTS; do
     EXIT_CODE=1
   fi
 
+  # Check 7: If E2E gate result is SKIPPED, require an ## Accepted skips section (devaudit-installer#279)
+  if grep -qi '| *e2e.*| *skipped' "$SUMMARY" 2>/dev/null; then
+    if ! grep -qi '## Accepted skips' "$SUMMARY" 2>/dev/null; then
+      echo "  ERROR: E2E gate result is SKIPPED but no '## Accepted skips' section found (devaudit-installer#279)"
+      echo "         Add an '## Accepted skips' section with a table row for each accepted skip."
+      EXIT_CODE=1
+    else
+      # Extract the Accepted skips section and check for data rows
+      ACCEPTED_SKIPS_SECTION=$(awk '/^## Accepted skips/{found=1; next} /^## /{found=0} found' "$SUMMARY")
+      # Count rows that look like table data (start with |, not separator, not header)
+      # Separator rows contain only dashes and pipes: |------|------|
+      # Header rows contain column names: | Spec | Test | ...
+      # Data rows contain actual values: | e2e/foo.spec.ts | ... |
+      DATA_ROWS=$(echo "$ACCEPTED_SKIPS_SECTION" | grep '^|' | grep -v '^|[[:space:]]*-' | grep -v 'Spec.*Test.*REQ/AC' | wc -l || true)
+      if [ "$DATA_ROWS" -lt 1 ] 2>/dev/null; then
+        echo "  ERROR: '## Accepted skips' section exists but has no table data rows (devaudit-installer#279)"
+        echo "         Add at least one row with: Spec, Test, REQ/AC, Classification, Resolution attempted, Approved by, Rationale"
+        EXIT_CODE=1
+      else
+        # Check that each data row has a non-empty "Approved by" column (6th content column = field 7 with awk -F|)
+        SKIP_FAIL=0
+        echo "$ACCEPTED_SKIPS_SECTION" | grep '^|' | grep -v '^|[[:space:]]*-' | grep -v 'Spec.*Test.*REQ/AC' | while IFS= read -r row; do
+          APPROVED_BY=$(echo "$row" | awk -F'|' '{gsub(/^[[:space:]]+|[[:space:]]+$/,"",$7); print $7}')
+          if [ -z "$APPROVED_BY" ]; then
+            echo "  ERROR: Accepted skip row has empty 'Approved by' value (devaudit-installer#279)"
+            echo "         Row: $row"
+          fi
+        done | grep -q ERROR && SKIP_FAIL=1
+        if [ "$SKIP_FAIL" -eq 1 ]; then
+          EXIT_CODE=1
+        else
+          echo "  OK: E2E gate result is SKIPPED with '## Accepted skips' section"
+        fi
+      fi
+    fi
+  fi
+
   echo ""
 done
 

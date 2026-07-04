@@ -129,6 +129,11 @@ jobs:
           # code or docs. See DevAudit #310.
           chmod +x scripts/derive-release-version.sh 2>/dev/null || true
           VERSION=$(./scripts/derive-release-version.sh)
+          if [ -z "$VERSION" ]; then
+            echo "version=skip" >> "$GITHUB_OUTPUT"
+            echo "Compliance evidence upload skipped: close-out reconciliation detected."
+            exit 0
+          fi
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "Release version: ${VERSION}"
 
@@ -143,10 +148,17 @@ jobs:
       # merged, the next compliance-evidence.yml run uploads them as
       # evidence and the matrix flips both items to ✓.
       #
+      # devaudit#284 — release reconciliation merges (from close-out-release.yml)
+      # carry a `Release-Closeout: REQ-XXX` marker in the commit body.
+      # derive-release-version.sh detects this marker and emits an empty
+      # version, which this workflow converts to the explicit `skip` sentinel.
+      # Reconciliation pushes therefore never create housekeeping stubs and
+      # never attach fresh evidence to an already released tracked record.
+      #
       # Mirrors the `incident-export.yml` pattern: auto-PR, operator fills
       # in sign-off, merge to land.
       - name: Auto-generate housekeeping stubs (if needed)
-        if: steps.resolve.outputs.skip != 'true'
+        if: steps.resolve.outputs.skip != 'true' && steps.version.outputs.version != 'skip'
         env:
           # Use the workflow's GITHUB_TOKEN directly. The `permissions:`
           # block on the job grants `contents: write` + `pull-requests:
@@ -226,7 +238,7 @@ jobs:
           fi
 
       - name: Upload compliance documents
-        if: steps.resolve.outputs.skip != 'true'
+        if: steps.resolve.outputs.skip != 'true' && steps.version.outputs.version != 'skip'
         run: |
           chmod +x scripts/upload-evidence.sh 2>/dev/null || true
           # Common flags WITHOUT --release. Each upload appends its OWN
@@ -428,19 +440,17 @@ jobs:
           fi
           rm -f "$AUDIT_LOG_FILE"
 
-          # Helper: emit a `--release-title …` `--change-type …` pair for a given
-          # REQ, derived from its pending release-ticket H1 and the most recent
-          # commit attributed to that REQ. Empty pair when neither is available.
+          # Helper: emit `--release-title …` `--release-summary …` `--change-type …`
+          # args for a given REQ, derived from its release-ticket metadata and
+          # the most recent commit attributed to that REQ. Empty pair when
+          # neither is available. Uses the shared extraction helper so both
+          # workflow paths produce the same title/summary for the same REQ.
+          # DevAudit-Installer#285.
           req_meta_args() {
-            local REQ="$1"; local TITLE=""; local CT=""
-            for FILE in "compliance/pending-releases/RELEASE-TICKET-${REQ}.md" \
-                        "compliance/approved-releases/RELEASE-TICKET-${REQ}.md"; do
-              if [ -f "$FILE" ]; then
-                TITLE=$(grep -m1 '^# ' "$FILE" \
-                  | sed -E 's/^# *(REQ-[0-9]+)?[[:space:]]*[—:-]?[[:space:]]*//')
-                break
-              fi
-            done
+            local REQ="$1"; local CT=""
+            # Source the shared helper and extract canonical title + summary
+            source scripts/extract-release-metadata.sh 2>/dev/null || true
+            extract_release_metadata "$REQ" 2>/dev/null || true
             CT=$(git log --grep "\[${REQ}\]\|Ref: ${REQ}" --pretty=%s -1 2>/dev/null \
               | grep -oE '^(feat|fix|refactor|perf|chore|docs|ci|build|test|compliance|revert)' \
               | head -1 || true)
@@ -448,7 +458,8 @@ jobs:
             # trailing `[ … ] && cmd` whose test fails returns 1, and the
             # function inherits that exit code; calling via $(req_meta_args …)
             # then aborts the step silently (DevAudit-Installer#77).
-            if [ -n "$TITLE" ]; then printf -- '--release-title %q ' "$TITLE"; fi
+            if [ -n "$RELEASE_TITLE" ]; then printf -- '--release-title %q ' "$RELEASE_TITLE"; fi
+            if [ -n "$RELEASE_SUMMARY" ]; then printf -- '--release-summary %q ' "$RELEASE_SUMMARY"; fi
             if [ -n "$CT" ]; then printf -- '--change-type %q ' "$CT"; fi
           }
 
@@ -680,11 +691,16 @@ jobs:
         run: |
           chmod +x scripts/derive-release-version.sh 2>/dev/null || true
           VERSION=$(./scripts/derive-release-version.sh)
+          if [ -z "$VERSION" ]; then
+            echo "version=skip" >> "$GITHUB_OUTPUT"
+            echo "E2E evidence upload skipped: close-out reconciliation detected."
+            exit 0
+          fi
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "Resolved release version: ${VERSION}"
 
       - name: Upload E2E Regression evidence to DevAudit
-        if: steps.resolve.outputs.skip != 'true'
+        if: steps.resolve.outputs.skip != 'true' && steps.version.outputs.version != 'skip'
         run: |
           set -euo pipefail
           DERIVED_RELEASE="${{ steps.version.outputs.version }}"

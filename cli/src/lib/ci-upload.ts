@@ -17,6 +17,8 @@ export interface UploadOptions {
   readonly releaseBranch?: string;
   /** Human title for the release row — forwarded as `releaseTitle` (portal no-clobbers existing values). */
   readonly releaseTitle?: string;
+  /** Reviewer-facing short description — forwarded as `releaseSummary` (portal no-clobbers existing values). DevAudit-Installer#285. */
+  readonly releaseSummary?: string;
   /** Conventional-commit prefix for the release row — forwarded as `changeType`. */
   readonly changeType?: string;
   /** `passed` | `failed` | `skipped` — forwarded as `gateStatus`. */
@@ -122,6 +124,7 @@ function buildUploadForm(file: string, buf: Buffer, opts: UploadOptions): FormDa
   if (opts.evidenceCategory) form.set('evidenceCategory', opts.evidenceCategory);
   if (opts.releaseBranch) form.set('releaseBranch', opts.releaseBranch);
   if (opts.releaseTitle) form.set('releaseTitle', opts.releaseTitle);
+  if (opts.releaseSummary) form.set('releaseSummary', opts.releaseSummary);
   if (opts.changeType) form.set('changeType', opts.changeType);
   if (opts.gateStatus) form.set('gateStatus', opts.gateStatus);
   if (opts.sdlcStage) form.set('sdlcStage', opts.sdlcStage);
@@ -259,6 +262,8 @@ async function uploadPresigned(file: string, buf: Buffer, opts: UploadOptions): 
           ...(opts.releaseBranch ? { releaseBranch: opts.releaseBranch } : {}),
           ...(opts.environment ? { environment: opts.environment } : {}),
           ...(opts.evidenceCategory ? { evidenceCategory: opts.evidenceCategory } : {}),
+          ...(opts.releaseTitle ? { releaseTitle: opts.releaseTitle } : {}),
+          ...(opts.releaseSummary ? { releaseSummary: opts.releaseSummary } : {}),
           ...(opts.sdlcStage ? { sdlcStage: opts.sdlcStage } : {}),
           ...(opts.testCycleId ? { testCycleId: opts.testCycleId } : {}),
         }),

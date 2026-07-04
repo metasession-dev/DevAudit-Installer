@@ -22,6 +22,14 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+  repository_dispatch:
+    types: [release-approved]
+
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+  issues: write
 
 jobs:
   check-approval:
@@ -43,7 +51,11 @@ jobs:
           # produces the same release identity here (#81 — release-identity
           # coherence; was hardcoded to `v$(date +%Y.%m.%d)` which never
           # matched the `REQ-XXX` records the uploaders wrote).
-          ref: ${{ github.event.pull_request.head.sha }}
+          #
+          # devaudit#283 — repository_dispatch events don't have a
+          # pull_request payload. Fall back to the develop branch ref so
+          # the gate can resolve the release and post a status check.
+          ref: ${{ github.event.pull_request.head.sha || 'develop' }}
           fetch-depth: 0
 
       - name: Resolve DevAudit base URL
@@ -149,13 +161,22 @@ jobs:
         id: release
         if: env.BOOTSTRAP_MODE != 'true'
         run: |
-          # Derive the same release prefix the uploaders write to. The script
-          # priority is: subject `[REQ-XXX]` → body `Ref: REQ-XXX` → body
-          # `[REQ-XXX]` (merge-commit case) → bare-date fallback. Reusing it
-          # here makes the gate and the uploaders agree on release identity
-          # (#81). The 8 scenarios are covered by derive-release-version.test.sh.
-          chmod +x scripts/derive-release-version.sh 2>/dev/null || true
-          LOOKUP_PREFIX=$(bash scripts/derive-release-version.sh)
+          # devaudit#283 — repository_dispatch('release-approved') events
+          # carry the release version in client_payload. Use it directly
+          # when available to avoid re-deriving from git history.
+          if [ "${{ github.event_name }}" = "repository_dispatch" ] && [ -n "${{ github.event.client_payload.release }}" ]; then
+            LOOKUP_PREFIX="${{ github.event.client_payload.release }}"
+            echo "Using release version from repository_dispatch payload: ${LOOKUP_PREFIX}"
+          else
+            # Derive the same release prefix the uploaders write to. The script
+            # priority is: subject `[REQ-XXX]` → body `Ref: REQ-XXX` → body
+            # `[REQ-XXX]` (merge-commit case) → bare-date fallback. Reusing it
+            # here makes the gate and the uploaders agree on release identity
+            # (#81). The 8 scenarios are covered by derive-release-version.test.sh.
+            chmod +x scripts/derive-release-version.sh 2>/dev/null || true
+            LOOKUP_PREFIX=$(bash scripts/derive-release-version.sh)
+            echo "Derived release prefix from git history: ${LOOKUP_PREFIX}"
+          fi
           echo "Resolving release for prefix: ${LOOKUP_PREFIX}"
           RESOLVE_URL="${BASE}/api/ci/releases/resolve?projectSlug=${PROJECT_SLUG}&versionPrefix=${LOOKUP_PREFIX}"
           # Retry: register-release in ci.yml may still be racing with us.
@@ -234,21 +255,59 @@ jobs:
             echo "::warning::Approved SHA (${APPROVED_SHA:0:8}) differs from PR HEAD (${PR_HEAD_SHA:0:8}). Code may have changed after approval."
           fi
 
-      - name: Update PR status (workflow_dispatch re-trigger)
-        if: env.BOOTSTRAP_MODE != 'true' && github.event_name == 'workflow_dispatch'
+      - name: Update PR check run (workflow_dispatch / repository_dispatch re-trigger)
+        if: env.BOOTSTRAP_MODE != 'true' && (github.event_name == 'workflow_dispatch' || github.event_name == 'repository_dispatch')
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          PR_DATA=$(gh pr list --base main --head develop --json headRefOid --limit 1 2>/dev/null || echo '[]')
-          PR_SHA=$(echo "$PR_DATA" | jq -r '.[0].headRefOid // empty' 2>/dev/null || true)
-          if [ -n "$PR_SHA" ]; then
-            gh api "repos/${{ github.repository }}/statuses/${PR_SHA}" \
-              -X POST \
-              -f state=success \
-              -f context="Release Approval Gate" \
-              -f description="DevAudit release approval confirmed" \
-              -f target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
-              || echo "Warning: Failed to post commit status"
+          TARGET_SHA="${{ github.event.client_payload.approved_sha || '' }}"
+          if [ -z "$TARGET_SHA" ]; then
+            TARGET_SHA="${{ steps.release.outputs.approved_sha }}"
+          fi
+
+          RELEASE_PR="${{ github.event.client_payload.release_pr || '' }}"
+          if [ -z "$TARGET_SHA" ] && [ -n "$RELEASE_PR" ] && [ "$RELEASE_PR" != "null" ]; then
+            TARGET_SHA=$(gh pr view "$RELEASE_PR" --json headRefOid --jq '.headRefOid // empty' 2>/dev/null || true)
+          fi
+
+          if [ -z "$TARGET_SHA" ]; then
+            PR_DATA=$(gh pr list --base main --json number,headRefOid,updatedAt --limit 20 2>/dev/null || echo '[]')
+            TARGET_SHA=$(echo "$PR_DATA" | jq -r 'sort_by(.updatedAt) | reverse | .[0].headRefOid // empty' 2>/dev/null || true)
+          fi
+
+          if [ -z "$TARGET_SHA" ]; then
+            echo "::error::Unable to resolve PR head SHA for DevAudit Release Approval check refresh. Portal dispatch should include approved_sha."
+            exit 1
+          fi
+
+          CHECK_NAME="DevAudit Release Approval"
+          DETAILS_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          COMPLETED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          EXISTING_ID=$(gh api \
+            "/repos/${{ github.repository }}/commits/${TARGET_SHA}/check-runs?name=DevAudit%20Release%20Approval" \
+            --jq '.check_runs[] | select(.name == "DevAudit Release Approval") | .id' \
+            | head -1 || true)
+
+          if [ -n "$EXISTING_ID" ]; then
+            gh api "/repos/${{ github.repository }}/check-runs/${EXISTING_ID}" \
+              -X PATCH \
+              -f status=completed \
+              -f conclusion=success \
+              -f completed_at="$COMPLETED_AT" \
+              -f details_url="$DETAILS_URL" \
+              -f "output[title]=DevAudit release approval confirmed" \
+              -f "output[summary]=Release ${{ steps.release.outputs.version }} is approved in DevAudit."
+            echo "Updated ${CHECK_NAME} check run ${EXISTING_ID} on ${TARGET_SHA}."
           else
-            echo "No open PR from develop to main found — skipping status update"
+            gh api "/repos/${{ github.repository }}/check-runs" \
+              -X POST \
+              -f name="$CHECK_NAME" \
+              -f head_sha="$TARGET_SHA" \
+              -f status=completed \
+              -f conclusion=success \
+              -f completed_at="$COMPLETED_AT" \
+              -f details_url="$DETAILS_URL" \
+              -f "output[title]=DevAudit release approval confirmed" \
+              -f "output[summary]=Release ${{ steps.release.outputs.version }} is approved in DevAudit."
+            echo "Created ${CHECK_NAME} check run on ${TARGET_SHA}."
           fi

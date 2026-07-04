@@ -6,8 +6,8 @@
 # Single consolidated job — on a self-hosted runner, parallel jobs run
 # sequentially anyway. One checkout + one cached npm ci = fast.
 #
-# PRs to develop run Quality Gates before integration. PRs to main inherit
-# commit status via branch protection.
+# PRs to develop run Quality Gates before integration. PRs to main are verified
+# by quality-gates-provenance.yml (same-SHA provenance check, not heavy CI rerun).
 # Compliance validation runs separately on PRs (compliance-validation.yml).
 
 name: CI Pipeline
@@ -287,11 +287,16 @@ jobs:
           # feature converges on one release record. See DevAudit #310.
           chmod +x scripts/derive-release-version.sh 2>/dev/null || true
           VERSION=$(./scripts/derive-release-version.sh)
+          if [ -z "$VERSION" ]; then
+            echo "version=skip" >> "$GITHUB_OUTPUT"
+            echo "Release registration skipped: close-out reconciliation detected."
+            exit 0
+          fi
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "Release version: ${VERSION}"
 
       - name: Check release exists (no creation — deferred to upload-evidence)
-        if: env.DEVAUDIT_BASE_URL != ''
+        if: env.DEVAUDIT_BASE_URL != '' && steps.version.outputs.version != 'skip'
         run: |
           # Release creation is deferred to the upload-evidence job (which
           # runs after gates pass) so the portal never shows a release from
@@ -306,7 +311,7 @@ jobs:
             --git-sha ${{ github.sha }} --branch ${{ github.ref_name }} || true
 
       - name: Generate and upload bundled changes (REQ releases only)
-        if: env.DEVAUDIT_BASE_URL != ''
+        if: env.DEVAUDIT_BASE_URL != '' && steps.version.outputs.version != 'skip'
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           # Only generate bundled changes for REQ-tagged releases —
@@ -349,32 +354,20 @@ jobs:
         run: |
           if [ ! -f "compliance/RTM.md" ]; then exit 0; fi
 
-          # Per REQ row in RTM we look up: title (release-ticket H1, else the
-          # linked issue's title via `gh`), and risk_class (the first LOW /
-          # MEDIUM / HIGH / CRITICAL token in the row). Both are optional —
-          # the portal renders gracefully with nulls. The portal endpoint
-          # accepts either a bare string[] (legacy) or rich rows.
+          # Per REQ row in RTM we look up: title (shared release metadata
+          # helper: **Requirement:** line, issue title, then H1 fallback), and
+          # risk_class (the first LOW / MEDIUM / HIGH / CRITICAL token in the
+          # row). Both are optional — the portal renders gracefully with nulls.
+          # The portal endpoint accepts either a bare string[] (legacy) or rich
+          # rows.
           REQS_JSON='[]'
           while IFS= read -r REQ; do
             [ -z "$REQ" ] && continue
             ROW=$(grep -m1 -E "^\| ${REQ} " compliance/RTM.md || true)
             TITLE=""
-            # Title: release-ticket H1 first (pending then approved)
-            for FILE in "compliance/pending-releases/RELEASE-TICKET-${REQ}.md" \
-                        "compliance/approved-releases/RELEASE-TICKET-${REQ}.md"; do
-              if [ -f "$FILE" ]; then
-                TITLE=$(grep -m1 '^# ' "$FILE" \
-                  | sed -E 's/^# *(REQ-[0-9]+)?[[:space:]]*[—:-]?[[:space:]]*//')
-                break
-              fi
-            done
-            # Title fallback: first issue # found anywhere in the row
-            if [ -z "$TITLE" ] && [ -n "$ROW" ]; then
-              ISSUE_NUM=$(echo "$ROW" | grep -oE '#[0-9]+' | head -1 | tr -d '#')
-              if [ -n "$ISSUE_NUM" ]; then
-                TITLE=$(gh issue view "$ISSUE_NUM" --json title --jq .title 2>/dev/null || true)
-              fi
-            fi
+            source scripts/extract-release-metadata.sh 2>/dev/null || true
+            extract_release_metadata "$REQ" 2>/dev/null || true
+            TITLE="$RELEASE_TITLE"
             # Risk: first LOW/MEDIUM/HIGH/CRITICAL token in the row
             RISK=""
             if [ -n "$ROW" ]; then
@@ -680,18 +673,16 @@ jobs:
             SHOT_TMP="$(mktemp -d)"
             for REQ in "${SHOT_REQS[@]}"; do
               # Per-REQ release metadata for the portal (no-clobbered on existing rows):
-              # release title from the pending ticket's H1; change type from the
-              # latest commit that references the REQ.
-              REQ_TITLE=""
-              if [ -f "compliance/pending-releases/RELEASE-TICKET-${REQ}.md" ]; then
-                REQ_TITLE=$(grep -m1 '^# ' "compliance/pending-releases/RELEASE-TICKET-${REQ}.md" \
-                  | sed -E 's/^# *(REQ-[0-9]+)?[[:space:]]*[—:-]?[[:space:]]*//')
-              fi
+              # Uses the shared extraction helper so both workflow paths produce
+              # the same title/summary for the same REQ. DevAudit-Installer#285.
+              source scripts/extract-release-metadata.sh 2>/dev/null || true
+              extract_release_metadata "$REQ" 2>/dev/null || true
               REQ_CT=$(git log --grep "\[${REQ}\]\|Ref: ${REQ}" --pretty=%s -1 2>/dev/null \
                 | grep -oE '^(feat|fix|refactor|perf|chore|docs|ci|build|test|compliance|revert)' \
                 | head -1 || true)
               REQ_META=()
-              [ -n "$REQ_TITLE" ] && REQ_META+=(--release-title "$REQ_TITLE")
+              [ -n "$RELEASE_TITLE" ] && REQ_META+=(--release-title "$RELEASE_TITLE")
+              [ -n "$RELEASE_SUMMARY" ] && REQ_META+=(--release-summary "$RELEASE_SUMMARY")
               [ -n "$REQ_CT" ] && REQ_META+=(--change-type "$REQ_CT")
               # devaudit-installer#147 — per-REQ scoped glob. ONLY this REQ's
               # own screenshots/ directory; legacy folders for REQs not in

@@ -179,6 +179,12 @@ make_fixture "$D6" "REQ-006" << 'EOF'
 | ---------------- | ------------ | ------------------------------------------ |
 | E2E Tests        | SKIPPED      | API-only change, no UI surface (operator-approved) |
 
+## Accepted skips
+
+| Spec | Test | REQ/AC | Classification | Resolution attempted | Approved by | Rationale |
+|------|------|--------|---------------|---------------------|-------------|----------|
+| e2e/foo.spec.ts | "AC1: bar dialog" | REQ-006/AC1 | intentional_non_applicability | N/A — API-only change | operator | API-only change, no UI surface |
+
 **Final assessment:** All gates passed. E2E skipped — API-only change.
 EOF
 EXIT6=$(run_validator "$D6")
@@ -258,6 +264,87 @@ make_fixture "$D11" "REQ-011" << 'EOF'
 EOF
 EXIT11=$(run_validator "$D11")
 assert_exit "summary with NOT_NEEDED but no rationale — should fail" 1 "$EXIT11"
+
+# --- Case 12: SKIPPED with ## Accepted skips section and valid rows — should pass (devaudit-installer#279) ---
+D12="$WORK/case12"
+make_fixture "$D12" "REQ-012" << 'EOF'
+# Test Execution Summary — REQ-012
+
+## Gate Results
+
+| Gate             | Result       | Details                                    |
+| ---------------- | ------------ | ------------------------------------------ |
+| E2E Tests        | SKIPPED      | API-only change, no UI surface (operator-approved) |
+
+## Accepted skips
+
+| Spec | Test | REQ/AC | Classification | Resolution attempted | Approved by | Rationale |
+|------|------|--------|---------------|---------------------|-------------|----------|
+| e2e/foo.spec.ts | "AC3: bar dialog" | REQ-012/AC3 | intentional_non_applicability | N/A — API-only change | operator | API-only change, no UI surface |
+
+**Final assessment:** All gates passed. E2E skipped — API-only change.
+EOF
+EXIT12=$(run_validator "$D12")
+assert_exit "SKIPPED with ## Accepted skips section and valid rows — should pass" 0 "$EXIT12"
+
+# --- Case 13: SKIPPED without ## Accepted skips section — should fail (devaudit-installer#279) ---
+D13="$WORK/case13"
+make_fixture "$D13" "REQ-013" << 'EOF'
+# Test Execution Summary — REQ-013
+
+## Gate Results
+
+| Gate             | Result       | Details                                    |
+| ---------------- | ------------ | ------------------------------------------ |
+| E2E Tests        | SKIPPED      | API-only change, no UI surface (operator-approved) |
+
+**Final assessment:** All gates passed. E2E skipped — API-only change.
+EOF
+EXIT13=$(run_validator "$D13")
+assert_exit "SKIPPED without ## Accepted skips section — should fail" 1 "$EXIT13"
+
+# --- Case 14: SKIPPED with ## Accepted skips but no table rows — should fail (devaudit-installer#279) ---
+D14="$WORK/case14"
+make_fixture "$D14" "REQ-014" << 'EOF'
+# Test Execution Summary — REQ-014
+
+## Gate Results
+
+| Gate             | Result       | Details                                    |
+| ---------------- | ------------ | ------------------------------------------ |
+| E2E Tests        | SKIPPED      | API-only change, no UI surface (operator-approved) |
+
+## Accepted skips
+
+| Spec | Test | REQ/AC | Classification | Resolution attempted | Approved by | Rationale |
+|------|------|--------|---------------|---------------------|-------------|----------|
+
+**Final assessment:** All gates passed. E2E skipped — API-only change.
+EOF
+EXIT14=$(run_validator "$D14")
+assert_exit "SKIPPED with ## Accepted skips but no table rows — should fail" 1 "$EXIT14"
+
+# --- Case 15: SKIPPED with accepted-skip rows missing Approved by — should fail (devaudit-installer#279) ---
+D15="$WORK/case15"
+make_fixture "$D15" "REQ-015" << 'EOF'
+# Test Execution Summary — REQ-015
+
+## Gate Results
+
+| Gate             | Result       | Details                                    |
+| ---------------- | ------------ | ------------------------------------------ |
+| E2E Tests        | SKIPPED      | API-only change, no UI surface (operator-approved) |
+
+## Accepted skips
+
+| Spec | Test | REQ/AC | Classification | Resolution attempted | Approved by | Rationale |
+|------|------|--------|---------------|---------------------|-------------|----------|
+| e2e/foo.spec.ts | "AC3: bar dialog" | REQ-015/AC3 | intentional_non_applicability | N/A — API-only change |  | API-only change, no UI surface |
+
+**Final assessment:** All gates passed. E2E skipped — API-only change.
+EOF
+EXIT15=$(run_validator "$D15")
+assert_exit "SKIPPED with accepted-skip rows missing Approved by — should fail" 1 "$EXIT15"
 
 echo ""
 echo "=== Summary: $PASS pass / $FAIL fail ==="

@@ -16,6 +16,12 @@
 #   4-bis. RTM.md IN PROGRESS row:    exactly one tracked REQ marked
 #                                      IN PROGRESS in compliance/RTM.md
 #                                                                    -> REQ-XXX
+#   4-ter. Close-out marker:           commit body contains
+#                                      "Release-Closeout: REQ-XXX"
+#                                      (devaudit#284 — suppresses false
+#                                      housekeeping stubs from release
+#                                      reconciliation merges)
+#                                                                    -> empty/skip
 #   5. Fallback:                      bare date                      -> v2026.05.17
 #
 # Step 4 (DevAudit-Installer#92) handles `chore:` / `docs:` / `ci:`
@@ -125,6 +131,18 @@ if [ -f "$RTM_PATH" ]; then
       exit 0
     fi
   fi
+fi
+
+# 4-ter. Close-out marker suppression (devaudit#284).
+# A push that is solely the result of completing a tracked release's
+# reconciliation/close-out path must not derive a bare-date housekeeping
+# release. The close-out workflow (devaudit#281) emits a structured
+# `Release-Closeout: REQ-XXX` marker in the merge commit body. When
+# present, emit no version. Workflow callers translate the empty result
+# to an explicit `skip` sentinel so reconciliation pushes neither create
+# housekeeping releases nor attach new evidence to an already released REQ.
+if echo "$BODY" | grep -qE '^Release-Closeout:[[:space:]]*REQ-[0-9]{3,}'; then
+  exit 0
 fi
 
 # 5. Fallback: bare date in UTC

@@ -209,7 +209,7 @@ NEXT: Done — close issue + retire feature branch (sdlc-implementer halts)
 Lead every substantive turn with a driver tag on the **first line**, then the two-line LAST/NEXT shape so the operator can `Ctrl-F NEXT:` in the chat transcript to find the current pointer without re-reading:
 
 ```
-[Agent driving]   — or —   [Operator driving]   — or —   [Blocked]
+[Skill driving]   — or —   [Native agent driving]   — or —   [Operator driving]   — or —   [Blocked]
 
 **LAST:** <one sentence>
 **NEXT:** <one sentence with actor>
@@ -217,9 +217,10 @@ Lead every substantive turn with a driver tag on the **first line**, then the tw
 
 The driver tag is mandatory and comes **before** the LAST/NEXT lines:
 
-- **`[Agent driving]`** — the skill is auto-continuing; no human action needed right now. The operator can look away.
-- **`[Operator driving]`** — the skill has halted; the human must do something (review, approve, merge, answer a question). The NEXT line states the specific action needed.
-- **`[Blocked]`** — something failed and the skill cannot proceed. State the blocker and the operator action needed to unblock.
+- **`[Skill driving]`** — a skill (e.g. `sdlc-implementer`) is auto-continuing; no human action needed right now. The operator can look away.
+- **`[Native agent driving]`** — the native AI agent (Cursor, Windsurf, Claude Code, Gemini CLI, etc.) is executing steps without a skill invocation. The operator can look away but should monitor more closely since no skill protocol is governing phase transitions.
+- **`[Operator driving]`** — the skill/agent has halted; the human must do something (review, approve, merge, answer a question). The NEXT line states the specific action needed.
+- **`[Blocked]`** — something failed and the skill/agent cannot proceed. State the blocker and the operator action needed to unblock.
 
 The tag reflects the **final** state of the response — if the skill was driving but hits a halt mid-turn, the tag is `[Operator driving]` or `[Blocked]`.
 
@@ -586,6 +587,8 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
 - Timeout escalation: if the gate hasn't resolved in 24 hours (configurable via `sdlc-config.json:phase4.gate_timeout_hours`), escalate the sticky to "Phase 4 BLOCKED 24h — gate <name> still failing. Escalation required."
 
 **Release Approval Gate retry (devaudit-installer#211 Gap 17).** If the Release Approval Gate check fails on the PR and the portal approval was already given (API sync delay, stale cache), retry logic: re-run the Release Approval Gate workflow up to 3 times with 30-second intervals (`gh workflow run check-release-approval.yml` or trigger via `workflow_dispatch`). If it still fails after 3 retries: halt — "Release Approval Gate still failing after 3 retries. Portal may show approval but the gate can't verify it. Operator action — check the portal release status manually, verify the API key is valid, and re-run the workflow from GitHub Actions if needed."
+
+**Auto-refresh on UAT approval (devaudit#562, devaudit-installer#283).** When the portal's UAT approval is granted, the portal automatically sends a `repository_dispatch('release-approved')` event to the consuming project's repo. This triggers `check-release-approval.yml` to re-run without manual intervention. The retry logic above is still needed for edge cases (API sync delays, network issues), but the common path is now fully automated. If the auto-refresh doesn't fire (e.g. portal GitHub trigger misconfigured), the manual retry sequence above remains the fallback.
 
 ### Phase 5 — Finalise or change-request loop (SDLC stage 5)
 
