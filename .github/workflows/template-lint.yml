@@ -1,0 +1,61 @@
+# DevAudit-Installer#571 — Source path lint check.
+#
+# Verifies that workflow templates use post-install paths (scripts/)
+# not repo-relative template paths (sdlc/files/). When a template is
+# synced into a consumer project, the scripts land at scripts/ not
+# sdlc/files/_common/scripts/. A `source sdlc/files/…` statement
+# silently fails at runtime because the path doesn't exist.
+#
+# Also runs the existing shell-script test suites to catch fallback
+# chain regressions.
+
+name: Template Lint
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'sdlc/files/ci/**'
+      - 'sdlc/files/_common/scripts/**'
+      - '.github/workflows/template-lint.yml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'sdlc/files/ci/**'
+      - 'sdlc/files/_common/scripts/**'
+      - '.github/workflows/template-lint.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  source-path-lint:
+    name: Verify source paths in workflow templates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check no template sources from sdlc/files/
+        run: |
+          set -euo pipefail
+          # Every `source` statement in installed workflow templates must
+          # resolve against scripts/ (the post-install path), not
+          # sdlc/files/ (the repo-relative template path).
+          # DevAudit-Installer#571 — Gap 2 prevention.
+          if grep -r "source sdlc/files/" sdlc/files/ci/*.template; then
+            echo ""
+            echo "FAIL: workflow templates must source from scripts/ not sdlc/files/"
+            echo "These paths do not exist after installation into a consumer project."
+            exit 1
+          fi
+          echo "OK: no workflow template sources from sdlc/files/"
+
+      - name: Run derive-release-version tests
+        run: |
+          chmod +x sdlc/files/_common/scripts/derive-release-version.sh
+          bash sdlc/files/_common/scripts/derive-release-version.test.sh
+
+      - name: Run extract-release-metadata tests
+        run: |
+          chmod +x sdlc/files/_common/scripts/extract-release-metadata.sh
+          bash sdlc/files/_common/scripts/extract-release-metadata.test.sh

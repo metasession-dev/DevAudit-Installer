@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/metasession-dev/devaudit/main/contracts/dispatch-payloads.json",
+  "title": "DevAudit Cross-Repo Dispatch Payload Contract",
+  "description": "Schemas for repository_dispatch payloads sent by the DevAudit portal and consumed by DevAudit-Installer CI workflows. Both repos validate against this file to prevent silent drift (#571 Gap 1).",
+  "version": "1.0.0",
+  "dispatch_types": {
+    "release-approved": {
+      "description": "Sent by the portal when a release is approved at UAT. Triggers check-release-approval.yml in the consumer repo to post a check run against the approved SHA.",
+      "consumer_workflow": "check-release-approval.yml",
+      "client_payload": {
+        "type": "object",
+        "properties": {
+          "release": {
+            "type": "string",
+            "pattern": "^REQ-\\d+$",
+            "description": "The release version (e.g. REQ-089)"
+          },
+          "release_pr": {
+            "type": ["integer", "null"],
+            "description": "The PR number associated with the release, or null if not applicable"
+          },
+          "approved_sha": {
+            "type": ["string", "null"],
+            "description": "The Git SHA approved by the reviewer. Used to post a check run against the correct commit. Null when the approval did not capture a SHA (#570 fixed this being missing)."
+          }
+        },
+        "required": ["release", "release_pr", "approved_sha"],
+        "additionalProperties": false
+      }
+    },
+    "release-closed": {
+      "description": "Sent by the portal when a release advances to 'released' status. Triggers close-out-release.yml in the consumer repo to reconcile the release branch.",
+      "consumer_workflow": "close-out-release.yml",
+      "client_payload": {
+        "type": "object",
+        "properties": {
+          "release": {
+            "type": "string",
+            "pattern": "^REQ-\\d+$",
+            "description": "The release version (e.g. REQ-089)"
+          },
+          "release_pr": {
+            "type": ["integer", "null"],
+            "description": "The PR number associated with the release, or null if not applicable"
+          }
+        },
+        "required": ["release", "release_pr"],
+        "additionalProperties": false
+      }
+    },
+    "evidence-contract-updated": {
+      "description": "Sent by the portal when the evidence-types contract is updated. Triggers evidence-contract-check.yml in the DevAudit-Installer repo to verify CI templates still match.",
+      "consumer_workflow": "evidence-contract-check.yml",
+      "client_payload": {
+        "type": "object",
+        "properties": {
+          "sha": {
+            "type": "string",
+            "description": "The Git SHA of the contract update commit"
+          },
+          "message": {
+            "type": "string",
+            "description": "Human-readable summary of the contract change"
+          }
+        },
+        "required": ["sha", "message"],
+        "additionalProperties": false
+      }
+    }
+  }
+}

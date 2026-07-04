@@ -275,6 +275,54 @@ make_fixture "$WORK/c21" "chore(release): reconcile REQ-089 close-out
 Release-Closeout: REQ-089"
 assert_eq "close-out marker -> empty version" "" "$(run_helper)"
 
+# Case 22 (#571 Gap 3): close-out marker with no REQ digits — must NOT
+# suppress the bare-date fallback. The regex requires REQ-[0-9]{3,} so
+# a malformed marker like "Release-Closeout: REQ-AB" should fall through
+# to the bare date.
+make_fixture "$WORK/c22" "chore(release): reconcile close-out
+
+Release-Closeout: REQ-AB"
+assert_eq "malformed close-out marker -> bare date $TODAY" "$TODAY" "$(run_helper)"
+
+# Case 23 (#571 Gap 3): close-out marker with extra whitespace — must
+# still suppress (regex allows leading whitespace after the colon).
+make_fixture "$WORK/c23" "chore(release): reconcile REQ-100 close-out
+
+Release-Closeout:    REQ-100"
+assert_eq "close-out marker with extra whitespace -> empty" "" "$(run_helper)"
+
+# Case 24 (#571 Gap 3): no ticket file, no RTM, no git tags, no close-out
+# marker — the ultimate fallback chain reaches the bare date. This tests
+# that every prior step's `exit 0` guard correctly falls through when
+# its condition is not met.
+make_fixture "$WORK/c24" "chore: misc cleanup with no compliance state"
+assert_eq "no compliance state at all -> bare date $TODAY" "$TODAY" "$(run_helper)"
+
+# Case 25 (#571 Gap 3): pending-releases dir exists but is empty — step 4
+# must not crash and must fall through to step 4-bis / bare date.
+make_fixture "$WORK/c25" "chore: devaudit update to 0.1.30"
+mkdir -p compliance/pending-releases
+assert_eq "empty pending-releases dir -> bare date $TODAY" "$TODAY" "$(run_helper)"
+
+# Case 26 (#571 Gap 3): RTM.md exists but has no IN PROGRESS rows —
+# step 4-bis must fall through to the bare date.
+make_fixture "$WORK/c26" "chore: devaudit update to 0.1.30"
+mkdir -p compliance
+cat > compliance/RTM.md <<'RTM'
+| REQ-ID  | Status        |
+| ------- | ------------- |
+| REQ-001 | RELEASED      |
+| REQ-002 | DRAFT         |
+RTM
+assert_eq "RTM with no IN PROGRESS -> bare date $TODAY" "$TODAY" "$(run_helper)"
+
+# Case 27 (#571 Gap 3): RTM.md exists but is empty (no rows at all) —
+# step 4-bis must not crash and must fall through.
+make_fixture "$WORK/c27" "chore: devaudit update to 0.1.30"
+mkdir -p compliance
+echo "# Requirements Traceability Matrix" > compliance/RTM.md
+assert_eq "empty RTM.md -> bare date $TODAY" "$TODAY" "$(run_helper)"
+
 echo ""
 echo "=== Summary: $PASS pass / $FAIL fail ==="
 
