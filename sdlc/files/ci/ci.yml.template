@@ -783,13 +783,13 @@ jobs:
                 # "zero traceable evidence" even though well-written, REQ-tagged
                 # specs exist on disk. If specs are found but weren't run in
                 # this tier, emit a non-blocking warning instead of an error.
-                SPECS_ON_DISK=$(grep -rl --include='*.spec.ts' -e "@requirement ${REQ}" -e "tagTest.*${REQ}" -e "'${REQ}'" e2e/ 2>/dev/null | wc -l)
+                SPECS_ON_DISK=$( { grep -rl --include='*.spec.ts' -e "@requirement ${REQ}" -e "tagTest.*${REQ}" -e "'${REQ}'" e2e/ 2>/dev/null || true; } | wc -l | tr -d ' ')
 
                 # devaudit-installer#237 — also scan unit test files for
                 # @requirement REQ-XXX annotations. A REQ with thorough unit
                 # test coverage but no E2E specs (legitimate for API-only or
                 # backend-only changes) should not be hard-blocked.
-                UNIT_TESTS_ON_DISK=$(grep -rl --include='*.test.ts' --include='*.test.tsx' -e "@requirement ${REQ}" -e "'${REQ}'" e2e/ __tests__/ tests/ src/ 2>/dev/null | wc -l)
+                UNIT_TESTS_ON_DISK=$( { grep -rl --include='*.test.ts' --include='*.test.tsx' -e "@requirement ${REQ}" -e "'${REQ}'" e2e/ __tests__/ tests/ src/ 2>/dev/null || true; } | wc -l | tr -d ' ')
 
                 # devaudit-installer#237 — check for test-execution-summary.md
                 # as a secondary signal. This is a human-authored document and

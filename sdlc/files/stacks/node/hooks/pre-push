@@ -38,6 +38,9 @@ echo "Pre-push: TypeScript check passed."
 # Previous code had two `while read` loops; the second consumed nothing
 # because stdin was already exhausted by the first (devaudit-installer#278).
 PUSH_REFS="$(cat)"
+PUSH_REFS_FILE=$(mktemp)
+trap 'rm -f "$PUSH_REFS_FILE"' EXIT HUP INT TERM
+printf '%s\n' "$PUSH_REFS" > "$PUSH_REFS_FILE"
 
 INTEGRATION_BRANCH=$(jq -r '.integration_branch // "develop"' sdlc-config.json 2>/dev/null || echo "develop")
 
@@ -49,7 +52,8 @@ INTEGRATION_BRANCH=$(jq -r '.integration_branch // "develop"' sdlc-config.json 2
 # (written by e2e-test-engineer Phase 5½ after validating tagTest/evidenceShot).
 # Scoped to integration-branch pushes (correct for the normal workflow).
 
-echo "$PUSH_REFS" | while read -r local_ref local_sha remote_ref remote_sha; do
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ -n "${local_ref:-}" ] || continue
   # Check if pushing to the integration branch
   case "$remote_ref" in
     *"refs/heads/$INTEGRATION_BRANCH") ;;
@@ -103,7 +107,7 @@ echo "$PUSH_REFS" | while read -r local_ref local_sha remote_ref remote_sha; do
     fi
     echo "Pre-push: E2E evidence wiring check passed."
   fi
-done
+done < "$PUSH_REFS_FILE"
 
 # ── 3. Skill-invocation sentinel (devaudit-installer#226) ────────────
 # If feat/fix/refactor/perf commits are in the push, verify the
@@ -115,11 +119,9 @@ done
 TRACKED_TYPES='^(feat|fix|refactor|perf)(\(.+\))?!?:'
 HAS_TRACKED=false
 
-# Parse stdin refs in the current shell (not a subshell) so HAS_TRACKED propagates.
-for ref_line in $PUSH_REFS; do
-  set -- $ref_line
-  local_sha="$2"
-  remote_sha="$4"
+# Parse captured refs in the current shell so HAS_TRACKED propagates.
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ -n "${local_ref:-}" ] || continue
   if [ "$remote_sha" = "0000000000000000000000000000000000000000" ]; then
     RANGE="$local_sha"
   else
@@ -129,7 +131,7 @@ for ref_line in $PUSH_REFS; do
   if echo "$COMMITS" | grep -qE "$TRACKED_TYPES"; then
     HAS_TRACKED=true
   fi
-done
+done < "$PUSH_REFS_FILE"
 
 if [ "$HAS_TRACKED" = "true" ]; then
   if [ ! -f .sdlc-implementer-invoked ]; then
@@ -147,10 +149,8 @@ if [ "$HAS_TRACKED" = "true" ]; then
   # If the commit touches Phase 3 artifacts (compliance/evidence/REQ-XXX/),
   # the sentinel must contain a phase "3" record. If it touches Phase 5
   # close-out (approved-releases/ or RTM RELEASED), sentinel must have phase "5".
-  for ref_line in $PUSH_REFS; do
-    set -- $ref_line
-    local_sha="$2"
-    remote_sha="$4"
+  while read -r local_ref local_sha remote_ref remote_sha; do
+    [ -n "${local_ref:-}" ] || continue
     if [ "$remote_sha" = "0000000000000000000000000000000000000000" ]; then
       RANGE="$local_sha"
     else
@@ -181,7 +181,7 @@ if [ "$HAS_TRACKED" = "true" ]; then
         exit 1
       fi
     fi
-  done
+  done < "$PUSH_REFS_FILE"
   echo "Pre-push: phase-progression check passed."
 fi
 
