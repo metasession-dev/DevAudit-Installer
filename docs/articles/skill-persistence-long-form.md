@@ -72,7 +72,7 @@ Skill invocation → returns instructions → native agent executes
                                     misses compliance steps
 ```
 
-In a true orchestration model, the skill would be a persistent controller that delegates environment work to the native agent, receives the result back, and continues to the next step. Instead, the skill is a fire-and-forget document. Once returned, it has no further influence on execution.
+In a true orchestration model, the skill would be a persistent controller that delegates environment work to the native agent, receives the result back, and continues to the next step. Today, most of the skill is still a fire-and-forget document. The one concrete exception now is the bounded PR watch loop used during blocked Phase 4 release work.
 
 ## The ideal solution: command manifest architecture
 
@@ -106,7 +106,25 @@ Until platforms support persistent skill controllers, we need a practical approa
 
 The implementation has two layers: **prose-level instructions** that work when the skill is invoked and followed, and **machine-enforced backstops** that catch the case where it isn't.
 
-### Layer 1: Prose-level skill instructions
+### Layer 1: Prose-level skill instructions plus a bounded execution loop
+
+#### Executable PR watch loop
+
+`devaudit-sdlc` now exposes a real orchestration command for blocked/reviewing PRs:
+
+```bash
+node SDLC/bin/devaudit-sdlc.js --watch-pr=<number> --repo <owner/name> --release REQ-XXX --project-slug <slug>
+```
+
+The loop is intentionally narrow:
+
+- polls `gh pr view` and `gh pr checks`
+- persists retry context in `.sdlc-pr-watch.json`
+- classifies blockers as waiting, auto-rerunnable, or human-blocked
+- re-runs likely flaky workflows automatically
+- re-runs the Release Approval Gate when the portal is already `uat_approved` or later but GitHub is stale
+
+It is not a daemon, not cross-turn memory inside the skill runtime, and not a platform-native persistent controller. It is a resumable local engine that closes the concrete Phase 4 gap without pretending the platform problem is solved.
 
 #### Resume protocol
 
@@ -171,12 +189,12 @@ This catches the PR #413 failure class — missing artifacts from Phase 3 — be
 | Failure mode | Prose-level (skill) | Machine-enforced (hook/CI) |
 |---|---|---|
 | Skill never invoked | — | Pre-push sentinel check blocks push |
-| Skill invoked, agent deviated after environment blocker | Resume protocol instructs re-invocation | Pre-push artifact validation blocks push |
+| Skill invoked, agent deviated after environment blocker | Resume protocol instructs re-invocation; PR watch loop gives Phase 4 a resumable execution path | Pre-push artifact validation blocks push |
 | Phase 3 artifacts missing | Skill's Phase 3 checklist | Pre-push `validate-compliance-artifacts.sh` |
 | Phase 5 close-out skipped | Skill's Phase 5 explicit step | CI `upload-evidence` terminal directory check (catches stale tickets on next release) |
 | RTM provenance missing | Skill's Phase 1 step 9 | CI `validate-commits.sh` fails the PR |
 
-The prose-level changes work when the skill is invoked and followed. The machine-enforced changes catch the case where it isn't. The gap between them — where the agent invokes the skill, deviates, and pushes before the hook catches it — is the residual risk. The command manifest architecture would eliminate this gap entirely.
+The prose-level changes work when the skill is invoked and followed. The machine-enforced changes catch the case where it isn't. The new PR watch loop removes one concrete blind spot in Phase 4, but the broader gap remains: the platform still does not provide a general persistent skill controller. The command manifest architecture would eliminate this gap entirely.
 
 ## Why not just build the command manifest now?
 

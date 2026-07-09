@@ -23,7 +23,7 @@ AI skills in current IDE platforms (Claude Code, Cursor, Windsurf) are **statele
 - No re-invoke triggers — nothing tells you to go back to it
 - No environment access — it can't run commands or inspect state
 
-Once the agent hits an environment blocker (MongoDB, Playwright, dev server), it solves the problem directly and continues on its own. The skill is fire-and-forget. The agent has momentum and domain knowledge gaps. Compliance steps get missed.
+Once the agent hits an environment blocker (MongoDB, Playwright, dev server), it solves the problem directly and continues on its own. The skill is still mostly fire-and-forget. The agent has momentum and domain knowledge gaps. Compliance steps get missed.
 
 ## The ideal fix
 
@@ -31,17 +31,19 @@ A **command manifest** architecture where the skill is the persistent controller
 
 This requires platform support that doesn't exist yet. No current AI IDE supports skills making sequential command requests to the native agent with results returned to the skill.
 
-## What you can actually do
+## What you can actually do right now
 
 A belt-and-suspenders approach:
 
 1. **Resume protocol** — the skill's instructions explicitly say "after any environment detour, re-invoke me with `resume REQ-XXX — re-enter at Phase N`." The skill reconstructs state from the filesystem (git log, existing artifacts, RTM status) and continues from where it left off.
 
-2. **Pre-push hooks** — a git hook runs `validate-compliance-artifacts.sh` before allowing a push. Missing `test-scope.md`, `test-plan.md`, `implementation-plan.md`? Push blocked. The hook can't invoke the skill, but it can prevent the consequences of the skill not being invoked.
+2. **Executable PR watch loop** — `node SDLC/bin/devaudit-sdlc.js --watch-pr=<number>` now gives the skill a bounded orchestration loop for Phase 4. It polls PR checks, persists retry state in `.sdlc-pr-watch.json`, re-runs likely flaky workflows, and re-runs the release-approval check when the portal is already approved but GitHub is stale.
 
-3. **Phase 5 as an explicit skill step** — post-merge close-out (RTM update, release ticket move, portal verification) is a mandatory skill-driven step, not something the native agent might remember. The boundary section states: "PR merged to main ≠ done."
+3. **Pre-push hooks** — a git hook runs `validate-compliance-artifacts.sh` before allowing a push. Missing `test-scope.md`, `test-plan.md`, `implementation-plan.md`? Push blocked. The hook can't invoke the skill, but it can prevent the consequences of the skill not being invoked.
 
-The prose-level changes work when the skill is invoked and followed. The machine-enforced changes catch the case where it isn't. Together, they cover the gap until platforms support persistent skill controllers.
+4. **Phase 5 as an explicit skill step** — post-merge close-out (RTM update, release ticket move, portal verification) is a mandatory skill-driven step, not something the native agent might remember. The boundary section states: "PR merged to main ≠ done."
+
+This still is not a daemonized supervisor or a true persistent skill controller. It is a resumable local loop plus the existing hooks and CI backstops. That is enough to make blocked-PR handling executable today while the platform limitation remains.
 
 ---
 

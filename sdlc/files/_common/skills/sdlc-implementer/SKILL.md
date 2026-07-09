@@ -589,6 +589,20 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
    - Checks pending → wait/poll until terminal before declaring the PR ready.
    - Stale PR context detected by `prepare-release-pr.sh` → rerun the helper in `--apply` mode and repeat this blocker inspection.
 
+   **Executable loop (devaudit-installer#304).** Use the bundled watcher rather than a one-shot `gh` read when the PR is blocked or waiting:
+
+   ```bash
+   node SDLC/bin/devaudit-sdlc.js \
+     --watch-pr=<N> \
+     --repo <owner/name> \
+     --req XXX \
+     --release REQ-XXX \
+     --project-slug <project-slug> \
+     --base-url <devaudit-base-url>
+   ```
+
+   The watcher persists retry state in `.sdlc-pr-watch.json`, polls `gh pr view` + `gh pr checks`, re-runs likely flaky workflows automatically, and re-runs the Release Approval Gate when the portal is already approved but GitHub has not converged yet. Use `--once` when you only need a single classification pass.
+
 6. **Hard stop only after blocker classification.** Phase 4 ends here. Do not proceed to merge; the human's next action is reviewing on the portal or clearing the categorized blocker above.
 7. **Update SDLC status sticky** before halting: `bash scripts/update-sdlc-status.sh "$ISSUE_NUM" "Phase 4 — truthful release PR #<N> prepared against $RELEASE_BRANCH; blockers classified" "Operator action — review PR #<N> + approve UAT release on the portal; sdlc-implementer halts until you ping resume REQ-XXX"`. This is a critical handoff — the sticky must reflect that the agent has stopped + the operator is on the hook.
 

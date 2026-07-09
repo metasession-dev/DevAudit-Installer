@@ -4,14 +4,17 @@ import { promises as fs } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { createServer } from 'node:http';
 
 /**
  * Tests for the v0.2.0 SDLC CLI engine (devaudit-sdlc.js).
  *
  * The engine is a standalone CommonJS Node script that:
  * - Parses --phase=<1-5|issue> and --view flags
+ * - Parses --watch-pr=<number> and runs a bounded PR polling/resume loop
  * - Reads blueprint files from sdlc/src/blueprints/*.raw.md
  * - Writes/appends a JSON array of phase records to .sdlc-implementer-invoked
+ * - Persists PR watcher retry state to .sdlc-pr-watch.json
  * - Outputs blueprint content to stdout
  *
  * Tests invoke the script via `node <path>` from a sandbox directory
@@ -39,7 +42,7 @@ async function makeSandbox(): Promise<string> {
 }
 
 async function runEngine(args: readonly string[], cwd: string) {
-  return execa('node', [ENGINE_PATH, ...args], {
+  return execa(process.execPath, [ENGINE_PATH, ...args], {
     cwd,
     reject: false,
   });
@@ -68,6 +71,61 @@ async function cleanupSentinel(cwd: string): Promise<void> {
   }
 }
 
+async function cleanupWatchState(cwd: string): Promise<void> {
+  try {
+    await fs.unlink(join(cwd, '.sdlc-pr-watch.json'));
+  } catch {
+    // ignore
+  }
+}
+
+async function writeMockGh(cwd: string): Promise<string> {
+  const binDir = join(cwd, 'mock-bin');
+  const ghPath = join(binDir, 'gh');
+  await fs.mkdir(binDir, { recursive: true });
+  await fs.writeFile(
+    ghPath,
+    `#!/usr/bin/env bash
+set -euo pipefail
+LOG_FILE="\${MOCK_GH_LOG:-}"
+if [ -n "$LOG_FILE" ]; then
+  printf '%s\\n' "$*" >> "$LOG_FILE"
+fi
+if [ "$1" = "pr" ] && [ "$2" = "view" ]; then
+  if [ -n "\${GH_PR_VIEW_JSON:-}" ]; then
+    printf '%s' "$GH_PR_VIEW_JSON"
+  else
+    printf '%s' '{"state":"OPEN","isDraft":false,"reviewDecision":"APPROVED"}'
+  fi
+  exit 0
+fi
+if [ "$1" = "pr" ] && [ "$2" = "checks" ]; then
+  if [ -n "\${GH_PR_CHECKS_JSON:-}" ]; then
+    printf '%s' "$GH_PR_CHECKS_JSON"
+  else
+    printf '%s' '[]'
+  fi
+  exit 0
+fi
+if [ "$1" = "repo" ] && [ "$2" = "view" ]; then
+  if [ -n "\${GH_REPO_VIEW_JSON:-}" ]; then
+    printf '%s' "$GH_REPO_VIEW_JSON"
+  else
+    printf '%s' '{"nameWithOwner":"metasession-dev/fixture"}'
+  fi
+  exit 0
+fi
+if [ "$1" = "run" ] && [ "$2" = "rerun" ]; then
+  exit 0
+fi
+echo "unexpected gh invocation: $*" >&2
+exit 1
+`,
+    { mode: 0o755 },
+  );
+  return binDir;
+}
+
 describe('devaudit-sdlc CLI engine', () => {
   beforeAll(async () => {
     sandbox = await makeSandbox();
@@ -79,6 +137,7 @@ describe('devaudit-sdlc CLI engine', () => {
 
   beforeEach(async () => {
     await cleanupSentinel(sandbox);
+    await cleanupWatchState(sandbox);
   });
 
   describe('phase argument parsing', () => {
@@ -131,7 +190,7 @@ describe('devaudit-sdlc CLI engine', () => {
       const res = await runEngine([], sandbox);
       expect(res.exitCode).toBe(1);
       expect(res.stderr).toContain('Missing required configuration property');
-      expect(res.stderr).toContain('devaudit-sdlc --phase=<1-5|issue>');
+      expect(res.stderr).toContain('devaudit-sdlc --phase=<1-5|issue> | --watch-pr=<number>');
     });
   });
 
@@ -289,7 +348,7 @@ describe('devaudit-sdlc CLI engine', () => {
     });
 
     it('DEVAUDIT_REQ_ID env var is picked up when --req is absent', async () => {
-      const res = await execa('node', [ENGINE_PATH, '--phase=1'], {
+      const res = await execa(process.execPath, [ENGINE_PATH, '--phase=1'], {
         cwd: sandbox,
         reject: false,
         env: { ...process.env, DEVAUDIT_REQ_ID: '099' },
@@ -300,7 +359,7 @@ describe('devaudit-sdlc CLI engine', () => {
     });
 
     it('DEVAUDIT_SKILL_NAME env var sets initializedBy to "skill"', async () => {
-      const res = await execa('node', [ENGINE_PATH, '--phase=1'], {
+      const res = await execa(process.execPath, [ENGINE_PATH, '--phase=1'], {
         cwd: sandbox,
         reject: false,
         env: { ...process.env, DEVAUDIT_SKILL_NAME: 'sdlc-implementer' },
@@ -312,7 +371,7 @@ describe('devaudit-sdlc CLI engine', () => {
     });
 
     it('DEVAUDIT_AGENT env var sets initializedBy to "native-agent"', async () => {
-      const res = await execa('node', [ENGINE_PATH, '--phase=2'], {
+      const res = await execa(process.execPath, [ENGINE_PATH, '--phase=2'], {
         cwd: sandbox,
         reject: false,
         env: { ...process.env, DEVAUDIT_AGENT: 'cursor' },
@@ -326,6 +385,120 @@ describe('devaudit-sdlc CLI engine', () => {
     it('stdout shows "Initialized by" line with agent type', async () => {
       const res = await runEngine(['--phase=1', '--req=055'], sandbox);
       expect(res.stdout).toContain('Initialized by: cli (REQ-055)');
+    });
+  });
+
+  describe('PR watch loop (devaudit-installer#304)', () => {
+    it('--watch-pr --once marks an approved green PR as ready and writes watch state', async () => {
+      const mockBin = await writeMockGh(sandbox);
+      const res = await execa(process.execPath, [ENGINE_PATH, '--watch-pr=42', '--repo=metasession-dev/example', '--once'], {
+        cwd: sandbox,
+        reject: false,
+        env: {
+          ...process.env,
+          PATH: `${mockBin}:${process.env.PATH}`,
+          GH_PR_VIEW_JSON: JSON.stringify({ state: 'OPEN', isDraft: false, reviewDecision: 'APPROVED' }),
+          GH_PR_CHECKS_JSON: JSON.stringify([
+            { name: 'Quality Gates', workflow: 'CI', state: 'SUCCESS', bucket: 'pass', link: 'https://github.com/x/actions/runs/101' },
+          ]),
+        },
+      });
+
+      expect(res.exitCode).toBe(0);
+      expect(res.stdout).toContain('Ready for merge');
+
+      const watchState = JSON.parse(await fs.readFile(join(sandbox, '.sdlc-pr-watch.json'), 'utf8')) as {
+        watches: Record<string, { lastClassification: string; pollCount: number }>;
+      };
+      expect(watchState.watches['metasession-dev/example#42']).toBeTruthy();
+      expect(watchState.watches['metasession-dev/example#42']!.lastClassification).toBe('ready');
+      expect(watchState.watches['metasession-dev/example#42']!.pollCount).toBe(1);
+    });
+
+    it('--watch-pr auto-reruns a flaky failing workflow and persists rerun counts', async () => {
+      const mockBin = await writeMockGh(sandbox);
+      const logFile = join(sandbox, 'gh.log');
+      const res = await execa(process.execPath, [ENGINE_PATH, '--watch-pr=77', '--repo=metasession-dev/example', '--once'], {
+        cwd: sandbox,
+        reject: false,
+        env: {
+          ...process.env,
+          PATH: `${mockBin}:${process.env.PATH}`,
+          MOCK_GH_LOG: logFile,
+          GH_PR_VIEW_JSON: JSON.stringify({ state: 'OPEN', isDraft: false, reviewDecision: 'REVIEW_REQUIRED' }),
+          GH_PR_CHECKS_JSON: JSON.stringify([
+            { name: 'E2E Regression', workflow: 'CI', state: 'FAILURE', bucket: 'fail', link: 'https://github.com/x/actions/runs/28951684677' },
+          ]),
+        },
+      });
+
+      expect(res.exitCode).toBe(4);
+      expect(res.stdout).toContain('Detected likely flaky failure');
+      const ghLog = await fs.readFile(logFile, 'utf8');
+      expect(ghLog).toContain('run rerun 28951684677 --repo metasession-dev/example');
+
+      const watchState = JSON.parse(await fs.readFile(join(sandbox, '.sdlc-pr-watch.json'), 'utf8')) as {
+        watches: Record<string, { reruns: Record<string, number> }>;
+      };
+      expect(watchState.watches['metasession-dev/example#77']!.reruns['CI / E2E Regression']).toBe(1);
+    });
+
+    it('--watch-pr re-runs the release gate when the portal is already approved', async () => {
+      const mockBin = await writeMockGh(sandbox);
+      const logFile = join(sandbox, 'release-gate.log');
+      const server = createServer((req, res) => {
+        if (req.url?.includes('/api/ci/releases/resolve')) {
+          res.writeHead(200, { 'content-type': 'application/json' });
+          res.end(JSON.stringify({ latest: { status: 'uat_approved' } }));
+          return;
+        }
+        res.writeHead(404).end();
+      });
+      await new Promise<void>((resolveServer) => server.listen(0, '127.0.0.1', () => resolveServer()));
+      const address = server.address();
+      const port = typeof address === 'object' && address ? address.port : 0;
+
+      try {
+        const res = await execa(
+          process.execPath,
+          [
+            ENGINE_PATH,
+            '--watch-pr=88',
+            '--repo=metasession-dev/example',
+            '--once',
+            '--release=REQ-090',
+            '--project-slug=wawagardenbar-app',
+            `--base-url=http://127.0.0.1:${port}`,
+          ],
+          {
+            cwd: sandbox,
+            reject: false,
+            env: {
+              ...process.env,
+              PATH: `${mockBin}:${process.env.PATH}`,
+              MOCK_GH_LOG: logFile,
+              DEVAUDIT_API_KEY: 'test-key',
+              GH_PR_VIEW_JSON: JSON.stringify({ state: 'OPEN', isDraft: false, reviewDecision: 'APPROVED' }),
+              GH_PR_CHECKS_JSON: JSON.stringify([
+                { name: 'DevAudit Release Approval', workflow: 'Release Approval Gate', state: 'FAILURE', bucket: 'fail', link: 'https://github.com/x/actions/runs/28951828749' },
+              ]),
+            },
+          },
+        );
+
+        expect(res.exitCode).toBe(4);
+        expect(res.stdout).toContain('Release approval is already uat_approved');
+        const ghLog = await fs.readFile(logFile, 'utf8');
+        expect(ghLog).toContain('run rerun 28951828749 --repo metasession-dev/example');
+
+        const watchState = JSON.parse(await fs.readFile(join(sandbox, '.sdlc-pr-watch.json'), 'utf8')) as {
+          watches: Record<string, { releaseGateReruns: number; lastPortalStatus: string }>;
+        };
+        expect(watchState.watches['metasession-dev/example#88']!.releaseGateReruns).toBe(1);
+        expect(watchState.watches['metasession-dev/example#88']!.lastPortalStatus).toBe('uat_approved');
+      } finally {
+        await new Promise<void>((resolveServer, rejectServer) => server.close((err) => err ? rejectServer(err) : resolveServer()));
+      }
     });
   });
 });

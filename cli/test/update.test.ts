@@ -184,6 +184,7 @@ describe('syncProject — native TS sync against a fixture', () => {
     expect(gitignoreContent).toContain('.e2e-gate-passed');
     expect(gitignoreContent).toContain('.e2e-evidence-wired');
     expect(gitignoreContent).toContain('.sdlc-implementer-invoked');
+    expect(gitignoreContent).toContain('.sdlc-pr-watch.json');
     // Section 2h — SDLC CLI engine (binary + blueprints)
     expect(await fs.stat(join(fixtureDir, 'SDLC', 'bin', 'devaudit-sdlc.js'))).toBeTruthy();
     expect(await fs.stat(join(fixtureDir, 'SDLC', 'blueprints', '1-plan-requirement.raw.md'))).toBeTruthy();

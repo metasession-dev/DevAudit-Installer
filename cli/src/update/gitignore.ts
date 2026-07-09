@@ -7,6 +7,7 @@ const SENTINEL_ENTRIES = [
   '.e2e-gate-passed',
   '.e2e-evidence-wired',
   '.sdlc-implementer-invoked',
+  '.sdlc-pr-watch.json',
 ];
 
 const MARKER = '# DevAudit sentinel files (devaudit-installer#226)';
