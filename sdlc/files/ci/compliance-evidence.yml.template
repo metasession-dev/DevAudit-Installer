@@ -750,33 +750,33 @@ jobs:
               [ -n "$REQ_ID" ] || continue
               REQS+=("$REQ_ID")
             done < <(python3 - <<'PY'
-import json
-import re
-import sys
+            import json
+            import re
+            import sys
 
-try:
-    with open('e2e-artifacts/e2e-regression-results.json', 'r', encoding='utf-8') as handle:
-        data = json.load(handle)
-except Exception:
-    sys.exit(0)
+            try:
+                with open('e2e-artifacts/e2e-regression-results.json', 'r', encoding='utf-8') as handle:
+                    data = json.load(handle)
+            except Exception:
+                sys.exit(0)
 
-seen = set()
+            seen = set()
 
-def walk(value):
-    if isinstance(value, str):
-        for req in re.findall(r'REQ-[0-9]+', value):
-            seen.add(req)
-    elif isinstance(value, dict):
-        for item in value.values():
-            walk(item)
-    elif isinstance(value, list):
-        for item in value:
-            walk(item)
+            def walk(value):
+                if isinstance(value, str):
+                    for req in re.findall(r'REQ-[0-9]+', value):
+                        seen.add(req)
+                elif isinstance(value, dict):
+                    for item in value.values():
+                        walk(item)
+                elif isinstance(value, list):
+                    for item in value:
+                        walk(item)
 
-walk(data)
-for req in sorted(seen):
-    print(req)
-PY
+            walk(data)
+            for req in sorted(seen):
+                print(req)
+            PY
             )
           fi
 
