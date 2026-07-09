@@ -56,7 +56,9 @@ jobs:
       - name: Enforce label retention
         if: steps.opt.outputs.enabled == 'true'
         env:
-          GH_TOKEN: ${{ secrets.DEVAUDIT_USER_TOKEN || github.token }}
+          # GitHub issue/comment mutations use the workflow token. The
+          # DevAudit user token is reserved for portal attribution flows.
+          GH_TOKEN: ${{ github.token }}
           EVENT_NAME: ${{ github.event_name }}
           EVENT_ACTION: ${{ github.event.action }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}

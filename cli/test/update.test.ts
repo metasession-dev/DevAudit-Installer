@@ -27,6 +27,28 @@ async function expectAllWorkflowsValidYaml(dir: string): Promise<void> {
   }
 }
 
+async function expectWorkflowTokenContract(dir: string): Promise<void> {
+  const workflowDir = join(dir, '.github', 'workflows');
+  const files = await fs.readdir(workflowDir);
+  for (const wf of files) {
+    if (!wf.endsWith('.yml') && !wf.endsWith('.yaml')) continue;
+    const content = await fs.readFile(join(workflowDir, wf), 'utf-8');
+    expect(content, `legacy DevAudit PAT fallback in ${wf}`).not.toMatch(/(?:token:|GH_TOKEN:)\s*\$\{\{\s*secrets\.DEVAUDIT_USER_TOKEN \|\| github\.token\s*\}\}/);
+    expect(content, `legacy secrets.GITHUB_TOKEN contract in ${wf}`).not.toMatch(/(?:GH_TOKEN:|github-token:)\s*\$\{\{\s*secrets\.GITHUB_TOKEN\s*\}\}/);
+  }
+
+  const incidentExport = await fs.readFile(join(workflowDir, 'incident-export.yml'), 'utf-8');
+  expect(incidentExport).toContain('token: ${{ github.token }}');
+  expect(incidentExport).toContain('GH_TOKEN: ${{ github.token }}');
+
+  const periodicReview = await fs.readFile(join(workflowDir, 'periodic-review.yml'), 'utf-8');
+  expect(periodicReview).toContain('token: ${{ github.token }}');
+  expect(periodicReview).toContain('GH_TOKEN: ${{ github.token }}');
+
+  const labelRetention = await fs.readFile(join(workflowDir, 'label-retention.yml'), 'utf-8');
+  expect(labelRetention).toContain('GH_TOKEN: ${{ github.token }}');
+}
+
 async function buildFixture(): Promise<string> {
   const dir = await fs.mkdtemp(join(tmpdir(), 'cli-update-fixture-'));
   await fs.writeFile(
@@ -162,6 +184,7 @@ describe('syncProject — native TS sync against a fixture', () => {
     expect(complianceEvidenceYml).toContain('audit_log "$AUDIT_LOG_FILE"');
     // DevAudit-Installer#228 — every generated workflow must be valid YAML.
     await expectAllWorkflowsValidYaml(fixtureDir);
+    await expectWorkflowTokenContract(fixtureDir);
     // Backward compat: with no e2e_projects/e2e_seed_command configured, the
     // authenticated-e2e token is dropped and no extra step is emitted.
     expect(ciYml).not.toContain('{{E2E_AUTHENTICATED_STEP}}');

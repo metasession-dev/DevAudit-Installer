@@ -37,8 +37,9 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-          # Need write access for the chore branch.
-          token: ${{ secrets.DEVAUDIT_USER_TOKEN || github.token }}
+          # Need write access for the chore branch. GitHub repo mutations
+          # use the workflow token; the DevAudit user token is portal auth.
+          token: ${{ github.token }}
 
       - name: Compute review period
         id: period
@@ -188,7 +189,8 @@ jobs:
 
       - name: Open / update review PR
         env:
-          GH_TOKEN: ${{ secrets.DEVAUDIT_USER_TOKEN || github.token }}
+          # GitHub branch push + PR creation use the workflow token.
+          GH_TOKEN: ${{ github.token }}
           BRANCH: ${{ steps.period.outputs.branch }}
           REVIEW_ID: ${{ steps.period.outputs.review_id }}
         run: |

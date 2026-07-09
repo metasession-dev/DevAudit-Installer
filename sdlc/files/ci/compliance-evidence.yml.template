@@ -683,7 +683,7 @@ jobs:
           name: e2e-regression-report
           path: e2e-artifacts/
           run-id: ${{ github.event.workflow_run.id }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ github.token }}
         continue-on-error: true
 
       - name: Derive release version
