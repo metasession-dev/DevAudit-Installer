@@ -184,11 +184,18 @@ function runBlueprintView(phase) {
 }
 
 function runGhJson(ghArgs) {
-    const result = spawnSync(process.env.DEVAUDIT_GH_BIN || 'gh', ghArgs, {
-        cwd: process.cwd(),
-        encoding: 'utf8',
-        env: process.env,
-    });
+    const ghCommand = process.env.DEVAUDIT_GH_BIN || 'gh';
+    const result = process.env.DEVAUDIT_GH_BIN
+        ? spawnSync(process.execPath, [ghCommand, ...ghArgs], {
+            cwd: process.cwd(),
+            encoding: 'utf8',
+            env: process.env,
+        })
+        : spawnSync(ghCommand, ghArgs, {
+            cwd: process.cwd(),
+            encoding: 'utf8',
+            env: process.env,
+        });
     if (result.error) {
         throw new Error(`gh ${ghArgs.join(' ')} failed: ${result.error.message}`);
     }
@@ -200,11 +207,18 @@ function runGhJson(ghArgs) {
 }
 
 function runGh(ghArgs) {
-    const result = spawnSync(process.env.DEVAUDIT_GH_BIN || 'gh', ghArgs, {
-        cwd: process.cwd(),
-        encoding: 'utf8',
-        env: process.env,
-    });
+    const ghCommand = process.env.DEVAUDIT_GH_BIN || 'gh';
+    const result = process.env.DEVAUDIT_GH_BIN
+        ? spawnSync(process.execPath, [ghCommand, ...ghArgs], {
+            cwd: process.cwd(),
+            encoding: 'utf8',
+            env: process.env,
+        })
+        : spawnSync(ghCommand, ghArgs, {
+            cwd: process.cwd(),
+            encoding: 'utf8',
+            env: process.env,
+        });
     if (result.error) {
         throw new Error(`gh ${ghArgs.join(' ')} failed: ${result.error.message}`);
     }

@@ -391,7 +391,7 @@ describe('devaudit-sdlc CLI engine', () => {
   describe('PR watch loop (devaudit-installer#304)', () => {
     it('--watch-pr --once marks an approved green PR as ready and writes watch state', async () => {
       const mockBin = await writeMockGh(sandbox);
-      const ghBin = join(mockBin, process.platform === 'win32' ? 'gh.cmd' : 'gh');
+      const ghBin = join(mockBin, 'gh');
       const res = await execa(process.execPath, [ENGINE_PATH, '--watch-pr=42', '--repo=metasession-dev/example', '--once'], {
         cwd: sandbox,
         reject: false,
@@ -419,7 +419,7 @@ describe('devaudit-sdlc CLI engine', () => {
 
     it('--watch-pr auto-reruns a flaky failing workflow and persists rerun counts', async () => {
       const mockBin = await writeMockGh(sandbox);
-      const ghBin = join(mockBin, process.platform === 'win32' ? 'gh.cmd' : 'gh');
+      const ghBin = join(mockBin, 'gh');
       const logFile = join(sandbox, 'gh.log');
       const res = await execa(process.execPath, [ENGINE_PATH, '--watch-pr=77', '--repo=metasession-dev/example', '--once'], {
         cwd: sandbox,
@@ -463,7 +463,7 @@ describe('devaudit-sdlc CLI engine', () => {
       const port = typeof address === 'object' && address ? address.port : 0;
 
       try {
-        const ghBin = join(mockBin, process.platform === 'win32' ? 'gh.cmd' : 'gh');
+        const ghBin = join(mockBin, 'gh');
         const res = await execa(
           process.execPath,
           [
