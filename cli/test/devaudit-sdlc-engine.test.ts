@@ -82,45 +82,45 @@ async function cleanupWatchState(cwd: string): Promise<void> {
 async function writeMockGh(cwd: string): Promise<string> {
   const binDir = join(cwd, 'mock-bin');
   const ghPath = join(binDir, 'gh');
+  const ghCmdPath = join(binDir, 'gh.cmd');
   await fs.mkdir(binDir, { recursive: true });
   await fs.writeFile(
     ghPath,
-    `#!/usr/bin/env bash
-set -euo pipefail
-LOG_FILE="\${MOCK_GH_LOG:-}"
-if [ -n "$LOG_FILE" ]; then
-  printf '%s\\n' "$*" >> "$LOG_FILE"
-fi
-if [ "$1" = "pr" ] && [ "$2" = "view" ]; then
-  if [ -n "\${GH_PR_VIEW_JSON:-}" ]; then
-    printf '%s' "$GH_PR_VIEW_JSON"
-  else
-    printf '%s' '{"state":"OPEN","isDraft":false,"reviewDecision":"APPROVED"}'
-  fi
-  exit 0
-fi
-if [ "$1" = "pr" ] && [ "$2" = "checks" ]; then
-  if [ -n "\${GH_PR_CHECKS_JSON:-}" ]; then
-    printf '%s' "$GH_PR_CHECKS_JSON"
-  else
-    printf '%s' '[]'
-  fi
-  exit 0
-fi
-if [ "$1" = "repo" ] && [ "$2" = "view" ]; then
-  if [ -n "\${GH_REPO_VIEW_JSON:-}" ]; then
-    printf '%s' "$GH_REPO_VIEW_JSON"
-  else
-    printf '%s' '{"nameWithOwner":"metasession-dev/fixture"}'
-  fi
-  exit 0
-fi
-if [ "$1" = "run" ] && [ "$2" = "rerun" ]; then
-  exit 0
-fi
-echo "unexpected gh invocation: $*" >&2
-exit 1
+    `#!/usr/bin/env node
+const fs = require('node:fs');
+const args = process.argv.slice(2);
+const logFile = process.env.MOCK_GH_LOG || '';
+
+if (logFile) {
+  fs.appendFileSync(logFile, \`\${args.join(' ')}\\n\`, 'utf8');
+}
+
+function writeJson(value) {
+  process.stdout.write(value);
+  process.exit(0);
+}
+
+if (args[0] === 'pr' && args[1] === 'view') {
+  writeJson(process.env.GH_PR_VIEW_JSON || '{"state":"OPEN","isDraft":false,"reviewDecision":"APPROVED"}');
+}
+if (args[0] === 'pr' && args[1] === 'checks') {
+  writeJson(process.env.GH_PR_CHECKS_JSON || '[]');
+}
+if (args[0] === 'repo' && args[1] === 'view') {
+  writeJson(process.env.GH_REPO_VIEW_JSON || '{"nameWithOwner":"metasession-dev/fixture"}');
+}
+if (args[0] === 'run' && args[1] === 'rerun') {
+  process.exit(0);
+}
+
+process.stderr.write(\`unexpected gh invocation: \${args.join(' ')}\\n\`);
+process.exit(1);
 `,
+    { mode: 0o755 },
+  );
+  await fs.writeFile(
+    ghCmdPath,
+    `@echo off\r\nnode "%~dp0gh" %*\r\n`,
     { mode: 0o755 },
   );
   return binDir;
