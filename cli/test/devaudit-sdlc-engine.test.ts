@@ -391,11 +391,13 @@ describe('devaudit-sdlc CLI engine', () => {
   describe('PR watch loop (devaudit-installer#304)', () => {
     it('--watch-pr --once marks an approved green PR as ready and writes watch state', async () => {
       const mockBin = await writeMockGh(sandbox);
+      const ghBin = join(mockBin, process.platform === 'win32' ? 'gh.cmd' : 'gh');
       const res = await execa(process.execPath, [ENGINE_PATH, '--watch-pr=42', '--repo=metasession-dev/example', '--once'], {
         cwd: sandbox,
         reject: false,
         env: {
           ...process.env,
+          DEVAUDIT_GH_BIN: ghBin,
           PATH: `${mockBin}:${process.env.PATH}`,
           GH_PR_VIEW_JSON: JSON.stringify({ state: 'OPEN', isDraft: false, reviewDecision: 'APPROVED' }),
           GH_PR_CHECKS_JSON: JSON.stringify([
@@ -417,12 +419,14 @@ describe('devaudit-sdlc CLI engine', () => {
 
     it('--watch-pr auto-reruns a flaky failing workflow and persists rerun counts', async () => {
       const mockBin = await writeMockGh(sandbox);
+      const ghBin = join(mockBin, process.platform === 'win32' ? 'gh.cmd' : 'gh');
       const logFile = join(sandbox, 'gh.log');
       const res = await execa(process.execPath, [ENGINE_PATH, '--watch-pr=77', '--repo=metasession-dev/example', '--once'], {
         cwd: sandbox,
         reject: false,
         env: {
           ...process.env,
+          DEVAUDIT_GH_BIN: ghBin,
           PATH: `${mockBin}:${process.env.PATH}`,
           MOCK_GH_LOG: logFile,
           GH_PR_VIEW_JSON: JSON.stringify({ state: 'OPEN', isDraft: false, reviewDecision: 'REVIEW_REQUIRED' }),
@@ -459,6 +463,7 @@ describe('devaudit-sdlc CLI engine', () => {
       const port = typeof address === 'object' && address ? address.port : 0;
 
       try {
+        const ghBin = join(mockBin, process.platform === 'win32' ? 'gh.cmd' : 'gh');
         const res = await execa(
           process.execPath,
           [
@@ -475,6 +480,7 @@ describe('devaudit-sdlc CLI engine', () => {
             reject: false,
             env: {
               ...process.env,
+              DEVAUDIT_GH_BIN: ghBin,
               PATH: `${mockBin}:${process.env.PATH}`,
               MOCK_GH_LOG: logFile,
               DEVAUDIT_API_KEY: 'test-key',

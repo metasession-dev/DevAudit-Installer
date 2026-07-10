@@ -184,7 +184,7 @@ function runBlueprintView(phase) {
 }
 
 function runGhJson(ghArgs) {
-    const result = spawnSync('gh', ghArgs, {
+    const result = spawnSync(process.env.DEVAUDIT_GH_BIN || 'gh', ghArgs, {
         cwd: process.cwd(),
         encoding: 'utf8',
         env: process.env,
@@ -200,7 +200,7 @@ function runGhJson(ghArgs) {
 }
 
 function runGh(ghArgs) {
-    const result = spawnSync('gh', ghArgs, {
+    const result = spawnSync(process.env.DEVAUDIT_GH_BIN || 'gh', ghArgs, {
         cwd: process.cwd(),
         encoding: 'utf8',
         env: process.env,
