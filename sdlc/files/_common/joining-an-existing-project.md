@@ -152,9 +152,10 @@ Two distinct credentials exist; conflating them is what causes the silent-CI-tok
 |---|---|---|---|---|
 | **Personal PAT** | `mctok_…` | `~/.config/devaudit/auth.json` (per developer) | You (the user) | Your local CLI commands |
 | **Project API key** | `dak_…` | Repo secret `DEVAUDIT_API_KEY` | The project | CI's `devaudit push` calls |
-| **Operator's PAT** | `mctok_…` | Repo secret `DEVAUDIT_USER_TOKEN` | The operator (singular) | CI's mutation calls (release register, approval submit) |
+| **Operator's PAT** | `mctok_…` | Repo secret `DEVAUDIT_USER_TOKEN` | The operator (singular) | CI's DevAudit portal calls that need human attribution (release submit / approval flows) |
+| **GitHub workflow token** | `${{ github.token }}` | Issued automatically per workflow run | The GitHub Actions workflow | CI's GitHub repo mutations (checkout, branch push, PR, issue, comment, label, check-run updates) |
 
-**Never paste your personal PAT into a repo secret.** Repo `DEVAUDIT_USER_TOKEN` is operator-owned. CI portal mutations are attributed to whoever's PAT is there — if it's yours, your name shows up against every release the team ships, and the moment your PAT expires CI breaks. Rotation belongs to the operator: `devaudit install --force-team-config` on their machine.
+**Never paste your personal PAT into a repo secret.** Repo `DEVAUDIT_USER_TOKEN` is operator-owned and is not the default GitHub auth path for workflow repo mutations. CI portal mutations are attributed to whoever's PAT is there — if it's yours, your name shows up against every release the team ships, and the moment your PAT expires CI portal actions break. Rotation belongs to the operator: `devaudit install --force-team-config` on their machine.
 
 If `devaudit auth status` shows the wrong user, run `devaudit auth logout && devaudit auth login` and paste the right PAT.
 
@@ -181,10 +182,10 @@ The synced CI gates expect a specific environment. Here's what you need locally 
 
 | Surface | CI | Local (your machine) |
 |---|---|---|
-| Personal identity | `secrets.DEVAUDIT_USER_TOKEN` (operator's) | `~/.config/devaudit/auth.json` (yours) — `devaudit auth login` |
+| Personal identity | `secrets.DEVAUDIT_USER_TOKEN` (operator's, portal-only) | `~/.config/devaudit/auth.json` (yours) — `devaudit auth login` |
 | Project API key | `secrets.DEVAUDIT_API_KEY` | Usually unset locally — only needed if you're testing `devaudit push` against the live portal; ask the operator if you need to debug it |
 | Portal URL | `vars.DEVAUDIT_BASE_URL` | `~/.config/devaudit/auth.json` (set by `auth login`) or `$DEVAUDIT_BASE_URL` env |
-| GitHub auth | `${{ github.token }}` (auto) | `gh auth login` |
+| GitHub auth | `${{ github.token }}` (auto, repo mutations) | `gh auth login` |
 | Node | matrix-pinned to project's `node_version` | nvm / volta / whatever — `devaudit doctor` checks ≥ 22 |
 | `jq` / `curl` | always present on GH runners | install via package manager — `devaudit doctor` flags absence |
 

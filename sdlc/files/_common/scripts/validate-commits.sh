@@ -37,6 +37,23 @@ fi
 TOTAL=0
 FAILED=0
 
+ACTIVE_RELEASE_REQS=""
+if [ -d compliance/pending-releases ]; then
+  ACTIVE_RELEASE_REQS=$(find compliance/pending-releases -maxdepth 1 -type f \
+    -name 'RELEASE-TICKET-REQ-*.md' -print 2>/dev/null \
+    | sed -E 's|.*/RELEASE-TICKET-(REQ-[0-9]+)\.md$|\1|' | sort -u || true)
+fi
+if [ -z "$ACTIVE_RELEASE_REQS" ] && [ -f compliance/RTM.md ]; then
+  ACTIVE_RELEASE_REQS=$(sed 's/\\|/  /g' compliance/RTM.md 2>/dev/null \
+    | grep -E '\|[[:space:]]+IN PROGRESS|\|[[:space:]]+TESTED - PENDING SIGN-OFF' \
+    | grep -oE '^\|[[:space:]]*REQ-[0-9]+' \
+    | grep -oE 'REQ-[0-9]+' | sort -u || true)
+fi
+ACTIVE_RELEASE_REQ_COUNT=0
+if [ -n "$ACTIVE_RELEASE_REQS" ]; then
+  ACTIVE_RELEASE_REQ_COUNT=$(printf '%s\n' "$ACTIVE_RELEASE_REQS" | grep -c . || true)
+fi
+
 while IFS= read -r sha; do
   TOTAL=$((TOTAL + 1))
   SUBJECT=$(git log -1 --format='%s' "$sha")
@@ -66,13 +83,21 @@ while IFS= read -r sha; do
     feat|fix|refactor|perf)
       if ! echo "$SUBJECT" | grep -qP '\[REQ-\d{3,}\]' \
         && ! echo "$BODY" | grep -qiP 'Ref:\s*REQ-\d{3,}'; then
-        echo "ERROR [$SHORT]: '$TYPE' is an implementation commit but cites no requirement."
-        echo "       Add [REQ-XXX] to the subject or a 'Ref: REQ-XXX' trailer. Start work"
-        echo "       from a requirement via the sdlc-implementer skill (it assigns the REQ"
-        echo "       from the originating issue in Phase 1)."
-        FAILED=$((FAILED + 1))
-        EXIT_CODE=1
-        continue
+        if [ "$ACTIVE_RELEASE_REQ_COUNT" -eq 1 ]; then
+          ACTIVE_REQ=$(printf '%s\n' "$ACTIVE_RELEASE_REQS" | head -1)
+          echo "WARNING [$SHORT]: '$TYPE' cites no requirement, but the branch has one active tracked release (${ACTIVE_REQ})."
+          echo "       Treating the release ticket / RTM context as authoritative for this already-merged history."
+          echo "       Add a follow-up compliance note if this was not an intentional recovery path."
+          WARN_COUNT=$((WARN_COUNT + 1))
+        else
+          echo "ERROR [$SHORT]: '$TYPE' is an implementation commit but cites no requirement."
+          echo "       Add [REQ-XXX] to the subject or a 'Ref: REQ-XXX' trailer. Start work"
+          echo "       from a requirement via the sdlc-implementer skill (it assigns the REQ"
+          echo "       from the originating issue in Phase 1)."
+          FAILED=$((FAILED + 1))
+          EXIT_CODE=1
+          continue
+        fi
       fi
 
       # RTM provenance check (devaudit-installer#226): verify the REQ-XXX

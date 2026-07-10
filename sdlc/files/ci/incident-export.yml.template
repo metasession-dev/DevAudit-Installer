@@ -49,7 +49,9 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-          token: ${{ secrets.DEVAUDIT_USER_TOKEN || github.token }}
+          # GitHub repo mutations use the workflow token. The DevAudit
+          # user token is for portal attribution, not GitHub checkout/push.
+          token: ${{ github.token }}
 
       - name: Classify routing (Path A vs Path B)
         id: route
@@ -436,7 +438,8 @@ jobs:
       - name: Direct commit to develop (Path A)
         if: steps.route.outputs.path == 'A'
         env:
-          GH_TOKEN: ${{ secrets.DEVAUDIT_USER_TOKEN || github.token }}
+          # GitHub push uses the workflow token plus job permissions.
+          GH_TOKEN: ${{ github.token }}
           OUT: ${{ steps.paths.outputs.out }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           ISSUE_URL: ${{ github.event.issue.html_url }}
@@ -454,7 +457,8 @@ jobs:
       - name: Open export PR (Path B)
         if: steps.route.outputs.path == 'B'
         env:
-          GH_TOKEN: ${{ secrets.DEVAUDIT_USER_TOKEN || github.token }}
+          # GitHub branch push + PR creation use the workflow token.
+          GH_TOKEN: ${{ github.token }}
           BRANCH: ${{ steps.paths.outputs.branch }}
           OUT: ${{ steps.paths.outputs.out }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}

@@ -553,7 +553,17 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
 
 ### Phase 4 — Submit for UAT review (SDLC stage 4)
 
-1. **Open the release PR** — the PR that carries the UAT four-eyes approval gate (`check-release-approval.yml`), always into `$RELEASE_BRANCH`: `gh pr create --base "$RELEASE_BRANCH" --head "$INTEGRATION_BRANCH"` (e.g. `develop → main`). The implementation already landed on `$INTEGRATION_BRANCH` in Phase 2; this promotes it. (Note: if other work is also waiting on `$INTEGRATION_BRANCH`, this is a bundled release — every in-scope REQ keeps its own release record and Production approval.)
+1. **Prepare the truthful release PR** — the PR that carries the UAT four-eyes approval gate (`check-release-approval.yml`), always into `$RELEASE_BRANCH` from `$INTEGRATION_BRANCH` (e.g. `develop → main`). The implementation already landed on `$INTEGRATION_BRANCH` in Phase 2; this promotes it. (Note: if other work is also waiting on `$INTEGRATION_BRANCH`, this is a bundled release — every in-scope REQ keeps its own release record and Production approval.)
+
+   Before creating a PR manually, run the synced helper:
+
+   ```bash
+   ./scripts/prepare-release-pr.sh --apply --mode=update
+   ```
+
+   This is mandatory for devaudit-installer#312. It detects an existing open `$INTEGRATION_BRANCH → $RELEASE_BRANCH` PR, derives the current governing release from the current head, and ensures there is exactly one truthful release PR. If the existing PR is stale, the default `update` mode rewrites the title/body and comments with the refresh. Use `--mode=recreate` only when the operator explicitly wants the older PR closed and a new PR opened.
+
+   If the helper reports multiple open release PRs, halt with: "Multiple open release PRs for `$INTEGRATION_BRANCH → $RELEASE_BRANCH`; operator action — close duplicates or choose the authoritative PR, then resume REQ-XXX." Do not open another PR.
 
    PR body per the SDLC PR template (see [`.github/pull_request_template.md`](../../../../../.github/pull_request_template.md)):
    - Closes #N
@@ -571,8 +581,30 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
 
 3. **Apply labels** — `awaiting-uat-review`, `risk:<class>`.
 4. **Comment on the issue**: "Implementation complete. PR #M opened. Evidence on portal: <link>. UAT review requested. Resume with `resume REQ-XXX` once UAT approval is granted on the portal."
-5. **Hard stop.** Phase 4 ends here. Do not proceed to merge; the human's next action is reviewing on the portal.
-6. **Update SDLC status sticky** before halting: `bash scripts/update-sdlc-status.sh "$ISSUE_NUM" "Phase 4 — release PR #<N> opened against $RELEASE_BRANCH; CI running" "Operator action — review PR #<N> + approve UAT release on the portal; sdlc-implementer halts until you ping resume REQ-XXX"`. This is a critical handoff — the sticky must reflect that the agent has stopped + the operator is on the hook.
+5. **Inspect PR blockers before handoff (devaudit-installer#304).** Run `gh pr view <N> --json mergeStateStatus,reviewDecision,statusCheckRollup,url` and categorize the state:
+   - `reviewDecision` not approved → human approval blocker; hand off to the reviewer.
+   - Release Approval Gate failing while portal state is not `uat_approved` → portal approval blocker; hand off to portal UAT reviewer.
+   - Release Approval Gate failing while portal state is `uat_approved` → retry path below.
+   - Compliance validation / evidence completeness failing → real workflow or evidence defect; fix or create a follow-up PR before handoff.
+   - Checks pending → wait/poll until terminal before declaring the PR ready.
+   - Stale PR context detected by `prepare-release-pr.sh` → rerun the helper in `--apply` mode and repeat this blocker inspection.
+
+   **Executable loop (devaudit-installer#304).** Use the bundled watcher rather than a one-shot `gh` read when the PR is blocked or waiting:
+
+   ```bash
+   node SDLC/bin/devaudit-sdlc.js \
+     --watch-pr=<N> \
+     --repo <owner/name> \
+     --req XXX \
+     --release REQ-XXX \
+     --project-slug <project-slug> \
+     --base-url <devaudit-base-url>
+   ```
+
+   The watcher persists retry state in `.sdlc-pr-watch.json`, polls `gh pr view` + `gh pr checks`, re-runs likely flaky workflows automatically, and re-runs the Release Approval Gate when the portal is already approved but GitHub has not converged yet. Use `--once` when you only need a single classification pass.
+
+6. **Hard stop only after blocker classification.** Phase 4 ends here. Do not proceed to merge; the human's next action is reviewing on the portal or clearing the categorized blocker above.
+7. **Update SDLC status sticky** before halting: `bash scripts/update-sdlc-status.sh "$ISSUE_NUM" "Phase 4 — truthful release PR #<N> prepared against $RELEASE_BRANCH; blockers classified" "Operator action — review PR #<N> + approve UAT release on the portal; sdlc-implementer halts until you ping resume REQ-XXX"`. This is a critical handoff — the sticky must reflect that the agent has stopped + the operator is on the hook.
 
 **When an external gate hangs or fails for unrelated reasons.** A required gate may fail for reasons outside the change's scope — flaky infra, an unrelated regression test that hangs at hour-plus runtime with no log activity, a known-failing suite. When this happens:
 
@@ -684,6 +716,10 @@ The skill re-reads state from the filesystem and continues from where it left of
 The native agent must NOT continue to the next phase (Phase 3 → Phase 4, Phase 2 → Phase 3) without re-invoking the skill. The only exception is the skill's own auto-continue steps (Phase 2 step 11) where the skill explicitly says it will continue to the next phase in the same turn.
 
 **PR merged to main ≠ done.** After the release PR is merged to `main`, the native agent must re-invoke the skill for Phase 5 close-out (see Phase 5 step 0 below). The merge is not the end of the workflow — post-merge compliance steps are mandatory.
+
+### Commit-history hygiene recovery (devaudit-installer#315)
+
+Commit-level `[REQ-XXX]` hygiene is preventive, not the strongest source of release truth after history has already merged to a protected integration branch. If CI reports a missing commit-level REQ after the branch has exactly one active tracked release ticket or one matching RTM row, treat the release ticket / RTM context as authoritative and add a follow-up compliance note instead of rewriting protected history. The generated `validate-commits.sh` implements this as a warning in the exactly-one-active-release case. If there are zero or multiple active tracked releases, the validation remains a hard error because the release context is ambiguous.
 
 ### Commit-scoping rule for SRS updates (devaudit-installer#226)
 

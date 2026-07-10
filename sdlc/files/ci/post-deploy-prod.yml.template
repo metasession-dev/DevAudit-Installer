@@ -34,6 +34,9 @@ jobs:
   production-evidence:
     name: Production Evidence
     runs-on: {{RUNNER}}
+    permissions:
+      contents: read
+      issues: write
     env:
       DEVAUDIT_BASE_URL_VAR: ${{ vars.DEVAUDIT_BASE_URL }}
       DEVAUDIT_API_KEY: ${{ secrets.DEVAUDIT_API_KEY }}
@@ -151,7 +154,9 @@ jobs:
       - name: File incident on smoke failure
         if: failure()
         env:
-          GH_TOKEN: ${{ secrets.DEVAUDIT_USER_TOKEN || github.token }}
+          # GitHub issue/label mutations use the workflow token. DevAudit
+          # user tokens are portal PATs, not guaranteed GitHub PATs (#305).
+          GH_TOKEN: ${{ github.token }}
           PROD_URL: ${{ secrets.{{PRODUCTION_URL_SECRET}} }}
           GIT_SHA: ${{ github.sha }}
           CI_RUN: ${{ github.run_id }}
