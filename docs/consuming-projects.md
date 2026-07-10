@@ -242,6 +242,19 @@ These are hard dependencies across all consumers:
 1. **`upload-evidence.sh` flag signature** — adding/removing flags breaks consumer CI.
 2. **Job + status check names** — branch protection rules reference exact strings (`Quality Gates`, `Compliance Validation`, `DevAudit Release Approval`).
 3. **Project slug format** — referenced from `sdlc-config.json`, the DevAudit DB, and the consumer's CI workflow tokens.
+
+### Token contract
+
+Generated workflows use two distinct auth domains:
+
+- **DevAudit portal auth**
+  - `DEVAUDIT_USER_TOKEN` and `DEVAUDIT_API_KEY`
+  - used for portal-facing release/evidence/approval calls
+- **GitHub repo auth**
+  - `${{ github.token }}`
+  - used for GitHub Actions repo mutations such as checkout, branch push, PR creation, issue/comment/label edits, and check-run updates
+
+`DEVAUDIT_USER_TOKEN` is not the default GitHub auth token for workflow repo mutations. If a workflow is mutating GitHub state, the expected auth path is the workflow token plus explicit `permissions:` on the job.
 4. **Compliance directory structure** — `compliance/evidence/REQ-XXX/`, `compliance/pending-releases/`, `compliance/approved-releases/`.
 5. **Release status lifecycle** — `check-release-approval.yml` depends on exact status values.
 6. **Stack + host adapter schemas** — `sdlc/files/stacks/_schema/adapter.schema.json`, `sdlc/files/hosts/_schema/adapter.schema.json`. Adding required fields breaks every existing adapter.
