@@ -40,7 +40,7 @@ No application code. No framework dependencies beyond `jq`, `curl`, `gh`, `git`,
 - Workflow: branch from `develop` → implement → PR into `develop` → merge. Ship: PR `develop` → `main` → merge.
 - Hotfix workflow: branch from `main` → PR `hotfix/*` into `main` → merge with review → immediately back-merge into `develop`. The repo automation opens a `backmerge/* -> develop` PR for valid hotfix merges so `develop` does not drift behind `main`.
 - Merge commits to preserve audit trail.
-- Tag a release with `sdlc-vX.Y.Z` via `git tag` before announcing it to consumers.
+- Tag a release with `vX.Y.Z` via `git tag` before announcing it to consumers.
 - CI must pass on `develop` before merging to `main`.
 
 ### Commits
