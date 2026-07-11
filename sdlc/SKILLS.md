@@ -112,6 +112,14 @@ node scripts/validate-adapter.cjs sdlc/files/_common/skills/<name>/SKILL.md
 
 These delegations are hard contracts — the orchestrator's SKILL.md fails review if it inlines a specialist skill's procedure. The invocation pattern is documented in [docs/adding-a-skill.md §Orchestrator skills](../docs/adding-a-skill.md#orchestrator-skills-calling-other-skills).
 
+Phase 4 is now more than a one-shot handoff note. When a release PR is blocked or waiting, `sdlc-implementer` can hand execution to the bundled watcher:
+
+```bash
+node SDLC/bin/devaudit-sdlc.js --watch-pr=<number> --repo <owner/name> --once
+```
+
+or, without `--once`, a bounded poll loop that persists retry state in `.sdlc-pr-watch.json`, re-runs likely flaky workflows, and re-runs the Release Approval Gate when the portal is already approved but GitHub has not yet converged. That makes "blocked PR handling" an executable part of the orchestration contract rather than a prose-only reminder.
+
 `sdlc-implementer` is **not** used for trivial / housekeeping changes (docs, formatting, dependency bumps, CI tweaks) — those skip the requirement and the ceremony. See [the change-type matrix](../docs/change-workflows.md) and the [trivial-change walkthrough](./files/_common/implementing-an-sdlc-issue.md#trivial-change-walkthrough).
 
 ### The SoT-alignment skill family
