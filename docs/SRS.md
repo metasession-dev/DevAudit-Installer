@@ -586,6 +586,7 @@ dependencies (tier 3) — which is exactly the coverage the current unit-only su
 | REQ-SKILL-IMPLEMENTER-028    | Native agent responsibilities + re-invocation boundary documented in SKILL.md (#226)               | Must     | `sdlc/files/_common/skills/sdlc-implementer/SKILL.md`                                                                         |
 | REQ-SKILL-IMPLEMENTER-029    | Phase 5 close-out: RTM → APPROVED - DEPLOYED, ticket → approved-releases/, commit + push (#226)     | Must     | `sdlc/files/_common/skills/sdlc-implementer/SKILL.md`                                                                         |
 | REQ-SKILL-IMPLEMENTER-030    | Commit-scoping rule: subject cites active REQ only, other REQs in body (#226)                       | Must     | `sdlc/files/_common/skills/sdlc-implementer/SKILL.md`                                                                         |
+| REQ-SKILL-IMPLEMENTER-031    | Phase 4 blocker classification can run as an executable PR watch loop with persisted retry state (#304) | Must  | `sdlc/src/bin/devaudit-sdlc.js`, `sdlc/files/_common/skills/sdlc-implementer/SKILL.md`                                       |
 | REQ-FRAMEWORK-HOOK-004       | Pre-push hook runs validate-compliance-artifacts.sh for tracked commits (#226)                      | Must     | `sdlc/files/stacks/node/hooks/pre-push`                                                                                       |
 | REQ-SKILL-E2E-001            | Trigger phrases fire the e2e pack maintainer / bootstrapper                                           | Must     | `sdlc/files/_common/skills/e2e-test-engineer/SKILL.md`                                                                        |
 | REQ-SKILL-E2E-002            | Bootstrap (Phase 1b) only when no suite exists, with confirmation gates                               | Must     | `sdlc/files/_common/skills/e2e-test-engineer/SKILL.md`                                                                        |
@@ -654,8 +655,10 @@ dependencies (tier 3) — which is exactly the coverage the current unit-only su
 | REQ-FRAMEWORK-EVIDENCE-011   | Nil incident report generated and uploaded as compliance_document when no incidents (#210 AC15-AC18) | Should   | `sdlc/files/ci/compliance-evidence.yml.template`                                                                              |
 | REQ-FRAMEWORK-EVIDENCE-012   | Catch-all compliance_document fallback eliminated; unrecognized files skip-with-warning (#205)       | Must     | `sdlc/files/ci/compliance-evidence.yml.template`                                                                              |
 | REQ-FRAMEWORK-EVIDENCE-013   | Typed evidence_type per artifact: sast_report, dependency_audit, e2e_report, e2e_result, smoke_test, release_ticket, coverage_report, gate_outcome (#207) | Must | `sdlc/files/ci/compliance-evidence.yml.template`, `sdlc/files/ci/ci.yml.template` |
+| REQ-FRAMEWORK-EVIDENCE-014   | workflow_run E2E upload recovers tracked release context from artifact metadata before falling back to `_compliance-docs` (#311) | Should | `sdlc/files/ci/compliance-evidence.yml.template`                                                                              |
 | REQ-FRAMEWORK-VALIDATION-001 | compliance-validation.yml gates PRs to main on artifact + commit + test-summary validity (#240)       | Should   | `sdlc/files/ci/compliance-validation.yml.template`                                                                            |
 | REQ-FRAMEWORK-VALIDATION-002 | ci-status-fallback emits the Quality Gates status on docs-only commits                                | Could    | `sdlc/files/ci/ci-status-fallback.yml.template`                                                                               |
+| REQ-FRAMEWORK-VALIDATION-004 | ci-status-fallback declares the token permission needed to write commit statuses (`statuses: write`) | Must     | `sdlc/files/ci/ci-status-fallback.yml.template`                                                                               |
 | REQ-FRAMEWORK-VALIDATION-003 | Governance auto-PR workflows (periodic-review, incident-export, close-out)                            | Could    | `sdlc/files/ci/periodic-review.yml.template`                                                                                  |
 | REQ-FRAMEWORK-APPROVAL-001   | check-release-approval.yml runs as the PR-to-main merge gate                                          | Must     | `sdlc/files/ci/check-release-approval.yml.template`                                                                           |
 | REQ-FRAMEWORK-APPROVAL-002   | Gate blocks merge unless the resolved release is approved                                             | Must     | `sdlc/files/ci/check-release-approval.yml.template`                                                                           |
@@ -1792,6 +1795,15 @@ Scope note: The six entries below are **Claude Code skills** — directories und
 - **Error paths:** Template missing → warning, continue.
 - **Fixtures/env:** Release with no incidents (expect nil report generated and uploaded); release with incidents (expect no nil report).
 
+#### REQ-SKILL-IMPLEMENTER-031 — Phase 4 blocker classification can run as an executable PR watch loop with persisted retry state (#304)
+
+- **Priority:** Must — the phase-4 handoff must be able to keep classifying blocked/waiting PRs without relying on a one-shot manual `gh` read.
+- **Source:** `sdlc/src/bin/devaudit-sdlc.js` (`--watch-pr` path), `sdlc/files/_common/skills/sdlc-implementer/SKILL.md` (Phase 4 blocker classification / executable loop)
+- **Preconditions / inputs:** A release PR number, repo name, and optionally release/version context (`--repo`, `--release`, `--project-slug`, `--base-url`).
+- **Given** a blocked or waiting release PR **When** the operator or skill runs `node SDLC/bin/devaudit-sdlc.js --watch-pr=<N> ...` **Then** the watcher polls `gh pr view` / `gh pr checks`, classifies the blocker truthfully, persists retry state to `.sdlc-pr-watch.json`, re-runs likely flaky workflows within bounded retry counts, and re-runs the Release Approval Gate when the portal is already approved but GitHub has not yet converged. **Given** `--once` is supplied **Then** it performs a single classification pass and exits without the bounded poll loop.
+- **Error paths:** Missing required args or unreachable GitHub/portal state cause a classified halt; the watcher must not claim a PR is ready while checks are still pending or blocked.
+- **Fixtures/env:** Green PR, pending PR, flaky-failing PR, and portal-approved-but-gate-stale PR fixtures; assert `.sdlc-pr-watch.json` persistence.
+
 #### REQ-SKILL-E2E-001 — Trigger phrases fire the e2e pack maintainer / bootstrapper
 
 - **Priority:** Must — discovery of the test-pack skill, including its invocation by `sdlc-implementer` Phase 2.
@@ -2200,11 +2212,20 @@ Area codes: FRAMEWORK-CIYML (ci.yml quality gates + evidence job), FRAMEWORK-EVI
 #### REQ-FRAMEWORK-EVIDENCE-006 — E2E Regression evidence uploaded on workflow_run with tier + stage metadata
 
 - **Priority:** Should — surfaces critical/regression-tier E2E sweeps to the portal under the right release (#149).
-- **Source:** `sdlc/files/ci/compliance-evidence.yml.template` job `upload-e2e-regression-evidence` (`if: github.event_name == 'workflow_run'`, `permissions: actions:read`): checks out `github.event.workflow_run.head_sha`, downloads artifact `e2e-regression-report` via `run-id`, derives release, uploads `e2e-regression-results.json` as `e2e_result` and the **full zipped** `playwright-report.zip` (not bare `index.html`) as `test_report` per in-scope REQ with `--meta-key tier=<critical|regression|…>` (pull_request→critical+stage 2, push→regression+stage 5, else tier=event-name with no stage). The event-derived `--sdlc-stage` is appended to `FLAGS` only when non-empty.
+- **Source:** `sdlc/files/ci/compliance-evidence.yml.template` job `upload-e2e-regression-evidence` (`if: github.event_name == 'workflow_run'`, `permissions: actions:read`): checks out `github.event.workflow_run.head_sha`, downloads artifact `e2e-regression-report` via `run-id`, derives release, uploads `e2e-regression-results.json` as `e2e_result` and the **full zipped** `playwright-report.zip` as `e2e_report` per in-scope REQ with `--meta-key tier=<critical|regression|…>` (pull_request→critical+stage 2, push→regression+stage 5, else tier=event-name with no stage). The event-derived `--sdlc-stage` is appended to `FLAGS` only when non-empty.
 - **Preconditions / inputs:** A consumer `E2E Regression` workflow producing the named artifact; in-scope REQ tickets at the triggering SHA.
-- **Given** the `E2E Regression` workflow completed **When** this job runs **Then** the JSON + zipped report bundle upload against each in-scope REQ (fallback `_compliance-docs`) with the correct `tier` meta and event-derived `sdlcStage` (2 for PR-to-develop, 5 for push-to-main); the portal receives the whole Playwright report (screenshots/traces included), not a shell HTML. **When** any upload fails **Then** `UPLOAD_FAILURES>0` and the step exits 1.
+- **Given** the `E2E Regression` workflow completed **When** this job runs **Then** the JSON + zipped report bundle upload against each in-scope REQ (fallback `_compliance-docs`) with the correct `tier` meta and event-derived `sdlcStage` (2 for PR-triggered critical runs, 5 for push-to-main regression runs); the portal receives the whole Playwright report (screenshots/traces included), not a shell HTML. The JSON `e2e_result` is canonical evidence; the `e2e_report` upload is a human-facing convenience and may soft-fail on portal-side large-body limits without invalidating the run.
 - **Error paths:** Missing artifact dir → individual uploads skipped; no base URL/API key → skip.
 - **Fixtures/env:** `workflow_run` event fixture + `e2e-regression-report` artifact stub + portal stub.
+
+#### REQ-FRAMEWORK-EVIDENCE-014 — workflow_run E2E upload recovers tracked release context from artifact metadata before falling back to `_compliance-docs` (#311)
+
+- **Priority:** Should — a regression run that happened before the release ticket landed on the triggering SHA must still attach to the truthful tracked release when the artifact clearly names it.
+- **Source:** `sdlc/files/ci/compliance-evidence.yml.template` (`upload-e2e-regression-evidence`): after scanning pending release tickets at the triggering SHA, parses `e2e-regression-results.json` for `REQ-XXX` identifiers, populates `REQS`, and if exactly one REQ is recovered while the derived release is still a bare-date `vYYYY.MM.DD(.n)` release, overrides `DERIVED_RELEASE` to that tracked `REQ-XXX` before upload.
+- **Preconditions / inputs:** `workflow_run` event with no in-scope pending release ticket at the triggering SHA, but a Playwright JSON artifact that contains one or more `REQ-XXX` references.
+- **Given** no pending ticket exists yet at the triggering SHA **When** the artifact names exactly one tracked requirement **Then** the workflow uploads against that `REQ-XXX` release rather than leaving the evidence attached to a bare-date housekeeping release. **Given** no REQ can be recovered from tickets or artifact metadata **Then** the workflow falls back to `_compliance-docs`.
+- **Error paths:** Artifact parse failure or zero recovered REQs simply preserves the fallback path; the job does not hard-fail on metadata recovery alone.
+- **Fixtures/env:** `workflow_run` fixture with empty pending tickets + artifact mentioning one `REQ-XXX`; another fixture with no recoverable REQ.
 
 #### REQ-FRAMEWORK-EVIDENCE-007 — `test-execution-summary.md` template carries Test Cycles section (ISO 29119-3 Test Completion Report)
 
@@ -2323,11 +2344,20 @@ Area codes: FRAMEWORK-CIYML (ci.yml quality gates + evidence job), FRAMEWORK-EVI
 #### REQ-FRAMEWORK-VALIDATION-002 — ci-status-fallback emits the Quality Gates status on docs-only commits
 
 - **Priority:** Could — secondary; keeps branch protection from stalling but enforces nothing.
-- **Source:** `sdlc/files/ci/ci-status-fallback.yml.template` (`on: push: branches:[develop] paths: {{PATHS_IGNORE}} - 'sdlc-config.json'`): job named `quality-gates` on `ubuntu-latest` (hardcoded, not `{{RUNNER}}`) emits a passing `Quality Gates` status.
+- **Source:** `sdlc/files/ci/ci-status-fallback.yml.template` (`on: push: branches:[develop] paths: {{PATHS_IGNORE}} - 'sdlc-config.json'`): job named `quality-gates` on `ubuntu-latest` (hardcoded, not `{{RUNNER}}`) emits a passing `Quality Gates` status via the GitHub commit-status API.
 - **Preconditions / inputs:** Same `{{PATHS_IGNORE}}` list as `ci.yml`, used as `paths:` (the inverse trigger of ci.yml's `paths-ignore`).
 - **Given** the rendered fallback **When** a develop commit touches only the ignored paths **Then** it emits a passing `Quality Gates` status so a develop→main PR's branch protection check is satisfied without running the heavy gates; mixed commits trigger both ci.yml and this (same status name).
 - **Error paths:** N/A (always passes).
 - **Fixtures/env:** Docs-only develop commit fixture.
+
+#### REQ-FRAMEWORK-VALIDATION-004 — ci-status-fallback declares the token permission needed to write commit statuses (`statuses: write`)
+
+- **Priority:** Must — the fallback is only truthful if the workflow token can actually create the `Quality Gates` status it promises to emit.
+- **Source:** `sdlc/files/ci/ci-status-fallback.yml.template`, GitHub commit-status REST endpoint used by the workflow step.
+- **Preconditions / inputs:** Generated fallback workflow running under `github.token` / `GITHUB_TOKEN`.
+- **Given** the workflow emits a commit status via the GitHub API **When** the rendered workflow is inspected **Then** it declares the workflow-level permission required for that call (`statuses: write`; `contents: read` sufficient otherwise) rather than relying on repo-default token scopes.
+- **Error paths:** Missing `statuses: write` causes the runtime failure mode `403 Resource not accessible by integration`; this is a workflow defect, not a consumer misconfiguration.
+- **Fixtures/env:** Rendered workflow file content; a docs-only push fixture asserting the status-post step succeeds.
 
 #### REQ-FRAMEWORK-VALIDATION-003 — Governance auto-PR workflows (periodic-review, incident-export, close-out)
 
