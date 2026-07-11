@@ -1,0 +1,108 @@
+name: Hotfix Back-Merge
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  backmerge-hotfix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Open develop back-merge PR for reviewed hotfix merges
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          BEFORE="${{ github.event.before }}"
+          AFTER="${{ github.event.after }}"
+
+          git fetch origin main develop
+
+          AFTER_PARENTS=$(git show -s --format='%P' "$AFTER" 2>/dev/null | wc -w)
+          if [ "$AFTER_PARENTS" -lt 2 ]; then
+            echo "Push to main is not a merge commit. No automated back-merge PR needed."
+            exit 0
+          fi
+
+          if [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            COMMITS=$(git rev-list "origin/develop..$AFTER" 2>/dev/null || true)
+          else
+            COMMITS=$(git rev-list "$BEFORE..$AFTER" --not origin/develop 2>/dev/null || true)
+          fi
+
+          HOTFIX_COMMITS=""
+          SECOND_PARENT=$(git rev-parse "${AFTER}^2")
+          if [ -n "$COMMITS" ]; then
+            while IFS= read -r sha; do
+              [ -z "$sha" ] && continue
+              if git merge-base --is-ancestor "$sha" origin/develop 2>/dev/null; then
+                continue
+              fi
+              PARENTS=$(git show -s --format='%P' "$sha" 2>/dev/null | wc -w)
+              if [ "$PARENTS" -ge 2 ]; then
+                continue
+              fi
+              if ! git merge-base --is-ancestor "$sha" "$SECOND_PARENT" 2>/dev/null; then
+                echo "Commit $sha is not part of the merged hotfix branch. Skipping automated back-merge."
+                exit 0
+              fi
+              HOTFIX_COMMITS="${HOTFIX_COMMITS}${sha}"$'\n'
+            done <<< "$COMMITS"
+          fi
+
+          if [ -z "$HOTFIX_COMMITS" ]; then
+            echo "No hotfix-only commits missing from develop. Nothing to back-merge."
+            exit 0
+          fi
+
+          SHORT_SHA="${AFTER:0:7}"
+          BACKMERGE_BRANCH="backmerge/main-${SHORT_SHA}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git checkout -B "$BACKMERGE_BRANCH" origin/develop
+
+          while IFS= read -r sha; do
+            [ -z "$sha" ] && continue
+            git cherry-pick -x "$sha"
+          done <<< "$(printf '%s' "$HOTFIX_COMMITS" | tac)"
+
+          git push --force-with-lease origin "$BACKMERGE_BRANCH"
+
+          EXISTING_PR=$(gh pr list --base develop --head "$BACKMERGE_BRANCH" --json number --jq '.[0].number // empty')
+          if [ -n "$EXISTING_PR" ]; then
+            echo "Back-merge PR #$EXISTING_PR already exists."
+            exit 0
+          fi
+
+          BODY_FILE="$(mktemp)"
+          {
+            echo "Automated back-merge after a reviewed hotfix merged into \`main\`."
+            echo
+            echo "Source merge commit: \`$AFTER\`"
+            echo
+            echo "Cherry-picked commits:"
+            while IFS= read -r sha; do
+              [ -z "$sha" ] && continue
+              echo "- \`$sha\` $(git log -1 --format='%s' "$sha")"
+            done <<< "$HOTFIX_COMMITS"
+            echo
+            echo "This PR keeps \`develop\` aligned immediately after a permitted \`hotfix/* -> main\` merge."
+          } > "$BODY_FILE"
+
+          gh pr create \
+            --base develop \
+            --head "$BACKMERGE_BRANCH" \
+            --title "backmerge: sync main hotfix ${SHORT_SHA} into develop" \
+            --body-file "$BODY_FILE"
