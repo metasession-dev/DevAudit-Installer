@@ -182,6 +182,13 @@ describe('syncProject — native TS sync against a fixture', () => {
     );
     expect(complianceEvidenceYml).toContain('/api/ci/projects/fixture-app/audit-log/export');
     expect(complianceEvidenceYml).toContain('audit_log "$AUDIT_LOG_FILE"');
+    const ciStatusFallbackYml = await fs.readFile(
+      join(fixtureDir, '.github', 'workflows', 'ci-status-fallback.yml'),
+      'utf-8',
+    );
+    expect(ciStatusFallbackYml).toContain('permissions:');
+    expect(ciStatusFallbackYml).toContain('contents: read');
+    expect(ciStatusFallbackYml).toContain('statuses: write');
     // DevAudit-Installer#228 — every generated workflow must be valid YAML.
     await expectAllWorkflowsValidYaml(fixtureDir);
     await expectWorkflowTokenContract(fixtureDir);
