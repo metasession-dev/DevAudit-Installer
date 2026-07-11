@@ -33,9 +33,9 @@ jobs:
           echo "PR head: $PR_HEAD"
           echo "Ref: $REF_NAME"
 
-          # ── Push to main: verify all commits are on develop ──
+          # ── Push to main: allow reviewed hotfix merges, but never direct drift ──
           if [ "$EVENT_NAME" = "push" ] && [ "$REF_NAME" = "main" ]; then
-            echo "Checking push to main: all commits must be on origin/develop"
+            echo "Checking push to main: commits must already be on origin/develop unless they arrived via a reviewed hotfix merge"
             if ! git fetch origin develop:refs/remotes/origin/develop 2>/dev/null; then
               echo "::error::Could not fetch origin/develop to verify push to main."
               exit 1
@@ -49,17 +49,46 @@ jobs:
             else
               COMMITS=$(git rev-list "$BEFORE..$AFTER" --not origin/develop 2>/dev/null || true)
             fi
-            # Filter out merge commits (2+ parents) — these are the expected
-            # result of develop→main PR merges and don't exist on develop.
-            # Only non-merge commits not on develop are violations (direct pushes).
             VIOLATIONS=""
             if [ -n "$COMMITS" ]; then
               while IFS= read -r sha; do
+                [ -z "$sha" ] && continue
+                if git merge-base --is-ancestor "$sha" origin/develop 2>/dev/null; then
+                  continue
+                fi
                 PARENTS=$(git show -s --format='%P' "$sha" 2>/dev/null | wc -w)
                 if [ "$PARENTS" -lt 2 ]; then
                   VIOLATIONS="${VIOLATIONS}${sha}"$'\n'
                 fi
               done <<< "$COMMITS"
+            fi
+            if [ -z "$VIOLATIONS" ]; then
+              echo "All commits on main are already on origin/develop, or only merge commits differ. OK."
+              exit 0
+            fi
+            AFTER_PARENTS=$(git show -s --format='%P' "$AFTER" 2>/dev/null | wc -w)
+            if [ "$AFTER_PARENTS" -ge 2 ]; then
+              SECOND_PARENT=$(git rev-parse "${AFTER}^2" 2>/dev/null || true)
+              HOTFIX_OK=true
+              if [ -z "$SECOND_PARENT" ]; then
+                HOTFIX_OK=false
+              else
+                while IFS= read -r sha; do
+                  [ -z "$sha" ] && continue
+                  if ! git merge-base --is-ancestor "$sha" "$SECOND_PARENT" 2>/dev/null; then
+                    HOTFIX_OK=false
+                    break
+                  fi
+                done <<< "$VIOLATIONS"
+              fi
+              if [ "$HOTFIX_OK" = true ]; then
+                echo "::warning::Detected reviewed hotfix merge into main. A back-merge PR to develop must follow immediately."
+                echo "$VIOLATIONS" | while read -r sha; do
+                  [ -z "$sha" ] && continue
+                  echo "  $sha $(git log -1 --format='%s' "$sha" 2>/dev/null || echo '<unknown>')"
+                done
+                exit 0
+              fi
             fi
             if [ -n "$VIOLATIONS" ]; then
               echo "::error::Push to main contains non-merge commits not on origin/develop:"
@@ -67,11 +96,9 @@ jobs:
                 [ -z "$sha" ] && continue
                 echo "  $sha $(git log -1 --format='%s' "$sha" 2>/dev/null || echo '<unknown>')"
               done
-              echo "::error::All commits on main must first land on develop. Use a PR from develop to main."
+              echo "::error::All commits on main must first land on develop, unless they are part of a reviewed hotfix merge that is immediately back-merged."
               exit 1
             fi
-            echo "All commits on main are present on origin/develop. OK."
-            exit 0
           fi
 
           # ── PR to main: only from develop or hotfix/* ──
@@ -90,9 +117,12 @@ jobs:
             esac
           fi
 
-          # ── PR to develop: never from main ──
+          # ── PR to develop: never from main, except an automated back-merge branch ──
           if [ "$PR_BASE" = "develop" ]; then
             case "$PR_HEAD" in
+              backmerge/*)
+                echo "PR $PR_HEAD → develop: allowed (automated hotfix back-merge)."
+                ;;
               main|main/*)
                 echo "::error::PRs from main to develop are not allowed. Use a feature/ or fix/ branch instead."
                 exit 1

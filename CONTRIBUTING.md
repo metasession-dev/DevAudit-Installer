@@ -78,7 +78,8 @@ This repository uses a **GitFlow** branching model with five branch types:
 1. Branch from `main`: `git checkout main && git pull && git checkout -b hotfix/<issue#>-<short-slug>`
 2. Implement the fix
 3. Open a PR into `main`: `gh pr create --base main --head hotfix/<issue#>-<short-slug>`
-4. After merge, also merge `main` back into `develop` to keep them in sync
+4. After merge, immediately back-merge the hotfix into `develop` to keep the integration branch in sync
+5. The repo automation opens a `backmerge/* -> develop` PR for reviewed hotfix merges; merge that PR before cutting the next release from `develop`
 
 ### Branch naming
 
