@@ -4,6 +4,25 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+## [0.3.10] — 2026-07-11
+
+### Added
+
+- **#304** — `devaudit-sdlc` now includes an executable PR-watch path for blocked release PRs, with structured classification for waiting on checks, reviews, mergeability, or portal release state instead of stopping at PR creation.
+- **#312** — release preparation now supersedes stale `develop -> main` release PRs when a tracked release takes over the branch, so the release path converges on one truthful PR.
+
+### Changed
+
+- **#305** — workflow templates now use a normalized GitHub token contract for mutation paths, reducing issue/PR automation failures caused by mixed token usage.
+- **#310** — the generated pre-push hook now preserves stdin correctly, enforces tracked-work skill invocation consistently, and validates phase-sensitive compliance progression before push.
+- **#315** — commit-traceability enforcement now has a recovery path that does not deadlock a valid release after a protected-branch fix merge when stronger release-level context already exists.
+
+### Fixed
+
+- **#311** — `workflow_run` E2E evidence scoping now retains tracked-release context when the regression run happened before the release ticket landed on the triggering SHA.
+- **#314** — evidence-completeness fallback logic now treats zero grep matches as a real `0` count under `set -e` / `pipefail` instead of aborting the release job early.
+- **#304 / #320** — Windows PR-watch tests now execute the mocked `gh` binary through Node, making the cross-platform release watcher path deterministic in CI.
+
 ## [0.2.0] — 2026-06-27
 
 ### Added
