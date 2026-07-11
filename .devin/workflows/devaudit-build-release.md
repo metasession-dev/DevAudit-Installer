@@ -1,17 +1,34 @@
 ---
-description: Full release pipeline — verify, build, publish all 5 packages to npm, create GitHub release, and confirm consumers can install. Auto-detects when a version bump is needed. Run this after changes are merged to main and you are ready to release.
+description: Full release pipeline — verify, build, publish all 5 packages to npm, create GitHub release, and confirm consumers can install. Auto-detects when a version bump is needed. Run this after the release-ready version bump is merged to main and GitFlow is green.
 ---
 
 # Verify, Build, Publish — Full Release Pipeline
 
-This workflow takes you from "changes are on main" to "all 5 packages are published on npm and consumers can install." No manual npm commands needed — everything is automated through the release workflow.
+This workflow takes you from "the release-ready commit is on main" to "all 5 packages are published on npm and consumers can install." No manual npm publish commands are needed — package publication and GitHub release creation are automated through the release workflow.
 
 ## Prerequisites
 
-- All changes are merged to `main`
+- The release-ready version bump is already merged to `main` through the allowed branch path
+- `Enforce GitFlow` is green on `main`
+- There is no outstanding hotfix back-merge PR waiting to be merged into `develop`
 - You know the target version (e.g. `0.3.1`, `0.4.0`)
 - `NPM_TOKEN` secret is set in the GitHub repo
 - You have push access to create tags
+
+## Branch policy for release bumps
+
+This repo is `main` PR-only. Do not bump package versions with a direct push to `main`.
+
+- Normal release path:
+  - merge the intended changes to `develop`
+  - open `develop -> main`
+  - merge
+  - tag `main`
+- If you discover after merge that `main` still needs a release-only bump or fix:
+  - branch `hotfix/*` from `main`
+  - open a reviewed `hotfix/* -> main` PR
+  - merge it
+  - merge the resulting `backmerge/* -> develop` PR before the next `develop -> main` release
 
 ## Steps
 
@@ -40,14 +57,19 @@ jq --arg v "$VERSION" '.version = $v' plugins/devaudit-plugin-prisma/package.jso
 jq --arg v "$VERSION" '.version = $v' plugins/devaudit-plugin-evidence-export/package.json > plugins/devaudit-plugin-evidence-export/package.json.tmp && mv plugins/devaudit-plugin-evidence-export/package.json.tmp plugins/devaudit-plugin-evidence-export/package.json
 ```
 
-If you bumped versions, commit and push:
+If you bumped versions and the bump is not already on `main`, do not push directly to `main`. Use the allowed PR flow:
 
 ```bash
 // turbo
 git add plugin-sdk/package.json cli/package.json sdlc/package.json plugins/devaudit-plugin-prisma/package.json plugins/devaudit-plugin-evidence-export/package.json
 git commit -m "chore: bump all packages to $(jq -r .version cli/package.json) for release"
-git push origin main
+git push origin <your-branch>
 ```
+
+Then:
+
+- if the release is still being prepared on `develop`, merge the bump through `develop -> main`
+- if `main` already needs a post-merge release-only bump, open a reviewed `hotfix/* -> main` PR and let the repo automation open the `backmerge/* -> develop` PR afterwards
 
 ### 1b. Check if current version is already published on npm
 
@@ -152,6 +174,9 @@ This triggers `release.yml` which builds and publishes all packages to npm and c
 ```bash
 // turbo
 VERSION=$(jq -r .version cli/package.json)
+git fetch origin --tags
+git rev-parse "v$VERSION" >/dev/null 2>&1 && { echo "Tag v$VERSION already exists locally"; exit 1; } || true
+git ls-remote --tags origin "refs/tags/v$VERSION" | grep -q . && { echo "Tag v$VERSION already exists on origin"; exit 1; } || true
 git tag "v$VERSION"
 git push origin "v$VERSION"
 ```
@@ -160,13 +185,14 @@ git push origin "v$VERSION"
 
 ```bash
 // turbo
-gh run watch --exit-status
+RUN_ID=$(gh run list --workflow Release --branch "v$VERSION" --event push --limit 1 --json databaseId --jq '.[0].databaseId')
+gh run watch "$RUN_ID" --exit-status
 ```
 
-This blocks until the release workflow completes. If it fails, check the logs:
+This watches the specific tag-triggered release run. If it fails, check the logs:
 
 ```bash
-gh run view --log-failed
+gh run view "$RUN_ID" --log-failed
 ```
 
 Common failures:
@@ -175,7 +201,15 @@ Common failures:
 - `tsup` build failure — TypeScript error in the package
 - `bundle-templates` failure — `sdlc/` directory missing from repo root
 
-### 9. Post-release verification — confirm all 5 packages on npm
+### 9. Post-release verification — confirm GitHub release and all 5 packages on npm
+
+```bash
+// turbo
+VERSION=$(jq -r .version cli/package.json)
+gh release view "v$VERSION"
+```
+
+Then verify the npm registry:
 
 ```bash
 // turbo
@@ -233,6 +267,7 @@ After completing this workflow:
 - `@metasession.co/devaudit-sdlc` is on npm as a fallback for `npx devaudit-sdlc`
 - Consumers run `devaudit update` to pull everything into their repo
 - The GitHub release is created with auto-generated notes
+- `main` remains GitFlow-clean and `develop` is not left behind after any hotfix-style release bump
 
 ## Common failure modes
 
