@@ -1,6 +1,6 @@
-# DevAudit.ai Launch Content Plan — June 2026
+# DevAudit.ai Soft Launch Content Plan — 2026
 
-> **Purpose:** Comprehensive 38-article series for the devaudit.ai launch, targeting four B2B personas across the buying funnel. Each article is grounded in DevAudit's real SDLC workflows, not generic thought leadership.
+> **Purpose:** A soft-launch content plan led by one invitation article, followed by a 38-article series targeting four B2B personas across the buying funnel. Each article is grounded in DevAudit's real SDLC workflows, not generic thought leadership.
 
 ---
 
@@ -72,6 +72,31 @@ The website establishes specific language and positioning that articles must rei
 3. **Funnel-aware.** Top-of-funnel (TOFU) = industry problem awareness. Middle (MOFU) = how DevAudit solves it. Bottom (BOFU) = implementation detail, migration guides, pricing justification.
 4. **Regulatory citations are specific.** "EU AI Act Art. 11" not "upcoming AI regulation." "SOC 2 CC8.1" not "compliance requirements." The personas we're targeting know the clause numbers.
 5. **Real incidents over hypotheticals.** Where possible, reference anonymised versions of real issues (like the REQ-081 scope-creep incident, the missing evidenceShot gap, the merged-branch orphan commit).
+
+---
+
+## First publication: soft launch invitation
+
+Before the broader thought-leadership and workflow series begins, the **first published article** should be a soft-launch invitation that makes the current ask explicit.
+
+### Launch article
+
+| Order | Funnel | Primary persona | Article title | Format |
+| --- | --- | --- | --- | --- |
+| **Launch-1** | Launch | Multi-persona | Soft Launch: Take DevAudit for a Test Drive | Long-form launch note (1200-1500w) |
+
+### Required message for Launch-1
+
+- state clearly that DevAudit is in **soft launch**
+- invite developers, engineering leads, founders, and auditors to try it
+- ask contributors to open issues and PRs
+- ask auditors/reviewers to report missing evidence, unclear mappings, or release-review gaps
+- route readers to the onboarding path, the SDLC overview, and the repo issue tracker
+
+### Canonical source draft
+
+- Long-form: [`docs/articles/soft-launch-test-drive-long-form.md`](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/articles/soft-launch-test-drive-long-form.md)
+- Short-form companion: [`docs/articles/soft-launch-test-drive-short-form.md`](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/articles/soft-launch-test-drive-short-form.md)
 
 ---
 

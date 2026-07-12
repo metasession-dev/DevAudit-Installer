@@ -4,11 +4,12 @@ DevAudit serves as the central compliance hub for all Metasession projects. Each
 
 ## Active consumers
 
-| Project       | Slug                | Stack | Host    | Status     | Last synced               |
-| ------------- | ------------------- | ----- | ------- | ---------- | ------------------------- |
-| wawagardenbar | `wawagardenbar-app` | node  | railway | Integrated | 2026-05-14 (sdlc-v1.23.0) |
+| Project       | Slug                | Stack | Host    | Status |
+| ------------- | ------------------- | ----- | ------- | ------ |
+| wawagardenbar | `wawagardenbar-app` | node  | railway | Integrated |
+| META-JOBS     | `meta-jobs`         | node  | railway | Integrated |
 
-Only **wawagardenbar** is a live consumer as of 2026-05-18. Previous onboarding attempts for **META-AGENT**, **META-ATS**, and **META-JOBS** were started but stopped or reverted; none of them runs SDLC gates against DevAudit today. If any of those projects return as a live consumer they'll re-onboard from scratch via `devaudit install` and be added to this table at that time.
+The table above should reflect the current active consumers known to this repo. For the product-side authoritative cross-check, see the portal repo documentation referenced from this repo's README. Previous onboarding attempts for **META-AGENT** and **META-ATS** were started but stopped or reverted; if either returns as a live consumer it should re-onboard from scratch via `devaudit install` and then be added here.
 
 The DevAudit portal itself does **not** consume the SDLC framework — it would otherwise gate its own releases through itself. See `CLAUDE.md` in DevAudit's repo root for its lightweight development process.
 
@@ -29,7 +30,7 @@ The DevAudit portal itself does **not** consume the SDLC framework — it would 
    devaudit install ../path/to/new-consumer
    ```
 
-The CLI handles every previously-manual step: DevAudit project creation, API key issuance, GitHub repo secrets/variables (`DEVAUDIT_API_KEY`, `DEVAUDIT_USER_TOKEN`, the production-URL secret, `DEVAUDIT_BASE_URL`), hook framework install (`pre-commit` for Python / `husky` for Node), branch protection on `main`, and the first template sync. ~30 seconds end-to-end.
+The CLI handles every previously-manual step: DevAudit project creation, API key issuance, GitHub repo secrets/variables (`DEVAUDIT_API_KEY`, `DEVAUDIT_USER_TOKEN`, the production-URL secret, `DEVAUDIT_BASE_URL`), hook framework install (`pre-commit` for Python / `husky` for Node), branch protection on `main`, and the first template sync. The command starts immediately; the full operator onboarding flow usually takes about 5-10 minutes.
 
 The original bash installer (`scripts/sdlc-onboard.sh`) has been removed — `devaudit install` is the only onboarding path. The CLI bundles the framework templates, so no DevAudit-Installer checkout is needed.
 
@@ -172,7 +173,7 @@ gh variable list              # confirm META_COMPLY_BASE_URL is set
 # 2. Set the new names (paste the same values when prompted)
 gh secret set DEVAUDIT_USER_TOKEN     # paste the mctok_... value
 gh secret set DEVAUDIT_API_KEY        # paste the mc_... value
-gh variable set DEVAUDIT_BASE_URL --body "https://devaudit.metasession.co"
+gh variable set DEVAUDIT_BASE_URL --body "https://devaudit.ai"
 
 # 3. Re-sync to pick up the new workflow file references:
 cd path/to/consumer-repo
