@@ -71,7 +71,7 @@ This repository uses a **GitFlow** branching model with five branch types:
 1. Open a PR from `develop` into `main`: `gh pr create --base main --head develop`
 2. CI must pass on `develop` before merging to `main`
 3. Merge `develop` → `main` (merge commits)
-4. Tag the release: `git tag sdlc-vX.Y.Z`
+4. Tag the release: `git tag vX.Y.Z`
 
 **Hotfixing production:**
 
