@@ -8,7 +8,13 @@
 
 DevAudit is in soft launch, which means this is the right time to test it hard enough to improve it.
 
-It started from a pretty practical frustration: teams could ship code, run tests, and even use AI productively, but the release story still kept falling apart when someone needed to review the evidence properly. Too much lived in people’s heads, too much lived in scattered CI artifacts, and too little of it came together as one trustworthy release record.
+It started from a pretty practical problem: I was carrying QA across multiple projects at once and wanted AI agents to do as much of the work as possible while I still provided direction, guidance, oversight, and review.
+
+That immediately raised the real question: how do you make that repeatable and consistent?
+
+So the first step was the boring but necessary one: write the strategy and policy docs properly. Once those existed, it made sense to use AI to implement them wherever possible instead of leaving them as shelfware.
+
+After a few iterations, DevAudit was what came out of that: a process to develop, test, and ship code consistently against different frameworks, with a release record that can actually be reviewed.
 
 That is why DevAudit ended up as three connected parts instead of one:
 

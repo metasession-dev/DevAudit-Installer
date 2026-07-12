@@ -17,7 +17,15 @@ So this is the invitation.
 
 DevAudit did not start as a grand plan to build a compliance platform.
 
-It started in a much more ordinary place: trying to ship software with AI help, trying to keep release discipline intact, and repeatedly finding that the evidence trail broke down at exactly the point where people needed it to be trustworthy.
+It started in a much more ordinary place: I was tasked with carrying out QA across multiple projects at the same time, and it was obvious that doing all of that manually was going to cap out quickly.
+
+The practical idea was simple enough: use AI agents to do as much of the work as possible while I still provided the direction, guidance, oversight, and review.
+
+The hard question came immediately after that: how do you make that repeatable and consistent instead of turning it into a pile of one-off prompts and wishful thinking?
+
+That led first to the usual foundation work. Write the strategy. Write the policy. Define what "good" is supposed to look like. Once those documents existed, the next step felt obvious too: use AI to implement them wherever that was genuinely possible instead of leaving them as static process paperwork.
+
+After several iterations, DevAudit was what came out of that.
 
 The code might be fine. The tests might even be fine. But the review story was fuzzy. Which requirement was this tied to? Which artifacts actually proved the release? Which bits came from CI, which bits came from a human, and which bits were just assumed? And once AI agents started taking on more of the implementation work, those questions got sharper rather than softer.
 
@@ -30,6 +38,8 @@ Not as "yet another policy folder," and not as "just a portal," and not as "just
 - the **portal**, so releases, evidence, and approvals can be reviewed in one place without reconstructing the story by hand
 
 That shape was earned the hard way. We got there by seeing what was still missing when only one of those pieces existed.
+
+At its core, the thing we were trying to build was not "AI writes code." It was a process to **develop, test, and ship code in a way that stays consistent across different frameworks and still leaves behind a reviewable evidence trail**.
 
 ## Who this is for
 
