@@ -13,6 +13,24 @@ This is the stage where the right thing to do is not pretend everything is finis
 
 So this is the invitation.
 
+## Where this started
+
+DevAudit did not start as a grand plan to build a compliance platform.
+
+It started in a much more ordinary place: trying to ship software with AI help, trying to keep release discipline intact, and repeatedly finding that the evidence trail broke down at exactly the point where people needed it to be trustworthy.
+
+The code might be fine. The tests might even be fine. But the review story was fuzzy. Which requirement was this tied to? Which artifacts actually proved the release? Which bits came from CI, which bits came from a human, and which bits were just assumed? And once AI agents started taking on more of the implementation work, those questions got sharper rather than softer.
+
+That is why DevAudit ended up where it is now.
+
+Not as "yet another policy folder," and not as "just a portal," and not as "just a CLI." It turned into three connected parts because one part on its own was never enough:
+
+- the **SDLC framework**, so the workflow itself has structure
+- the **CLI and CI layer**, so the structure is actually applied in a repo instead of living in a slide deck
+- the **portal**, so releases, evidence, and approvals can be reviewed in one place without reconstructing the story by hand
+
+That shape was earned the hard way. We got there by seeing what was still missing when only one of those pieces existed.
+
 ## Who this is for
 
 We want feedback from four groups in particular:
@@ -33,6 +51,10 @@ DevAudit has three pillars:
 The claim is straightforward: compliance should come out of the way the team already ships software, not from an after-the-fact document scramble.
 
 That claim is only worth anything if the workflow holds up under real use.
+
+And that is exactly why we are doing a soft launch instead of pretending this should be a one-way broadcast.
+
+We want to see whether the thing is actually useful in the hands of people who were not in the room while it was being built.
 
 ## What we want you to test
 
@@ -55,6 +77,8 @@ If you are a contributor:
 - submit PRs where the fix is straightforward
 - propose better wording, better guardrails, or better evidence structure
 
+If you are just curious where the rough edges still are, that is useful too. Soft launch is exactly the stage where "this part feels awkward" is actionable feedback.
+
 ## The most valuable feedback
 
 The highest-signal feedback is specific.
@@ -65,6 +89,7 @@ Examples:
 - “This workflow says onboarding is thirty seconds here and ten minutes there.”
 - “This control mapping is present, but the evidence shown would not satisfy my review.”
 - “This article links to a doc that does not exist.”
+- “I understand why you built it this way, but this step still feels heavier than the risk justifies.”
 
 That kind of feedback is what makes the product more trustworthy.
 
@@ -86,6 +111,8 @@ We are actively looking for contributors who care about:
 - agent/operator handoff quality
 - control mapping accuracy
 
+You do not need to agree with every design choice to contribute something useful. Clear disagreement, backed by a better implementation or a better explanation, is valuable here.
+
 ## What auditors should know
 
 We are especially interested in feedback from auditors and compliance practitioners.
@@ -100,6 +127,8 @@ Not generic “looks good” feedback. Real feedback such as:
 
 If an approval flow, incident trail, or requirement-evidence mapping would raise questions in a real review, we want to know now.
 
+That includes the uncomfortable feedback. If the release record would make you stop and ask for more proof, that is the right signal for this stage.
+
 ## Where to start
 
 Start with the surface that matches your role:
@@ -108,6 +137,14 @@ Start with the surface that matches your role:
 - **Read the workflow model:** [devaudit.ai/sdlc](https://devaudit.ai/sdlc)
 - **Review the standards/control story:** [devaudit.ai/compliance](https://devaudit.ai/compliance)
 - **Inspect the installer repo:** [DevAudit-Installer README](https://github.com/metasession-dev/DevAudit-Installer/blob/main/README.md)
+
+If you are coming at this from first principles, the quickest way to understand the current shape is:
+
+1. read the SDLC overview
+2. look at the onboarding path
+3. inspect one release in the portal
+
+That sequence usually makes the "why is it built like this?" question answer itself.
 
 ## Soft launch means this part matters
 
