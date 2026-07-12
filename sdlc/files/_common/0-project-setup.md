@@ -22,11 +22,11 @@ This guide configures a new project so that the five pipeline workflows can run 
 
 ## Fast path (recommended): `devaudit install`
 
-The DevAudit CLI (`@metasession.co/devaudit-cli`) automates almost all of this guide. It writes `sdlc-config.json`, creates the DevAudit project, issues an API key, sets the GitHub secrets and variables, installs the hook framework, configures branch protection, and syncs the framework templates (CI workflows, hooks, scripts) — in roughly 30 seconds.
+The DevAudit CLI (`@metasession.co/devaudit-cli`) automates almost all of this guide. It writes `sdlc-config.json`, creates the DevAudit project, issues an API key, sets the GitHub secrets and variables, installs the hook framework, configures branch protection, and syncs the framework templates (CI workflows, hooks, scripts). The command starts in seconds; the full operator onboarding flow usually takes about 5-10 minutes.
 
 ```bash
 npm install -g @metasession.co/devaudit-cli   # requires Node >= 22
-devaudit auth login                            # paste your PAT (issued at https://devaudit.metasession.co/settings/tokens)
+devaudit auth login                            # paste your PAT (issued at https://devaudit.ai/settings/tokens)
 devaudit install ../path/to/this-project
 ```
 

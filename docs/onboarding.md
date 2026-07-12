@@ -130,7 +130,7 @@ Re-running the script on the same consumer is safe:
 
 ## Worked example: onboarding META-AGENT (historical trace)
 
-A trace of an early `devaudit install ../META-AGENT` run (the bash installer it replaced produced the same 11-step flow). The META-AGENT onboarding has since been reverted (META-AGENT is no longer an active consumer — see [consuming-projects.md](./consuming-projects.md)), but the trace is preserved here as a concrete demonstration of what onboarding does:
+A trace of an early `devaudit install ../META-AGENT` run (the bash installer it replaced produced the same 11-step flow). The META-AGENT onboarding has since been reverted (META-AGENT is no longer an active consumer — see [consuming-projects.md](./consuming-projects.md)), but the trace is preserved here as a concrete demonstration of what onboarding does. The example below uses the historical `devaudit.metasession.co` host from that period; current public entry points use `https://devaudit.ai`.
 
 ```text
 ══════════════════════════════════════════════════════════════
@@ -196,7 +196,7 @@ A trace of an early `devaudit install ../META-AGENT` run (the bash installer it 
     gh pr create --base main
 ```
 
-Total wall time: ~30 seconds (assuming PAT already issued).
+The command starts immediately, but the full operator onboarding flow usually takes about 5-10 minutes depending on prompts, GitHub API latency, and how much project-specific information you need to confirm.
 
 ## Troubleshooting
 
