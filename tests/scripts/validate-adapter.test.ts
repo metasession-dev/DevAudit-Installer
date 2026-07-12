@@ -62,6 +62,12 @@ const MINIMAL_HOST_VALID = {
   deploy_trigger: 'push_to_main',
   production_url_from: 'secret',
   production_url_secret_key: 'production_url_secret',
+  runtime_contract: {
+    preferred_web_runtime: 'compiled JavaScript or framework standalone output',
+    forbid_typescript_runtime: true,
+    prefer_standalone_output: true,
+    scheduler_placement: 'separate worker or function',
+  },
 };
 
 describe('validate-adapter.cjs', () => {
@@ -205,6 +211,23 @@ describe('validate-adapter.cjs', () => {
         const result = run(['--type', 'host', file]);
         expect(result.status).toBe(1);
         expect(result.stderr).toMatch(/deploy_trigger/);
+      } finally {
+        rmSync(file, { force: true });
+      }
+    });
+
+    it('rejects a malformed runtime_contract', () => {
+      const file = writeAdapter({
+        ...MINIMAL_HOST_VALID,
+        runtime_contract: {
+          preferred_web_runtime: '',
+          forbid_typescript_runtime: 'yes please',
+        },
+      });
+      try {
+        const result = run(['--type', 'host', file]);
+        expect(result.status).toBe(1);
+        expect(result.stderr).toMatch(/runtime_contract/);
       } finally {
         rmSync(file, { force: true });
       }
