@@ -82,6 +82,69 @@ describe('ci-upload upload timeout (#382)', () => {
   });
 });
 
+describe('ci-upload memory shape (#331)', () => {
+  it('skips unedited text stubs without fs.readFile buffering or upload attempts', async () => {
+    const dir = await mktmp('ci-upload-stub-');
+    const file = join(dir, 'incident-report.md');
+    await fs.writeFile(
+      file,
+      [
+        '---',
+        'title: Placeholder',
+        '---',
+        '',
+        '> STARTER TEMPLATE -- REPLACE BEFORE COMMITTING',
+        '',
+        'This is still a stub.',
+      ].join('\n'),
+    );
+
+    const readSpy = vi.spyOn(fs, 'readFile');
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+
+    const [result] = await uploadEvidence({
+      projectSlug: 'my-project',
+      requirementId: '_compliance-docs',
+      evidenceType: 'incident_report',
+      filePath: file,
+      apiKey: 'mc_test_dummy',
+      baseUrl: 'https://devaudit.example.test',
+    });
+
+    expect(result).toMatchObject({ file, ok: true, status: 0, skipped: true });
+    expect(readSpy).not.toHaveBeenCalled();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('uploads normal files without going through fs.readFile', async () => {
+    const dir = await mktmp('ci-upload-stream-');
+    const file = join(dir, 'evidence.txt');
+    await fs.writeFile(file, 'real evidence');
+
+    const readSpy = vi.spyOn(fs, 'readFile');
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 201,
+      json: async () => ({ ok: true }),
+      text: async () => '',
+      headers: new Headers(),
+    } as Response);
+
+    const [result] = await uploadEvidence({
+      projectSlug: 'my-project',
+      requirementId: 'REQ-001',
+      evidenceType: 'test_report',
+      filePath: file,
+      apiKey: 'mc_test_dummy',
+      baseUrl: 'https://devaudit.example.test',
+    });
+
+    expect(result).toMatchObject({ file, ok: true, status: 201 });
+    expect(readSpy).not.toHaveBeenCalled();
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
 // #155 — client-side argument validation matching upload-evidence.sh.
 describe('push validateOptions (#155)', () => {
   const base = { projectSlug: 's', requirementId: 'REQ-001', evidenceType: 't', filePath: 'f' };

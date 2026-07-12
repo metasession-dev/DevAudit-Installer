@@ -24,9 +24,16 @@
       "runner": "ubuntu-latest"
     }
   },
+  "runtime_contract": {
+    "preferred_web_runtime": "compiled JavaScript or framework standalone output",
+    "forbid_typescript_runtime": true,
+    "prefer_standalone_output": true,
+    "scheduler_placement": "scheduled and background jobs should run in a separate worker, cron, or function rather than inside the long-lived web process"
+  },
   "notes": [
     "Railway auto-deploys on push to main; no explicit deploy step needed in CI.",
     "Production URL is set as a repo secret (name configured per-project via production_url_secret in sdlc-config.json).",
-    "Test-time database services are declared per-project (database_service, database_image, database_port, database_env) so CI can spin up a matching container alongside the app container."
+    "Test-time database services are declared per-project (database_service, database_image, database_port, database_env) so CI can spin up a matching container alongside the app container.",
+    "For long-lived production web services on Railway, do not run tsx/ts-node in production; use compiled JS or a framework's standalone runtime output."
   ]
 }
