@@ -1,4 +1,4 @@
-import { promises as fs } from 'node:fs';
+import { openAsBlob, promises as fs } from 'node:fs';
 import { basename, join } from 'node:path';
 import { DevAuditApiError } from './devaudit-api.js';
 
@@ -40,6 +40,12 @@ export interface UploadResult {
   readonly skipped?: boolean;
 }
 
+interface UploadSource {
+  readonly blob: Blob;
+  readonly size: number;
+  readonly mimeType: string;
+}
+
 const RETRYABLE_STATUSES = new Set([429, 500, 502, 503, 504]);
 const DEFAULT_MAX_ATTEMPTS = 5;
 const DEFAULT_UPLOAD_MAX_TIME_SECONDS = 120;
@@ -51,6 +57,7 @@ const INITIAL_BACKOFF_MS = 1000;
 const DEFAULT_PRESIGNED_THRESHOLD_BYTES = 26214400; // 25MB
 const DEFAULT_PRESIGNED_MAX_ATTEMPTS = 3;
 const DEFAULT_PRESIGNED_UPLOAD_MAX_TIME_SECONDS = 300;
+const STUB_PREFIX_BYTES = 4096;
 
 /**
  * Retry budget — defaults to 5, overridable via `UPLOAD_MAX_ATTEMPTS`
@@ -102,18 +109,70 @@ export async function collectFiles(filePath: string): Promise<readonly string[]>
  * as evidence (devaudit#133). Binary files won't match the ASCII banner.
  */
 const STUB_BANNER = /STARTER TEMPLATE.+REPLACE BEFORE/;
-function isUneditedStub(buf: Buffer): boolean {
-  return STUB_BANNER.test(buf.toString('utf-8'));
-}
+const TEXT_STUB_EXTENSIONS = new Set([
+  '.md',
+  '.markdown',
+  '.txt',
+  '.json',
+  '.yml',
+  '.yaml',
+  '.csv',
+  '.html',
+  '.xml',
+  '.log',
+]);
 
 function delay(ms: number): Promise<void> {
   return new Promise((res) => setTimeout(res, ms));
 }
 
-function buildUploadForm(file: string, buf: Buffer, opts: UploadOptions): FormData {
+function extensionOf(file: string): string {
+  const dot = file.lastIndexOf('.');
+  return dot === -1 ? '' : file.slice(dot).toLowerCase();
+}
+
+function isTextLikeEvidenceFile(file: string): boolean {
+  return TEXT_STUB_EXTENSIONS.has(extensionOf(file));
+}
+
+async function readFilePrefix(file: string, bytes: number): Promise<string> {
+  const handle = await fs.open(file, 'r');
+  try {
+    const buf = Buffer.alloc(bytes);
+    const { bytesRead } = await handle.read(buf, 0, bytes, 0);
+    return buf.subarray(0, bytesRead).toString('utf-8');
+  } finally {
+    await handle.close();
+  }
+}
+
+async function isUneditedStub(file: string): Promise<boolean> {
+  if (!isTextLikeEvidenceFile(file)) return false;
+  const prefix = await readFilePrefix(file, STUB_PREFIX_BYTES);
+  return STUB_BANNER.test(prefix);
+}
+
+async function createUploadSource(file: string): Promise<UploadSource> {
+  const mimeType = deriveMimeType(file);
+  const { size } = await fs.stat(file);
+  try {
+    return {
+      blob: await openAsBlob(file, { type: mimeType }),
+      size,
+      mimeType,
+    };
+  } catch {
+    return {
+      blob: new Blob([await fs.readFile(file)], { type: mimeType }),
+      size,
+      mimeType,
+    };
+  }
+}
+
+function buildUploadForm(file: string, source: UploadSource, opts: UploadOptions): FormData {
   const form = new FormData();
-  const blob = new Blob([new Uint8Array(buf)]);
-  form.set('file', blob, basename(file));
+  form.set('file', source.blob, basename(file));
   form.set('projectSlug', opts.projectSlug);
   form.set('requirementId', opts.requirementId);
   form.set('evidenceType', opts.evidenceType);
@@ -173,7 +232,11 @@ export async function probeBaseUrlDrift(baseUrl: string): Promise<string | null>
   }
 }
 
-async function uploadOne(file: string, buf: Buffer, opts: UploadOptions): Promise<UploadResult> {
+async function uploadOne(
+  file: string,
+  source: UploadSource,
+  opts: UploadOptions,
+): Promise<UploadResult> {
   const attempts = maxAttempts();
   const timeoutSeconds = uploadMaxTimeSeconds();
   const url = `${opts.baseUrl.replace(/\/$/, '')}/api/evidence/upload`;
@@ -187,7 +250,7 @@ async function uploadOne(file: string, buf: Buffer, opts: UploadOptions): Promis
       res = await fetch(url, {
         method: 'POST',
         headers: { authorization: `Bearer ${opts.apiKey}` },
-        body: buildUploadForm(file, buf, opts),
+        body: buildUploadForm(file, source, opts),
         signal: controller.signal,
       });
     } catch (err) {
@@ -222,7 +285,11 @@ async function uploadOne(file: string, buf: Buffer, opts: UploadOptions): Promis
 
 const PRESIGNED_FALLBACK = Symbol('presigned-fallback');
 
-async function uploadPresigned(file: string, buf: Buffer, opts: UploadOptions): Promise<UploadResult | typeof PRESIGNED_FALLBACK> {
+async function uploadPresigned(
+  file: string,
+  source: UploadSource,
+  opts: UploadOptions,
+): Promise<UploadResult | typeof PRESIGNED_FALLBACK> {
   const baseUrl = opts.baseUrl.replace(/\/$/, '');
   const presignUrl = `${baseUrl}/api/evidence/upload-url`;
   const completeUrl = `${baseUrl}/api/evidence/upload-complete`;
@@ -230,7 +297,6 @@ async function uploadPresigned(file: string, buf: Buffer, opts: UploadOptions): 
   const timeoutSeconds = uploadMaxTimeSeconds();
   const presignedTimeoutSeconds = DEFAULT_PRESIGNED_UPLOAD_MAX_TIME_SECONDS;
 
-  const mimeType = deriveMimeType(file);
   const metadata = opts.metadata ?? {};
 
   // Step 1: Request presigned upload URL
@@ -254,8 +320,8 @@ async function uploadPresigned(file: string, buf: Buffer, opts: UploadOptions): 
           requirementId: opts.requirementId,
           evidenceType: opts.evidenceType,
           fileName: basename(file),
-          fileSizeBytes: buf.byteLength,
-          mimeType,
+          fileSizeBytes: source.size,
+          mimeType: source.mimeType,
           metadata,
           ...(opts.releaseVersion ? { releaseVersion: opts.releaseVersion } : {}),
           ...(opts.createReleaseIfMissing ? { createReleaseIfMissing: true } : {}),
@@ -315,8 +381,8 @@ async function uploadPresigned(file: string, buf: Buffer, opts: UploadOptions): 
     try {
       res = await fetch(uploadUrl, {
         method: 'PUT',
-        headers: { 'content-type': mimeType },
-        body: new Uint8Array(buf),
+        headers: { 'content-type': source.mimeType },
+        body: source.blob,
         signal: controller.signal,
       });
     } catch (err) {
@@ -402,23 +468,24 @@ export async function uploadEvidence(opts: UploadOptions): Promise<readonly Uplo
   const results: UploadResult[] = [];
   for (const file of files) {
     // eslint-disable-next-line no-await-in-loop
-    const buf = await fs.readFile(file);
-    if (isUneditedStub(buf)) {
+    if (await isUneditedStub(file)) {
       results.push({ file, ok: true, status: 0, skipped: true });
       continue;
     }
+    // eslint-disable-next-line no-await-in-loop
+    const source = await createUploadSource(file);
     // DevAudit-Installer#189 — large files use the presigned R2 URL flow.
     // Falls back to multipart if the portal doesn't support presigned URLs.
-    if (buf.byteLength >= DEFAULT_PRESIGNED_THRESHOLD_BYTES) {
+    if (source.size >= DEFAULT_PRESIGNED_THRESHOLD_BYTES) {
       // eslint-disable-next-line no-await-in-loop
-      const presignedResult = await uploadPresigned(file, buf, opts);
+      const presignedResult = await uploadPresigned(file, source, opts);
       if (presignedResult !== PRESIGNED_FALLBACK) {
         results.push(presignedResult);
         continue;
       }
     }
     // eslint-disable-next-line no-await-in-loop
-    results.push(await uploadOne(file, buf, opts));
+    results.push(await uploadOne(file, source, opts));
   }
   return results;
 }

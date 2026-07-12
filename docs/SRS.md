@@ -528,12 +528,14 @@ dependencies (tier 3) — which is exactly the coverage the current unit-only su
 | REQ-CLI-PUSH-008             | 4xx (other than 429) fast-fail, no retry                                                              | Must     | `cli/src/lib/ci-upload.ts`                                                                                                    |
 | REQ-CLI-PUSH-009             | Per-file success/failure tally, summary, and exit code 4 on any failure                               | Must     | `cli/src/commands/push.ts`                                                                                                    |
 | REQ-CLI-PUSH-010             | --json machine-readable push result                                                                   | Must     | `cli/src/commands/push.ts`                                                                                                    |
-| REQ-CLI-PUSH-011             | Directory upload (non-recursive) vs single file                                                       | Must     | `cli/src/lib/ci-upload.ts`                                                                                                    |
+| REQ-CLI-PUSH-011             | Directory upload (recursive) vs single file                                                           | Must     | `cli/src/lib/ci-upload.ts`                                                                                                    |
 | REQ-CLI-PUSH-012             | --dry-run previews without any HTTP or filesystem mutation                                            | Must     | `cli/src/commands/push.ts`                                                                                                    |
 | REQ-CLI-PUSH-013             | --dry-run --json structured plan payload                                                              | Should   | `cli/src/commands/push.ts`                                                                                                    |
 | REQ-CLI-PUSH-014             | Base-URL redirect handling / drift warning (parity note)                                              | Should   | `scripts/upload-evidence.sh`                                                                                                  |
 | REQ-CLI-PUSH-015             | beforePush / afterPush plugin hooks fire around a real upload                                         | Could    | `cli/src/commands/push.ts`                                                                                                    |
 | REQ-CLI-PUSH-016             | --test-cycle forwards testCycleId form field for portal cycle grouping (#209)                         | Should   | `cli/src/commands/push.ts`, `cli/src/lib/ci-upload.ts`                                                                        |
+| REQ-CLI-PUSH-017             | Upload bodies are sourced from disk-backed blobs, not `fs.readFile()` whole-buffer preloading         | Should   | `cli/src/lib/ci-upload.ts`                                                                                                    |
+| REQ-CLI-PUSH-018             | Starter-stub skip uses a small text prefix read, not whole-file buffering                             | Should   | `cli/src/lib/ci-upload.ts`                                                                                                    |
 | REQ-CLI-AUTH-001             | auth login --token validates against the portal then caches at mode 0600                              | Must     | `cli/src/commands/auth/login.ts`                                                                                              |
 | REQ-CLI-AUTH-002             | auth login interactive PAT paste with mctok\_ validation                                              | Should   | `cli/src/commands/auth/login.ts`                                                                                              |
 | REQ-CLI-AUTH-003             | auth login rejects an invalid token (exit 3) without caching                                          | Must     | `cli/src/commands/auth/login.ts`                                                                                              |
@@ -693,6 +695,7 @@ dependencies (tier 3) — which is exactly the coverage the current unit-only su
 | REQ-FRAMEWORK-ADAPTER-011    | Railway host adapter substitutes deploy trigger, production-URL secret resolution and wait-for-deploy | Must     | `sdlc/files/hosts/railway/adapter.json`                                                                                       |
 | REQ-FRAMEWORK-ADAPTER-012    | Host adapter loaded only by name; ci-templates consume the substituted deploy bits                    | Should   | `cli/src/lib/adapter.ts`                                                                                                      |
 | REQ-FRAMEWORK-ADAPTER-013    | Malformed adapter manifest aborts the sync at parse time or schema validation (Ajv)                  | Should   | `cli/src/lib/adapter.ts`                                                                                                      |
+| REQ-FRAMEWORK-ADAPTER-014    | Railway host adapter carries a schema-validated lean-runtime contract                                 | Should   | `sdlc/files/hosts/railway/adapter.json`, `sdlc/files/hosts/_schema/adapter.schema.json`                                      |
 | REQ-FRAMEWORK-GOVERNANCE-001 | Governance starters are opt-in (NOT auto-seeded on install since v0.1.36)                             | Should   | `cli/src/install/index.ts`                                                                                                    |
 | REQ-FRAMEWORK-GOVERNANCE-002 | bootstrap-governance copies the six starters, dropping .template, skip-if-exists                      | Should   | `cli/src/install/bootstrap-governance.ts`                                                                                     |
 | REQ-FRAMEWORK-GOVERNANCE-003 | Each starter carries required frontmatter + the REPLACE banner                                        | Should   | `sdlc/files/_common/governance/{ai-disclosure,dpia,incident-report,periodic-review,risk-register,ropa}.md.template`           |
@@ -1281,15 +1284,15 @@ Key cross-cutting facts (asserted once, relied on below):
 - **Priority:** Must — gate-relevant fields forwarded to the portal.
 - **Source:** `cli/src/commands/push.ts` (maps `--release`→`releaseVersion`, `--create-release-if-missing`→`createReleaseIfMissing`, `--environment`→`environment`, `--category`→`evidenceCategory`), `cli/src/lib/ci-upload.ts` (`uploadOne` form.set calls).
 - **Given** `--release v1.0.0 --create-release-if-missing --environment uat --category ci_pipeline` **When** push runs **Then** the form additionally contains `releaseVersion=v1.0.0`, `createReleaseIfMissing=true`, `environment=uat`, `evidenceCategory=ci_pipeline`. Each field is only set when its flag is present; `createReleaseIfMissing` is sent only when truthy.
-- **Error paths:** NOTE — unlike the shell script, the CLI does NOT enforce "`--environment` requires `--release`" nor "`--release` requires `--category`" client-side; any such validation is server-side (see Assumptions / PUSH-014).
+- **Error paths:** The CLI enforces the same coherence checks as the shell for these flags: `--environment` without `--release` exits 2 with an invalid-arguments message, and `--release` without `--category` does the same.
 - **Fixtures/env:** msw handler inspecting form fields.
 
-#### REQ-CLI-PUSH-006 — Retry on 429/5xx with exponential backoff, capped at 3 attempts
+#### REQ-CLI-PUSH-006 — Retry on 429/5xx with exponential backoff, capped at 5 attempts by default
 
 - **Priority:** Must — rate-limit resilience for CI bursts (devaudit#263 analogue).
-- **Source:** `cli/src/lib/ci-upload.ts` (`RETRYABLE_STATUSES = {429,500,502,503,504}`, `MAX_ATTEMPTS = 3`, `INITIAL_BACKOFF_MS = 1000`, `uploadOne` retry loop).
+- **Source:** `cli/src/lib/ci-upload.ts` (`RETRYABLE_STATUSES = {429,500,502,503,504}`, `DEFAULT_MAX_ATTEMPTS = 5`, `INITIAL_BACKOFF_MS = 1000`, `uploadOne` retry loop).
 - **Given** the portal returns 429 (or 500/502/503/504) on attempts 1–2 then 200 **When** push runs **Then** the file is retried (backoff 1000ms then 2000ms), ultimately succeeds, prints `✓ … (HTTP 200)`, exit 0. Backoff doubles each attempt.
-- **Error paths:** if all 3 attempts return a retryable status, the loop exits and the last response becomes a failure result (status = last code) → `✗` line, `failCount>0` → exit 4 (PUSH-009). NOTE the CLI cap is **3** attempts (vs the shell's default 5 / `UPLOAD_MAX_ATTEMPTS`), and CLI backoff is in milliseconds.
+- **Error paths:** if all retry attempts return a retryable status, the loop exits and the last response becomes a failure result (status = last code) → `✗` line, `failCount>0` → exit 4 (PUSH-009). Default cap is **5** attempts, overridable by `UPLOAD_MAX_ATTEMPTS`, and backoff is in milliseconds.
 - **Fixtures/env:** msw handler returning sequenced statuses; fake timers to avoid real 1–2s waits.
 
 #### REQ-CLI-PUSH-007 — Retry-After header honoured for retryable responses
@@ -1324,13 +1327,13 @@ Key cross-cutting facts (asserted once, relied on below):
 - **Error paths:** missing-key JSON variant → `{"ok":false,"reason":"missing_api_key"}` (PUSH-002).
 - **Fixtures/env:** capture stdout, parse last JSON object.
 
-#### REQ-CLI-PUSH-011 — Directory upload (non-recursive) vs single file
+#### REQ-CLI-PUSH-011 — Directory upload (recursive) vs single file
 
 - **Priority:** Must — directory uploads are the common CI shape.
-- **Source:** `cli/src/lib/ci-upload.ts` (`collectFiles`: file→`[file]`; directory→`readdir` keeping only `entry.isFile()` entries, joined under the dir).
-- **Given** `<file>` is a directory containing files + subdirectories **When** push runs **Then** each immediate **regular file** is uploaded as a separate POST; **subdirectories are NOT recursed** (parity gap vs the shell script's `find -type f`). A single-file path uploads exactly that file.
+- **Source:** `cli/src/lib/ci-upload.ts` (`collectFiles`: file→`[file]`; directory→`readdir` + recursive descent through `entry.isDirectory()`).
+- **Given** `<file>` is a directory containing files + subdirectories **When** push runs **Then** every nested regular file is uploaded as a separate POST (parity with the shell script's `find -type f`). A single-file path uploads exactly that file.
 - **Error paths:** empty directory → `uploadEvidence` throws `No files at <path>` → exit 1 (top-level handler).
-- **Fixtures/env:** temp dir with a nested subdir; assert only top-level files POSTed.
+- **Fixtures/env:** temp dir with a nested subdir; assert nested files are POSTed too.
 
 #### REQ-CLI-PUSH-012 — `--dry-run` previews without any HTTP or filesystem mutation
 
@@ -1350,9 +1353,9 @@ Key cross-cutting facts (asserted once, relied on below):
 
 #### REQ-CLI-PUSH-014 — Base-URL redirect handling / drift warning (parity note)
 
-- **Priority:** Should — the shell reference (`probe_base_url_drift`, `curl -L`) warns on host drift and follows redirects; the CLI's behaviour differs and tests must pin the actual behaviour.
-- **Source:** `scripts/upload-evidence.sh` (`probe_base_url_drift`, `curl -X POST -L --max-redirs 3`); `cli/src/lib/ci-upload.ts` (uses `fetch` with no explicit `redirect`/probe).
-- **Given** the portal host issues a 301/302 to a new host **When** the shell script runs **Then** it prints a `WARNING: DEVAUDIT_BASE_URL host '<old>' redirects to '<new>' …` block (issue #143) but still uploads (curl follows the redirect). **When the CLI runs**, `node`'s `fetch` follows redirects by default (`redirect:'follow'`), so the upload succeeds, **but the CLI emits NO drift warning and performs NO `/api/health` probe** — this capability is NOT ported. E2E should assert the CLI uploads through a redirect AND that no drift-warning text is printed.
+- **Priority:** Should — both the shell reference and the CLI now surface host-drift warnings before upload.
+- **Source:** `scripts/upload-evidence.sh` (`probe_base_url_drift`, `curl -X POST -L --max-redirs 3`); `cli/src/commands/push.ts` (`probeBaseUrlDrift` call before upload); `cli/src/lib/ci-upload.ts` (`probeBaseUrlDrift`).
+- **Given** the portal host issues a 301/302 to a new host **When** the shell script runs **Then** it prints a `WARNING: DEVAUDIT_BASE_URL host '<old>' redirects to '<new>' …` block (issue #143) but still uploads (curl follows the redirect). **When the CLI runs**, it first probes `<baseUrl>/api/health` with `redirect:'manual'`; if that redirects cross-host it emits a warning via the logger, then continues to upload using `fetch`, which follows redirects by default. E2E should assert both the warning and the successful upload-through-redirect behaviour.
 - **Error paths:** redirect loop — `fetch` caps redirects internally (no `--max-redirs 3` equivalent surfaced).
 - **Fixtures/env:** msw 301→200 chain for the CLI; for shell parity, a curl-level redirect fixture.
 
@@ -1372,6 +1375,24 @@ Key cross-cutting facts (asserted once, relied on below):
 - **Given** `--test-cycle 1234567` **When** push runs **Then** the multipart form additionally contains `testCycleId=1234567`. **Given** no `--test-cycle` flag **When** push runs **Then** the form omits `testCycleId` entirely (the portal defaults to `null` — legacy/ungrouped). The field is orthogonal to `evidenceType`, `evidenceCategory`, and `sdlcStage`.
 - **Error paths:** n/a — the value is an opaque string; no client-side validation.
 - **Fixtures/env:** msw handler asserting the form field presence/absence.
+
+#### REQ-CLI-PUSH-017 — Upload bodies are sourced from disk-backed blobs, not `fs.readFile()` whole-buffer preloading
+
+- **Priority:** Should — this is the installer-side memory reduction for large CI/local uploads (issue #331).
+- **Source:** `cli/src/lib/ci-upload.ts` (`createUploadSource`, `buildUploadForm`, `uploadOne`, `uploadPresigned`).
+- **Preconditions / inputs:** Any normal `push` upload path.
+- **Given** a readable evidence file **When** `uploadEvidence` prepares the request body **Then** it creates a disk-backed `Blob` source (`openAsBlob` on Node 22+) and reuses that blob across multipart retries or the presigned PUT flow, instead of calling `fs.readFile()` to preload the whole file into heap memory. The presigned metadata request still sends `fileSizeBytes` and `mimeType`, but those come from file stat / mime derivation, not a preloaded buffer.
+- **Error paths:** If the runtime cannot provide a disk-backed blob, the helper may fall back to `fs.readFile()` compatibility mode; the observable contract is that supported Node 22+ runtimes take the blob-backed path.
+- **Fixtures/env:** unit test spying on `fs.readFile` while asserting successful multipart and presigned uploads without that function being called.
+
+#### REQ-CLI-PUSH-018 — Starter-stub skip uses a small text prefix read, not whole-file buffering
+
+- **Priority:** Should — this avoids loading full files just to decide “skip vs upload” (issue #331).
+- **Source:** `cli/src/lib/ci-upload.ts` (`isTextLikeEvidenceFile`, `readFilePrefix`, `isUneditedStub`).
+- **Preconditions / inputs:** A governance/compliance starter file that still contains the `STARTER TEMPLATE … REPLACE BEFORE` banner.
+- **Given** a text-like evidence file (`.md`, `.txt`, `.json`, `.yml`, `.yaml`, `.csv`, `.html`, `.xml`, `.log`) **When** uploadEvidence checks whether it is still an unedited starter stub **Then** it reads only a small prefix from disk, matches the starter banner there, and returns `{ skipped: true }` without uploading. Binary/non-text evidence files do not go through this text decode path.
+- **Error paths:** If the banner is absent in the prefix, the file proceeds to the normal upload path.
+- **Fixtures/env:** unit test with a starter markdown stub; assert `skipped: true`, no fetch call, and no `fs.readFile()` buffering.
 
 ---
 
@@ -1566,7 +1587,7 @@ Key cross-cutting facts (asserted once, relied on below):
 #### Assumptions — Push/Auth/Plugin/Global
 
 - **`upgrade` is a stub, not a self-updater.** The task brief describes `upgrade` as "self-update to latest npm release". In v0.1.54 it is wired to `makeStub` and only prints a "not implemented" message + exits 1 (REQ-CLI-UPGRADE-001). I documented the actual stub behaviour, not the aspirational one.
-- **CLI vs `scripts/upload-evidence.sh` parity gaps** (documented where load-bearing): the CLI `ci-upload.ts` does NOT implement the base-URL **drift warning** / `/api/health` probe (PUSH-014); does NOT do **recursive** directory traversal (`readdir` top-level files only vs the shell's `find -type f`) (PUSH-011); does NOT implement the **unedited starter-stub skip** (devaudit#133); does NOT send `releaseBranch`/`releaseTitle`/`changeType`/`gateStatus`/`sdlcStage`/`--meta-key` form fields nor the `--environment requires --release` / `--release requires --category` / `--sdlc-stage 1-5` client-side validations the shell enforces; caps retries at **3** (vs the shell's default 5) and uses ms backoff. The shell sends `releaseBranch=<branch>` while the CLI puts `branch` only inside `metadata`. These are stated as facts from the two sources, not as defects.
+- **CLI vs `scripts/upload-evidence.sh` parity gaps** (documented where load-bearing): the CLI now implements the base-URL **drift warning**, recursive directory traversal, starter-stub skip, `releaseBranch`/`releaseTitle`/`changeType`/`gateStatus`/`--meta-key` form fields, and the `--environment requires --release` / `--release requires --category` validations. The remaining notable gaps are: the CLI still does **not** validate `--sdlc-stage 1-5` client-side because that flag belongs to the shell contract, and the shell remains the CI-authoritative path for stage stamping. The shell sends `releaseBranch=<branch>` while the CLI also keeps `branch` in metadata. These are stated as facts from the two sources, not as defects.
 - **API key header / format:** the upload uses `Authorization: Bearer <key>` (`ci-upload.ts`); the portal-validation calls in `devaudit-api.ts` use header `x-devaudit-token`. The shell docs describe project keys as `mc_…` and PATs as `mctok_…`; the CLI only validates the `mctok_` prefix on interactive login (AUTH-002) — `--api-key`/`DEVAUDIT_API_KEY` values are not format-checked.
 - **`auth login --base-url` default:** set as a commander option default (`'https://devaudit.metasession.co'`) in `index.ts`, so `runAuthLogin` always receives a base URL; the `?? DEFAULT_BASE_URL` fallback inside `login.ts` is belt-and-suspenders.
 - **`auth status` env precedence:** `resolveToken` lets `DEVAUDIT_USER_TOKEN` override the cached file, and `DEVAUDIT_BASE_URL` overrides the file's `base_url` only for the env-token path. Tests must clear these envs to exercise the file path.
@@ -2680,12 +2701,12 @@ The observable contract is derived entirely from source: adapter manifests under
 - **Error paths:** Per the host schema (`sdlc/files/hosts/_schema/adapter.schema.json`), `production_url_from="secret"` requires `production_url_secret_key` (enforced via `allOf`/`if-then` at authoring time only, not at runtime — see ADAPTER-013).
 - **Fixtures/env:** railway fixture; assert the host adapter values feed the deploy/verify render (cross-ref FRAMEWORK-CI — `post-deploy-prod.yml.template` / `ci.yml` consume `production_url_secret` and the wait snippet).
 
-#### REQ-FRAMEWORK-ADAPTER-012 — Host adapter loaded only by name; ci-templates consume the substituted deploy bits
+#### REQ-FRAMEWORK-ADAPTER-012 — Host adapter is loaded as a validated manifest; ci-templates consume the substituted deploy bits
 
 - **Priority:** Should — establishes the boundary: this area resolves+loads the host adapter; the actual deploy-step rendering is owned by FRAMEWORK-CI.
-- **Source:** `cli/src/lib/adapter.ts` (`loadHostAdapter` returns only `{ name }` via the `HostAdapter` interface); `cli/src/update/ci-templates.ts` (reads `production_url_secret`, `runner`, database\_\* from `sdlc-config.json`)
+- **Source:** `cli/src/lib/adapter.ts` (`loadHostAdapter`); `cli/src/update/ci-templates.ts` (reads `production_url_secret`, `runner`, database\_\* from `sdlc-config.json`)
 - **Preconditions / inputs:** Resolved host; `sdlc-config.json` carrying the host's required config keys.
-- **Given** `host=railway` **Then** the loaded `HostAdapter` object exposes only `name` (the resolver's job is selection + existence-check); the deploy-trigger, production-URL and wait-for-deploy snippets are consumed downstream when CI templates are rendered using `sdlc-config.json` values (`production_url_secret`, `runner`, `database_service`/`database_image`/`database_port`/`database_env`). The observable with-vs-without-railway difference (deploy step, prod-URL secret reference, DB service container) lands in the rendered `.github/workflows/*.yml`.
+- **Given** `host=railway` **Then** the loaded `HostAdapter` object is the validated manifest for that host (including any optional `runtime_contract` metadata), while the deploy-trigger, production-URL and wait-for-deploy snippets are consumed downstream when CI templates are rendered using `sdlc-config.json` values (`production_url_secret`, `runner`, `database_service`/`database_image`/`database_port`/`database_env`). The observable with-vs-without-railway difference (deploy step, prod-URL secret reference, DB service container) lands in the rendered `.github/workflows/*.yml`.
 - **Error paths:** N/A in this area.
 - **Fixtures/env:** railway fixture with full `sdlc-config.json`; cross-ref FRAMEWORK-CI for the rendered-workflow assertions.
 
@@ -2697,6 +2718,15 @@ The observable contract is derived entirely from source: adapter manifests under
 - **Given** `sdlc/files/stacks/<stack>/adapter.json` contains invalid JSON **When** `loadStackAdapter`/`loadHostAdapter` runs **Then** `JSON.parse` throws and the sync aborts; **Given** the file is absent **Then** `resolveAdapters` throws the `… adapter not found … Available: …` error before load. **Given** the file is parseable but schema-invalid (e.g. missing `required` properties, bad `runtime_setup.action` pattern) **Then** Ajv validation fails and the sync aborts with a clear error listing all schema violations.
 - **Error paths:** This requirement is itself the error path.
 - **Fixtures/env:** fixture installer-root with a stack `adapter.json` containing a syntax error (expect abort); a fixture with a parseable-but-schema-invalid adapter (expect abort with schema error); a fixture with a valid adapter (expect success).
+
+#### REQ-FRAMEWORK-ADAPTER-014 — Railway host adapter carries a schema-validated lean-runtime contract
+
+- **Priority:** Should — this is the installer-side upstream contract for Railway memory hygiene (issue #331).
+- **Source:** `sdlc/files/hosts/railway/adapter.json` (`runtime_contract`), `sdlc/files/hosts/_schema/adapter.schema.json`.
+- **Preconditions / inputs:** Resolved `host=railway`.
+- **Given** the railway host adapter is loaded **Then** it carries a `runtime_contract` object declaring: `preferred_web_runtime="compiled JavaScript or framework standalone output"`, `forbid_typescript_runtime=true`, `prefer_standalone_output=true`, and a non-empty `scheduler_placement` rule instructing operators to keep scheduled/background jobs out of the long-lived web process. This contract is advisory prose for consumers today, but it is schema-validated and versioned in the adapter manifest so it cannot silently drift.
+- **Error paths:** A malformed `runtime_contract` (wrong types, missing keys, empty required strings) fails schema validation at adapter-load time per ADAPTER-013.
+- **Fixtures/env:** adapter-validator test asserting the bundled Railway adapter passes and a malformed `runtime_contract` fails with a schema error.
 
 ---
 
@@ -2918,10 +2948,10 @@ Behaviours below are **implicit, possibly unintended, or divergent from stated i
 ### A.1 Likely bugs / divergences (verify before relying on intent)
 
 - **`update --dry-run` is a no-op.** `cli/src/index.ts` never forwards `globals.dryRun` to `runUpdate`, and `runUpdate` has no dry-run branch — so `update --dry-run` **mutates the tree like a normal run**. (`bootstrap-governance --dry-run` _does_ preview correctly.)
-- **CLI `push` ≠ `scripts/upload-evidence.sh`.** The CLI port (`lib/ci-upload.ts`) omits several shell behaviours: **no base-URL drift warning / `/api/health` probe** (the "drift warning (v0.1.54)" named in the issue lives only in the shell script, not the CLI), **non-recursive** directory upload (top-level files only, vs shell `find -type f`), **no unedited starter-stub skip** (devaudit#133), retry cap **3** (vs shell default 5), and it drops the `releaseBranch`/`releaseTitle`/`changeType`/`gateStatus`/`sdlcStage`/`--meta-key` fields plus the `--environment requires --release` / `--release requires --category` / `--sdlc-stage 1-5` client-side validations.
+- **CLI `push` ≠ `scripts/upload-evidence.sh`.** The major historical parity gaps are now closed: the CLI implements the drift-warning probe, recursive directory upload, starter-stub skip, metadata/release fields, and default retry budget. The remaining meaningful difference is that CI still uses the shell as the authoritative stage-stamping path (`--sdlc-stage` / `sdlcStage`) and the shell documents lower-level transport knobs (`curl -L`, `--max-redirs`) that the CLI leaves to platform `fetch` defaults.
 - **Base-URL gating inconsistency in `ci.yml`.** The node template's evidence jobs gate on the repo **Variable** `vars.DEVAUDIT_BASE_URL`, while every other workflow prefers `sdlc-config.json` `devaudit.base_url`. A consumer that migrated base-URL into `sdlc-config.json` (the v1.23.0 direction) **silently SKIPs** the register/upload jobs unless the deprecated Variable is also still set.
 - **Python `ci.yml` mislabels security evidence.** It uploads SAST + dep-audit results as `audit_log` rather than the precise `sast_report` / `dependency_audit` types, so the portal's two panels can show identical content (devaudit#387 — unfixed for python). Python also derives a bare-date release version rather than the REQ-tag.
-- **No runtime adapter-schema validation.** Despite `stacks/_schema/adapter.schema.json` and `hosts/_schema/adapter.schema.json`, nothing loads them via Ajv — adapters are read with plain `JSON.parse`. A _parseable-but-schema-invalid_ adapter passes silently; only invalid JSON or a missing file is rejected.
+- **Adapter-schema validation is now runtime-enforced.** `cli/src/lib/adapter.ts` compiles the host/stack schemas with Ajv and rejects parseable-but-schema-invalid manifests at load time.
 - **`doctor` description overstates behaviour.** Its registered description claims it checks "auth state, config validity," but `runDoctor` only checks five tools on PATH (`node ≥ 22`, `git`, `gh`, `jq`, `curl`) plus a non-gating release-drift line — no token or config validation.
 - **Python stack dev-deps are declared but never auto-installed** — `syncStackDeps` early-returns for any non-node stack; python deps come via `pip install -e ".[dev]"` (operator-run), not the CLI.
 
@@ -2930,7 +2960,7 @@ Behaviours below are **implicit, possibly unintended, or divergent from stated i
 - **`upgrade` is not a self-updater** — in v0.1.54 it is a `makeStub` command (prints "not implemented" + tracking issue → exit 1). Marked `Won't`.
 - **The AI-rule source is `sdlc/ai-rules/INSTRUCTIONS-SDLC.md`**, not the repo's own root `INSTRUCTIONS.md` or `implementing-an-sdlc-issue.md` (those are the installer's own docs).
 - **`install` and `update` share one render path** (`install/sync-templates.ts` → `syncProject()`), so every template/sync requirement applies to both.
-- **The drift warning the brief attributes to `devaudit push`** is a `scripts/upload-evidence.sh` behaviour, not a CLI one (see A.1).
+- **The drift warning the brief attributes to `devaudit push`** is now real CLI behaviour too: `runPush` calls `probeBaseUrlDrift()` before upload and logs a warning on cross-host redirects.
 - **No true CLI-E2E layer is encoded in this repo** — the real install/update-against-consumer coverage (wgb; META-JOBS reverted per `docs/consuming-projects.md`) is manual/external.
 
 ### A.3 Exit-code & flow quirks (load-bearing — assert exactly)

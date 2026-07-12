@@ -70,6 +70,12 @@ export interface StackAdapter {
 
 export interface HostAdapter {
   readonly name: string;
+  readonly runtime_contract?: {
+    readonly preferred_web_runtime: string;
+    readonly forbid_typescript_runtime: boolean;
+    readonly prefer_standalone_output: boolean;
+    readonly scheduler_placement: string;
+  };
 }
 
 export async function loadStackAdapter(installerRoot: string, stack: string): Promise<StackAdapter> {

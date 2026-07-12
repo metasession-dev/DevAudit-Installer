@@ -27,6 +27,7 @@ Before authoring, answer:
 | How do you confirm a deploy is live?                          | Poll `flyctl status` until `Deployment.Status == "successful"` |
 | Any post-deploy bookkeeping?                                  | Optional cache warmup, additional smoke tests                  |
 | Does the platform expose a public-readable URL once deployed? | Yes — same curl-the-URL smoke test as Railway works            |
+| What is the lean production runtime shape on this host?       | Compiled JS / framework standalone; no `tsx` in prod           |
 
 Take notes — most of these answers go straight into the adapter manifest.
 
@@ -55,6 +56,12 @@ Start by copying `hosts/railway/adapter.json` and editing. The Fly.io example fr
   "wait_for_deploy": "for i in $(seq 1 30); do flyctl status --app \"${APP_NAME}\" --json | jq -e '.Deployment.Status == \"successful\"' && break; sleep 10; done",
   "required_secrets": ["FLY_API_TOKEN", "DEVAUDIT_API_KEY"],
   "required_env": ["APP_NAME"],
+  "runtime_contract": {
+    "preferred_web_runtime": "compiled JavaScript or framework standalone output",
+    "forbid_typescript_runtime": true,
+    "prefer_standalone_output": true,
+    "scheduler_placement": "scheduled jobs should run in a separate worker or platform cron, not in the web process"
+  },
   "notes": [
     "Production URL is resolved at deploy time by flyctl — no GitHub Secret to maintain.",
     "Deploy step runs `flyctl deploy --remote-only` in the post-deploy workflow; FLY_API_TOKEN is the auth."
@@ -102,6 +109,15 @@ Keep it idempotent and bounded — Railway's is a 30 × 10s loop; Fly's the same
 
 - `required_secrets`: GitHub Secrets the adapter assumes are set. CI workflows fail at runtime if missing. Sync may warn at sync time but can't enforce — secrets are in repo settings, not the repo.
 - `required_env`: env vars the consumer must set (usually populated from sdlc-config.json fields). Non-sensitive identifiers like app names, region IDs.
+
+### `runtime_contract`
+
+This is a schema-validated, operator-facing contract for the expected runtime shape on the host. Use it to encode the lean default so consuming projects do not drift into expensive production patterns by accident.
+
+For Railway, that means:
+- prefer compiled JS or framework standalone output
+- do not run `tsx` / `ts-node` in the long-lived production web process
+- keep background schedulers out of the web process where the platform shape allows it
 
 ## Step 4 — Update `post-deploy-prod.yml.template`
 

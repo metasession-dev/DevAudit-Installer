@@ -130,6 +130,7 @@ describe('#298 — presigned upload error surfacing', () => {
       return makeMockResponse(404, 'not found');
     });
     global.fetch = mockFetch as unknown as typeof global.fetch;
+    const readSpy = vi.spyOn(fs, 'readFile');
 
     const { uploadEvidence } = await import('../src/lib/ci-upload.js');
 
@@ -150,5 +151,6 @@ describe('#298 — presigned upload error surfacing', () => {
     expect(step1MimeType).toBe(step2ContentType);
     // .zip file should derive application/zip
     expect(step1MimeType).toBe('application/zip');
+    expect(readSpy).not.toHaveBeenCalled();
   });
 });

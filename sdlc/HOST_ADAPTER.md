@@ -76,6 +76,17 @@ Sync may warn if these are absent; it's a soft check (the CI workflow is the har
 | `config_keys.optional` | string[] | Keys consumers may define (e.g. an optional database service). |
 | `config_keys.defaults` | object   | Fallback values when a key is absent.                          |
 
+### Runtime contract
+
+| Field                                     | Type    | Purpose                                                                                                  |
+| ----------------------------------------- | ------- | -------------------------------------------------------------------------------------------------------- |
+| `runtime_contract.preferred_web_runtime`  | string  | Operator-facing guidance for the expected production web runtime shape on this host.                     |
+| `runtime_contract.forbid_typescript_runtime` | boolean | Whether long-lived production web processes on this host should forbid `tsx`/`ts-node` style execution. |
+| `runtime_contract.prefer_standalone_output` | boolean | Whether frameworks with a standalone/minimal runtime output should prefer it on this host.              |
+| `runtime_contract.scheduler_placement`    | string  | Operator-facing guidance for where scheduled/background jobs should run on this host.                    |
+
+This field is not consumed by templates yet. It exists so host-level runtime-efficiency rules are versioned and schema-validated instead of living as tribal knowledge in issues and comments.
+
 ### Notes
 
 | Field   | Type     | Purpose                                                                                                                         |
@@ -103,6 +114,12 @@ See the step-by-step walkthrough: **[docs/adding-a-host.md](../docs/adding-a-hos
   "wait_for_deploy": "for i in $(seq 1 30); do flyctl status --app \"${APP_NAME}\" --json | jq -e '.Deployment.Status == \"successful\"' && break; sleep 10; done",
   "required_secrets": ["FLY_API_TOKEN", "DEVAUDIT_API_KEY"],
   "required_env": ["APP_NAME"],
+  "runtime_contract": {
+    "preferred_web_runtime": "compiled JavaScript or framework standalone output",
+    "forbid_typescript_runtime": true,
+    "prefer_standalone_output": true,
+    "scheduler_placement": "scheduled jobs should run in a separate worker or platform cron, not in the web process"
+  },
   "notes": [
     "Production URL is resolved at deploy time by flyctl — no GitHub Secret to maintain.",
     "Deploy step runs `flyctl deploy --remote-only` in the post-deploy workflow; FLY_API_TOKEN is the auth."

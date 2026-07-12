@@ -84,6 +84,37 @@
       },
       "description": "sdlc-config.json keys this host adapter consumes. `required` keys must be present; `optional` are tolerated; `defaults` provides fallback values."
     },
+    "runtime_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "preferred_web_runtime",
+        "forbid_typescript_runtime",
+        "prefer_standalone_output",
+        "scheduler_placement"
+      ],
+      "properties": {
+        "preferred_web_runtime": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Operator-facing guidance for how production web services on this host should execute (for example: compiled JS or framework standalone output, not tsx/ts-node)."
+        },
+        "forbid_typescript_runtime": {
+          "type": "boolean",
+          "description": "Whether long-lived production web processes on this host should forbid tsx/ts-node style runtime transpilation."
+        },
+        "prefer_standalone_output": {
+          "type": "boolean",
+          "description": "Whether frameworks that support a minimal standalone runtime (for example Next.js standalone output) should prefer it on this host."
+        },
+        "scheduler_placement": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Operator-facing guidance for where scheduled/background jobs should run on this host."
+        }
+      },
+      "description": "Host-level runtime-efficiency contract. Not consumed by templates yet, but validated so the lean-production guidance stays explicit and versioned."
+    },
     "notes": {
       "type": "array",
       "items": { "type": "string", "minLength": 1 },
