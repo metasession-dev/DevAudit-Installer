@@ -154,6 +154,15 @@ describe('syncProject — native TS sync against a fixture', () => {
     expect(ciYml).toContain('fixture-app');
     expect(ciYml).not.toContain('{{PROJECT_SLUG}}');
     expect(ciYml).not.toContain('{{NODE_VERSION}}');
+    const projectSetup = normalizeNewlines(
+      await fs.readFile(join(fixtureDir, 'SDLC', '0-project-setup.md'), 'utf-8'),
+    );
+    expect(projectSetup).toContain(
+      '| REQ-ID | Issue | Risk | Evidence | Status | PR | Reviewer | AI-tool |',
+    );
+    expect(projectSetup).toContain(
+      '|--------|-------|------|----------|--------|-----|----------|---------|',
+    );
     // wawagardenbar-app#383: PRs to develop must surface Quality Gates, while
     // release registration/evidence upload stay push/dispatch-only side effects.
     expect(ciYml).toContain('pull_request:\n    branches: [develop]');
