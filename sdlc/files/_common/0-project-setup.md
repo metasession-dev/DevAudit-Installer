@@ -112,8 +112,8 @@ cat > compliance/RTM.md << 'EOF'
 
 ## Part B: Change Request Traceability
 
-| REQ-ID | Issue | Risk | Evidence | Status | Approver | Date |
-|---|---|---|---|---|---|---|
+| REQ-ID | Issue | Risk | Evidence | Status | PR | Reviewer | AI-tool |
+|--------|-------|------|----------|--------|-----|----------|---------|
 EOF
 
 # Commit
