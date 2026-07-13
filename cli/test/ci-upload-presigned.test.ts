@@ -153,4 +153,50 @@ describe('#298 — presigned upload error surfacing', () => {
     expect(step1MimeType).toBe('application/zip');
     expect(readSpy).not.toHaveBeenCalled();
   });
+
+  it('forwards sentinelContent, commitTimestamp, and changeType in the presigned init request', async () => {
+    let step1Body: Record<string, unknown> | undefined;
+
+    const mockFetch = vi.fn(async (url: string | URL, init?: RequestInit) => {
+      const urlStr = String(url);
+      if (urlStr.includes('/api/evidence/upload-url')) {
+        step1Body = JSON.parse(init?.body as string) as Record<string, unknown>;
+        return makeMockResponse(200, JSON.stringify({
+          uploadUrl: 'https://r2.test/bucket/file.zip',
+          evidenceId: 'ev-343',
+        }));
+      }
+      if (urlStr.includes('r2.test')) {
+        return makeMockResponse(200, '');
+      }
+      if (urlStr.includes('/api/evidence/upload-complete')) {
+        return makeMockResponse(200, JSON.stringify({ ok: true }));
+      }
+      return makeMockResponse(404, 'not found');
+    });
+    global.fetch = mockFetch as unknown as typeof global.fetch;
+
+    const { uploadEvidence } = await import('../src/lib/ci-upload.js');
+
+    const results = await uploadEvidence({
+      projectSlug: 'test-project',
+      requirementId: 'REQ-091',
+      evidenceType: 'e2e_result',
+      filePath: tempFile,
+      apiKey: 'mc_test_key',
+      baseUrl: 'https://portal.test',
+      changeType: 'feat',
+      sentinelContent: '[{"currentPhase":"3"}]',
+      commitTimestamp: '2026-07-13T10:11:12Z',
+    });
+
+    const [result] = results;
+    expect(result).toBeDefined();
+    expect(result!.ok).toBe(true);
+    expect(step1Body).toMatchObject({
+      changeType: 'feat',
+      sentinelContent: '[{"currentPhase":"3"}]',
+      commitTimestamp: '2026-07-13T10:11:12Z',
+    });
+  });
 });

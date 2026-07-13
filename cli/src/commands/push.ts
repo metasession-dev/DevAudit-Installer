@@ -1,4 +1,6 @@
-import { resolve } from 'node:path';
+import { promises as fs } from 'node:fs';
+import { join, resolve } from 'node:path';
+import { execa } from 'execa';
 import { collectFiles, uploadEvidence, probeBaseUrlDrift } from '../lib/ci-upload.js';
 import { logger, isJsonMode, emitJsonResult } from '../lib/logger.js';
 import { discoverPlugins, buildPluginContext, runHook, type LoadedPlugin } from '../lib/plugin/index.js';
@@ -32,6 +34,7 @@ export interface PushOptions {
 }
 
 const DEFAULT_BASE_URL = 'https://devaudit.metasession.co';
+const TRACKED_CHANGE_TYPES = new Set(['feat', 'fix', 'refactor', 'perf', 'compliance', 'revert']);
 
 function buildMetadata(options: PushOptions): Record<string, unknown> {
   const metadata: Record<string, unknown> = {};
@@ -43,6 +46,31 @@ function buildMetadata(options: PushOptions): Record<string, unknown> {
     metadata[kv.slice(0, eq)] = kv.slice(eq + 1);
   }
   return metadata;
+}
+
+async function resolveSentinelContext(
+  options: PushOptions,
+): Promise<{ sentinelContent?: string; commitTimestamp?: string }> {
+  if (!options.changeType || !TRACKED_CHANGE_TYPES.has(options.changeType)) {
+    return {};
+  }
+  const sentinelPath = join(process.cwd(), '.sdlc-implementer-invoked');
+  let sentinelContent: string | undefined;
+  try {
+    const raw = await fs.readFile(sentinelPath, 'utf8');
+    if (raw.trim()) sentinelContent = raw;
+  } catch {
+    sentinelContent = undefined;
+  }
+  let commitTimestamp: string | undefined;
+  try {
+    const target = options.gitSha?.trim() ? options.gitSha.trim() : 'HEAD';
+    const { stdout } = await execa('git', ['show', '-s', '--format=%cI', target], { reject: false });
+    if (stdout.trim()) commitTimestamp = stdout.trim();
+  } catch {
+    commitTimestamp = undefined;
+  }
+  return { sentinelContent, commitTimestamp };
 }
 
 /**
@@ -122,6 +150,8 @@ export async function runPush(options: PushOptions): Promise<void> {
     await runHook(plugins, 'beforePush', ctx);
   }
   const metadata = buildMetadata(options);
+  const { sentinelContent, commitTimestamp } = await resolveSentinelContext(options);
+  if (commitTimestamp) metadata['commitTimestamp'] = commitTimestamp;
   const results = await uploadEvidence({
     projectSlug: options.projectSlug,
     requirementId: options.requirementId,
@@ -142,6 +172,8 @@ export async function runPush(options: PushOptions): Promise<void> {
     ...(options.gateStatus !== undefined ? { gateStatus: options.gateStatus } : {}),
     ...(options.sdlcStage !== undefined ? { sdlcStage: options.sdlcStage } : {}),
     ...(options.testCycleId !== undefined ? { testCycleId: options.testCycleId } : {}),
+    ...(sentinelContent !== undefined ? { sentinelContent } : {}),
+    ...(commitTimestamp !== undefined ? { commitTimestamp } : {}),
     metadata,
   });
   let okCount = 0;
