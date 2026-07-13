@@ -126,6 +126,7 @@ make_fixture "$WORKDIR/case3" "Ref: REQ-030"
 mkdir -p compliance/evidence/REQ-030
 echo "scope" > compliance/evidence/REQ-030/test-scope.md
 echo "plan" > compliance/evidence/REQ-030/test-plan.md
+echo "summary" > compliance/evidence/REQ-030/test-execution-summary.md
 touch compliance/pending-releases/RELEASE-TICKET-REQ-030.md
 git add . && git commit -q --amend --no-edit
 run_validator
@@ -147,6 +148,7 @@ make_fixture "$WORKDIR/case4" "Ref: REQ-031"
 mkdir -p compliance/evidence/REQ-031
 echo "scope" > compliance/evidence/REQ-031/test-scope.md
 echo "plan" > compliance/evidence/REQ-031/test-plan.md
+echo "summary" > compliance/evidence/REQ-031/test-execution-summary.md
 # Only the superseded location — neither pending- nor approved-releases.
 touch compliance/superseded-releases/RELEASE-TICKET-REQ-031.md
 git add . && git commit -q --amend --no-edit
@@ -250,6 +252,31 @@ run_validator
 assert_grep "REQ-002 not pulled in from prose" 'Requirements found in PR commits:.*REQ-002' 0
 assert_grep "no evidence-dir ERROR for prose-only REQ-002" 'ERROR: Evidence directory missing.*REQ-002' 0
 assert_exit "validator exits 0 when future REQ is only prose-mentioned" 0
+cd "$WORKDIR"
+
+# --- case 8: tracked REQ without test-execution-summary fails ---
+#
+# Regression for devaudit-installer#341: tracked releases must not pass
+# validation without the per-release test report that satisfies the
+# portal's Test Reports gate.
+
+echo "Case 8: tracked REQ missing test-execution-summary fails"
+make_fixture "$WORKDIR/case8" "Ref: REQ-341"
+{
+  echo '# RTM'
+  echo
+  echo '| ID | Description | Status |'
+  echo '| --- | --- | --- |'
+  echo '| REQ-341 | Missing test summary | TESTED - PENDING SIGN-OFF |'
+} > compliance/RTM.md
+mkdir -p compliance/evidence/REQ-341
+echo "scope" > compliance/evidence/REQ-341/test-scope.md
+echo "plan" > compliance/evidence/REQ-341/test-plan.md
+touch compliance/pending-releases/RELEASE-TICKET-REQ-341.md
+git add . && git commit -q --amend --no-edit
+run_validator
+assert_grep "missing-summary ERROR emitted" 'ERROR: Test execution summary missing: compliance/evidence/REQ-341/test-execution-summary.md' 1
+assert_exit "validator exits 1 when tracked REQ lacks test-execution-summary" 1
 cd "$WORKDIR"
 
 # --- summary ---
