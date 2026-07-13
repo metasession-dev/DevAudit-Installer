@@ -149,9 +149,14 @@ for REQ in $REQUIREMENTS; do
     fi
   fi
 
-  # Check test-execution-summary.md exists
+  # Check test-execution-summary.md exists. For tracked REQs this is a
+  # hard requirement: the file is the per-release test report that
+  # satisfies the portal's Test Reports gate. Housekeeping flows never
+  # reach this loop because they have no REQ refs in the validated
+  # commits, so the stricter behavior remains scoped to tracked work.
   if [ ! -f "compliance/evidence/$REQ/test-execution-summary.md" ]; then
-    echo "  WARNING: Test execution summary missing: compliance/evidence/$REQ/test-execution-summary.md"
+    echo "  ERROR: Test execution summary missing: compliance/evidence/$REQ/test-execution-summary.md"
+    EXIT_CODE=1
   else
     echo "  OK: test-execution-summary.md exists"
   fi

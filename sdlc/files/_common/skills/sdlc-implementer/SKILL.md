@@ -511,6 +511,36 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
 
    If the validator fails, fix the summary before proceeding. E2E gate results must be one of: `PASS`, `FAIL`, `NOT_NEEDED` (with reason), or `SKIPPED` (with operator-approved rationale). The word "deferred" must never appear in `test-execution-summary.md` — not as a gate state, not in prose, not in final assessment. "Deferred to CI" and "Playwright browsers not installed locally" are environment issues, not gate states. The CI validator (`validate-test-summary.sh`) will reject any summary containing "deferred" or "browsers not installed" on PRs to main.
 
+5c. **Run the Phase 3 completion guard before any PR/release-review step (devaudit-installer#341).** The tracked-release evidence pack is incomplete until the required Git artefacts exist. Before proceeding past Phase 3, verify:
+
+   - `compliance/evidence/REQ-XXX/test-scope.md`
+   - `compliance/evidence/REQ-XXX/test-plan.md`
+   - `compliance/evidence/REQ-XXX/test-execution-summary.md`
+   - `compliance/evidence/REQ-XXX/security-summary.md`
+   - `compliance/pending-releases/RELEASE-TICKET-REQ-XXX.md`
+   - `compliance/evidence/REQ-XXX/implementation-plan.md` when the REQ risk class requires it
+   - any already-mandatory AI artefacts required by the risk/usage rules
+
+   Run:
+
+   ```bash
+   MISSING=0
+   for f in \
+     compliance/evidence/REQ-XXX/test-scope.md \
+     compliance/evidence/REQ-XXX/test-plan.md \
+     compliance/evidence/REQ-XXX/test-execution-summary.md \
+     compliance/evidence/REQ-XXX/security-summary.md \
+     compliance/pending-releases/RELEASE-TICKET-REQ-XXX.md
+   do
+     [ -f "$f" ] || { echo "MISSING: $f"; MISSING=1; }
+   done
+   [ "$MISSING" -eq 0 ] || exit 1
+   ```
+
+   If any required artefact is missing, halt with an explicit error and do **not** continue to Phase 4:
+
+   > "Phase 3 incomplete — `test-execution-summary.md` is missing. This file satisfies the portal's Test Reports gate (`evidence_type=test_report`). Create it before opening the release PR."
+
 6. **Organise artefacts** under `compliance/evidence/REQ-XXX/` with date-prefixed naming:
 
    ```

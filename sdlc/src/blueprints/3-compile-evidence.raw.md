@@ -592,6 +592,26 @@ If using DevAudit, commit only compliance documents (RTM, release ticket, test s
 - [ ] `compliance/pending-releases/RELEASE-TICKET-REQ-XXX.md`
 
 ```bash
+# Phase 3 completion guard — do not proceed to Phase 4 / release PR
+# creation while any required tracked-release artefact is missing.
+MISSING=0
+for f in \
+  compliance/evidence/REQ-XXX/test-scope.md \
+  compliance/evidence/REQ-XXX/test-plan.md \
+  compliance/evidence/REQ-XXX/test-execution-summary.md \
+  compliance/evidence/REQ-XXX/security-summary.md \
+  compliance/pending-releases/RELEASE-TICKET-REQ-XXX.md
+do
+  [ -f "$f" ] || { echo "MISSING: $f"; MISSING=1; }
+done
+[ "$MISSING" -eq 0 ] || {
+  echo "Fix missing files before proceeding to Phase 4."
+  echo "test-execution-summary.md satisfies the portal's Test Reports gate."
+  exit 1
+}
+```
+
+```bash
 # DevAudit projects — commit + push compliance docs
 git add compliance/RTM.md compliance/pending-releases/RELEASE-TICKET-REQ-XXX.md \
   compliance/evidence/REQ-XXX/test-scope.md \

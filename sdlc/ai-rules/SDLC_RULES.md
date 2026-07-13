@@ -484,9 +484,9 @@ When creating the PR, include:
 - A **"Test Changes"** section listing test files added/modified, what they cover, and what's NOT covered
 - A **"Where to Find Test Results"** section pointing reviewers to: CI status icons on commits, automated E2E comment, DevAudit portal link, and compliance evidence files in the PR
 
-### Step 6: Commit compliance markdown only (do NOT push yet)
+### Step 6: Commit compliance markdown and push immediately
 
-Commit locally but **do not push**. UAT verification runs against the prior deployment. We batch all compliance + UAT commits into a single push after Step 7 to avoid duplicate CI runs.
+Commit the compliance markdown and **push immediately**. The compliance-only push is cheap, and it is the authoritative trigger for the Compliance Evidence Upload workflow. Pushing now surfaces destination/configuration failures before you waste time on later review steps.
 
 ```bash
 # ONLY commit markdown — binary/JSON evidence is in DevAudit
@@ -508,7 +508,15 @@ Co-Authored-By: [AI tool tag]"
 
 **NEVER `git add` JSON, TXT, HTML, PNG, or JPG evidence files. They belong in DevAudit.**
 
-### Step 7: WAIT CHECKPOINT — UAT Verification (if UAT configured)
+### Step 7: Wait for the Compliance Evidence Upload workflow
+
+```bash
+gh run watch --workflow "Compliance Evidence Upload"
+```
+
+If it fails, fix the upload/configuration problem before proceeding. The portal's Test Reports gate stays red until the authoritative `develop` upload lands, even if `test-execution-summary.md` already exists on a feature branch.
+
+### Step 8: WAIT CHECKPOINT — UAT Verification (if UAT configured)
 
 If the project has a UAT environment that auto-deploys from `develop`, verify the change works on UAT before creating a PR.
 
@@ -547,17 +555,17 @@ Co-Authored-By: [AI tool tag]"
 
 **If UAT fails:** Fix on `develop`, re-run local gates, push, and repeat. Do NOT create a PR until UAT is green.
 
-### Step 8: Push all compliance commits
+### Step 9: Push any UAT-result follow-up commit
 
-Push all batched commits (evidence + UAT results) in a single push. This triggers one CI run instead of multiple.
+If Step 8 added a UAT verification note to `security-summary.md`, push that follow-up commit now.
 
 ```bash
 git push origin develop
 ```
 
-Tell the user: **"UAT verification passed. Compliance commits pushed. Next step: create a PR from develop to main."**
+Tell the user: **"UAT verification passed. Compliance evidence is on the portal. Next step: create a PR from develop to main."**
 
-### Step 9: Verify release exists in DevAudit
+### Step 10: Verify release exists in DevAudit
 
 CI auto-creates releases when uploading evidence (using `--create-release-if-missing`). After pushing, verify the release appears in DevAudit:
 
