@@ -48,6 +48,13 @@ fi
 echo "Requirements found in PR commits: $REQUIREMENTS"
 echo ""
 
+find_first_match() {
+  local pattern="$1"
+  local match=""
+  match=$(compgen -G "$pattern" | head -1 || true)
+  [ -n "$match" ] && printf '%s' "$match"
+}
+
 for REQ in $REQUIREMENTS; do
   echo "--- Checking $REQ ---"
 
@@ -198,14 +205,56 @@ for REQ in $REQUIREMENTS; do
   compgen -G "$TICKET_PATTERN"     > /dev/null 2>&1 && LOCATIONS=$((LOCATIONS+1))
   compgen -G "$APPROVED_PATTERN"   > /dev/null 2>&1 && LOCATIONS=$((LOCATIONS+1))
   compgen -G "$SUPERSEDED_PATTERN" > /dev/null 2>&1 && LOCATIONS=$((LOCATIONS+1))
+  TICKET_FILE=""
   if [ "$LOCATIONS" -gt 1 ]; then
     echo "  ERROR: RELEASE-TICKET-${REQ} exists in more than one release directory (pending/approved/superseded). Remove the stale pending copy — it will break the evidence-completeness gate (#192)."
     EXIT_CODE=1
   elif [ "$LOCATIONS" -eq 1 ]; then
     echo "  OK: Release ticket exists"
+    TICKET_FILE=$(find_first_match "$TICKET_PATTERN" || true)
+    [ -z "$TICKET_FILE" ] && TICKET_FILE=$(find_first_match "$APPROVED_PATTERN" || true)
+    [ -z "$TICKET_FILE" ] && TICKET_FILE=$(find_first_match "$SUPERSEDED_PATTERN" || true)
   else
     echo "  ERROR: Release ticket missing: compliance/pending-releases/RELEASE-TICKET-${REQ}.md"
     EXIT_CODE=1
+  fi
+
+  BUNDLED_FILE=""
+  for BUNDLED_PATTERN in \
+    "compliance/pending-releases/BUNDLED-CHANGES-${REQ}.md" \
+    "compliance/approved-releases/BUNDLED-CHANGES-${REQ}.md" \
+    "compliance/superseded-releases/BUNDLED-CHANGES-${REQ}.md"; do
+    BUNDLED_FILE=$(find_first_match "$BUNDLED_PATTERN" || true)
+    [ -n "$BUNDLED_FILE" ] && break
+  done
+  if [ -n "$BUNDLED_FILE" ]; then
+    echo "  OK: Bundled release evidence present: ${BUNDLED_FILE}"
+    if [ -n "$TICKET_FILE" ] && grep -qE '^## (Bundled Changes|Absorbed Predecessor Releases)' "$TICKET_FILE"; then
+      echo "  OK: Release ticket documents bundled release context"
+    else
+      echo "  ERROR: Bundled release evidence exists but the release ticket is missing '## Bundled Changes' or '## Absorbed Predecessor Releases'"
+      EXIT_CODE=1
+    fi
+    if grep -q '^## Bundled Release Context' "compliance/evidence/$REQ/test-execution-summary.md" 2>/dev/null; then
+      echo "  OK: test-execution-summary.md documents bundled release context"
+    else
+      echo "  ERROR: Bundled release evidence exists but test-execution-summary.md is missing '## Bundled Release Context'"
+      EXIT_CODE=1
+    fi
+    if grep -q '^## Bundled Release Context' "compliance/evidence/$REQ/security-summary.md" 2>/dev/null; then
+      echo "  OK: security-summary.md documents bundled release context"
+    else
+      echo "  ERROR: Bundled release evidence exists but security-summary.md is missing '## Bundled Release Context'"
+      EXIT_CODE=1
+    fi
+    if [ -f "compliance/evidence/$REQ/ai-use-note.md" ]; then
+      if grep -q '^## Bundled Release Context' "compliance/evidence/$REQ/ai-use-note.md"; then
+        echo "  OK: ai-use-note.md documents bundled release context"
+      else
+        echo "  ERROR: Bundled release evidence exists but ai-use-note.md is missing '## Bundled Release Context'"
+        EXIT_CODE=1
+      fi
+    fi
   fi
 
   # Check implementation-plan.md for MEDIUM/HIGH risk (check RTM for risk level)

@@ -412,6 +412,8 @@ When the user says implementation is done, or when all acceptance criteria from 
 
 After gates pass, create `compliance/evidence/REQ-XXX/test-execution-summary.md` documenting gate results, test changes, and coverage against the test plan. Include links to evidence locations in DevAudit.
 
+If `compliance/pending-releases/BUNDLED-CHANGES-REQ-XXX.md` exists, add a `## Bundled Release Context` section to `test-execution-summary.md` that distinguishes the core tracked REQ from bundled follow-up / housekeeping work.
+
 Tell the user: **"All gates passed. Let me generate the test execution summary."**
 
 ### Step 2: Upload binary/JSON evidence to DevAudit
@@ -456,6 +458,8 @@ SAST scan: 0 findings
 Dependency audit: 0 vulnerabilities
 Evidence uploaded to DevAudit project: [PROJECT_SLUG]
 ```
+
+If `BUNDLED-CHANGES-REQ-XXX.md` exists, add a `## Bundled Release Context` section to `security-summary.md` and to `ai-use-note.md` (when present), and add `## Bundled Changes` or `## Absorbed Predecessor Releases` to the release ticket. The GitHub PR body is supporting context, not the primary audit record.
 
 Verify these also exist in git:
 - `compliance/evidence/REQ-XXX/test-scope.md` (from planning)
