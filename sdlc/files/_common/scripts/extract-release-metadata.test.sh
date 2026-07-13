@@ -358,6 +358,32 @@ assert_eq "Title extracted" "Feature fifteen" "$RELEASE_TITLE"
 assert_empty "Whitespace-only summary cleared" "$RELEASE_SUMMARY"
 echo ""
 
+# --- Test 17: Bundled changes file appends bundle note to summary ---
+echo "--- Test 17: Bundled changes note appended ---"
+make_fixture "$WORK/test17"
+cat > "compliance/pending-releases/RELEASE-TICKET-REQ-017.md" <<'TICKET'
+# Release Ticket — REQ-017
+
+**Requirement:** REQ-017 — Feature seventeen
+
+## Summary
+Core tracked change summary.
+TICKET
+cat > "compliance/pending-releases/BUNDLED-CHANGES-REQ-017.md" <<'BUNDLE'
+## Bundled Changes
+
+- `abc1234` chore: sync templates
+BUNDLE
+
+source "$HELPER"
+extract_release_metadata "REQ-017"
+assert_eq "Bundled note appended to summary" \
+  "Core tracked change summary.
+
+Bundled release context: see \`compliance/pending-releases/BUNDLED-CHANGES-REQ-017.md\`." \
+  "$RELEASE_SUMMARY"
+echo ""
+
 echo ""
 echo "=== Results: $PASS passed, $FAIL failed ==="
 exit $FAIL

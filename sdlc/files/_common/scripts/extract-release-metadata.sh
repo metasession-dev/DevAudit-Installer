@@ -26,6 +26,21 @@
 
 set -euo pipefail
 
+find_bundled_changes_file() {
+  local req_id="$1"
+  local candidate=""
+  for candidate in \
+    "compliance/pending-releases/BUNDLED-CHANGES-${req_id}.md" \
+    "compliance/approved-releases/BUNDLED-CHANGES-${req_id}.md" \
+    "compliance/superseded-releases/BUNDLED-CHANGES-${req_id}.md"; do
+    if [ -f "$candidate" ]; then
+      printf '%s' "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
 extract_release_metadata() {
   local req_id="$1"
   RELEASE_TITLE=""
@@ -115,5 +130,28 @@ extract_release_metadata() {
         RELEASE_SUMMARY=""
         ;;
     esac
+  fi
+
+  # If the tracked release has a generated bundled-changes artefact,
+  # surface that fact in the release summary so the portal release row and
+  # workflow metadata don't rely on the GitHub PR body as the only bundle
+  # narrative. DevAudit-Installer#344.
+  local bundled_file=""
+  bundled_file=$(find_bundled_changes_file "$req_id" 2>/dev/null || true)
+  if [ -n "$bundled_file" ]; then
+    local bundled_note
+    bundled_note="Bundled release context: see \`${bundled_file}\`."
+    if [ -n "$RELEASE_SUMMARY" ]; then
+      case "$RELEASE_SUMMARY" in
+        *"Bundled release context:"*) ;;
+        *)
+          RELEASE_SUMMARY="${RELEASE_SUMMARY}
+
+${bundled_note}"
+          ;;
+      esac
+    else
+      RELEASE_SUMMARY="$bundled_note"
+    fi
   fi
 }

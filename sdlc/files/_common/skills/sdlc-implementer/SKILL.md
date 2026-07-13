@@ -520,6 +520,11 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
    - `compliance/pending-releases/RELEASE-TICKET-REQ-XXX.md`
    - `compliance/evidence/REQ-XXX/implementation-plan.md` when the REQ risk class requires it
    - any already-mandatory AI artefacts required by the risk/usage rules
+   - if `compliance/pending-releases/BUNDLED-CHANGES-REQ-XXX.md` exists, the canonical artefacts must carry the bundle narrative too:
+     - release ticket includes `## Bundled Changes` or `## Absorbed Predecessor Releases`
+     - `test-execution-summary.md` includes `## Bundled Release Context`
+     - `security-summary.md` includes `## Bundled Release Context`
+     - `ai-use-note.md` includes `## Bundled Release Context` when AI use is documented
 
    Run:
 

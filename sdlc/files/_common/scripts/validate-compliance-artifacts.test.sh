@@ -281,6 +281,88 @@ cd "$WORKDIR"
 
 # --- summary ---
 
+# --- case 9: bundled release context missing from canonical artefacts fails ---
+echo "Case 9: bundled release artefacts without context headings fail"
+make_fixture "$WORKDIR/case9" "Ref: REQ-344"
+{
+  echo '# RTM'
+  echo
+  echo '| ID | Description | Status |'
+  echo '| --- | --- | --- |'
+  echo '| REQ-344 | Bundled release context missing | TESTED - PENDING SIGN-OFF |'
+} > compliance/RTM.md
+mkdir -p compliance/evidence/REQ-344
+echo "scope" > compliance/evidence/REQ-344/test-scope.md
+echo "plan" > compliance/evidence/REQ-344/test-plan.md
+echo "summary" > compliance/evidence/REQ-344/test-execution-summary.md
+echo "security" > compliance/evidence/REQ-344/security-summary.md
+echo "ai note" > compliance/evidence/REQ-344/ai-use-note.md
+cat > compliance/pending-releases/RELEASE-TICKET-REQ-344.md <<'EOF'
+# Release Ticket — REQ-344
+
+## Summary
+Tracked release without bundle section.
+EOF
+echo "## Bundled Changes" > compliance/pending-releases/BUNDLED-CHANGES-REQ-344.md
+git add . && git commit -q --amend --no-edit
+run_validator
+assert_grep "missing bundled section on ticket is reported" "ERROR: Bundled release evidence exists but the release ticket is missing" 1
+assert_grep "missing bundled section on summary is reported" "ERROR: Bundled release evidence exists but test-execution-summary.md is missing" 1
+assert_grep "missing bundled section on security summary is reported" "ERROR: Bundled release evidence exists but security-summary.md is missing" 1
+assert_grep "missing bundled section on ai note is reported" "ERROR: Bundled release evidence exists but ai-use-note.md is missing" 1
+assert_exit "validator exits 1 when bundled artefacts lack required headings" 1
+cd "$WORKDIR"
+
+# --- case 10: bundled release context present in canonical artefacts passes ---
+echo "Case 10: bundled release artefacts with context headings pass"
+make_fixture "$WORKDIR/case10" "Ref: REQ-345"
+{
+  echo '# RTM'
+  echo
+  echo '| ID | Description | Status |'
+  echo '| --- | --- | --- |'
+  echo '| REQ-345 | Bundled release context present | TESTED - PENDING SIGN-OFF |'
+} > compliance/RTM.md
+mkdir -p compliance/evidence/REQ-345
+echo "scope" > compliance/evidence/REQ-345/test-scope.md
+echo "plan" > compliance/evidence/REQ-345/test-plan.md
+cat > compliance/evidence/REQ-345/test-execution-summary.md <<'EOF'
+# Test Execution Summary — REQ-345
+
+## Bundled Release Context
+See compliance/pending-releases/BUNDLED-CHANGES-REQ-345.md.
+EOF
+cat > compliance/evidence/REQ-345/security-summary.md <<'EOF'
+# Security Summary — REQ-345
+
+## Bundled Release Context
+See compliance/pending-releases/BUNDLED-CHANGES-REQ-345.md.
+EOF
+cat > compliance/evidence/REQ-345/ai-use-note.md <<'EOF'
+# AI Use Record — REQ-345
+
+## Bundled Release Context
+Bundle consolidation documented for this release.
+EOF
+cat > compliance/pending-releases/RELEASE-TICKET-REQ-345.md <<'EOF'
+# Release Ticket — REQ-345
+
+## Summary
+Tracked release with bundle section.
+
+## Bundled Changes
+See compliance/pending-releases/BUNDLED-CHANGES-REQ-345.md.
+EOF
+echo "## Bundled Changes" > compliance/pending-releases/BUNDLED-CHANGES-REQ-345.md
+git add . && git commit -q --amend --no-edit
+run_validator
+assert_grep "bundled ticket section accepted" "OK: Release ticket documents bundled release context" 1
+assert_grep "bundled test summary section accepted" "OK: test-execution-summary.md documents bundled release context" 1
+assert_grep "bundled security summary section accepted" "OK: security-summary.md documents bundled release context" 1
+assert_grep "bundled ai note section accepted" "OK: ai-use-note.md documents bundled release context" 1
+assert_exit "validator exits 0 when bundled artefacts carry required headings" 0
+cd "$WORKDIR"
+
 echo
 echo "=== validate-compliance-artifacts.test.sh: $PASS passed, $FAIL failed ==="
 [ "$FAIL" -eq 0 ]
