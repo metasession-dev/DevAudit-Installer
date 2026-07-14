@@ -9,7 +9,7 @@
 ### Tier 1 — Universal (Metasession-wide)
 
 | Document | Owns |
-|----------|------|
+| ---------- | ------ |
 | **Test Policy** | Why we test, commitments, AI governance, roles, accountability |
 | **Test Strategy** | How we approach testing — methodology, risk classification, security, AI protocol |
 | **Test Architecture** | What we build with — tools, patterns, code standards, CI config |
@@ -18,7 +18,7 @@
 ### Tier 2 — Project-Specific
 
 | Document | Purpose |
-|----------|---------|
+| ---------- | --------- |
 | **Project Setup** | One-time: repository, CI, compliance configuration |
 | **Test Plan** | Environment, test suites, exit criteria, AI config, evidence |
 | **Workflows 0-5** | Operational pipeline procedures |
@@ -43,7 +43,7 @@
 ## Quick Reference
 
 | Scenario | Workflows |
-|----------|-----------|
+| ---------- | ----------- |
 | New project setup | 0 (once) |
 | New feature (tracked) | 1 → 2 → 3 → 4 → (CI + review) → 5 |
 | Bug fix / docs / config | 2 → 4 → (CI + review) → 5 |
@@ -51,7 +51,7 @@
 ## Mandatory Gates
 
 | Gate | Local | CI (PR) | Threshold |
-|------|-------|---------|-----------|
+| ------ | ------- | --------- | ----------- |
 | TypeScript | Yes | Yes | 0 errors |
 | SAST | Yes | Yes | 0 high/critical |
 | Dependencies | Yes | Yes | 0 high/critical |
@@ -61,7 +61,7 @@
 ## Risk Levels
 
 | Level | Extra Requirements |
-|-------|-------------------|
+| ------- | ------------------- |
 | Low | Standard gates |
 | Medium | + access control + audit log testing |
 | High | + pen test consideration + independent review |
@@ -71,7 +71,7 @@ AI in Medium/High categories raises risk one level.
 ## CI/CD
 
 | Trigger | What Runs |
-|---------|-----------|
+| --------- | ----------- |
 | Push to `develop` | TypeScript + build |
 | PR to `main` | TypeScript + SAST + deps + E2E (unauthenticated) |
 | Merge to `main` | Auto-deploy |
@@ -289,7 +289,7 @@ DevAudit is the centralised compliance evidence portal for all Metasession proje
 Evidence artifacts are uploaded to DevAudit instead of being committed to git.
 
 | Before (git-based) | After (DevAudit) |
-|---------------------|---------------------|
+| --------------------- | --------------------- |
 | `cp e2e-results.json compliance/evidence/REQ-XXX/` | CLI script or CI uploads to DevAudit |
 | `git add compliance/evidence/REQ-XXX/` | Binary artifacts excluded via `.gitignore` |
 | Evidence only visible to repo collaborators | Evidence visible to anyone with an access grant |
@@ -428,7 +428,7 @@ For one-off reviews, generate a time-limited share link instead of creating an a
 Add these to your GitHub repository (Settings → Secrets and variables → Actions):
 
 | Setting | Tab | Value | Source |
-|--------|-----|-------|--------|
+| -------- | ----- | ------- | -------- |
 | `DEVAUDIT_BASE_URL` | Variables | The deployed DevAudit URL, e.g. `https://devaudit.metasession.co` | The hosting team |
 | `DEVAUDIT_API_KEY` | Secrets | Project-scoped API key (`mc_…`) with `uploader` role | DevAudit → Project Settings → API Keys → New key |
 

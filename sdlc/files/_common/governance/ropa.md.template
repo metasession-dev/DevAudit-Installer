@@ -50,7 +50,7 @@ For each distinct processing activity your project performs, add one section bel
 ### Activity 1 — REPLACE (e.g. "User authentication and session management")
 
 | Field | Value |
-|---|---|
+| --- | --- |
 | **Purpose(s) of processing** | REPLACE — why you process this data; lawful basis (Art. 6) |
 | **Categories of data subjects** | REPLACE — e.g. customers, employees, prospects |
 | **Categories of personal data** | REPLACE — e.g. name, email, IP address, hashed password |
@@ -73,5 +73,5 @@ For each distinct processing activity your project performs, add one section bel
 ## Review log
 
 | Date | Reviewer | Changes |
-|---|---|---|
+| --- | --- | --- |
 | REPLACE — YYYY-MM-DD | REPLACE | Initial ROPA authored from starter template |

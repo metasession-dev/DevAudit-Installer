@@ -7,7 +7,7 @@ Used by both `e2e-test-engineer` (when filing defects) and `governance-doc-autho
 Every `incident_report` evidence row closes `ISO29119.3.5.4` (baseline). Additional clauses depend on the incident's scope.
 
 | Defect / incident characteristic | Frameworks/clauses attributed |
-|---|---|
+| --- | --- |
 | **Any test failure / defect** (baseline — always) | `ISO29119.3.5.4` Test incident report |
 | **Ops impact** (downtime, persistent errors, perf regression, data corruption) | + `SOC2.CC7.2` System monitoring and incident response |
 | **Security vulnerability** (auth bypass, injection, data exposure beyond GDPR scope) | + `SOC2.CC7.2` + relevant ISO 27001 controls |

@@ -88,7 +88,7 @@ If the release ticket says "No post-deploy actions required", skip to Step 4.
 Production verification is **read-only and non-destructive**. It confirms the deployment succeeded and the application is accessible. It does NOT exercise application logic.
 
 | Allowed (read-only) | NOT allowed (destructive) |
-|---------------------|--------------------------|
+| --------------------- | -------------------------- |
 | Health checks (HTTP GET) | E2E tests (Playwright) |
 | Public endpoint status codes | Database operations |
 | Security header inspection | API mutations (POST/PUT/DELETE) |
@@ -226,7 +226,7 @@ git checkout develop
 If the project uses separate UAT and Production environments:
 
 | Environment | Branch | Auto-deploy | Purpose |
-|-------------|--------|-------------|---------|
+| ------------- | -------- | ------------- | --------- |
 | UAT | `develop` | Yes | Pre-PR verification — CI evidence uploaded to DevAudit, reviewed and approved before PR |
 | Production | `main` | Yes | Live deployment after PR approval — post-deploy evidence captured and uploaded to DevAudit |
 

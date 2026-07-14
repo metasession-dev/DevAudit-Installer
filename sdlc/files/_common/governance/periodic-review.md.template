@@ -52,7 +52,7 @@ The 60% of this doc that the operator must fill (auto-generated sections at the 
 ## 2. Activity summary (CI-derived, auto-fill when WS3 lands)
 
 | Metric | Value | Notes |
-|---|---|---|
+| --- | --- | --- |
 | Releases shipped this period | REPLACE | Tracked + housekeeping combined |
 | Tracked releases (REQ-XXX) | REPLACE | |
 | Quality-gate pass rate | REPLACE — % | % of CI runs where every gate passed |
@@ -107,14 +107,14 @@ For each control area, document evidence + reviewer judgement.
 ## 5. Findings and follow-up actions
 
 | # | Finding | Severity | Owner | Due | Issue link |
-|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- |
 | 1 | REPLACE | REPLACE | REPLACE | REPLACE | REPLACE |
 | 2 | REPLACE | | | | |
 
 ## 6. Sign-off
 
 | Role | Name | Date |
-|---|---|---|
+| --- | --- | --- |
 | Reviewer | REPLACE | REPLACE |
 | Approver (dual-actor) | REPLACE | REPLACE |
 | Decision | REPLACE — controls effective / partially effective / not effective |

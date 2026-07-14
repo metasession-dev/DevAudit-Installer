@@ -57,7 +57,7 @@ risk_level: "REPLACE — low | medium | high"
 For each risk, populate one row. Add or remove rows to fit your assessment.
 
 | # | Risk | Likelihood (1–3) | Severity (1–3) | Inherent risk | Existing controls | Residual risk | Acceptable? |
-|---|---|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- | --- | --- |
 | 1 | REPLACE — e.g. unauthorised access to user accounts | REPLACE | REPLACE | REPLACE | REPLACE — MFA, RBAC, encryption-at-rest | REPLACE | REPLACE Y/N |
 | 2 | REPLACE | | | | | | |
 
@@ -76,7 +76,7 @@ For each risk, populate one row. Add or remove rows to fit your assessment.
 ## 6. Sign-off
 
 | Role | Name | Date | Decision |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | Controller | REPLACE | REPLACE | REPLACE — approved / rejected / conditional |
 | DPO | REPLACE | REPLACE | REPLACE |
 | Technical lead | REPLACE | REPLACE | REPLACE |
@@ -90,5 +90,5 @@ For each risk, populate one row. Add or remove rows to fit your assessment.
 ## Review log
 
 | Date | Reviewer | Changes |
-|---|---|---|
+| --- | --- | --- |
 | REPLACE — YYYY-MM-DD | REPLACE | Initial DPIA authored from starter template |

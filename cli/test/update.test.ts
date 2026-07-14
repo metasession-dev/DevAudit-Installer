@@ -49,6 +49,34 @@ async function expectWorkflowTokenContract(dir: string): Promise<void> {
   expect(labelRetention).toContain('GH_TOKEN: ${{ github.token }}');
 }
 
+async function listFilesRecursive(dir: string): Promise<string[]> {
+  const entries = await fs.readdir(dir, { withFileTypes: true });
+  const nested = await Promise.all(
+    entries.map(async (entry) => {
+      const fullPath = join(dir, entry.name);
+      if (entry.isDirectory()) return listFilesRecursive(fullPath);
+      return [fullPath];
+    }),
+  );
+  return nested.flat();
+}
+
+async function expectNoCompactTableSeparators(dir: string): Promise<void> {
+  const compactSeparator = /^\|[-:|]+\|$/m;
+  const roots = ['SDLC', 'scripts', '.claude/skills'];
+
+  for (const root of roots) {
+    const rootPath = join(dir, root);
+    const files = await listFilesRecursive(rootPath);
+    for (const file of files) {
+      const content = await fs.readFile(file, 'utf-8');
+      expect(content, `compact markdown table separator in ${file}`).not.toMatch(
+        compactSeparator,
+      );
+    }
+  }
+}
+
 async function buildFixture(): Promise<string> {
   const dir = await fs.mkdtemp(join(tmpdir(), 'cli-update-fixture-'));
   await fs.writeFile(
@@ -161,8 +189,10 @@ describe('syncProject — native TS sync against a fixture', () => {
       '| REQ-ID | Issue | Risk | Evidence | Status | PR | Reviewer | AI-tool |',
     );
     expect(projectSetup).toContain(
-      '|--------|-------|------|----------|--------|-----|----------|---------|',
+      '| -------- | ------- | ------ | ---------- | -------- | ----- | ---------- | --------- |',
     );
+    expect(projectSetup).toContain('`stop\\|unsubscribe\\|opt-out`');
+    expect(projectSetup).toContain('false-positive MD056/MD060 lint errors');
     // wawagardenbar-app#383: PRs to develop must surface Quality Gates, while
     // release registration/evidence upload stay push/dispatch-only side effects.
     expect(ciYml).toContain('pull_request:\n    branches: [develop]');
@@ -228,6 +258,7 @@ describe('syncProject — native TS sync against a fixture', () => {
     expect(ciYml).toContain('compliance/evidence/*/screenshots/*.png');
     expect(ciYml).toContain('Upload per-AC e2e evidence screenshots');
     expect(ciYml).toMatch(/"\$REQ" screenshot "\$NAMED"/);
+    await expectNoCompactTableSeparators(fixtureDir);
     // DevAudit-Installer#349: a summary alone must downgrade the gate for
     // test-maintenance REQs even when no REQ-specific tags exist on disk.
     expect(ciYml).toContain('elif [ "$HAS_SUMMARY" = "true" ]; then');

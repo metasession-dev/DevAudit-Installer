@@ -38,6 +38,12 @@ fi
 
 TODAY=$(date -u +%Y-%m-%d)
 
+# Escape freeform table-cell content so markdownlint does not misparse
+# literal pipes as extra columns in generated release evidence.
+markdown_table_cell() {
+  printf '%s' "${1:-}" | perl -0pe 's/(?<!\\)\|/\\|/g'
+}
+
 # Detect release shape from the version.
 SHAPE="unknown"
 if [[ "$VERSION" =~ ^v[0-9]{4}\.[0-9]{2}\.[0-9]{2}(\.[0-9]+)?$ ]]; then
@@ -147,11 +153,14 @@ $GATES
 
 ## Access control + audit log
 
+> When editing any markdown table below, escape literal pipe characters in cell
+> content as \`\\|\` so RTM/release-evidence tables stay lint-safe.
+
 | Check | Result | Notes |
-|---|---|---|
-| Access control unchanged | REPLACE — yes/no | If yes, no further work. If no, document the auth/RBAC delta and confirm it landed an audit event. |
-| Audit log append-only invariant preserved | REPLACE — yes/no | If yes, no further work. If no, document why and confirm the change has independent review. |
-| Sensitive data exposure | REPLACE — yes/no | If yes, escalate to the GDPR triage in \`compliance/governance/dpia.md\` before merging. |
+| --- | --- | --- |
+| Access control unchanged | $(markdown_table_cell "REPLACE — yes/no") | If yes, no further work. If no, document the auth/RBAC delta and confirm it landed an audit event. |
+| Audit log append-only invariant preserved | $(markdown_table_cell "REPLACE — yes/no") | If yes, no further work. If no, document why and confirm the change has independent review. |
+| Sensitive data exposure | $(markdown_table_cell "REPLACE — yes/no") | If yes, escalate to the GDPR triage in \`compliance/governance/dpia.md\` before merging. |
 
 ## Risk Assessment
 
@@ -162,7 +171,7 @@ REPLACE — one paragraph summarising the security posture of this release. For 
 ## Sign-off
 
 | Role | Name | Date | Notes |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | Author | devaudit-bot (auto-generated) | $TODAY | Stub generated from CI gate JSON |
 | Reviewer | REPLACE | REPLACE | REPLACE |
 

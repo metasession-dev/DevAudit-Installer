@@ -54,7 +54,7 @@ These standards apply to all Metasession products, client engagements, and inter
 ### Unit Layer (Foundation)
 
 | Attribute | Standard |
-|---|---|
+| --- | --- |
 | Coverage | Minimum 70% for critical modules |
 | Speed | Suite completes in < 30 seconds |
 | Scope | Individual functions, methods, components in isolation |
@@ -63,7 +63,7 @@ These standards apply to all Metasession products, client engagements, and inter
 ### Integration Layer (Middle)
 
 | Attribute | Standard |
-|---|---|
+| --- | --- |
 | Coverage | Minimum 80% of integration points |
 | Scope | Component interactions, service integrations, API contracts |
 | Data | In-memory databases or MSW for API mocking |
@@ -71,7 +71,7 @@ These standards apply to all Metasession products, client engagements, and inter
 ### E2E Layer (Top)
 
 | Attribute | Standard |
-|---|---|
+| --- | --- |
 | Coverage | 100% of critical user paths |
 | Scope | Complete user journeys from UI to database |
 | Browser support | Chromium, Firefox, WebKit |
@@ -80,7 +80,7 @@ These standards apply to all Metasession products, client engagements, and inter
 ### Additional Layers
 
 | Layer | Standard |
-|---|---|
+| --- | --- |
 | Security | SAST, SCA, DAST (see Section 3) |
 | Performance | Load and stress testing before major releases |
 | Accessibility | WCAG 2.1 AA for public-facing features |
@@ -93,7 +93,7 @@ These standards apply to all Metasession products, client engagements, and inter
 ### Test Frameworks
 
 | Purpose | Tool | Notes |
-|---|---|---|
+| --- | --- | --- |
 | Unit testing (TS/JS) | Jest or Vitest | Project chooses one |
 | Unit testing (Python) | pytest | |
 | Component testing | React Testing Library | |
@@ -105,7 +105,7 @@ These standards apply to all Metasession products, client engagements, and inter
 ### Test Management
 
 | Purpose | Tool |
-|---|---|
+| --- | --- |
 | Test case management | Qase |
 | CI/CD | GitHub Actions |
 | Reporting | Playwright HTML Reporter, JUnit XML |
@@ -113,7 +113,7 @@ These standards apply to all Metasession products, client engagements, and inter
 ### Security Testing
 
 | Purpose | Tool | When |
-|---|---|---|
+| --- | --- | --- |
 | SAST (static analysis) | Semgrep and/or SonarQube | Every commit |
 | SCA (dependency scanning) | Snyk | Every commit |
 | Dependency updates | Dependabot | Continuous |
@@ -123,14 +123,14 @@ These standards apply to all Metasession products, client engagements, and inter
 ### Performance Testing
 
 | Purpose | Tool |
-|---|---|
+| --- | --- |
 | Load testing | Artillery |
 | Web performance | Lighthouse |
 
 ### Development Tooling
 
 | Purpose | Tool |
-|---|---|
+| --- | --- |
 | Git hooks | Husky |
 | Commit linting | commitlint (Conventional Commits) |
 | Code linting | ESLint |
@@ -200,7 +200,7 @@ Products must implement:
 ### Strategy by Test Level
 
 | Test Level | Data Strategy | Rationale |
-|---|---|---|
+| --- | --- | --- |
 | Unit | Mocked data | Fast, predictable |
 | Integration | In-memory DB or MSW | Isolated, controlled |
 | E2E (local) | Test database (Docker) | Real behavior, containerized |
@@ -230,7 +230,7 @@ Products must implement:
 All products implement these stages in order:
 
 | Stage | Purpose | Exit Criteria |
-|---|---|---|
+| --- | --- | --- |
 | 1. Lint | ESLint + Prettier validation | 0 errors |
 | 2. Type Check | Strict compilation | 0 errors |
 | 3. Unit Tests | Component-level testing with coverage | Meets coverage target |
@@ -290,7 +290,7 @@ npm pkg set scripts.prepare="husky"
 ## 8. Artifact Storage
 
 | Artifact | Storage | Retention |
-|---|---|---|
+| --- | --- | --- |
 | Test results (HTML) | GitHub Actions artifacts | 90 days |
 | Screenshots | GitHub Actions artifacts | 90 days |
 | Videos | GitHub Actions artifacts | 90 days |
@@ -315,7 +315,7 @@ npm pkg set scripts.prepare="husky"
 ### Naming Conventions
 
 | File Type | Pattern | Example |
-|---|---|---|
+| --- | --- | --- |
 | Unit tests | `*.test.ts`, `*.test.tsx` | `auth.test.ts` |
 | Integration tests | `*.integration.test.ts` | `api.integration.test.ts` |
 | E2E tests | `*.spec.ts` | `login.spec.ts` |
@@ -410,7 +410,7 @@ module.exports = {
 ## 11. Coverage & Quality Thresholds
 
 | Metric | Target |
-|---|---|
+| --- | --- |
 | Unit test coverage (critical modules) | 70% minimum |
 | Integration point coverage | 80% minimum |
 | Critical user path E2E coverage | 100% |
@@ -448,7 +448,7 @@ Each product creates a product-specific Test Plan that:
 ## Document Control
 
 | Version | Date | Author | Changes |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | 1.0 | January 2026 | QA Team | Initial creation |
 | 2.0 | March 2026 | QA Team | Clean boundary split — removed compliance/governance content (now in Policy), removed methodology content (now in Strategy). Architecture now owns tools, patterns, code standards, CI config only. Added security tooling table. |
 
