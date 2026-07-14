@@ -306,6 +306,8 @@ EOF
 echo "## Bundled Changes" > compliance/pending-releases/BUNDLED-CHANGES-REQ-344.md
 git add . && git commit -q --amend --no-edit
 run_validator
+assert_grep "missing structured fields on bundled evidence are reported" "ERROR: Bundled release evidence is missing bundled field '\\*\\*Core tracked release:\\*\\*'" 1
+assert_grep "missing structured fields on ticket are reported" "ERROR: Release ticket is missing bundled field '\\*\\*Core tracked release:\\*\\*'" 1
 assert_grep "missing bundled section on ticket is reported" "ERROR: Bundled release evidence exists but the release ticket is missing" 1
 assert_grep "missing bundled section on summary is reported" "ERROR: Bundled release evidence exists but test-execution-summary.md is missing" 1
 assert_grep "missing bundled section on security summary is reported" "ERROR: Bundled release evidence exists but security-summary.md is missing" 1
@@ -330,19 +332,40 @@ cat > compliance/evidence/REQ-345/test-execution-summary.md <<'EOF'
 # Test Execution Summary — REQ-345
 
 ## Bundled Release Context
-See compliance/pending-releases/BUNDLED-CHANGES-REQ-345.md.
+- **Core tracked release:** REQ-345
+- **Absorbed predecessor releases:** None
+- **Absorbed non-release work:** housekeeping syncs only
+- **Why bundled here:** housekeeping consolidation
+- **Evidence impact:** core REQ proof unchanged; gate evidence covers full develop state
+- **Reviewer impact:** reviewer is approving the tracked REQ plus absorbed housekeeping context
+- **Security / risk impact:** None beyond core REQ
+- **Reference:** compliance/pending-releases/BUNDLED-CHANGES-REQ-345.md
 EOF
 cat > compliance/evidence/REQ-345/security-summary.md <<'EOF'
 # Security Summary — REQ-345
 
 ## Bundled Release Context
-See compliance/pending-releases/BUNDLED-CHANGES-REQ-345.md.
+- **Core tracked release:** REQ-345
+- **Absorbed predecessor releases:** None
+- **Absorbed non-release work:** housekeeping syncs only
+- **Why bundled here:** housekeeping consolidation
+- **Evidence impact:** no extra security evidence beyond the shared gate outputs
+- **Reviewer impact:** reviewer should treat the shared gate results as covering the absorbed housekeeping work too
+- **Security / risk impact:** None beyond core REQ
+- **Reference:** compliance/pending-releases/BUNDLED-CHANGES-REQ-345.md
 EOF
 cat > compliance/evidence/REQ-345/ai-use-note.md <<'EOF'
 # AI Use Record — REQ-345
 
 ## Bundled Release Context
-Bundle consolidation documented for this release.
+- **Core tracked release:** REQ-345
+- **Absorbed predecessor releases:** None
+- **Absorbed non-release work:** housekeeping syncs only
+- **Why bundled here:** housekeeping consolidation
+- **Evidence impact:** no AI-generated evidence split beyond the shared bundle context
+- **Reviewer impact:** reviewer should read the bundle note as part of the approval scope
+- **Security / risk impact:** None beyond core REQ
+- **Reference:** compliance/pending-releases/BUNDLED-CHANGES-REQ-345.md
 EOF
 cat > compliance/pending-releases/RELEASE-TICKET-REQ-345.md <<'EOF'
 # Release Ticket — REQ-345
@@ -351,15 +374,38 @@ cat > compliance/pending-releases/RELEASE-TICKET-REQ-345.md <<'EOF'
 Tracked release with bundle section.
 
 ## Bundled Changes
-See compliance/pending-releases/BUNDLED-CHANGES-REQ-345.md.
+- **Core tracked release:** REQ-345
+- **Absorbed predecessor releases:** None
+- **Absorbed non-release work:** housekeeping syncs only
+- **Why bundled here:** housekeeping consolidation
+- **Evidence impact:** gate evidence and release reports include the absorbed housekeeping changes
+- **Reviewer impact:** approval scope is the tracked REQ plus the absorbed housekeeping context
+- **Security / risk impact:** None beyond core REQ
+- **Reference:** compliance/pending-releases/BUNDLED-CHANGES-REQ-345.md
 EOF
-echo "## Bundled Changes" > compliance/pending-releases/BUNDLED-CHANGES-REQ-345.md
+cat > compliance/pending-releases/BUNDLED-CHANGES-REQ-345.md <<'EOF'
+## Bundled Changes
+
+- **Core tracked release:** `REQ-345`
+- **Absorbed predecessor releases:** None
+- **Absorbed non-release work:** housekeeping syncs only
+- **Why bundled here:** housekeeping consolidation
+- **Evidence impact:** gate evidence and release reports include the absorbed housekeeping changes
+- **Reviewer impact:** approval scope is the tracked REQ plus the absorbed housekeeping context
+- **Security / risk impact:** None beyond core REQ
+- **Reference:** commit range `abc123..HEAD`
+
+### Absorbed Non-Release Work
+
+- `abc123` chore: sync templates
+EOF
 git add . && git commit -q --amend --no-edit
 run_validator
 assert_grep "bundled ticket section accepted" "OK: Release ticket documents bundled release context" 1
 assert_grep "bundled test summary section accepted" "OK: test-execution-summary.md documents bundled release context" 1
 assert_grep "bundled security summary section accepted" "OK: security-summary.md documents bundled release context" 1
 assert_grep "bundled ai note section accepted" "OK: ai-use-note.md documents bundled release context" 1
+assert_grep "structured bundled evidence accepted" "OK: Bundled release evidence carries the required structured fields" 1
 assert_exit "validator exits 0 when bundled artefacts carry required headings" 0
 cd "$WORKDIR"
 
