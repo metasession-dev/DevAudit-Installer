@@ -27,7 +27,7 @@ If `devaudit doctor` and `devaudit status .` are both green, you can skip `devau
 When you `git clone`, you've already got everything the framework synced into the project on first install:
 
 | Path | What it is | Who owns it |
-|---|---|---|
+| --- | --- | --- |
 | `sdlc-config.json` | Project-wide config (stack, host, slug, runtime, UAT, approval mode, e2e knobs, …) | Team — committed by the operator |
 | `SDLC/*.md` | Stage walkthroughs (0-project-setup, 1-plan-requirement, …) — synced from DevAudit-Installer | Team — refreshed by `devaudit update` |
 | `compliance/RTM.md`, `compliance/risk-register.md`, … | Compliance artefacts | Team — appended by tracked work |
@@ -149,7 +149,7 @@ You can skip this step entirely if the synced templates from `git clone` are alr
 Two distinct credentials exist; conflating them is what causes the silent-CI-token rotation bug this guide exists to prevent.
 
 | Credential | Format | Where it lives | Who it identifies | Used by |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | **Personal PAT** | `mctok_…` | `~/.config/devaudit/auth.json` (per developer) | You (the user) | Your local CLI commands |
 | **Project API key** | `dak_…` | Repo secret `DEVAUDIT_API_KEY` | The project | CI's `devaudit push` calls |
 | **Operator's PAT** | `mctok_…` | Repo secret `DEVAUDIT_USER_TOKEN` | The operator (singular) | CI's DevAudit portal calls that need human attribution (release submit / approval flows) |
@@ -181,7 +181,7 @@ A second dev running it silently rotates the team's `DEVAUDIT_USER_TOKEN` repo s
 The synced CI gates expect a specific environment. Here's what you need locally if you're running them against the same project:
 
 | Surface | CI | Local (your machine) |
-|---|---|---|
+| --- | --- | --- |
 | Personal identity | `secrets.DEVAUDIT_USER_TOKEN` (operator's, portal-only) | `~/.config/devaudit/auth.json` (yours) — `devaudit auth login` |
 | Project API key | `secrets.DEVAUDIT_API_KEY` | Usually unset locally — only needed if you're testing `devaudit push` against the live portal; ask the operator if you need to debug it |
 | Portal URL | `vars.DEVAUDIT_BASE_URL` | `~/.config/devaudit/auth.json` (set by `auth login`) or `$DEVAUDIT_BASE_URL` env |
@@ -196,7 +196,7 @@ For everything else (DB migrations, env files, `npm install`), the consumer's `R
 ## Troubleshooting
 
 | Symptom | Cause | Fix |
-|---|---|---|
+| --- | --- | --- |
 | `devaudit status` reports missing framework files | Local clone is behind `main`, or the operator hasn't run a recent `devaudit update` | `git pull origin develop` first; if still missing, ping the operator |
 | `devaudit auth status` says "token rejected" | PAT expired, was revoked, or you typed it wrong | Issue a fresh PAT at `/settings/tokens` and re-run `devaudit auth login` |
 | `devaudit doctor` flags missing tool | The matching binary isn't on PATH | Install via your package manager (`brew install gh`, `apt install jq`, etc.) |

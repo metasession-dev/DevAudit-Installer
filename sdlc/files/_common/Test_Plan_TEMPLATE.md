@@ -21,7 +21,7 @@ For tools, patterns, and code standards: Test Architecture.
 ## Project Overview
 
 | Attribute | Value |
-|---|---|
+| --- | --- |
 | Application | [PROJECT NAME — brief description] |
 | Stack | [e.g., TypeScript, Next.js, MongoDB, Socket.IO] |
 | Hosting | [e.g., Railway, Vercel, AWS] (auto-deploy from `main`) |
@@ -48,7 +48,7 @@ Develop-main with develop branch (per Test Strategy branching patterns):
 ### E2E Tests (Playwright)
 
 | Attribute | Value |
-|---|---|
+| --- | --- |
 | Framework | Playwright (per Test Architecture standard) |
 | Test count | [TOTAL] tests across [N] projects |
 | Unauthenticated (CI) | [COUNT] (run in CI on PR to main) |
@@ -59,7 +59,7 @@ Develop-main with develop branch (per Test Strategy branching patterns):
 ### Unit Tests
 
 | Attribute | Value |
-|---|---|
+| --- | --- |
 | Framework | [Jest / Vitest] |
 | Coverage target | 70% for critical modules |
 | Run command | [e.g., npx vitest run] |
@@ -73,7 +73,7 @@ npx tsc --noEmit   # 0 errors required
 ### SAST Scanning
 
 | Attribute | Value |
-|---|---|
+| --- | --- |
 | Tool | Semgrep (per Test Architecture) |
 | Config | auto |
 | Scan scope | [e.g., src/] |
@@ -103,7 +103,7 @@ npm audit --audit-level=high
 ### Exit (Before PR)
 
 | Gate | Local | CI (PR) | Threshold |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | TypeScript | Yes | Yes | 0 errors |
 | SAST (high/critical) | Yes | Yes | 0 findings |
 | Dependencies (high/critical) | Yes | Yes | 0 vulnerabilities |
@@ -114,7 +114,7 @@ npm audit --audit-level=high
 Additional for Medium/High risk (per Test Strategy risk matrix):
 
 | Gate | Threshold |
-|---|---|
+| --- | --- |
 | Access control tests | RBAC endpoints return correct 401/403 |
 | Audit log tests | Auditable actions produce log entries |
 
@@ -125,7 +125,7 @@ Additional for Medium/High risk (per Test Strategy risk matrix):
 ### Pipeline Configuration
 
 | Trigger | What Runs | Independent Evidence |
-|---|---|---|
+| --- | --- | --- |
 | Push to `develop` | TypeScript check + build | Compilation clean |
 | PR to `main` | TypeScript + SAST + dependency audit + E2E (unauthenticated) | All gates independently verified by GitHub |
 | Merge to `main` | Auto-deploy to hosting platform | Deployment triggered |
@@ -159,13 +159,13 @@ Both required. Local proves comprehensive testing. CI proves it independently.
 Per Test Policy AI governance:
 
 | Tool | Permitted Use |
-|---|---|
+| --- | --- |
 | [e.g., Claude (Anthropic) — Opus 4.6, Sonnet 4.6] | [e.g., Code generation, test generation, documentation, review] |
 
 Documentation requirements (per Test Strategy AI methodology):
 
 | Risk | Commit | Evidence | Prompts |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | Low | `Co-Authored-By` tag | Not required | Not required |
 | Medium | Same | Summary in evidence dir | Summary |
 | High | Same | Detailed record | Detailed |
@@ -224,7 +224,7 @@ compliance/
 Every tracked requirement gets a `test-scope.md` created during the PLAN stage **before implementation**. Scope scales with risk:
 
 | Risk | Content |
-|---|---|
+| --- | --- |
 | Low | Standard gates + acceptance criteria. A few lines. |
 | Medium | Above + targeted testing (access control, audit logging, dependency review), validation approach. Half a page. |
 | High | Above + security testing detail, independent review plan, pen test consideration, business validation, AI detail. One page. |
@@ -258,7 +258,7 @@ curl -s [PRODUCTION_URL]/[NONEXISTENT_ENDPOINT]
 ## Disaster Recovery
 
 | Metric | Target |
-|---|---|
+| --- | --- |
 | RTO | [e.g., 4 hours] |
 | RPO | [e.g., 24 hours] |
 
@@ -292,7 +292,7 @@ Annual pen test scope: [PRODUCTION_URL], API endpoints, auth mechanism, [databas
 ## Workflow Files
 
 | # | File | Purpose |
-|---|---|---|
+| --- | --- | --- |
 | 0 | `0-project-setup.md` | One-time: repository, CI, compliance setup |
 | 1 | `1-plan-requirement.md` | Create REQ, classify risk, generate test scope |
 | 2 | `2-implement-and-test.md` | Code, commit, run all local gates |
@@ -305,7 +305,7 @@ Annual pen test scope: [PRODUCTION_URL], API endpoints, auth mechanism, [databas
 ## Document Control
 
 | Version | Date | Author | Changes |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | 1.0 | [DATE] | [AUTHOR] | Initial plan |
 
 **Parent Documents:** Test Policy, Test Strategy, Test Architecture, Periodic Security Review Schedule (in devaudit/sdlc/files/)

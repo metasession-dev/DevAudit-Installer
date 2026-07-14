@@ -70,6 +70,11 @@ Open `compliance/RTM.md`, Part B. The issue provides full context; the RTM is a 
 | REQ-XXX | #NNN | [LOW/MEDIUM/HIGH] | compliance/evidence/REQ-XXX/ | DRAFT | -- | -- |
 ```
 
+If any RTM cell content needs literal pipe characters, escape them as `\|`
+rather than writing bare `|`. This matters for regex or enum examples inside
+status/notes text because markdownlint otherwise misreads the row as having
+extra columns.
+
 The auditor reads one row and follows the links: Issue for context and rationale, evidence directory for test artifacts, PR for code changes.
 
 ### Step 5: Create Evidence Directory
@@ -379,7 +384,7 @@ cat > compliance/evidence/REQ-XXX/test-plan.md << 'EOF'
 
 ## Functional Test Mapping
 | Acceptance Criterion | Test File | Test Name |
-|---------------------|-----------|-----------|
+| --------------------- | ----------- | ----------- |
 | [From test-scope.md] | [spec file] | [test name] |
 
 ## Non-Functional Tests (MEDIUM/HIGH)

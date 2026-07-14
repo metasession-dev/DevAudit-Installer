@@ -25,7 +25,7 @@ review_cadence_days: 90
 ## Scoring matrix
 
 | Inherent + Residual rating | Likelihood (frequency / ease-of-exploit) | Impact (worst-case if realised) |
-|---|---|---|
+| --- | --- | --- |
 | **Low** | Unlikely in a typical year; requires unusual access or coincidence | Recoverable inconvenience; no regulatory exposure |
 | **Medium** | Plausible within a year; standard skill or access | Recoverable but disruptive; possible reportable incident |
 | **High** | Probable within months; trivial to trigger | Material loss; regulatory reporting required |

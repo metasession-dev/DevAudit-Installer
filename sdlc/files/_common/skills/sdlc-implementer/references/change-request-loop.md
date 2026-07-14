@@ -193,7 +193,7 @@ If the portal state is `uat_rejected` (not `uat_changes_requested`), the reviewe
 The release ticket (`compliance/pending-releases/RELEASE-TICKET-REQ-XXX.md`) `**Status:**` field is updated at each transition in the change-request loop, mirroring the portal's state machine for audit trail completeness:
 
 | Transition | Release ticket status |
-|---|---|
+| --- | --- |
 | Entering iteration N | `CHANGES REQUESTED — ITERATION N` |
 | After evidence re-compile (Step 5) | `TESTED - PENDING SIGN-OFF (ITERATION N)` |
 | After UAT re-approval (Phase 5 happy path) | `APPROVED — READY FOR MERGE` |

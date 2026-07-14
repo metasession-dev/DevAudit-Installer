@@ -21,7 +21,7 @@ This schedule applies to all Metasession products and client engagements. Projec
 ## Schedule Overview
 
 | Activity | Frequency | Owner | Evidence Location |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | Full codebase SAST review | Quarterly | QA / Security Lead | `compliance/evidence/periodic/sast-quarterly/` |
 | Dependency deep audit | Quarterly | QA / Security Lead | `compliance/evidence/periodic/dependency-audit/` |
 | Access control review | Quarterly | QA / Security Lead | `compliance/evidence/periodic/access-control/` |
@@ -103,7 +103,7 @@ This schedule applies to all Metasession products and client engagements. Projec
 **Remediation SLAs:**
 
 | Severity | Deadline |
-|---|---|
+| --- | --- |
 | Critical | 7 days |
 | High | 30 days |
 | Medium | 90 days |
@@ -133,7 +133,7 @@ RTO and RPO targets are defined per project in their Test Plans.
 ## Unscheduled Triggers
 
 | Event | Triggered Activity |
-|---|---|
+| --- | --- |
 | Security incident or breach | Full SAST + pen test + access control review |
 | Critical CVE in direct dependency | Immediate audit + patch |
 | Significant architecture change | Access control review + SAST |
@@ -146,7 +146,7 @@ RTO and RPO targets are defined per project in their Test Plans.
 ## Compliance Framework Mapping
 
 | Framework | Control | Covered By |
-|---|---|---|
+| --- | --- | --- |
 | SOC 2 (CC7.1) | System monitoring | Quarterly SAST + audit log review |
 | SOC 2 (CC6.1) | Logical access | Quarterly access control review |
 | SOC 2 (CC8.1) | Change management | Per-feature pipeline + quarterly reviews |
@@ -160,7 +160,7 @@ RTO and RPO targets are defined per project in their Test Plans.
 ## Document Control
 
 | Version | Date | Author | Changes |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | 1.0 | March 2026 | Engineering Leadership | Initial schedule |
 | 1.1 | March 2026 | Engineering Leadership | Updated document references for clean boundary split |
 

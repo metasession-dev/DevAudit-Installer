@@ -121,7 +121,7 @@ gh pr create --base main --head develop --title "type: description" --body "$(ca
 ## Test Results (Local — Comprehensive)
 
 | Gate | Result | Details |
-|------|--------|---------|
+| ------ | -------- | --------- |
 | E2E Tests | [N]/[N] passed | Spec files: [list spec files that ran] |
 | TypeScript | 0 errors | `npx tsc --noEmit` |
 | SAST | 0 high/critical | [N] rules scanned, [N] files |
@@ -148,7 +148,7 @@ CI runs automatically on this PR. The following gates must pass before merge:
 
 ### Where to Find Test Results
 | Source | Location | What It Shows |
-|--------|----------|---------------|
+| -------- | ---------- | --------------- |
 | **CI status** | Green/red icons on PR commits | Pass/fail for each gate (independent, tamper-resistant) |
 | **CI E2E comment** | PR comments (automated) | E2E pass/fail with commit SHA |
 | **DevAudit evidence** | [View evidence on DevAudit](https://[DevAudit-URL]/projects/[PROJECT_SLUG]/requirements/REQ-XXX) | Playwright report, SAST results, dependency audit |

@@ -72,7 +72,7 @@ If none of the conditional boxes apply, this is still a valid incident_report â€
 ## 2. Personal data scope (GDPR triage)
 
 | Question | Answer |
-|---|---|
+| --- | --- |
 | Did the incident involve personal data? | REPLACE â€” Y / N |
 | If Y: estimated number of data subjects affected | REPLACE |
 | If Y: categories of personal data involved | REPLACE |
@@ -84,7 +84,7 @@ If none of the conditional boxes apply, this is still a valid incident_report â€
 ## 3. Timeline
 
 | Time (UTC) | Event |
-|---|---|
+| --- | --- |
 | REPLACE â€” ISO-8601 | REPLACE â€” first signal observed |
 | REPLACE | REPLACE â€” detection escalated to on-call |
 | REPLACE | REPLACE â€” incident channel opened, IC assigned |
@@ -131,7 +131,7 @@ If none of the conditional boxes apply, this is still a valid incident_report â€
 ## 9. Sign-off
 
 | Role | Name | Date |
-|---|---|---|
+| --- | --- | --- |
 | Incident Commander | REPLACE | REPLACE |
 | Engineering lead | REPLACE | REPLACE |
 | DPO (if personal data involved) | REPLACE | REPLACE |

@@ -114,7 +114,7 @@ AI-generated code presents risks distinct from human-authored code:
 ### Permitted AI Tools
 
 | Tool | Permitted Use | Restrictions |
-|---|---|---|
+| --- | --- | --- |
 | Claude (Anthropic) | Code generation, test generation, documentation, review assistance | No deployment without human review |
 | GitHub Copilot | Inline code suggestions | Same review requirements as any AI-generated code |
 
@@ -275,7 +275,7 @@ Project Test Plans (per product)
 ## Document Control
 
 | Version | Date | Author | Changes |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | 1.0 | January 2026 | Engineering Leadership | Initial creation |
 | 2.0 | March 2026 | Engineering Leadership | Added AI governance, security commitments |
 | 3.0 | March 2026 | Engineering Leadership | Clean boundary split — removed content now owned by Test Strategy (methodology) and Test Architecture (tooling) |
