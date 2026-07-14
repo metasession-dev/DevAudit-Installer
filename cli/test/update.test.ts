@@ -195,6 +195,9 @@ describe('syncProject — native TS sync against a fixture', () => {
     expect(complianceEvidenceYml).toContain('Dispatch ci.yml for merged housekeeping stub');
     expect(complianceEvidenceYml).toContain('gh workflow run ci.yml --ref develop');
     expect(complianceEvidenceYml).toContain('Current push did not modify housekeeping stubs');
+    expect(complianceEvidenceYml).toContain('for SECSUM in compliance/security-summary-*.md; do');
+    expect(complianceEvidenceYml).toContain('Uploading housekeeping security summary: $(basename "$SECSUM") -> release ${SECSUM_VER}');
+    expect(complianceEvidenceYml).toContain('fixture-app _compliance-docs security_summary "$SECSUM"');
     expect(complianceEvidenceYml).toContain("printf '%s\\n' 'import json'");
     expect(complianceEvidenceYml).toContain('python3 /tmp/devaudit-extract-e2e-reqs.py');
     expect(complianceEvidenceYml).not.toContain("done < <(python3 - <<'PY'");
