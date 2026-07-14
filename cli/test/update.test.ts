@@ -191,6 +191,10 @@ describe('syncProject — native TS sync against a fixture', () => {
     );
     expect(complianceEvidenceYml).toContain('/api/ci/projects/fixture-app/audit-log/export');
     expect(complianceEvidenceYml).toContain('audit_log "$AUDIT_LOG_FILE"');
+    expect(complianceEvidenceYml).toContain('actions: write       # gh workflow run ci.yml --ref develop');
+    expect(complianceEvidenceYml).toContain('Dispatch ci.yml for merged housekeeping stub');
+    expect(complianceEvidenceYml).toContain('gh workflow run ci.yml --ref develop');
+    expect(complianceEvidenceYml).toContain('Current push did not modify housekeeping stubs');
     expect(complianceEvidenceYml).toContain("printf '%s\\n' 'import json'");
     expect(complianceEvidenceYml).toContain('python3 /tmp/devaudit-extract-e2e-reqs.py');
     expect(complianceEvidenceYml).not.toContain("done < <(python3 - <<'PY'");

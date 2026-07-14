@@ -49,13 +49,16 @@ jobs:
     # double-upload every compliance doc.
     if: github.event_name != 'workflow_run'
     runs-on: {{RUNNER}}
-    # Permissions are needed because the "Auto-generate housekeeping stubs"
-    # step pushes a new branch + opens a PR via `gh pr create` when the
-    # current push triggers a housekeeping release (vYYYY.MM.DD) that
-    # doesn't yet have its stub release-ticket on disk. Without these
-    # the github-actions[bot] token gets HTTP 403 on the push + on the PR
-    # create, and the auto-housekeeping path silently leaves a red badge
-    # on every docs-only / chore push.
+    # Permissions are needed because the housekeeping path now does two
+    # GitHub mutations:
+    #   1. pushes a stub branch + opens a PR via `gh pr create`
+    #   2. dispatches `ci.yml` on develop after that stub PR merges, so
+    #      compliance-only housekeeping releases still get the gate evidence
+    #      the portal approval path currently requires (#361)
+    #
+    # Without these the github-actions[bot] token gets HTTP 403 on the push,
+    # PR create, or workflow dispatch and the housekeeping path leaves a red
+    # badge or an unapprovable release behind.
     #
     # `DEVAUDIT_USER_TOKEN` is no longer consulted by this workflow (the
     # auto-stub step now uses `github.token` directly — see the env block
@@ -63,6 +66,7 @@ jobs:
     # needs; preferring a (potentially stale) PAT was the cause of the
     # 2026-06-07 401 chain on this issue.
     permissions:
+      actions: write       # gh workflow run ci.yml --ref develop
       contents: write       # push the auto-PR branch
       pull-requests: write  # gh pr create
     env:
@@ -236,6 +240,43 @@ jobs:
           else
             echo "PR #${EXISTING} already open for ${VERSION} — branch updated in place."
           fi
+
+      - name: Dispatch ci.yml for merged housekeeping stub
+        if: github.event_name == 'push' && steps.resolve.outputs.skip != 'true' && steps.version.outputs.version != 'skip'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          # devaudit-installer#361 — compliance-only housekeeping pushes
+          # intentionally skip the heavy quality-gates workflow, but the
+          # portal approval path still requires gate evidence before a
+          # housekeeping release can be approved. When the current develop
+          # push actually carries the housekeeping release-ticket / security-
+          # summary stubs, dispatch ci.yml once so the gates run on that
+          # exact HEAD and upload the missing evidence automatically.
+          if ! [[ "$VERSION" =~ ^v[0-9]{4}\.[0-9]{2}\.[0-9]{2}(\.[0-9]+)?$ ]]; then
+            echo "Version ${VERSION} is not housekeeping; skipping ci.yml dispatch."
+            exit 0
+          fi
+
+          TICKET_PATH="compliance/pending-releases/RELEASE-TICKET-${VERSION}.md"
+          SECSUM_PATH="compliance/security-summary-${VERSION}.md"
+          CHANGED_FILES=$(git diff-tree --no-commit-id --name-only -r "${{ github.sha }}" || true)
+
+          if ! echo "$CHANGED_FILES" | grep -Fxq "$TICKET_PATH" \
+             && ! echo "$CHANGED_FILES" | grep -Fxq "$SECSUM_PATH"; then
+            echo "Current push did not modify housekeeping stubs for ${VERSION}; skipping ci.yml dispatch."
+            exit 0
+          fi
+
+          if [ ! -f "$TICKET_PATH" ] || [ ! -f "$SECSUM_PATH" ]; then
+            echo "Housekeeping stubs for ${VERSION} are not both present on develop; skipping ci.yml dispatch."
+            exit 0
+          fi
+
+          echo "Dispatching ci.yml on develop so housekeeping release ${VERSION} gets gate evidence."
+          gh workflow run ci.yml --ref develop
+          echo "Triggered ci.yml workflow_dispatch for housekeeping release ${VERSION}."
 
       - name: Upload compliance documents
         if: steps.resolve.outputs.skip != 'true' && steps.version.outputs.version != 'skip'
