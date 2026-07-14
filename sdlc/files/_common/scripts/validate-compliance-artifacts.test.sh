@@ -126,6 +126,7 @@ make_fixture "$WORKDIR/case3" "Ref: REQ-030"
 mkdir -p compliance/evidence/REQ-030
 echo "scope" > compliance/evidence/REQ-030/test-scope.md
 echo "plan" > compliance/evidence/REQ-030/test-plan.md
+echo "summary" > compliance/evidence/REQ-030/test-execution-summary.md
 touch compliance/pending-releases/RELEASE-TICKET-REQ-030.md
 git add . && git commit -q --amend --no-edit
 run_validator
@@ -147,6 +148,7 @@ make_fixture "$WORKDIR/case4" "Ref: REQ-031"
 mkdir -p compliance/evidence/REQ-031
 echo "scope" > compliance/evidence/REQ-031/test-scope.md
 echo "plan" > compliance/evidence/REQ-031/test-plan.md
+echo "summary" > compliance/evidence/REQ-031/test-execution-summary.md
 # Only the superseded location — neither pending- nor approved-releases.
 touch compliance/superseded-releases/RELEASE-TICKET-REQ-031.md
 git add . && git commit -q --amend --no-edit
@@ -252,7 +254,160 @@ assert_grep "no evidence-dir ERROR for prose-only REQ-002" 'ERROR: Evidence dire
 assert_exit "validator exits 0 when future REQ is only prose-mentioned" 0
 cd "$WORKDIR"
 
+# --- case 8: tracked REQ without test-execution-summary fails ---
+#
+# Regression for devaudit-installer#341: tracked releases must not pass
+# validation without the per-release test report that satisfies the
+# portal's Test Reports gate.
+
+echo "Case 8: tracked REQ missing test-execution-summary fails"
+make_fixture "$WORKDIR/case8" "Ref: REQ-341"
+{
+  echo '# RTM'
+  echo
+  echo '| ID | Description | Status |'
+  echo '| --- | --- | --- |'
+  echo '| REQ-341 | Missing test summary | TESTED - PENDING SIGN-OFF |'
+} > compliance/RTM.md
+mkdir -p compliance/evidence/REQ-341
+echo "scope" > compliance/evidence/REQ-341/test-scope.md
+echo "plan" > compliance/evidence/REQ-341/test-plan.md
+touch compliance/pending-releases/RELEASE-TICKET-REQ-341.md
+git add . && git commit -q --amend --no-edit
+run_validator
+assert_grep "missing-summary ERROR emitted" 'ERROR: Test execution summary missing: compliance/evidence/REQ-341/test-execution-summary.md' 1
+assert_exit "validator exits 1 when tracked REQ lacks test-execution-summary" 1
+cd "$WORKDIR"
+
 # --- summary ---
+
+# --- case 9: bundled release context missing from canonical artefacts fails ---
+echo "Case 9: bundled release artefacts without context headings fail"
+make_fixture "$WORKDIR/case9" "Ref: REQ-344"
+{
+  echo '# RTM'
+  echo
+  echo '| ID | Description | Status |'
+  echo '| --- | --- | --- |'
+  echo '| REQ-344 | Bundled release context missing | TESTED - PENDING SIGN-OFF |'
+} > compliance/RTM.md
+mkdir -p compliance/evidence/REQ-344
+echo "scope" > compliance/evidence/REQ-344/test-scope.md
+echo "plan" > compliance/evidence/REQ-344/test-plan.md
+echo "summary" > compliance/evidence/REQ-344/test-execution-summary.md
+echo "security" > compliance/evidence/REQ-344/security-summary.md
+echo "ai note" > compliance/evidence/REQ-344/ai-use-note.md
+cat > compliance/pending-releases/RELEASE-TICKET-REQ-344.md <<'EOF'
+# Release Ticket — REQ-344
+
+## Summary
+Tracked release without bundle section.
+EOF
+echo "## Bundled Changes" > compliance/pending-releases/BUNDLED-CHANGES-REQ-344.md
+git add . && git commit -q --amend --no-edit
+run_validator
+assert_grep "missing structured fields on bundled evidence are reported" "ERROR: Bundled release evidence is missing bundled field '\\*\\*Core tracked release:\\*\\*'" 1
+assert_grep "missing structured fields on ticket are reported" "ERROR: Release ticket is missing bundled field '\\*\\*Core tracked release:\\*\\*'" 1
+assert_grep "missing bundled section on ticket is reported" "ERROR: Bundled release evidence exists but the release ticket is missing" 1
+assert_grep "missing bundled section on summary is reported" "ERROR: Bundled release evidence exists but test-execution-summary.md is missing" 1
+assert_grep "missing bundled section on security summary is reported" "ERROR: Bundled release evidence exists but security-summary.md is missing" 1
+assert_grep "missing bundled section on ai note is reported" "ERROR: Bundled release evidence exists but ai-use-note.md is missing" 1
+assert_exit "validator exits 1 when bundled artefacts lack required headings" 1
+cd "$WORKDIR"
+
+# --- case 10: bundled release context present in canonical artefacts passes ---
+echo "Case 10: bundled release artefacts with context headings pass"
+make_fixture "$WORKDIR/case10" "Ref: REQ-345"
+{
+  echo '# RTM'
+  echo
+  echo '| ID | Description | Status |'
+  echo '| --- | --- | --- |'
+  echo '| REQ-345 | Bundled release context present | TESTED - PENDING SIGN-OFF |'
+} > compliance/RTM.md
+mkdir -p compliance/evidence/REQ-345
+echo "scope" > compliance/evidence/REQ-345/test-scope.md
+echo "plan" > compliance/evidence/REQ-345/test-plan.md
+cat > compliance/evidence/REQ-345/test-execution-summary.md <<'EOF'
+# Test Execution Summary — REQ-345
+
+## Bundled Release Context
+- **Core tracked release:** REQ-345
+- **Absorbed predecessor releases:** None
+- **Absorbed non-release work:** housekeeping syncs only
+- **Why bundled here:** housekeeping consolidation
+- **Evidence impact:** core REQ proof unchanged; gate evidence covers full develop state
+- **Reviewer impact:** reviewer is approving the tracked REQ plus absorbed housekeeping context
+- **Security / risk impact:** None beyond core REQ
+- **Reference:** compliance/pending-releases/BUNDLED-CHANGES-REQ-345.md
+EOF
+cat > compliance/evidence/REQ-345/security-summary.md <<'EOF'
+# Security Summary — REQ-345
+
+## Bundled Release Context
+- **Core tracked release:** REQ-345
+- **Absorbed predecessor releases:** None
+- **Absorbed non-release work:** housekeeping syncs only
+- **Why bundled here:** housekeeping consolidation
+- **Evidence impact:** no extra security evidence beyond the shared gate outputs
+- **Reviewer impact:** reviewer should treat the shared gate results as covering the absorbed housekeeping work too
+- **Security / risk impact:** None beyond core REQ
+- **Reference:** compliance/pending-releases/BUNDLED-CHANGES-REQ-345.md
+EOF
+cat > compliance/evidence/REQ-345/ai-use-note.md <<'EOF'
+# AI Use Record — REQ-345
+
+## Bundled Release Context
+- **Core tracked release:** REQ-345
+- **Absorbed predecessor releases:** None
+- **Absorbed non-release work:** housekeeping syncs only
+- **Why bundled here:** housekeeping consolidation
+- **Evidence impact:** no AI-generated evidence split beyond the shared bundle context
+- **Reviewer impact:** reviewer should read the bundle note as part of the approval scope
+- **Security / risk impact:** None beyond core REQ
+- **Reference:** compliance/pending-releases/BUNDLED-CHANGES-REQ-345.md
+EOF
+cat > compliance/pending-releases/RELEASE-TICKET-REQ-345.md <<'EOF'
+# Release Ticket — REQ-345
+
+## Summary
+Tracked release with bundle section.
+
+## Bundled Changes
+- **Core tracked release:** REQ-345
+- **Absorbed predecessor releases:** None
+- **Absorbed non-release work:** housekeeping syncs only
+- **Why bundled here:** housekeeping consolidation
+- **Evidence impact:** gate evidence and release reports include the absorbed housekeeping changes
+- **Reviewer impact:** approval scope is the tracked REQ plus the absorbed housekeeping context
+- **Security / risk impact:** None beyond core REQ
+- **Reference:** compliance/pending-releases/BUNDLED-CHANGES-REQ-345.md
+EOF
+cat > compliance/pending-releases/BUNDLED-CHANGES-REQ-345.md <<'EOF'
+## Bundled Changes
+
+- **Core tracked release:** `REQ-345`
+- **Absorbed predecessor releases:** None
+- **Absorbed non-release work:** housekeeping syncs only
+- **Why bundled here:** housekeeping consolidation
+- **Evidence impact:** gate evidence and release reports include the absorbed housekeeping changes
+- **Reviewer impact:** approval scope is the tracked REQ plus the absorbed housekeeping context
+- **Security / risk impact:** None beyond core REQ
+- **Reference:** commit range `abc123..HEAD`
+
+### Absorbed Non-Release Work
+
+- `abc123` chore: sync templates
+EOF
+git add . && git commit -q --amend --no-edit
+run_validator
+assert_grep "bundled ticket section accepted" "OK: Release ticket documents bundled release context" 1
+assert_grep "bundled test summary section accepted" "OK: test-execution-summary.md documents bundled release context" 1
+assert_grep "bundled security summary section accepted" "OK: security-summary.md documents bundled release context" 1
+assert_grep "bundled ai note section accepted" "OK: ai-use-note.md documents bundled release context" 1
+assert_grep "structured bundled evidence accepted" "OK: Bundled release evidence carries the required structured fields" 1
+assert_exit "validator exits 0 when bundled artefacts carry required headings" 0
+cd "$WORKDIR"
 
 echo
 echo "=== validate-compliance-artifacts.test.sh: $PASS passed, $FAIL failed ==="

@@ -82,6 +82,46 @@ describe('ci-upload upload timeout (#382)', () => {
   });
 });
 
+describe('ci-upload sentinel fields (#343)', () => {
+  it('posts sentinelContent and commitTimestamp on multipart uploads', async () => {
+    const dir = await mktmp('ci-upload-sentinel-');
+    const file = join(dir, 'evidence.txt');
+    await fs.writeFile(file, 'real evidence');
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (_input: unknown, init?: RequestInit) => {
+      const form = init?.body as FormData;
+      expect(form.get('sentinelContent')).toBe('[{"currentPhase":"3"}]');
+      expect(form.get('commitTimestamp')).toBe('2026-07-13T10:11:12Z');
+      expect(form.get('changeType')).toBe('feat');
+      expect(JSON.parse(String(form.get('metadata')))).toMatchObject({
+        commitTimestamp: '2026-07-13T10:11:12Z',
+      });
+      return {
+        ok: true,
+        status: 201,
+        json: async () => ({ ok: true }),
+        text: async () => '',
+        headers: new Headers(),
+      } as Response;
+    });
+
+    const [result] = await uploadEvidence({
+      projectSlug: 'my-project',
+      requirementId: 'REQ-091',
+      evidenceType: 'test_report',
+      filePath: file,
+      apiKey: 'mc_test_dummy',
+      baseUrl: 'https://devaudit.example.test',
+      changeType: 'feat',
+      sentinelContent: '[{"currentPhase":"3"}]',
+      commitTimestamp: '2026-07-13T10:11:12Z',
+    });
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ file, ok: true, status: 201 });
+  });
+});
+
 describe('ci-upload memory shape (#331)', () => {
   it('skips unedited text stubs without fs.readFile buffering or upload attempts', async () => {
     const dir = await mktmp('ci-upload-stub-');

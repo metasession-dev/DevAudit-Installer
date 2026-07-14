@@ -48,6 +48,27 @@ fi
 echo "Requirements found in PR commits: $REQUIREMENTS"
 echo ""
 
+find_first_match() {
+  local pattern="$1"
+  local match=""
+  match=$(compgen -G "$pattern" | head -1 || true)
+  [ -n "$match" ] && printf '%s' "$match"
+}
+
+require_bundled_fields() {
+  local file="$1"
+  local label="$2"
+  local missing=0
+  shift 2
+  for field in "$@"; do
+    if ! grep -qF "**${field}:**" "$file" 2>/dev/null; then
+      echo "  ERROR: ${label} is missing bundled field '**${field}:**'"
+      missing=1
+    fi
+  done
+  return $missing
+}
+
 for REQ in $REQUIREMENTS; do
   echo "--- Checking $REQ ---"
 
@@ -149,9 +170,14 @@ for REQ in $REQUIREMENTS; do
     fi
   fi
 
-  # Check test-execution-summary.md exists
+  # Check test-execution-summary.md exists. For tracked REQs this is a
+  # hard requirement: the file is the per-release test report that
+  # satisfies the portal's Test Reports gate. Housekeeping flows never
+  # reach this loop because they have no REQ refs in the validated
+  # commits, so the stricter behavior remains scoped to tracked work.
   if [ ! -f "compliance/evidence/$REQ/test-execution-summary.md" ]; then
-    echo "  WARNING: Test execution summary missing: compliance/evidence/$REQ/test-execution-summary.md"
+    echo "  ERROR: Test execution summary missing: compliance/evidence/$REQ/test-execution-summary.md"
+    EXIT_CODE=1
   else
     echo "  OK: test-execution-summary.md exists"
   fi
@@ -193,14 +219,139 @@ for REQ in $REQUIREMENTS; do
   compgen -G "$TICKET_PATTERN"     > /dev/null 2>&1 && LOCATIONS=$((LOCATIONS+1))
   compgen -G "$APPROVED_PATTERN"   > /dev/null 2>&1 && LOCATIONS=$((LOCATIONS+1))
   compgen -G "$SUPERSEDED_PATTERN" > /dev/null 2>&1 && LOCATIONS=$((LOCATIONS+1))
+  TICKET_FILE=""
   if [ "$LOCATIONS" -gt 1 ]; then
     echo "  ERROR: RELEASE-TICKET-${REQ} exists in more than one release directory (pending/approved/superseded). Remove the stale pending copy — it will break the evidence-completeness gate (#192)."
     EXIT_CODE=1
   elif [ "$LOCATIONS" -eq 1 ]; then
     echo "  OK: Release ticket exists"
+    TICKET_FILE=$(find_first_match "$TICKET_PATTERN" || true)
+    [ -z "$TICKET_FILE" ] && TICKET_FILE=$(find_first_match "$APPROVED_PATTERN" || true)
+    [ -z "$TICKET_FILE" ] && TICKET_FILE=$(find_first_match "$SUPERSEDED_PATTERN" || true)
   else
     echo "  ERROR: Release ticket missing: compliance/pending-releases/RELEASE-TICKET-${REQ}.md"
     EXIT_CODE=1
+  fi
+
+  BUNDLED_FILE=""
+  for BUNDLED_PATTERN in \
+    "compliance/pending-releases/BUNDLED-CHANGES-${REQ}.md" \
+    "compliance/approved-releases/BUNDLED-CHANGES-${REQ}.md" \
+    "compliance/superseded-releases/BUNDLED-CHANGES-${REQ}.md"; do
+    BUNDLED_FILE=$(find_first_match "$BUNDLED_PATTERN" || true)
+    [ -n "$BUNDLED_FILE" ] && break
+  done
+  if [ -n "$BUNDLED_FILE" ]; then
+    echo "  OK: Bundled release evidence present: ${BUNDLED_FILE}"
+    if grep -q '^## Bundled Changes' "$BUNDLED_FILE"; then
+      echo "  OK: Bundled release evidence has canonical heading"
+    else
+      echo "  ERROR: Bundled release evidence is missing '## Bundled Changes'"
+      EXIT_CODE=1
+    fi
+    if ! require_bundled_fields \
+      "$BUNDLED_FILE" \
+      "Bundled release evidence" \
+      "Core tracked release" \
+      "Absorbed predecessor releases" \
+      "Absorbed non-release work" \
+      "Why bundled here" \
+      "Evidence impact" \
+      "Reviewer impact" \
+      "Security / risk impact" \
+      "Reference"; then
+      EXIT_CODE=1
+    else
+      echo "  OK: Bundled release evidence carries the required structured fields"
+    fi
+    if [ -n "$TICKET_FILE" ] && grep -qE '^## (Bundled Changes|Absorbed Predecessor Releases)' "$TICKET_FILE"; then
+      echo "  OK: Release ticket documents bundled release context"
+    else
+      echo "  ERROR: Bundled release evidence exists but the release ticket is missing '## Bundled Changes' or '## Absorbed Predecessor Releases'"
+      EXIT_CODE=1
+    fi
+    if [ -n "$TICKET_FILE" ]; then
+      if ! require_bundled_fields \
+        "$TICKET_FILE" \
+        "Release ticket" \
+        "Core tracked release" \
+        "Absorbed predecessor releases" \
+        "Absorbed non-release work" \
+        "Why bundled here" \
+        "Evidence impact" \
+        "Reviewer impact" \
+        "Security / risk impact" \
+        "Reference"; then
+        EXIT_CODE=1
+      else
+        echo "  OK: Release ticket carries the required bundled fields"
+      fi
+    fi
+    if grep -q '^## Bundled Release Context' "compliance/evidence/$REQ/test-execution-summary.md" 2>/dev/null; then
+      echo "  OK: test-execution-summary.md documents bundled release context"
+    else
+      echo "  ERROR: Bundled release evidence exists but test-execution-summary.md is missing '## Bundled Release Context'"
+      EXIT_CODE=1
+    fi
+    if ! require_bundled_fields \
+      "compliance/evidence/$REQ/test-execution-summary.md" \
+      "test-execution-summary.md" \
+      "Core tracked release" \
+      "Absorbed predecessor releases" \
+      "Absorbed non-release work" \
+      "Why bundled here" \
+      "Evidence impact" \
+      "Reviewer impact" \
+      "Security / risk impact" \
+      "Reference"; then
+      EXIT_CODE=1
+    else
+      echo "  OK: test-execution-summary.md carries the required bundled fields"
+    fi
+    if grep -q '^## Bundled Release Context' "compliance/evidence/$REQ/security-summary.md" 2>/dev/null; then
+      echo "  OK: security-summary.md documents bundled release context"
+    else
+      echo "  ERROR: Bundled release evidence exists but security-summary.md is missing '## Bundled Release Context'"
+      EXIT_CODE=1
+    fi
+    if ! require_bundled_fields \
+      "compliance/evidence/$REQ/security-summary.md" \
+      "security-summary.md" \
+      "Core tracked release" \
+      "Absorbed predecessor releases" \
+      "Absorbed non-release work" \
+      "Why bundled here" \
+      "Evidence impact" \
+      "Reviewer impact" \
+      "Security / risk impact" \
+      "Reference"; then
+      EXIT_CODE=1
+    else
+      echo "  OK: security-summary.md carries the required bundled fields"
+    fi
+    if [ -f "compliance/evidence/$REQ/ai-use-note.md" ]; then
+      if grep -q '^## Bundled Release Context' "compliance/evidence/$REQ/ai-use-note.md"; then
+        echo "  OK: ai-use-note.md documents bundled release context"
+      else
+        echo "  ERROR: Bundled release evidence exists but ai-use-note.md is missing '## Bundled Release Context'"
+        EXIT_CODE=1
+      fi
+      if ! require_bundled_fields \
+        "compliance/evidence/$REQ/ai-use-note.md" \
+        "ai-use-note.md" \
+        "Core tracked release" \
+        "Absorbed predecessor releases" \
+        "Absorbed non-release work" \
+        "Why bundled here" \
+        "Evidence impact" \
+        "Reviewer impact" \
+        "Security / risk impact" \
+        "Reference"; then
+        EXIT_CODE=1
+      else
+        echo "  OK: ai-use-note.md carries the required bundled fields"
+      fi
+    fi
   fi
 
   # Check implementation-plan.md for MEDIUM/HIGH risk (check RTM for risk level)

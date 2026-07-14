@@ -89,6 +89,10 @@ assert_not_contains "feat commit excluded" "feat: add booking widget" "$OUTPUT"
 assert_not_contains "fix commit excluded" "fix: resolve null pointer" "$OUTPUT"
 assert_contains "header present" "## Bundled Changes" "$OUTPUT"
 assert_contains "version in header" "REQ-042" "$OUTPUT"
+assert_contains "core tracked release field present" "**Core tracked release:**" "$OUTPUT"
+assert_contains "absorbed non-release work field present" "**Absorbed non-release work:**" "$OUTPUT"
+assert_contains "reviewer impact field present" "**Reviewer impact:**" "$OUTPUT"
+assert_contains "reference field present" "**Reference:**" "$OUTPUT"
 echo
 
 # ─── Test 2: No housekeeping commits ────────────────────────────────

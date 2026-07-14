@@ -511,6 +511,41 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
 
    If the validator fails, fix the summary before proceeding. E2E gate results must be one of: `PASS`, `FAIL`, `NOT_NEEDED` (with reason), or `SKIPPED` (with operator-approved rationale). The word "deferred" must never appear in `test-execution-summary.md` — not as a gate state, not in prose, not in final assessment. "Deferred to CI" and "Playwright browsers not installed locally" are environment issues, not gate states. The CI validator (`validate-test-summary.sh`) will reject any summary containing "deferred" or "browsers not installed" on PRs to main.
 
+5c. **Run the Phase 3 completion guard before any PR/release-review step (devaudit-installer#341).** The tracked-release evidence pack is incomplete until the required Git artefacts exist. Before proceeding past Phase 3, verify:
+
+   - `compliance/evidence/REQ-XXX/test-scope.md`
+   - `compliance/evidence/REQ-XXX/test-plan.md`
+   - `compliance/evidence/REQ-XXX/test-execution-summary.md`
+   - `compliance/evidence/REQ-XXX/security-summary.md`
+   - `compliance/pending-releases/RELEASE-TICKET-REQ-XXX.md`
+   - `compliance/evidence/REQ-XXX/implementation-plan.md` when the REQ risk class requires it
+   - any already-mandatory AI artefacts required by the risk/usage rules
+   - if `compliance/pending-releases/BUNDLED-CHANGES-REQ-XXX.md` exists, the canonical artefacts must carry the bundle narrative too:
+     - release ticket includes `## Bundled Changes` or `## Absorbed Predecessor Releases`
+     - `test-execution-summary.md` includes `## Bundled Release Context`
+     - `security-summary.md` includes `## Bundled Release Context`
+     - `ai-use-note.md` includes `## Bundled Release Context` when AI use is documented
+
+   Run:
+
+   ```bash
+   MISSING=0
+   for f in \
+     compliance/evidence/REQ-XXX/test-scope.md \
+     compliance/evidence/REQ-XXX/test-plan.md \
+     compliance/evidence/REQ-XXX/test-execution-summary.md \
+     compliance/evidence/REQ-XXX/security-summary.md \
+     compliance/pending-releases/RELEASE-TICKET-REQ-XXX.md
+   do
+     [ -f "$f" ] || { echo "MISSING: $f"; MISSING=1; }
+   done
+   [ "$MISSING" -eq 0 ] || exit 1
+   ```
+
+   If any required artefact is missing, halt with an explicit error and do **not** continue to Phase 4:
+
+   > "Phase 3 incomplete — `test-execution-summary.md` is missing. This file satisfies the portal's Test Reports gate (`evidence_type=test_report`). Create it before opening the release PR."
+
 6. **Organise artefacts** under `compliance/evidence/REQ-XXX/` with date-prefixed naming:
 
    ```
@@ -620,7 +655,7 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
 
 **Release Approval Gate retry (devaudit-installer#211 Gap 17).** If the Release Approval Gate check fails on the PR and the portal approval was already given (API sync delay, stale cache), retry logic: re-run the Release Approval Gate workflow up to 3 times with 30-second intervals (`gh workflow run check-release-approval.yml` or trigger via `workflow_dispatch`). If it still fails after 3 retries: halt — "Release Approval Gate still failing after 3 retries. Portal may show approval but the gate can't verify it. Operator action — check the portal release status manually, verify the API key is valid, and re-run the workflow from GitHub Actions if needed."
 
-**Auto-refresh on UAT approval (devaudit#562, devaudit-installer#283).** When the portal's UAT approval is granted, the portal automatically sends a `repository_dispatch('release-approved')` event to the consuming project's repo. This triggers `check-release-approval.yml` to re-run without manual intervention. The retry logic above is still needed for edge cases (API sync delays, network issues), but the common path is now fully automated. If the auto-refresh doesn't fire (e.g. portal GitHub trigger misconfigured), the manual retry sequence above remains the fallback.
+**Auto-refresh on UAT approval (devaudit#562, devaudit-installer#283, #351).** When the portal's UAT approval is granted, the portal automatically sends a `repository_dispatch('release-approved')` event to the consuming project's repo. This triggers `check-release-approval.yml` to re-run without manual intervention and create a fresh passing `DevAudit Release Approval` check run on the approved PR head SHA. The retry logic above is still needed for edge cases (API sync delays, network issues), but the common path is now fully automated. If the auto-refresh doesn't fire (e.g. portal GitHub trigger misconfigured), the manual retry sequence above remains the fallback.
 
 ### Phase 5 — Finalise or change-request loop (SDLC stage 5)
 

@@ -38,7 +38,7 @@ The PR is the **merge request**, not the development workspace. Develop on `deve
 
 When you create the PR, CI runs automatically — GitHub Actions re-executes the verification gates (TypeScript, SAST, dependency audit, E2E) independently. The `Release Approval Gate` workflow (renamed from `UAT Approval Gate` in sdlc-v1.22.0) also runs, verifying the release has been approved in DevAudit. This produces tamper-resistant evidence verified by GitHub's infrastructure.
 
-> **Note:** The Release Approval Gate check will fail initially if the release hasn't been approved in DevAudit yet. This is expected. After approving the release in DevAudit (Stage 3 Step 11), re-run the `Release Approval Gate` workflow from GitHub Actions (or use `workflow_dispatch`) to update the check status. The PR cannot be merged until this check passes — it is a required status check.
+> **Note:** The Release Approval Gate check will fail initially if the release hasn't been approved in DevAudit yet. This is expected. After approving the release in DevAudit (Stage 3 Step 11), re-run the `Release Approval Gate` workflow from GitHub Actions (or use `workflow_dispatch`) to create a fresh passing `DevAudit Release Approval` check on the approved PR head SHA. The PR cannot be merged until this check passes — it is a required status check.
 
 What happens next depends on the risk level of the requirements in the PR:
 

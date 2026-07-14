@@ -27,6 +27,10 @@ export interface UploadOptions {
   readonly sdlcStage?: string;
   /** Test cycle identifier — forwarded as `testCycleId` (parity with upload-evidence.sh --test-cycle). */
   readonly testCycleId?: string;
+  /** Raw `.sdlc-implementer-invoked` content for portal-side sentinel verification. */
+  readonly sentinelContent?: string;
+  /** Commit timestamp used during portal-side sentinel verification. */
+  readonly commitTimestamp?: string;
   readonly metadata?: Readonly<Record<string, unknown>>;
 }
 
@@ -171,12 +175,16 @@ async function createUploadSource(file: string): Promise<UploadSource> {
 }
 
 function buildUploadForm(file: string, source: UploadSource, opts: UploadOptions): FormData {
+  const metadata = {
+    ...(opts.metadata ?? {}),
+    ...(opts.commitTimestamp ? { commitTimestamp: opts.commitTimestamp } : {}),
+  };
   const form = new FormData();
   form.set('file', source.blob, basename(file));
   form.set('projectSlug', opts.projectSlug);
   form.set('requirementId', opts.requirementId);
   form.set('evidenceType', opts.evidenceType);
-  form.set('metadata', JSON.stringify(opts.metadata ?? {}));
+  form.set('metadata', JSON.stringify(metadata));
   if (opts.releaseVersion) form.set('releaseVersion', opts.releaseVersion);
   if (opts.createReleaseIfMissing) form.set('createReleaseIfMissing', 'true');
   if (opts.environment) form.set('environment', opts.environment);
@@ -188,6 +196,8 @@ function buildUploadForm(file: string, source: UploadSource, opts: UploadOptions
   if (opts.gateStatus) form.set('gateStatus', opts.gateStatus);
   if (opts.sdlcStage) form.set('sdlcStage', opts.sdlcStage);
   if (opts.testCycleId) form.set('testCycleId', opts.testCycleId);
+  if (opts.sentinelContent) form.set('sentinelContent', opts.sentinelContent);
+  if (opts.commitTimestamp) form.set('commitTimestamp', opts.commitTimestamp);
   return form;
 }
 
@@ -297,7 +307,10 @@ async function uploadPresigned(
   const timeoutSeconds = uploadMaxTimeSeconds();
   const presignedTimeoutSeconds = DEFAULT_PRESIGNED_UPLOAD_MAX_TIME_SECONDS;
 
-  const metadata = opts.metadata ?? {};
+  const metadata = {
+    ...(opts.metadata ?? {}),
+    ...(opts.commitTimestamp ? { commitTimestamp: opts.commitTimestamp } : {}),
+  };
 
   // Step 1: Request presigned upload URL
   let uploadUrl = '';
@@ -330,8 +343,11 @@ async function uploadPresigned(
           ...(opts.evidenceCategory ? { evidenceCategory: opts.evidenceCategory } : {}),
           ...(opts.releaseTitle ? { releaseTitle: opts.releaseTitle } : {}),
           ...(opts.releaseSummary ? { releaseSummary: opts.releaseSummary } : {}),
+          ...(opts.changeType ? { changeType: opts.changeType } : {}),
           ...(opts.sdlcStage ? { sdlcStage: opts.sdlcStage } : {}),
           ...(opts.testCycleId ? { testCycleId: opts.testCycleId } : {}),
+          ...(opts.sentinelContent ? { sentinelContent: opts.sentinelContent } : {}),
+          ...(opts.commitTimestamp ? { commitTimestamp: opts.commitTimestamp } : {}),
         }),
         signal: controller.signal,
       });

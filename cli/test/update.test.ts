@@ -154,6 +154,15 @@ describe('syncProject — native TS sync against a fixture', () => {
     expect(ciYml).toContain('fixture-app');
     expect(ciYml).not.toContain('{{PROJECT_SLUG}}');
     expect(ciYml).not.toContain('{{NODE_VERSION}}');
+    const projectSetup = normalizeNewlines(
+      await fs.readFile(join(fixtureDir, 'SDLC', '0-project-setup.md'), 'utf-8'),
+    );
+    expect(projectSetup).toContain(
+      '| REQ-ID | Issue | Risk | Evidence | Status | PR | Reviewer | AI-tool |',
+    );
+    expect(projectSetup).toContain(
+      '|--------|-------|------|----------|--------|-----|----------|---------|',
+    );
     // wawagardenbar-app#383: PRs to develop must surface Quality Gates, while
     // release registration/evidence upload stay push/dispatch-only side effects.
     expect(ciYml).toContain('pull_request:\n    branches: [develop]');
@@ -182,6 +191,9 @@ describe('syncProject — native TS sync against a fixture', () => {
     );
     expect(complianceEvidenceYml).toContain('/api/ci/projects/fixture-app/audit-log/export');
     expect(complianceEvidenceYml).toContain('audit_log "$AUDIT_LOG_FILE"');
+    expect(complianceEvidenceYml).toContain("printf '%s\\n' 'import json'");
+    expect(complianceEvidenceYml).toContain('python3 /tmp/devaudit-extract-e2e-reqs.py');
+    expect(complianceEvidenceYml).not.toContain("done < <(python3 - <<'PY'");
     const ciStatusFallbackYml = await fs.readFile(
       join(fixtureDir, '.github', 'workflows', 'ci-status-fallback.yml'),
       'utf-8',
@@ -209,6 +221,12 @@ describe('syncProject — native TS sync against a fixture', () => {
     expect(ciYml).toContain('compliance/evidence/*/screenshots/*.png');
     expect(ciYml).toContain('Upload per-AC e2e evidence screenshots');
     expect(ciYml).toMatch(/"\$REQ" screenshot "\$NAMED"/);
+    // DevAudit-Installer#349: a summary alone must downgrade the gate for
+    // test-maintenance REQs even when no REQ-specific tags exist on disk.
+    expect(ciYml).toContain('elif [ "$HAS_SUMMARY" = "true" ]; then');
+    expect(ciYml).toContain(
+      'Accepted as evidence for test-maintenance or execution-only REQs.',
+    );
     // Section 2g — gitignore sentinel entries (devaudit-installer#226)
     const gitignoreContent = await fs.readFile(join(fixtureDir, '.gitignore'), 'utf-8');
     expect(gitignoreContent).toContain('.e2e-gate-passed');
