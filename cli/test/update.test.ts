@@ -191,6 +191,9 @@ describe('syncProject — native TS sync against a fixture', () => {
     );
     expect(complianceEvidenceYml).toContain('/api/ci/projects/fixture-app/audit-log/export');
     expect(complianceEvidenceYml).toContain('audit_log "$AUDIT_LOG_FILE"');
+    expect(complianceEvidenceYml).toContain("printf '%s\\n' 'import json'");
+    expect(complianceEvidenceYml).toContain('python3 /tmp/devaudit-extract-e2e-reqs.py');
+    expect(complianceEvidenceYml).not.toContain("done < <(python3 - <<'PY'");
     const ciStatusFallbackYml = await fs.readFile(
       join(fixtureDir, '.github', 'workflows', 'ci-status-fallback.yml'),
       'utf-8',
