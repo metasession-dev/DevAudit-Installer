@@ -6,7 +6,7 @@
   "version": "1.0.0",
   "dispatch_types": {
     "release-approved": {
-      "description": "Sent by the portal when a release is approved at UAT. Triggers check-release-approval.yml in the consumer repo to post a check run against the approved SHA.",
+      "description": "Sent by the portal when a release is approved at UAT. Triggers check-release-approval.yml in the consumer repo to create a fresh passing check run against the approved SHA.",
       "consumer_workflow": "check-release-approval.yml",
       "client_payload": {
         "type": "object",

@@ -255,7 +255,7 @@ jobs:
             echo "::warning::Approved SHA (${APPROVED_SHA:0:8}) differs from PR HEAD (${PR_HEAD_SHA:0:8}). Code may have changed after approval."
           fi
 
-      - name: Update PR check run (workflow_dispatch / repository_dispatch re-trigger)
+      - name: Create refreshed PR check run (workflow_dispatch / repository_dispatch re-trigger)
         if: env.BOOTSTRAP_MODE != 'true' && (github.event_name == 'workflow_dispatch' || github.event_name == 'repository_dispatch')
         env:
           GH_TOKEN: ${{ github.token }}
@@ -283,31 +283,21 @@ jobs:
           CHECK_NAME="DevAudit Release Approval"
           DETAILS_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           COMPLETED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          EXISTING_ID=$(gh api \
-            "/repos/${{ github.repository }}/commits/${TARGET_SHA}/check-runs?name=DevAudit%20Release%20Approval" \
-            --jq '.check_runs[] | select(.name == "DevAudit Release Approval") | .id' \
-            | head -1 || true)
 
-          if [ -n "$EXISTING_ID" ]; then
-            gh api "/repos/${{ github.repository }}/check-runs/${EXISTING_ID}" \
-              -X PATCH \
-              -f status=completed \
-              -f conclusion=success \
-              -f completed_at="$COMPLETED_AT" \
-              -f details_url="$DETAILS_URL" \
-              -f "output[title]=DevAudit release approval confirmed" \
-              -f "output[summary]=Release ${{ steps.release.outputs.version }} is approved in DevAudit."
-            echo "Updated ${CHECK_NAME} check run ${EXISTING_ID} on ${TARGET_SHA}."
-          else
-            gh api "/repos/${{ github.repository }}/check-runs" \
-              -X POST \
-              -f name="$CHECK_NAME" \
-              -f head_sha="$TARGET_SHA" \
-              -f status=completed \
-              -f conclusion=success \
-              -f completed_at="$COMPLETED_AT" \
-              -f details_url="$DETAILS_URL" \
-              -f "output[title]=DevAudit release approval confirmed" \
-              -f "output[summary]=Release ${{ steps.release.outputs.version }} is approved in DevAudit."
-            echo "Created ${CHECK_NAME} check run on ${TARGET_SHA}."
-          fi
+          # DevAudit-Installer#351 — GitHub's Feb 2025 check-run changes
+          # forbid externally mutating an existing workflow-owned check run
+          # from a workflow_dispatch / repository_dispatch flow. The refresh
+          # path therefore creates a fresh success check run on the approved
+          # SHA instead of PATCHing the original failed PR check.
+          gh api "/repos/${{ github.repository }}/check-runs" \
+            -X POST \
+            -f name="$CHECK_NAME" \
+            -f head_sha="$TARGET_SHA" \
+            -f status=completed \
+            -f conclusion=success \
+            -f completed_at="$COMPLETED_AT" \
+            -f details_url="$DETAILS_URL" \
+            -f external_id="${{ github.run_id }}" \
+            -f "output[title]=DevAudit release approval confirmed" \
+            -f "output[summary]=Release ${{ steps.release.outputs.version }} is approved in DevAudit."
+          echo "Created refreshed ${CHECK_NAME} check run on ${TARGET_SHA}."
