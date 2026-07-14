@@ -78,6 +78,17 @@ COUNT=$(echo "$BUNDLED" | wc -l | tr -d ' ')
 # Generate the markdown summary.
 echo "## Bundled Changes"
 echo ""
+echo "- **Core tracked release:** \`${VERSION}\`"
+echo "- **Absorbed predecessor releases:** None detected automatically"
+echo "- **Absorbed non-release work:** Housekeeping commits since \`${SINCE_REF}\` listed below"
+echo "- **Why bundled here:** These housekeeping commits were not individually released; the next tracked release is the truthful approval record for the full state of develop."
+echo "- **Evidence impact:** Gate evidence for \`${VERSION}\` covers the full state of develop at CI time, including the absorbed housekeeping commits listed below."
+echo "- **Reviewer impact:** Approval scope includes the core tracked change plus the absorbed non-release work listed below."
+echo "- **Security / risk impact:** No additional security/risk impact identified automatically; reviewer must confirm in the canonical release artifacts."
+echo "- **Reference:** commit range \`${SINCE_REF}..HEAD\`"
+echo ""
+echo "### Absorbed Non-Release Work"
+echo ""
 echo "The following ${COUNT} housekeeping commit(s) were absorbed into release \`${VERSION}\` since \`${SINCE_REF}\`:"
 echo ""
 echo "$BUNDLED" | while IFS=$'\t' read -r SHA SUBJECT; do

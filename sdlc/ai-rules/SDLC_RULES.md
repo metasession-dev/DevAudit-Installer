@@ -412,7 +412,15 @@ When the user says implementation is done, or when all acceptance criteria from 
 
 After gates pass, create `compliance/evidence/REQ-XXX/test-execution-summary.md` documenting gate results, test changes, and coverage against the test plan. Include links to evidence locations in DevAudit.
 
-If `compliance/pending-releases/BUNDLED-CHANGES-REQ-XXX.md` exists, add a `## Bundled Release Context` section to `test-execution-summary.md` that distinguishes the core tracked REQ from bundled follow-up / housekeeping work.
+If `compliance/pending-releases/BUNDLED-CHANGES-REQ-XXX.md` exists, add a `## Bundled Release Context` section to `test-execution-summary.md` with this minimum structure:
+- `**Core tracked release:**`
+- `**Absorbed predecessor releases:**`
+- `**Absorbed non-release work:**`
+- `**Why bundled here:**`
+- `**Evidence impact:**`
+- `**Reviewer impact:**`
+- `**Security / risk impact:**`
+- `**Reference:**`
 
 Tell the user: **"All gates passed. Let me generate the test execution summary."**
 
@@ -459,7 +467,7 @@ Dependency audit: 0 vulnerabilities
 Evidence uploaded to DevAudit project: [PROJECT_SLUG]
 ```
 
-If `BUNDLED-CHANGES-REQ-XXX.md` exists, add a `## Bundled Release Context` section to `security-summary.md` and to `ai-use-note.md` (when present), and add `## Bundled Changes` or `## Absorbed Predecessor Releases` to the release ticket. The GitHub PR body is supporting context, not the primary audit record.
+If `BUNDLED-CHANGES-REQ-XXX.md` exists, add the same structured bundled-release fields to `security-summary.md` and to `ai-use-note.md` (when present), and add `## Bundled Changes` or `## Absorbed Predecessor Releases` to the release ticket with the same minimum fields. The GitHub PR body is supporting context, not the primary audit record.
 
 Verify these also exist in git:
 - `compliance/evidence/REQ-XXX/test-scope.md` (from planning)
