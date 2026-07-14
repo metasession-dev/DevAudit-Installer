@@ -793,9 +793,9 @@ jobs:
 
                 # devaudit-installer#237 — check for test-execution-summary.md
                 # as a secondary signal. This is a human-authored document and
-                # weaker than machine-generated evidence, so it only converts
-                # a hard error to a warning when combined with unit test files
-                # on disk — never alone.
+                # weaker than machine-generated evidence, but it is still the
+                # designated evidence for test-maintenance REQs that update an
+                # existing tagged spec for a different requirement.
                 HAS_SUMMARY=false
                 if [ -f "compliance/evidence/${REQ}/test-execution-summary.md" ]; then
                   HAS_SUMMARY=true
@@ -804,10 +804,16 @@ jobs:
                 if [ "$SPECS_ON_DISK" -gt 0 ]; then
                   # Scenario B: E2E specs exist on disk but outside the smoke tier
                   echo "::warning::Evidence completeness gate: ${REQ} has zero tagged tests in this smoke run and zero per-AC screenshots, but ${SPECS_ON_DISK} spec file(s) on disk reference it (outside the smoke project). Evidence exists but was not executed in this CI tier. Consider running --project=critical or --grep \"${REQ}\" to capture evidence."
-                elif [ "$UNIT_TESTS_ON_DISK" -gt 0 ] && [ "$HAS_SUMMARY" = "true" ]; then
-                  # Scenario C: unit test files exist with @requirement annotations
-                  # and a test-execution-summary.md documents coverage
-                  echo "::warning::Evidence completeness gate: ${REQ} has zero E2E tagged tests and zero screenshots, but ${UNIT_TESTS_ON_DISK} unit test file(s) on disk reference it and a test-execution-summary.md exists. Unit test evidence found but execution was not verified in this run. If this is an API-only or backend-only change, this is expected."
+                elif [ "$HAS_SUMMARY" = "true" ]; then
+                  # Scenario C: a test-execution-summary.md documents coverage.
+                  # This covers both API/backend-only REQs with unit tests on disk
+                  # and test-maintenance REQs whose evidence is an existing spec
+                  # tagged to an earlier feature requirement.
+                  if [ "$UNIT_TESTS_ON_DISK" -gt 0 ]; then
+                    echo "::warning::Evidence completeness gate: ${REQ} has zero E2E tagged tests and zero screenshots, but ${UNIT_TESTS_ON_DISK} unit test file(s) on disk reference it and a test-execution-summary.md exists. Unit test evidence found but execution was not verified in this run. If this is an API-only or backend-only change, this is expected."
+                  else
+                    echo "::warning::Evidence completeness gate: ${REQ} has zero tagged tests and zero screenshots, but a test-execution-summary.md exists documenting coverage. Accepted as evidence for test-maintenance or execution-only REQs."
+                  fi
                 else
                   # Scenario A: genuinely no evidence — no E2E specs, no unit tests,
                   # no test-execution-summary. Hard error preserved (#237 Constraint 3).
