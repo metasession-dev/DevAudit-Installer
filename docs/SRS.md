@@ -2421,9 +2421,9 @@ Area codes: FRAMEWORK-CIYML (ci.yml quality gates + evidence job), FRAMEWORK-EVI
 #### REQ-FRAMEWORK-APPROVAL-004 — Gate links the PR to the release and posts a portal link comment
 
 - **Priority:** Should — traceability side-effects; not the blocking decision itself.
-- **Source:** `sdlc/files/ci/check-release-approval.yml.template` steps `Link PR to release` (`PATCH ${BASE}/api/ci/releases/<id>` with `prInfo`), `Post release link on PR` (`gh pr comment`/patch existing `**DevAudit Release:**` comment), `SHA comparison` (warn if `approved_sha != PR head sha`), `Update PR status (workflow_dispatch re-trigger)` (posts a `Release Approval Gate` commit status via `gh api … statuses`).
+- **Source:** `sdlc/files/ci/check-release-approval.yml.template` steps `Link PR to release` (`PATCH ${BASE}/api/ci/releases/<id>` with `prInfo`), `Post release link on PR` (`gh pr comment`/patch existing `**DevAudit Release:**` comment), `SHA comparison` (warn if `approved_sha != PR head sha`), `Create refreshed PR check run (workflow_dispatch / repository_dispatch re-trigger)` (creates a fresh success check run on the approved SHA via `gh api … /check-runs`).
 - **Preconditions / inputs:** Non-bootstrap; `github.token` for `gh`; pull_request or workflow_dispatch event.
-- **Given** a non-bootstrap PR **When** the gate passes **Then** the release record is PATCHed with the PR url/number, a `**DevAudit Release:**` comment is posted/updated, and a SHA-drift `::warning::` appears if the approved SHA differs from PR HEAD. **When** re-triggered via `workflow_dispatch` **Then** a success `Release Approval Gate` commit status is posted to the open develop→main PR head.
+- **Given** a non-bootstrap PR **When** the gate passes **Then** the release record is PATCHed with the PR url/number, a `**DevAudit Release:**` comment is posted/updated, and a SHA-drift `::warning::` appears if the approved SHA differs from PR HEAD. **When** re-triggered via `workflow_dispatch` or `repository_dispatch` **Then** a fresh success `DevAudit Release Approval` check run is created on the approved PR head SHA.
 - **Error paths:** `gh` failures degrade to `|| true` / warnings; no open PR on dispatch → status update skipped.
 - **Fixtures/env:** PR fixture + portal/gh stubs; an approved-SHA mismatch fixture.
 
