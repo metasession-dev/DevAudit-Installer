@@ -36,20 +36,47 @@ if [ -z "$CURRENT_RELEASE" ]; then
   exit 1
 fi
 
+RELEASE_TITLE=""
+RELEASE_SUMMARY=""
+if [[ "$CURRENT_RELEASE" =~ ^REQ-[0-9]+$ ]] && [ -f scripts/extract-release-metadata.sh ]; then
+  # shellcheck disable=SC1091
+  source scripts/extract-release-metadata.sh
+  extract_release_metadata "$CURRENT_RELEASE"
+fi
+
 TITLE="Release: ${CURRENT_RELEASE}"
+if [ -n "$RELEASE_TITLE" ]; then
+  TITLE="${TITLE} — ${RELEASE_TITLE}"
+fi
+
 BODY=$(cat <<EOF
 ## Release
 
 - Release: ${CURRENT_RELEASE}
 - Base: ${RELEASE_BRANCH}
 - Head: ${INTEGRATION_BRANCH}
+EOF
+)
+
+if [ -n "$RELEASE_TITLE" ]; then
+  BODY="${BODY}
+- Title: ${RELEASE_TITLE}"
+fi
+
+if [ -n "$RELEASE_SUMMARY" ]; then
+  BODY="${BODY}
+
+## Summary
+
+${RELEASE_SUMMARY}"
+fi
+
+BODY="${BODY}
 
 ## DevAudit
 
 - Release context is derived from the current ${INTEGRATION_BRANCH} head.
-- If this PR replaced an older release PR, the older PR was superseded because it no longer matched the governing release context.
-EOF
-)
+- If this PR replaced an older release PR, the older PR was superseded because it no longer matched the governing release context."
 
 OPEN_PRS=$(gh pr list --base "$RELEASE_BRANCH" --head "$INTEGRATION_BRANCH" --state open --json number,title,body,url --limit 10)
 COUNT=$(echo "$OPEN_PRS" | jq 'length')
@@ -75,7 +102,20 @@ PR_TITLE=$(echo "$OPEN_PRS" | jq -r '.[0].title // ""')
 PR_BODY=$(echo "$OPEN_PRS" | jq -r '.[0].body // ""')
 PR_URL=$(echo "$OPEN_PRS" | jq -r '.[0].url')
 
-if printf '%s\n%s\n' "$PR_TITLE" "$PR_BODY" | grep -q "$CURRENT_RELEASE"; then
+PR_IS_CURRENT=true
+if ! printf '%s\n%s\n' "$PR_TITLE" "$PR_BODY" | grep -q "$CURRENT_RELEASE"; then
+  PR_IS_CURRENT=false
+fi
+if [ -n "$RELEASE_TITLE" ] && [ "$PR_TITLE" != "$TITLE" ]; then
+  PR_IS_CURRENT=false
+fi
+if printf '%s' "$RELEASE_SUMMARY" | grep -q 'Bundled release context:'; then
+  if ! printf '%s\n%s\n' "$PR_TITLE" "$PR_BODY" | grep -q "BUNDLED-CHANGES-${CURRENT_RELEASE}.md"; then
+    PR_IS_CURRENT=false
+  fi
+fi
+
+if [ "$PR_IS_CURRENT" = "true" ]; then
   echo "Open release PR #${PR_NUMBER} already matches ${CURRENT_RELEASE}: ${PR_URL}"
   exit 0
 fi

@@ -4,6 +4,14 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+### Added
+
+- **#370** — release-branch Quality Gates now emit a dedicated `Release Scope Integrity` check that fails closed when the PR title/body scope drifts from the release currently derived from the integration-branch head, including bundled-release context markers.
+
+### Changed
+
+- **#379** — PRs to the release branch now split intentionally by class: tracked `develop -> main` release PRs keep provenance-only `Quality Gates`, while `hotfix/* -> main` PRs dispatch the real `ci.yml` gate run on the hotfix branch and proxy that result back to the PR. Generated `ci.yml` side-effect jobs (`register-release`, `upload-evidence`) now stay pinned to the integration branch so hotfix dispatches do not create release/evidence mutations.
+
 ## [0.3.10] — 2026-07-11
 
 ### Added

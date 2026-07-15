@@ -32,6 +32,8 @@ const OLD_WORKFLOWS_TO_REMOVE = ['test-on-pr.yml', 'check-uat-approval.yml'];
 interface SdlcConfig {
   readonly project_slug: string;
   readonly production_url_secret: string;
+  readonly integration_branch?: string;
+  readonly release_branch?: string;
   readonly node_version?: string | number;
   readonly python_version?: string | number;
   readonly working_directory?: string;
@@ -230,6 +232,8 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
   const tokens: Record<string, string> = {
     PROJECT_SLUG: cfg.project_slug,
     PRODUCTION_URL_SECRET: cfg.production_url_secret,
+    INTEGRATION_BRANCH: cfg.integration_branch ?? 'develop',
+    RELEASE_BRANCH: cfg.release_branch ?? 'main',
     NODE_VERSION: String(cfg.node_version ?? ''),
     PYTHON_VERSION: String(cfg.python_version ?? ''),
     WORKING_DIRECTORY: workingDirectory || '.',

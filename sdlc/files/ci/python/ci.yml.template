@@ -5,8 +5,9 @@
 #
 # Single consolidated job. Order: install → ruff → mypy → semgrep → pip-audit → pytest → build.
 #
-# PRs to develop run Quality Gates before integration. PRs to main inherit
-# commit status via branch protection.
+# PRs to {{INTEGRATION_BRANCH}} run Quality Gates before integration. PRs to
+# {{RELEASE_BRANCH}} are handled by quality-gates-provenance.yml: provenance-only
+# for release PRs, full CI rerouted for hotfix/* PRs.
 # Compliance validation runs separately on PRs (compliance-validation.yml).
 
 name: CI Pipeline
@@ -14,9 +15,9 @@ name: CI Pipeline
 on:
   workflow_dispatch:
   pull_request:
-    branches: [develop]
+    branches: [{{INTEGRATION_BRANCH}}]
   push:
-    branches: [develop]
+    branches: [{{INTEGRATION_BRANCH}}]
     paths-ignore:
 {{PATHS_IGNORE}}      - 'sdlc-config.json'
 
@@ -190,7 +191,7 @@ jobs:
     # PRs to develop should report Quality Gates without mutating DevAudit
     # releases or evidence. Release registration remains a develop-push /
     # manual-dispatch side effect.
-    if: ${{ github.event_name != 'pull_request' }}
+    if: ${{ github.event_name != 'pull_request' && github.ref_name == '{{INTEGRATION_BRANCH}}' }}
     outputs:
       version: ${{ steps.version.outputs.version }}
     env:
@@ -314,7 +315,7 @@ jobs:
     # evidence — `status=failed` is itself the audit trail. `!cancelled()`
     # still guards against partial state on operator-cancel.
     # DevAudit-Installer#96.
-    if: ${{ always() && !cancelled() && needs.register-release.result == 'success' }}
+    if: ${{ always() && !cancelled() && github.ref_name == '{{INTEGRATION_BRANCH}}' && needs.register-release.result == 'success' }}
     env:
       DEVAUDIT_BASE_URL_VAR: ${{ vars.DEVAUDIT_BASE_URL }}
       DEVAUDIT_API_KEY: ${{ secrets.DEVAUDIT_API_KEY }}
