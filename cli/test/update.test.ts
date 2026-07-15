@@ -196,7 +196,8 @@ describe('syncProject — native TS sync against a fixture', () => {
     // wawagardenbar-app#383: PRs to develop must surface Quality Gates, while
     // release registration/evidence upload stay push/dispatch-only side effects.
     expect(ciYml).toContain('pull_request:\n    branches: [develop]');
-    expect(ciYml).toMatch(/register-release:[\s\S]*if: \$\{\{ github\.event_name != 'pull_request' \}\}/);
+    expect(ciYml).toMatch(/register-release:[\s\S]*if: \$\{\{ github\.event_name != 'pull_request' && github\.ref_name == 'develop' \}\}/);
+    expect(ciYml).toMatch(/upload-evidence:[\s\S]*if: \$\{\{ always\(\) && !cancelled\(\) && github\.ref_name == 'develop' && needs\.register-release\.result == 'success' \}\}/);
     // DevAudit-Installer#98 WS3 + WS4: governance auto-generation workflows
     // sync into .github/workflows/ alongside the gate workflows.
     expect(await fs.stat(join(fixtureDir, '.github', 'workflows', 'periodic-review.yml'))).toBeTruthy();
@@ -238,6 +239,15 @@ describe('syncProject — native TS sync against a fixture', () => {
     expect(ciStatusFallbackYml).toContain('permissions:');
     expect(ciStatusFallbackYml).toContain('contents: read');
     expect(ciStatusFallbackYml).toContain('statuses: write');
+    const provenanceYml = await fs.readFile(
+      join(fixtureDir, '.github', 'workflows', 'quality-gates-provenance.yml'),
+      'utf-8',
+    );
+    expect(provenanceYml).toContain('name: Release Scope Integrity');
+    expect(provenanceYml).toContain("!startsWith(github.event.pull_request.head.ref, 'hotfix/')");
+    expect(provenanceYml).toContain('bash scripts/check-release-pr-scope.sh');
+    expect(provenanceYml).toContain('gh workflow run ci.yml --ref "$HEAD_REF"');
+    expect(provenanceYml).toContain('gh run watch "$RUN_ID" --exit-status');
     // DevAudit-Installer#228 — every generated workflow must be valid YAML.
     await expectAllWorkflowsValidYaml(fixtureDir);
     await expectWorkflowTokenContract(fixtureDir);
@@ -470,7 +480,7 @@ describe('syncProject — native TS sync against a fixture', () => {
       );
       expect(ciYml).toContain('actions/setup-python@v6');
       expect(ciYml).toContain('pull_request:\n    branches: [develop]');
-      expect(ciYml).toContain("github.event_name != 'pull_request' }}");
+      expect(ciYml).toContain("github.event_name != 'pull_request' && github.ref_name == 'develop' }}");
       // DevAudit-Installer#228 — validate all generated workflows are valid YAML.
       await expectAllWorkflowsValidYaml(dir);
     } finally {
