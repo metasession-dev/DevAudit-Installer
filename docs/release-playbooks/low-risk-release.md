@@ -170,3 +170,192 @@ It is still a **tracked** release: a real `REQ-XXX`, its own release record, the
 | UAT approval | auto (`auto_low_risk`) or one click | auto or one click |
 | Ship | `resume REQ-XXX` | Stage 4: **self-merge**; Stage 5: prod checks |
 | Close out | (automatic) | `close-out-release.sh`, close issue |
+
+---
+
+## Hotfix scenario
+
+A low-risk hotfix is rare — most production emergencies are HIGH risk. But if a low-risk issue (e.g. a UI text fix, a config tweak) needs to ship urgently, the process is simpler than the high-risk hotfix: **no plan-approval pause, self-merge allowed, lighter evidence.**
+
+### Track A — AI-driven hotfix
+
+```text
+Hotfix issue #N — low-risk UI/config fix needed urgently. Implement under the SDLC.
+```
+
+The agent classifies it as Low, skips the plan pause, and proceeds straight through. The only human gate is the portal approval (auto under `auto_low_risk`, one click under `dual_actor`).
+
+### Track B — manual hotfix
+
+```bash
+# 1. Branch from main (hotfix) or develop (urgent fix)
+git checkout main && git pull origin main
+git checkout -b fix/hotfix-<desc>
+
+# 2. No plan needed for LOW — fix directly
+# 3. Run ALL gates (no shortcuts even for low-risk hotfixes)
+npx tsc --noEmit
+semgrep scan --config auto [SOURCE_DIR]/ --severity ERROR --severity WARNING
+npm audit --audit-level=high
+npx playwright test
+
+# 4. Commit with REQ tag
+git add <files>
+git commit -m "fix: <hotfix description>
+
+Ref: REQ-XXX"
+
+# 5. PR to main (hotfix) or develop (urgent)
+gh pr create --base main --head fix/hotfix-<desc> --title "fix: <desc>" --body "HOTFIX — low risk. Ref: REQ-XXX"
+
+# 6. Evidence: test-execution-summary.md + security-summary.md (brief)
+# 7. Submit for UAT, approve (auto or one click), merge, prod checks
+# 8. Sync develop
+git checkout develop && git merge main --no-edit && git push origin develop
+```
+
+---
+
+## Superseding a previous release
+
+### When the superseded release is still on `develop`
+
+1. **Fix-forward on `develop`:** add a fix commit, same REQ
+2. The release PR picks up the fix — no new PR needed
+3. No portal action
+
+```bash
+git add <fix files>
+git commit -m "fix: <defect description> — supersedes broken commit <sha>
+
+Ref: REQ-XXX"
+git push origin develop
+gh run watch
+```
+
+### When the superseded release is merged to `main` but not yet `released`
+
+For a low-risk change, **fix-forward** is preferred over revert (the blast radius is small):
+
+```bash
+git checkout develop
+# ... fix ...
+git commit -m "fix: <defect description>
+
+Ref: REQ-XXX"
+git push origin develop
+gh pr create --base main --head develop --title "fix: <desc> (supersedes REQ-XXX)" --body "..."
+```
+
+1. Mark the old release as **SUPERSEDED** on the portal (if supported)
+2. The new release carries its own evidence
+
+### When already `released` on the portal
+
+This is a rollback — see below.
+
+---
+
+## Triage: defect found during feature → develop
+
+### Case 1: Defect is in the new code (same REQ)
+
+Fix in-place, same branch, same REQ. No ceremony for Low risk.
+
+```bash
+git add <fix files>
+git commit -m "fix: <defect description>
+
+Ref: REQ-XXX"
+```
+
+### Case 2: Defect is in existing code (pre-existing, found by coincidence)
+
+1. File a new issue
+2. For Low risk, the decision is simpler — if the fix is small, fix it inline; if large, defer
+3. If deferring, continue with the feature and handle the defect separately
+
+```bash
+gh issue create --title "Defect: <description>" --body "Found during REQ-XXX implementation."
+```
+
+### Case 3: E2E regression found during feature development
+
+1. File a regression issue
+2. For Low risk, the regression is unlikely to be in a critical path — file the issue and continue
+3. If the regression blocks the feature (shared component), fix inline with the same REQ
+
+---
+
+## Triage: defect found during develop → main (release PR)
+
+### Case 1: CI gate failure
+
+Fix-forward on `develop`. The release PR picks up the fix.
+
+```bash
+git add <fix files>
+git commit -m "fix: <gate failure description>
+
+Ref: REQ-XXX"
+git push origin develop
+gh run watch
+```
+
+### Case 2: Compliance validation failure
+
+Same approach as high-risk — add a retroactive compliance commit if needed:
+
+```bash
+git add compliance/RTM.md compliance/evidence/REQ-XXX/ compliance/pending-releases/RELEASE-TICKET-REQ-XXX.md
+git commit -m "compliance: [REQ-XXX] retroactive attribution for fix commit <sha>
+
+Ref: REQ-XXX"
+git push origin develop
+```
+
+### Case 3: E2E regression on the release PR
+
+1. Triage: caused by this release or pre-existing flaky test?
+2. **Caused by this release:** fix-forward, same REQ
+3. **Pre-existing:** file a regression issue; for Low risk, don't block the PR unless the regression is in the same area
+
+```bash
+gh issue create --title "E2E regression: <spec name> — <error>" --label "bug" --body "..."
+```
+
+### Case 4: Reviewer finds a defect
+
+1. **Blocker:** fix-forward on `develop`, re-request review
+2. **Non-blocker:** file a follow-up issue, self-merge the PR (Low risk allows self-merge), fix in the next release
+
+---
+
+## Rollback scenario
+
+For a low-risk release, rollback is straightforward — the blast radius is small.
+
+```bash
+# 1. Revert the merge commit on main
+git checkout main && git pull origin main
+git revert -m 1 <merge-commit-sha>
+git commit -m "revert: rollback REQ-XXX — <reason>
+
+Ref: REQ-XXX"
+git push origin main
+
+# 2. Verify production
+curl -s [PRODUCTION_URL]/[HEALTH_ENDPOINT]
+
+# 3. Sync develop
+git checkout develop && git merge main --no-edit && git push origin develop
+
+# 4. File follow-up issue
+gh issue create --title "Fix: <root cause>" --body "Rolled back REQ-XXX. Root cause: ..."
+```
+
+### Post-rollback
+
+- No post-mortem required for Low risk (save for HIGH/CRITICAL)
+- The follow-up fix gets a new REQ or reuses the original issue
+- Update the release ticket with a "ROLLED BACK" note
