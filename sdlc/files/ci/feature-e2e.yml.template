@@ -15,6 +15,7 @@ on:
 jobs:
   detect-req:
     name: Detect REQ from branch
+    if: ${{ !startsWith(github.head_ref, 'chore/close-out-') }}
     runs-on: {{RUNNER}}
     outputs:
       req_id: ${{ steps.detect.outputs.req_id }}

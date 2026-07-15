@@ -79,6 +79,26 @@ Once a truthful tracked `REQ-XXX` release exists for the same branch window, tha
 
 Likewise, if an older `develop -> main` release PR no longer matches the governing release context, the framework closes it as superseded and regenerates the truthful PR rather than letting two competing release PRs stay open.
 
+## PR status contract
+
+The installer treats three GitHub-owned checks as the authoritative SDLC merge surface:
+
+- `Quality Gates`
+- `Compliance Validation`
+- `DevAudit Release Approval`
+
+Everything else should be interpreted deliberately:
+
+- hosting-platform suites such as `vercel`, `railway-app`, and `cloudflare-workers-and-pages` are operational signals, not release gates, unless a consumer intentionally makes them required in branch protection
+- automated reconciliation branches (`chore/close-out-*`) are administrative close-out traffic, not feature or release PRs, so heavy PR workflows should not be the thing that defines whether they can merge
+
+Consumer guidance:
+
+1. Keep required branch protection checks limited to repo-owned SDLC checks unless there is an explicit reason to gate on an external platform.
+2. Remove stale hosting integrations that still attach check suites after the platform is no longer in use.
+3. Scope hosting-platform PR status reporting away from `chore/close-out-*` and similar administrative branches where possible.
+4. Treat external queued/pending suites on the same SHA as noise unless branch protection explicitly says otherwise.
+
 > Keep implementation commits REQ-tagged. An untagged code merge falls back to a date version and, before the per-requirement attribution fixes, would scatter a bundle's evidence onto that date release — which is exactly why the REQ-tag rule is enforced.
 
 For the **lifecycle states** a release moves through (`draft → uat_review → uat_approved → prod_review → prod_approved → released`), the `prod_review` vs `released` terminal-status options, and the four-eyes (`dual_actor`) rules, see the portal's [Releases & approvals](https://github.com/metasession-dev/devaudit/blob/main/docs/releases-and-approvals.md).

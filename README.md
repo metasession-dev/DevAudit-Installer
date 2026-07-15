@@ -84,6 +84,8 @@ npx @metasession.co/devaudit-cli@latest update ../consumer-1 ../consumer-2
 
 The CLI reads each consumer's `sdlc-config.json`, copies the templates from its bundled `sdlc/files/`, fires plugin `beforeSync`/`afterSync` hooks, and leaves the tree dirty for review. It bundles the framework, so it needs no DevAudit-Installer checkout at runtime. Check the [`cli/CHANGELOG.md`](./cli/CHANGELOG.md) before merging — most releases require no operator action beyond reviewing the diff, but occasionally a release adds a new GitHub secret or schema change that needs an explicit step.
 
+By default, the generated SDLC treats the repo-owned GitHub checks as authoritative (`Quality Gates`, `Compliance Validation`, `DevAudit Release Approval`). Hosting-platform check suites are operational signals, not merge gates, unless a consumer explicitly promotes them into branch protection.
+
 ## Quick start — teammate joining an existing project (`join`)
 
 You're the second (or nth) developer on a project that's already been onboarded. Running `install` here would silently rotate the team's CI API key. Use `join` instead — same template sync, no portal call-outs:

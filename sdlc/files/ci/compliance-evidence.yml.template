@@ -959,19 +959,88 @@ jobs:
           APP_DEFECT_COUNT=0
 
           # Parse the Playwright JSON reporter output and classify each failing test.
-          # Using jq to extract failing tests.
-          FAILING_TESTS=$(jq -r '
-            [.suites[]? | .specs[]? | select(.status == "failed" or .status == "timedOut" or .status == "interrupted" or .status == "flaky")]
-            | .[]
-            | [.title, .status, (.tests[0].results[-1].error.message // "no error message")] | @tsv
-          ' e2e-artifacts/e2e-regression-results.json 2>/dev/null || true)
+          # Walk suites/specs/tests/results recursively so nested suite structure,
+          # multi-test specs, and richer error payloads are handled reliably.
+          FAILING_TESTS=$(python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path("e2e-artifacts/e2e-regression-results.json")
+          if not path.exists():
+            raise SystemExit(0)
+
+          try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+          except Exception:
+            raise SystemExit(0)
+
+          failing_states = {"failed", "timedOut", "interrupted", "flaky"}
+          rows = []
+
+          def first_error_message(result):
+            error = result.get("error") or {}
+            if isinstance(error, dict):
+              message = str(error.get("message") or "").strip()
+              if message:
+                return message
+              stack = str(error.get("stack") or "").strip()
+              if stack:
+                for line in stack.splitlines():
+                  line = line.strip()
+                  if line:
+                    return line
+            return "no error message"
+
+          def visit_suite(suite, parent_titles):
+            local_title = str(suite.get("title") or "").strip()
+            titles = parent_titles + ([local_title] if local_title else [])
+            for child in suite.get("suites") or []:
+              if isinstance(child, dict):
+                visit_suite(child, titles)
+            for spec in suite.get("specs") or []:
+              if not isinstance(spec, dict):
+                continue
+              spec_file = (
+                str((spec.get("location") or {}).get("file") or "").strip()
+                or str(spec.get("file") or "").strip()
+                or "(unknown spec file)"
+              )
+              spec_title = str(spec.get("title") or "").strip()
+              title_parts = titles + ([spec_title] if spec_title else [])
+              for test in spec.get("tests") or []:
+                if not isinstance(test, dict):
+                  continue
+                test_title = str(test.get("title") or "").strip()
+                full_title = " › ".join(part for part in (title_parts + ([test_title] if test_title else [])) if part)
+                results = [r for r in (test.get("results") or []) if isinstance(r, dict)]
+                final_result = next((r for r in reversed(results) if (r.get("status") or "") in failing_states), None)
+                status = str((final_result or {}).get("status") or test.get("status") or spec.get("status") or "").strip()
+                if status not in failing_states:
+                  continue
+                rows.append((spec_file, full_title or spec_title or test_title or "(untitled test)", status, first_error_message(final_result or {})))
+
+          for root_suite in payload.get("suites") or []:
+            if isinstance(root_suite, dict):
+              visit_suite(root_suite, [])
+
+          seen = set()
+          for spec_file, title, status, message in rows:
+            key = (spec_file, title, status, message)
+            if key in seen:
+              continue
+            seen.add(key)
+            print("\t".join([spec_file, title.replace("\t", " "), status, message.replace("\t", " ")]))
+            if len(seen) >= 20:
+              break
+          PY
+          )
 
           if [ -z "$FAILING_TESTS" ]; then
             echo "No failing tests found in JSON report — nothing to triage."
             exit 0
           fi
 
-          while IFS=$'\t' read -r TEST_NAME TEST_STATUS ERROR_MSG; do
+          while IFS=$'\t' read -r SPEC_FILE TEST_NAME TEST_STATUS ERROR_MSG; do
             [ -z "$TEST_NAME" ] && continue
 
             # --- Classification ---
@@ -1027,10 +1096,10 @@ jobs:
             # --- File issue ---
             if [ "$FILE_LABEL" = "incident" ]; then
               # Dedup: check for existing open incident issue for the same test name.
-              EXISTING=$(gh issue list --label incident --state open --search "$TEST_NAME" --json number --jq '.[0].number' || true)
+              EXISTING=$(gh issue list --label incident --state open --search "$SPEC_FILE $TEST_NAME" --json number --jq '.[0].number' || true)
               if [ -n "$EXISTING" ]; then
                 echo "  [DEDUP] $TEST_NAME — existing incident #$EXISTING already open. Posting comment."
-                gh issue comment "$EXISTING" --body "Additional failure detected in workflow run ${WORKFLOW_URL} (SHA ${GIT_SHA}). Classification: ${CLASSIFICATION}. Rationale: ${RATIONALE}"
+                gh issue comment "$EXISTING" --body "Additional failure detected in workflow run ${WORKFLOW_URL} (SHA ${GIT_SHA}). Spec: ${SPEC_FILE}. Classification: ${CLASSIFICATION}. Rationale: ${RATIONALE}"
                 continue
               fi
 
@@ -1043,7 +1112,9 @@ jobs:
               ISSUE_BODY=$(cat <<EOF
               ## E2E Regression Failure — ${CLASSIFICATION}
 
+              **Spec file:** ${SPEC_FILE}
               **Test name:** ${TEST_NAME}
+              **Final status:** ${TEST_STATUS}
               **Error message:**
               \`\`\`
               ${ERROR_MSG}
@@ -1075,7 +1146,7 @@ jobs:
               ISSUE_BODY=$(echo "$ISSUE_BODY" | sed 's/^              //')
 
               gh issue create \
-                --title "[REGRESSION] ${TEST_NAME}" \
+                --title "[REGRESSION] ${SPEC_FILE} :: ${TEST_NAME}" \
                 --label "incident,${CLASSIFICATION}" \
                 --body "$ISSUE_BODY"
 
@@ -1086,7 +1157,9 @@ jobs:
               ISSUE_BODY=$(cat <<EOF
               ## E2E Regression Failure — ${CLASSIFICATION}
 
+              **Spec file:** ${SPEC_FILE}
               **Test name:** ${TEST_NAME}
+              **Final status:** ${TEST_STATUS}
               **Error message:**
               \`\`\`
               ${ERROR_MSG}
@@ -1105,7 +1178,7 @@ jobs:
               ISSUE_BODY=$(echo "$ISSUE_BODY" | sed 's/^              //')
 
               gh issue create \
-                --title "[TEST-BUG] ${TEST_NAME}" \
+                --title "[TEST-BUG] ${SPEC_FILE} :: ${TEST_NAME}" \
                 --label "test-bug" \
                 --body "$ISSUE_BODY"
             fi

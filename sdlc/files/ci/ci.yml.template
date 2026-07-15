@@ -32,6 +32,7 @@ jobs:
   # ──────────────────────────────────────────────
   quality-gates:
     name: Quality Gates
+    if: ${{ github.event_name != 'pull_request' || !startsWith(github.head_ref, 'chore/close-out-') }}
     runs-on: {{RUNNER}}
 
     services:

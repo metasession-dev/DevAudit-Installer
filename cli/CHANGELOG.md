@@ -11,6 +11,12 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 ### Changed
 
 - **#379** — PRs to the release branch now split intentionally by class: tracked `develop -> main` release PRs keep provenance-only `Quality Gates`, while `hotfix/* -> main` PRs dispatch the real `ci.yml` gate run on the hotfix branch and proxy that result back to the PR. Generated `ci.yml` side-effect jobs (`register-release`, `upload-evidence`) now stay pinned to the integration branch so hotfix dispatches do not create release/evidence mutations.
+- **#383** — the generated docs now define the installer's status-check contract explicitly: repo-owned checks are the authoritative merge surface, while third-party hosting suites are informational unless a consumer intentionally makes them required.
+- **#384** — generated PR workflows now recognise `chore/close-out-*` as an administrative branch class and skip heavy PR gates there by default instead of treating close-out reconciliation as a feature/release validation path.
+
+### Fixed
+
+- **#378** — post-merge regression triage now walks nested Playwright JSON reliably and includes spec file, full test title, final failing status, and first available error message in the filed issue body instead of falling back prematurely.
 
 ## [0.3.10] — 2026-07-11
 
