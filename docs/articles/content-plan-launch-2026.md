@@ -160,13 +160,15 @@ Before the broader thought-leadership and workflow series begins, the **first pu
 
 #### Article 1: The EU AI Act Hits Code in August 2026
 
+> **Publication note:** Deferred to W10 pending legal review of the EU AI Act regulatory framing. The article's claims about high-risk classification, Article 11 scope, and penalty tiers have been revised for accuracy but should be reviewed by a qualified advisor before publication.
+
 **Primary persona:** CISO
-**Goal:** Establish urgency around the August 2026 enforcement deadline and position AI coding agents as an under-recognised high-risk surface.
+**Goal:** Establish urgency around the August 2026 enforcement deadline and position AI coding agents as an under-recognised compliance surface within the development lifecycle of regulated AI systems.
 **Key points:**
-- AI coding agents (Claude Code, Cursor, Copilot, Windsurf) are autonomous actors that modify production systems — this is precisely the "AI system" the Act regulates
-- Art. 11 requires technical documentation of AI systems including their development lifecycle — most engineering orgs have no documentation trail for AI-assisted code
+- AI coding agents (Claude Code, Cursor, Copilot, Windsurf) may form part of the development lifecycle of systems regulated by the EU AI Act. Organisations developing or operating high-risk AI systems must be able to evidence how those systems were designed, changed, tested and reviewed — AI coding agents are not inherently high-risk merely because they write production code, but their use must be documented when the system being built is regulated
+- Where a team develops a high-risk AI system, Article 11 requires technical documentation. AI-assisted development can make reconstructing that lifecycle more difficult unless agent activity, testing and approvals are captured as work happens
 - Art. 13 requires transparency and disclosure — who knows which code blocks were AI-generated?
-- Fines: up to EUR 35M or 7% of global turnover for high-risk non-compliance
+- Fines: the highest tier (up to EUR 35M or 7% of global turnover) applies to prohibited AI practices; infringements of high-risk system obligations carry lower maximums (up to EUR 15M or 3%); the exact penalty depends on the infringement and the organisation
 - The gap: security teams are focused on AI products (chatbots, recommendation engines) while AI *development tools* fly under the radar
 **DevAudit hook:** DevAudit's `Co-Authored-By` commit enforcement, `ai-prompts.md` evidence artifact, and `ai-use-note.md` per-requirement record create the Art. 11 technical documentation trail automatically. The /sdlc page's "AI as a first-class contributor" section and the EU AI Act "Risk Elevation" control on /compliance are the canonical product references.
 **CTA:** "See how DevAudit maps to EU AI Act articles → [devaudit.ai/compliance](https://devaudit.ai/compliance)"
@@ -193,10 +195,10 @@ Before the broader thought-leadership and workflow series begins, the **first pu
 #### Article 3: SOC 2 and Segregation of Duties
 
 **Primary persona:** Compliance Officer
-**Goal:** Surface the specific SOC 2 gap that AI agents create (the same entity writes, tests, and could approve code) and show how DevAudit's four-eyes gate solves it.
+**Goal:** Surface the SOC 2 change-management challenge that AI agents create (the same entity writes, tests, and could approve code) and show how DevAudit's dual-approval gate supports segregation-of-duties and change-management objectives.
 **Key points:**
-- SOC 2 CC8.1 requires segregation of duties in change management. When an AI agent writes the code AND generates the test evidence, the "segregation" is between a human and their tool — which is no segregation at all
-- Updated 2026 SOC 2 guidance requires proof that AI actions are attributable to an accountable human, not a system account
+- SOC 2 CC8.1 addresses controls over changes to systems and processes. When an AI agent writes the code AND generates the test evidence, the change-management chain becomes harder to evidence — the "segregation" is between a human and their tool, which auditors may not accept as meaningful separation
+- Dual approval supports segregation-of-duties and change-management objectives under CC8.1 — DevAudit's `dual_actor` mode is one concrete implementation, not a SOC 2 mandate
 - The `Co-Authored-By` tag attributes AI code to the human who directed it. The four-eyes approval gate (`dual_actor` mode) ensures `approver_user_id != release_creator_user_id`
 - `solo_with_gap` mode exists for solo developers but requires an explicit risk-register entry acknowledging the control gap — the auditor sees the acknowledgement, not a silent bypass
 - Evidence is immutable and timestamped on the portal — no post-hoc fabrication
@@ -331,7 +333,7 @@ Before the broader thought-leadership and workflow series begins, the **first pu
 **Primary persona:** CISO + Compliance
 **Goal:** Clause-by-clause mapping of EU AI Act technical documentation requirements to specific DevAudit artifacts.
 **Key points:**
-- Art. 11 requires: general description of the AI system, development methodology, design specifications, data requirements, testing and validation results, risk management measures
+- Art. 11 (high-risk AI systems) requires: general description of the AI system, development methodology, design specifications, data requirements, testing and validation results, risk management measures — AI-assisted development makes capturing this lifecycle harder unless agent activity is tracked automatically
 - What DevAudit generates automatically: `ai-use-note.md` (AI system description per REQ), `implementation-plan.md` (design specifications), test-execution-summary (testing results), SAST + dep-audit evidence (risk management), `Co-Authored-By` provenance trail
 - What you still write: the company-level AI system register, DPIA (template provided), AI disclosure statement (template provided), human oversight procedures
 - Art. 13 transparency: `ai-prompts.md` captures the human-AI interaction; the portal makes this reviewable by auditors
@@ -793,21 +795,26 @@ This is a five-part series that follows a single feature from GitHub issue to pr
 
 ## Publishing cadence
 
+The first four weeks publish **one article per week** to give each piece room to breathe, allow distribution and discussion, learn which positioning resonates, and build trust before increasing cadence. The EU AI Act article (#1) is deferred to W10 pending legal review of its regulatory framing.
+
 | Week | Articles | Theme |
 |------|----------|-------|
-| Launch week (W1) | #1, #2, #4, #9 | Awareness + quickstart — EU AI Act urgency, the agentic SDLC vision, the developer post-mortem hook, and the hands-on tutorial |
-| W2 | #3, #5, #6 | Governance gap — SOC 2 SoD, the 60% stat, audit trail deep-dive |
-| W3 | #16, #17, #18 | Workflow series Pt 1–3 — plan → implement → evidence |
-| W4 | #19, #20, #10 | Workflow series Pt 4–5 + four-eyes gate |
-| W5 | #7, #23, #24 | Technical architecture — code/evidence separation, binary bloat, skills vs. prompts |
-| W6 | #8, #14, #26 | Compliance audience — ROI, auditor access, auditor's view |
-| W7 | #11, #22, #21 | Standards deep-dives — EU AI Act mapping, ISO 29119, attack surface |
-| W8 | #12, #13, #15 | Decision stage — DIY comparison, migration guide, security whitepaper |
-| W9 | #25, #27, #28 | Role guides — developer day, team onboarding, risk configuration |
-| W10 | #29, #30, #31 | Technical deep-dives — plugin SDK, multi-agent rules, screenshot density |
-| W11 | #32, #33, #34 | Framework internals — dev/operator modes, governance opt-in, CI template engine |
-| W12 | #35, #36, #37 | Operational compliance — housekeeping releases, incident→risk loop, fail-closed design |
-| W13 | #38 | Workflow UX — LAST/NEXT status sticky for distributed teams |
+| W1 | Launch-1 | Soft-launch invitation — recruit testers and reviewers |
+| W2 | #4 | Vibe Coding Broke My CI Pipeline — establish the concrete problem |
+| W3 | #9 | DevAudit in 15 Minutes — drive installation and activation |
+| W4 | #2 | The Agentic SDLC — establish the wider category and CTO narrative |
+| W5 | #3, #5, #6 | Governance gap — SOC 2 change management, the 60% stat, audit trail deep-dive |
+| W6 | #16, #17, #18 | Workflow series Pt 1–3 — plan → implement → evidence |
+| W7 | #19, #20, #10 | Workflow series Pt 4–5 + four-eyes gate |
+| W8 | #7, #23, #24 | Technical architecture — code/evidence separation, binary bloat, skills vs. prompts |
+| W9 | #8, #14, #26 | Compliance audience — ROI, auditor access, auditor's view |
+| W10 | #1, #11, #22 | EU AI Act + standards deep-dives — Article 1 (pending legal review), Art. 11 mapping, ISO 29119 |
+| W11 | #21, #12, #13 | Attack surface + decision stage — AI agent threats, DIY comparison, migration guide |
+| W12 | #15, #25, #27 | Security whitepaper + role guides — security deep-dive, developer day, team onboarding |
+| W13 | #28, #29, #30 | Risk config + technical deep-dives — risk configuration, plugin SDK, multi-agent rules |
+| W14 | #31, #32, #33 | Screenshot density, framework internals, governance opt-in |
+| W15 | #34, #35, #36 | CI template engine, housekeeping releases, incident→risk loop |
+| W16 | #37, #38 | Fail-closed design, workflow UX |
 
 ### Social companion timing
 
@@ -815,7 +822,7 @@ Short-form companions publish **same day** as the long-form, staggered by 2–4 
 
 | Day | Long-form publishes | Social companion same-day | X thread next morning |
 |-----|--------------------|--------------------------|-----------------------|
-| Mon/Tue | Blog articles (2–3 per week) | LinkedIn + Dev.to companions | Launch week + high-signal only |
+| Mon/Tue | Blog articles (1–2 per week; 1 per week during W1–W4) | LinkedIn + Dev.to companions | High-signal only |
 | Wed | — | Reshare previous week's best-performing companion with new hook | — |
 | Thu/Fri | Blog articles (1–2 per week) | LinkedIn + Dev.to companions | — |
 
@@ -832,7 +839,7 @@ Every article ships in two formats: the **long-form** (devaudit.ai/blog) and a *
 | **devaudit.ai/blog** | Long-form (primary home, SEO-optimised) | All 38 |
 | **LinkedIn (posts + articles)** | Short-form companions | All CISO/CTO/Compliance articles: #1, #2, #3, #5, #6, #8, #10, #11, #12, #14, #15, #19, #21, #22, #26, #27, #28, #33, #35, #36, #37 |
 | **Dev.to / Hashnode** | Short-form companions (reposted with canonical URL pointing to devaudit.ai/blog) | All developer articles: #4, #7, #9, #13, #16, #17, #18, #20, #23, #24, #25, #29, #30, #31, #32, #34, #38 |
-| **X (Twitter)** | Thread versions (3–5 tweets) of the short-form companions | Launch week articles (#1, #2, #4, #9) + highest-signal pieces (#5, #21, #23, #24, #30, #37) |
+| **X (Twitter)** | Thread versions (3–5 tweets) of the short-form companions | #4, #9, #2 (W2–W4) + highest-signal pieces (#5, #21, #23, #24, #30, #37) |
 | **Hacker News** | Direct long-form submissions | #4 (post-mortem format), #23 (binary bloat — technical problem), #30 (multi-agent rules — technical architecture), #34 (CI template engine — technical deep-dive) |
 | **Email nurture** | Long-form links | BOFU articles (#12, #13, #14, #15) to leads who've engaged with TOFU/MOFU content |
 | **Webinar** | Live walkthrough | "How a Feature Ships" series (#16–#20) with a real project |
@@ -885,8 +892,8 @@ Each companion post follows this structure:
 
 **Long-form parent:** Article 3 — SOC 2 and Segregation of Duties
 **Platform:** LinkedIn
-**Hook:** "CC8.1 requires segregation of duties in change management. When the same AI writes the code AND generates the test evidence, the 'segregation' is between a human and their tool. That's not segregation."
-**Insight:** Updated 2026 SOC 2 guidance requires proof that AI actions are attributable to an accountable human. The `Co-Authored-By` tag is attribution; the four-eyes gate (`dual_actor` mode) is segregation. Both are required.
+**Hook:** "CC8.1 addresses controls over changes to systems. When the same AI writes the code AND generates the test evidence, the change-management chain becomes harder to evidence. The 'segregation' is between a human and their tool — auditors may not accept that as meaningful separation."
+**Insight:** Dual approval supports segregation-of-duties and change-management objectives under CC8.1. The `Co-Authored-By` tag is attribution; the four-eyes gate (`dual_actor` mode) is one concrete implementation. Neither is a SOC 2 mandate, but both strengthen the control environment.
 **Proof point:** `approval.mode: dual_actor` in `sdlc-config.json`, enforced server-side by `check-release-approval.yml`. The portal records `approver_user_id != release_creator_user_id` immutably.
 **CTA:** "See the SOC 2 mapping → devaudit.ai/compliance"
 
