@@ -196,6 +196,7 @@ describe('syncProject — native TS sync against a fixture', () => {
     // wawagardenbar-app#383: PRs to develop must surface Quality Gates, while
     // release registration/evidence upload stay push/dispatch-only side effects.
     expect(ciYml).toContain('pull_request:\n    branches: [develop]');
+    expect(ciYml).toContain("if: ${{ github.event_name != 'pull_request' || !startsWith(github.head_ref, 'chore/close-out-') }}");
     expect(ciYml).toMatch(/register-release:[\s\S]*if: \$\{\{ github\.event_name != 'pull_request' && github\.ref_name == 'develop' \}\}/);
     expect(ciYml).toMatch(/upload-evidence:[\s\S]*if: \$\{\{ always\(\) && !cancelled\(\) && github\.ref_name == 'develop' && needs\.register-release\.result == 'success' \}\}/);
     // DevAudit-Installer#98 WS3 + WS4: governance auto-generation workflows
@@ -232,6 +233,9 @@ describe('syncProject — native TS sync against a fixture', () => {
     expect(complianceEvidenceYml).toContain("printf '%s\\n' 'import json'");
     expect(complianceEvidenceYml).toContain('python3 /tmp/devaudit-extract-e2e-reqs.py');
     expect(complianceEvidenceYml).not.toContain("done < <(python3 - <<'PY'");
+    expect(complianceEvidenceYml).toContain('Walk suites/specs/tests/results recursively');
+    expect(complianceEvidenceYml).toContain('**Spec file:** ${SPEC_FILE}');
+    expect(complianceEvidenceYml).toContain('--title "[REGRESSION] ${SPEC_FILE} :: ${TEST_NAME}"');
     const ciStatusFallbackYml = await fs.readFile(
       join(fixtureDir, '.github', 'workflows', 'ci-status-fallback.yml'),
       'utf-8',
@@ -508,6 +512,7 @@ describe('syncProject — native TS sync against a fixture', () => {
     );
     expect(featureE2eYml).toContain('Feature In-Scope E2E');
     expect(featureE2eYml).toContain('pull_request:\n    branches: [develop]');
+    expect(featureE2eYml).toContain("if: ${{ !startsWith(github.head_ref, 'chore/close-out-') }}");
     expect(featureE2eYml).toContain('detect-req');
     expect(featureE2eYml).toContain('run-feature-e2e');
     // No residual block tokens

@@ -256,6 +256,21 @@ Generated workflows use two distinct auth domains:
   - used for GitHub Actions repo mutations such as checkout, branch push, PR creation, issue/comment/label edits, and check-run updates
 
 `DEVAUDIT_USER_TOKEN` is not the default GitHub auth token for workflow repo mutations. If a workflow is mutating GitHub state, the expected auth path is the workflow token plus explicit `permissions:` on the job.
+
+### Status-check contract
+
+Generated consumers should keep a clear distinction between:
+
+- **repo-owned required checks**: `Quality Gates`, `Compliance Validation`, `DevAudit Release Approval`
+- **external operational checks**: hosting or deployment suites such as `vercel`, `railway-app`, `cloudflare-workers-and-pages`
+
+Rules:
+
+1. Only the repo-owned checks should be required by default in branch protection.
+2. External suites should stay informational unless you intentionally decide otherwise.
+3. `chore/close-out-*` branches are administrative reconciliation branches; heavy PR CI/E2E is not the intended gate there.
+4. If external suites still attach to close-out or compliance-only branches, treat that as integration drift and trim the upstream app/integration settings.
+
 4. **Compliance directory structure** — `compliance/evidence/REQ-XXX/`, `compliance/pending-releases/`, `compliance/approved-releases/`.
 5. **Release status lifecycle** — `check-release-approval.yml` depends on exact status values.
 6. **Stack + host adapter schemas** — `sdlc/files/stacks/_schema/adapter.schema.json`, `sdlc/files/hosts/_schema/adapter.schema.json`. Adding required fields breaks every existing adapter.

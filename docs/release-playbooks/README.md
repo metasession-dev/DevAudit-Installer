@@ -123,6 +123,23 @@ Is production down or critically broken?
 
 > **The golden rule of hotfixes:** gates are never skipped. The plan-approval pause can be compressed (a chat message counts), evidence can be brief, but TypeScript / SAST / dep-audit / E2E / build must all be green. A hotfix that bypasses gates is just an untested change to production.
 
+## PR check interpretation
+
+When you're reviewing a PR under this SDLC, separate the signals:
+
+- **Authoritative merge gates:** `Quality Gates`, `Compliance Validation`, `DevAudit Release Approval`
+- **Informational signals:** hosting/deploy suites such as `vercel`, `railway-app`, `cloudflare-workers-and-pages`
+
+The informational suites may still tell you something operationally useful, but they are not the release gate unless your repo's branch protection explicitly says they are.
+
+Close-out PRs are a special case:
+
+- branch pattern: `chore/close-out-*`
+- purpose: reconcile released `main` back into `develop`, move tickets, and close the compliance loop
+- expectation: they should avoid heavy feature/release PR workflows where possible, because the release was already approved and deployed before the close-out branch existed
+
+If a close-out PR shows only incidental third-party check noise, treat that as a repo-integration cleanup task, not as evidence that the SDLC release itself is incomplete.
+
 ### Superseding decision tree
 
 ```
