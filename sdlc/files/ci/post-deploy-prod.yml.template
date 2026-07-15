@@ -36,6 +36,7 @@ jobs:
     runs-on: {{RUNNER}}
     permissions:
       contents: read
+      deployments: read
       issues: write
     env:
       DEVAUDIT_BASE_URL_VAR: ${{ vars.DEVAUDIT_BASE_URL }}
@@ -127,6 +128,17 @@ jobs:
             echo "Attempt ${i}/30: HTTP ${HTTP_CODE} — waiting 10s..."
             sleep 10
           done
+
+      - name: Confirm terminal host deployment success
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          chmod +x scripts/check-host-deployment.sh 2>/dev/null || true
+          bash scripts/check-host-deployment.sh \
+            --repo="${{ github.repository }}" \
+            --sha="${GIT_SHA}" \
+            --max-attempts=30 \
+            --poll-seconds=10
 
       - name: Production smoke tests (read-only)
         run: |

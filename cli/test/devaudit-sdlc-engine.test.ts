@@ -399,9 +399,13 @@ describe('devaudit-sdlc CLI engine', () => {
           ...process.env,
           DEVAUDIT_GH_BIN: ghBin,
           PATH: `${mockBin}:${process.env.PATH}`,
-          GH_PR_VIEW_JSON: JSON.stringify({ state: 'OPEN', isDraft: false, reviewDecision: 'APPROVED' }),
+          GH_PR_VIEW_JSON: JSON.stringify({ state: 'OPEN', isDraft: false, reviewDecision: 'APPROVED', baseRefName: 'main', headRefName: 'develop' }),
           GH_PR_CHECKS_JSON: JSON.stringify([
             { name: 'Quality Gates', workflow: 'CI', state: 'SUCCESS', bucket: 'pass', link: 'https://github.com/x/actions/runs/101' },
+            { name: 'Release Scope Integrity', workflow: 'CI Pipeline', state: 'SUCCESS', bucket: 'pass', link: 'https://github.com/x/actions/runs/102' },
+            { name: 'Compliance Validation', workflow: 'Compliance Validation', state: 'SUCCESS', bucket: 'pass', link: 'https://github.com/x/actions/runs/103' },
+            { name: 'DevAudit Release Approval', workflow: 'Release Approval Gate', state: 'SUCCESS', bucket: 'pass', link: 'https://github.com/x/actions/runs/104' },
+            { name: 'E2E Regression Suite', workflow: 'E2E Regression', state: 'SUCCESS', bucket: 'pass', link: 'https://github.com/x/actions/runs/105' },
           ]),
         },
       });
@@ -415,6 +419,27 @@ describe('devaudit-sdlc CLI engine', () => {
       expect(watchState.watches['metasession-dev/example#42']).toBeTruthy();
       expect(watchState.watches['metasession-dev/example#42']!.lastClassification).toBe('ready');
       expect(watchState.watches['metasession-dev/example#42']!.pollCount).toBe(1);
+    });
+
+    it('--watch-pr waits when a release PR is missing required release checks', async () => {
+      const mockBin = await writeMockGh(sandbox);
+      const ghBin = join(mockBin, 'gh');
+      const res = await execa(process.execPath, [ENGINE_PATH, '--watch-pr=43', '--repo=metasession-dev/example', '--once'], {
+        cwd: sandbox,
+        reject: false,
+        env: {
+          ...process.env,
+          DEVAUDIT_GH_BIN: ghBin,
+          PATH: `${mockBin}:${process.env.PATH}`,
+          GH_PR_VIEW_JSON: JSON.stringify({ state: 'OPEN', isDraft: false, reviewDecision: 'APPROVED', baseRefName: 'main', headRefName: 'develop' }),
+          GH_PR_CHECKS_JSON: JSON.stringify([
+            { name: 'Quality Gates', workflow: 'CI', state: 'SUCCESS', bucket: 'pass', link: 'https://github.com/x/actions/runs/101' },
+          ]),
+        },
+      });
+
+      expect(res.exitCode).toBe(2);
+      expect(res.stdout).toContain('waiting for required release checks to report');
     });
 
     it('--watch-pr auto-reruns a flaky failing workflow and persists rerun counts', async () => {
