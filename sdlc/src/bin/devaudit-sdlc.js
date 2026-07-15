@@ -16,6 +16,15 @@ const DEFAULT_FLAKY_PATTERNS = [
     'flaky',
     'retry',
 ];
+const DEFAULT_INTEGRATION_BRANCH = 'develop';
+const DEFAULT_RELEASE_BRANCH = 'main';
+const REQUIRED_RELEASE_CHECKS = [
+    'Quality Gates',
+    'Release Scope Integrity',
+    'Compliance Validation',
+    'DevAudit Release Approval',
+    'E2E Regression Suite',
+];
 const RELEASE_APPROVAL_STATUSES = new Set([
     'uat_approved',
     'release_approved',
@@ -82,6 +91,11 @@ function isReleaseApprovalState(value) {
 function isReleaseGateCheck(check) {
     const haystack = `${check.name || ''} ${check.workflow || ''}`.toLowerCase();
     return haystack.includes('release approval') || haystack.includes('uat approval');
+}
+
+function isReleasePromotionPr(pr, options) {
+    return normalizeState(pr.baseRefName) === normalizeState(options.releaseBranch || DEFAULT_RELEASE_BRANCH)
+        && normalizeState(pr.headRefName) === normalizeState(options.integrationBranch || DEFAULT_INTEGRATION_BRANCH);
 }
 
 function isFlakyCheck(check, patterns) {
@@ -313,6 +327,14 @@ function classifyPrStatus(pr, checks, portalStatus, watch, options) {
     const failingChecks = checks.filter(check => isFailingState(check.state || check.bucket));
     const pendingChecks = checks.filter(check => isPendingState(check.state || check.bucket));
     const releaseGate = checks.find(isReleaseGateCheck) || null;
+    const isReleasePr = isReleasePromotionPr(pr || {}, options);
+    const releaseChecks = isReleasePr
+        ? checks.filter(check => REQUIRED_RELEASE_CHECKS.includes(String(check.name || '')))
+        : [];
+    const missingReleaseChecks = isReleasePr
+        ? REQUIRED_RELEASE_CHECKS.filter(required => !releaseChecks.some(check => String(check.name || '') === required))
+        : [];
+    const pendingReleaseChecks = releaseChecks.filter(check => isPendingState(check.state || check.bucket));
 
     if (normalizeState(pr.state) !== 'open') {
         return {
@@ -362,6 +384,22 @@ function classifyPrStatus(pr, checks, portalStatus, watch, options) {
         };
     }
 
+    if (isReleasePr && missingReleaseChecks.length > 0) {
+        return {
+            kind: 'waiting',
+            exitCode: 2,
+            summary: `PR #${watch.prNumber} is still waiting for required release checks to report: ${missingReleaseChecks.join(', ')}.`,
+        };
+    }
+
+    if (isReleasePr && pendingReleaseChecks.length > 0) {
+        return {
+            kind: 'waiting',
+            exitCode: 2,
+            summary: `PR #${watch.prNumber} still has required release checks running: ${pendingReleaseChecks.map(formatCheckName).join(', ')}.`,
+        };
+    }
+
     for (const check of failingChecks) {
         if (!isReleaseGateCheck(check) && isFlakyCheck(check, options.flakyPatterns || DEFAULT_FLAKY_PATTERNS)) {
             const runId = extractRunId(check.link);
@@ -405,7 +443,9 @@ function classifyPrStatus(pr, checks, portalStatus, watch, options) {
     return {
         kind: 'ready',
         exitCode: 0,
-        summary: `PR #${watch.prNumber} is approved and all observed checks are green. Ready for merge.`,
+        summary: isReleasePr
+            ? `PR #${watch.prNumber} is approved and all required release checks reached terminal success. Ready for merge.`
+            : `PR #${watch.prNumber} is approved and all observed checks are green. Ready for merge.`,
     };
 }
 
@@ -454,6 +494,8 @@ async function watchPullRequest() {
 
     const options = {
         flakyPatterns: flakyPatterns.length > 0 ? flakyPatterns : DEFAULT_FLAKY_PATTERNS,
+        integrationBranch: getOption('integration-branch') || DEFAULT_INTEGRATION_BRANCH,
+        releaseBranch: getOption('release-branch') || DEFAULT_RELEASE_BRANCH,
     };
 
     let pollsRemaining = once ? 1 : maxPolls;
@@ -463,7 +505,7 @@ async function watchPullRequest() {
         let pr;
         let checks;
         try {
-            pr = runGhJson(['pr', 'view', String(prNumber), '--repo', repo, '--json', 'state,isDraft,reviewDecision']);
+            pr = runGhJson(['pr', 'view', String(prNumber), '--repo', repo, '--json', 'state,isDraft,reviewDecision,baseRefName,headRefName']);
             checks = runGhJson(['pr', 'checks', String(prNumber), '--repo', repo, '--json', 'name,state,link,workflow,bucket']) || [];
             if (!Array.isArray(checks)) checks = [];
         } catch (error) {

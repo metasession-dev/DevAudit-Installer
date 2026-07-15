@@ -248,6 +248,14 @@ describe('syncProject — native TS sync against a fixture', () => {
     expect(provenanceYml).toContain('bash scripts/check-release-pr-scope.sh');
     expect(provenanceYml).toContain('gh workflow run ci.yml --ref "$HEAD_REF"');
     expect(provenanceYml).toContain('gh run watch "$RUN_ID" --exit-status');
+    expect(provenanceYml).toContain('MAX_ATTEMPTS=10');
+    expect(provenanceYml).toContain('Develop-side Quality Gates for SHA ${HEAD_SHA} not successful yet');
+    const postDeployYml = await fs.readFile(
+      join(fixtureDir, '.github', 'workflows', 'post-deploy-prod.yml'),
+      'utf-8',
+    );
+    expect(postDeployYml).toContain('deployments: read');
+    expect(postDeployYml).toContain('bash scripts/check-host-deployment.sh');
     // DevAudit-Installer#228 — every generated workflow must be valid YAML.
     await expectAllWorkflowsValidYaml(fixtureDir);
     await expectWorkflowTokenContract(fixtureDir);

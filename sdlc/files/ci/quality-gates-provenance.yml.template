@@ -127,26 +127,31 @@ jobs:
         run: |
           echo "Checking for prior successful 'Quality Gates' on SHA: $HEAD_SHA"
           echo "Excluding current workflow run: $CURRENT_RUN_ID"
-
-          # Query GitHub API for check runs on this SHA with name "Quality Gates"
           CURRENT_RUN_URL="/actions/runs/${CURRENT_RUN_ID}"
-          RESPONSE=$(gh api \
-            "/repos/${{ github.repository }}/commits/${HEAD_SHA}/check-runs?name=Quality%20Gates" \
-            --jq ".check_runs[]
-              | select(.status == \"completed\" and .conclusion == \"success\")
-              | select((.details_url // \"\") | contains(\"${CURRENT_RUN_URL}\") | not)")
+          MAX_ATTEMPTS=10
+          WAIT_SECONDS=30
 
-          if [ -n "$RESPONSE" ]; then
-            echo "Found prior successful Quality Gates result:"
-            echo "$RESPONSE" | head -5
-            echo ""
-            echo "Provenance verified — this SHA passed develop-side Quality Gates."
-            exit 0
-          else
-            echo "::error::This SHA did not pass develop-side Quality Gates."
-            echo "::error::Push this exact commit through the normal develop flow first."
-            echo ""
-            echo "No prior successful 'Quality Gates' check run found for SHA $HEAD_SHA"
-            echo "(excluding current workflow run $CURRENT_RUN_ID)."
-            exit 1
-          fi
+          for ATTEMPT in $(seq 1 $MAX_ATTEMPTS); do
+            RESPONSE=$(gh api \
+              "/repos/${{ github.repository }}/commits/${HEAD_SHA}/check-runs?name=Quality%20Gates" \
+              --jq ".check_runs[]
+                | select(.status == \"completed\" and .conclusion == \"success\")
+                | select((.details_url // \"\") | contains(\"${CURRENT_RUN_URL}\") | not)")
+
+            if [ -n "$RESPONSE" ]; then
+              echo "Found prior successful Quality Gates result:"
+              echo "$RESPONSE" | head -5
+              echo ""
+              echo "Provenance verified — this SHA passed develop-side Quality Gates."
+              exit 0
+            fi
+
+            if [ "$ATTEMPT" -lt "$MAX_ATTEMPTS" ]; then
+              echo "Develop-side Quality Gates for SHA ${HEAD_SHA} not successful yet. Waiting ${WAIT_SECONDS}s (${ATTEMPT}/${MAX_ATTEMPTS})..."
+              sleep "$WAIT_SECONDS"
+            fi
+          done
+
+          echo "::error::No successful develop-side Quality Gates result found for SHA ${HEAD_SHA} after waiting $((MAX_ATTEMPTS * WAIT_SECONDS / 60)) minutes."
+          echo "::error::Push this exact commit through the normal develop flow first, or wait for the in-flight develop pipeline to finish and rerun this check."
+          exit 1
