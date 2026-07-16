@@ -4,6 +4,7 @@ import { execa } from 'execa';
 import { collectFiles, uploadEvidence, probeBaseUrlDrift } from '../lib/ci-upload.js';
 import { logger, isJsonMode, emitJsonResult } from '../lib/logger.js';
 import { discoverPlugins, buildPluginContext, runHook, type LoadedPlugin } from '../lib/plugin/index.js';
+import type { EvidenceScope } from '../lib/release-lineage-contract.js';
 
 export interface PushOptions {
   readonly projectSlug: string;
@@ -25,6 +26,10 @@ export interface PushOptions {
   readonly sdlcStage?: string;
   /** Test cycle identifier — forwarded as `testCycleId` (parity with upload-evidence.sh --test-cycle). */
   readonly testCycleId?: string;
+  /** Evidence ownership scope — forwarded as `evidenceScope`. */
+  readonly evidenceScope?: EvidenceScope;
+  /** First-class cycle UUID — forwarded as `testCycleRecordId`. */
+  readonly testCycleRecordId?: string;
   /** Repeatable `key=value` pairs merged into the metadata JSON. */
   readonly metaKeys?: readonly string[];
   readonly baseUrl?: string;
@@ -86,6 +91,15 @@ export function validateOptions(options: PushOptions): string | null {
   }
   for (const kv of options.metaKeys ?? []) {
     if (!kv.includes('=')) return `--meta-key requires key=value (got: ${kv})`;
+  }
+  if (
+    options.evidenceScope !== undefined &&
+    !['release', 'stage', 'cycle', 'approval'].includes(options.evidenceScope)
+  ) {
+    return '--evidence-scope must be one of: release, stage, cycle, approval';
+  }
+  if (options.testCycleRecordId && options.evidenceScope !== 'cycle') {
+    return '--test-cycle-record-id requires --evidence-scope cycle';
   }
   return null;
 }
@@ -172,6 +186,10 @@ export async function runPush(options: PushOptions): Promise<void> {
     ...(options.gateStatus !== undefined ? { gateStatus: options.gateStatus } : {}),
     ...(options.sdlcStage !== undefined ? { sdlcStage: options.sdlcStage } : {}),
     ...(options.testCycleId !== undefined ? { testCycleId: options.testCycleId } : {}),
+    ...(options.evidenceScope !== undefined ? { evidenceScope: options.evidenceScope } : {}),
+    ...(options.testCycleRecordId !== undefined
+      ? { testCycleRecordId: options.testCycleRecordId }
+      : {}),
     ...(sentinelContent !== undefined ? { sentinelContent } : {}),
     ...(commitTimestamp !== undefined ? { commitTimestamp } : {}),
     metadata,

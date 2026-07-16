@@ -1,6 +1,11 @@
 import { openAsBlob, promises as fs } from 'node:fs';
 import { basename, join } from 'node:path';
 import { DevAuditApiError } from './devaudit-api.js';
+import {
+  renderEvidenceLineageFields,
+  type EvidenceScope,
+  type LineagePortalCapabilities,
+} from './release-lineage-contract.js';
 
 export interface UploadOptions {
   readonly projectSlug: string;
@@ -27,11 +32,16 @@ export interface UploadOptions {
   readonly sdlcStage?: string;
   /** Test cycle identifier — forwarded as `testCycleId` (parity with upload-evidence.sh --test-cycle). */
   readonly testCycleId?: string;
+  /** Evidence ownership scope — forwarded as `evidenceScope`. */
+  readonly evidenceScope?: EvidenceScope;
+  /** First-class cycle UUID — forwarded as `testCycleRecordId` during dual-write rollout. */
+  readonly testCycleRecordId?: string;
   /** Raw `.sdlc-implementer-invoked` content for portal-side sentinel verification. */
   readonly sentinelContent?: string;
   /** Commit timestamp used during portal-side sentinel verification. */
   readonly commitTimestamp?: string;
   readonly metadata?: Readonly<Record<string, unknown>>;
+  readonly lineageCapabilities?: LineagePortalCapabilities;
 }
 
 export interface UploadResult {
@@ -179,6 +189,14 @@ function buildUploadForm(file: string, source: UploadSource, opts: UploadOptions
     ...(opts.metadata ?? {}),
     ...(opts.commitTimestamp ? { commitTimestamp: opts.commitTimestamp } : {}),
   };
+  const lineageFields = renderEvidenceLineageFields(
+    {
+      evidenceScope: opts.evidenceScope,
+      testCycleRecordId: opts.testCycleRecordId,
+      testCycleId: opts.testCycleId,
+    },
+    opts.lineageCapabilities ?? { supportsFirstClassCycleApi: true },
+  );
   const form = new FormData();
   form.set('file', source.blob, basename(file));
   form.set('projectSlug', opts.projectSlug);
@@ -195,7 +213,9 @@ function buildUploadForm(file: string, source: UploadSource, opts: UploadOptions
   if (opts.changeType) form.set('changeType', opts.changeType);
   if (opts.gateStatus) form.set('gateStatus', opts.gateStatus);
   if (opts.sdlcStage) form.set('sdlcStage', opts.sdlcStage);
-  if (opts.testCycleId) form.set('testCycleId', opts.testCycleId);
+  if (lineageFields.testCycleId) form.set('testCycleId', lineageFields.testCycleId);
+  if (lineageFields.evidenceScope) form.set('evidenceScope', lineageFields.evidenceScope);
+  if (lineageFields.testCycleRecordId) form.set('testCycleRecordId', lineageFields.testCycleRecordId);
   if (opts.sentinelContent) form.set('sentinelContent', opts.sentinelContent);
   if (opts.commitTimestamp) form.set('commitTimestamp', opts.commitTimestamp);
   return form;
@@ -311,6 +331,14 @@ async function uploadPresigned(
     ...(opts.metadata ?? {}),
     ...(opts.commitTimestamp ? { commitTimestamp: opts.commitTimestamp } : {}),
   };
+  const lineageFields = renderEvidenceLineageFields(
+    {
+      evidenceScope: opts.evidenceScope,
+      testCycleRecordId: opts.testCycleRecordId,
+      testCycleId: opts.testCycleId,
+    },
+    opts.lineageCapabilities ?? { supportsFirstClassCycleApi: true },
+  );
 
   // Step 1: Request presigned upload URL
   let uploadUrl = '';
@@ -345,7 +373,11 @@ async function uploadPresigned(
           ...(opts.releaseSummary ? { releaseSummary: opts.releaseSummary } : {}),
           ...(opts.changeType ? { changeType: opts.changeType } : {}),
           ...(opts.sdlcStage ? { sdlcStage: opts.sdlcStage } : {}),
-          ...(opts.testCycleId ? { testCycleId: opts.testCycleId } : {}),
+          ...(lineageFields.testCycleId ? { testCycleId: lineageFields.testCycleId } : {}),
+          ...(lineageFields.evidenceScope ? { evidenceScope: lineageFields.evidenceScope } : {}),
+          ...(lineageFields.testCycleRecordId
+            ? { testCycleRecordId: lineageFields.testCycleRecordId }
+            : {}),
           ...(opts.sentinelContent ? { sentinelContent: opts.sentinelContent } : {}),
           ...(opts.commitTimestamp ? { commitTimestamp: opts.commitTimestamp } : {}),
         }),
