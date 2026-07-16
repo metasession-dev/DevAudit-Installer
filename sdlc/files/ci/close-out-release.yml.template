@@ -11,10 +11,11 @@
 #   - workflow_dispatch — manual catch-up for an already-released requirement.
 #
 # It merges origin/main into a branch from develop (devaudit#281), runs
-# scripts/close-out-release.sh for the requirement (flip ticket + RTM, move
-# ticket to approved-releases/), then opens one PR to develop containing both
-# the main→develop sync and the compliance-tree close-out. The script is
-# idempotent, so a no-op produces no PR.
+# scripts/close-out-release.sh for the requirement (flip the governing ticket +
+# RTM, move the governing ticket to approved-releases/, and move any absorbed
+# predecessor tickets to superseded-releases/), then opens one PR to develop
+# containing both the main→develop sync and the compliance-tree close-out. The
+# script is idempotent, so a no-op produces no PR.
 
 name: Release Close-out
 
@@ -133,6 +134,7 @@ jobs:
           - release ticket moved to approved-releases/
           - release ticket status → RELEASED
           - RTM row → RELEASED
+          - absorbed predecessor tickets → superseded-releases/ (if the bundle manifest listed any)
 
           Ref: ${REQ}"
           git push -u origin "$BRANCH" --force-with-lease
@@ -144,6 +146,7 @@ jobs:
           - **main → develop reconciliation** — merges released code back into develop
           - **release ticket** moved to \`approved-releases/\`, status \`RELEASED\`
           - **RTM row** flipped to \`RELEASED\`
+          - **absorbed predecessor tickets** moved to \`superseded-releases/\` when the release bundle lists them
 
           Review + merge to develop."
           gh pr create --base develop --head "$BRANCH" \

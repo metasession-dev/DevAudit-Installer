@@ -511,6 +511,23 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
 
    If the validator fails, fix the summary before proceeding. E2E gate results must be one of: `PASS`, `FAIL`, `NOT_NEEDED` (with reason), or `SKIPPED` (with operator-approved rationale). The word "deferred" must never appear in `test-execution-summary.md` — not as a gate state, not in prose, not in final assessment. "Deferred to CI" and "Playwright browsers not installed locally" are environment issues, not gate states. The CI validator (`validate-test-summary.sh`) will reject any summary containing "deferred" or "browsers not installed" on PRs to main.
 
+5bb. **Render the Test Cycles table from the portal's cycle read model when available (devaudit-installer#394).** Do not hand-build cycle rows from uploaded artefacts if the portal exposes first-class cycle records. Query the release-journey / cycle API, save the JSON, and render the markdown table with:
+
+   ```bash
+   bash scripts/render-test-cycles.sh /tmp/release-journey.json
+   ```
+
+   First-class rows must preserve:
+   - source release
+   - SDLC stage
+   - cycle ordinal within that source release + stage
+   - cycle kind / outcome
+   - workflow or run link
+   - related evidence
+   - incident or remediation reference
+
+   If the portal does not yet expose first-class cycles, the same helper emits the legacy `testCycleId` grouping fallback and labels it as such. Keep the fallback note in the final `test-execution-summary.md`; it is part of the audit trail during rollout.
+
 5c. **Run the Phase 3 completion guard before any PR/release-review step (devaudit-installer#341).** The tracked-release evidence pack is incomplete until the required Git artefacts exist. Before proceeding past Phase 3, verify:
 
    - `compliance/evidence/REQ-XXX/test-scope.md`
@@ -520,6 +537,7 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
    - `compliance/pending-releases/RELEASE-TICKET-REQ-XXX.md`
    - `compliance/evidence/REQ-XXX/implementation-plan.md` when the REQ risk class requires it
    - any already-mandatory AI artefacts required by the risk/usage rules
+   - if `compliance/pending-releases/BUNDLED-CHANGES-REQ-XXX.md` exists, regenerate the paired JSON manifest too and keep both aligned with the current approval scope
    - if `compliance/pending-releases/BUNDLED-CHANGES-REQ-XXX.md` exists, the canonical artefacts must carry the bundle narrative too:
      - release ticket includes `## Bundled Changes` or `## Absorbed Predecessor Releases`
      - `test-execution-summary.md` includes `## Bundled Release Context`

@@ -339,7 +339,9 @@ gh pr create --base main --head develop --title "fix: <desc>" --body "Supersedes
 ```
 
 1. Mark the old release as **SUPERSEDED** on the portal (if the portal supports it)
-2. The new release carries its own full evidence — do not reuse the old release's evidence
+2. Regenerate `BUNDLED-CHANGES-REQ-XXX.md` and `BUNDLED-CHANGES-REQ-XXX.json` so the successor release explicitly names the absorbed predecessor and the evidence inheritance policy
+3. The successor release's close-out must move the absorbed predecessor ticket into `compliance/superseded-releases/` with explicit successor + reason metadata
+4. The new release carries its own full evidence — do not reuse the old release's evidence
 
 ### When the superseded release is already `released` on the portal
 

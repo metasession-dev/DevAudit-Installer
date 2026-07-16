@@ -306,6 +306,7 @@ EOF
 echo "## Bundled Changes" > compliance/pending-releases/BUNDLED-CHANGES-REQ-344.md
 git add . && git commit -q --amend --no-edit
 run_validator
+assert_grep "missing bundled manifest is reported" "ERROR: Bundled release evidence exists but BUNDLED-CHANGES-REQ-344.json is missing" 1
 assert_grep "missing structured fields on bundled evidence are reported" "ERROR: Bundled release evidence is missing bundled field '\\*\\*Core tracked release:\\*\\*'" 1
 assert_grep "missing structured fields on ticket are reported" "ERROR: Release ticket is missing bundled field '\\*\\*Core tracked release:\\*\\*'" 1
 assert_grep "missing bundled section on ticket is reported" "ERROR: Bundled release evidence exists but the release ticket is missing" 1
@@ -387,6 +388,8 @@ cat > compliance/pending-releases/BUNDLED-CHANGES-REQ-345.md <<'EOF'
 ## Bundled Changes
 
 - **Core tracked release:** `REQ-345`
+- **Bundle manifest:** `BUNDLED-CHANGES-REQ-345.json`
+- **Manifest hash:** `sha256:test-bundle-hash`
 - **Absorbed predecessor releases:** None
 - **Absorbed non-release work:** housekeeping syncs only
 - **Why bundled here:** housekeeping consolidation
@@ -399,8 +402,19 @@ cat > compliance/pending-releases/BUNDLED-CHANGES-REQ-345.md <<'EOF'
 
 - `abc123` chore: sync templates
 EOF
+cat > compliance/pending-releases/BUNDLED-CHANGES-REQ-345.json <<'EOF'
+{
+  "schemaVersion": 1,
+  "approvalRelease": { "version": "REQ-345" },
+  "coreRelease": { "version": "REQ-345" },
+  "members": [],
+  "nonReleaseWorkItems": [],
+  "manifestHash": "sha256:test-bundle-hash"
+}
+EOF
 git add . && git commit -q --amend --no-edit
 run_validator
+assert_grep "bundled manifest accepted" "OK: Bundled release manifest present: compliance/pending-releases/BUNDLED-CHANGES-REQ-345.json" 1
 assert_grep "bundled ticket section accepted" "OK: Release ticket documents bundled release context" 1
 assert_grep "bundled test summary section accepted" "OK: test-execution-summary.md documents bundled release context" 1
 assert_grep "bundled security summary section accepted" "OK: security-summary.md documents bundled release context" 1

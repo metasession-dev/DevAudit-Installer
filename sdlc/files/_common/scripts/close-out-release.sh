@@ -2,11 +2,20 @@
 # close-out-release.sh — Reconcile the local compliance tree after a release
 # is marked `released` on the DevAudit portal.
 #
-# For one requirement it: flips the release ticket Status -> RELEASED (backlinks
-# the release PR + records the sign-off), flips the matching compliance/RTM.md
-# row -> RELEASED, and moves the ticket from compliance/pending-releases/ to
-# compliance/approved-releases/. It stages the changes but does NOT commit — the
-# caller (the close-out workflow, or a human) commits/opens the PR.
+# For the governing requirement it: flips the release ticket Status -> RELEASED
+# (backlinks the release PR + records the sign-off), flips the matching
+# compliance/RTM.md row -> RELEASED, and moves the ticket from
+# compliance/pending-releases/ to compliance/approved-releases/.
+#
+# If the release carries a bundle manifest, explicit predecessor members are
+# reconciled too: their release tickets move to compliance/superseded-releases/,
+# ticket status flips to SUPERSEDED, the successor + reason are recorded, and
+# tracked REQ rows in compliance/RTM.md flip to SUPERSEDED. This keeps absorbed
+# predecessor releases from looking abandoned after the successor approval
+# envelope closes.
+#
+# The script stages the changes but does NOT commit — the caller (the close-out
+# workflow, or a human) commits/opens the PR.
 #
 # Usage:
 #   ./scripts/close-out-release.sh <REQ-ID> [--release-pr <url-or-number>]
@@ -42,9 +51,146 @@ fi
 
 PENDING="compliance/pending-releases/RELEASE-TICKET-${REQ_ID}.md"
 APPROVED_DIR="compliance/approved-releases"
+SUPERSEDED_DIR="compliance/superseded-releases"
 APPROVED="${APPROVED_DIR}/RELEASE-TICKET-${REQ_ID}.md"
 RTM="compliance/RTM.md"
 TODAY="$(date +%Y-%m-%d)"
+
+find_bundle_manifest_file() {
+  local req_id="$1"
+  local candidate=""
+  for candidate in \
+    "compliance/pending-releases/BUNDLED-CHANGES-${req_id}.json" \
+    "compliance/approved-releases/BUNDLED-CHANGES-${req_id}.json" \
+    "compliance/superseded-releases/BUNDLED-CHANGES-${req_id}.json"; do
+    if [ -f "$candidate" ]; then
+      printf '%s' "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
+find_release_ticket_file() {
+  local version="$1"
+  local candidate=""
+  for candidate in \
+    "compliance/pending-releases/RELEASE-TICKET-${version}.md" \
+    "compliance/approved-releases/RELEASE-TICKET-${version}.md" \
+    "compliance/superseded-releases/RELEASE-TICKET-${version}.md"; do
+    if [ -f "$candidate" ]; then
+      printf '%s' "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
+update_rtm_status() {
+  local req_id="$1"
+  local target_status="$2"
+  local tmp_file
+  tmp_file="$(mktemp)"
+  if [ -f "$RTM" ] && grep -qE "^\| ${req_id} " "$RTM"; then
+    awk -v req="$req_id" -v target_status="$target_status" '
+      BEGIN { FS="|"; OFS="|"; statuscol=0 }
+      /\\\|/ { gsub(/\\\|/, "\001", $0) }
+      {
+        cand=0; idseen=0
+        for (i=1; i<=NF; i++) {
+          c=$i; gsub(/^[[:space:]]+|[[:space:]]+$/, "", c)
+          if (c=="Status") cand=i
+          if (c=="ID" || c=="REQ-ID" || c=="REQ ID" || c ~ /^Requirement/) idseen=1
+        }
+        if (cand>0 && idseen) statuscol=cand
+      }
+      $0 ~ ("^\\| " req " ") && statuscol>0 {
+        cell=$statuscol
+        note=""
+        if (match(cell, /\(/)) note=substr(cell, RSTART)
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", note)
+        $statuscol = (note != "" ? " " target_status " " note " " : " " target_status " ")
+        gsub(/\001/, "\\|", $0)
+        print; next
+      }
+      { gsub(/\001/, "\\|", $0); print }
+    ' "$RTM" > "$tmp_file" && mv "$tmp_file" "$RTM"
+    git add "$RTM" 2>/dev/null || true
+    echo "RTM row ${req_id} -> ${target_status}."
+  else
+    rm -f "$tmp_file"
+  fi
+}
+
+mark_ticket_superseded() {
+  local version="$1"
+  local reason="$2"
+  local relationship="$3"
+  local source_path target_path tmp_file
+  source_path="$(find_release_ticket_file "$version" 2>/dev/null || true)"
+  [ -n "$source_path" ] || return 0
+
+  mkdir -p "$SUPERSEDED_DIR"
+  target_path="${SUPERSEDED_DIR}/RELEASE-TICKET-${version}.md"
+  if [ "$source_path" != "$target_path" ]; then
+    git mv "$source_path" "$target_path" 2>/dev/null || mv "$source_path" "$target_path"
+    echo "Moved predecessor ticket -> ${target_path}"
+  fi
+
+  tmp_file="$(mktemp)"
+  awk \
+    -v successor="$REQ_ID" \
+    -v superseded_on="$TODAY" \
+    -v superseded_reason="$reason" \
+    -v superseded_relationship="$relationship" '
+      BEGIN {
+        status_done=0
+        successor_seen=0
+        reason_seen=0
+        relationship_seen=0
+        date_seen=0
+      }
+      /^\*\*Status:\*\*/ && status_done==0 {
+        print "**Status:** SUPERSEDED"
+        status_done=1
+        next
+      }
+      /^\*\*Superseded by:\*\*/ {
+        print "**Superseded by:** " successor
+        successor_seen=1
+        next
+      }
+      /^\*\*Supersession reason:\*\*/ {
+        print "**Supersession reason:** " superseded_reason
+        reason_seen=1
+        next
+      }
+      /^\*\*Supersession relationship:\*\*/ {
+        print "**Supersession relationship:** " superseded_relationship
+        relationship_seen=1
+        next
+      }
+      /^\*\*Superseded on:\*\*/ {
+        print "**Superseded on:** " superseded_on
+        date_seen=1
+        next
+      }
+      { print }
+      /^\*\*DevAudit Release:\*\*/ {
+        if (!successor_seen) print "**Superseded by:** " successor
+        if (!reason_seen) print "**Supersession reason:** " superseded_reason
+        if (!relationship_seen) print "**Supersession relationship:** " superseded_relationship
+        if (!date_seen) print "**Superseded on:** " superseded_on
+      }
+    ' "$target_path" > "$tmp_file"
+  mv "$tmp_file" "$target_path"
+  git add "$target_path" 2>/dev/null || true
+  echo "Ticket ${version} -> SUPERSEDED."
+
+  if printf '%s' "$version" | grep -qE '^REQ-[0-9]{3,}$'; then
+    update_rtm_status "$version" "SUPERSEDED"
+  fi
+}
 
 # ── Optional portal safety check ─────────────────────────────────────────────
 if [ -n "${DEVAUDIT_API_KEY:-}" ] && [ -n "${DEVAUDIT_BASE_URL:-}" ]; then
@@ -76,6 +222,7 @@ fi
 
 # ── Move ticket pending -> approved (if still pending) ───────────────────────
 mkdir -p "$APPROVED_DIR"
+mkdir -p "$SUPERSEDED_DIR"
 if [ -f "$PENDING" ]; then
   git mv "$PENDING" "$APPROVED" 2>/dev/null || mv "$PENDING" "$APPROVED"
   echo "Moved ticket -> ${APPROVED}"
@@ -115,56 +262,30 @@ mv "$TMP" "$APPROVED"
 git add "$APPROVED" 2>/dev/null || true
 echo "Ticket Status -> RELEASED."
 
-# ── Flip the RTM row -> RELEASED (preserve any parenthetical note) ───────────
-if [ -f "$RTM" ] && grep -qE "^\| ${REQ_ID} " "$RTM"; then
-  # Table-aware Status column resolution (#72): the previous version locked
-  # `statuscol` on the FIRST header that contained "Status", which mangled the
-  # wrong column when the RTM has a small legend table above the main matrix
-  # (e.g. a 2-column legend with `Status | Description` columns → statuscol=2,
-  # then the awk overwrote col-1 REQ-ID for every row).
-  #
-  # Fix: re-evaluate `statuscol` on EVERY header-shaped row (a row whose cells
-  # carry the literal header text "Status" + an ID-like column header). The
-  # legend has "Status" but no ID-like column → not locked; the main RTM has
-  # both → locks correctly. Data rows don't carry the literal "Status" header
-  # text in any cell, so they don't re-trigger the lock. Separator rows
-  # (`|---|---|…`) are left intact and don't affect `statuscol`.
-  awk -v req="$REQ_ID" '
-    BEGIN { FS="|"; OFS="|"; statuscol=0 }
-    # Protect escaped pipes (\|) from being treated as column delimiters.
-    # Replacing \| with \001 in $0 forces awk to re-split on only unescaped
-    # pipes, so literal pipes inside cell content (e.g. regex patterns like
-    # stop\|unsubscribe, enum values open\|in_progress\|closed) do not create
-    # phantom extra columns. Placeholders are restored to \| before output.
-    /\\\|/ { gsub(/\\\|/, "\001", $0) }
-    # Header detection: scan every row; require both a "Status" header cell
-    # AND an ID-like header cell in the same row before locking statuscol to
-    # this row''s column index.
-    {
-      cand=0; idseen=0
-      for (i=1; i<=NF; i++) {
-        c=$i; gsub(/^[[:space:]]+|[[:space:]]+$/, "", c)
-        if (c=="Status") cand=i
-        if (c=="ID" || c=="REQ-ID" || c=="REQ ID" || c ~ /^Requirement/) idseen=1
-      }
-      if (cand>0 && idseen) statuscol=cand
-    }
-    $0 ~ ("^\\| " req " ") && statuscol>0 {
-      cell=$statuscol
-      note=""
-      if (match(cell, /\(/)) note=substr(cell, RSTART)   # preserve any " (requirement note)"
-      gsub(/^[[:space:]]+|[[:space:]]+$/, "", note)
-      $statuscol = (note != "" ? " RELEASED " note " " : " RELEASED ")
-      gsub(/\001/, "\\|", $0)
-      print; next
-    }
-    { gsub(/\001/, "\\|", $0); print }
-  ' "$RTM" > "$TMP" && mv "$TMP" "$RTM"
-  git add "$RTM" 2>/dev/null || true
-  echo "RTM row ${REQ_ID} -> RELEASED."
-else
+update_rtm_status "$REQ_ID" "RELEASED" || true
+if ! grep -qE "^\| ${REQ_ID} " "$RTM" 2>/dev/null; then
   echo "::warning::No RTM row for ${REQ_ID} in ${RTM} — skipped RTM flip."
-  rm -f "$TMP"
+fi
+
+# ── Reconcile explicit predecessors from the bundle manifest ──────────────────
+BUNDLE_MANIFEST="$(find_bundle_manifest_file "$REQ_ID" 2>/dev/null || true)"
+if [ -n "$BUNDLE_MANIFEST" ] && command -v jq >/dev/null 2>&1; then
+  while IFS=$'\t' read -r member_version member_reason member_relationship; do
+    [ -n "$member_version" ] || continue
+    mark_ticket_superseded "$member_version" "$member_reason" "$member_relationship"
+  done < <(
+    jq -r --arg successor "$REQ_ID" '
+      (.members // [])
+      | map(select((.relationship // "") == "superseded" or (.relationship // "") == "absorbed"))
+      | .[]
+      | [
+          (.version // ""),
+          (.reason // ("Absorbed into successor release " + $successor + ".")),
+          (.relationship // "superseded")
+        ]
+      | @tsv
+    ' "$BUNDLE_MANIFEST" 2>/dev/null || true
+  )
 fi
 
 echo "Close-out staged for ${REQ_ID}. Commit + open a PR to develop to land it."

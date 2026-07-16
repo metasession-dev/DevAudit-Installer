@@ -153,7 +153,9 @@ Was the superseded release already merged to main?
 │   → Option A: Revert the merge commit on main, fix on develop, new release PR
 │   → Option B: Fix-forward on develop, new release PR with the fix included
 │   → Mark the old release as SUPERSEDED on the portal (if it supports it)
-│  → The new release carries its own full evidence
+│   → Regenerate `BUNDLED-CHANGES-REQ-XXX.md` + `.json` so the successor approval envelope explicitly names the absorbed predecessor
+│   → On close-out, the successor release moves absorbed predecessor tickets into `superseded-releases/` with successor + reason metadata
+│   → The new release carries its own full evidence
 │
 └── Yes, merged to main AND approved/released on the portal
     → This is a ROLLBACK + new release, not a supersede
