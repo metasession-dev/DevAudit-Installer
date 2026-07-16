@@ -248,7 +248,9 @@ gh pr create --base main --head develop --title "fix: <desc> (supersedes REQ-XXX
 ```
 
 1. Mark the old release as **SUPERSEDED** on the portal (if supported)
-2. The new release carries its own evidence
+2. Regenerate `BUNDLED-CHANGES-REQ-XXX.md` and `BUNDLED-CHANGES-REQ-XXX.json` so the successor release explicitly lists the absorbed predecessor and any inherited housekeeping work
+3. The successor release's close-out must move the absorbed predecessor ticket into `compliance/superseded-releases/` with `**Superseded by:** <successor>` and the supersession reason
+4. The new release carries its own evidence
 
 ### When already `released` on the portal
 

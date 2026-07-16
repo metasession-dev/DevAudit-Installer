@@ -191,11 +191,25 @@ Rules:
 
 ## Test Cycles
 
-| Cycle | CI Run | Gate Status | E2E Result | Coverage | Date |
-| ------- | -------- | ------------- | ------------ | ---------- | ------ |
-| #1    | [run_id] | [PASS/FAIL] | [N/N]   | [N%]     | [YYYY-MM-DD] |
+Prefer the first-class release-journey / cycle API when the portal exposes it. Generate the table from the API response rather than inferring cycles from uploaded files:
 
-**Final assessment:** [All cycles passed / N cycles failed — see incidents]
+```bash
+# Example:
+curl -s -H "Authorization: Bearer ${DEVAUDIT_API_KEY}" \
+  "${DEVAUDIT_BASE_URL%/}/api/projects/<slug>/releases/REQ-XXX/journey" \
+  > /tmp/release-journey.json
+bash scripts/render-test-cycles.sh /tmp/release-journey.json
+```
+
+The helper renders a first-class table when `.cycles[]` is present, and falls back to legacy `testCycleId` grouping when the portal has not yet rolled out cycle records.
+
+| Source Release | SDLC Stage | Cycle | Kind | Outcome | Workflow / Run | Related Evidence | Incident / Remediation | Date |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| REQ-XXX | 2 implement_test | #1 | quality_gate | passed | [Quality Gates](https://github.com/example/repo/actions/runs/123) (run 123, attempt 1) | quality-gates.json | None | 2026-07-16 11:03:00 |
+| REQ-XXX | 2 implement_test | #2 | e2e | passed | [E2E Regression](https://github.com/example/repo/actions/runs/124) (run 124, attempt 2) | e2e-results.json, screenshots.zip | Incident #501 fixed in PR #507 | 2026-07-16 11:19:00 |
+| REQ-089 | 4 uat_review | #1 | uat | passed | [UAT Review](https://devaudit.example/releases/REQ-089) | uat-checklist.md | None | 2026-07-16 12:02:00 |
+
+**Final assessment:** [First-class cycle records show all stage cycles passed / N cycles failed — see incidents]
 
 ## Bundled Release Context
 

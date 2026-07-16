@@ -243,6 +243,20 @@ for REQ in $REQUIREMENTS; do
   done
   if [ -n "$BUNDLED_FILE" ]; then
     echo "  OK: Bundled release evidence present: ${BUNDLED_FILE}"
+    BUNDLED_MANIFEST=""
+    for MANIFEST_PATTERN in \
+      "compliance/pending-releases/BUNDLED-CHANGES-${REQ}.json" \
+      "compliance/approved-releases/BUNDLED-CHANGES-${REQ}.json" \
+      "compliance/superseded-releases/BUNDLED-CHANGES-${REQ}.json"; do
+      BUNDLED_MANIFEST=$(find_first_match "$MANIFEST_PATTERN" || true)
+      [ -n "$BUNDLED_MANIFEST" ] && break
+    done
+    if [ -n "$BUNDLED_MANIFEST" ]; then
+      echo "  OK: Bundled release manifest present: ${BUNDLED_MANIFEST}"
+    else
+      echo "  ERROR: Bundled release evidence exists but BUNDLED-CHANGES-${REQ}.json is missing"
+      EXIT_CODE=1
+    fi
     if grep -q '^## Bundled Changes' "$BUNDLED_FILE"; then
       echo "  OK: Bundled release evidence has canonical heading"
     else
@@ -253,6 +267,8 @@ for REQ in $REQUIREMENTS; do
       "$BUNDLED_FILE" \
       "Bundled release evidence" \
       "Core tracked release" \
+      "Bundle manifest" \
+      "Manifest hash" \
       "Absorbed predecessor releases" \
       "Absorbed non-release work" \
       "Why bundled here" \
