@@ -200,11 +200,97 @@ STUB
   rm -rf "$tmpdir"
 }
 
+case_cycle_lineage_fields_forwarded() {
+  echo "case: cycle lineage fields forward as multipart form values"
+  local tmp tmpdir curl_log
+  tmp=$(mktemp --suffix=.json)
+  tmpdir=$(mktemp -d)
+  curl_log="$tmpdir/curl.log"
+  cat > "$tmp" <<'REAL'
+{"ok":true}
+REAL
+  cat > "$tmpdir/curl" <<'STUB'
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'CALL:%s\n' "$*" >> "$CURL_LOG"
+ARGS=("$@")
+for ((i=0; i<${#ARGS[@]}; i++)); do
+  if [ "${ARGS[$i]}" = "-F" ]; then
+    printf 'FORM:%s\n' "${ARGS[$((i+1))]}" >> "$CURL_LOG"
+  fi
+done
+printf '201'
+STUB
+  chmod +x "$tmpdir/curl"
+  local out exit_code
+  out=$(PATH="$tmpdir:$PATH" \
+    CURL_LOG="$curl_log" \
+    DEVAUDIT_BASE_URL="https://devaudit.example.test" \
+    DEVAUDIT_API_KEY="mc_test_dummy" \
+    UPLOAD_MAX_ATTEMPTS=1 \
+    "$UPLOADER" my-project REQ-001 e2e_result "$tmp" \
+      --release REQ-001 \
+      --environment uat \
+      --category e2e_result \
+      --test-cycle 12345 \
+      --evidence-scope cycle \
+      --test-cycle-record-id 11111111-1111-4111-8111-111111111111 2>&1) && exit_code=0 || exit_code=$?
+  rm -f "$tmp"
+  if [ "$exit_code" -eq 0 ]; then
+    ok "exit code 0"
+  else
+    no "expected upload success through curl stub; output:\n$out"
+  fi
+  if grep -q 'FORM:testCycleId=12345' "$curl_log"; then
+    ok "multipart includes testCycleId"
+  else
+    no "multipart missing testCycleId; curl log:\n$(cat "$curl_log")"
+  fi
+  if grep -q 'FORM:evidenceScope=cycle' "$curl_log"; then
+    ok "multipart includes evidenceScope"
+  else
+    no "multipart missing evidenceScope; curl log:\n$(cat "$curl_log")"
+  fi
+  if grep -q 'FORM:testCycleRecordId=11111111-1111-4111-8111-111111111111' "$curl_log"; then
+    ok "multipart includes testCycleRecordId"
+  else
+    no "multipart missing testCycleRecordId; curl log:\n$(cat "$curl_log")"
+  fi
+  rm -rf "$tmpdir"
+}
+
+case_cycle_record_requires_cycle_scope() {
+  echo "case: --test-cycle-record-id without --evidence-scope cycle is rejected"
+  local tmp
+  tmp=$(mktemp --suffix=.json)
+  echo '{"ok":true}' > "$tmp"
+  local out exit_code
+  out=$(run_uploader my-project REQ-001 e2e_result "$tmp" \
+    --release REQ-001 \
+    --environment uat \
+    --category e2e_result \
+    --test-cycle-record-id 11111111-1111-4111-8111-111111111111 2>&1) && exit_code=0 || exit_code=$?
+  rm -f "$tmp"
+  if [ "$exit_code" -ne 0 ]; then
+    ok "exit code non-zero"
+  else
+    no "expected non-zero exit; output:\n$out"
+    return
+  fi
+  if printf '%s\n' "$out" | grep -q 'requires --evidence-scope cycle'; then
+    ok "stderr explains required cycle scope"
+  else
+    no "stderr missing cycle scope error; output:\n$out"
+  fi
+}
+
 case_stub_skipped
 case_pre_v0136_banner_skipped
 case_non_stub_attempts_upload
 case_md_template_not_matched_by_glob
 case_upload_uses_bounded_curl_timeouts
+case_cycle_lineage_fields_forwarded
+case_cycle_record_requires_cycle_scope
 
 case_sdlc_stage_invalid_rejected() {
   echo "case: --sdlc-stage 9 is rejected (exit non-zero, error message)"

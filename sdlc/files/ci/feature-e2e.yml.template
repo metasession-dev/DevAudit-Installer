@@ -109,6 +109,46 @@ jobs:
             echo "No new e2e specs detected — all captures will tag origin=regression."
           fi
 
+      - name: Register feature release and start feature E2E cycle
+        id: cycle
+        if: always()
+        run: |
+          REQ_ID="${{ needs.detect-req.outputs.req_id }}"
+          : > "$GITHUB_OUTPUT"
+          CONFIG_URL=""
+          if [ -f sdlc-config.json ]; then
+            CONFIG_URL=$(jq -r '.devaudit.base_url // empty' sdlc-config.json 2>/dev/null || true)
+          fi
+          BASE="${CONFIG_URL:-$DEVAUDIT_BASE_URL_VAR}"
+          if [ -z "$BASE" ] || [ -z "$DEVAUDIT_API_KEY" ]; then
+            echo "::warning::DevAudit not configured — skipping feature E2E cycle lifecycle."
+            echo "cycle_supported=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          export DEVAUDIT_BASE_URL="${BASE%/}"
+          chmod +x scripts/upload-evidence.sh scripts/report-test-cycle.sh 2>/dev/null || true
+          bash scripts/upload-evidence.sh \
+            {{PROJECT_SLUG}} _compliance-docs release_registration README.md \
+            --release "$REQ_ID" --create-release-if-missing \
+            --environment uat --category planning \
+            --git-sha "${{ github.event.pull_request.head.sha }}" \
+            --branch "${{ github.head_ref }}" || true
+          bash scripts/report-test-cycle.sh start \
+            --project-slug {{PROJECT_SLUG}} \
+            --release "$REQ_ID" \
+            --sdlc-stage 2 \
+            --environment uat \
+            --cycle-kind e2e \
+            --provider github_actions \
+            --external-run-id "${{ github.run_id }}" \
+            --external-run-attempt "${{ github.run_attempt }}" \
+            --idempotency-key "github:${{ github.repository }}:feature-in-scope-e2e.e2e:${{ github.run_id }}:${{ github.run_attempt }}:2:${REQ_ID}" \
+            --commit-sha "${{ github.event.pull_request.head.sha }}" \
+            --branch "${{ github.head_ref }}" \
+            --workflow-name "Feature In-Scope E2E" \
+            --workflow-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --output-file "$GITHUB_OUTPUT"
+
 {{E2E_FEATURE_TEST_STEP}}
       - name: Upload feature E2E evidence (stage 2, origin=feature)
         if: always()
@@ -128,13 +168,55 @@ jobs:
             zip -qr playwright-report.zip playwright-report/ 2>/dev/null || true
           fi
           if [ -f playwright-report.zip ]; then
+            LINEAGE_FLAGS=(--test-cycle "${{ github.run_id }}")
+            if [ "${{ steps.cycle.outputs.cycle_supported }}" = "true" ] && [ -n "${{ steps.cycle.outputs.cycle_record_id }}" ]; then
+              LINEAGE_FLAGS+=(--evidence-scope cycle --test-cycle-record-id "${{ steps.cycle.outputs.cycle_record_id }}")
+            fi
             bash scripts/upload-evidence.sh \
               {{PROJECT_SLUG}} "$REQ_ID" feature_e2e_report playwright-report.zip \
               --category e2e_report --release "$REQ_ID" --create-release-if-missing \
               --environment uat --sdlc-stage 2 \
               --git-sha "${{ github.event.pull_request.head.sha }}" \
               --ci-run-id "${{ github.run_id }}" --branch "${{ github.head_ref }}" \
-              --test-cycle "${{ github.run_id }}" \
+              "${LINEAGE_FLAGS[@]}" \
               --meta-key "origin=feature" \
               || echo "::warning::feature E2E report upload failed"
           fi
+
+      - name: Complete feature E2E cycle
+        if: always()
+        run: |
+          if [ "${{ steps.cycle.outputs.cycle_supported }}" != "true" ] || [ -z "${{ steps.cycle.outputs.cycle_record_id }}" ]; then
+            exit 0
+          fi
+          CONFIG_URL=""
+          if [ -f sdlc-config.json ]; then
+            CONFIG_URL=$(jq -r '.devaudit.base_url // empty' sdlc-config.json 2>/dev/null || true)
+          fi
+          BASE="${CONFIG_URL:-$DEVAUDIT_BASE_URL_VAR}"
+          if [ -z "$BASE" ] || [ -z "$DEVAUDIT_API_KEY" ]; then
+            exit 0
+          fi
+          case "${{ job.status }}" in
+            success)   OUTCOME=passed ;;
+            cancelled) OUTCOME=cancelled ;;
+            *)         OUTCOME=failed ;;
+          esac
+          export DEVAUDIT_BASE_URL="${BASE%/}"
+          chmod +x scripts/report-test-cycle.sh 2>/dev/null || true
+          bash scripts/report-test-cycle.sh complete \
+            --project-slug {{PROJECT_SLUG}} \
+            --release "${{ needs.detect-req.outputs.req_id }}" \
+            --sdlc-stage 2 \
+            --environment uat \
+            --cycle-kind e2e \
+            --provider github_actions \
+            --external-run-id "${{ github.run_id }}" \
+            --external-run-attempt "${{ github.run_attempt }}" \
+            --idempotency-key "github:${{ github.repository }}:feature-in-scope-e2e.e2e:${{ github.run_id }}:${{ github.run_attempt }}:2:${{ needs.detect-req.outputs.req_id }}" \
+            --commit-sha "${{ github.event.pull_request.head.sha }}" \
+            --branch "${{ github.head_ref }}" \
+            --workflow-name "Feature In-Scope E2E" \
+            --workflow-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --started-at "${{ steps.cycle.outputs.cycle_started_at }}" \
+            --outcome "$OUTCOME"

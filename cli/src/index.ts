@@ -141,6 +141,8 @@ export async function main(argv: readonly string[]): Promise<void> {
     .option('--gate-status <status>', 'passed | failed | skipped (gateStatus)')
     .option('--sdlc-stage <stage>', 'SDLC stage 1-5 (sdlcStage)')
     .option('--test-cycle <id>', 'test cycle identifier (typically the CI run ID)')
+    .option('--evidence-scope <scope>', 'release | stage | cycle | approval (evidenceScope)')
+    .option('--test-cycle-record-id <id>', 'first-class portal cycle UUID (requires --evidence-scope cycle)')
     .option(
       '--meta-key <pair>',
       'repeatable key=value merged into the metadata JSON',
@@ -169,6 +171,8 @@ export async function main(argv: readonly string[]): Promise<void> {
           gateStatus?: string;
           sdlcStage?: string;
           testCycle?: string;
+          evidenceScope?: 'release' | 'stage' | 'cycle' | 'approval';
+          testCycleRecordId?: string;
           metaKey?: string[];
           baseUrl?: string;
           apiKey?: string;
@@ -196,6 +200,10 @@ export async function main(argv: readonly string[]): Promise<void> {
           ...(opts.gateStatus !== undefined ? { gateStatus: opts.gateStatus } : {}),
           ...(opts.sdlcStage !== undefined ? { sdlcStage: opts.sdlcStage } : {}),
           ...(opts.testCycle !== undefined ? { testCycleId: opts.testCycle } : {}),
+          ...(opts.evidenceScope !== undefined ? { evidenceScope: opts.evidenceScope } : {}),
+          ...(opts.testCycleRecordId !== undefined
+            ? { testCycleRecordId: opts.testCycleRecordId }
+            : {}),
           ...(opts.metaKey !== undefined && opts.metaKey.length > 0 ? { metaKeys: opts.metaKey } : {}),
           ...(opts.baseUrl !== undefined ? { baseUrl: opts.baseUrl } : {}),
           ...(opts.apiKey !== undefined ? { apiKey: opts.apiKey } : {}),

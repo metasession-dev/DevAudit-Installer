@@ -47,6 +47,14 @@
 #                               portal group evidence by test cycle per
 #                               ISO/IEC/IEEE 29119-3. Optional — older
 #                               portals ignore the field (no error).
+#   --evidence-scope <scope>    Evidence ownership scope: release | stage |
+#                               cycle | approval. Forwarded as
+#                               `evidenceScope`; optional and ignored by
+#                               older portals.
+#   --test-cycle-record-id <id> First-class portal cycle UUID. Requires
+#                               `--evidence-scope cycle`. Forwarded as
+#                               `testCycleRecordId`; preserved alongside
+#                               legacy `--test-cycle` during dual-write.
 #
 # Required environment variables:
 #   DEVAUDIT_BASE_URL  e.g. https://meta-comply-production.up.railway.app
@@ -98,6 +106,8 @@ CHANGE_TYPE=""
 GATE_STATUS=""
 SDLC_STAGE=""
 TEST_CYCLE=""
+EVIDENCE_SCOPE=""
+TEST_CYCLE_RECORD_ID=""
 SENTINEL_CONTENT=""
 COMMIT_TIMESTAMP=""
 # Repeatable `--meta-key key=value` accumulator. Each pair gets merged
@@ -127,6 +137,8 @@ while [ "$#" -gt 0 ]; do
     --gate-status) GATE_STATUS="$2"; shift 2 ;;
     --sdlc-stage) SDLC_STAGE="$2"; shift 2 ;;
     --test-cycle) TEST_CYCLE="$2"; shift 2 ;;
+    --evidence-scope) EVIDENCE_SCOPE="$2"; shift 2 ;;
+    --test-cycle-record-id) TEST_CYCLE_RECORD_ID="$2"; shift 2 ;;
     # --meta-key key=value (repeatable). Merged into the metadata JSON
     # before posting. Validates the `key=value` shape; rejects bare
     # keys without `=`.
@@ -152,6 +164,14 @@ if [ -n "$RELEASE_VERSION" ] && [ -z "$EVIDENCE_CATEGORY" ]; then
 fi
 if [ -n "$SDLC_STAGE" ] && ! [[ "$SDLC_STAGE" =~ ^[1-5]$ ]]; then
   echo "Error: --sdlc-stage must be an integer 1-5 (got: $SDLC_STAGE)"
+  exit 1
+fi
+if [ -n "$EVIDENCE_SCOPE" ] && ! [[ "$EVIDENCE_SCOPE" =~ ^(release|stage|cycle|approval)$ ]]; then
+  echo "Error: --evidence-scope must be one of: release, stage, cycle, approval"
+  exit 1
+fi
+if [ -n "$TEST_CYCLE_RECORD_ID" ] && [ "$EVIDENCE_SCOPE" != "cycle" ]; then
+  echo "Error: --test-cycle-record-id requires --evidence-scope cycle"
   exit 1
 fi
 
@@ -365,6 +385,8 @@ upload_presigned() {
         \"changeType\": \"${CHANGE_TYPE}\",
         \"sdlcStage\": \"${SDLC_STAGE}\",
         \"testCycleId\": \"${TEST_CYCLE}\",
+        \"evidenceScope\": \"${EVIDENCE_SCOPE}\",
+        \"testCycleRecordId\": \"${TEST_CYCLE_RECORD_ID}\",
         \"sentinelContent\": $(jq -Rn --arg v "$SENTINEL_CONTENT" '$v'),
         \"commitTimestamp\": \"${COMMIT_TIMESTAMP}\"
       }") || curl_exit=$?
@@ -531,6 +553,8 @@ for FILE in "${FILES[@]}"; do
   [ -n "$GATE_STATUS" ] && CURL_ARGS+=(-F "gateStatus=${GATE_STATUS}")
   [ -n "$SDLC_STAGE" ] && CURL_ARGS+=(-F "sdlcStage=${SDLC_STAGE}")
   [ -n "$TEST_CYCLE" ] && CURL_ARGS+=(-F "testCycleId=${TEST_CYCLE}")
+  [ -n "$EVIDENCE_SCOPE" ] && CURL_ARGS+=(-F "evidenceScope=${EVIDENCE_SCOPE}")
+  [ -n "$TEST_CYCLE_RECORD_ID" ] && CURL_ARGS+=(-F "testCycleRecordId=${TEST_CYCLE_RECORD_ID}")
   [ -n "$SENTINEL_CONTENT" ] && CURL_ARGS+=(-F "sentinelContent=${SENTINEL_CONTENT}")
   [ -n "$COMMIT_TIMESTAMP" ] && CURL_ARGS+=(-F "commitTimestamp=${COMMIT_TIMESTAMP}")
 

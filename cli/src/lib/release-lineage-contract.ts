@@ -7,6 +7,7 @@ export const CYCLE_KINDS = [
   'quality_gate',
   'e2e',
   'security',
+  'evidence_compile',
   'uat',
   'deployment',
   'smoke',

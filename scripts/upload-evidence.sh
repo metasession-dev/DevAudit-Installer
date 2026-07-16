@@ -47,6 +47,14 @@
 #                               portal group evidence by test cycle per
 #                               ISO/IEC/IEEE 29119-3. Optional — older
 #                               portals ignore the field (no error).
+#   --evidence-scope <scope>    Evidence ownership scope: release | stage |
+#                               cycle | approval. Forwarded as
+#                               `evidenceScope`; optional and ignored by
+#                               older portals.
+#   --test-cycle-record-id <id> First-class portal cycle UUID. Requires
+#                               `--evidence-scope cycle`. Forwarded as
+#                               `testCycleRecordId`; preserved alongside
+#                               legacy `--test-cycle` during dual-write.
 #
 # Required environment variables:
 #   DEVAUDIT_BASE_URL  e.g. https://meta-comply-production.up.railway.app
@@ -98,6 +106,10 @@ CHANGE_TYPE=""
 GATE_STATUS=""
 SDLC_STAGE=""
 TEST_CYCLE=""
+EVIDENCE_SCOPE=""
+TEST_CYCLE_RECORD_ID=""
+SENTINEL_CONTENT=""
+COMMIT_TIMESTAMP=""
 # Repeatable `--meta-key key=value` accumulator. Each pair gets merged
 # into the metadata JSON sent to the portal. Used by the screenshot
 # upload loop to pass `origin=feature|regression` from the per-PNG
@@ -125,6 +137,8 @@ while [ "$#" -gt 0 ]; do
     --gate-status) GATE_STATUS="$2"; shift 2 ;;
     --sdlc-stage) SDLC_STAGE="$2"; shift 2 ;;
     --test-cycle) TEST_CYCLE="$2"; shift 2 ;;
+    --evidence-scope) EVIDENCE_SCOPE="$2"; shift 2 ;;
+    --test-cycle-record-id) TEST_CYCLE_RECORD_ID="$2"; shift 2 ;;
     # --meta-key key=value (repeatable). Merged into the metadata JSON
     # before posting. Validates the `key=value` shape; rejects bare
     # keys without `=`.
@@ -150,6 +164,14 @@ if [ -n "$RELEASE_VERSION" ] && [ -z "$EVIDENCE_CATEGORY" ]; then
 fi
 if [ -n "$SDLC_STAGE" ] && ! [[ "$SDLC_STAGE" =~ ^[1-5]$ ]]; then
   echo "Error: --sdlc-stage must be an integer 1-5 (got: $SDLC_STAGE)"
+  exit 1
+fi
+if [ -n "$EVIDENCE_SCOPE" ] && ! [[ "$EVIDENCE_SCOPE" =~ ^(release|stage|cycle|approval)$ ]]; then
+  echo "Error: --evidence-scope must be one of: release, stage, cycle, approval"
+  exit 1
+fi
+if [ -n "$TEST_CYCLE_RECORD_ID" ] && [ "$EVIDENCE_SCOPE" != "cycle" ]; then
+  echo "Error: --test-cycle-record-id requires --evidence-scope cycle"
   exit 1
 fi
 
@@ -202,6 +224,28 @@ probe_base_url_drift() {
 }
 probe_base_url_drift
 
+is_tracked_change_type() {
+  case "${1:-}" in
+    feat|fix|refactor|perf|compliance|revert) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+resolve_sentinel_context() {
+  if ! is_tracked_change_type "$CHANGE_TYPE"; then
+    return 0
+  fi
+  if [ -f ".sdlc-implementer-invoked" ]; then
+    SENTINEL_CONTENT=$(cat .sdlc-implementer-invoked)
+  fi
+  local git_target="HEAD"
+  if [ -n "$GIT_SHA" ]; then
+    git_target="$GIT_SHA"
+  fi
+  COMMIT_TIMESTAMP=$(git show -s --format=%cI "$git_target" 2>/dev/null || true)
+}
+resolve_sentinel_context
+
 # --- Build metadata JSON ---
 # Assemble entries first; only emit `{ ... }` if at least one field is
 # set. Each entry is a `"key":"value"` JSON pair with the value
@@ -213,6 +257,7 @@ META_ENTRIES=()
 [ -n "$GIT_SHA" ] && META_ENTRIES+=("\"gitSha\":\"$(json_escape "$GIT_SHA")\"")
 [ -n "$CI_RUN_ID" ] && META_ENTRIES+=("\"ciRunId\":\"$(json_escape "$CI_RUN_ID")\"")
 [ -n "$BRANCH" ] && META_ENTRIES+=("\"branch\":\"$(json_escape "$BRANCH")\"")
+[ -n "$COMMIT_TIMESTAMP" ] && META_ENTRIES+=("\"commitTimestamp\":\"$(json_escape "$COMMIT_TIMESTAMP")\"")
 for KV in "${META_KEYS[@]}"; do
   KEY="${KV%%=*}"
   VAL="${KV#*=}"
@@ -337,8 +382,13 @@ upload_presigned() {
         \"evidenceCategory\": \"${EVIDENCE_CATEGORY}\",
         \"releaseTitle\": \"${RELEASE_TITLE}\",
         \"releaseSummary\": \"${RELEASE_SUMMARY}\",
+        \"changeType\": \"${CHANGE_TYPE}\",
         \"sdlcStage\": \"${SDLC_STAGE}\",
-        \"testCycleId\": \"${TEST_CYCLE}\"
+        \"testCycleId\": \"${TEST_CYCLE}\",
+        \"evidenceScope\": \"${EVIDENCE_SCOPE}\",
+        \"testCycleRecordId\": \"${TEST_CYCLE_RECORD_ID}\",
+        \"sentinelContent\": $(jq -Rn --arg v "$SENTINEL_CONTENT" '$v'),
+        \"commitTimestamp\": \"${COMMIT_TIMESTAMP}\"
       }") || curl_exit=$?
     curl_exit=${curl_exit:-0}
     if [ "$curl_exit" -eq 0 ] && [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
@@ -503,6 +553,10 @@ for FILE in "${FILES[@]}"; do
   [ -n "$GATE_STATUS" ] && CURL_ARGS+=(-F "gateStatus=${GATE_STATUS}")
   [ -n "$SDLC_STAGE" ] && CURL_ARGS+=(-F "sdlcStage=${SDLC_STAGE}")
   [ -n "$TEST_CYCLE" ] && CURL_ARGS+=(-F "testCycleId=${TEST_CYCLE}")
+  [ -n "$EVIDENCE_SCOPE" ] && CURL_ARGS+=(-F "evidenceScope=${EVIDENCE_SCOPE}")
+  [ -n "$TEST_CYCLE_RECORD_ID" ] && CURL_ARGS+=(-F "testCycleRecordId=${TEST_CYCLE_RECORD_ID}")
+  [ -n "$SENTINEL_CONTENT" ] && CURL_ARGS+=(-F "sentinelContent=${SENTINEL_CONTENT}")
+  [ -n "$COMMIT_TIMESTAMP" ] && CURL_ARGS+=(-F "commitTimestamp=${COMMIT_TIMESTAMP}")
 
   ATTEMPT=1
   BACKOFF=$INITIAL_BACKOFF_SECONDS
