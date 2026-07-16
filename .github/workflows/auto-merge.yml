@@ -1,0 +1,66 @@
+name: Auto Merge
+
+on:
+  check_run:
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  merge-on-green:
+    name: Auto Merge
+    if: github.event.check_run.name != 'Auto Merge'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Merge eligible GitFlow PRs when checks are green
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_PATH: ${{ github.event_path }}
+          EVENT_SHA: ${{ github.event.check_run.head_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          PR_NUMBER="$(jq -r '.check_run.pull_requests[0].number // empty' "$EVENT_PATH")"
+          if [ -z "$PR_NUMBER" ]; then
+            echo "No pull request is associated with this check run."
+            exit 0
+          fi
+
+          PR_JSON="$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" \
+            --json state,isDraft,baseRefName,headRefOid,headRepository)"
+
+          PR_STATE="$(jq -r '.state' <<<"$PR_JSON")"
+          IS_DRAFT="$(jq -r '.isDraft' <<<"$PR_JSON")"
+          BASE_REF="$(jq -r '.baseRefName' <<<"$PR_JSON")"
+          HEAD_SHA="$(jq -r '.headRefOid' <<<"$PR_JSON")"
+          HEAD_REPO="$(jq -r '.headRepository.nameWithOwner // empty' <<<"$PR_JSON")"
+
+          if [ "$PR_STATE" != "OPEN" ] || [ "$IS_DRAFT" != "false" ]; then
+            echo "PR #$PR_NUMBER is not open and ready for merge."
+            exit 0
+          fi
+
+          if [ "$BASE_REF" != "develop" ] && [ "$BASE_REF" != "main" ]; then
+            echo "PR #$PR_NUMBER targets $BASE_REF. Auto-merge only applies to develop/main."
+            exit 0
+          fi
+
+          if [ "$HEAD_REPO" != "$GITHUB_REPOSITORY" ]; then
+            echo "PR #$PR_NUMBER originates from $HEAD_REPO. Auto-merge only applies to same-repo branches."
+            exit 0
+          fi
+
+          if [ "$HEAD_SHA" != "$EVENT_SHA" ]; then
+            echo "Check run is for stale SHA $EVENT_SHA. PR head is $HEAD_SHA."
+            exit 0
+          fi
+
+          if gh pr merge "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --merge; then
+            echo "Merged PR #$PR_NUMBER."
+            exit 0
+          fi
+
+          echo "PR #$PR_NUMBER is not ready to merge yet."
