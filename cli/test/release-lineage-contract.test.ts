@@ -119,6 +119,27 @@ describe('release-lineage contract (#391)', () => {
     expect(validate(contract.payloads['bundle_manifest']!.example)).toBe(true);
   });
 
+  it('accepts a non-release-only bundle manifest with zero release members', () => {
+    const validate = compilePayloadSchema(ajv, contract, 'bundle_manifest');
+    expect(
+      validate({
+        schemaVersion: 1,
+        approvalRelease: { version: 'REQ-093' },
+        coreRelease: { version: 'REQ-093' },
+        members: [],
+        nonReleaseWorkItems: [
+          {
+            kind: 'housekeeping_commit',
+            title: 'docs: refresh bundled release guidance',
+            reference: 'abc1234',
+          },
+        ],
+        manifestHash: 'sha256:test',
+        generator: { name: 'devaudit-installer', version: '0.3.12' },
+      }),
+    ).toBe(true);
+  });
+
   it('rejects invalid bundle member relationships', () => {
     const validate = compilePayloadSchema(ajv, contract, 'bundle_manifest');
     const invalid = {

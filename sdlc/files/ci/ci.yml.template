@@ -338,8 +338,19 @@ jobs:
           fi
           echo "Scanning bundled changes since ${SINCE_REF} for ${VERSION}"
           BUNDLED_FILE="compliance/pending-releases/BUNDLED-CHANGES-${VERSION}.md"
+          BUNDLED_MANIFEST="compliance/pending-releases/BUNDLED-CHANGES-${VERSION}.json"
           mkdir -p compliance/pending-releases
-          bash scripts/generate-bundled-changes.sh "$SINCE_REF" "$VERSION" > "$BUNDLED_FILE"
+          chmod +x scripts/submit-bundle-manifest.sh 2>/dev/null || true
+          bash scripts/generate-bundled-changes.sh \
+            "$SINCE_REF" "$VERSION" --json-out "$BUNDLED_MANIFEST" > "$BUNDLED_FILE"
+          MEMBER_COUNT=$(jq -r '(.members // []) | length' "$BUNDLED_MANIFEST" 2>/dev/null || echo 0)
+          WORK_ITEM_COUNT=$(jq -r '(.nonReleaseWorkItems // []) | length' "$BUNDLED_MANIFEST" 2>/dev/null || echo 0)
+          if [ "$MEMBER_COUNT" = "0" ] && [ "$WORK_ITEM_COUNT" = "0" ]; then
+            echo "No bundled predecessor releases or non-release work detected for ${VERSION}."
+            rm -f "$BUNDLED_FILE" "$BUNDLED_MANIFEST"
+            exit 0
+          fi
+          bash scripts/submit-bundle-manifest.sh {{PROJECT_SLUG}} "$VERSION" "$BUNDLED_MANIFEST"
           # Upload as bundled_changes evidence against the REQ release.
           bash scripts/upload-evidence.sh \
             {{PROJECT_SLUG}} _compliance-docs bundled_changes "$BUNDLED_FILE" \
