@@ -136,7 +136,7 @@ For each scenario, write a one-line description. Present the full grouped list t
 When designing each scenario, also pick the tier it'll live in. Three tiers map to MoSCoW priority + gating point (see `Test_Strategy.md` § *E2E gating model*):
 
 | Tier | File location | Picks this when… |
-|---|---|---|
+| --- | --- | --- |
 | **smoke** | `e2e/smoke/*.spec.ts` | Cross-cutting sanity that proves the app is up: login, basic nav, one canonical CRUD per main domain. Runs on every push to the integration branch. Keep small — total smoke wall-clock target is ~3–5 min. |
 | **critical** | `e2e/critical/*.spec.ts` | Must-priority SRS item that breaks a headline flow if it regresses. Examples: payment authorisation, order completion, admin permission editing, RBAC enforcement on financial surfaces. Runs on PR-to-release-branch. Total critical wall-clock target ~10–15 min (includes smoke). |
 | **regression** | `e2e/<area>/*.spec.ts` | Should/Could-priority SRS item, edge cases, less-load-bearing flows. Runs nightly + post-merge + dispatch. Total full pack can be 30+ min; that's the point of the tier. |
@@ -365,7 +365,7 @@ Every defect filed from Phase 6 becomes `incident_report` evidence when (a) the 
 Classify the defect against this table when filing — the canonical version lives at `governance-doc-author/references/incident-classification.md`, mirrored here for the e2e workflow:
 
 | Defect characteristic | Frameworks/clauses attributed |
-|---|---|
+| --- | --- |
 | **Any test failure / defect** (baseline — always) | `ISO29119.3.5.4` Test incident report |
 | **Ops impact** (downtime, persistent errors, perf regression, data corruption) | + `SOC2.CC7.2` System monitoring and incident response |
 | **Security vulnerability** (auth bypass, injection, data exposure) | + `SOC2.CC7.2` + relevant ISO 27001 controls |

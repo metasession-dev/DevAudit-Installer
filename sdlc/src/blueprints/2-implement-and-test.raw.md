@@ -246,7 +246,7 @@ For LOW-risk docs/tooling/script-only changes or environments without the requir
 #### Exit Criteria
 
 | Gate | Threshold |
-|---|---|
+| --- | --- |
 | TypeScript | 0 errors |
 | SAST (high/critical) | 0 findings |
 | Dependencies (high/critical) | 0 vulnerabilities |

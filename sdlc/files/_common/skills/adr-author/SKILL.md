@@ -12,7 +12,7 @@ The skill is **Phase A scope** (per [DevAudit-Installer#120](https://github.com/
 ## What this skill owns
 
 | Artefact | Lives at | Tier |
-|---|---|---|
+| --- | --- | --- |
 | `docs/ADR/ADR-NNN-<slug>.md` (the SoT, project-spanning) | Top-level project docs | 2 (project strategy) |
 | `compliance/evidence/REQ-XXX/architecture-decision.md` (per-REQ Tier 3 evidence) | Per-REQ evidence directory | 3 (per-REQ) |
 
@@ -57,7 +57,7 @@ Input: the REQ's `compliance/plans/REQ-XXX/implementation-plan.md` plus the work
 **Step 2 — Apply the ADR-worthiness decision tree.** The skill judges *architectural significance* via these signals — any one matching ⇒ ADR warranted:
 
 | Signal | Examples | Verdict |
-|---|---|---|
+| --- | --- | --- |
 | New third-party runtime dependency | adding `redis`, `bull`, a new ORM, a new auth provider package | ADR |
 | New external service | introducing Stripe, Twilio, a new SaaS integration | ADR |
 | New database / cache / queue tier | adding Redis alongside Postgres, swapping MongoDB for Postgres | ADR |

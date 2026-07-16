@@ -4,6 +4,24 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+### Added
+
+- **#370** — release-branch Quality Gates now emit a dedicated `Release Scope Integrity` check that fails closed when the PR title/body scope drifts from the release currently derived from the integration-branch head, including bundled-release context markers.
+
+### Changed
+
+- **#379** — PRs to the release branch now split intentionally by class: tracked `develop -> main` release PRs keep provenance-only `Quality Gates`, while `hotfix/* -> main` PRs dispatch the real `ci.yml` gate run on the hotfix branch and proxy that result back to the PR. Generated `ci.yml` side-effect jobs (`register-release`, `upload-evidence`) now stay pinned to the integration branch so hotfix dispatches do not create release/evidence mutations.
+- **#381** — the release watcher and stage-5 guidance now define release-green truthfully: a release PR is not ready until the full required release check set is terminal-success, and post-deploy completion is not treated as final production health until the merged SHA's GitHub deployment status reaches terminal success.
+- **#383** — the generated docs now define the installer's status-check contract explicitly: repo-owned checks are the authoritative merge surface, while third-party hosting suites are informational unless a consumer intentionally makes them required.
+- **#384** — generated PR workflows now recognise `chore/close-out-*` as an administrative branch class and skip heavy PR gates there by default instead of treating close-out reconciliation as a feature/release validation path.
+
+### Fixed
+
+- **#378** — post-merge regression triage now walks nested Playwright JSON reliably and includes spec file, full test title, final failing status, and first available error message in the filed issue body instead of falling back prematurely.
+
+### Fixed
+
+- **#382** — the release-branch provenance guard now waits and retries for develop-side `Quality Gates` success on the same SHA instead of failing immediately in the race window where the release PR starts before the develop push pipeline has finished recording its pass.
 ## [0.3.10] — 2026-07-11
 
 ### Added

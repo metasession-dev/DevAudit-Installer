@@ -20,7 +20,7 @@ Recommend a primary, mention the runner-up, get user confirmation before install
 ### Web apps — JavaScript / TypeScript
 
 | Stack | Primary | Runner-up | Rationale |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | React / Next.js / Remix | **Playwright** | Cypress | Fast, parallel by default, multi-browser, first-party TS, built-in visual regression, excellent trace viewer. |
 | Vue / Nuxt | **Playwright** | Cypress | Same reasons. |
 | Angular | **Playwright** | Cypress | Playwright has overtaken Cypress as the Angular community default; Cypress still common in established Angular shops. |
@@ -32,7 +32,7 @@ Recommend a primary, mention the runner-up, get user confirmation before install
 ### Mobile
 
 | Stack | Primary | Runner-up | Rationale |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | React Native | **Detox** | Appium | Native, fast, integrates with RN test infra. |
 | Native iOS / Android cross-platform | **Appium** | Maestro | Industry standard; Maestro is gaining popularity for simpler flows. |
 | Mobile web | **Playwright** (mobile emulation) | Appium (for real-device need) | Playwright covers viewport + UA emulation; Appium for real-device touch interactions. |
@@ -40,14 +40,14 @@ Recommend a primary, mention the runner-up, get user confirmation before install
 ### Desktop
 
 | Stack | Primary | Runner-up | Rationale |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | Electron | **Playwright** | WebdriverIO + Electron service | Playwright has first-party Electron support. |
 | Tauri | **WebdriverIO** + Tauri driver | — | Official path. |
 
 ### Backend-rendered / non-JS web apps
 
 | Stack | Primary | Runner-up | Rationale |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | Python (Django, Flask, FastAPI with templates) | **pytest-playwright** | Selenium + pytest | Same Playwright engine, idiomatic for Python test suites. |
 | Ruby on Rails | **Capybara + Cuprite** | Capybara + Selenium | Cuprite uses CDP, faster than Selenium. |
 | Java (Spring etc.) | **Playwright for Java** | Selenium + JUnit/TestNG | Playwright Java is mature; Selenium still dominant in enterprise Java. |
@@ -67,7 +67,7 @@ Recommend a primary, mention the runner-up, get user confirmation before install
 Only add visual regression if the user asked for it or the originating issue is visually significant. Default off for greenfield bootstrap unless explicitly requested.
 
 | Need | Recommendation | Notes |
-|---|---|---|
+| --- | --- | --- |
 | Default for Playwright | **`toHaveScreenshot()` built-in** | Zero extra deps; baselines stored in repo. Configure `threshold` and `maxDiffPixels`. |
 | Default for Cypress | **`cypress-image-snapshot`** | Or `cypress-visual-regression`. Both store baselines in repo. |
 | Default for WebdriverIO | **`@wdio/visual-service`** | Maintained, image-comparison-based. |

@@ -49,6 +49,34 @@ async function expectWorkflowTokenContract(dir: string): Promise<void> {
   expect(labelRetention).toContain('GH_TOKEN: ${{ github.token }}');
 }
 
+async function listFilesRecursive(dir: string): Promise<string[]> {
+  const entries = await fs.readdir(dir, { withFileTypes: true });
+  const nested = await Promise.all(
+    entries.map(async (entry) => {
+      const fullPath = join(dir, entry.name);
+      if (entry.isDirectory()) return listFilesRecursive(fullPath);
+      return [fullPath];
+    }),
+  );
+  return nested.flat();
+}
+
+async function expectNoCompactTableSeparators(dir: string): Promise<void> {
+  const compactSeparator = /^\|[-:|]+\|$/m;
+  const roots = ['SDLC', 'scripts', '.claude/skills'];
+
+  for (const root of roots) {
+    const rootPath = join(dir, root);
+    const files = await listFilesRecursive(rootPath);
+    for (const file of files) {
+      const content = await fs.readFile(file, 'utf-8');
+      expect(content, `compact markdown table separator in ${file}`).not.toMatch(
+        compactSeparator,
+      );
+    }
+  }
+}
+
 async function buildFixture(): Promise<string> {
   const dir = await fs.mkdtemp(join(tmpdir(), 'cli-update-fixture-'));
   await fs.writeFile(
@@ -161,12 +189,16 @@ describe('syncProject — native TS sync against a fixture', () => {
       '| REQ-ID | Issue | Risk | Evidence | Status | PR | Reviewer | AI-tool |',
     );
     expect(projectSetup).toContain(
-      '|--------|-------|------|----------|--------|-----|----------|---------|',
+      '| -------- | ------- | ------ | ---------- | -------- | ----- | ---------- | --------- |',
     );
+    expect(projectSetup).toContain('`stop\\|unsubscribe\\|opt-out`');
+    expect(projectSetup).toContain('false-positive MD056/MD060 lint errors');
     // wawagardenbar-app#383: PRs to develop must surface Quality Gates, while
     // release registration/evidence upload stay push/dispatch-only side effects.
     expect(ciYml).toContain('pull_request:\n    branches: [develop]');
-    expect(ciYml).toMatch(/register-release:[\s\S]*if: \$\{\{ github\.event_name != 'pull_request' \}\}/);
+    expect(ciYml).toContain("if: ${{ github.event_name != 'pull_request' || !startsWith(github.head_ref, 'chore/close-out-') }}");
+    expect(ciYml).toMatch(/register-release:[\s\S]*if: \$\{\{ github\.event_name != 'pull_request' && github\.ref_name == 'develop' \}\}/);
+    expect(ciYml).toMatch(/upload-evidence:[\s\S]*if: \$\{\{ always\(\) && !cancelled\(\) && github\.ref_name == 'develop' && needs\.register-release\.result == 'success' \}\}/);
     // DevAudit-Installer#98 WS3 + WS4: governance auto-generation workflows
     // sync into .github/workflows/ alongside the gate workflows.
     expect(await fs.stat(join(fixtureDir, '.github', 'workflows', 'periodic-review.yml'))).toBeTruthy();
@@ -191,9 +223,19 @@ describe('syncProject — native TS sync against a fixture', () => {
     );
     expect(complianceEvidenceYml).toContain('/api/ci/projects/fixture-app/audit-log/export');
     expect(complianceEvidenceYml).toContain('audit_log "$AUDIT_LOG_FILE"');
+    expect(complianceEvidenceYml).toContain('actions: write       # gh workflow run ci.yml --ref develop');
+    expect(complianceEvidenceYml).toContain('Dispatch ci.yml for merged housekeeping stub');
+    expect(complianceEvidenceYml).toContain('gh workflow run ci.yml --ref develop');
+    expect(complianceEvidenceYml).toContain('Current push did not modify housekeeping stubs');
+    expect(complianceEvidenceYml).toContain('for SECSUM in compliance/security-summary-*.md; do');
+    expect(complianceEvidenceYml).toContain('Uploading housekeeping security summary: $(basename "$SECSUM") -> release ${SECSUM_VER}');
+    expect(complianceEvidenceYml).toContain('fixture-app _compliance-docs security_summary "$SECSUM"');
     expect(complianceEvidenceYml).toContain("printf '%s\\n' 'import json'");
     expect(complianceEvidenceYml).toContain('python3 /tmp/devaudit-extract-e2e-reqs.py');
     expect(complianceEvidenceYml).not.toContain("done < <(python3 - <<'PY'");
+    expect(complianceEvidenceYml).toContain('Walk suites/specs/tests/results recursively');
+    expect(complianceEvidenceYml).toContain('**Spec file:** ${SPEC_FILE}');
+    expect(complianceEvidenceYml).toContain('--title "[REGRESSION] ${SPEC_FILE} :: ${TEST_NAME}"');
     const ciStatusFallbackYml = await fs.readFile(
       join(fixtureDir, '.github', 'workflows', 'ci-status-fallback.yml'),
       'utf-8',
@@ -201,6 +243,23 @@ describe('syncProject — native TS sync against a fixture', () => {
     expect(ciStatusFallbackYml).toContain('permissions:');
     expect(ciStatusFallbackYml).toContain('contents: read');
     expect(ciStatusFallbackYml).toContain('statuses: write');
+    const provenanceYml = await fs.readFile(
+      join(fixtureDir, '.github', 'workflows', 'quality-gates-provenance.yml'),
+      'utf-8',
+    );
+    expect(provenanceYml).toContain('name: Release Scope Integrity');
+    expect(provenanceYml).toContain("!startsWith(github.event.pull_request.head.ref, 'hotfix/')");
+    expect(provenanceYml).toContain('bash scripts/check-release-pr-scope.sh');
+    expect(provenanceYml).toContain('gh workflow run ci.yml --ref "$HEAD_REF"');
+    expect(provenanceYml).toContain('gh run watch "$RUN_ID" --exit-status');
+    expect(provenanceYml).toContain('MAX_ATTEMPTS=10');
+    expect(provenanceYml).toContain('Develop-side Quality Gates for SHA ${HEAD_SHA} not successful yet');
+    const postDeployYml = await fs.readFile(
+      join(fixtureDir, '.github', 'workflows', 'post-deploy-prod.yml'),
+      'utf-8',
+    );
+    expect(postDeployYml).toContain('deployments: read');
+    expect(postDeployYml).toContain('bash scripts/check-host-deployment.sh');
     // DevAudit-Installer#228 — every generated workflow must be valid YAML.
     await expectAllWorkflowsValidYaml(fixtureDir);
     await expectWorkflowTokenContract(fixtureDir);
@@ -221,6 +280,7 @@ describe('syncProject — native TS sync against a fixture', () => {
     expect(ciYml).toContain('compliance/evidence/*/screenshots/*.png');
     expect(ciYml).toContain('Upload per-AC e2e evidence screenshots');
     expect(ciYml).toMatch(/"\$REQ" screenshot "\$NAMED"/);
+    await expectNoCompactTableSeparators(fixtureDir);
     // DevAudit-Installer#349: a summary alone must downgrade the gate for
     // test-maintenance REQs even when no REQ-specific tags exist on disk.
     expect(ciYml).toContain('elif [ "$HAS_SUMMARY" = "true" ]; then');
@@ -432,7 +492,7 @@ describe('syncProject — native TS sync against a fixture', () => {
       );
       expect(ciYml).toContain('actions/setup-python@v6');
       expect(ciYml).toContain('pull_request:\n    branches: [develop]');
-      expect(ciYml).toContain("github.event_name != 'pull_request' }}");
+      expect(ciYml).toContain("github.event_name != 'pull_request' && github.ref_name == 'develop' }}");
       // DevAudit-Installer#228 — validate all generated workflows are valid YAML.
       await expectAllWorkflowsValidYaml(dir);
     } finally {
@@ -452,6 +512,7 @@ describe('syncProject — native TS sync against a fixture', () => {
     );
     expect(featureE2eYml).toContain('Feature In-Scope E2E');
     expect(featureE2eYml).toContain('pull_request:\n    branches: [develop]');
+    expect(featureE2eYml).toContain("if: ${{ !startsWith(github.head_ref, 'chore/close-out-') }}");
     expect(featureE2eYml).toContain('detect-req');
     expect(featureE2eYml).toContain('run-feature-e2e');
     // No residual block tokens

@@ -54,7 +54,7 @@ risk_class: "REPLACE — minimal | limited | high | unacceptable"
 Add one row per AI tool / model / API. Delete this template row before your first audit.
 
 | Tool / model | Vendor | Use case | Inputs (data classes) | Outputs | Risk class | Provider docs |
-|---|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- | --- |
 | REPLACE — e.g. GPT-4o | OpenAI | Code suggestion in IDE | Source code, no PII | Code suggestions | Limited | https://… |
 | REPLACE | | | | | | |
 
@@ -91,7 +91,7 @@ Add one row per AI tool / model / API. Delete this template row before your firs
 ## 9. Sign-off
 
 | Role | Name | Date |
-|---|---|---|
+| --- | --- | --- |
 | Provider responsible | REPLACE | REPLACE |
 | AI compliance reviewer | REPLACE | REPLACE |
 
@@ -104,5 +104,5 @@ Add one row per AI tool / model / API. Delete this template row before your firs
 ## Review log
 
 | Date | Reviewer | Changes |
-|---|---|---|
+| --- | --- | --- |
 | REPLACE — YYYY-MM-DD | REPLACE | Initial AI disclosure authored from starter template |

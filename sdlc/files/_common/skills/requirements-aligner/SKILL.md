@@ -12,7 +12,7 @@ The skill is **Phase A scope** (per [DevAudit-Installer#119](https://github.com/
 ## What this skill owns
 
 | Artefact | Lives at | Tier |
-|---|---|---|
+| --- | --- | --- |
 | `docs/SRS.md` (the SoT, project-spanning) | Top-level project docs | 2 (project strategy) |
 | `compliance/evidence/REQ-XXX/srs-alignment.md` (per-REQ Tier 3 evidence) | Per-REQ evidence directory | 3 (per-REQ) |
 
@@ -65,7 +65,7 @@ Input: the REQ's `compliance/plans/REQ-XXX/implementation-plan.md` plus the work
 **Step 3 — Categorise each AC:**
 
 | AC ⇒ SRS state | Action |
-|---|---|
+| --- | --- |
 | **Exact match** — AC traces 1:1 to an existing SRS item, no behavioural delta | Record the mapping; no SRS edit needed |
 | **Match + drift** — existing SRS item covers the AC's surface but the behaviour has shifted (e.g. new field, new edge case, new error path) | Flag the item as *potentially stale*; the plan must mark it for update in this cycle OR justify why the SRS prose still covers it |
 | **No match** — AC introduces behaviour the SRS doesn't yet describe | Propose new `REQ-AREA-NNN` (next free ID per area — see Step 4) with a Given/When/Then stub the operator edits |
@@ -79,7 +79,7 @@ Input: the REQ's `compliance/plans/REQ-XXX/implementation-plan.md` plus the work
 ## SRS items proposed/touched
 
 | AC | SRS item | Status | Notes |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | AC1 | REQ-ORDER-005 (existing) | unchanged | Trace-only |
 | AC2 | REQ-INV-010 (new — proposed) | stub | <one-line behaviour description> |
 | AC3 | REQ-INV-011 (new — proposed) | stub | <one-line> |
@@ -113,7 +113,7 @@ generated_at: <ISO timestamp>
 ## ACs traced
 
 | AC | SRS item | Action this cycle |
-|---|---|---|
+| --- | --- | --- |
 | AC1 | REQ-ORDER-005 | unchanged |
 | AC2 | REQ-INV-010 | added (new — see Phase 1 stub) |
 | AC3 | REQ-INV-011 | added (new) |

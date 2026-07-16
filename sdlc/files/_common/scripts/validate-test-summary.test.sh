@@ -182,7 +182,7 @@ make_fixture "$D6" "REQ-006" << 'EOF'
 ## Accepted skips
 
 | Spec | Test | REQ/AC | Classification | Resolution attempted | Approved by | Rationale |
-|------|------|--------|---------------|---------------------|-------------|----------|
+| ------ | ------ | -------- | --------------- | --------------------- | ------------- | ---------- |
 | e2e/foo.spec.ts | "AC1: bar dialog" | REQ-006/AC1 | intentional_non_applicability | N/A — API-only change | operator | API-only change, no UI surface |
 
 **Final assessment:** All gates passed. E2E skipped — API-only change.
@@ -279,7 +279,7 @@ make_fixture "$D12" "REQ-012" << 'EOF'
 ## Accepted skips
 
 | Spec | Test | REQ/AC | Classification | Resolution attempted | Approved by | Rationale |
-|------|------|--------|---------------|---------------------|-------------|----------|
+| ------ | ------ | -------- | --------------- | --------------------- | ------------- | ---------- |
 | e2e/foo.spec.ts | "AC3: bar dialog" | REQ-012/AC3 | intentional_non_applicability | N/A — API-only change | operator | API-only change, no UI surface |
 
 **Final assessment:** All gates passed. E2E skipped — API-only change.
@@ -317,7 +317,7 @@ make_fixture "$D14" "REQ-014" << 'EOF'
 ## Accepted skips
 
 | Spec | Test | REQ/AC | Classification | Resolution attempted | Approved by | Rationale |
-|------|------|--------|---------------|---------------------|-------------|----------|
+| ------ | ------ | -------- | --------------- | --------------------- | ------------- | ---------- |
 
 **Final assessment:** All gates passed. E2E skipped — API-only change.
 EOF
@@ -338,7 +338,7 @@ make_fixture "$D15" "REQ-015" << 'EOF'
 ## Accepted skips
 
 | Spec | Test | REQ/AC | Classification | Resolution attempted | Approved by | Rationale |
-|------|------|--------|---------------|---------------------|-------------|----------|
+| ------ | ------ | -------- | --------------- | --------------------- | ------------- | ---------- |
 | e2e/foo.spec.ts | "AC3: bar dialog" | REQ-015/AC3 | intentional_non_applicability | N/A — API-only change |  | API-only change, no UI surface |
 
 **Final assessment:** All gates passed. E2E skipped — API-only change.

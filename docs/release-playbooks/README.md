@@ -88,6 +88,80 @@ The mandatory CI gates that every release shape must pass green: **TypeScript 0 
 
 ---
 
+## Scenario matrix — when things deviate from the happy path
+
+The three playbooks above cover the **happy path**: a single change flows cleanly from issue → develop → UAT → main → production. Real releases deviate. These scenarios are documented in detail inside each playbook (see the section links below), but this matrix helps you find the right one fast.
+
+| Scenario | What happened | Where to look | Key decision |
+| --- | --- | --- | --- |
+| **Hotfix** | A critical production defect needs an emergency fix — cannot wait for the normal cycle | Each playbook → § "Hotfix scenario" | Branch from `main`, fast-track plan, gates still required, evidence is lighter but non-negotiable |
+| **Superseding a release** | A release was merged but has a defect; a new release replaces it before the old one reaches `released` | Each playbook → § "Superseding a previous release" | Mark the superseded release on the portal, carry forward any reusable evidence, new REQ or housekeeping version for the fix |
+| **Triage: defect during feature → develop** | A defect is found while implementing a feature on `develop` (before the release PR) | Each playbook → § "Triage: defect found during feature → develop" | Fix in-place on the same branch (same REQ), or split into a new REQ, or file a follow-up issue |
+| **Triage: defect during develop → main** | A defect is found during the release PR review (CI failure, E2E regression, compliance validation failure) | Each playbook → § "Triage: defect found during develop → main" | Fix-forward on `develop`, revert the offending commit, or block the PR and file an issue |
+| **Triage: CI gates skipped on compliance-only commits** | `ci.yml` has `paths-ignore` for `compliance/**` — housekeeping PRs with only compliance docs bypass Quality Gates | [Housekeeping release](./housekeeping-release.md) → § "Housekeeping release approval catch-22" | Manually trigger `ci.yml` via `workflow_dispatch` to produce gate evidence, then re-run `compliance-evidence.yml` |
+| **Rollback** | Production deploy failed or a critical bug shipped — need to revert `main` | Each playbook → § "Rollback scenario" | Revert the merge commit on `main`, sync `develop`, file a follow-up REQ for the fix, mark the release as `withdrawn` on the portal |
+
+### Hotfix decision tree
+
+```
+Is production down or critically broken?
+├── Yes → HOTFIX
+│   1. Branch from main: git checkout main && git pull && git checkout -b fix/hotfix-<desc>
+│   2. Classify risk (most hotfixes are HIGH — they touch prod)
+│   3. Write a MINIMAL implementation plan (can be inline, not the full template)
+│   4. Plan-approval pause: YES for HIGH/CRITICAL, SKIP for LOW
+│   5. Fix + tests + ALL gates locally (no shortcuts on gates)
+│   6. PR to main (not develop) — or PR to develop then cherry-pick to main PR
+│   7. Evidence: test-execution-summary + security-summary (can be brief but must exist)
+│   8. Portal: submit for UAT, approve, merge, prod checks
+│   9. Sync develop: git checkout develop && git merge main && git push
+│
+├── No, but it should ship before the next cycle → normal flow, just prioritised
+│
+└── No, it can wait → normal flow
+```
+
+> **The golden rule of hotfixes:** gates are never skipped. The plan-approval pause can be compressed (a chat message counts), evidence can be brief, but TypeScript / SAST / dep-audit / E2E / build must all be green. A hotfix that bypasses gates is just an untested change to production.
+
+## PR check interpretation
+
+When you're reviewing a PR under this SDLC, separate the signals:
+
+- **Authoritative merge gates:** `Quality Gates`, `Compliance Validation`, `DevAudit Release Approval`
+- **Informational signals:** hosting/deploy suites such as `vercel`, `railway-app`, `cloudflare-workers-and-pages`
+
+The informational suites may still tell you something operationally useful, but they are not the release gate unless your repo's branch protection explicitly says they are.
+
+Close-out PRs are a special case:
+
+- branch pattern: `chore/close-out-*`
+- purpose: reconcile released `main` back into `develop`, move tickets, and close the compliance loop
+- expectation: they should avoid heavy feature/release PR workflows where possible, because the release was already approved and deployed before the close-out branch existed
+
+If a close-out PR shows only incidental third-party check noise, treat that as a repo-integration cleanup task, not as evidence that the SDLC release itself is incomplete.
+
+### Superseding decision tree
+
+```
+Was the superseded release already merged to main?
+├── No (still on develop or in a PR)
+│   → Fix-forward on develop: add a new commit fixing the defect
+│  → The release PR picks up the fix automatically
+│  → No portal action needed — the release record stays in its current state
+│
+├── Yes, merged to main but not yet approved on the portal
+│   → Option A: Revert the merge commit on main, fix on develop, new release PR
+│   → Option B: Fix-forward on develop, new release PR with the fix included
+│   → Mark the old release as SUPERSEDED on the portal (if it supports it)
+│  → The new release carries its own full evidence
+│
+└── Yes, merged to main AND approved/released on the portal
+    → This is a ROLLBACK + new release, not a supersede
+    → See "Rollback scenario" in the relevant playbook
+```
+
+---
+
 ## See also
 
 - [`../change-workflows.md`](../change-workflows.md) — change type → workflow → release shape, and what to expect at each stage.
