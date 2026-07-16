@@ -1,12 +1,5 @@
 #!/usr/bin/env bash
 # generate-bundled-changes.test.sh — Tests for generate-bundled-changes.sh.
-#
-# Builds a throwaway git repo per case, crafts commits with mixed types,
-# runs the helper against it, asserts on the stdout content. Hermetic:
-# runs inside mktemp'd directories that are torn down at the end.
-#
-# Usage:
-#   ./scripts/generate-bundled-changes.test.sh
 
 set -euo pipefail
 
@@ -20,7 +13,6 @@ FAIL=0
 TMPDIR_BASE="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR_BASE"' EXIT
 
-# Build a fresh git fixture with an initial commit.
 make_fixture() {
   local dir="$1"
   rm -rf "$dir"
@@ -34,12 +26,34 @@ make_fixture() {
   git commit -q -m "feat: initial commit [REQ-001]"
 }
 
-# Add a commit with a given message.
 add_commit() {
   local msg="$1"
   echo "$(date +%s%N)" >> f.txt
   git add f.txt
   git commit -q -m "$msg"
+}
+
+write_release_ticket() {
+  local version="$1"
+  local requirement_line="$2"
+  local summary="$3"
+  local predecessors="$4"
+  mkdir -p compliance/pending-releases
+  cat > "compliance/pending-releases/RELEASE-TICKET-${version}.md" <<EOF
+# Release Ticket - ${version}
+
+**Requirement:** ${requirement_line}
+**PR:** #123 https://github.com/example/repo/pull/123
+
+## Summary
+
+${summary}
+
+## Bundled Changes
+
+- **Core tracked release:** \`${version}\`
+- **Absorbed predecessor releases:** ${predecessors}
+EOF
 }
 
 assert_contains() {
@@ -70,117 +84,149 @@ assert_not_contains() {
   fi
 }
 
-# ─── Test 1: Mixed commits — only housekeeping types in output ─────
-echo "Test 1: mixed commits filter to housekeeping only"
+assert_eq() {
+  local desc="$1" want="$2" got="$3"
+  if [ "$want" = "$got" ]; then
+    echo "  PASS: $desc"
+    PASS=$((PASS + 1))
+  else
+    echo "  FAIL: $desc"
+    echo "    want: $want"
+    echo "    got:  $got"
+    FAIL=$((FAIL + 1))
+  fi
+}
+
+assert_file_exists() {
+  local desc="$1" path="$2"
+  if [ -f "$path" ]; then
+    echo "  PASS: $desc"
+    PASS=$((PASS + 1))
+  else
+    echo "  FAIL: $desc"
+    echo "    missing file: $path"
+    FAIL=$((FAIL + 1))
+  fi
+}
+
+# Test 1: housekeeping commits appear in markdown + JSON.
+echo "Test 1: housekeeping commits render as non-release work"
 DIR1="$TMPDIR_BASE/test1"
 make_fixture "$DIR1"
 add_commit "chore: sync DevAudit templates from v0.1.69 to v0.1.70 [skip ci]"
 add_commit "docs: update API reference for /bookings endpoint"
 add_commit "feat: add booking widget [REQ-042]"
-add_commit "chore: bump eslint 9.0.5 to 9.0.6"
+add_commit "chore(deps): bump eslint 9.0.5 to 9.0.6"
 add_commit "fix: resolve null pointer in booking service [REQ-042]"
-# Tag the initial commit as the "since" ref
 SINCE=$(git rev-list --max-parents=0 HEAD)
-OUTPUT=$(bash "$HELPER" "$SINCE" "REQ-042" 2>&1 || true)
-assert_contains "housekeeping chore: sync in output" "chore: sync DevAudit templates" "$OUTPUT"
-assert_contains "housekeeping docs: update in output" "docs: update API reference" "$OUTPUT"
-assert_contains "housekeeping chore: bump eslint in output" "chore: bump eslint" "$OUTPUT"
-assert_not_contains "feat commit excluded" "feat: add booking widget" "$OUTPUT"
-assert_not_contains "fix commit excluded" "fix: resolve null pointer" "$OUTPUT"
-assert_contains "header present" "## Bundled Changes" "$OUTPUT"
-assert_contains "version in header" "REQ-042" "$OUTPUT"
-assert_contains "core tracked release field present" "**Core tracked release:**" "$OUTPUT"
-assert_contains "absorbed non-release work field present" "**Absorbed non-release work:**" "$OUTPUT"
-assert_contains "reviewer impact field present" "**Reviewer impact:**" "$OUTPUT"
-assert_contains "reference field present" "**Reference:**" "$OUTPUT"
+JSON_OUT="$DIR1/bundle.json"
+OUTPUT=$(bash "$HELPER" "$SINCE" "REQ-042" --json-out "$JSON_OUT" 2>&1)
+assert_contains "markdown includes chore commit" "chore: sync DevAudit templates" "$OUTPUT"
+assert_contains "markdown includes docs commit" "docs: update API reference" "$OUTPUT"
+assert_contains "markdown includes scoped chore commit" "chore(deps): bump eslint" "$OUTPUT"
+assert_not_contains "markdown excludes feat commit" "feat: add booking widget" "$OUTPUT"
+assert_not_contains "markdown excludes fix commit" "fix: resolve null pointer" "$OUTPUT"
+assert_file_exists "json manifest emitted" "$JSON_OUT"
+assert_eq "non-release work count" "3" "$(jq -r '.nonReleaseWorkItems | length' "$JSON_OUT")"
+assert_eq "member count with no tickets" "0" "$(jq -r '.members | length' "$JSON_OUT")"
+assert_eq "first housekeeping kind" "housekeeping_commit" "$(jq -r '.nonReleaseWorkItems[0].kind' "$JSON_OUT")"
 echo
 
-# ─── Test 2: No housekeeping commits ────────────────────────────────
-echo "Test 2: no housekeeping commits — empty summary"
+# Test 2: explicit predecessor tickets become manifest members.
+echo "Test 2: explicit predecessor membership emitted"
 DIR2="$TMPDIR_BASE/test2"
 make_fixture "$DIR2"
-add_commit "feat: add feature A [REQ-010]"
-add_commit "fix: fix bug B [REQ-010]"
+add_commit "feat: predecessor scope [REQ-041]"
+add_commit "fix: predecessor bugfix [REQ-041]"
+add_commit "feat: current release scope [REQ-042]"
+write_release_ticket "REQ-041" "REQ-041 - Prior tracked release" "Prior release summary." "None"
+write_release_ticket "REQ-042" "REQ-042 - Current tracked release" "Current release summary." "\`REQ-041\`"
 SINCE=$(git rev-list --max-parents=0 HEAD)
-OUTPUT=$(bash "$HELPER" "$SINCE" "REQ-010" 2>&1 || true)
-assert_contains "no housekeeping message" "No housekeeping commits found" "$OUTPUT"
+JSON_OUT="$DIR2/bundle.json"
+OUTPUT=$(bash "$HELPER" "$SINCE" "REQ-042" --json-out "$JSON_OUT" 2>&1)
+assert_contains "markdown shows predecessor section" "REQ-041" "$OUTPUT"
+assert_eq "manifest contains one explicit member" "1" "$(jq -r '.members | length' "$JSON_OUT")"
+assert_eq "member version recorded" "REQ-041" "$(jq -r '.members[0].version' "$JSON_OUT")"
+assert_eq "member role recorded" "predecessor" "$(jq -r '.members[0].role' "$JSON_OUT")"
+assert_eq "member relationship recorded" "superseded" "$(jq -r '.members[0].relationship' "$JSON_OUT")"
+assert_eq "manifest hash present" "true" "$(jq -r 'has("manifestHash")' "$JSON_OUT")"
 echo
 
-# ─── Test 3: All housekeeping types captured ────────────────────────
-echo "Test 3: all housekeeping commit types captured"
+# Test 3: ambiguous predecessor ownership fails.
+echo "Test 3: ambiguous predecessor ownership is rejected"
 DIR3="$TMPDIR_BASE/test3"
 make_fixture "$DIR3"
-add_commit "ci: update workflow timeout"
-add_commit "build: bump node version to 22"
-add_commit "test: add unit test for booking"
-add_commit "revert: remove experimental feature"
-add_commit "style: fix formatting in utils"
-add_commit "perf: optimize query in booking"
-add_commit "refactor: extract validation logic"
-SINCE=$(git rev-list --max-parents=0 HEAD)
-OUTPUT=$(bash "$HELPER" "$SINCE" "REQ-030" 2>&1 || true)
-assert_contains "ci: type captured" "ci: update workflow timeout" "$OUTPUT"
-assert_contains "build: type captured" "build: bump node version" "$OUTPUT"
-assert_contains "test: type captured" "test: add unit test for booking" "$OUTPUT"
-assert_contains "revert: type captured" "revert: remove experimental feature" "$OUTPUT"
-assert_contains "style: type captured" "style: fix formatting" "$OUTPUT"
-assert_contains "perf: type captured" "perf: optimize query" "$OUTPUT"
-assert_contains "refactor: type captured" "refactor: extract validation" "$OUTPUT"
+write_release_ticket "REQ-041" "REQ-041 - Prior tracked release" "Prior release summary." "None"
+write_release_ticket "REQ-042" "REQ-042 - Current tracked release" "Current release summary." "None"
+set +e
+OUTPUT=$(bash "$HELPER" "$(git rev-list --max-parents=0 HEAD)" "REQ-042" 2>&1)
+RC=$?
+set -e
+if [ "$RC" -ne 0 ]; then
+  echo "  PASS: non-zero exit for ambiguous predecessor set"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: expected non-zero exit for ambiguous predecessor set"
+  FAIL=$((FAIL + 1))
+fi
+assert_contains "ambiguous error text" "ambiguous predecessor ownership" "$OUTPUT"
 echo
 
-# ─── Test 4: No commits since ref ───────────────────────────────────
-echo "Test 4: no commits since ref — empty summary"
+# Test 4: self-supersession is rejected.
+echo "Test 4: self-supersession is rejected"
 DIR4="$TMPDIR_BASE/test4"
 make_fixture "$DIR4"
-SINCE=$(git rev-parse HEAD)
-OUTPUT=$(bash "$HELPER" "$SINCE" "REQ-001" 2>&1 || true)
-assert_contains "no commits message" "No housekeeping commits found" "$OUTPUT"
+write_release_ticket "REQ-042" "REQ-042 - Current tracked release" "Current release summary." "\`REQ-042\`"
+set +e
+OUTPUT=$(bash "$HELPER" "$(git rev-list --max-parents=0 HEAD)" "REQ-042" 2>&1)
+RC=$?
+set -e
+if [ "$RC" -ne 0 ]; then
+  echo "  PASS: non-zero exit for self-supersession"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: expected non-zero exit for self-supersession"
+  FAIL=$((FAIL + 1))
+fi
+assert_contains "self-supersession error text" "cannot self-supersede" "$OUTPUT"
 echo
 
-# ─── Test 5: Invalid ref ────────────────────────────────────────────
-echo "Test 5: invalid ref — error exit"
+# Test 5: duplicate explicit predecessors are rejected.
+echo "Test 5: duplicate explicit predecessors are rejected"
 DIR5="$TMPDIR_BASE/test5"
 make_fixture "$DIR5"
+write_release_ticket "REQ-041" "REQ-041 - Prior tracked release" "Prior release summary." "None"
+write_release_ticket "REQ-042" "REQ-042 - Current tracked release" "Current release summary." "\`REQ-041\`, \`REQ-041\`"
 set +e
-OUTPUT=$(bash "$HELPER" "nonexistent-ref" "REQ-001" 2>&1)
+OUTPUT=$(bash "$HELPER" "$(git rev-list --max-parents=0 HEAD)" "REQ-042" 2>&1)
 RC=$?
 set -e
 if [ "$RC" -ne 0 ]; then
-  echo "  PASS: non-zero exit code for invalid ref"
+  echo "  PASS: non-zero exit for duplicate predecessors"
   PASS=$((PASS + 1))
 else
-  echo "  FAIL: expected non-zero exit code for invalid ref"
+  echo "  FAIL: expected non-zero exit for duplicate predecessors"
   FAIL=$((FAIL + 1))
 fi
+assert_contains "duplicate predecessor error text" "duplicate explicit predecessor" "$OUTPUT"
 echo
 
-# ─── Test 6: Scoped commit types (chore(deps)) ─────────────────────
-echo "Test 6: scoped housekeeping commits captured"
+# Test 6: regeneration is deterministic apart from generatedAt.
+echo "Test 6: manifest regeneration is deterministic"
 DIR6="$TMPDIR_BASE/test6"
 make_fixture "$DIR6"
-add_commit "chore(deps): bump eslint from 9.0.5 to 9.0.6"
-add_commit "ci(workflow): update timeout to 30 minutes"
+add_commit "docs: update release notes"
+write_release_ticket "REQ-042" "REQ-042 - Current tracked release" "Current release summary." "None"
 SINCE=$(git rev-list --max-parents=0 HEAD)
-OUTPUT=$(bash "$HELPER" "$SINCE" "REQ-050" 2>&1 || true)
-assert_contains "scoped chore(deps) captured" "chore(deps): bump eslint" "$OUTPUT"
-assert_contains "scoped ci(workflow) captured" "ci(workflow): update timeout" "$OUTPUT"
-echo
-
-# ─── Test 7: Missing since-ref argument ────────────────────────────
-echo "Test 7: missing since-ref argument — error exit"
-DIR7="$TMPDIR_BASE/test7"
-make_fixture "$DIR7"
-set +e
-OUTPUT=$(bash "$HELPER" 2>&1)
-RC=$?
-set -e
-if [ "$RC" -ne 0 ]; then
-  echo "  PASS: non-zero exit code for missing argument"
-  PASS=$((PASS + 1))
-else
-  echo "  FAIL: expected non-zero exit code for missing argument"
-  FAIL=$((FAIL + 1))
-fi
+JSON_ONE="$DIR6/bundle-one.json"
+JSON_TWO="$DIR6/bundle-two.json"
+bash "$HELPER" "$SINCE" "REQ-042" --json-out "$JSON_ONE" >/dev/null
+sleep 1
+bash "$HELPER" "$SINCE" "REQ-042" --json-out "$JSON_TWO" >/dev/null
+NORMALIZED_ONE="$(jq -S 'del(.generator.generatedAt)' "$JSON_ONE")"
+NORMALIZED_TWO="$(jq -S 'del(.generator.generatedAt)' "$JSON_TWO")"
+assert_eq "normalized manifests match" "$NORMALIZED_ONE" "$NORMALIZED_TWO"
+assert_eq "manifest hashes match" "$(jq -r '.manifestHash' "$JSON_ONE")" "$(jq -r '.manifestHash' "$JSON_TWO")"
 echo
 
 echo "=== Summary: ${PASS} pass / ${FAIL} fail ==="

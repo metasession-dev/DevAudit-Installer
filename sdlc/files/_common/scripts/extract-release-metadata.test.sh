@@ -374,13 +374,25 @@ cat > "compliance/pending-releases/BUNDLED-CHANGES-REQ-017.md" <<'BUNDLE'
 
 - `abc1234` chore: sync templates
 BUNDLE
+cat > "compliance/pending-releases/BUNDLED-CHANGES-REQ-017.json" <<'BUNDLEJSON'
+{
+  "schemaVersion": 1,
+  "approvalRelease": { "version": "REQ-017" },
+  "coreRelease": { "version": "REQ-017" },
+  "members": [],
+  "nonReleaseWorkItems": [
+    { "kind": "housekeeping_commit", "title": "chore: sync templates", "reference": "abc1234" }
+  ],
+  "manifestHash": "sha256:test-bundle-hash"
+}
+BUNDLEJSON
 
 source "$HELPER"
 extract_release_metadata "REQ-017"
 assert_eq "Bundled note appended to summary" \
   "Core tracked change summary.
 
-Bundled release context: see \`compliance/pending-releases/BUNDLED-CHANGES-REQ-017.md\`." \
+Bundled release context: see \`compliance/pending-releases/BUNDLED-CHANGES-REQ-017.md\`. Manifest: \`compliance/pending-releases/BUNDLED-CHANGES-REQ-017.json\`. Hash: \`sha256:test-bundle-hash\`." \
   "$RELEASE_SUMMARY"
 echo ""
 
