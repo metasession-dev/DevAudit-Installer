@@ -41,6 +41,21 @@ find_bundled_changes_file() {
   return 1
 }
 
+find_bundled_manifest_file() {
+  local req_id="$1"
+  local candidate=""
+  for candidate in \
+    "compliance/pending-releases/BUNDLED-CHANGES-${req_id}.json" \
+    "compliance/approved-releases/BUNDLED-CHANGES-${req_id}.json" \
+    "compliance/superseded-releases/BUNDLED-CHANGES-${req_id}.json"; do
+    if [ -f "$candidate" ]; then
+      printf '%s' "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
 extract_release_metadata() {
   local req_id="$1"
   RELEASE_TITLE=""
@@ -140,7 +155,19 @@ extract_release_metadata() {
   bundled_file=$(find_bundled_changes_file "$req_id" 2>/dev/null || true)
   if [ -n "$bundled_file" ]; then
     local bundled_note
+    local bundled_manifest=""
+    local manifest_hash=""
+    bundled_manifest=$(find_bundled_manifest_file "$req_id" 2>/dev/null || true)
+    if [ -n "$bundled_manifest" ] && command -v jq >/dev/null 2>&1; then
+      manifest_hash=$(jq -r '.manifestHash // empty' "$bundled_manifest" 2>/dev/null || true)
+    fi
     bundled_note="Bundled release context: see \`${bundled_file}\`."
+    if [ -n "$bundled_manifest" ]; then
+      bundled_note="${bundled_note} Manifest: \`${bundled_manifest}\`."
+    fi
+    if [ -n "$manifest_hash" ]; then
+      bundled_note="${bundled_note} Hash: \`${manifest_hash}\`."
+    fi
     if [ -n "$RELEASE_SUMMARY" ]; then
       case "$RELEASE_SUMMARY" in
         *"Bundled release context:"*) ;;

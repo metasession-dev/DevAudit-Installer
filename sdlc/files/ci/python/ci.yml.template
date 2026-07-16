@@ -357,11 +357,33 @@ jobs:
       - name: Generate and upload gate evidence
         if: env.DEVAUDIT_BASE_URL != ''
         run: |
-          chmod +x scripts/upload-evidence.sh 2>/dev/null || true
+          chmod +x scripts/upload-evidence.sh scripts/report-test-cycle.sh 2>/dev/null || true
           FLAGS="--git-sha ${{ github.sha }} --ci-run-id ${{ github.run_id }} --branch ${{ github.ref_name }}"
           FLAGS="${FLAGS} --release ${{ needs.register-release.outputs.version }} --create-release-if-missing"
           FLAGS="${FLAGS} --environment uat"
-          FLAGS="${FLAGS} --test-cycle ${{ github.run_id }}"
+          FLAGS="${FLAGS} --sdlc-stage 2"
+          PRIMARY_LINEAGE_FLAGS=(--test-cycle "${{ github.run_id }}")
+          CYCLE_OUT="$(mktemp)"
+          bash scripts/report-test-cycle.sh start \
+            --project-slug {{PROJECT_SLUG}} \
+            --release "${{ needs.register-release.outputs.version }}" \
+            --sdlc-stage 2 \
+            --environment uat \
+            --cycle-kind quality_gate \
+            --provider github_actions \
+            --external-run-id "${{ github.run_id }}" \
+            --external-run-attempt "${{ github.run_attempt }}" \
+            --idempotency-key "github:${{ github.repository }}:quality-gates-python.quality_gate:${{ github.run_id }}:${{ github.run_attempt }}:2:${{ needs.register-release.outputs.version }}" \
+            --commit-sha "${{ github.sha }}" \
+            --branch "${{ github.ref_name }}" \
+            --workflow-name "Quality Gates" \
+            --workflow-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --output-file "$CYCLE_OUT"
+          . "$CYCLE_OUT"
+          rm -f "$CYCLE_OUT"
+          if [ "${cycle_supported:-false}" = "true" ] && [ -n "${cycle_record_id:-}" ]; then
+            PRIMARY_LINEAGE_FLAGS+=(--evidence-scope cycle --test-cycle-record-id "${cycle_record_id}")
+          fi
 
           UPLOAD_FAILURES=0
           upload() {
@@ -395,7 +417,7 @@ jobs:
             STATUS_TESTS=$(gate_status "$(jq -r '.tests // "skipped"' "$OUTCOMES_FILE")")
             upload gate-outcomes.json \
               {{PROJECT_SLUG}} _compliance-docs gate_outcome "$OUTCOMES_FILE" \
-              --category ci_pipeline ${FLAGS}
+              --category ci_pipeline ${FLAGS} "${PRIMARY_LINEAGE_FLAGS[@]}"
           fi
 
           mkdir -p {{WORKING_DIR_PREFIX}}ci-evidence
@@ -406,14 +428,14 @@ jobs:
           if [ -f {{WORKING_DIR_PREFIX}}ci-evidence/sast-results.json ]; then
             upload sast-results.json \
               {{PROJECT_SLUG}} _compliance-docs sast_report {{WORKING_DIR_PREFIX}}ci-evidence/sast-results.json \
-              --category security_scan --gate-status "$STATUS_SAST" ${FLAGS}
+              --category security_scan --gate-status "$STATUS_SAST" ${FLAGS} "${PRIMARY_LINEAGE_FLAGS[@]}"
           fi
 
           # Precise evidence_type=dependency_audit (matches the node template).
           if [ -f {{WORKING_DIR_PREFIX}}ci-evidence/dependency-audit.json ]; then
             upload dependency-audit.json \
               {{PROJECT_SLUG}} _compliance-docs dependency_audit {{WORKING_DIR_PREFIX}}ci-evidence/dependency-audit.json \
-              --category security_scan --gate-status "$STATUS_DEPAUDIT" ${FLAGS}
+              --category security_scan --gate-status "$STATUS_DEPAUDIT" ${FLAGS} "${PRIMARY_LINEAGE_FLAGS[@]}"
           fi
 
           # pytest junit.xml is the Python equivalent of e2e-results.json —
@@ -422,7 +444,7 @@ jobs:
           if [ -f {{WORKING_DIR_PREFIX}}ci-evidence/junit.xml ]; then
             upload junit.xml \
               {{PROJECT_SLUG}} _compliance-docs e2e_result {{WORKING_DIR_PREFIX}}ci-evidence/junit.xml \
-              --category e2e_result --gate-status "$STATUS_TESTS" ${FLAGS}
+              --category e2e_result --gate-status "$STATUS_TESTS" ${FLAGS} "${PRIMARY_LINEAGE_FLAGS[@]}"
           fi
 
           # Project-level Test Summary Report — intentional compliance_document
@@ -523,6 +545,31 @@ jobs:
             echo "::error::${UPLOAD_FAILURES} evidence upload(s) failed — release is missing gate evidence and cannot pass UAT review"
             exit 1
           fi
+
+      - name: Complete primary quality-gate cycle
+        if: always() && env.DEVAUDIT_BASE_URL != ''
+        run: |
+          case "${{ job.status }}" in
+            success)   OUTCOME=passed ;;
+            cancelled) OUTCOME=cancelled ;;
+            *)         OUTCOME=failed ;;
+          esac
+          chmod +x scripts/report-test-cycle.sh 2>/dev/null || true
+          bash scripts/report-test-cycle.sh complete \
+            --project-slug {{PROJECT_SLUG}} \
+            --release "${{ needs.register-release.outputs.version }}" \
+            --sdlc-stage 2 \
+            --environment uat \
+            --cycle-kind quality_gate \
+            --provider github_actions \
+            --external-run-id "${{ github.run_id }}" \
+            --external-run-attempt "${{ github.run_attempt }}" \
+            --idempotency-key "github:${{ github.repository }}:quality-gates-python.quality_gate:${{ github.run_id }}:${{ github.run_attempt }}:2:${{ needs.register-release.outputs.version }}" \
+            --commit-sha "${{ github.sha }}" \
+            --branch "${{ github.ref_name }}" \
+            --workflow-name "Quality Gates" \
+            --workflow-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --outcome "$OUTCOME"
 
       - name: Summary
         run: echo "Evidence uploaded for ${{ needs.register-release.outputs.version }} (UAT)"

@@ -45,6 +45,29 @@ This is why the same release can show both:
 - CI-origin evidence proving what the pipeline ran
 - repo-authored markdown proving the human planning and review trail
 
+## First-class cycle rule
+
+With the release-lineage contract, Tier 3 evidence also carries an ownership scope:
+
+- `release`
+- `stage`
+- `cycle`
+- `approval`
+
+Only real execution output should be `cycle` scoped. That means uploads like E2E results, gate output, screenshots, security scan output, and smoke results.
+
+The following are not cycles and must stay release-, stage-, or approval-scoped:
+
+- release tickets
+- RTMs
+- test plans
+- implementation plans
+- test execution summaries
+- bundled-change manifests
+- approval or release-decision documents
+
+This matters because a document upload must never be treated as proof that a governed execution happened.
+
 ## Why the split exists
 
 - Git stays readable and code-reviewable.
@@ -74,4 +97,5 @@ Housekeeping releases skip the per-REQ Tier 3 pack, but still require release-sc
 
 - [`docs/compliance-gates.md`](./compliance-gates.md)
 - [`docs/change-workflows.md`](./change-workflows.md)
+- [`docs/release-lineage-producer-contract.md`](./release-lineage-producer-contract.md)
 - [`sdlc/src/blueprints/3-compile-evidence.raw.md`](../sdlc/src/blueprints/3-compile-evidence.raw.md)

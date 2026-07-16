@@ -1372,9 +1372,18 @@ Key cross-cutting facts (asserted once, relied on below):
 - **Priority:** Should — enables the portal to group evidence by test cycle (ISO/IEC/IEEE 29119-3 per-cycle Test Execution Logs / Test Status Reports); additive/optional, no regression without it (DevAudit-Installer#209).
 - **Source:** `cli/src/commands/push.ts` (`PushOptions.testCycle`, forwarded as `testCycleId` to `uploadEvidence`), `cli/src/lib/ci-upload.ts` (`UploadOptions.testCycleId`, `buildUploadForm` sets `form.set('testCycleId', opts.testCycleId)`), `cli/src/index.ts` (`.option('--test-cycle <id>', …)`).
 - **Preconditions / inputs:** `--test-cycle <id>` flag on the `push` command. The value is an opaque grouping key (typically a GitHub Actions `run_id`).
-- **Given** `--test-cycle 1234567` **When** push runs **Then** the multipart form additionally contains `testCycleId=1234567`. **Given** no `--test-cycle` flag **When** push runs **Then** the form omits `testCycleId` entirely (the portal defaults to `null` — legacy/ungrouped). The field is orthogonal to `evidenceType`, `evidenceCategory`, and `sdlcStage`.
+- **Given** `--test-cycle 1234567` **When** push runs **Then** the multipart form additionally contains `testCycleId=1234567`. **Given** no `--test-cycle` flag **When** push runs **Then** the form omits `testCycleId` entirely (the portal defaults to `null` — legacy/ungrouped). The field is orthogonal to `evidenceType`, `evidenceCategory`, and `sdlcStage`, and remains the compatibility fallback while first-class cycle APIs roll out.
 - **Error paths:** n/a — the value is an opaque string; no client-side validation.
 - **Fixtures/env:** msw handler asserting the form field presence/absence.
+
+#### REQ-CLI-PUSH-019 — Shared release-lineage contract publishes canonical enums, payload shapes, and legacy fallback rendering
+
+- **Priority:** Should — later workflow/CLI emission work must use one contract rather than inventing payloads ad hoc (`DevAudit-Installer#391`).
+- **Source:** `contracts/release-lineage-contract.json`, `cli/src/lib/release-lineage-contract.ts`, `cli/test/release-lineage-contract.test.ts`.
+- **Preconditions / inputs:** none; this is a shared producer contract consumed by later CLI/workflow code.
+- **Given** the installer repo **When** a developer or generated workflow needs canonical values for SDLC stage codes, cycle environments, cycle kinds, providers, outcomes, evidence scopes, bundle roles/relationships, or the idempotency-key shape **Then** those values are defined in the shared contract file and mirrored by the typed helper module. **Given** an older portal that only accepts `testCycleId` **When** later producer code renders evidence-lineage fields **Then** `renderEvidenceLineageFields()` returns only `{ testCycleId }`. **Given** a portal with first-class cycle APIs **When** the same helper renders the fields **Then** it emits `evidenceScope`, `testCycleRecordId`, and preserves `testCycleId` during dual-write rollout.
+- **Error paths:** a `testCycleRecordId` paired with a non-`cycle` scope throws in the helper; malformed idempotency keys fail the contract tests.
+- **Fixtures/env:** Vitest contract suite validating documented examples, invalid enum values, invalid idempotency-key shape, and legacy vs dual-write rendering.
 
 #### REQ-CLI-PUSH-017 — Upload bodies are sourced from disk-backed blobs, not `fs.readFile()` whole-buffer preloading
 
@@ -2182,6 +2191,15 @@ Area codes: FRAMEWORK-CIYML (ci.yml quality gates + evidence job), FRAMEWORK-EVI
 - **Given** a CI run with `github.run_id=1234567` **When** the `upload-evidence` job runs **Then** every `upload-evidence.sh` invocation carries `--test-cycle 1234567`, which forwards `testCycleId=1234567` as a form field to the portal. **Given** the portal does not yet accept `testCycleId` **When** an upload arrives **Then** the portal silently drops the unknown field (tolerant-read, same pattern as `sdlcStage`) — no error, no regression.
 - **Error paths:** Missing `--test-cycle` flag → `testCycleId` omitted from the form; portal defaults to `null` (legacy/ungrouped).
 - **Fixtures/env:** Rendered consumer repo; portal stub asserting `testCycleId` form field on each upload; portal stub ignoring `testCycleId` (tolerant-read).
+
+#### REQ-FRAMEWORK-CIYML-013 — First-class cycle rollout preserves legacy uploads and forbids document-as-cycle attribution
+
+- **Priority:** Should — this is the producer-side compatibility rule for the lineage rollout (`DevAudit-Installer#391`).
+- **Source:** `contracts/release-lineage-contract.json`, `docs/release-lineage-producer-contract.md`, `docs/evidence-tiers.md`.
+- **Preconditions / inputs:** generated workflow and script authors need the contract before cycle lifecycle emission is implemented.
+- **Given** a release ticket, RTM, implementation plan, test plan, bundled-change manifest, test execution summary, security summary, or approval document **When** it is uploaded to the portal **Then** it is release-, stage-, or approval-scoped evidence, never cycle-scoped evidence. **Given** a portal that has not yet rolled out first-class cycle lifecycle APIs **When** the generated workflows upload execution evidence **Then** they continue using only legacy `testCycleId` grouping. **Given** a portal with the new lifecycle APIs **When** later producer issues implement dual-write **Then** execution evidence adds `evidenceScope=cycle` and `testCycleRecordId` while preserving legacy `testCycleId`.
+- **Error paths:** treating a document upload as a cycle is a producer-contract violation; tests and docs are the enforcement surface at this phase.
+- **Fixtures/env:** contract examples and rollout documentation; later workflow-emission issues consume this rule.
 
 ---
 

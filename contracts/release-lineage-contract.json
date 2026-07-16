@@ -1,0 +1,736 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/metasession-dev/DevAudit-Installer/main/contracts/release-lineage-contract.json",
+  "title": "DevAudit Release Lineage and Test Cycle Producer Contract",
+  "description": "Authoritative producer-side contract for first-class test-cycle lifecycle events, evidence-scope fields, and bundled-release manifests shared between DevAudit-Installer and the DevAudit portal.",
+  "version": "1.0.0",
+  "canonical": {
+    "schema_version": 1,
+    "sdlc_stages": [
+      {
+        "code": 1,
+        "name": "plan",
+        "description": "Planning and scoping. Release- or stage-scoped documents only; not an execution cycle."
+      },
+      {
+        "code": 2,
+        "name": "implement_test",
+        "description": "Implementation-time governed execution such as quality gates, E2E, security scans, and local verification."
+      },
+      {
+        "code": 3,
+        "name": "compile_evidence",
+        "description": "Evidence compilation and release ticket preparation. Documents are release- or stage-scoped, not test cycles."
+      },
+      {
+        "code": 4,
+        "name": "uat_review",
+        "description": "User acceptance and reviewer validation."
+      },
+      {
+        "code": 5,
+        "name": "production",
+        "description": "Production deployment, smoke verification, and release finalisation."
+      }
+    ],
+    "environments": [
+      "ci",
+      "uat",
+      "production"
+    ],
+    "cycle_kinds": [
+      "quality_gate",
+      "e2e",
+      "security",
+      "evidence_compile",
+      "uat",
+      "deployment",
+      "smoke"
+    ],
+    "providers": [
+      "github_actions",
+      "manual"
+    ],
+    "outcomes": {
+      "running": {
+        "terminal": false
+      },
+      "passed": {
+        "terminal": true
+      },
+      "failed": {
+        "terminal": true
+      },
+      "cancelled": {
+        "terminal": true
+      },
+      "skipped": {
+        "terminal": true
+      },
+      "timed_out": {
+        "terminal": true
+      },
+      "action_required": {
+        "terminal": true
+      },
+      "unknown": {
+        "terminal": true
+      }
+    },
+    "evidence_scopes": [
+      "release",
+      "stage",
+      "cycle",
+      "approval"
+    ],
+    "idempotency_key_pattern": "^(github|manual):[A-Za-z0-9._/-]+:[A-Za-z0-9._/-]+:[A-Za-z0-9._:-]+:[A-Za-z0-9._:-]+:[A-Za-z0-9._:-]+:[A-Za-z0-9._-]+$",
+    "idempotency_key_shape": "provider:project-or-repo:workflow-or-source:run-or-ticket:attempt:stage:release"
+  },
+  "compatibility": {
+    "legacy_test_cycle_id": {
+      "status": "supported",
+      "description": "Legacy portals may accept only testCycleId on evidence uploads. Producers keep sending testCycleId while first-class cycle APIs roll out."
+    },
+    "dual_write_rule": "When the portal exposes first-class cycle APIs, producers send evidenceScope + testCycleRecordId and preserve testCycleId for backward compatibility.",
+    "no_cycle_endpoint_rule": "When the portal does not expose cycle lifecycle endpoints, generated workflows must skip lifecycle calls and continue evidence uploads using legacy testCycleId only.",
+    "document_scope_rule": "Release tickets, RTMs, plans, summaries, manifests, and approvals are release-, stage-, or approval-scoped documents. They are never cycle-scoped evidence and must not create a cycle."
+  },
+  "payloads": {
+    "test_cycle_started": {
+      "description": "Emitted when a governed execution attempt begins. Completion is reported separately under if: always().",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "const": 1
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "pattern": "^(github|manual):[A-Za-z0-9._/-]+:[A-Za-z0-9._/-]+:[A-Za-z0-9._:-]+:[A-Za-z0-9._:-]+:[A-Za-z0-9._:-]+:[A-Za-z0-9._-]+$"
+          },
+          "sourceRelease": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sdlcStage": {
+            "type": "integer",
+            "enum": [
+              1,
+              2,
+              3,
+              4,
+              5
+            ]
+          },
+          "environment": {
+            "type": "string",
+            "enum": [
+              "ci",
+              "uat",
+              "production"
+            ]
+          },
+          "cycleKind": {
+            "type": "string",
+            "enum": [
+              "quality_gate",
+              "e2e",
+              "security",
+              "evidence_compile",
+              "uat",
+              "deployment",
+              "smoke"
+            ]
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "github_actions",
+              "manual"
+            ]
+          },
+          "externalRunId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "externalRunAttempt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
+          "externalJobId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "commitSha": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "branch": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "workflowName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "workflowUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri"
+          },
+          "incidentReference": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "outcome": {
+            "const": "running"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "idempotencyKey",
+          "sourceRelease",
+          "sdlcStage",
+          "environment",
+          "cycleKind",
+          "provider",
+          "startedAt",
+          "outcome"
+        ],
+        "additionalProperties": false,
+        "not": {
+          "required": [
+            "completedAt"
+          ]
+        }
+      },
+      "example": {
+        "schemaVersion": 1,
+        "idempotencyKey": "github:metasession-dev/wawagardenbar-app:Quality-Gates:12345:attempt:2:stage:2:REQ-093",
+        "sourceRelease": "REQ-093",
+        "sdlcStage": 2,
+        "environment": "ci",
+        "cycleKind": "quality_gate",
+        "provider": "github_actions",
+        "externalRunId": "12345",
+        "externalRunAttempt": 2,
+        "externalJobId": null,
+        "commitSha": "abc1234",
+        "branch": "develop",
+        "startedAt": "2026-07-15T08:00:00Z",
+        "workflowName": "Quality Gates",
+        "workflowUrl": "https://github.com/metasession-dev/wawagardenbar-app/actions/runs/12345",
+        "incidentReference": null,
+        "outcome": "running"
+      }
+    },
+    "test_cycle_completed": {
+      "description": "Emitted when a governed execution reaches a terminal state. Must run even on failure, cancellation, or timeout.",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "const": 1
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "pattern": "^(github|manual):[A-Za-z0-9._/-]+:[A-Za-z0-9._/-]+:[A-Za-z0-9._:-]+:[A-Za-z0-9._:-]+:[A-Za-z0-9._:-]+:[A-Za-z0-9._-]+$"
+          },
+          "sourceRelease": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sdlcStage": {
+            "type": "integer",
+            "enum": [
+              1,
+              2,
+              3,
+              4,
+              5
+            ]
+          },
+          "environment": {
+            "type": "string",
+            "enum": [
+              "ci",
+              "uat",
+              "production"
+            ]
+          },
+          "cycleKind": {
+            "type": "string",
+            "enum": [
+              "quality_gate",
+              "e2e",
+              "security",
+              "evidence_compile",
+              "uat",
+              "deployment",
+              "smoke"
+            ]
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "github_actions",
+              "manual"
+            ]
+          },
+          "externalRunId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "externalRunAttempt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
+          "externalJobId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "commitSha": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "branch": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "completedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "workflowName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "workflowUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri"
+          },
+          "incidentReference": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "passed",
+              "failed",
+              "cancelled",
+              "skipped",
+              "timed_out",
+              "action_required",
+              "unknown"
+            ]
+          },
+          "outcomeReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "idempotencyKey",
+          "sourceRelease",
+          "sdlcStage",
+          "environment",
+          "cycleKind",
+          "provider",
+          "startedAt",
+          "completedAt",
+          "outcome"
+        ],
+        "additionalProperties": false
+      },
+      "example": {
+        "schemaVersion": 1,
+        "idempotencyKey": "github:metasession-dev/wawagardenbar-app:Quality-Gates:12345:attempt:2:stage:2:REQ-093",
+        "sourceRelease": "REQ-093",
+        "sdlcStage": 2,
+        "environment": "ci",
+        "cycleKind": "quality_gate",
+        "provider": "github_actions",
+        "externalRunId": "12345",
+        "externalRunAttempt": 2,
+        "externalJobId": null,
+        "commitSha": "abc1234",
+        "branch": "develop",
+        "startedAt": "2026-07-15T08:00:00Z",
+        "completedAt": "2026-07-15T08:11:00Z",
+        "workflowName": "Quality Gates",
+        "workflowUrl": "https://github.com/metasession-dev/wawagardenbar-app/actions/runs/12345",
+        "incidentReference": null,
+        "outcome": "passed",
+        "outcomeReason": null
+      }
+    },
+    "test_cycle_reconciled": {
+      "description": "Emitted only when a late correction must update a previously terminal cycle outcome or metadata.",
+      "schema": {
+        "$ref": "#/payloads/test_cycle_completed/schema"
+      },
+      "example": {
+        "schemaVersion": 1,
+        "idempotencyKey": "github:metasession-dev/wawagardenbar-app:Quality-Gates:12345:attempt:2:stage:2:REQ-093",
+        "sourceRelease": "REQ-093",
+        "sdlcStage": 2,
+        "environment": "ci",
+        "cycleKind": "quality_gate",
+        "provider": "github_actions",
+        "externalRunId": "12345",
+        "externalRunAttempt": 2,
+        "externalJobId": null,
+        "commitSha": "abc1234",
+        "branch": "develop",
+        "startedAt": "2026-07-15T08:00:00Z",
+        "completedAt": "2026-07-15T08:12:00Z",
+        "workflowName": "Quality Gates",
+        "workflowUrl": "https://github.com/metasession-dev/wawagardenbar-app/actions/runs/12345",
+        "incidentReference": "INC-2026-044",
+        "outcome": "failed",
+        "outcomeReason": "Late workflow reconciliation after artifact upload failure"
+      }
+    },
+    "evidence_lineage_fields": {
+      "description": "Multipart or JSON metadata fields attached to an evidence upload. Legacy testCycleId remains additive during rollout.",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "evidenceScope": {
+            "type": "string",
+            "enum": [
+              "release",
+              "stage",
+              "cycle",
+              "approval"
+            ]
+          },
+          "testCycleRecordId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "testCycleId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "required": [
+                "testCycleRecordId"
+              ]
+            },
+            "then": {
+              "required": [
+                "evidenceScope"
+              ],
+              "properties": {
+                "evidenceScope": {
+                  "const": "cycle"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "examples": [
+        {
+          "evidenceScope": "cycle",
+          "testCycleRecordId": "11111111-1111-4111-8111-111111111111",
+          "testCycleId": "12345"
+        },
+        {
+          "testCycleId": "12345"
+        },
+        {
+          "evidenceScope": "release"
+        }
+      ]
+    },
+    "bundle_manifest": {
+      "description": "Machine-readable companion to BUNDLED-CHANGES-REQ-XXX.md. Captures explicit bundle membership without reassigning evidence ownership.",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "const": 1
+          },
+          "approvalRelease": {
+            "$ref": "#/$defs/releaseReference"
+          },
+          "coreRelease": {
+            "$ref": "#/$defs/releaseReference"
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "releaseId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "version": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "role": {
+                  "type": "string",
+                  "enum": [
+                    "core",
+                    "predecessor",
+                    "tracked_sibling",
+                    "follow_up",
+                    "housekeeping"
+                  ]
+                },
+                "relationship": {
+                  "type": "string",
+                  "enum": [
+                    "superseded",
+                    "absorbed",
+                    "inherited"
+                  ]
+                },
+                "reason": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "scopeSummary": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "commitFrom": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "commitTo": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "prNumber": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "prUrl": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uri"
+                }
+              },
+              "required": [
+                "role",
+                "relationship"
+              ],
+              "additionalProperties": false,
+              "anyOf": [
+                {
+                  "required": [
+                    "releaseId"
+                  ]
+                },
+                {
+                  "required": [
+                    "version"
+                  ]
+                }
+              ]
+            }
+          },
+          "nonReleaseWorkItems": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "title": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "reference": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "whyAbsorbed": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "reviewerImpact": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "evidenceImpact": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "securityImpact": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "kind",
+                "title"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "manifestHash": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "generator": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": true
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "members"
+        ],
+        "additionalProperties": false
+      },
+      "example": {
+        "schemaVersion": 1,
+        "approvalRelease": {
+          "version": "REQ-093"
+        },
+        "coreRelease": {
+          "version": "REQ-093"
+        },
+        "members": [
+          {
+            "version": "REQ-090",
+            "role": "predecessor",
+            "relationship": "superseded",
+            "reason": "Initial housekeeping work escalated into tracked release scope",
+            "scopeSummary": "Absorb the earlier release history into the final approval envelope",
+            "commitFrom": "2655865",
+            "commitTo": "40fc7fb",
+            "prNumber": 495,
+            "prUrl": "https://github.com/metasession-dev/wawagardenbar-app/pull/495"
+          }
+        ],
+        "nonReleaseWorkItems": [
+          {
+            "kind": "housekeeping_commit",
+            "title": "chore: repair evidence completeness fallback",
+            "reference": "fd31bc0"
+          }
+        ],
+        "manifestHash": "sha256:7f1d7e2c4fcb3a3f5bc65dc6f9830e5c54f2ea4cf6d42a0c6fd49044a5f95f1e",
+        "generator": {
+          "name": "devaudit-installer",
+          "version": "0.3.12"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "releaseReference": {
+      "type": "object",
+      "properties": {
+        "releaseId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false,
+      "anyOf": [
+        {
+          "required": [
+            "releaseId"
+          ]
+        },
+        {
+          "required": [
+            "version"
+          ]
+        }
+      ]
+    }
+  }
+}

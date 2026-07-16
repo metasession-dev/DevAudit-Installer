@@ -167,6 +167,8 @@ describe('syncProject — native TS sync against a fixture', () => {
     expect(await fs.stat(join(fixtureDir, '.prettierrc.json'))).toBeTruthy();
     // Section 2d — scripts
     expect(await fs.stat(join(fixtureDir, 'scripts', 'upload-evidence.sh'))).toBeTruthy();
+    expect(await fs.stat(join(fixtureDir, 'scripts', 'report-test-cycle.sh'))).toBeTruthy();
+    expect(await fs.stat(join(fixtureDir, 'scripts', 'render-test-cycles.sh'))).toBeTruthy();
     expect(await fs.stat(join(fixtureDir, 'scripts', 'validate-compliance-artifacts.sh'))).toBeTruthy();
     expect(await fs.stat(join(fixtureDir, 'scripts', 'generate-bundled-changes.sh'))).toBeTruthy();
     // Section 2e-iii — evidence helper (node only). All three files: the
@@ -199,6 +201,9 @@ describe('syncProject — native TS sync against a fixture', () => {
     expect(ciYml).toContain("if: ${{ github.event_name != 'pull_request' || !startsWith(github.head_ref, 'chore/close-out-') }}");
     expect(ciYml).toMatch(/register-release:[\s\S]*if: \$\{\{ github\.event_name != 'pull_request' && github\.ref_name == 'develop' \}\}/);
     expect(ciYml).toMatch(/upload-evidence:[\s\S]*if: \$\{\{ always\(\) && !cancelled\(\) && github\.ref_name == 'develop' && needs\.register-release\.result == 'success' \}\}/);
+    expect(ciYml).toContain('scripts/report-test-cycle.sh start');
+    expect(ciYml).toContain('--evidence-scope cycle --test-cycle-record-id');
+    expect(ciYml).toContain('Complete primary quality-gate cycle');
     // DevAudit-Installer#98 WS3 + WS4: governance auto-generation workflows
     // sync into .github/workflows/ alongside the gate workflows.
     expect(await fs.stat(join(fixtureDir, '.github', 'workflows', 'periodic-review.yml'))).toBeTruthy();
@@ -223,6 +228,9 @@ describe('syncProject — native TS sync against a fixture', () => {
     );
     expect(complianceEvidenceYml).toContain('/api/ci/projects/fixture-app/audit-log/export');
     expect(complianceEvidenceYml).toContain('audit_log "$AUDIT_LOG_FILE"');
+    expect(complianceEvidenceYml).not.toContain('FLAGS="${FLAGS} --test-cycle ${{ github.run_id }}"');
+    expect(complianceEvidenceYml).toContain('scripts/report-test-cycle.sh start');
+    expect(complianceEvidenceYml).toContain('scripts/report-test-cycle.sh complete');
     expect(complianceEvidenceYml).toContain('actions: write       # gh workflow run ci.yml --ref develop');
     expect(complianceEvidenceYml).toContain('Dispatch ci.yml for merged housekeeping stub');
     expect(complianceEvidenceYml).toContain('gh workflow run ci.yml --ref develop');
@@ -260,6 +268,8 @@ describe('syncProject — native TS sync against a fixture', () => {
     );
     expect(postDeployYml).toContain('deployments: read');
     expect(postDeployYml).toContain('bash scripts/check-host-deployment.sh');
+    expect(postDeployYml).toContain('scripts/report-test-cycle.sh start');
+    expect(postDeployYml).toContain('scripts/report-test-cycle.sh complete');
     // DevAudit-Installer#228 — every generated workflow must be valid YAML.
     await expectAllWorkflowsValidYaml(fixtureDir);
     await expectWorkflowTokenContract(fixtureDir);
@@ -280,6 +290,13 @@ describe('syncProject — native TS sync against a fixture', () => {
     expect(ciYml).toContain('compliance/evidence/*/screenshots/*.png');
     expect(ciYml).toContain('Upload per-AC e2e evidence screenshots');
     expect(ciYml).toMatch(/"\$REQ" screenshot "\$NAMED"/);
+    const featureE2eYml = await fs.readFile(
+      join(fixtureDir, '.github', 'workflows', 'feature-e2e.yml'),
+      'utf-8',
+    );
+    expect(featureE2eYml).toContain('Register feature release and start feature E2E cycle');
+    expect(featureE2eYml).toContain('Complete feature E2E cycle');
+    expect(featureE2eYml).toContain('--evidence-scope cycle --test-cycle-record-id');
     await expectNoCompactTableSeparators(fixtureDir);
     // DevAudit-Installer#349: a summary alone must downgrade the gate for
     // test-maintenance REQs even when no REQ-specific tags exist on disk.

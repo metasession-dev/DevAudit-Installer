@@ -107,6 +107,23 @@ The framework has **two release shapes** — *tracked* (REQ-XXX) for user-visibl
 
 See [`change-workflows.md`](./change-workflows.md) for the version-pattern triage at CI time and [`3-compile-evidence.md`](../sdlc/files/_common/3-compile-evidence.md) for the housekeeping walkthrough.
 
+## First-class cycle contract
+
+The installer now defines a first-class producer contract for release lineage and test cycles:
+
+- machine-readable contract: [`../contracts/release-lineage-contract.json`](../contracts/release-lineage-contract.json)
+- typed helper: [`../cli/src/lib/release-lineage-contract.ts`](../cli/src/lib/release-lineage-contract.ts)
+- human summary: [`release-lineage-producer-contract.md`](./release-lineage-producer-contract.md)
+
+This establishes the canonical stage codes, environments, cycle kinds, outcomes, evidence scopes, bundle-manifest shape, and legacy fallback rules before generated workflows start emitting the new payloads.
+
+Two operational rules matter:
+
+1. a release is not a cycle
+2. a document upload is not a cycle
+
+So Stage 1 and Stage 3 evidence may be critical audit material, but they are still release- or stage-scoped documents unless they are tied to a real governed execution attempt.
+
 ## SDLC Schematic
 
 ```

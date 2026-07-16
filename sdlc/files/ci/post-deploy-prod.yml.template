@@ -242,7 +242,7 @@ jobs:
 
       - name: Promote in-scope releases (evidence + status)
         run: |
-          chmod +x scripts/upload-evidence.sh 2>/dev/null || true
+          chmod +x scripts/upload-evidence.sh scripts/report-test-cycle.sh 2>/dev/null || true
           PROMOTED=0
           for PREFIX in ${REQS}; do
             echo "=== Promoting ${PREFIX} ==="
@@ -251,14 +251,37 @@ jobs:
             VERSION=$(echo "$RESP" | jq -r '.latest.version // empty')
             [ -z "$VERSION" ] && VERSION="${PREFIX}"
             RELEASE_ID=$(echo "$RESP" | jq -r '.latest.id // empty')
+            REQ_FAILURES=0
+            LINEAGE_FLAGS=(--test-cycle "${CI_RUN}")
+            CYCLE_OUT="$(mktemp)"
+            bash scripts/report-test-cycle.sh start \
+              --project-slug "${PROJECT_SLUG}" \
+              --release "${VERSION}" \
+              --sdlc-stage 5 \
+              --environment production \
+              --cycle-kind smoke \
+              --provider github_actions \
+              --external-run-id "${CI_RUN}" \
+              --external-run-attempt "${{ github.run_attempt }}" \
+              --idempotency-key "github:${{ github.repository }}:post-deploy-prod.smoke:${CI_RUN}:${{ github.run_attempt }}:5:${VERSION}" \
+              --commit-sha "${GIT_SHA}" \
+              --branch main \
+              --workflow-name "Post-Deploy Production" \
+              --workflow-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+              --output-file "$CYCLE_OUT"
+            . "$CYCLE_OUT"
+            rm -f "$CYCLE_OUT"
+            if [ "${cycle_supported:-false}" = "true" ] && [ -n "${cycle_record_id:-}" ]; then
+              LINEAGE_FLAGS+=(--evidence-scope cycle --test-cycle-record-id "${cycle_record_id}")
+            fi
             # Production smoke evidence (whole-app health) attached to this release.
             if [ -f prod-smoke-results.json ]; then
               bash scripts/upload-evidence.sh \
                 "${PROJECT_SLUG}" "${VERSION}" smoke_test prod-smoke-results.json \
                 --release "${VERSION}" --create-release-if-missing --environment production \
                 --category smoke_test --sdlc-stage 5 --git-sha "${GIT_SHA}" --ci-run-id "${CI_RUN}" --branch main \
-                --test-cycle "${CI_RUN}" \
-                || echo "Warning: smoke upload failed for ${VERSION}"
+                "${LINEAGE_FLAGS[@]}" \
+                || { echo "Warning: smoke upload failed for ${VERSION}"; REQ_FAILURES=$((REQ_FAILURES + 1)); }
             fi
             # Carry the release ticket into the production environment so the
             # prod-review gate is self-contained.
@@ -273,11 +296,31 @@ jobs:
                 "${PROJECT_SLUG}" "${VERSION}" release_ticket "$TICKET" \
                 --release "${VERSION}" --create-release-if-missing --environment production \
                 --category release_artifact --sdlc-stage 5 --git-sha "${GIT_SHA}" --ci-run-id "${CI_RUN}" --branch main \
-                --test-cycle "${CI_RUN}" \
                 || echo "Warning: ticket upload failed for ${VERSION}"
             else
               echo "No RELEASE-TICKET-${VERSION}.md found — skipping ticket (date-versioned or archived)."
             fi
+            if [ "$REQ_FAILURES" -gt 0 ]; then
+              REQ_OUTCOME=failed
+            else
+              REQ_OUTCOME=passed
+            fi
+            bash scripts/report-test-cycle.sh complete \
+              --project-slug "${PROJECT_SLUG}" \
+              --release "${VERSION}" \
+              --sdlc-stage 5 \
+              --environment production \
+              --cycle-kind smoke \
+              --provider github_actions \
+              --external-run-id "${CI_RUN}" \
+              --external-run-attempt "${{ github.run_attempt }}" \
+              --idempotency-key "github:${{ github.repository }}:post-deploy-prod.smoke:${CI_RUN}:${{ github.run_attempt }}:5:${VERSION}" \
+              --commit-sha "${GIT_SHA}" \
+              --branch main \
+              --workflow-name "Post-Deploy Production" \
+              --workflow-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+              --started-at "${cycle_started_at:-}" \
+              --outcome "${REQ_OUTCOME}"
             # Advance status (idempotent — re-PATCHing an already-promoted release is a no-op).
             if [ -n "$RELEASE_ID" ]; then
               curl -s -o /dev/null -w "  ${VERSION} status patch: HTTP %{http_code}\n" \

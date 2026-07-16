@@ -291,7 +291,6 @@ jobs:
           # release. Note: upload-evidence.sh keeps the LAST --release seen.
           FLAGS="--git-sha ${{ github.sha }} --ci-run-id ${{ github.run_id }} --branch ${{ github.ref_name }}"
           FLAGS="${FLAGS} --create-release-if-missing --environment uat --sdlc-stage 3"
-          FLAGS="${FLAGS} --test-cycle ${{ github.run_id }}"
           DERIVED_RELEASE="${{ steps.version.outputs.version }}"
 
           # Derive change_type for the bare-date (housekeeping) DERIVED_RELEASE:
@@ -789,7 +788,6 @@ jobs:
                  --ci-run-id ${{ github.event.workflow_run.id }} \
                  --branch ${PRIOR_BRANCH}"
           [ -n "$STAGE" ] && FLAGS="${FLAGS} --sdlc-stage ${STAGE}"
-          FLAGS="${FLAGS} --test-cycle ${{ github.event.workflow_run.id }}"
 
           # In-scope REQs from pending release tickets at the triggering
           # SHA. If the ticket was created after the triggering E2E run,
@@ -858,6 +856,29 @@ jobs:
 
           UPLOAD_FAILURES=0
           for REQ in "${REQS[@]}"; do
+            REQ_FAILURES=0
+            LINEAGE_FLAGS=(--test-cycle "${{ github.event.workflow_run.id }}")
+            CYCLE_OUT="$(mktemp)"
+            bash scripts/report-test-cycle.sh start \
+              --project-slug {{PROJECT_SLUG}} \
+              --release "${DERIVED_RELEASE}" \
+              --sdlc-stage "${STAGE:-2}" \
+              --environment uat \
+              --cycle-kind e2e \
+              --provider github_actions \
+              --external-run-id "${{ github.event.workflow_run.id }}" \
+              --external-run-attempt "${{ github.event.workflow_run.run_attempt }}" \
+              --idempotency-key "github:${{ github.repository }}:e2e-regression.${REQ}.e2e:${{ github.event.workflow_run.id }}:${{ github.event.workflow_run.run_attempt }}:${STAGE:-2}:${DERIVED_RELEASE}" \
+              --commit-sha "${{ github.event.workflow_run.head_sha }}" \
+              --branch "${PRIOR_BRANCH}" \
+              --workflow-name "E2E Regression" \
+              --workflow-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}" \
+              --output-file "$CYCLE_OUT"
+            . "$CYCLE_OUT"
+            rm -f "$CYCLE_OUT"
+            if [ "${cycle_supported:-false}" = "true" ] && [ -n "${cycle_record_id:-}" ]; then
+              LINEAGE_FLAGS+=(--evidence-scope cycle --test-cycle-record-id "${cycle_record_id}")
+            fi
             # 1. JSON reporter output → e2e_result. The single canonical
             # machine-readable artefact for the run.
             if [ -f e2e-artifacts/e2e-regression-results.json ]; then
@@ -865,12 +886,14 @@ jobs:
                 {{PROJECT_SLUG}} "$REQ" e2e_result \
                 e2e-artifacts/e2e-regression-results.json \
                 --category e2e_result ${FLAGS} --release "${DERIVED_RELEASE}" \
+                "${LINEAGE_FLAGS[@]}" \
                 --meta-key "tier=${TIER}"
               then
                 :
               else
                 echo "::warning::e2e_result upload failed for ${REQ}"
                 UPLOAD_FAILURES=$((UPLOAD_FAILURES + 1))
+                REQ_FAILURES=$((REQ_FAILURES + 1))
               fi
             fi
             # 2. Playwright HTML report zip → e2e_report. Operator-
@@ -895,13 +918,36 @@ jobs:
                 {{PROJECT_SLUG}} "$REQ" e2e_report \
                 e2e-artifacts/playwright-report.zip \
                 --category e2e_report ${FLAGS} --release "${DERIVED_RELEASE}" \
+                "${LINEAGE_FLAGS[@]}" \
                 --meta-key "tier=${TIER}"
               then
                 :
               else
                 echo "::warning::playwright HTML report upload failed for ${REQ} (non-blocking — JSON results are canonical evidence)"
+                REQ_FAILURES=$((REQ_FAILURES + 1))
               fi
             fi
+            if [ "$REQ_FAILURES" -gt 0 ]; then
+              REQ_OUTCOME=failed
+            else
+              REQ_OUTCOME=passed
+            fi
+            bash scripts/report-test-cycle.sh complete \
+              --project-slug {{PROJECT_SLUG}} \
+              --release "${DERIVED_RELEASE}" \
+              --sdlc-stage "${STAGE:-2}" \
+              --environment uat \
+              --cycle-kind e2e \
+              --provider github_actions \
+              --external-run-id "${{ github.event.workflow_run.id }}" \
+              --external-run-attempt "${{ github.event.workflow_run.run_attempt }}" \
+              --idempotency-key "github:${{ github.repository }}:e2e-regression.${REQ}.e2e:${{ github.event.workflow_run.id }}:${{ github.event.workflow_run.run_attempt }}:${STAGE:-2}:${DERIVED_RELEASE}" \
+              --commit-sha "${{ github.event.workflow_run.head_sha }}" \
+              --branch "${PRIOR_BRANCH}" \
+              --workflow-name "E2E Regression" \
+              --workflow-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}" \
+              --started-at "${cycle_started_at:-}" \
+              --outcome "${REQ_OUTCOME}"
           done
 
           # Per-spec failure screenshots from test-results/ are NOT

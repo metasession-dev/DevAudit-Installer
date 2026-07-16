@@ -195,6 +195,96 @@ EOF
   rm -rf "$(dirname "$dir")"
 }
 
+# ── Case 4: bundled close-out supersedes predecessor tickets ──────────────────
+{
+  dir="$(mktemp -d)/cli-close-out-fixture-4"
+  mkdir -p "$dir/compliance/pending-releases" \
+           "$dir/compliance/approved-releases" \
+           "$dir/compliance/superseded-releases"
+  cd "$dir"
+  git init -q --initial-branch=main >/dev/null
+  git config user.email "test@example.com"
+  git config user.name "test"
+  cat > compliance/RTM.md <<'EOF'
+# Requirements Traceability Matrix
+
+| REQ-ID  | Source | Risk | Evidence | Status | Owner | Date |
+| ------- | ------ | ---- | -------- | ------ | ----- | ---- |
+| REQ-090 | #500   | HIGH | compliance/evidence/REQ-090/ | TESTED - PENDING SIGN-OFF | test | 2026-07-16 |
+| REQ-089 | #499   | LOW  | compliance/evidence/REQ-089/ | TESTED - PENDING SIGN-OFF | test | 2026-07-15 |
+EOF
+  cat > compliance/pending-releases/RELEASE-TICKET-REQ-090.md <<'EOF'
+# Release Ticket: REQ-090
+
+**Status:** TESTED - PENDING SIGN-OFF
+**DevAudit Release:** REQ-090
+EOF
+  cat > compliance/pending-releases/RELEASE-TICKET-REQ-089.md <<'EOF'
+# Release Ticket: REQ-089
+
+**Status:** TESTED - PENDING SIGN-OFF
+**DevAudit Release:** REQ-089
+EOF
+  cat > compliance/pending-releases/RELEASE-TICKET-v2026.07.10.md <<'EOF'
+# Release Ticket: v2026.07.10
+
+**Status:** TESTED - PENDING SIGN-OFF
+**DevAudit Release:** v2026.07.10
+EOF
+  cat > compliance/pending-releases/BUNDLED-CHANGES-REQ-090.json <<'EOF'
+{
+  "schemaVersion": 1,
+  "approvalRelease": { "version": "REQ-090" },
+  "coreRelease": { "version": "REQ-090" },
+  "members": [
+    {
+      "version": "REQ-089",
+      "role": "predecessor",
+      "relationship": "superseded",
+      "reason": "Explicit predecessor release absorbed into approval envelope REQ-090."
+    },
+    {
+      "version": "v2026.07.10",
+      "role": "housekeeping",
+      "relationship": "absorbed",
+      "reason": "Explicit housekeeping release ticket carried forward into approval envelope REQ-090."
+    }
+  ],
+  "nonReleaseWorkItems": [],
+  "manifestHash": "sha256:test"
+}
+EOF
+  git add -A
+  git commit -q -m "fixture: bundled close-out"
+  unset DEVAUDIT_API_KEY DEVAUDIT_BASE_URL || true
+  bash "$HELPER" REQ-090 >/dev/null 2>&1 || true
+
+  [ -f compliance/approved-releases/RELEASE-TICKET-REQ-090.md ] \
+    && assert_eq "current release moved to approved-releases" "yes" "yes" \
+    || assert_eq "current release moved to approved-releases" "yes" "no"
+  [ -f compliance/superseded-releases/RELEASE-TICKET-REQ-089.md ] \
+    && assert_eq "predecessor moved to superseded-releases" "yes" "yes" \
+    || assert_eq "predecessor moved to superseded-releases" "yes" "no"
+  [ -f compliance/superseded-releases/RELEASE-TICKET-v2026.07.10.md ] \
+    && assert_eq "housekeeping predecessor moved to superseded-releases" "yes" "yes" \
+    || assert_eq "housekeeping predecessor moved to superseded-releases" "yes" "no"
+
+  grep -qF '**Status:** SUPERSEDED' compliance/superseded-releases/RELEASE-TICKET-REQ-089.md \
+    && assert_eq "predecessor status flipped" "yes" "yes" \
+    || assert_eq "predecessor status flipped" "yes" "no"
+  grep -qF '**Superseded by:** REQ-090' compliance/superseded-releases/RELEASE-TICKET-REQ-089.md \
+    && assert_eq "predecessor successor recorded" "yes" "yes" \
+    || assert_eq "predecessor successor recorded" "yes" "no"
+  grep -qF 'Explicit predecessor release absorbed into approval envelope REQ-090.' compliance/superseded-releases/RELEASE-TICKET-REQ-089.md \
+    && assert_eq "predecessor reason recorded" "yes" "yes" \
+    || assert_eq "predecessor reason recorded" "yes" "no"
+
+  row=$(grep -m1 -E "^\| REQ-089 " compliance/RTM.md || true)
+  col5=$(echo "$row" | awk -F '|' '{gsub(/^[[:space:]]+|[[:space:]]+$/,"",$6); print $6}')
+  assert_eq "predecessor RTM row flipped" "SUPERSEDED" "$col5"
+  rm -rf "$(dirname "$dir")"
+}
+
 echo
 echo "Result: $PASS passed, $FAIL failed"
 [ "$FAIL" = "0" ]
