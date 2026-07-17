@@ -768,6 +768,7 @@ jobs:
         if: steps.resolve.outputs.skip != 'true' && steps.version.outputs.version != 'skip'
         run: |
           set -euo pipefail
+          chmod +x scripts/report-test-cycle.sh scripts/report-release-check.sh 2>/dev/null || true
           DERIVED_RELEASE="${{ steps.version.outputs.version }}"
 
           # Tier metadata for the portal (the operator filters/groups by
@@ -873,6 +874,7 @@ jobs:
               --branch "${PRIOR_BRANCH}" \
               --workflow-name "E2E Regression" \
               --workflow-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}" \
+              --started-at "${{ github.event.workflow_run.run_started_at }}" \
               --output-file "$CYCLE_OUT"
             . "$CYCLE_OUT"
             rm -f "$CYCLE_OUT"
@@ -927,11 +929,15 @@ jobs:
                 REQ_FAILURES=$((REQ_FAILURES + 1))
               fi
             fi
-            if [ "$REQ_FAILURES" -gt 0 ]; then
-              REQ_OUTCOME=failed
-            else
-              REQ_OUTCOME=passed
-            fi
+            case "${{ github.event.workflow_run.conclusion }}" in
+              success)         REQ_OUTCOME=passed ;;
+              failure)         REQ_OUTCOME=failed ;;
+              cancelled)       REQ_OUTCOME=cancelled ;;
+              skipped)         REQ_OUTCOME=skipped ;;
+              timed_out)       REQ_OUTCOME=timed_out ;;
+              action_required) REQ_OUTCOME=action_required ;;
+              *)               REQ_OUTCOME=unknown ;;
+            esac
             bash scripts/report-test-cycle.sh complete \
               --project-slug {{PROJECT_SLUG}} \
               --release "${DERIVED_RELEASE}" \
@@ -946,8 +952,28 @@ jobs:
               --branch "${PRIOR_BRANCH}" \
               --workflow-name "E2E Regression" \
               --workflow-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}" \
-              --started-at "${cycle_started_at:-}" \
+              --started-at "${{ github.event.workflow_run.run_started_at }}" \
+              --completed-at "${{ github.event.workflow_run.updated_at }}" \
+              --outcome-reason "authoritative workflow_run conclusion: ${{ github.event.workflow_run.conclusion }}" \
               --outcome "${REQ_OUTCOME}"
+            case "$REQ_OUTCOME" in
+              passed) CHECK_STATUS=successful ;;
+              *) CHECK_STATUS="$REQ_OUTCOME" ;;
+            esac
+            CHECK_DETAILS=$(jq -cn \
+              --arg conclusion "${{ github.event.workflow_run.conclusion }}" \
+              --argjson artifactUploadFailures "$REQ_FAILURES" \
+              '{executionSource:"workflow_run.conclusion",conclusion:$conclusion,artifactUploadFailures:$artifactUploadFailures}')
+            bash scripts/report-release-check.sh \
+              --project-slug {{PROJECT_SLUG}} --release "${DERIVED_RELEASE}" \
+              --check-key "e2e-regression:${{ github.event.workflow_run.id }}:${{ github.event.workflow_run.run_attempt }}:${REQ}" \
+              --label "E2E Regression (${REQ})" --provider github_actions --status "$CHECK_STATUS" \
+              --external-run-id "${{ github.event.workflow_run.id }}" \
+              --external-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}" \
+              --commit-sha "${{ github.event.workflow_run.head_sha }}" --branch "${PRIOR_BRANCH}" \
+              --started-at "${{ github.event.workflow_run.run_started_at }}" \
+              --completed-at "${{ github.event.workflow_run.updated_at }}" \
+              --details-json "$CHECK_DETAILS"
           done
 
           # Per-spec failure screenshots from test-results/ are NOT
