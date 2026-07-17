@@ -218,9 +218,41 @@ must describe:
 
 Evidence ownership does not move to the approval envelope. The manifest creates lineage visibility, not evidence reassignment.
 
+## Contract v2 integrity and inheritance
+
+Bundle manifest schema version 2 is the strict producer contract. Every member includes its
+original release title and an `evidenceInheritancePolicy`. The policy mode is one of:
+
+- `all_eligible`: all source-owned evidence in the declared scopes is visible and approval-eligible
+- `selected`: only the listed evidence identifiers are approval-eligible
+- `none`: source evidence remains visible as historical context but cannot satisfy readiness
+
+`includeCycles` independently controls whether source release cycles may satisfy the approval
+envelope. Evidence and cycles never change owner.
+
+The manifest hash is SHA-256 over compact, recursively key-sorted JSON after removing
+`manifestHash` and `generator.generatedAt`. The portal independently recomputes this value and
+rejects a schema-v2 mismatch. Generator name, version, repository, and generated timestamp are
+required.
+
+## Authoritative lifecycle outcomes
+
+Execution outcome and evidence completeness are separate records:
+
+- quality-gate outcome comes from the `quality-gates` job result
+- E2E outcome comes from the triggering `workflow_run.conclusion`
+- production deployment and smoke are separate stage-5 cycles
+- artifact upload success never changes an execution outcome
+- failed, cancelled, timed-out, skipped, setup-failed, and no-artifact executions still complete a cycle
+- a later passing retry explicitly resolves the earlier failed attempt without removing it
+
+Generated workflows also report first-class required-check state through
+`scripts/report-release-check.sh`. Evidence upload failures use a separate evidence-completeness
+check.
+
 ## Rollout expectations
 
-This contract is intentionally ahead of full emission. The implementation sequence is:
+The implementation sequence is:
 
 1. portal additive schema and tolerant APIs
 2. installer contract definition

@@ -32,7 +32,8 @@ jobs:
   # ──────────────────────────────────────────────
   quality-gates:
     name: Quality Gates
-    if: ${{ github.event_name != 'pull_request' || !startsWith(github.head_ref, 'chore/close-out-') }}
+    needs: [register-release]
+    if: ${{ always() && (github.event_name != 'pull_request' || !startsWith(github.head_ref, 'chore/close-out-')) && (github.event_name == 'pull_request' || needs.register-release.result == 'success') }}
     runs-on: {{RUNNER}}
 
     services:
@@ -44,6 +45,8 @@ jobs:
     env:
 {{DATABASE_ENV}}
 {{APP_ENV}}
+      DEVAUDIT_BASE_URL_VAR: ${{ vars.DEVAUDIT_BASE_URL }}
+      DEVAUDIT_API_KEY: ${{ secrets.DEVAUDIT_API_KEY }}
 
     steps:
       - uses: actions/checkout@v6
@@ -53,6 +56,29 @@ jobs:
           # base — Playwright's evidenceShot helper reads that env var to
           # tag each captured screenshot as feature vs regression.
           fetch-depth: 0
+
+      - name: Start authoritative quality-gate cycle
+        if: github.event_name != 'pull_request' && github.ref_name == '{{INTEGRATION_BRANCH}}' && needs.register-release.outputs.version != 'skip'
+        run: |
+          BASE=""
+          if [ -f sdlc-config.json ]; then
+            BASE=$(jq -r '.devaudit.base_url // empty' sdlc-config.json 2>/dev/null || true)
+          fi
+          [ -n "$BASE" ] || BASE="$DEVAUDIT_BASE_URL_VAR"
+          [ -n "$BASE" ] || { echo "::warning::No DevAudit URL; cycle lifecycle disabled"; exit 0; }
+          echo "DEVAUDIT_BASE_URL=${BASE%/}" >> "$GITHUB_ENV"
+          chmod +x scripts/report-test-cycle.sh scripts/report-release-check.sh 2>/dev/null || true
+          bash scripts/report-test-cycle.sh start \
+            --project-slug {{PROJECT_SLUG}} \
+            --release "${{ needs.register-release.outputs.version }}" \
+            --sdlc-stage 2 --environment ci --cycle-kind quality_gate \
+            --provider github_actions --external-run-id "${{ github.run_id }}" \
+            --external-run-attempt "${{ github.run_attempt }}" \
+            --external-job-id "quality-gates" \
+            --idempotency-key "github:${{ github.repository }}:quality-gates.quality_gate:${{ github.run_id }}:${{ github.run_attempt }}:2:${{ needs.register-release.outputs.version }}" \
+            --commit-sha "${{ github.sha }}" --branch "${{ github.ref_name }}" \
+            --workflow-name "Quality Gates" \
+            --workflow-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
       # ── Cached installs (skip if already present on self-hosted runner) ──
 
@@ -418,7 +444,7 @@ jobs:
     # evidence — `status=failed` is itself the audit trail. `!cancelled()`
     # still guards against partial state on operator-cancel.
     # DevAudit-Installer#96.
-    if: ${{ always() && !cancelled() && github.ref_name == '{{INTEGRATION_BRANCH}}' && needs.register-release.result == 'success' }}
+    if: ${{ always() && github.ref_name == '{{INTEGRATION_BRANCH}}' && needs.register-release.result == 'success' }}
     env:
       DEVAUDIT_BASE_URL_VAR: ${{ vars.DEVAUDIT_BASE_URL }}
       DEVAUDIT_API_KEY: ${{ secrets.DEVAUDIT_API_KEY }}
@@ -465,15 +491,12 @@ jobs:
           bash scripts/report-test-cycle.sh start \
             --project-slug {{PROJECT_SLUG}} \
             --release "${{ needs.register-release.outputs.version }}" \
-            --sdlc-stage 2 \
-            --environment uat \
-            --cycle-kind quality_gate \
-            --provider github_actions \
-            --external-run-id "${{ github.run_id }}" \
+            --sdlc-stage 2 --environment ci --cycle-kind quality_gate \
+            --provider github_actions --external-run-id "${{ github.run_id }}" \
             --external-run-attempt "${{ github.run_attempt }}" \
+            --external-job-id "quality-gates" \
             --idempotency-key "github:${{ github.repository }}:quality-gates.quality_gate:${{ github.run_id }}:${{ github.run_attempt }}:2:${{ needs.register-release.outputs.version }}" \
-            --commit-sha "${{ github.sha }}" \
-            --branch "${{ github.ref_name }}" \
+            --commit-sha "${{ github.sha }}" --branch "${{ github.ref_name }}" \
             --workflow-name "Quality Gates" \
             --workflow-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
             --output-file "$CYCLE_OUT"
@@ -882,27 +905,41 @@ jobs:
       - name: Complete primary quality-gate cycle
         if: always() && env.DEVAUDIT_BASE_URL != ''
         run: |
-          case "${{ job.status }}" in
+          case "${{ needs.quality-gates.result }}" in
             success)   OUTCOME=passed ;;
             cancelled) OUTCOME=cancelled ;;
             *)         OUTCOME=failed ;;
           esac
-          chmod +x scripts/report-test-cycle.sh 2>/dev/null || true
+          chmod +x scripts/report-test-cycle.sh scripts/report-release-check.sh 2>/dev/null || true
           bash scripts/report-test-cycle.sh complete \
             --project-slug {{PROJECT_SLUG}} \
             --release "${{ needs.register-release.outputs.version }}" \
             --sdlc-stage 2 \
-            --environment uat \
+            --environment ci \
             --cycle-kind quality_gate \
             --provider github_actions \
             --external-run-id "${{ github.run_id }}" \
             --external-run-attempt "${{ github.run_attempt }}" \
+            --external-job-id "quality-gates" \
             --idempotency-key "github:${{ github.repository }}:quality-gates.quality_gate:${{ github.run_id }}:${{ github.run_attempt }}:2:${{ needs.register-release.outputs.version }}" \
             --commit-sha "${{ github.sha }}" \
             --branch "${{ github.ref_name }}" \
             --workflow-name "Quality Gates" \
             --workflow-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
             --outcome "$OUTCOME"
+          case "$OUTCOME" in
+            passed) CHECK_STATUS=successful ;;
+            *) CHECK_STATUS="$OUTCOME" ;;
+          esac
+          bash scripts/report-release-check.sh \
+            --project-slug {{PROJECT_SLUG}} \
+            --release "${{ needs.register-release.outputs.version }}" \
+            --check-key "quality-gates:${{ github.run_id }}:${{ github.run_attempt }}" \
+            --label "Quality Gates" --provider github_actions --status "$CHECK_STATUS" \
+            --external-run-id "${{ github.run_id }}" \
+            --external-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --commit-sha "${{ github.sha }}" --branch "${{ github.ref_name }}" \
+            --details-json '{"executionSource":"needs.quality-gates.result","evidenceUploadJob":"${{ job.status }}"}'
 
       - name: Summary
         run: echo "Evidence uploaded for ${{ needs.register-release.outputs.version }} (UAT)"

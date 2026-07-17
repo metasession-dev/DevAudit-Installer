@@ -76,7 +76,7 @@ extract_ticket_title() {
     printf '%s' "$line" \
       | sed -E 's/^\*\*Requirement:\*\*[[:space:]]*//' \
       | sed -E 's/^REQ-[0-9]+[[:space:]]*[—–:-][[:space:]]*//' \
-      | sed -E 's/[[:space:]]*$//'
+      | sed -E 's/^[[:space:]]+|[[:space:]]+$//g'
     return 0
   fi
   line=$(grep -m1 '^# ' "$file" 2>/dev/null || true)
@@ -227,6 +227,7 @@ for version in "${EXPLICIT_PREDECESSORS[@]}"; do
       --arg commitTo "$commit_to" \
       --arg prNumber "$pr_number" \
       --arg prUrl "$pr_url" \
+      --arg originalTitle "${title:-Release $version}" \
       '. + [{
         version: $version,
         role: $role,
@@ -236,7 +237,14 @@ for version in "${EXPLICIT_PREDECESSORS[@]}"; do
         commitFrom: (if $commitFrom == "" then null else $commitFrom end),
         commitTo: (if $commitTo == "" then null else $commitTo end),
         prNumber: (if $prNumber == "" then null else ($prNumber | tonumber) end),
-        prUrl: (if $prUrl == "" then null else $prUrl end)
+        prUrl: (if $prUrl == "" then null else $prUrl end),
+        originalTitle: $originalTitle,
+        evidenceInheritancePolicy: {
+          mode: "all_eligible",
+          includeCycles: true,
+          scopes: ["release", "stage", "cycle"],
+          reason: $reason
+        }
       }]' <<<"$MEMBERS"
   )"
   PREDECESSOR_LINES+=("- \`${version}\` (${role}/${relationship}) — ${title:-Untitled release ticket}")
@@ -267,6 +275,7 @@ fi
 GENERATOR_VERSION="$(jq -r '.version' cli/package.json 2>/dev/null || echo '0.0.0')"
 REPOSITORY_SLUG="$(git config --get remote.origin.url 2>/dev/null | sed -E 's#(git@github.com:|https://github.com/)##; s#\.git$##' || true)"
 GENERATED_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+[ -n "$REPOSITORY_SLUG" ] || REPOSITORY_SLUG="${GITHUB_REPOSITORY:-local/unknown}"
 
 MANIFEST_BASE="$(
   jq -c -n \
@@ -277,7 +286,7 @@ MANIFEST_BASE="$(
     --arg repository "$REPOSITORY_SLUG" \
     --arg generatedAt "$GENERATED_AT" \
     '{
-      schemaVersion: 1,
+      schemaVersion: 2,
       approvalRelease: { version: $version },
       coreRelease: { version: $version },
       members: ($members | fromjson),
@@ -291,7 +300,7 @@ MANIFEST_BASE="$(
     }'
 )"
 
-HASH_INPUT="$(jq -S 'del(.generator.generatedAt)' <<<"$MANIFEST_BASE")"
+HASH_INPUT="$(jq -cS 'del(.generator.generatedAt)' <<<"$MANIFEST_BASE")"
 MANIFEST_HASH="sha256:$(printf '%s' "$HASH_INPUT" | sha256sum | awk '{print $1}')"
 MANIFEST_JSON="$(jq --arg manifestHash "$MANIFEST_HASH" '. + { manifestHash: $manifestHash }' <<<"$MANIFEST_BASE")"
 
