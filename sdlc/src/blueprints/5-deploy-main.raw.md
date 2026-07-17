@@ -45,13 +45,13 @@ gh pr merge [PR-NUMBER] --merge --delete-branch=false
 
 **Do NOT delete `develop`** — it's the permanent working branch.
 
-### Step 2: Sync Branches
+### Step 2: Preserve GitFlow
 
-```bash
-git checkout main && git pull origin main
-git checkout develop && git pull origin develop
-git merge main --no-edit && git push origin develop
-```
+Normal release synchronization is performed by the portal-dispatched close-out
+PR after the release reaches `released`; do not directly merge the release
+branch into the integration branch. A real hotfix is the exception: after its
+reviewed merge to the release branch, open the mandatory `backmerge/*` PR to the
+integration branch and merge it only after terminal-green checks.
 
 ### Step 3: Verify Production Deployment
 
@@ -149,11 +149,11 @@ The backend stores both with reviewer identity, SHA, and timestamp. This satisfi
 
 #### Steps
 
-1. Wait for `post-deploy-prod.yml` to complete (the workflow's "Advance release status" step prints `Release vYYYY.MM.DD → prod_review` when done).
+1. Wait for `post-deploy-prod.yml` to complete successfully **and** for its host-deployment check to confirm terminal success for the merged SHA.
 2. Open the release in DevAudit: `https://[DEVAUDIT_BASE_URL]/projects/[PROJECT_SLUG]/releases/[releaseId]`.
-3. Review the `prod-smoke-results.json` evidence (uploaded by the workflow) plus any post-deploy actions logged in the release ticket.
+3. Review the production deployment and smoke cycle records, their evidence, and any post-deploy actions logged in the release ticket. Do not approve while either cycle or the host deployment remains queued/in progress.
 4. Click **Approve Production** — status transitions to `prod_approved`.
-5. Click **Mark as Released** — status transitions to `released`. Pipeline lifecycle complete in DevAudit.
+5. Click **Mark as Released** — status transitions to `released`. This dispatches the automated close-out flow.
 
 If the smoke results look wrong or a manual verification fails, click **Reject** on the production approval and follow the Rollback procedure below before retrying.
 
@@ -161,41 +161,21 @@ If the smoke results look wrong or a manual verification fails, click **Reject**
 
 `approval.mode` is checked again here. `dual_actor` means the post-deploy approver must differ from the release creator. `solo_with_gap` accepts self-approval but records the control gap. `auto_low_risk` allows LOW-risk requirements to auto-advance through both transitions on workflow completion; MEDIUM/HIGH always require a human click.
 
-### Step 6: Finalize Compliance (Tracked Requirements Only)
+### Step 6: Automated Close-out (Tracked Requirements Only)
 
-> **Automated path (preferred).** Run the synced helper instead of doing this by hand — it flips the ticket Status → `RELEASED` (+ backlinks the release PR and records the sign-off), flips the matching `RTM.md` row, and `git mv`s the ticket to `approved-releases/`, then stages the changes for you to commit:
->
-> ```bash
-> ./scripts/close-out-release.sh REQ-XXX --release-pr <release-PR-#>
-> git add -A && git commit -m "docs(compliance): close out REQ-XXX release ticket (RELEASED)" && git push origin develop
-> ```
->
-> It is **idempotent** (a no-op if already closed out) and, when `DEVAUDIT_API_KEY` + `DEVAUDIT_BASE_URL` are set, **refuses** unless the portal reports the release as `released` (so you can't flip the local tree ahead of the Production approval). The `close-out-release.yml` workflow runs the same script automatically when the portal marks a release released (and is `workflow_dispatch`-able for catch-up). The manual steps below are the fallback / reference for what the script does.
+When the portal status becomes `released`, it dispatches `release-closed` to the
+consumer repository. `close-out-release.yml` then opens a
+`chore/close-out-REQ-XXX` PR to the configured integration branch. That PR is
+the canonical reconciliation record: it updates the RTM, moves the release
+ticket to `approved-releases/`, and moves manifest-listed absorbed predecessors
+to `superseded-releases/`.
 
-```bash
-mv compliance/pending-releases/RELEASE-TICKET-REQ-XXX.md compliance/approved-releases/
-```
-
-Update `compliance/RTM.md`:
-```markdown
-| REQ-XXX | Description | [RISK] | files | evidence | APPROVED - DEPLOYED | [Reviewer] | [Date] |
-```
-
-Add audit trail to release ticket:
-```markdown
-| [date] | UAT verification passed | [who] | Health + smoke + feature verified on UAT |
-| [date] | PR approved | [reviewer] | PR #[number] |
-| [date] | CI verification | GitHub Actions | All gates passed independently |
-| [date] | Deployed to production | System | Auto-deploy from main |
-| [date] | PROD post-deploy verification | [who] | Health + security checks passed on PROD |
-```
-
-```bash
-git add compliance/RTM.md compliance/approved-releases/ compliance/evidence/REQ-XXX/
-git rm compliance/pending-releases/RELEASE-TICKET-REQ-XXX.md 2>/dev/null
-git commit -m "compliance: [REQ-XXX] approved and deployed - PR #[number]"
-git push origin develop
-```
+Review and merge the close-out PR after its required checks are terminal green
+on its current head SHA. It is an administrative reconciliation PR, not a new
+production release. If the dispatch did not arrive, manually dispatch the
+Release Close-out workflow. Run `scripts/close-out-release.sh` locally only for
+documented recovery or historical catch-up; never create a normal direct
+close-out commit on a protected branch.
 
 ### Step 7: Close the GitHub Issue
 
@@ -207,17 +187,10 @@ gh issue close [ISSUE-NUMBER] --comment "Implemented in PR #[PR-NUMBER] (REQ-XXX
 
 This is the final traceability link: Issue → Requirement → PR → Deployment → Issue closed.
 
-### Step 8: Final Sync
-
-```bash
-git checkout main && git merge develop --no-edit && git push origin main
-git checkout develop
-```
-
 ## Rollback
 
 1. **Hosting dashboard:** Redeploy previous version
-2. **Git:** `git checkout main && git revert HEAD --no-edit && git push origin main`
+2. **Git:** create `hotfix/revert-REQ-XXX` from the release branch, revert the merge, and open a reviewed PR to the release branch. After terminal-green checks and merge, open the mandatory backmerge PR to integration.
 3. **Document:** Add rollback entry to release ticket audit trail
 4. **Correlate with incident (DevAudit-Installer#210 §10a):** If the rollback was triggered by a post-deploy smoke failure, the `post-deploy-prod.yml` workflow files an incident issue with the `incident` label. Reference this incident in the rollback commit message (`Fixes #N` or a comment on the issue) so the incident report captures the containment action. This ensures `incident-export.yml` exports the full incident timeline including the rollback.
 
