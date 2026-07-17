@@ -502,7 +502,7 @@
         "type": "object",
         "properties": {
           "schemaVersion": {
-            "const": 1
+            "const": 2
           },
           "approvalRelease": {
             "$ref": "#/$defs/releaseReference"
@@ -577,11 +577,48 @@
                     "null"
                   ],
                   "format": "uri"
+                },
+                "originalTitle": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "evidenceInheritancePolicy": {
+                  "type": "object",
+                  "properties": {
+                    "mode": {
+                      "type": "string",
+                      "enum": ["all_eligible", "selected", "none"]
+                    },
+                    "includeCycles": {
+                      "type": "boolean"
+                    },
+                    "scopes": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": ["release", "stage", "cycle", "approval"]
+                      },
+                      "uniqueItems": true
+                    },
+                    "evidenceIds": {
+                      "type": "array",
+                      "items": { "type": "string", "minLength": 1 },
+                      "uniqueItems": true
+                    },
+                    "reason": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": ["mode", "includeCycles", "reason"],
+                  "additionalProperties": false
                 }
               },
               "required": [
                 "role",
-                "relationship"
+                "relationship",
+                "originalTitle",
+                "evidenceInheritancePolicy"
               ],
               "additionalProperties": false,
               "anyOf": [
@@ -650,27 +687,33 @@
             }
           },
           "manifestHash": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
           },
           "generator": {
-            "type": [
-              "object",
-              "null"
-            ],
-            "additionalProperties": true
+            "type": "object",
+            "properties": {
+              "name": { "type": "string", "minLength": 1 },
+              "version": { "type": "string", "minLength": 1 },
+              "repository": { "type": "string", "minLength": 1 },
+              "generatedAt": { "type": "string", "format": "date-time" }
+            },
+            "required": ["name", "version", "repository", "generatedAt"],
+            "additionalProperties": false
           }
         },
         "required": [
           "schemaVersion",
-          "members"
+          "approvalRelease",
+          "coreRelease",
+          "members",
+          "manifestHash",
+          "generator"
         ],
         "additionalProperties": false
       },
       "example": {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "approvalRelease": {
           "version": "REQ-093"
         },
@@ -687,7 +730,14 @@
             "commitFrom": "2655865",
             "commitTo": "40fc7fb",
             "prNumber": 495,
-            "prUrl": "https://github.com/metasession-dev/wawagardenbar-app/pull/495"
+            "prUrl": "https://github.com/metasession-dev/wawagardenbar-app/pull/495",
+            "originalTitle": "Housekeeping release before REQ-093",
+            "evidenceInheritancePolicy": {
+              "mode": "all_eligible",
+              "includeCycles": true,
+              "scopes": ["release", "stage", "cycle"],
+              "reason": "Explicit predecessor release absorbed into approval envelope REQ-093."
+            }
           }
         ],
         "nonReleaseWorkItems": [
@@ -700,7 +750,9 @@
         "manifestHash": "sha256:7f1d7e2c4fcb3a3f5bc65dc6f9830e5c54f2ea4cf6d42a0c6fd49044a5f95f1e",
         "generator": {
           "name": "devaudit-installer",
-          "version": "0.3.12"
+          "version": "0.3.13",
+          "repository": "metasession-dev/wawagardenbar-app",
+          "generatedAt": "2026-07-17T10:00:00Z"
         }
       }
     }

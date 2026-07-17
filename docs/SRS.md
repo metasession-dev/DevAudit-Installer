@@ -3033,3 +3033,14 @@ Behaviours below are **implicit, possibly unintended, or divergent from stated i
 - **CLI integration (recommended):** `execa('node', [bin/devaudit.js, …], { reject:false })` against a throwaway `git init` fixture, with a local HTTP portal stub + an on-disk `gh` shim on `PATH` (the cross-process replacement for `vi.mock`). Assert **exit code + stdout/stderr + filesystem deltas**. Requires a prior `npm run build` (the bin loads `dist/`) and `bundle:templates`-or-`DEVAUDIT_INSTALLER_ROOT`.
 - **Full E2E (recommended, nightly — not the PR gate):** a real `install`/`update` against a dedicated _tracer consumer_ repo, asserting the rendered CI workflows + rule files + a real portal (or a high-fidelity stub). Keep off the PR critical path.
 - **Template-render tests:** render each CI template + adapter combo (node/python × railway) and assert the rendered file content (tokens substituted, services block stripped where applicable) — these are pure-function tests needing no network.
+
+## Appendix C — Release lineage integrity requirements (#405)
+
+| ID | Requirement |
+| --- | --- |
+| SRS-LIN-405-001 | Bundle manifest schema v2 shall include original member titles, explicit evidence/cycle inheritance policy, strict generator provenance, and a portal-verifiable canonical hash. |
+| SRS-LIN-405-002 | Generated workflows shall start lifecycle records before governed execution and complete them from the authoritative execution result, independently of evidence upload. |
+| SRS-LIN-405-003 | Quality gates shall use the CI environment; production deployment and production smoke shall be distinct stage-5 cycles. |
+| SRS-LIN-405-004 | Every terminal execution state, including failure without artifacts, cancellation, timeout, skipped, and action-required, shall remain visible. |
+| SRS-LIN-405-005 | Evidence upload completeness shall be reported as a separate required check and shall not overwrite the execution outcome. |
+| SRS-LIN-405-006 | Consumer rollout shall deploy the tolerant portal contract before installer schema-v2 strict emission. |

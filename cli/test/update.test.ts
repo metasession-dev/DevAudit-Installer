@@ -198,9 +198,13 @@ describe('syncProject — native TS sync against a fixture', () => {
     // wawagardenbar-app#383: PRs to develop must surface Quality Gates, while
     // release registration/evidence upload stay push/dispatch-only side effects.
     expect(ciYml).toContain('pull_request:\n    branches: [develop]');
-    expect(ciYml).toContain("if: ${{ github.event_name != 'pull_request' || !startsWith(github.head_ref, 'chore/close-out-') }}");
+    expect(ciYml).toContain(
+      "if: ${{ always() && (github.event_name != 'pull_request' || !startsWith(github.head_ref, 'chore/close-out-')) && (github.event_name == 'pull_request' || needs.register-release.result == 'success') }}",
+    );
     expect(ciYml).toMatch(/register-release:[\s\S]*if: \$\{\{ github\.event_name != 'pull_request' && github\.ref_name == 'develop' \}\}/);
-    expect(ciYml).toMatch(/upload-evidence:[\s\S]*if: \$\{\{ always\(\) && !cancelled\(\) && github\.ref_name == 'develop' && needs\.register-release\.result == 'success' \}\}/);
+    expect(ciYml).toMatch(
+      /upload-evidence:[\s\S]*if: \$\{\{ always\(\) && github\.ref_name == 'develop' && needs\.register-release\.result == 'success' \}\}/,
+    );
     expect(ciYml).toContain('scripts/report-test-cycle.sh start');
     expect(ciYml).toContain('--evidence-scope cycle --test-cycle-record-id');
     expect(ciYml).toContain('Complete primary quality-gate cycle');

@@ -150,6 +150,11 @@ assert_eq "member version recorded" "REQ-041" "$(jq -r '.members[0].version' "$J
 assert_eq "member role recorded" "predecessor" "$(jq -r '.members[0].role' "$JSON_OUT")"
 assert_eq "member relationship recorded" "superseded" "$(jq -r '.members[0].relationship' "$JSON_OUT")"
 assert_eq "manifest hash present" "true" "$(jq -r 'has("manifestHash")' "$JSON_OUT")"
+assert_eq "manifest schema v2" "2" "$(jq -r '.schemaVersion' "$JSON_OUT")"
+assert_eq "original title recorded" "Prior tracked release" "$(jq -r '.members[0].originalTitle' "$JSON_OUT")"
+assert_eq "inheritance policy explicit" "all_eligible" "$(jq -r '.members[0].evidenceInheritancePolicy.mode' "$JSON_OUT")"
+EXPECTED_HASH="sha256:$(jq -cS 'del(.manifestHash, .generator.generatedAt)' "$JSON_OUT" | tr -d '\n' | sha256sum | awk '{print $1}')"
+assert_eq "canonical manifest hash verifies" "$EXPECTED_HASH" "$(jq -r '.manifestHash' "$JSON_OUT")"
 echo
 
 # Test 3: ambiguous predecessor ownership fails.

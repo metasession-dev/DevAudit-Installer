@@ -123,7 +123,7 @@ describe('release-lineage contract (#391)', () => {
     const validate = compilePayloadSchema(ajv, contract, 'bundle_manifest');
     expect(
       validate({
-        schemaVersion: 1,
+        schemaVersion: 2,
         approvalRelease: { version: 'REQ-093' },
         coreRelease: { version: 'REQ-093' },
         members: [],
@@ -134,8 +134,13 @@ describe('release-lineage contract (#391)', () => {
             reference: 'abc1234',
           },
         ],
-        manifestHash: 'sha256:test',
-        generator: { name: 'devaudit-installer', version: '0.3.12' },
+        manifestHash: `sha256:${'0'.repeat(64)}`,
+        generator: {
+          name: 'devaudit-installer',
+          version: '0.3.13',
+          repository: 'metasession-dev/example',
+          generatedAt: '2026-07-17T00:00:00Z',
+        },
       }),
     ).toBe(true);
   });
