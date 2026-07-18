@@ -1,6 +1,6 @@
 {
   "name": "@metasession.co/devaudit-plugin-prisma",
-  "version": "0.3.16",
+  "version": "0.3.17",
   "description": "Prisma migration deploy hooks + status commands for DevAudit-onboarded node consumers.",
   "type": "module",
   "main": "./dist/plugin.js",
