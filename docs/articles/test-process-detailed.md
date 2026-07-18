@@ -451,14 +451,14 @@ Full E2E regression on every PR is expensive. DevAudit maps MoSCoW prioritisatio
 | Tier | Location | When it runs | Wall-clock target | Audit role | Blocking? |
 |---|---|---|---|---|---|
 | **smoke** | `e2e/smoke/*.spec.ts` | Every push to integration branch (via `ci.yml`) | ~3–5 min | Fast feedback on every change | Yes — stops integration hop |
-| **critical** | `e2e/smoke/` + `e2e/critical/*.spec.ts` | PR to release branch (via `e2e-regression.yml`) | ~10–15 min | Release-readiness Must gate | Yes — stops release |
-| **regression** | all `e2e/**/*.spec.ts` | Nightly + push-to-release + `workflow_dispatch` | ~35 min | Full audit trail + drift catch | No — post-merge safety net |
+| **critical** | `e2e/smoke/` + `e2e/critical/*.spec.ts` | Consumer-enabled PR to release branch | ~10–15 min | Release-readiness Must gate | Yes — stops release |
+| **regression** | all `e2e/**/*.spec.ts` | `workflow_dispatch` and any consumer-configured post-merge or schedule | ~35 min | Full audit trail + drift catch | No — consumer-selected safety net |
 
 **MoSCoW mapping:** Must-priority SRS items live in `e2e/smoke/` (fast feedback) and `e2e/critical/` (release gate). Should/Could items live in `e2e/` and are covered by the regression tier.
 
-**Cost philosophy:** Smoke protects every push from breaking the headline flow. Critical protects every release from a Must-tier regression. Full regression protects the audit trail + catches drift overnight. The framework accepts that a Should/Could-tier regression *can* slip past the PR gate; it's caught on the next post-merge run + auto-files a hotfix issue. This is preferred over a 35-min wait on every release because operator velocity matters and the safety net stays intact.
+**Cost philosophy:** Smoke protects every push from breaking the headline flow. Critical protects enabled release gates from a Must-tier regression. Full regression protects the audit trail and catches drift when the consumer elects to run it. The framework does not impose a nightly run; the consumer chooses post-merge, scheduled, or manual-dispatch coverage for Should/Could-tier regression.
 
-**Post-merge safety net:** Every push to the release branch re-runs full regression. On failure, auto-files a `bug, priority:high` issue. Operator triages: hotfix forward, revert, or accept-with-rationale. No automated revert (false positives + flakes + UAT-data drift are real classes). No silently shipping a failing test — every red regression spec ends as either fixed, reverted, or accepted-with-recorded-rationale.
+**Post-merge safety net:** When a consumer enables it, a post-merge full regression can auto-file a `bug, priority:high` issue. The operator triages: hotfix forward, revert, or accept-with-rationale. No automated revert: flakes and UAT-data drift require human judgment.
 
 **Tier classification decision tree** (applied per scenario by the developer, guided by `e2e-test-engineer` skill Phase 3):
 

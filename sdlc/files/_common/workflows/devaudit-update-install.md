@@ -137,20 +137,20 @@ Key files to expect:
 
 ### 5. Hand off to the sdlc-implementer skill
 
-The changes are staged in the working tree. The remaining steps — invoking the SDLC engine for the sentinel, running local gates, creating a feature branch, committing, pushing, opening a PR, monitoring CI, and handling post-merge housekeeping release stubs — are all owned by the **sdlc-implementer** skill that was synced into `.claude/skills/` by the install/update.
+The changes are staged in the working tree. The remaining steps — invoking the SDLC engine for the sentinel, running local gates, creating a feature branch, committing, pushing, opening a PR, monitoring CI, and recording the correct housekeeping release meaning — are all owned by the **sdlc-implementer** skill that was synced into `.claude/skills/` by the install/update.
 
 Invoke the sdlc-implementer skill and tell it:
 
-> **Housekeeping change.** The working tree has uncommitted changes from `devaudit install` (or `devaudit update`). Commit type is `chore:`, no `REQ-XXX`. Use the SDLC lightweight path: invoke the SDLC engine for the sentinel, run local gates, create a `chore/sync-devaudit-sdlc-{version}` branch, commit, push, open a PR targeting `develop`, monitor CI, and guide merge. After merge, CI will auto-generate housekeeping release stubs (release ticket + security summary) — remind the operator to review and sign off on those.
+> **Housekeeping change.** The working tree has uncommitted changes from `devaudit install` (or `devaudit update`). Commit type is `chore:`, no `REQ-XXX`. Use the SDLC lightweight path: invoke the SDLC engine for the sentinel, run local gates, create a `chore/sync-devaudit-sdlc-{version}` branch, commit, push, open a PR targeting `develop`, wait for terminal-green checks on the current PR SHA, then guide merge. This is normal integration housekeeping: it has PR review only, creates no tracked approval release, and is absorbed into the next tracked REQ through bundled-change lineage. A standalone housekeeping release is allowed only when the `sdlc-implementer` standalone-exception contract is explicitly satisfied.
 
 The skill will:
 1. Invoke `node SDLC/bin/devaudit-sdlc.js --phase=issue --view` to write the `.sdlc-implementer-invoked` sentinel
 2. Run local gates (lint, tsc, test)
 3. Create a `chore/` branch, commit, and push
 4. Open a PR targeting `develop`
-5. Monitor CI checks
+5. Monitor CI checks and wait for terminal green on the current PR SHA
 6. Guide review → merge
-7. Remind the operator about the housekeeping release stub PR that CI auto-opens after merge
+7. Record the merge as integration history to be bundled into the next tracked REQ, unless the explicit standalone-housekeeping exception was used
 
 **Do not** manually run these steps yourself — the skill owns the SDLC ceremony and stays in sync with the framework's evolution. If the skill is not available (e.g. the AI agent doesn't support skills), fall back to the manual steps documented in `SDLC/0-project-setup.md` and the sdlc-implementer skill definition at `.claude/skills/sdlc-implementer/SKILL.md`.
 

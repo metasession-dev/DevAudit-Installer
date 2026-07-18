@@ -155,8 +155,8 @@ AI involvement in Medium or High categories raises risk by one level. The Test S
 The MoSCoW prioritisation of acceptance criteria maps onto three E2E gates, each enforced at a different point in the workflow:
 
 - **Must-tier ACs in the smoke subset** must pass on every push to the integration branch. Blocking — a red smoke gate stops the integration hop.
-- **Must-tier ACs in the critical subset** must pass on every PR to the release branch. Blocking — a red critical gate stops the release.
-- **Should/Could-tier ACs (full regression)** must pass on the next post-merge run to the release branch OR a hotfix issue is auto-filed. Not pre-merge blocking — the safety net is post-hoc triage by the operator within working hours.
+- **Must-tier ACs in the critical subset** must pass on every consumer-enabled PR to the release branch. Blocking — a red critical gate stops that release.
+- **Should/Could-tier ACs (full regression)** are not pre-merge blocking. The consumer chooses a post-merge, scheduled, or manual-dispatch safety net and must triage any recorded failure within working hours.
 
 Operator override on a hotfix issue (accept-with-rationale) is logged on the issue itself + carried in the next release's `test-execution-summary.md` design record (devaudit#50). The framework does not permit silently shipping a failing test — every red regression spec ends as either fixed, reverted, or accepted-with-recorded-rationale.
 

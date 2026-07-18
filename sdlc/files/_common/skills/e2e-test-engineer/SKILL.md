@@ -139,7 +139,7 @@ When designing each scenario, also pick the tier it'll live in. Three tiers map 
 | --- | --- | --- |
 | **smoke** | `e2e/smoke/*.spec.ts` | Cross-cutting sanity that proves the app is up: login, basic nav, one canonical CRUD per main domain. Runs on every push to the integration branch. Keep small — total smoke wall-clock target is ~3–5 min. |
 | **critical** | `e2e/critical/*.spec.ts` | Must-priority SRS item that breaks a headline flow if it regresses. Examples: payment authorisation, order completion, admin permission editing, RBAC enforcement on financial surfaces. Runs on PR-to-release-branch. Total critical wall-clock target ~10–15 min (includes smoke). |
-| **regression** | `e2e/<area>/*.spec.ts` | Should/Could-priority SRS item, edge cases, less-load-bearing flows. Runs nightly + post-merge + dispatch. Total full pack can be 30+ min; that's the point of the tier. |
+| **regression** | `e2e/<area>/*.spec.ts` | Should/Could-priority SRS item, edge cases, less-load-bearing flows. Runs by dispatch and any consumer-configured post-merge or scheduled cadence. Total full pack can be 30+ min; that is the point of the tier. |
 
 Decision tree, applied per scenario:
 
@@ -229,6 +229,12 @@ Before running the suite (Phase 6), verify that the evidence traceability wiring
 
    Also verify the import is present: `import { tagTest } from './helpers/test-tags'` (or the correct relative path from the spec's location to `e2e/helpers/test-tags.ts`).
 
+4. **Check release and cycle provenance.** Before handing the work back to `sdlc-implementer`, identify the tracked `REQ-XXX`, the source branch SHA, and the expected SDLC stage/cycle for the run. The CI evidence upload must retain those values so the portal can show the result in the correct numbered cycle for the release that produced it.
+   - A passing local run is not portal evidence by itself. Report it as local verification and let the configured CI workflow upload the resulting report and screenshots.
+   - For a bundled release, evidence remains attributed to its originating REQ and cycle. The absorbing release may reference that source release through bundle lineage, but must not relabel the source E2E run as newly produced by the absorbing REQ.
+   - Confirm the CI invocation has an unambiguous release context (`REQ-XXX` or the documented standalone-housekeeping declaration). A bare-date integration housekeeping run is historical CI only; it must not create an approval-ready E2E evidence set.
+   - If the project workflow cannot provide this context, halt and report a workflow-contract gap. Do not claim that screenshots or E2E results will appear correctly on the portal.
+
 **If any check fails:**
 
 Halt and report the gap to the user:
@@ -241,7 +247,7 @@ Halt and report the gap to the user:
 
 Do **not** proceed to Phase 6 until all gaps are resolved. The user may choose to skip an AC (e.g. API-only, transport-only) — that's valid, but it must be an explicit decision recorded in the test-execution-summary, not an omission.
 
-**Write the evidence-wiring sentinel (devaudit-installer#226).** After all Phase 5½ checks pass (all `@requirement`, `evidenceShot()`, and `tagTest()` calls verified), write a `.e2e-evidence-wired` sentinel file in the repo root so the pre-push hook and `sdlc-implementer` Phase 2 step 5b can verify evidence wiring was validated:
+**Write the evidence-wiring sentinel (devaudit-installer#226).** After all Phase 5½ checks pass (all `@requirement`, `evidenceShot()`, `tagTest()`, and release/cycle provenance checks verified), write a `.e2e-evidence-wired` sentinel file in the repo root so the pre-push hook and `sdlc-implementer` Phase 2 step 5b can verify evidence wiring was validated:
 
 ```bash
 echo "WIRED $(date -u +%Y-%m-%dT%H:%M:%SZ) REQ-XXX" > .e2e-evidence-wired
@@ -442,6 +448,7 @@ Wrap up with a summary the user can drop into the PR or ticket:
 - Defects filed — count, with links.
 - Requirements gap reports — count, with details (devaudit-installer#212 Gap 4). These are ACs classified as "impossible to test" or "missing AC" — returned to `sdlc-implementer` for the requirements gap flow, not filed as defects.
 - Missed requirements — count, with links.
+- **Release provenance** — originating `REQ-XXX`, local run result, expected CI workflow/run, and expected portal stage/cycle. For bundled work, state the source REQ explicitly and that the absorbing release will reference it through lineage rather than overwrite its attribution.
 
 **Then feed the test-design record (devaudit#50).** The Stage 3 `test-execution-summary.md` (generated per `3-compile-evidence.md` Step 1a) carries a `## Test design` section at the top. Before Stage 3 finalises the file, populate that section with the design-time decisions this skill made, so the SDLC has a recorded trace that scope was *decided*, not implicit:
 
