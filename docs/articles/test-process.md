@@ -32,8 +32,8 @@ AI involvement raises risk by one level. AI regeneration triggers full retest.
 | Tier | Location | When | Blocking? |
 |---|---|---|---|
 | **smoke** | `e2e/smoke/` | Every push to integration branch | Yes |
-| **critical** | `e2e/smoke/` + `e2e/critical/` | PR to release branch | Yes |
-| **regression** | all `e2e/**/*.spec.ts` | Nightly + post-merge to release | No — auto-files hotfix issue on failure |
+| **critical** | `e2e/smoke/` + `e2e/critical/` | Consumer-enabled PR to release branch | Yes |
+| **regression** | all `e2e/**/*.spec.ts` | Dispatch and any consumer-configured post-merge or schedule | No — consumer may auto-file a hotfix issue on failure |
 
 ## Per-Commit CI Gates
 

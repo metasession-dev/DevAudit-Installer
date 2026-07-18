@@ -29,11 +29,11 @@ This repo carries **two** observable surfaces, both specified here:
 
 | Concern          | Technology                                                         | Notes                                                                                                                                                                            |
 | ---------------- | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| CLI package      | **`@metasession.co/devaudit-cli` v0.1.54**, ESM, **Node ≥ 22**     | `bin: { devaudit: ./bin/devaudit.js }`; the bin `import()`s built `dist/`                                                                                                        |
+| CLI package      | **`@metasession.co/devaudit-cli` v0.3.15**, ESM, **Node ≥ 22**     | `bin: { devaudit: ./bin/devaudit.js }`; the bin `import()`s built `dist/`                                                                                                        |
 | Command parser   | **commander**                                                      | global flags + nested command groups (`auth`, `plugin`, `org`, `config`)                                                                                                         |
 | Prompts / output | **@clack/prompts**, **consola**                                    | interactive onboarding + logging                                                                                                                                                 |
 | Process / paths  | **execa** (shelling out to `git`, `gh`, `npm`), **env-paths**      | `~/.config/devaudit/` for auth + plugins                                                                                                                                         |
-| Plugins          | **`@metasession.co/devaudit-plugin-sdk` v0.1.54**                  | lifecycle hooks: `beforeSync`/`afterSync`, `beforePush`/`afterPush`, `onDoctor`; first-party plugins: `devaudit-plugin-prisma`, `devaudit-plugin-evidence-export` (both v0.1.54) |
+| Plugins          | **`@metasession.co/devaudit-plugin-sdk` v0.3.15**                  | lifecycle hooks: `beforeSync`/`afterSync`, `beforePush`/`afterPush`, `onDoctor`; first-party plugins: `devaudit-plugin-prisma`, `devaudit-plugin-evidence-export` (both v0.3.15) |
 | Build            | **tsup** (`prepack` = `build` + `bundle:templates`)                | `bundle:templates` snapshots `sdlc/files/` into the published tarball                                                                                                            |
 | Tests            | **vitest 4.1.x** (`cli/test/*.test.ts`), **msw 2.x** (portal HTTP) | unit/integration only — see §2                                                                                                                                                   |
 | Templates        | `sdlc/files/` — stage docs, skills, CI templates, adapters         | resolved at runtime via `DEVAUDIT_INSTALLER_ROOT` override or the bundled snapshot                                                                                               |
@@ -439,7 +439,7 @@ procedure, not automation.
      tests do) so `install`/`update` can resolve `sdlc/files/`. The former is the more
      faithful E2E (it proves the published-tarball layout works); the latter is faster.
      Either way `npm run build` must precede the test so `bin/devaudit.js` can load `dist/`.
-3. **Full E2E against a tracer consumer — opt-in / nightly, not the PR gate.** A
+3. **Full E2E against a tracer consumer — opt-in / consumer-configured schedule or dispatch, not the PR gate.** A
    gated job (manual `workflow_dispatch` or scheduled) that checks out a small,
    purpose-built **tracer** consumer repo, runs the _real_ published-or-built CLI
    `install` then `update` against it with a **real** `gh` and a **dedicated test**
@@ -1866,7 +1866,7 @@ Scope note: The six entries below are **Claude Code skills** — directories und
 - **Priority:** Must — tier choice maps to gating point and is recorded in evidence; the file location is directly assertable.
 - **Source:** `sdlc/files/_common/skills/e2e-test-engineer/SKILL.md` (§ Phase 3 "Classify each spec into a tier")
 - **Preconditions / inputs:** scenarios designed in Phase 3; MoSCoW priority of each.
-- **Given** a designed scenario **When** the skill classifies its tier **Then** it lands the spec at `e2e/smoke/*.spec.ts` (cross-cutting "app is up" sanity, runs on every push to integration), `e2e/critical/*.spec.ts` (Must-priority headline flow, runs on PR-to-release-branch), or `e2e/<area>/*.spec.ts` (Should/Could/edge, runs nightly + post-merge + dispatch); when undecided between critical and regression, defaults to **regression**; the tier choice is recorded in `test-execution-summary.md` § Test design.
+- **Given** a designed scenario **When** the skill classifies its tier **Then** it lands the spec at `e2e/smoke/*.spec.ts` (cross-cutting "app is up" sanity, runs on every push to integration), `e2e/critical/*.spec.ts` (Must-priority headline flow, runs on a consumer-enabled PR-to-release-branch gate), or `e2e/<area>/*.spec.ts` (Should/Could/edge, runs by dispatch and any consumer-configured post-merge or schedule); when undecided between critical and regression, defaults to **regression**; the tier choice is recorded in `test-execution-summary.md` § Test design.
 - **Error paths:** putting a Should-priority spec in critical inflates every PR-to-main wait — defensible-tier check happens at the WAIT CHECKPOINT.
 - **Fixtures/env:** an `e2e/` tree; a Must- and a Should-priority AC.
 
@@ -3031,7 +3031,7 @@ Behaviours below are **implicit, possibly unintended, or divergent from stated i
 
 - **Unit (present):** import the action function (`runInstall`, `syncProject`, `runDoctor`, …); msw for the portal, `vi.mock('execa')` / fake provider for `gh`/`git`, temp fixture repos, `DEVAUDIT_INSTALLER_ROOT` for templates. Assert the returned report + the fixture filesystem.
 - **CLI integration (recommended):** `execa('node', [bin/devaudit.js, …], { reject:false })` against a throwaway `git init` fixture, with a local HTTP portal stub + an on-disk `gh` shim on `PATH` (the cross-process replacement for `vi.mock`). Assert **exit code + stdout/stderr + filesystem deltas**. Requires a prior `npm run build` (the bin loads `dist/`) and `bundle:templates`-or-`DEVAUDIT_INSTALLER_ROOT`.
-- **Full E2E (recommended, nightly — not the PR gate):** a real `install`/`update` against a dedicated _tracer consumer_ repo, asserting the rendered CI workflows + rule files + a real portal (or a high-fidelity stub). Keep off the PR critical path.
+- **Full E2E (recommended, scheduled or dispatched by the consumer — not the PR gate):** a real `install`/`update` against a dedicated _tracer consumer_ repo, asserting the rendered CI workflows + rule files + a real portal (or a high-fidelity stub). Keep off the PR critical path.
 - **Template-render tests:** render each CI template + adapter combo (node/python × railway) and assert the rendered file content (tokens substituted, services block stripped where applicable) — these are pure-function tests needing no network.
 
 ## Appendix C — Release lineage integrity requirements (#405)

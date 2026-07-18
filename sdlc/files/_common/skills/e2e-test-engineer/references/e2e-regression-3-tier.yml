@@ -2,8 +2,8 @@
 #
 # Copy this into your consumer-owned .github/workflows/e2e-regression.yml
 # to adopt the 3-tier model: smoke (every develop push, fast) / critical
-# (PR-to-main, ~10-15 min target) / regression (nightly + push-to-main +
-# dispatch, full audit trail with auto-issue on failure).
+# (consumer-enabled release PR, ~10-15 min target) / regression (post-merge
+# or scheduled only when the consumer opts in, plus dispatch).
 #
 # The framework does NOT sync this file automatically — your consumer
 # owns its e2e-regression.yml. Apply the patterns below to your own
@@ -25,8 +25,6 @@ on:
     branches: [main] # critical-tier gate before merge
   push:
     branches: [main] # full regression after merge; auto-issues on failure
-  schedule:
-    - cron: '0 2 * * *' # nightly full regression
   workflow_dispatch:
     inputs:
       specs:
@@ -62,8 +60,8 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       # Decide which Playwright project to run based on the trigger.
-      # PR-to-main uses critical with smoke fall-back; push-to-main and
-      # schedule run the full regression project; workflow_dispatch
+      # PR-to-main uses critical with smoke fall-back; a consumer-enabled
+      # post-merge push runs the full regression project; workflow_dispatch
       # accepts an optional spec filter.
       - name: Determine E2E project + spec selector
         id: select

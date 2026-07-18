@@ -1,5 +1,7 @@
 # When Your CI Creates More Releases Than Your Developers
 
+> **Historical case study.** This article documents the pre-#409 housekeeping workflow. Today, normal no-REQ work is integration history and only an explicitly declared standalone exception enters the release approval path.
+
 > **Primary persona:** CTO + Lead Developer
 > **Funnel stage:** MOFU — Consideration
 > **Format:** Technical deep-dive (~2000 words)

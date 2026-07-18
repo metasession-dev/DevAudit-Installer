@@ -1,5 +1,7 @@
 # Your CI Is Creating Releases Nobody Asked For
 
+> **Historical case study.** This describes the pre-#409 housekeeping workflow that produced approval candidates and auto-generated stubs. The current model records normal no-REQ work as integration history and reserves standalone promotion for an explicit exception.
+
 **Long-form parent:** When Your CI Creates More Releases Than Your Developers
 **Platform:** LinkedIn, Dev.to
 **Read time:** ~2 minutes

@@ -99,7 +99,7 @@ Full guide: [`sdlc/files/_common/joining-an-existing-project.md`](./sdlc/files/_
 
 ## The SDLC at a glance
 
-Develop-main (`develop` → `main`), one owner-developer partnered with AI agents. The framework has **two release shapes** — tracked and housekeeping — and CI auto-classifies each develop push into the correct shape.
+Develop-main (`develop` → `main`), one owner-developer partnered with AI agents. The framework distinguishes **tracked releases**, normal **integration-housekeeping history**, and the explicit **standalone-housekeeping** exception.
 
 ### Which AI agent? Any of them.
 
@@ -128,16 +128,13 @@ The default path for any user-visible change. Triggered by `feat`/`fix`/`refacto
 
 The **`sdlc-implementer`** skill takes one GitHub issue through Stages 1–5 unattended on Claude Code (pausing at the portal UAT gate), delegating to five sibling specialists: **`e2e-test-engineer`** for the E2E test pack, **`governance-doc-author`** for Tier-1/2 governance docs, and the SoT-alignment family (**`requirements-aligner`**, **`adr-author`**, **`risk-register-keeper`**) at Stage 1 plan-APPROVAL + Stage 3 evidence-pack. Each SoT-alignment skill maintains one persistent source-of-truth document (`docs/SRS.md`, `docs/ADR/`, `compliance/risk-register.md`) and drops a per-REQ Tier 3 evidence artefact each cycle. On Cursor / Windsurf / Gemini CLI / Codex / Copilot the same workflow runs step-by-step against the synced `INSTRUCTIONS.md` — same gates, same evidence, slightly more manual cadence.
 
-### Housekeeping releases (`v2026.06.04`)
+### Housekeeping changes (`v2026.06.04`)
 
-Bare-date release shape for develop pushes that don't carry a `REQ-XXX` — typically `docs:`, `chore:`, `ci:`, `build:`, `test:`, `compliance:`, `revert:` commits. The portal **auto-classifies these by version pattern** and skips the per-REQ ceremony (no implementation plan, no test scope, no test execution summary). What's still required:
+Bare-date integration history for develop pushes that don't carry a `REQ-XXX` — typically `docs:`, `chore:`, `ci:`, `build:`, `test:`, `compliance:`, `revert:` commits. The lightweight path still requires local gates, terminal-green PR checks, and human PR review. It does **not** create a tracked approval release, UAT/production approval request, release ticket, or security-summary stub PR.
 
-- All four CI gates green (SAST, dep-audit, E2E, test reports)
-- `compliance/pending-releases/RELEASE-TICKET-<version>.md` — **auto-generated** by `generate-housekeeping-release-ticket.sh` and opened as a PR for operator review + sign-off (v0.1.41+).
-- `compliance/security-summary-<version>.md` — **auto-generated** by `generate-security-summary.sh` from SAST + dep-audit JSON, same auto-PR (v0.1.41+).
-- Same UAT → production four-eyes approval flow as tracked.
+The portal records the resulting bare-date row as **integration history**. The next tracked `REQ-XXX` release absorbs relevant work through its bundled-changes manifest while retaining the source history and evidence ownership for audit.
 
-Operator workload on a housekeeping release: review the auto-PR, replace `REPLACE — …` markers in the Sign-off blocks, merge. The next CI run uploads both artefacts and the portal's release-completeness matrix flips both items to ✓.
+Use a **standalone housekeeping release** only when the change cannot reasonably wait for the next tracked REQ. The release PR must state `Standalone housekeeping promotion`, include the validated `STANDALONE-HOUSEKEEPING-vYYYY.MM.DD.json` declaration and reason, and pass production verification. The portal then records it as a distinct standalone release. See [the housekeeping playbook](./docs/release-playbooks/housekeeping-release.md) for the exception contract.
 
 → Which workflow applies to which change type, and what release each produces: [**`docs/change-workflows.md`**](./docs/change-workflows.md).
 → Full stage-3 walkthrough including the housekeeping path: [**`3-compile-evidence.md`**](./sdlc/files/_common/3-compile-evidence.md).

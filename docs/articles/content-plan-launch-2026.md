@@ -13,7 +13,7 @@ All articles should link back to existing pages. Authors must reference the cano
 | Page | URL | Use in articles |
 |------|-----|------------------|
 | **Homepage** | https://devaudit.ai/ | Hero messaging: "Compliance as a byproduct, not a project." Three audiences (vibe coders, traditional engineers, builders/founders). Live evidence feed example. |
-| **The SDLC (manifesto)** | https://devaudit.ai/sdlc | Five stages explained, three pillars (framework + gates + portal), six AI skills, two release shapes (tracked + housekeeping), 3-tier E2E gating, "AI as a first-class contributor", "What DevAudit is not" section. |
+| **The SDLC (manifesto)** | https://devaudit.ai/sdlc | Five stages explained, three pillars (framework + gates + portal), six AI skills, tracked/integration/standalone release modes, 3-tier E2E gating, "AI as a first-class contributor", "What DevAudit is not" section. |
 | **Standards coverage** | https://devaudit.ai/compliance | Clause-by-clause mapping: ISO 29119, ISO 27001, SOC 2, GDPR, EU AI Act. "One gate, multiple frameworks" concept. |
 | **Onboarding** | https://devaudit.ai/onboarding | Three paths in (install / update / join), onboarding form, "The framework adapts; the audit shape doesn't" positioning, open-source-first messaging. |
 | **Blog** | https://devaudit.ai/blog | Publication home for all content plan articles. |
@@ -654,7 +654,7 @@ This is a five-part series that follows a single feature from GitHub issue to pr
 **Primary persona:** Lead Developer
 **Goal:** Technical deep-dive on the three-tier E2E model and screenshot density controls.
 **Key points:**
-- Three-tier placement: `e2e/smoke/` (every push), `e2e/critical/` (PR-to-release), `e2e/<area>/` (nightly/post-merge)
+- Three-tier placement: `e2e/smoke/` (every push), `e2e/critical/` (consumer-enabled PR-to-release), `e2e/<area>/` (dispatch or consumer-configured cadence)
 - Screenshot density tiers: `tier: 'always'` for canonical anchors (always captured), `tier: 'feature'` for intermediate stages (auto-suppress on regression runs)
 - `evidenceShot()` helper signature: `evidenceShot(page, 'REQ-XXX', n, '<kebab-slug>', { tier: 'feature' })`
 - Sidecar metadata: `.meta.json` with `{ origin, reqId, ac, slug, specFile, capturedAt }`, origin auto-detected from `E2E_NEW_SPECS`
@@ -723,16 +723,16 @@ This is a five-part series that follows a single feature from GitHub issue to pr
 #### Article 35: The Automation You Don't See: Housekeeping Releases
 
 **Primary persona:** Compliance Officer
-**Goal:** Operational detail on automated governance for non-tracked work.
+**Goal:** Explain how non-tracked work remains traceable without creating noisy approval releases.
 **Key points:**
-- The problem: dependency updates, docs fixes, CI tweaks need release tracking too — but don't need full REQ ceremony
-- Bare-date versioning: `v2024.06.17.1` for housekeeping (no REQ-XXX in commit subjects)
-- Auto-PR generation: `compliance-evidence.yml` detects bare-date pushes, generates `RELEASE-TICKET-<v>.md` + `security-summary-<v>.md`
-- Idempotent PR: opens `chore/housekeeping-release-<v>` branch, updates in place if already exists
-- Human attestation required: PR body contains REPLACE markers, needs operator sign-off
-- Clause closure: housekeeping still uploads gate outcomes, security scans, audit-log — but without per-REQ evidence packs
+- The problem: dependency updates, docs fixes, and CI tweaks need traceability but should not create noisy approval queues
+- Bare-date integration history: `v2024.06.17.1` for normal housekeeping (no REQ-XXX in commit subjects)
+- Normal path: gates, terminal-green PR review, merge to `develop`; no release-ticket/security-summary stub PR or UAT/production approval
+- Bundled lineage: the next tracked REQ names the absorbed work while retaining source title, evidence ownership, stage, and cycles
+- Standalone exception: a validated declaration, documented reason, and production verification are required when the change cannot wait
+- Clause closure: CI and git history remain traceable without pretending every no-REQ change is a full release
 - Conventional commit prefixes: `chore/`, `docs/`, `ci/`, `build/`, `test/`, `compliance/` — no `[REQ-XXX]` in commit
-**DevAudit hook:** `generate-housekeeping-release-ticket.sh`, `generate-security-summary.sh` in `sdlc/files/_common/scripts/`. `compliance-evidence.yml.template` auto-PR step.
+**DevAudit hook:** `docs/release-playbooks/housekeeping-release.md`, bundled-change manifest, and the portal release-ownership/journey views.
 **CTA:** "See release workflows → [docs/release-playbooks/](https://github.com/metasession-dev/DevAudit-Installer/tree/main/docs/release-playbooks)"
 **Cross-links:** [docs/change-workflows.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/change-workflows.md) · [docs/release-playbooks/housekeeping-release.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/release-playbooks/housekeeping-release.md)
 
