@@ -235,13 +235,12 @@ describe('syncProject — native TS sync against a fixture', () => {
     expect(complianceEvidenceYml).not.toContain('FLAGS="${FLAGS} --test-cycle ${{ github.run_id }}"');
     expect(complianceEvidenceYml).toContain('scripts/report-test-cycle.sh start');
     expect(complianceEvidenceYml).toContain('scripts/report-test-cycle.sh complete');
-    expect(complianceEvidenceYml).toContain('actions: write       # gh workflow run ci.yml --ref develop');
-    expect(complianceEvidenceYml).toContain('Dispatch ci.yml for merged housekeeping stub');
-    expect(complianceEvidenceYml).toContain('gh workflow run ci.yml --ref develop');
-    expect(complianceEvidenceYml).toContain('Current push did not modify housekeeping stubs');
-    expect(complianceEvidenceYml).toContain('for SECSUM in compliance/security-summary-*.md; do');
-    expect(complianceEvidenceYml).toContain('Uploading housekeeping security summary: $(basename "$SECSUM") -> release ${SECSUM_VER}');
-    expect(complianceEvidenceYml).toContain('fixture-app _compliance-docs security_summary "$SECSUM"');
+    // #409: ordinary housekeeping is integration history. The legacy path
+    // that made approval artefacts, opened a PR, and dispatched CI is disabled.
+    expect(complianceEvidenceYml).toContain('Legacy housekeeping approval path (disabled)');
+    expect(complianceEvidenceYml).toContain('Legacy housekeeping gate dispatch (disabled)');
+    expect(complianceEvidenceYml).toContain('contents: read');
+    expect(complianceEvidenceYml).not.toContain('actions: write       # gh workflow run ci.yml --ref develop');
     expect(complianceEvidenceYml).toContain("printf '%s\\n' 'import json'");
     expect(complianceEvidenceYml).toContain('python3 /tmp/devaudit-extract-e2e-reqs.py');
     expect(complianceEvidenceYml).not.toContain("done < <(python3 - <<'PY'");

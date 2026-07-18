@@ -49,26 +49,11 @@ jobs:
     # double-upload every compliance doc.
     if: github.event_name != 'workflow_run'
     runs-on: {{RUNNER}}
-    # Permissions are needed because the housekeeping path now does two
-    # GitHub mutations:
-    #   1. pushes a stub branch + opens a PR via `gh pr create`
-    #   2. dispatches `ci.yml` on develop after that stub PR merges, so
-    #      compliance-only housekeeping releases still get the gate evidence
-    #      the portal approval path currently requires (#361)
-    #
-    # Without these the github-actions[bot] token gets HTTP 403 on the push,
-    # PR create, or workflow dispatch and the housekeeping path leaves a red
-    # badge or an unapprovable release behind.
-    #
-    # `DEVAUDIT_USER_TOKEN` is no longer consulted by this workflow (the
-    # auto-stub step now uses `github.token` directly — see the env block
-    # on that step). The permissions below grant everything `gh pr create`
-    # needs; preferring a (potentially stale) PAT was the cause of the
-    # 2026-06-07 401 chain on this issue.
+    # #409: this workflow only uploads evidence. Normal housekeeping is
+    # integration history, so it must not create PRs, dispatch gates, or
+    # receive write-scoped GitHub credentials.
     permissions:
-      actions: write       # gh workflow run ci.yml --ref develop
-      contents: write       # push the auto-PR branch
-      pull-requests: write  # gh pr create
+      contents: read
     env:
       DEVAUDIT_BASE_URL_VAR: ${{ vars.DEVAUDIT_BASE_URL }}
       DEVAUDIT_API_KEY: ${{ secrets.DEVAUDIT_API_KEY }}
@@ -141,28 +126,13 @@ jobs:
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "Release version: ${VERSION}"
 
-      # Housekeeping artefact auto-generation (DevAudit-Installer#116 WS3+WS4)
-      #
-      # Housekeeping releases (bare-date version) need two operator-authored
-      # artefacts to clear the portal's release-completeness checklist:
-      # `RELEASE-TICKET-<version>.md` and `security-summary-<version>.md`.
-      # When the version resolves to a bare-date AND those artefacts don't
-      # already exist on develop, generate stubs from the CI gate JSON and
-      # open a PR that the operator reviews + signs off + merges. Once
-      # merged, the next compliance-evidence.yml run uploads them as
-      # evidence and the matrix flips both items to ✓.
-      #
-      # devaudit#284 — release reconciliation merges (from close-out-release.yml)
-      # carry a `Release-Closeout: REQ-XXX` marker in the commit body.
-      # derive-release-version.sh detects this marker and emits an empty
-      # version, which this workflow converts to the explicit `skip` sentinel.
-      # Reconciliation pushes therefore never create housekeeping stubs and
-      # never attach fresh evidence to an already released tracked record.
-      #
-      # Mirrors the `incident-export.yml` pattern: auto-PR, operator fills
-      # in sign-off, merge to land.
-      - name: Auto-generate housekeeping stubs (if needed)
-        if: steps.resolve.outputs.skip != 'true' && steps.version.outputs.version != 'skip'
+      # #409: normal bare-date changes are integration CI history, not portal
+      # releases awaiting approval. The old auto-generated ticket/security
+      # summary path is deliberately disabled. An independently promoted
+      # exception must carry the reviewed standalone declaration validated by
+      # check-release-pr-scope.sh and post-deploy-prod.yml.
+      - name: Legacy housekeeping approval path (disabled)
+        if: ${{ false }}
         env:
           # Use the workflow's GITHUB_TOKEN directly. The `permissions:`
           # block on the job grants `contents: write` + `pull-requests:
@@ -241,8 +211,8 @@ jobs:
             echo "PR #${EXISTING} already open for ${VERSION} — branch updated in place."
           fi
 
-      - name: Dispatch ci.yml for merged housekeeping stub
-        if: github.event_name == 'push' && steps.resolve.outputs.skip != 'true' && steps.version.outputs.version != 'skip'
+      - name: Legacy housekeeping gate dispatch (disabled)
+        if: ${{ false }}
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.version.outputs.version }}

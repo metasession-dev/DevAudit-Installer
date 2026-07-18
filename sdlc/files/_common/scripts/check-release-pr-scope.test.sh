@@ -39,9 +39,10 @@ assert_grep() {
 make_fixture() {
   local dir="$1" subject="$2"
   rm -rf "$dir"
-  mkdir -p "$dir/scripts" "$dir/compliance/pending-releases"
+  mkdir -p "$dir/scripts" "$dir/compliance/pending-releases" "$dir/compliance/standalone-housekeeping"
   cp "$SCRIPT_DIR/derive-release-version.sh" "$dir/scripts/derive-release-version.sh"
   cp "$SCRIPT_DIR/extract-release-metadata.sh" "$dir/scripts/extract-release-metadata.sh"
+  cp "$SCRIPT_DIR/standalone-housekeeping-release.sh" "$dir/scripts/standalone-housekeeping-release.sh"
   cp "$HELPER" "$dir/scripts/check-release-pr-scope.sh"
   chmod +x "$dir/scripts/"*.sh
   (
@@ -131,6 +132,46 @@ else
 fi
 assert_exit "hotfix branch skips" 0 "$CODE"
 assert_grep "hotfix skip message" 'Hotfix PR detected' "$OUT"
+echo ""
+
+echo "--- Test 5: bare-date releases require an explicit standalone declaration ---"
+make_fixture "$WORK/test5" "chore: standalone housekeeping release"
+cat > "$WORK/test5/compliance/standalone-housekeeping/STANDALONE-HOUSEKEEPING-v2026.07.18.json" <<'EOF'
+{
+  "schemaVersion": 1,
+  "version": "v2026.07.18",
+  "releaseMode": "standalone_housekeeping",
+  "reason": "Urgent operational change cannot wait for the next tracked requirement release."
+}
+EOF
+OUT="$WORK/test5.out"
+if run_check "$WORK/test5" "$OUT" env PR_TITLE="Standalone housekeeping promotion: v2026.07.18" PR_BODY=$'## Release\n- Release: v2026.07.18\n'; then
+  CODE=0
+else
+  CODE=$?
+fi
+assert_exit "declared standalone housekeeping release passes" 0 "$CODE"
+assert_grep "standalone validation is emitted" 'Standalone housekeeping declaration is valid' "$OUT"
+echo ""
+
+echo "--- Test 6: bare-date releases without the exception marker fail ---"
+make_fixture "$WORK/test6" "chore: standalone housekeeping release"
+cat > "$WORK/test6/compliance/standalone-housekeeping/STANDALONE-HOUSEKEEPING-v2026.07.18.json" <<'EOF'
+{
+  "schemaVersion": 1,
+  "version": "v2026.07.18",
+  "releaseMode": "standalone_housekeeping",
+  "reason": "Urgent operational change cannot wait for the next tracked requirement release."
+}
+EOF
+OUT="$WORK/test6.out"
+if run_check "$WORK/test6" "$OUT" env PR_TITLE="Release: v2026.07.18" PR_BODY=$'## Release\n- Release: v2026.07.18\n'; then
+  CODE=0
+else
+  CODE=$?
+fi
+assert_exit "bare-date release without exception marker fails" 1 "$CODE"
+assert_grep "exception marker failure is clear" 'explicit standalone housekeeping exception' "$OUT"
 echo ""
 
 echo "=== check-release-pr-scope.test.sh: $PASS passed, $FAIL failed ==="
