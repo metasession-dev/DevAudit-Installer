@@ -6,6 +6,8 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PLAYBOOKS="$ROOT/docs/release-playbooks"
 WORKFLOWS="$ROOT/docs/change-workflows.md"
 SKILL="$ROOT/sdlc/files/_common/skills/sdlc-implementer/SKILL.md"
+E2E_SKILL="$ROOT/sdlc/files/_common/skills/e2e-test-engineer/SKILL.md"
+UPDATE_WORKFLOW="$ROOT/sdlc/files/_common/workflows/devaudit-update-install.md"
 
 failures=0
 
@@ -37,6 +39,15 @@ expect_contains "$PLAYBOOKS/high-risk-release.md" "backmerge/*"
 expect_contains "$PLAYBOOKS/low-risk-release.md" "render-test-cycles.sh"
 expect_contains "$WORKFLOWS" "Historical CI context by default"
 expect_contains "$SKILL" "mandatory automated reconciliation"
+expect_contains "$E2E_SKILL" "Check release and cycle provenance"
+expect_contains "$E2E_SKILL" "must not relabel the source E2E run"
+expect_contains "$UPDATE_WORKFLOW" "wait for terminal-green checks on the current PR SHA"
+expect_contains "$UPDATE_WORKFLOW" "creates no tracked approval release"
+
+if grep -Fq "auto-generate housekeeping release stubs" "$UPDATE_WORKFLOW"; then
+  echo "FAIL: consumer update workflow still describes obsolete housekeeping release stubs" >&2
+  failures=$((failures + 1))
+fi
 
 expect_absent "git push origin develop"
 expect_absent "git push origin main"
