@@ -97,10 +97,18 @@ jobs:
           # release ticket (the same set the dev/UAT pipeline versioned via
           # derive-release-version.sh → REQ-XXX). A bundled develop→main PR
           # carries several; promote ALL of them, not just the first. A manual
-          # dispatch can target one via the `release` input. Fall back to a
-          # bare date for date-versioned (ticketless) releases.
+          # dispatch can target one via the `release` input. A ticketless
+          # main promotion is only valid when its explicit standalone
+          # housekeeping declaration is present and valid.
           if [ -n "${RELEASE_INPUT}" ]; then
             REQS="${RELEASE_INPUT}"
+            if [[ "$REQS" =~ ^v[0-9]{4}\.[0-9]{2}\.[0-9]{2}(\.[0-9]+)?$ ]]; then
+              chmod +x scripts/standalone-housekeeping-release.sh 2>/dev/null || true
+              DECLARATION="compliance/standalone-housekeeping/STANDALONE-HOUSEKEEPING-${REQS}.json"
+              bash scripts/standalone-housekeeping-release.sh validate "$REQS" "$DECLARATION"
+              echo "STANDALONE_DECLARATION=${DECLARATION}" >> "$GITHUB_ENV"
+              echo "TERMINAL_STATUS=released" >> "$GITHUB_ENV"
+            fi
           else
             REQS=""
             if [ -d compliance/pending-releases ]; then
@@ -111,7 +119,20 @@ jobs:
             fi
             REQS=$(echo ${REQS} | tr ' ' '\n' | sort -u | tr '\n' ' ' | sed 's/[[:space:]]*$//')
             if [ -z "${REQS}" ]; then
-              REQS="v$(date +%Y.%m.%d)"
+              chmod +x scripts/derive-release-version.sh scripts/standalone-housekeeping-release.sh 2>/dev/null || true
+              VERSION=$(bash scripts/derive-release-version.sh)
+              DECLARATION="compliance/standalone-housekeeping/STANDALONE-HOUSEKEEPING-${VERSION}.json"
+              if [ -f "$DECLARATION" ]; then
+                bash scripts/standalone-housekeeping-release.sh validate "$VERSION" "$DECLARATION"
+                REQS="$VERSION"
+                echo "STANDALONE_DECLARATION=${DECLARATION}" >> "$GITHUB_ENV"
+                # Standalone housekeeping is reviewed in its GitHub promotion
+                # PR. It does not enter the portal UAT/production queue unless
+                # a project deliberately supplies a tracked REQ instead.
+                echo "TERMINAL_STATUS=released" >> "$GITHUB_ENV"
+              else
+                echo "No tracked release ticket or standalone declaration: ordinary housekeeping has no portal promotion."
+              fi
             fi
           fi
           echo "In-scope releases to promote: ${REQS}"
@@ -413,6 +434,9 @@ jobs:
             # Carry the release ticket into the production environment so the
             # prod-review gate is self-contained.
             TICKET=""
+            if [ -n "${STANDALONE_DECLARATION:-}" ] && [ "$VERSION" = "${REQS}" ]; then
+              TICKET="$STANDALONE_DECLARATION"
+            fi
             for DIR in compliance/pending-releases compliance/approved-releases; do
               if [ -f "${DIR}/RELEASE-TICKET-${VERSION}.md" ]; then
                 TICKET="${DIR}/RELEASE-TICKET-${VERSION}.md"; break
@@ -447,6 +471,11 @@ jobs:
             fi
             # Advance status (idempotent — re-PATCHing an already-promoted release is a no-op).
             if [ -n "$RELEASE_ID" ]; then
+              if [ -n "${STANDALONE_DECLARATION:-}" ] && [ "$VERSION" = "${REQS}" ]; then
+                chmod +x scripts/standalone-housekeeping-release.sh 2>/dev/null || true
+                bash scripts/standalone-housekeeping-release.sh promote \
+                  "$PROJECT_SLUG" "$VERSION" "$STANDALONE_DECLARATION"
+              fi
               curl -s -o /dev/null -w "  ${VERSION} status patch: HTTP %{http_code}\n" \
                 -X PATCH "${BASE}/api/ci/releases/${RELEASE_ID}" \
                 -H "Authorization: Bearer ${DEVAUDIT_API_KEY}" \

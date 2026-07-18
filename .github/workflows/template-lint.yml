@@ -17,12 +17,20 @@ on:
     paths:
       - 'sdlc/files/ci/**'
       - 'sdlc/files/_common/scripts/**'
+      - 'sdlc/files/_common/skills/sdlc-implementer/**'
+      - 'docs/release-playbooks/**'
+      - 'docs/change-workflows.md'
+      - 'scripts/release-playbook-contract.test.sh'
       - '.github/workflows/template-lint.yml'
   pull_request:
     branches: [main, develop]
     paths:
       - 'sdlc/files/ci/**'
       - 'sdlc/files/_common/scripts/**'
+      - 'sdlc/files/_common/skills/sdlc-implementer/**'
+      - 'docs/release-playbooks/**'
+      - 'docs/change-workflows.md'
+      - 'scripts/release-playbook-contract.test.sh'
       - '.github/workflows/template-lint.yml'
 
 permissions:
@@ -54,6 +62,18 @@ jobs:
         run: |
           chmod +x sdlc/files/_common/scripts/derive-release-version.sh
           bash sdlc/files/_common/scripts/derive-release-version.test.sh
+
+      - name: Run release-scope integrity tests
+        run: |
+          chmod +x sdlc/files/_common/scripts/check-release-pr-scope.sh
+          chmod +x sdlc/files/_common/scripts/standalone-housekeeping-release.sh
+          bash sdlc/files/_common/scripts/check-release-pr-scope.test.sh
+          bash sdlc/files/_common/scripts/standalone-housekeeping-release.test.sh
+
+      - name: Check canonical release playbooks
+        run: |
+          chmod +x scripts/release-playbook-contract.test.sh
+          bash scripts/release-playbook-contract.test.sh
 
       - name: Run extract-release-metadata tests
         run: |
