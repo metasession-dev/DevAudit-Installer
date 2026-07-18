@@ -696,6 +696,29 @@ jobs:
             done
           fi
 
+          # GitHub rejects a single run scalar above its 21,000-character
+          # expression-template limit. Persist the first half's upload result
+          # so the screenshot/evidence-completeness half can continue and
+          # report one combined failure below. DevAudit-Installer#423.
+          echo "$UPLOAD_FAILURES" > ci-evidence/gate-upload-failures.txt
+
+      - name: Upload screenshot evidence and verify completeness
+        # The preceding evidence uploads are intentionally best-effort so this
+        # second half can still report every missing screenshot/evidence gap.
+        if: always() && env.DEVAUDIT_BASE_URL != ''
+        run: |
+          chmod +x scripts/upload-evidence.sh 2>/dev/null || true
+          FLAGS="--git-sha ${{ github.sha }} --ci-run-id ${{ github.run_id }} --branch ${{ github.ref_name }}"
+          FLAGS="${FLAGS} --release ${{ needs.register-release.outputs.version }} --create-release-if-missing"
+          FLAGS="${FLAGS} --environment uat --sdlc-stage 2"
+          UPLOAD_FAILURES=0
+          if [ -f ci-evidence/gate-upload-failures.txt ]; then
+            PREVIOUS_UPLOAD_FAILURES=$(cat ci-evidence/gate-upload-failures.txt)
+            if [[ "$PREVIOUS_UPLOAD_FAILURES" =~ ^[0-9]+$ ]]; then
+              UPLOAD_FAILURES="$PREVIOUS_UPLOAD_FAILURES"
+            fi
+          fi
+
           # Upload per-AC e2e evidence screenshots, scoped to each in-scope
           # requirement so they render under "Evidence by requirement" in the
           # portal. These are the per-assertion `evidenceShot(page, REQ, 'ACn-…')`
