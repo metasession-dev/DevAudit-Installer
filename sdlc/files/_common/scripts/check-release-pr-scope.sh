@@ -73,6 +73,17 @@ if [ "$DECLARED_SCOPE" != "$CURRENT_RELEASE" ]; then
   exit 1
 fi
 
+if [[ "$CURRENT_RELEASE" =~ ^v[0-9]{4}\.[0-9]{2}\.[0-9]{2}(\.[0-9]+)?$ ]]; then
+  DECLARATION="compliance/standalone-housekeeping/STANDALONE-HOUSEKEEPING-${CURRENT_RELEASE}.json"
+  if ! printf '%s\n%s\n' "${PR_TITLE:-}" "${PR_BODY:-}" | grep -Fqi "Standalone housekeeping promotion"; then
+    echo "::error::Bare-date releases may only be promoted with an explicit standalone housekeeping exception."
+    echo "::error::Add 'Standalone housekeeping promotion' to the PR title or body and include ${DECLARATION}."
+    exit 1
+  fi
+  chmod +x scripts/standalone-housekeeping-release.sh 2>/dev/null || true
+  bash scripts/standalone-housekeeping-release.sh validate "$CURRENT_RELEASE" "$DECLARATION"
+fi
+
 if [[ "$CURRENT_RELEASE" =~ ^REQ-[0-9]+$ ]]; then
   if [ ! -x scripts/extract-release-metadata.sh ]; then
     chmod +x scripts/extract-release-metadata.sh 2>/dev/null || true

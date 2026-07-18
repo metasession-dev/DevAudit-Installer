@@ -84,6 +84,25 @@ the current installed workflow cannot implement that declaration and policy,
 do not promote it: use the normal wait-for-REQ path until the workflow template
 has been updated.
 
+Before opening the release PR, add the reviewed declaration at:
+
+`compliance/standalone-housekeeping/STANDALONE-HOUSEKEEPING-vYYYY.MM.DD.json`
+
+```json
+{
+  "schemaVersion": 1,
+  "version": "vYYYY.MM.DD",
+  "releaseMode": "standalone_housekeeping",
+  "reason": "Explain why this production-safe housekeeping change cannot wait for the next tracked REQ release."
+}
+```
+
+The release-scope check requires both the declaration and the literal PR marker.
+After host deployment and production smoke pass, the post-deploy workflow uploads
+this declaration as release-ticket evidence, sets the portal release mode to
+`standalone_housekeeping`, and marks it released without placing it in the normal
+UAT/production approval queue.
+
 ## Hotfixes and reversions
 
 Only production-impacting urgency uses `hotfix/*` from the release branch. Open

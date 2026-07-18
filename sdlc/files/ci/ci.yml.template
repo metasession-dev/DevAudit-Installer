@@ -336,6 +336,26 @@ jobs:
             --environment uat --category planning \
             --git-sha ${{ github.sha }} --branch ${{ github.ref_name }} || true
 
+      - name: Upload standalone housekeeping declaration
+        if: env.DEVAUDIT_BASE_URL != '' && steps.version.outputs.version != 'skip'
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          if ! [[ "$VERSION" =~ ^v[0-9]{4}\.[0-9]{2}\.[0-9]{2}(\.[0-9]+)?$ ]]; then
+            exit 0
+          fi
+          DECLARATION="compliance/standalone-housekeeping/STANDALONE-HOUSEKEEPING-${VERSION}.json"
+          if [ ! -f "$DECLARATION" ]; then
+            echo "${VERSION} is integration housekeeping; no standalone declaration uploaded."
+            exit 0
+          fi
+          chmod +x scripts/standalone-housekeeping-release.sh scripts/upload-evidence.sh 2>/dev/null || true
+          bash scripts/standalone-housekeeping-release.sh validate "$VERSION" "$DECLARATION"
+          bash scripts/upload-evidence.sh \
+            {{PROJECT_SLUG}} "$VERSION" release_ticket "$DECLARATION" \
+            --release "$VERSION" --create-release-if-missing \
+            --environment uat --category release_artifact --sdlc-stage 2 \
+            --git-sha ${{ github.sha }} --branch ${{ github.ref_name }}
+
       - name: Generate and upload bundled changes (REQ releases only)
         if: env.DEVAUDIT_BASE_URL != '' && steps.version.outputs.version != 'skip'
         run: |

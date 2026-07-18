@@ -88,6 +88,8 @@ Its release PR must state `Standalone housekeeping promotion` and why it
 cannot wait. It still requires terminal-green CI and PR review. Portal UAT/prod
 approval is off by default unless the project explicitly opts in. The portal
 must label and close it as standalone housekeeping so it is not later bundled.
+The release PR must also include the validated declaration
+`compliance/standalone-housekeeping/STANDALONE-HOUSEKEEPING-vYYYY.MM.DD.json`.
 
 ## Close-out and repair
 
