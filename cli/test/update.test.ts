@@ -14,6 +14,30 @@ function normalizeNewlines(value: string): string {
   return value.replace(/\r\n/g, '\n');
 }
 
+// GitHub rejects a workflow when a literal `run: |` scalar reaches its 21,000
+// character expression-template limit. Keep generated CI shell blocks below a
+// conservative ceiling so a template change fails locally rather than making a
+// consumer's workflow invalid. DevAudit-Installer#423.
+function runBlockByteLengths(workflow: string): number[] {
+  const lines = normalizeNewlines(workflow).split('\n');
+  const blocks: string[] = [];
+  let current: string[] | undefined;
+
+  for (const line of lines) {
+    if (/^\s{8}run: \|\s*$/.test(line)) {
+      current = [];
+      continue;
+    }
+    if (current && /^\s{8}\S/.test(line)) {
+      blocks.push(current.join('\n'));
+      current = undefined;
+    }
+    if (current) current.push(line);
+  }
+  if (current) blocks.push(current.join('\n'));
+  return blocks.map((block) => Buffer.byteLength(block, 'utf8'));
+}
+
 // DevAudit-Installer#228 — validate that every generated workflow file in
 // .github/workflows/ is parseable YAML. Catches structural bugs like literal
 // block scalar termination from 0-indent continuation lines.
@@ -208,6 +232,7 @@ describe('syncProject — native TS sync against a fixture', () => {
     expect(ciYml).toContain('scripts/report-test-cycle.sh start');
     expect(ciYml).toContain('--evidence-scope cycle --test-cycle-record-id');
     expect(ciYml).toContain('Complete primary quality-gate cycle');
+    expect(Math.max(...runBlockByteLengths(ciYml))).toBeLessThan(20_000);
     // DevAudit-Installer#98 WS3 + WS4: governance auto-generation workflows
     // sync into .github/workflows/ alongside the gate workflows.
     expect(await fs.stat(join(fixtureDir, '.github', 'workflows', 'periodic-review.yml'))).toBeTruthy();
