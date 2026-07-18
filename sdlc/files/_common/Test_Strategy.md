@@ -45,14 +45,14 @@ Full E2E regression on every PR is expensive — a 30+ minute wait per release-P
 | Tier | Location | When it runs | Wall-clock target | Audit role |
 | --- | --- | --- | --- | --- |
 | **smoke** | `e2e/smoke/*.spec.ts` | every push to `$INTEGRATION_BRANCH` (via `ci.yml`) | ~3–5 min | fast feedback on every change |
-| **critical** | `e2e/smoke/` + `e2e/critical/*.spec.ts` | PR-to-`$RELEASE_BRANCH` (via `e2e-regression.yml`) | ~10–15 min | release-readiness Must gate |
-| **regression** | all `e2e/**/*.spec.ts` | nightly + push-to-`$RELEASE_BRANCH` + `workflow_dispatch` | ~35 min (or your project's full pack) | full audit trail + drift catch |
+| **critical** | `e2e/smoke/` + `e2e/critical/*.spec.ts` | PR-to-`$RELEASE_BRANCH` when the consumer enables `e2e-regression.yml` | ~10–15 min | release-readiness Must gate |
+| **regression** | all `e2e/**/*.spec.ts` | `workflow_dispatch` and any consumer-configured post-merge or scheduled run | ~35 min (or your project's full pack) | full audit trail + drift catch |
 
 The mapping to MoSCoW: **Must-priority SRS items live in `e2e/smoke/` (fast feedback) and `e2e/critical/` (release gate); Should/Could items live in `e2e/` and are covered by the regression tier.** The classifier is the developer authoring the spec — see `skills/e2e-test-engineer/SKILL.md` Phase 3 for the decision tree.
 
-**Cost philosophy.** Smoke protects every push from breaking the headline flow. Critical protects every release from a Must-tier regression. Full regression protects the audit trail + catches drift overnight. We accept that a Should/Could-tier regression *can* slip past the PR gate; we catch it on the next post-merge run + auto-file a hotfix issue. The framework prefers this over a 35-min wait on every release because operator velocity matters and the safety net stays intact.
+**Cost philosophy.** Smoke protects every push from breaking the headline flow. Critical protects every release from a Must-tier regression. Full regression protects the audit trail and catches drift when the consumer elects to run it. We accept that a Should/Could-tier regression can sit outside the PR gate; the consumer chooses whether its safety net is post-merge, scheduled, or manual dispatch. The framework does not impose a daily/nightly run.
 
-**Post-merge safety net.** Every push to `$RELEASE_BRANCH` re-runs the full regression. On failure, `e2e-regression.yml` auto-files a `bug, priority:high` issue tagging the merge commit + the failing specs. The operator triages within working hours — hotfix forward, revert the commit, or accept-with-rationale if the failure is environmental. No automated revert (false positives + flakes + UAT-data drift are real classes; an operator triages each individually).
+**Post-merge safety net.** When a consumer enables a post-merge regression run, `e2e-regression.yml` may file a `bug, priority:high` issue tagging the merge commit and failing specs. The operator triages within working hours — hotfix forward, revert the commit, or accept-with-rationale if the failure is environmental. No automated revert: flakes and UAT-data drift require human judgment.
 
 **Reference workflow.** A copy-pasteable `e2e-regression.yml` shape lives at `skills/e2e-test-engineer/references/e2e-regression-3-tier.yml`. Adoption is opt-in per consumer (the framework doesn't currently sync this workflow; consumers own their own `e2e-regression.yml`).
 

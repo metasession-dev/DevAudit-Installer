@@ -139,7 +139,7 @@ When designing each scenario, also pick the tier it'll live in. Three tiers map 
 | --- | --- | --- |
 | **smoke** | `e2e/smoke/*.spec.ts` | Cross-cutting sanity that proves the app is up: login, basic nav, one canonical CRUD per main domain. Runs on every push to the integration branch. Keep small — total smoke wall-clock target is ~3–5 min. |
 | **critical** | `e2e/critical/*.spec.ts` | Must-priority SRS item that breaks a headline flow if it regresses. Examples: payment authorisation, order completion, admin permission editing, RBAC enforcement on financial surfaces. Runs on PR-to-release-branch. Total critical wall-clock target ~10–15 min (includes smoke). |
-| **regression** | `e2e/<area>/*.spec.ts` | Should/Could-priority SRS item, edge cases, less-load-bearing flows. Runs nightly + post-merge + dispatch. Total full pack can be 30+ min; that's the point of the tier. |
+| **regression** | `e2e/<area>/*.spec.ts` | Should/Could-priority SRS item, edge cases, less-load-bearing flows. Runs by dispatch and any consumer-configured post-merge or scheduled cadence. Total full pack can be 30+ min; that is the point of the tier. |
 
 Decision tree, applied per scenario:
 

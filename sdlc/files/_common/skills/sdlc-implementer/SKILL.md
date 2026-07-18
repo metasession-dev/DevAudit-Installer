@@ -307,7 +307,7 @@ _Test fix surfaced by suite drift_
 > - **Requirement:** none
 > - **Risk:** LOW
 > - **Path:** Lightweight (gates → PR review → merge)
-> - **Gates/evidence:** quality-gates smoke (default CI Gate 4); no full regression on PR (run via `workflow_dispatch` while iterating, full regression on next nightly)
+> - **Gates/evidence:** quality-gates smoke (default CI Gate 4); no full regression on PR (use `workflow_dispatch` while iterating; any post-merge or scheduled regression is consumer-configured)
 > - **Your approvals:** PR review only
 > - **Skipped:** RTM, evidence pack, UAT four-eyes, Production approval
 
@@ -663,8 +663,8 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
 **When an external gate hangs or fails for unrelated reasons.** A required gate may fail for reasons outside the change's scope — flaky infra, an unrelated regression test that hangs at hour-plus runtime with no log activity, a known-failing suite. When this happens:
 
 1. **Verify it's actually unrelated.** Read the failure (or the lack of one). If it's the change's fault, fix it; this section does not apply.
-2. **Document the rationale on the PR.** A sticky comment naming: which gate, what the failure was, why it's unrelated to the change, what the safety net is (nightly run on `$INTEGRATION_BRANCH`, post-deploy verification, etc.).
-3. **Cancel-and-admin-merge is allowed** when **all three** hold: (a) ≥3 other required gates are green, (b) the change has no scope-overlap with the failing gate (e.g. service-layer fix vs hung UI e2e, or an `E2E: N/A by scope` test-plan), and (c) a fallback verification exists (nightly e2e on `$INTEGRATION_BRANCH`, post-deploy smoke, etc.). If any of the three fail, hold the merge and surface the blocker to the operator.
+2. **Document the rationale on the PR.** A sticky comment naming: which gate, what the failure was, why it's unrelated to the change, and what concrete fallback verification is available (for example, a consumer-configured regression run or post-deploy verification).
+3. **Cancel-and-admin-merge is allowed** when **all three** hold: (a) ≥3 other required gates are green, (b) the change has no scope-overlap with the failing gate (e.g. service-layer fix vs hung UI e2e, or an `E2E: N/A by scope` test-plan), and (c) a concrete fallback verification exists (a consumer-configured regression run, manual dispatch, or post-deploy smoke). If any of the three fail, hold the merge and surface the blocker to the operator.
 4. **Record the decision in the release ticket.** The release ticket's `## Verification` section must mention the cancelled gate by run-ID and the fallback that justifies bypassing it. Auditors look here first.
 
 **When the cancel-and-admin-merge conditions are NOT met.** If only one or two of the three conditions hold, the skill cannot bypass the gate. Escalation path:
