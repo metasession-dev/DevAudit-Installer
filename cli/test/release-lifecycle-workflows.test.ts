@@ -39,4 +39,13 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     expect(source).toContain("if: steps.production_smoke.outcome == 'success'");
     expect(source).toContain('Production Evidence Completeness');
   });
+
+  it('only fans out E2E JSON to requirements whose tests executed in that result', () => {
+    const source = template('ci.yml.template');
+    expect(source).toContain('has_req_tagged_e2e_result()');
+    expect(source).toContain('has_req_tagged_e2e_result "$REQ_ID" ci-evidence/e2e-results.json');
+    expect(source).toContain('Not attaching generic E2E JSON to ${REQ_ID}');
+    expect(source).toContain('Run-level evidence remains on _compliance-docs');
+    expect(source).toContain("result.get('status') not in {'skipped', 'interrupted'}");
+  });
 });
