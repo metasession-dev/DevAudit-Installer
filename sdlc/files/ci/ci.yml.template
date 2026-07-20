@@ -646,18 +646,46 @@ jobs:
               --environment uat --sdlc-stage 2
           fi
 
-          # devaudit-installer#200 Fix 4 — Per-REQ gate evidence fan-out.
+          # Per-REQ gate evidence fan-out.
           # The gate evidence above was uploaded to the single commit-derived
           # release (FLAGS carries --release <derived>). When multiple REQs
           # have pending release tickets, only that one REQ gets gate evidence
           # on the portal — other in-scope REQs show "no gate evidence" and
           # "no tests tagged with this REQ" even though the gates ran and
-          # passed. Fan out gate-outcomes.json + e2e-results.json to each
-          # in-scope REQ's release so the portal's per-REQ test parser can
-          # extract REQ-tagged tests from the e2e-results.json associated with
-          # that REQ's release. Heavy run-context artefacts (SAST, dep-audit,
-          # playwright zip, coverage) remain on the commit-derived release
-          # only — they are run-level, not per-REQ.
+          # passed. Gate outcomes can be attached to every active REQ, but an
+          # E2E JSON result is REQ-scoped proof only when it actually contains
+          # an executed test tagged for that REQ. A smoke run must never
+          # overwrite or obscure a prior targeted feature execution merely
+          # because a pending ticket exists (DevAudit-Installer#435).
+          has_req_tagged_e2e_result() {
+            python3 - "$1" "$2" <<'PY'
+          import json, re, sys
+
+          req_id, filename = sys.argv[1:]
+          def values(value):
+            if isinstance(value, str): return [value]
+            if isinstance(value, dict): return [str(value.get('type', '')), str(value.get('description', ''))]
+            return []
+          def tagged(node, ancestry):
+            text = [*ancestry, str(node.get('title', ''))]
+            for field in ('annotations', 'tags'):
+              for value in node.get(field, []): text.extend(values(value))
+            return any(req_id in value for value in text)
+          def executed(test):
+            return any(result.get('status') not in {'skipped', 'interrupted'} for result in test.get('results', []))
+          def contains(node, ancestry):
+            title = str(node.get('title', ''))
+            path = [*ancestry, title] if title else ancestry
+            for spec in node.get('specs', []):
+              if tagged(spec, path) and any(executed(test) for test in spec.get('tests', [])): return True
+            for test in node.get('tests', []):
+              if tagged(test, path) and executed(test): return True
+            return any(contains(suite, path) for suite in node.get('suites', []))
+          with open(filename, encoding='utf-8') as handle:
+            report = json.load(handle)
+          raise SystemExit(0 if re.fullmatch(r'REQ-[A-Z0-9-]+', req_id) and contains(report, []) else 1)
+          PY
+          }
           COMMIT_REQ="${{ needs.register-release.outputs.version }}"
           FANOUT_REQS=()
           if [ -d compliance/pending-releases ]; then
@@ -688,10 +716,12 @@ jobs:
                   {{PROJECT_SLUG}} "${REQ_ID}" gate_outcome ci-evidence/gate-outcomes.json \
                   --category ci_pipeline ${FANOUT_FLAGS}
               fi
-              if [ -f ci-evidence/e2e-results.json ]; then
+              if [ -f ci-evidence/e2e-results.json ] && has_req_tagged_e2e_result "$REQ_ID" ci-evidence/e2e-results.json; then
                 upload "e2e-results.json -> ${REQ_ID}" \
                   {{PROJECT_SLUG}} "${REQ_ID}" e2e_result ci-evidence/e2e-results.json \
                   --category e2e_result ${FANOUT_FLAGS}
+              elif [ -f ci-evidence/e2e-results.json ]; then
+                echo "::notice::Not attaching generic E2E JSON to ${REQ_ID}: this CI tier executed no tagged ${REQ_ID} test. Run-level evidence remains on _compliance-docs."
               fi
             done
           fi
