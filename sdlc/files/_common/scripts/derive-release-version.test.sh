@@ -111,12 +111,9 @@ make_fixture "$WORK/c8" "Merge pull request #7 from metasession-dev/feat/req-002
 chore(deps): [REQ-002] dependency hardening — close R-001"
 assert_eq "merge-commit body [REQ-002] -> REQ-002" "REQ-002" "$(run_helper)"
 
-# Case 9 (DevAudit-Installer#92): a chore: sync commit has no REQ tag in
-# its message but a pending release ticket exists on disk. Must attribute
-# to the REQ from that ticket instead of falling through to the bare date.
-# Regression for REQ-051 / REQ-052 gate evidence landing on phantom date
-# releases when a `chore: devaudit update to 0.1.x` commit landed between
-# the feature merge and the release-PR open on wawagardenbar-app.
+# Case 9: a pending ticket is not ownership of an unrelated commit. The
+# default is a historical bare-date record; explicit operator exceptions may
+# opt in with DEVAUDIT_ALLOW_PENDING_TICKET_FALLBACK=1.
 make_fixture "$WORK/c9" "chore: devaudit update to 0.1.27"
 mkdir -p compliance/pending-releases
 cat > compliance/pending-releases/RELEASE-TICKET-REQ-051.md <<'TICKET'
@@ -124,7 +121,9 @@ cat > compliance/pending-releases/RELEASE-TICKET-REQ-051.md <<'TICKET'
 
 **Status:** TESTED - PENDING SIGN-OFF
 TICKET
-assert_eq "chore: sync + single pending ticket REQ-051 -> REQ-051" "REQ-051" "$(run_helper)"
+assert_eq "chore: sync + single pending ticket -> bare date $TODAY" "$TODAY" "$(run_helper)"
+GOT=$(DEVAUDIT_ALLOW_PENDING_TICKET_FALLBACK=1 run_helper)
+assert_eq "explicit pending-ticket exception -> REQ-051" "REQ-051" "$GOT"
 
 # Case 10: a chore: sync commit with MULTIPLE pending tickets — ambiguous,
 # stays at the bare-date fallback (don't guess between them).
@@ -154,11 +153,7 @@ cat > compliance/pending-releases/RELEASE-TICKET-REQ-051.md <<'TICKET'
 TICKET
 assert_eq "subject [REQ-099] beats pending REQ-051 -> REQ-099" "REQ-099" "$(run_helper)"
 
-# Case 13 (DevAudit-Installer#95): step-4-bis. No subject/body tag,
-# no pending ticket, but RTM.md has exactly one IN PROGRESS row.
-# Attribute to that REQ. Tests the zero-ceremony fallback that
-# survives chore/docs/ci sync commits when no operator state file
-# has been dropped.
+# Case 13: an RTM IN PROGRESS row is likewise not automatic commit ownership.
 make_fixture "$WORK/c13" "chore: devaudit update to 0.1.29"
 mkdir -p compliance
 cat > compliance/RTM.md <<'RTM'
@@ -168,7 +163,9 @@ cat > compliance/RTM.md <<'RTM'
 | REQ-100 | #10   | LOW  | compliance/evidence/REQ-100/ | APPROVED - DEPLOYED | dev      | 2026-05-30 |
 | REQ-101 | #11   | MED  | compliance/evidence/REQ-101/ | IN PROGRESS         | dev      | 2026-06-01 |
 RTM
-assert_eq "RTM single IN PROGRESS row -> REQ-101" "REQ-101" "$(run_helper)"
+assert_eq "RTM single IN PROGRESS row -> bare date $TODAY" "$TODAY" "$(run_helper)"
+GOT=$(DEVAUDIT_ALLOW_PENDING_TICKET_FALLBACK=1 run_helper)
+assert_eq "explicit RTM fallback exception -> REQ-101" "REQ-101" "$GOT"
 
 # Case 14: step-4-bis ambiguity guard. Two IN PROGRESS rows → falls
 # through to the bare date rather than guessing.
@@ -210,7 +207,8 @@ cat > compliance/RTM.md <<'RTM'
 | ------- | ----- | ----------- | ---------------------------- | --------------------------------------------------------------------- | ---------- | ---------- |
 | REQ-056 | #117  | MEDIUM-HIGH | compliance/evidence/REQ-056/ | IN PROGRESS (WhatsApp inbound-message router; many details follow...) | ostendo-io | 2026-06-01 |
 RTM
-assert_eq "RTM long parenthetical status -> REQ-056" "REQ-056" "$(run_helper)"
+GOT=$(DEVAUDIT_ALLOW_PENDING_TICKET_FALLBACK=1 run_helper)
+assert_eq "explicit RTM long-status fallback -> REQ-056" "REQ-056" "$GOT"
 
 # Case 17: step-4-bis must NOT win over a pending ticket on disk.
 # Step 4 returns first.
@@ -224,7 +222,8 @@ cat > compliance/RTM.md <<'RTM'
 | ------- | ----------- |
 | REQ-302 | IN PROGRESS |
 RTM
-assert_eq "pending ticket REQ-301 beats RTM IN PROGRESS REQ-302" "REQ-301" "$(run_helper)"
+GOT=$(DEVAUDIT_ALLOW_PENDING_TICKET_FALLBACK=1 run_helper)
+assert_eq "explicit pending ticket beats RTM fallback" "REQ-301" "$GOT"
 
 # Case 18: step-4-bis respects RTM_PATH env override.
 make_fixture "$WORK/c18" "chore: devaudit update to 0.1.29"
@@ -234,8 +233,8 @@ cat > docs/custom-RTM.md <<'RTM'
 | ------- | ----------- |
 | REQ-400 | IN PROGRESS |
 RTM
-GOT=$(RTM_PATH=docs/custom-RTM.md run_helper)
-assert_eq "RTM_PATH=docs/custom-RTM.md -> REQ-400" "REQ-400" "$GOT"
+GOT=$(RTM_PATH=docs/custom-RTM.md DEVAUDIT_ALLOW_PENDING_TICKET_FALLBACK=1 run_helper)
+assert_eq "explicit RTM_PATH fallback exception -> REQ-400" "REQ-400" "$GOT"
 
 # Case 19: step-4-bis with escaped pipes (\|) in the Status column.
 # The Status cell contains literal pipe characters escaped as \| (markdown
@@ -251,7 +250,8 @@ cat > compliance/RTM.md <<'RTM'
 | REQ-056 | #117  | MEDIUM-HIGH | compliance/evidence/REQ-056/ | IN PROGRESS (regex: /^\s*(stop\|unsubscribe\|opt[-\s]?out)\s*$/i)    | ostendo-io | 2026-06-01 |
 | REQ-064 | #121  | MEDIUM      | compliance/evidence/REQ-064/ | RELEASED (enum: open\|in_progress\|awaiting_customer\|resolved\|closed) | dev | 2026-06-02 |
 RTM
-assert_eq "RTM escaped pipes -> REQ-056 (single IN PROGRESS)" "REQ-056" "$(run_helper)"
+GOT=$(DEVAUDIT_ALLOW_PENDING_TICKET_FALLBACK=1 run_helper)
+assert_eq "explicit RTM escaped-pipe fallback -> REQ-056" "REQ-056" "$GOT"
 
 # Case 20: step-4-bis with escaped pipes — ambiguity guard still works.
 # Two IN PROGRESS rows, both with escaped pipes in status → falls through
