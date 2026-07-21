@@ -53,6 +53,11 @@ merged SHA. Confirm production deployment and smoke cycles are present and
 successful on the portal. Do not call production green while any of those are
 still in progress.
 
+Where post-merge regression is enabled, it must finish terminal success too. A
+timeout is failed verification: preserve partial reports, traces, screenshots,
+server logs, and execution metadata, then classify the cause before recording
+an incident or an approved exception.
+
 When the portal reaches `released`, let `repository_dispatch(release-closed)`
 open the `chore/close-out-REQ-XXX` PR to `$INTEGRATION_BRANCH`. Review and merge
 that reconciliation PR. Use manual workflow dispatch only if the dispatch fails;
