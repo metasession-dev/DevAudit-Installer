@@ -67,7 +67,7 @@ run_check() {
   shift 2
   (
     cd "$dir"
-    PATH="$dir/mock-bin:$PATH" "$@" bash "$HELPER" --repo=metasession-dev/example --sha=abc123 --max-attempts=1 --poll-seconds=0
+    PATH="$dir/mock-bin:$PATH" "$@" bash "$HELPER" --repo=metasession-dev/example --sha=abc123 --max-attempts=1 --poll-seconds=0 --output-file="$out.result"
   ) >"$out" 2>&1
 }
 
@@ -87,6 +87,7 @@ else
 fi
 assert_exit "success deployment passes" 0 "$CODE"
 assert_grep "success message emitted" 'terminal success' "$OUT"
+assert_grep "success result is structured" '^verification=success$' "$OUT.result"
 echo ""
 
 echo "--- Test 2: failure status fails ---"
@@ -99,7 +100,8 @@ else
   CODE=$?
 fi
 assert_exit "failed deployment exits 1" 1 "$CODE"
-assert_grep "failure message emitted" 'terminal failure' "$OUT"
+assert_grep "failure message emitted" 'deployment_terminal_failure' "$OUT"
+assert_grep "terminal failure result is structured" '^verification=deployment_terminal_failure$' "$OUT.result"
 echo ""
 
 echo "--- Test 3: missing deployment fails closed ---"
@@ -112,7 +114,37 @@ else
   CODE=$?
 fi
 assert_exit "missing deployment exits 1" 1 "$CODE"
-assert_grep "missing deployment message emitted" 'No GitHub deployment was published' "$OUT"
+assert_grep "missing deployment message emitted" 'deployment_status_missing' "$OUT"
+assert_grep "missing deployment result is structured" '^verification=deployment_status_missing$' "$OUT.result"
+echo ""
+
+echo "--- Test 4: prolonged in-progress status reports timeout ---"
+OUT="$WORK/test4.out"
+if run_check "$WORK" "$OUT" env \
+  MOCK_DEPLOYMENTS_JSON='[{"id":5453707224,"environment":"production"}]' \
+  MOCK_STATUSES_JSON='[{"state":"in_progress","description":"provider still building","environment_url":"https://example.test"}]'; then
+  CODE=0
+else
+  CODE=$?
+fi
+assert_exit "in-progress deployment fails closed" 1 "$CODE"
+assert_grep "timeout classification emitted" 'deployment_status_timeout' "$OUT"
+assert_grep "timeout result is structured" '^verification=deployment_status_timeout$' "$OUT.result"
+assert_grep "timeout retains target URL" '^target_url=https://example.test$' "$OUT.result"
+echo ""
+
+echo "--- Test 5: missing status reports timeout ---"
+OUT="$WORK/test5.out"
+if run_check "$WORK" "$OUT" env \
+  MOCK_DEPLOYMENTS_JSON='[{"id":5453707224,"environment":"production"}]' \
+  MOCK_STATUSES_JSON='[]'; then
+  CODE=0
+else
+  CODE=$?
+fi
+assert_exit "missing status fails closed" 1 "$CODE"
+assert_grep "missing status timeout classification emitted" 'deployment_status_timeout' "$OUT"
+assert_grep "missing status result is structured" '^deployment_state=missing$' "$OUT.result"
 echo ""
 
 echo "=== check-host-deployment.test.sh: $PASS passed, $FAIL failed ==="
