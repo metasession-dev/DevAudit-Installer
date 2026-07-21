@@ -54,6 +54,9 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     expect(source).toContain('host-deployment-result.env');
     expect(source).toContain('deployment_status_timeout');
     expect(source).toContain('hostVerification:$hostVerification');
+    expect(source).toContain('deployment_status:\n    types: [created]');
+    expect(source).toContain("github.event.deployment_status.state == 'success'");
+    expect(source).toContain('GIT_SHA: ${{ github.event.deployment.sha || github.sha }}');
   });
 
   it('only fans out E2E JSON to requirements whose tests executed in that result', () => {
@@ -77,5 +80,7 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     expect(source).toContain('if: always()');
     expect(source).toContain('test-results/');
     expect(source).toContain('e2e-server.log');
+    expect(source).toContain('deployment_status:\n    types: [created]');
+    expect(source).toContain("github.event_name == 'deployment_status'");
   });
 });

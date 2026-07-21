@@ -138,6 +138,22 @@ absence of evidence: retain its partial Playwright report, traces, screenshots,
 server logs, and execution metadata; classify the cause before opening or
 updating an incident or recording an approved exception.
 
+### Host Gate Topology
+
+For a host that waits for GitHub CI before deploying, only pre-deploy
+eligibility checks may belong to the `main` push check suite. Post-deploy
+production evidence and full regression start from a successful production
+`deployment_status` event, or an explicit manual recovery dispatch. They still
+block production approval and release after deployment, but cannot block the
+deployment they need to verify.
+
+For Railway, deploy protected `main` after pre-deploy eligibility only. Do not
+use post-deploy, full-regression, portal-approval, or external-host checks as
+deployment eligibility requirements. If Railway skipped an approved SHA due to
+CI gating, redeploy that exact SHA, wait for its deployment status, then rerun
+post-deploy verification. Record the recovery; a healthy prior deployment is
+not evidence for the new SHA.
+
 ## Operator recovery and historical data
 
 Use the portal's audit-loggable repair/backfill controls only for genuine

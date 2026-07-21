@@ -2,8 +2,8 @@
 #
 # Copy this into your consumer-owned .github/workflows/e2e-regression.yml
 # to adopt the 3-tier model: smoke (every develop push, fast) / critical
-# (consumer-enabled release PR, ~10-15 min target) / regression (post-merge
-# or scheduled only when the consumer opts in, plus dispatch).
+# (consumer-enabled release PR, ~10-15 min target) / regression after a
+# successful production deployment status (or manual dispatch).
 #
 # The framework does NOT sync this file automatically — your consumer
 # owns its e2e-regression.yml. Apply the patterns below to your own
@@ -27,8 +27,8 @@ name: E2E Regression
 on:
   pull_request:
     branches: [main] # critical-tier gate before merge
-  push:
-    branches: [main] # full regression after merge; auto-issues on failure
+  deployment_status:
+    types: [created] # full regression only after successful production deploy
   workflow_dispatch:
     inputs:
       specs:
@@ -46,6 +46,10 @@ concurrency:
 jobs:
   e2e:
     name: E2E Regression Tests
+    if: >-
+      github.event_name != 'deployment_status' ||
+      (github.event.deployment_status.state == 'success' &&
+       (github.event.deployment.environment == 'production' || github.event.deployment.environment == 'prod'))
     runs-on: ubuntu-latest # adapt to your runner; e.g. self-hosted, ubuntu-24.04
     # The full regression target is about 35 minutes. Leave time to archive
     # partial output before GitHub terminates the job.
@@ -54,6 +58,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0 # for E2E_NEW_SPECS computation
+          ref: ${{ github.event.deployment.sha || github.sha }}
 
       - uses: actions/setup-node@v6
         with:
@@ -86,7 +91,7 @@ jobs:
               fi
               echo "specs=" >> "$GITHUB_OUTPUT"
               ;;
-            push|schedule)
+            deployment_status|schedule)
               echo "project=regression" >> "$GITHUB_OUTPUT"
               echo "specs=" >> "$GITHUB_OUTPUT"
               echo "Running full regression project"
@@ -163,7 +168,7 @@ jobs:
           if-no-files-found: warn
 
       # ─────────────────────────────────────────────────────────────
-      # Post-merge auto-issue on regression failure (push:branches:[main])
+      # Post-deployment auto-issue on regression failure.
       #
       # Catches regressions that slipped past the critical-tier PR gate.
       # Opens a high-priority issue tagging the merge commit + the
@@ -171,7 +176,7 @@ jobs:
       # No auto-revert — that's intentionally an operator decision.
       # ─────────────────────────────────────────────────────────────
       - name: Open hotfix issue on post-merge regression
-        if: failure() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: failure() && github.event_name == 'deployment_status' && github.event.deployment_status.state == 'success'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
