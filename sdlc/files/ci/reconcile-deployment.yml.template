@@ -1,0 +1,59 @@
+name: Reconcile Verified Host Deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      release:
+        description: 'REQ-XXX release receiving recovery evidence'
+        required: true
+      expected_sha:
+        description: 'Exact main SHA verified at the provider'
+        required: true
+      github_deployment_id:
+        description: 'Existing GitHub deployment ID to reconcile'
+        required: true
+      railway_deployment_id:
+        description: 'Terminal-successful Railway deployment ID'
+        required: true
+      railway_project:
+        description: 'Railway project ID'
+        required: true
+      railway_service:
+        description: 'Railway service ID or name'
+        required: true
+      health_url:
+        description: 'Configured production health URL'
+        required: true
+
+jobs:
+  reconcile:
+    name: Verify and reconcile deployment
+    runs-on: {{RUNNER}}
+    permissions:
+      contents: read
+      deployments: write
+    env:
+      DEVAUDIT_API_KEY: ${{ secrets.DEVAUDIT_API_KEY }}
+      DEVAUDIT_BASE_URL: ${{ vars.DEVAUDIT_BASE_URL }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.expected_sha }}
+      - name: Verify provider deployment before reconciliation
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          chmod +x scripts/reconcile-railway-deployment.sh
+          bash scripts/reconcile-railway-deployment.sh \
+            --repo="${{ github.repository }}" --sha="${{ inputs.expected_sha }}" \
+            --github-deployment-id="${{ inputs.github_deployment_id }}" \
+            --railway-deployment-id="${{ inputs.railway_deployment_id }}" \
+            --railway-project="${{ inputs.railway_project }}" --railway-service="${{ inputs.railway_service }}" \
+            --health-url="${{ inputs.health_url }}"
+      - name: Upload manual reconciliation evidence
+        run: |
+          bash scripts/upload-evidence.sh {{PROJECT_SLUG}} "${{ inputs.release }}" test_report deployment-reconciliation.json \
+            --category release_artifact --release "${{ inputs.release }}" --environment production \
+            --git-sha "${{ inputs.expected_sha }}" --branch main --sdlc-stage 5 \
+            --meta-key 'provenance=manual_reconciliation' --meta-key 'provider=railway'
