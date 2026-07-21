@@ -301,6 +301,9 @@ describe('syncProject — native TS sync against a fixture', () => {
     expect(postDeployYml).toContain('host-deployment-result.env');
     expect(postDeployYml).toContain('deployment_status:');
     expect(postDeployYml).toContain("github.event.deployment_status.state == 'success'");
+    const reconciliationYml = await fs.readFile(join(fixtureDir, '.github', 'workflows', 'reconcile-deployment.yml'), 'utf-8');
+    expect(reconciliationYml).toContain('Verify provider deployment before reconciliation');
+    expect(reconciliationYml).toContain('provenance=manual_reconciliation');
     expect(postDeployYml).toContain('scripts/report-test-cycle.sh start');
     expect(postDeployYml).toContain('scripts/report-test-cycle.sh complete');
     // DevAudit-Installer#228 — every generated workflow must be valid YAML.

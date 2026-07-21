@@ -13,6 +13,7 @@ const CI_TEMPLATES = [
   'compliance-validation.yml.template',
   'check-release-approval.yml.template',
   'post-deploy-prod.yml.template',
+  'reconcile-deployment.yml.template',
   'compliance-evidence.yml.template',
   'feature-e2e.yml.template',
   'close-out-release.yml.template',
