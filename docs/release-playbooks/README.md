@@ -126,6 +126,12 @@ the hosting-platform deployment for the merged SHA reached terminal `success`.
 Do not call production green while E2E, post-deploy, or host deployment remains
 queued or in progress.
 
+A consumer-enabled post-merge regression must also reach a terminal successful
+outcome before production approval. A timeout is a failed execution, not an
+absence of evidence: retain its partial Playwright report, traces, screenshots,
+server logs, and execution metadata; classify the cause before opening or
+updating an incident or recording an approved exception.
+
 ## Operator recovery and historical data
 
 Use the portal's audit-loggable repair/backfill controls only for genuine

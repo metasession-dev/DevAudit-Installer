@@ -5,6 +5,11 @@ import { describe, expect, it } from 'vitest';
 const root = resolve(import.meta.dirname, '../..');
 const template = (name: string) =>
   readFileSync(resolve(root, 'sdlc/files/ci', name), 'utf8').replace(/\r\n/g, '\n');
+const reference = (name: string) =>
+  readFileSync(resolve(root, 'sdlc/files/_common/skills/e2e-test-engineer/references', name), 'utf8').replace(
+    /\r\n/g,
+    '\n',
+  );
 
 describe('authoritative release lifecycle workflow templates (#405)', () => {
   it('records quality-gate lifecycle around execution and uses the upstream job result', () => {
@@ -47,5 +52,19 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     expect(source).toContain('Not attaching generic E2E JSON to ${REQ_ID}');
     expect(source).toContain('Run-level evidence remains on _compliance-docs');
     expect(source).toContain("result.get('status') not in {'skipped', 'interrupted'}");
+  });
+
+  it('bounds post-merge E2E and retains terminal timeout evidence', () => {
+    const source = reference('e2e-regression-3-tier.yml');
+    expect(source).toContain('timeout-minutes: 55');
+    expect(source).toContain('timeout --signal=TERM --kill-after=60s 40m npx playwright test');
+    expect(source).toContain('e2e-regression-metadata.json');
+    expect(source).toContain('outcome: "running"');
+    expect(source).toContain('OUTCOME="timed_out"');
+    expect(source).toContain('test_server_start');
+    expect(source).toContain('test_server_stop');
+    expect(source).toContain('if: always()');
+    expect(source).toContain('test-results/');
+    expect(source).toContain('e2e-server.log');
   });
 });

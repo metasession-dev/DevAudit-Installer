@@ -68,6 +68,11 @@ status for the merged SHA to reach terminal success. Verify production deploymen
 and smoke cycle records and their production evidence. Only then can the required
 independent production approval move the portal release to `released`.
 
+Where post-merge regression is enabled, it must also finish terminal success.
+Treat a timeout as failed verification; retain partial reports/traces/screenshots,
+server logs, and execution metadata, then classify the cause before an incident
+or approved exception is recorded.
+
 The portal dispatches `release-closed`, which opens the close-out PR back to
 `$INTEGRATION_BRANCH`. Review and merge it. Manual dispatch is fallback; local
 close-out scripts are recovery-only.
