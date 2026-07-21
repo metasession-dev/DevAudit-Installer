@@ -195,6 +195,12 @@ describe('syncProject — native TS sync against a fixture', () => {
     expect(await fs.stat(join(fixtureDir, 'scripts', 'render-test-cycles.sh'))).toBeTruthy();
     expect(await fs.stat(join(fixtureDir, 'scripts', 'validate-compliance-artifacts.sh'))).toBeTruthy();
     expect(await fs.stat(join(fixtureDir, 'scripts', 'generate-bundled-changes.sh'))).toBeTruthy();
+    const generatedBundleScript = await fs.readFile(
+      join(fixtureDir, 'scripts', 'generate-bundled-changes.sh'),
+      'utf-8',
+    );
+    expect(generatedBundleScript).toContain('FIRST_REQ_SHA');
+    expect(generatedBundleScript).toContain('schemaVersion: 2');
     // Section 2e-iii — evidence helper (node only). All three files: the
     // Playwright wrapper, the pure helpers it imports, and the test-tags
     // annotation helper (#196).

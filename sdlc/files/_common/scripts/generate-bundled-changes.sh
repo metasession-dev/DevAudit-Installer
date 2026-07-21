@@ -250,8 +250,29 @@ for version in "${EXPLICIT_PREDECESSORS[@]}"; do
   PREDECESSOR_LINES+=("- \`${version}\` (${role}/${relationship}) — ${title:-Untitled release ticket}")
 done
 
-COMMITS="$(git log "$SINCE_REF"..HEAD --format='%h%x09%s' 2>/dev/null || true)"
-BUNDLED="$(printf '%s\n' "$COMMITS" | grep -E "$HOUSEKEEPING_TYPES" || true)"
+# A tracked release only absorbs genuinely REQ-free housekeeping performed
+# during its own implementation window. Do not recast earlier history, or a
+# conventional commit explicitly owned by any REQ, as generic bundle work.
+SCAN_FROM="$SINCE_REF"
+if [[ "$VERSION" =~ ^REQ-[0-9]+$ ]]; then
+  FIRST_REQ_SHA="$(git log --reverse --format='%H' --grep="\\[${VERSION}\\]\\|Ref: ${VERSION}" 2>/dev/null | head -1 || true)"
+  if [ -n "$FIRST_REQ_SHA" ] && git rev-parse --verify "${FIRST_REQ_SHA}^" >/dev/null 2>&1; then
+    SCAN_FROM="${FIRST_REQ_SHA}^"
+  fi
+fi
+COMMITS="$(git log "$SCAN_FROM"..HEAD --format='%h%x09%s' 2>/dev/null || true)"
+BUNDLED=""
+while IFS=$'\t' read -r sha subject; do
+  [ -n "$sha" ] || continue
+  if ! printf '%s\t%s\n' "$sha" "$subject" | grep -Eq "$HOUSEKEEPING_TYPES"; then
+    continue
+  fi
+  if git log -1 --format='%s%n%b' "$sha" | grep -Eq '\[REQ-[0-9]+\]|Ref:[[:space:]]*REQ-[0-9]+'; then
+    continue
+  fi
+  BUNDLED+="${sha}"$'\t'"${subject}"$'\n'
+done <<<"$COMMITS"
+BUNDLED="${BUNDLED%$'\n'}"
 NON_RELEASE_ITEMS='[]'
 NON_RELEASE_LINES=()
 if [ -n "$BUNDLED" ]; then
@@ -324,7 +345,7 @@ echo "- **Why bundled here:** Explicit predecessor release tickets and non-relea
 echo "- **Evidence impact:** Evidence ownership remains on the source releases; the bundle manifest provides lineage and inherited visibility only."
 echo "- **Reviewer impact:** Approval scope includes the core tracked release plus the explicit predecessor releases and non-release work listed below."
 echo "- **Security / risk impact:** No additional security/risk impact identified automatically; reviewer must confirm in the canonical release artifacts."
-echo "- **Reference:** commit range \`${SINCE_REF}..HEAD\`"
+echo "- **Reference:** commit range \`${SCAN_FROM}..HEAD\`"
 echo ""
 
 echo "### Explicit Constituent Releases"
