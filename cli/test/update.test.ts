@@ -299,6 +299,8 @@ describe('syncProject — native TS sync against a fixture', () => {
     expect(postDeployYml).toContain('Probe production health independently');
     expect(postDeployYml).toContain('deployment_status_timeout');
     expect(postDeployYml).toContain('host-deployment-result.env');
+    expect(postDeployYml).toContain('deployment_status:');
+    expect(postDeployYml).toContain("github.event.deployment_status.state == 'success'");
     expect(postDeployYml).toContain('scripts/report-test-cycle.sh start');
     expect(postDeployYml).toContain('scripts/report-test-cycle.sh complete');
     // DevAudit-Installer#228 — every generated workflow must be valid YAML.
