@@ -8,22 +8,31 @@ permissions:
   contents: write
   pull-requests: write
 
+concurrency:
+  # Multiple successful check-runs can be delivered for the same PR SHA.
+  # Serialize them; once one merge succeeds later deliveries see a closed PR.
+  group: auto-merge-${{ github.event.check_run.head_sha }}
+  cancel-in-progress: false
+
 jobs:
   merge-on-green:
     name: Auto Merge
-    if: github.event.check_run.name != 'Auto Merge'
+    if: >-
+      github.event.check_run.name != 'Auto Merge' &&
+      github.event.check_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Merge eligible GitFlow PRs when checks are green
         env:
           GH_TOKEN: ${{ github.token }}
-          EVENT_PATH: ${{ github.event_path }}
           EVENT_SHA: ${{ github.event.check_run.head_sha }}
         shell: bash
         run: |
           set -euo pipefail
 
-          PR_NUMBER="$(jq -r '.check_run.pull_requests[0].number // empty' "$EVENT_PATH")"
+          # GITHUB_EVENT_PATH is supplied by the Actions runner. `github.event_path`
+          # is not a supported expression context and expands to an empty string.
+          PR_NUMBER="$(bash scripts/resolve-auto-merge-pr.sh "${GITHUB_EVENT_PATH:-}")"
           if [ -z "$PR_NUMBER" ]; then
             echo "No pull request is associated with this check run."
             exit 0
