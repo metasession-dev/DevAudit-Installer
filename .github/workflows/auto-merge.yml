@@ -22,6 +22,14 @@ jobs:
       github.event.check_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
+      # A check_run can refer to a PR SHA that predates this helper. Keep the
+      # workflow implementation on the default branch; the event payload is
+      # still used below for all PR and SHA validation.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
       - name: Merge eligible GitFlow PRs when checks are green
         env:
           GH_TOKEN: ${{ github.token }}
