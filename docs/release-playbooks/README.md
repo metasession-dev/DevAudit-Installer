@@ -126,6 +126,12 @@ the hosting-platform deployment for the merged SHA reached terminal `success`.
 Do not call production green while E2E, post-deploy, or host deployment remains
 queued or in progress.
 
+Treat `deployment_status_timeout`, `deployment_status_missing`, and a terminal
+provider failure as distinct blocked outcomes. A health probe corroborates
+availability but never substitutes for a terminal deployment status. Retain the
+deployment ID, SHA, environment, final observed state, target URL, elapsed time,
+and probe result; inspect provider logs and fix forward before retrying.
+
 A consumer-enabled post-merge regression must also reach a terminal successful
 outcome before production approval. A timeout is a failed execution, not an
 absence of evidence: retain its partial Playwright report, traces, screenshots,

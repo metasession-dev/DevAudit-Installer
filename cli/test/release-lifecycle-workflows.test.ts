@@ -41,7 +41,7 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
   it('records deployment and smoke as distinct always-finalized production cycles', () => {
     const source = template('post-deploy-prod.yml.template');
     expect(source.indexOf('Start production deployment cycles')).toBeLessThan(
-      source.indexOf('Wait for production deployment'),
+      source.indexOf('Probe production health independently'),
     );
     expect(source).toContain('Complete production deployment cycles\n        if: always()');
     expect(source).toContain('--cycle-kind deployment');
@@ -49,6 +49,11 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     expect(source).toContain('Complete production smoke cycles\n        if: always()');
     expect(source).toContain("if: steps.production_smoke.outcome == 'success'");
     expect(source).toContain('Production Evidence Completeness');
+    expect(source).toContain('Probe production health independently');
+    expect(source).toContain('production_health_timeout');
+    expect(source).toContain('host-deployment-result.env');
+    expect(source).toContain('deployment_status_timeout');
+    expect(source).toContain('hostVerification:$hostVerification');
   });
 
   it('only fans out E2E JSON to requirements whose tests executed in that result', () => {
