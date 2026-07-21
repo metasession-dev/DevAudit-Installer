@@ -17,4 +17,11 @@ rg -q --fixed-strings 'ref: ${{ github.event.repository.default_branch }}' "$WOR
 rg -q --fixed-strings 'persist-credentials: false' "$WORKFLOW"
 rg -q --fixed-strings 'resolve-auto-merge-pr.sh' "$WORKFLOW"
 
+checkout_line="$(rg -n --fixed-strings 'actions/checkout@v4' "$WORKFLOW" | cut -d: -f1)"
+helper_line="$(rg -n --fixed-strings 'resolve-auto-merge-pr.sh' "$WORKFLOW" | head -n1 | cut -d: -f1)"
+if [ "$checkout_line" -ge "$helper_line" ]; then
+  echo 'Auto Merge must check out the default branch before invoking its helper.' >&2
+  exit 1
+fi
+
 echo 'auto-merge workflow contract passed'
