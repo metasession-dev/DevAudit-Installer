@@ -109,25 +109,29 @@ assert_file_exists() {
   fi
 }
 
-# Test 1: housekeeping commits appear in markdown + JSON.
-echo "Test 1: housekeeping commits render as non-release work"
+# Test 1: only REQ-free housekeeping inside the tracked REQ window is bundled.
+echo "Test 1: release ownership excludes tagged and historical work"
 DIR1="$TMPDIR_BASE/test1"
 make_fixture "$DIR1"
 add_commit "chore: sync DevAudit templates from v0.1.69 to v0.1.70 [skip ci]"
 add_commit "docs: update API reference for /bookings endpoint"
 add_commit "feat: add booking widget [REQ-042]"
+add_commit "test: verify booking widget [REQ-042]"
 add_commit "chore(deps): bump eslint 9.0.5 to 9.0.6"
+add_commit "docs: document booking widget\n\nRef: REQ-042"
 add_commit "fix: resolve null pointer in booking service [REQ-042]"
 SINCE=$(git rev-list --max-parents=0 HEAD)
 JSON_OUT="$DIR1/bundle.json"
 OUTPUT=$(bash "$HELPER" "$SINCE" "REQ-042" --json-out "$JSON_OUT" 2>&1)
-assert_contains "markdown includes chore commit" "chore: sync DevAudit templates" "$OUTPUT"
-assert_contains "markdown includes docs commit" "docs: update API reference" "$OUTPUT"
 assert_contains "markdown includes scoped chore commit" "chore(deps): bump eslint" "$OUTPUT"
+assert_not_contains "markdown excludes historical chore commit" "chore: sync DevAudit templates" "$OUTPUT"
+assert_not_contains "markdown excludes historical docs commit" "docs: update API reference" "$OUTPUT"
+assert_not_contains "markdown excludes tagged test commit" "test: verify booking widget" "$OUTPUT"
+assert_not_contains "markdown excludes Ref-tagged docs commit" "docs: document booking widget" "$OUTPUT"
 assert_not_contains "markdown excludes feat commit" "feat: add booking widget" "$OUTPUT"
 assert_not_contains "markdown excludes fix commit" "fix: resolve null pointer" "$OUTPUT"
 assert_file_exists "json manifest emitted" "$JSON_OUT"
-assert_eq "non-release work count" "3" "$(jq -r '.nonReleaseWorkItems | length' "$JSON_OUT")"
+assert_eq "non-release work count" "1" "$(jq -r '.nonReleaseWorkItems | length' "$JSON_OUT")"
 assert_eq "member count with no tickets" "0" "$(jq -r '.members | length' "$JSON_OUT")"
 assert_eq "first housekeeping kind" "housekeeping_commit" "$(jq -r '.nonReleaseWorkItems[0].kind' "$JSON_OUT")"
 echo

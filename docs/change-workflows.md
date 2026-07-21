@@ -83,6 +83,13 @@ approval, or standalone close-out. It waits on the integration branch until the
 next tracked release; that release explicitly absorbs it into its bundled
 context.
 
+**Bundle scope freezes at UAT submission.** The submitted markdown/JSON manifest
+is the approval-scope declaration, not a rolling scan of later integration
+history. An unrelated hotfix or mandatory `main` back-merge remains independent
+housekeeping and must not mutate an active REQ. A legitimate scope change returns
+the REQ to implementation/evidence, updates the canonical manifest, and requires
+a new UAT submission.
+
 A standalone housekeeping promotion is an exception for work that cannot wait.
 Its release PR must state `Standalone housekeeping promotion` and why it
 cannot wait. It still requires terminal-green CI and PR review. Portal UAT/prod

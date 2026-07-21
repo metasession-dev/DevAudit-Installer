@@ -136,16 +136,17 @@ echo ""
 
 echo "--- Test 5: bare-date releases require an explicit standalone declaration ---"
 make_fixture "$WORK/test5" "chore: standalone housekeeping release"
-cat > "$WORK/test5/compliance/standalone-housekeeping/STANDALONE-HOUSEKEEPING-v2026.07.18.json" <<'EOF'
+BARE_DATE_VERSION="v$(date -u +%Y.%m.%d)"
+cat > "$WORK/test5/compliance/standalone-housekeeping/STANDALONE-HOUSEKEEPING-${BARE_DATE_VERSION}.json" <<EOF
 {
   "schemaVersion": 1,
-  "version": "v2026.07.18",
+  "version": "${BARE_DATE_VERSION}",
   "releaseMode": "standalone_housekeeping",
   "reason": "Urgent operational change cannot wait for the next tracked requirement release."
 }
 EOF
 OUT="$WORK/test5.out"
-if run_check "$WORK/test5" "$OUT" env PR_TITLE="Standalone housekeeping promotion: v2026.07.18" PR_BODY=$'## Release\n- Release: v2026.07.18\n'; then
+if run_check "$WORK/test5" "$OUT" env PR_TITLE="Standalone housekeeping promotion: ${BARE_DATE_VERSION}" PR_BODY=$"## Release\n- Release: ${BARE_DATE_VERSION}\n"; then
   CODE=0
 else
   CODE=$?
@@ -156,16 +157,16 @@ echo ""
 
 echo "--- Test 6: bare-date releases without the exception marker fail ---"
 make_fixture "$WORK/test6" "chore: standalone housekeeping release"
-cat > "$WORK/test6/compliance/standalone-housekeeping/STANDALONE-HOUSEKEEPING-v2026.07.18.json" <<'EOF'
+cat > "$WORK/test6/compliance/standalone-housekeeping/STANDALONE-HOUSEKEEPING-${BARE_DATE_VERSION}.json" <<EOF
 {
   "schemaVersion": 1,
-  "version": "v2026.07.18",
+  "version": "${BARE_DATE_VERSION}",
   "releaseMode": "standalone_housekeeping",
   "reason": "Urgent operational change cannot wait for the next tracked requirement release."
 }
 EOF
 OUT="$WORK/test6.out"
-if run_check "$WORK/test6" "$OUT" env PR_TITLE="Release: v2026.07.18" PR_BODY=$'## Release\n- Release: v2026.07.18\n'; then
+if run_check "$WORK/test6" "$OUT" env PR_TITLE="Release: ${BARE_DATE_VERSION}" PR_BODY=$"## Release\n- Release: ${BARE_DATE_VERSION}\n"; then
   CODE=0
 else
   CODE=$?

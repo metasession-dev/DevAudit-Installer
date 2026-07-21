@@ -24,13 +24,11 @@
 #                                                                    -> empty/skip
 #   5. Fallback:                      bare date                      -> v2026.05.17
 #
-# Step 4 (DevAudit-Installer#92) handles `chore:` / `docs:` / `ci:`
-# commits (e.g. a `devaudit update` sync) landing on the integration
-# branch between feature merge and release-PR open. Such a commit has
-# no REQ tag in its message → steps 1-3 fall through. The release
-# ticket on disk is a stronger explicit-operator-state signal than the
-# bare date — when exactly one ticket is open, attribute to it.
-# Multiple open tickets stays ambiguous → bare-date fallback.
+# A pending ticket or RTM row is not commit ownership. In particular, an
+# independent main hotfix must not become part of an active UAT REQ merely
+# because its mandatory back-merge lands while that REQ is the only pending
+# ticket. The optional fallback below is disabled by default and may be used
+# only for an explicitly reviewed integration exception.
 #
 # Note (DevAudit-Installer#220): `devaudit update` syncs now include
 # `[skip ci]` in their commit message, so they no longer trigger CI
@@ -91,7 +89,7 @@ fi
 # operator's explicit state says THIS is the in-flight release. Use it.
 # Zero or multiple → ambiguous, fall through to the bare date.
 # DevAudit-Installer#92.
-if [ -d compliance/pending-releases ]; then
+if [ "${DEVAUDIT_ALLOW_PENDING_TICKET_FALLBACK:-0}" = "1" ] && [ -d compliance/pending-releases ]; then
   # NUL-delimited count so filenames with spaces don't trip us up.
   TICKET_COUNT=$(find compliance/pending-releases -maxdepth 1 -type f \
     -name 'RELEASE-TICKET-REQ-*.md' -print0 2>/dev/null \
@@ -113,7 +111,7 @@ fi
 # multiple IN PROGRESS rows → ambiguous, fall through.
 # DevAudit-Installer#95.
 RTM_PATH="${RTM_PATH:-compliance/RTM.md}"
-if [ -f "$RTM_PATH" ]; then
+if [ "${DEVAUDIT_ALLOW_PENDING_TICKET_FALLBACK:-0}" = "1" ] && [ -f "$RTM_PATH" ]; then
   # Match REQ rows whose status column starts with `IN PROGRESS`.
   # `\|[[:space:]]+IN PROGRESS` requires a pipe followed by whitespace,
   # so legend rows (`| \`IN PROGRESS\``) and prose mentions don't match.

@@ -2,8 +2,8 @@
 #
 # Copy this into your consumer-owned .github/workflows/e2e-regression.yml
 # to adopt the 3-tier model: smoke (every develop push, fast) / critical
-# (consumer-enabled release PR, ~10-15 min target) / regression (post-merge
-# or scheduled only when the consumer opts in, plus dispatch).
+# (consumer-enabled release PR, ~10-15 min target) / regression after a
+# successful production deployment status (or manual dispatch).
 #
 # The framework does NOT sync this file automatically — your consumer
 # owns its e2e-regression.yml. Apply the patterns below to your own
@@ -17,14 +17,18 @@
 # playwright.config.ts must define the `critical` project for this to
 # fire; if it doesn't, the gate falls back to the existing `smoke`
 # project so PR-to-main stays green during migration.
+#
+# A post-merge regression is release evidence, not a best-effort background
+# task. Keep its timeout below the job timeout so the workflow can retain
+# partial evidence and report a terminal timeout outcome to DevAudit.
 
 name: E2E Regression
 
 on:
   pull_request:
     branches: [main] # critical-tier gate before merge
-  push:
-    branches: [main] # full regression after merge; auto-issues on failure
+  deployment_status:
+    types: [created] # full regression only after successful production deploy
   workflow_dispatch:
     inputs:
       specs:
@@ -42,11 +46,19 @@ concurrency:
 jobs:
   e2e:
     name: E2E Regression Tests
+    if: >-
+      github.event_name != 'deployment_status' ||
+      (github.event.deployment_status.state == 'success' &&
+       (github.event.deployment.environment == 'production' || github.event.deployment.environment == 'prod'))
     runs-on: ubuntu-latest # adapt to your runner; e.g. self-hosted, ubuntu-24.04
+    # The full regression target is about 35 minutes. Leave time to archive
+    # partial output before GitHub terminates the job.
+    timeout-minutes: 55
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0 # for E2E_NEW_SPECS computation
+          ref: ${{ github.event.deployment.sha || github.sha }}
 
       - uses: actions/setup-node@v6
         with:
@@ -79,7 +91,7 @@ jobs:
               fi
               echo "specs=" >> "$GITHUB_OUTPUT"
               ;;
-            push|schedule)
+            deployment_status|schedule)
               echo "project=regression" >> "$GITHUB_OUTPUT"
               echo "specs=" >> "$GITHUB_OUTPUT"
               echo "Running full regression project"
@@ -93,6 +105,25 @@ jobs:
               ;;
           esac
 
+      - name: Record E2E execution context
+        id: context
+        env:
+          E2E_TARGET_URL: ${{ vars.E2E_TARGET_URL }}
+        run: |
+          set -euo pipefail
+          TARGET_URL="${E2E_TARGET_URL:-${PLAYWRIGHT_BASE_URL:-${BASE_URL:-http://localhost:3000}}}"
+          jq -n \
+            --arg targetUrl "$TARGET_URL" \
+            --arg project "${{ steps.select.outputs.project }}" \
+            --arg specs "${{ steps.select.outputs.specs }}" \
+            --arg serverStart "consumer-managed-or-external" \
+            --arg serverStop "consumer-managed-or-external" \
+            --arg startedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --argjson timeoutMinutes 40 \
+            '{target_url: $targetUrl, project: $project, selected_specs: $specs, test_server_start: $serverStart, test_server_stop: $serverStop, timeout_minutes: $timeoutMinutes, started_at: $startedAt, outcome: "running"}' \
+            > e2e-regression-metadata.json
+          echo "target_url=$TARGET_URL" >> "$GITHUB_OUTPUT"
+
       - name: Run E2E suite
         id: run
         env:
@@ -100,14 +131,28 @@ jobs:
           PLAYWRIGHT_JSON_OUTPUT_NAME: e2e-regression-results.json
           # Add your e2e_env values here as needed (DEVAUDIT_BASE_URL etc.)
         run: |
-          set -euo pipefail
+          set -uo pipefail
           PROJECT="${{ steps.select.outputs.project }}"
           SPECS="${{ steps.select.outputs.specs }}"
           if [ -n "$SPECS" ]; then
-            npx playwright test --project="$PROJECT" --reporter=json,html $SPECS
+            timeout --signal=TERM --kill-after=60s 40m npx playwright test --project="$PROJECT" --reporter=json,html $SPECS
           else
-            npx playwright test --project="$PROJECT" --reporter=json,html
+            timeout --signal=TERM --kill-after=60s 40m npx playwright test --project="$PROJECT" --reporter=json,html
           fi
+          STATUS=$?
+          if [ "$STATUS" -eq 124 ]; then
+            OUTCOME="timed_out"
+            echo "::error::E2E regression exceeded its 40-minute execution budget. Partial evidence will be uploaded."
+          elif [ "$STATUS" -eq 0 ]; then
+            OUTCOME="passed"
+          else
+            OUTCOME="failed"
+          fi
+          jq --arg outcome "$OUTCOME" --arg completedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --argjson exitCode "$STATUS" \
+            '. + {outcome: $outcome, completed_at: $completedAt, exit_code: $exitCode}' \
+            e2e-regression-metadata.json > e2e-regression-metadata.tmp
+          mv e2e-regression-metadata.tmp e2e-regression-metadata.json
+          exit "$STATUS"
 
       - uses: actions/upload-artifact@v7
         if: always()
@@ -115,11 +160,15 @@ jobs:
           name: e2e-regression-report
           path: |
             e2e-regression-results.json
+            e2e-regression-metadata.json
             playwright-report/
             test-results/
+            e2e-server.log
+            server.log
+          if-no-files-found: warn
 
       # ─────────────────────────────────────────────────────────────
-      # Post-merge auto-issue on regression failure (push:branches:[main])
+      # Post-deployment auto-issue on regression failure.
       #
       # Catches regressions that slipped past the critical-tier PR gate.
       # Opens a high-priority issue tagging the merge commit + the
@@ -127,7 +176,7 @@ jobs:
       # No auto-revert — that's intentionally an operator decision.
       # ─────────────────────────────────────────────────────────────
       - name: Open hotfix issue on post-merge regression
-        if: failure() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: failure() && github.event_name == 'deployment_status' && github.event.deployment_status.state == 'success'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

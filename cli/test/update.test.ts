@@ -195,6 +195,12 @@ describe('syncProject — native TS sync against a fixture', () => {
     expect(await fs.stat(join(fixtureDir, 'scripts', 'render-test-cycles.sh'))).toBeTruthy();
     expect(await fs.stat(join(fixtureDir, 'scripts', 'validate-compliance-artifacts.sh'))).toBeTruthy();
     expect(await fs.stat(join(fixtureDir, 'scripts', 'generate-bundled-changes.sh'))).toBeTruthy();
+    const generatedBundleScript = await fs.readFile(
+      join(fixtureDir, 'scripts', 'generate-bundled-changes.sh'),
+      'utf-8',
+    );
+    expect(generatedBundleScript).toContain('FIRST_REQ_SHA');
+    expect(generatedBundleScript).toContain('schemaVersion: 2');
     // Section 2e-iii — evidence helper (node only). All three files: the
     // Playwright wrapper, the pure helpers it imports, and the test-tags
     // annotation helper (#196).
@@ -296,6 +302,14 @@ describe('syncProject — native TS sync against a fixture', () => {
     );
     expect(postDeployYml).toContain('deployments: read');
     expect(postDeployYml).toContain('bash scripts/check-host-deployment.sh');
+    expect(postDeployYml).toContain('Probe production health independently');
+    expect(postDeployYml).toContain('deployment_status_timeout');
+    expect(postDeployYml).toContain('host-deployment-result.env');
+    expect(postDeployYml).toContain('deployment_status:');
+    expect(postDeployYml).toContain("github.event.deployment_status.state == 'success'");
+    const reconciliationYml = await fs.readFile(join(fixtureDir, '.github', 'workflows', 'reconcile-deployment.yml'), 'utf-8');
+    expect(reconciliationYml).toContain('Verify provider deployment before reconciliation');
+    expect(reconciliationYml).toContain('provenance=manual_reconciliation');
     expect(postDeployYml).toContain('scripts/report-test-cycle.sh start');
     expect(postDeployYml).toContain('scripts/report-test-cycle.sh complete');
     // DevAudit-Installer#228 — every generated workflow must be valid YAML.
