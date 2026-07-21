@@ -823,6 +823,17 @@ jobs:
           if [ "${#REQS[@]}" -eq 0 ]; then
             REQS=(_compliance-docs)
           fi
+          # A bounded Playwright process exits the workflow with `failure`
+          # even when its machine-readable execution result is specifically
+          # `timed_out`. Preserve that distinction for the portal lifecycle.
+          EXECUTION_OUTCOME=""
+          if [ -f e2e-artifacts/e2e-regression-metadata.json ]; then
+            EXECUTION_OUTCOME="$(jq -r '.outcome // empty' e2e-artifacts/e2e-regression-metadata.json 2>/dev/null || true)"
+            case "$EXECUTION_OUTCOME" in
+              passed|failed|timed_out) ;;
+              *) EXECUTION_OUTCOME="" ;;
+            esac
+          fi
           echo "Uploading E2E ${TIER}-tier evidence to: ${REQS[*]} (release: ${DERIVED_RELEASE})"
 
           UPLOAD_FAILURES=0
@@ -868,7 +879,24 @@ jobs:
                 REQ_FAILURES=$((REQ_FAILURES + 1))
               fi
             fi
-            # 2. Playwright HTML report zip → e2e_report. Operator-
+            # 2. The bounded execution metadata makes a timeout distinct
+            # from an ordinary failed workflow on the portal.
+            if [ -f e2e-artifacts/e2e-regression-metadata.json ]; then
+              if bash scripts/upload-evidence.sh \
+                {{PROJECT_SLUG}} "$REQ" test_report \
+                e2e-artifacts/e2e-regression-metadata.json \
+                --category test_report ${FLAGS} --release "${DERIVED_RELEASE}" \
+                "${LINEAGE_FLAGS[@]}" \
+                --meta-key "tier=${TIER}" --meta-key "execution_outcome=${EXECUTION_OUTCOME:-unknown}"
+              then
+                :
+              else
+                echo "::warning::E2E execution metadata upload failed for ${REQ}"
+                UPLOAD_FAILURES=$((UPLOAD_FAILURES + 1))
+                REQ_FAILURES=$((REQ_FAILURES + 1))
+              fi
+            fi
+            # 3. Playwright HTML report zip → e2e_report. Operator-
             # facing artefact (the formatted run summary). Skipped if
             # the report directory is missing (e.g. an upstream
             # infrastructure failure aborted before reporting).
@@ -908,6 +936,12 @@ jobs:
               action_required) REQ_OUTCOME=action_required ;;
               *)               REQ_OUTCOME=unknown ;;
             esac
+            if [ "$EXECUTION_OUTCOME" = "timed_out" ]; then
+              REQ_OUTCOME=timed_out
+              OUTCOME_REASON="bounded Playwright execution timed out (metadata); workflow_run conclusion: ${{ github.event.workflow_run.conclusion }}"
+            else
+              OUTCOME_REASON="authoritative workflow_run conclusion: ${{ github.event.workflow_run.conclusion }}"
+            fi
             bash scripts/report-test-cycle.sh complete \
               --project-slug {{PROJECT_SLUG}} \
               --release "${DERIVED_RELEASE}" \
@@ -924,7 +958,7 @@ jobs:
               --workflow-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}" \
               --started-at "${{ github.event.workflow_run.run_started_at }}" \
               --completed-at "${{ github.event.workflow_run.updated_at }}" \
-              --outcome-reason "authoritative workflow_run conclusion: ${{ github.event.workflow_run.conclusion }}" \
+              --outcome-reason "$OUTCOME_REASON" \
               --outcome "${REQ_OUTCOME}"
             case "$REQ_OUTCOME" in
               passed) CHECK_STATUS=successful ;;
@@ -932,8 +966,9 @@ jobs:
             esac
             CHECK_DETAILS=$(jq -cn \
               --arg conclusion "${{ github.event.workflow_run.conclusion }}" \
+              --arg executionOutcome "${EXECUTION_OUTCOME:-unknown}" \
               --argjson artifactUploadFailures "$REQ_FAILURES" \
-              '{executionSource:"workflow_run.conclusion",conclusion:$conclusion,artifactUploadFailures:$artifactUploadFailures}')
+              '{executionSource:"workflow_run.conclusion",conclusion:$conclusion,executionOutcome:$executionOutcome,artifactUploadFailures:$artifactUploadFailures}')
             bash scripts/report-release-check.sh \
               --project-slug {{PROJECT_SLUG}} --release "${DERIVED_RELEASE}" \
               --check-key "e2e-regression:${{ github.event.workflow_run.id }}:${{ github.event.workflow_run.run_attempt }}:${REQ}" \

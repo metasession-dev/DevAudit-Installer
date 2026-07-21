@@ -26,6 +26,12 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
   it('records E2E outcome and timestamps from the triggering workflow, not artifact upload', () => {
     const source = template('compliance-evidence.yml.template');
     expect(source).toContain('case "${{ github.event.workflow_run.conclusion }}" in');
+    expect(source).toContain('e2e-regression-metadata.json');
+    expect(source).toContain('EXECUTION_OUTCOME="$(jq -r');
+    expect(source).toContain('passed|failed|timed_out)');
+    expect(source).toContain('REQ_OUTCOME=timed_out');
+    expect(source).toContain('executionOutcome:$executionOutcome');
+    expect(source).toContain('--meta-key "execution_outcome=${EXECUTION_OUTCOME:-unknown}"');
     expect(source).toContain('--started-at "${{ github.event.workflow_run.run_started_at }}"');
     expect(source).toContain('--completed-at "${{ github.event.workflow_run.updated_at }}"');
     expect(source).toContain('artifactUploadFailures');
