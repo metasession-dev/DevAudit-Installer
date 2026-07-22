@@ -56,6 +56,8 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     expect(source).toContain('hostVerification:$hostVerification');
     expect(source).toContain('deployment_status:\n    types: [created]');
     expect(source).toContain("github.event.deployment_status.state == 'success'");
+    expect(source).toContain("endsWith(github.event.deployment.environment, '/ production')");
+    expect(source).toContain("endsWith(github.event.deployment.environment, '/production')");
     expect(source).toContain('GIT_SHA: ${{ github.event.deployment.sha || github.sha }}');
   });
 
@@ -82,6 +84,8 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     expect(source).toContain('e2e-server.log');
     expect(source).toContain('deployment_status:\n    types: [created]');
     expect(source).toContain("github.event_name == 'deployment_status'");
+    expect(source).toContain("endsWith(github.event.deployment.environment, '/ production')");
+    expect(source).toContain("endsWith(github.event.deployment.environment, '/production')");
   });
 
   it('runs self-hosted runner prerequisite preflight before quality gates', () => {
