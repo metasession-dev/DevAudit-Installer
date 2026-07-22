@@ -28,21 +28,6 @@ jobs:
 
           git fetch origin main develop
 
-          WORKFLOW_PERMISSIONS_JSON=$(mktemp)
-          if ! gh api "repos/${GITHUB_REPOSITORY}/actions/permissions/workflow" > "$WORKFLOW_PERMISSIONS_JSON"; then
-            echo "::error::Unable to inspect repository Actions workflow permissions for ${GITHUB_REPOSITORY}." >&2
-            echo "Hotfix back-merge requires repository Actions settings to allow GitHub Actions to create pull requests." >&2
-            exit 1
-          fi
-          CAN_CREATE_PRS=$(jq -r '.can_approve_pull_request_reviews // false' "$WORKFLOW_PERMISSIONS_JSON")
-          if [ "$CAN_CREATE_PRS" != "true" ]; then
-            DEFAULT_PERMISSION=$(jq -r '.default_workflow_permissions // "unknown"' "$WORKFLOW_PERMISSIONS_JSON")
-            echo "::error::Repository Actions setting 'Allow GitHub Actions to create and approve pull requests' is disabled." >&2
-            echo "default_workflow_permissions=${DEFAULT_PERMISSION}; can_approve_pull_request_reviews=${CAN_CREATE_PRS}" >&2
-            echo "Enable the PR-creation setting while keeping explicit workflow permissions least-privilege, then rerun this workflow." >&2
-            exit 1
-          fi
-
           AFTER_PARENTS=$(git show -s --format='%P' "$AFTER" 2>/dev/null | wc -w)
           if [ "$AFTER_PARENTS" -lt 2 ]; then
             echo "Push to main is not a merge commit. No automated back-merge PR needed."
@@ -93,7 +78,13 @@ jobs:
             git cherry-pick -x "$sha"
           done <<< "$(printf '%s' "$HOTFIX_COMMITS" | tac)"
 
-          git push --force-with-lease origin "$BACKMERGE_BRANCH"
+          PUSH_LOG="$(mktemp)"
+          if ! git push --force-with-lease origin "$BACKMERGE_BRANCH" 2> "$PUSH_LOG"; then
+            cat "$PUSH_LOG" >&2
+            echo "::error::Unable to push ${BACKMERGE_BRANCH} for hotfix back-merge." >&2
+            echo "Hotfix back-merge requires workflow contents: write permission and branch creation access." >&2
+            exit 1
+          fi
 
           EXISTING_PR=$(gh pr list --base develop --head "$BACKMERGE_BRANCH" --json number --jq '.[0].number // empty')
           if [ -n "$EXISTING_PR" ]; then
@@ -116,8 +107,14 @@ jobs:
             echo "This PR keeps \`develop\` aligned immediately after a permitted \`hotfix/* -> main\` merge."
           } > "$BODY_FILE"
 
-          gh pr create \
+          PR_CREATE_LOG="$(mktemp)"
+          if ! gh pr create \
             --base develop \
             --head "$BACKMERGE_BRANCH" \
             --title "backmerge: sync main hotfix ${SHORT_SHA} into develop" \
-            --body-file "$BODY_FILE"
+            --body-file "$BODY_FILE" 2> "$PR_CREATE_LOG"; then
+            cat "$PR_CREATE_LOG" >&2
+            echo "::error::Unable to create the reviewed hotfix back-merge PR." >&2
+            echo "If the error is 'Resource not accessible by integration' or HTTP 403, enable repository Actions setting 'Allow GitHub Actions to create and approve pull requests', keep workflow permissions at write, then rerun this workflow." >&2
+            exit 1
+          fi
