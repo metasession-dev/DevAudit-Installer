@@ -97,6 +97,13 @@ or by an explicitly listed bundle predecessor; inherited incident artefacts are
 uploaded to their source release and referenced through lineage, never relabelled
 as evidence newly produced by the approval envelope.
 
+Quality-gate evidence also stays on the commit-derived release/run by default.
+Pending tickets do not justify copying `gate-outcomes.json` to every active REQ.
+If a bundled approval needs to show another release's gate result, it must do so
+through the explicit bundle manifest and portal lineage, not duplicate upload
+rows. Requirement-scoped E2E JSON is the exception only when the JSON contains an
+executed test tagged for that requirement.
+
 ### Close-out
 
 `released` in the portal is the trigger for close-out, not merely a merged PR.

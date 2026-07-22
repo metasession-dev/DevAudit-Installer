@@ -82,6 +82,15 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     expect(source).toContain("result.get('status') not in {'skipped', 'interrupted'}");
   });
 
+  it('does not fan out generic gate outcomes to pending REQs', () => {
+    const source = template('ci.yml.template');
+    expect(source).toContain('Not fanning out gate-outcomes.json to pending REQs');
+    expect(source).toContain('pending release tickets alone do');
+    expect(source).toContain('not make that gate current approval evidence for every REQ');
+    expect(source).not.toContain('Fanning out gate evidence to in-scope REQs');
+    expect(source).not.toContain('gate-outcomes.json -> ${REQ_ID}');
+  });
+
   it('bounds post-merge E2E and retains terminal timeout evidence', () => {
     const source = reference('e2e-regression-3-tier.yml');
     expect(source).toContain('timeout-minutes: 55');
