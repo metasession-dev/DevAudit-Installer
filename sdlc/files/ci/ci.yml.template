@@ -657,17 +657,20 @@ jobs:
               --environment uat --sdlc-stage 2
           fi
 
-          # Per-REQ gate evidence fan-out.
-          # The gate evidence above was uploaded to the single commit-derived
-          # release (FLAGS carries --release <derived>). When multiple REQs
-          # have pending release tickets, only that one REQ gets gate evidence
-          # on the portal — other in-scope REQs show "no gate evidence" and
-          # "no tests tagged with this REQ" even though the gates ran and
-          # passed. Gate outcomes can be attached to every active REQ, but an
-          # E2E JSON result is REQ-scoped proof only when it actually contains
-          # an executed test tagged for that REQ. A smoke run must never
-          # overwrite or obscure a prior targeted feature execution merely
-          # because a pending ticket exists (DevAudit-Installer#435).
+          # Per-REQ E2E JSON attachment only.
+          # Gate outcomes above are intentionally uploaded only to the single
+          # commit-derived release in FLAGS. A generic integration Quality
+          # Gates run is run-level evidence; pending release tickets alone do
+          # not make that gate current approval evidence for every REQ. Bundle
+          # membership must be represented through an explicit bundle manifest
+          # and portal lineage, not by fanning out gate-outcomes.json rows
+          # (DevAudit-Installer#438).
+          #
+          # E2E JSON is different: it may be attached to a REQ only when the
+          # report itself contains an executed test tagged for that REQ. A smoke
+          # run must never overwrite or obscure a prior targeted feature
+          # execution merely because a pending ticket exists
+          # (DevAudit-Installer#435).
           has_req_tagged_e2e_result() {
             python3 - "$1" "$2" <<'PY'
           import json, re, sys
@@ -698,7 +701,7 @@ jobs:
           PY
           }
           COMMIT_REQ="${{ needs.register-release.outputs.version }}"
-          FANOUT_REQS=()
+          E2E_REQS=()
           if [ -d compliance/pending-releases ]; then
             for TICKET in compliance/pending-releases/RELEASE-TICKET-REQ-*.md; do
               [ -f "$TICKET" ] || continue
@@ -712,21 +715,17 @@ jobs:
               if [ "$REQ_ID" = "$COMMIT_REQ" ]; then
                 continue
               fi
-              FANOUT_REQS+=("$REQ_ID")
+              E2E_REQS+=("$REQ_ID")
             done
           fi
-          if [ "${#FANOUT_REQS[@]}" -gt 0 ]; then
-            echo "Fanning out gate evidence to in-scope REQs: ${FANOUT_REQS[*]}"
-            for REQ_ID in "${FANOUT_REQS[@]}"; do
+          if [ "${#E2E_REQS[@]}" -gt 0 ]; then
+            echo "Checking tagged E2E JSON attachment candidates: ${E2E_REQS[*]}"
+            echo "::notice::Not fanning out gate-outcomes.json to pending REQs; gate evidence remains on ${COMMIT_REQ} unless represented through explicit release lineage."
+            for REQ_ID in "${E2E_REQS[@]}"; do
               FANOUT_FLAGS="--git-sha ${{ github.sha }} --ci-run-id ${{ github.run_id }} --branch ${{ github.ref_name }}"
               FANOUT_FLAGS="${FANOUT_FLAGS} --release ${REQ_ID} --create-release-if-missing"
               FANOUT_FLAGS="${FANOUT_FLAGS} --environment uat --sdlc-stage 2"
               FANOUT_FLAGS="${FANOUT_FLAGS} --test-cycle ${{ github.run_id }}"
-              if [ -f ci-evidence/gate-outcomes.json ]; then
-                upload "gate-outcomes.json -> ${REQ_ID}" \
-                  {{PROJECT_SLUG}} "${REQ_ID}" gate_outcome ci-evidence/gate-outcomes.json \
-                  --category ci_pipeline ${FANOUT_FLAGS}
-              fi
               if [ -f ci-evidence/e2e-results.json ] && has_req_tagged_e2e_result "$REQ_ID" ci-evidence/e2e-results.json; then
                 upload "e2e-results.json -> ${REQ_ID}" \
                   {{PROJECT_SLUG}} "${REQ_ID}" e2e_result ci-evidence/e2e-results.json \

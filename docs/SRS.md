@@ -2123,11 +2123,11 @@ Area codes: FRAMEWORK-CIYML (ci.yml quality gates + evidence job), FRAMEWORK-EVI
 #### REQ-FRAMEWORK-CIYML-005 — Gate outcomes summarised unconditionally to gate-outcomes.json
 
 - **Priority:** Must — the portal's "ran-and-failed vs never-ran" distinction (DevAudit-Installer#96) depends on this artefact.
-- **Source:** `sdlc/files/ci/ci.yml.template` step `Summarise gate outcomes` (`if: always()`) writes `gate-outcomes.json` with `${{ steps.<id>.outcome }}` for `typescript`/`sast`/`dependency_audit`/`build`; `upload-artifact@v4` (`if: always()`) bundles it (+ sast/dep/e2e JSON, playwright-report, coverage, per-AC screenshots) as `ci-results`, retention 90 days.
+- **Source:** `sdlc/files/ci/ci.yml.template` step `Summarise gate outcomes` (`if: always()`) writes `gate-outcomes.json` with `${{ steps.<id>.outcome }}` for `typescript`/`sast`/`dependency_audit`/`build`; `upload-artifact@v4` (`if: always()`) bundles it (+ sast/dep/e2e JSON, playwright-report, coverage, per-AC screenshots) as `ci-results`, retention 90 days. The upload step attaches `gate-outcomes.json` only to the commit-derived release/run. Pending tickets are not ownership and must not trigger `gate_outcome` fan-out to unrelated REQs; bundled approval uses explicit bundle lineage instead of duplicate upload rows.
 - **Preconditions / inputs:** node stack rendered `ci.yml`.
-- **Given** any gate failed earlier **When** the job reaches `Summarise gate outcomes` **Then** the step still runs (`always()`) and records each step's `outcome` (`success`/`failure`/`skipped`); the `ci-results` artifact is uploaded regardless of job result.
+- **Given** any gate failed earlier **When** the job reaches `Summarise gate outcomes` **Then** the step still runs (`always()`) and records each step's `outcome` (`success`/`failure`/`skipped`); the `ci-results` artifact is uploaded regardless of job result. **Given** multiple pending REQ tickets exist **When** a generic develop Quality Gates run uploads evidence **Then** `gate_outcome` remains on the commit-derived release only; the workflow may attach E2E JSON to another REQ only when that JSON contains an executed test tagged for that REQ.
 - **Error paths:** `upload-artifact` is `continue-on-error: true` so an upload hiccup does not fail the job.
-- **Fixtures/env:** Rendered repo where an early gate fails; assert `gate-outcomes.json` still produced.
+- **Fixtures/env:** Rendered repo where an early gate fails; assert `gate-outcomes.json` still produced. Rendered repo with multiple pending tickets; assert no `gate-outcomes.json -> REQ_ID` fan-out path exists.
 
 #### REQ-FRAMEWORK-CIYML-006 — register-release job creates the UAT release record early
 
