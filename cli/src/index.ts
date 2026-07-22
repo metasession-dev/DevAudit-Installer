@@ -140,9 +140,9 @@ export async function main(argv: readonly string[]): Promise<void> {
     .option('--change-type <type>', 'conventional-commit prefix for the release row (changeType)')
     .option('--gate-status <status>', 'passed | failed | skipped (gateStatus)')
     .option('--sdlc-stage <stage>', 'SDLC stage 1-5 (sdlcStage)')
-    .option('--test-cycle <id>', 'test cycle identifier (typically the CI run ID)')
-    .option('--evidence-scope <scope>', 'release | stage | cycle | approval (evidenceScope)')
-    .option('--test-cycle-record-id <id>', 'first-class portal cycle UUID (requires --evidence-scope cycle)')
+    .option('--test-execution <id>', 'test execution identifier (typically the CI run ID)')
+    .option('--evidence-scope <scope>', 'release | stage | execution | approval (evidenceScope)')
+    .option('--test-execution-record-id <id>', 'first-class portal test execution UUID (requires --evidence-scope execution)')
     .option(
       '--meta-key <pair>',
       'repeatable key=value merged into the metadata JSON',
@@ -170,9 +170,9 @@ export async function main(argv: readonly string[]): Promise<void> {
           changeType?: string;
           gateStatus?: string;
           sdlcStage?: string;
-          testCycle?: string;
-          evidenceScope?: 'release' | 'stage' | 'cycle' | 'approval';
-          testCycleRecordId?: string;
+          testExecution?: string;
+          evidenceScope?: 'release' | 'stage' | 'execution' | 'approval';
+          testExecutionRecordId?: string;
           metaKey?: string[];
           baseUrl?: string;
           apiKey?: string;
@@ -199,10 +199,10 @@ export async function main(argv: readonly string[]): Promise<void> {
           ...(opts.changeType !== undefined ? { changeType: opts.changeType } : {}),
           ...(opts.gateStatus !== undefined ? { gateStatus: opts.gateStatus } : {}),
           ...(opts.sdlcStage !== undefined ? { sdlcStage: opts.sdlcStage } : {}),
-          ...(opts.testCycle !== undefined ? { testCycleId: opts.testCycle } : {}),
+          ...(opts.testExecution !== undefined ? { testExecutionId: opts.testExecution } : {}),
           ...(opts.evidenceScope !== undefined ? { evidenceScope: opts.evidenceScope } : {}),
-          ...(opts.testCycleRecordId !== undefined
-            ? { testCycleRecordId: opts.testCycleRecordId }
+          ...(opts.testExecutionRecordId !== undefined
+            ? { testExecutionRecordId: opts.testExecutionRecordId }
             : {}),
           ...(opts.metaKey !== undefined && opts.metaKey.length > 0 ? { metaKeys: opts.metaKey } : {}),
           ...(opts.baseUrl !== undefined ? { baseUrl: opts.baseUrl } : {}),

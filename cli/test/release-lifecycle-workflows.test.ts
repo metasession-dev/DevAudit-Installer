@@ -17,7 +17,7 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
   it('records quality-gate lifecycle around execution and uses the upstream job result', () => {
     const source = template('ci.yml.template');
     expect(source).toContain('quality-gates:\n    name: Quality Gates\n    needs: [register-release]');
-    expect(source.indexOf('Start authoritative quality-gate cycle')).toBeLessThan(
+    expect(source.indexOf('Start authoritative quality-gate execution')).toBeLessThan(
       source.indexOf('- name: TypeScript Check'),
     );
     expect(source).toContain('case "${{ needs.quality-gates.result }}" in');
@@ -52,15 +52,15 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     expect(source).toContain('${STAGE:-2}:${E2E_ENVIRONMENT}:${DERIVED_RELEASE}');
   });
 
-  it('records deployment and smoke as distinct always-finalized production cycles', () => {
+  it('records deployment and smoke as distinct always-finalized production executions', () => {
     const source = template('post-deploy-prod.yml.template');
-    expect(source.indexOf('Start production deployment cycles')).toBeLessThan(
+    expect(source.indexOf('Start production deployment executions')).toBeLessThan(
       source.indexOf('Probe production health independently'),
     );
-    expect(source).toContain('Complete production deployment cycles\n        if: always()');
-    expect(source).toContain('--cycle-kind deployment');
-    expect(source).toContain('--cycle-kind smoke');
-    expect(source).toContain('Complete production smoke cycles\n        if: always()');
+    expect(source).toContain('Complete production deployment executions\n        if: always()');
+    expect(source).toContain('--suite-kind deployment');
+    expect(source).toContain('--suite-kind smoke');
+    expect(source).toContain('Complete production smoke executions\n        if: always()');
     expect(source).toContain("if: steps.production_smoke.outcome == 'success'");
     expect(source).toContain('Production Evidence Completeness');
     expect(source).toContain('Probe production health independently');
@@ -114,7 +114,7 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
   it('runs self-hosted runner prerequisite preflight before quality gates', () => {
     const source = template('ci.yml.template');
     expect(source.indexOf('Validate self-hosted runner prerequisites')).toBeLessThan(
-      source.indexOf('Start authoritative quality-gate cycle'),
+      source.indexOf('Start authoritative quality-gate execution'),
     );
     expect(source).toContain('DEVAUDIT_RUNNER_ENVIRONMENT: ${{ runner.environment }}');
     expect(source).toContain('bash scripts/check-self-hosted-runner.sh');
@@ -154,11 +154,11 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     expect(submit).toContain('./scripts/record-uat-execution.sh');
     expect(record).toContain('--sdlc-stage 4');
     expect(record).toContain('--environment uat');
-    expect(record).toContain('--cycle-kind uat');
+    expect(record).toContain('--suite-kind uat');
     expect(record).toContain('--provider manual_uat');
     expect(record).toContain('manual-uat:${PROJECT_SLUG}:${RELEASE_VERSION}:${EXECUTION_ID}');
     expect(record).toContain('executor=${EXECUTOR}; tested_sha=${TESTED_SHA}');
-    expect(record).toContain('"$REPORT_TEST_CYCLE" start');
-    expect(record).toContain('"$REPORT_TEST_CYCLE" complete');
+    expect(record).toContain('"$REPORT_TEST_EXECUTION" start');
+    expect(record).toContain('"$REPORT_TEST_EXECUTION" complete');
   });
 });

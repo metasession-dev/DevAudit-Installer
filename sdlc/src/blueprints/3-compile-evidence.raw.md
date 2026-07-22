@@ -82,7 +82,7 @@ A release is classified by version shape and release mode. **Most of this doc wa
 
 ### Housekeeping outcomes
 
-Normal housekeeping skips the per-requirement evidence and approval path. Run the relevant gates, obtain terminal-green PR review, and merge to `develop`; the bare-date portal row is integration history. When a tracked release later absorbs the work, its bundled-change manifest preserves the source title, evidence ownership, stage, and cycles.
+Normal housekeeping skips the per-requirement evidence and approval path. Run the relevant gates, obtain terminal-green PR review, and merge to `develop`; the bare-date portal row is integration history. When a tracked release later absorbs the work, its bundled-change manifest preserves the source title, evidence ownership, stage, and executions.
 
 Use standalone housekeeping only when the change cannot reasonably wait for that tracked release. Follow `docs/release-playbooks/housekeeping-release.md`: add the validated `STANDALONE-HOUSEKEEPING-vYYYY.MM.DD.json` declaration, document why promotion is necessary, pass the required checks, and verify production. There is no automatic release-ticket or security-summary stub PR for either housekeeping outcome.
 
@@ -173,27 +173,27 @@ Rules:
 - `environment_gap` and `precondition_gap` skips must be resolved before listing — if they appear here, the gate is not truly `SKIPPED` with operator approval.
 - A skipped test never proves an acceptance criterion.
 
-## Test Cycles
+## Test Executions
 
-Prefer the first-class release-journey / cycle API when the portal exposes it. Generate the table from the API response rather than inferring cycles from uploaded files:
+Prefer the first-class release-journey / execution API when the portal exposes it. Generate the table from the API response rather than inferring executions from uploaded files:
 
 ```bash
 # Example:
 curl -s -H "Authorization: Bearer ${DEVAUDIT_API_KEY}" \
   "${DEVAUDIT_BASE_URL%/}/api/projects/<slug>/releases/REQ-XXX/journey" \
   > /tmp/release-journey.json
-bash scripts/render-test-cycles.sh /tmp/release-journey.json
+bash scripts/render-test-executions.sh /tmp/release-journey.json
 ```
 
-The helper renders a first-class table when `.cycles[]` is present, and falls back to legacy `testCycleId` grouping when the portal has not yet rolled out cycle records.
+The helper renders a first-class table when `.testExecutions[]` is present. It must not infer executions from legacy artifact grouping.
 
-| Source Release | SDLC Stage | Cycle | Kind | Outcome | Workflow / Run | Related Evidence | Incident / Remediation | Date |
+| Source Release | SDLC Stage | Execution | Kind | Outcome | Workflow / Run | Related Evidence | Incident / Remediation | Date |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | REQ-XXX | 2 implement_test | #1 | quality_gate | passed | [Quality Gates](https://github.com/example/repo/actions/runs/123) (run 123, attempt 1) | quality-gates.json | None | 2026-07-16 11:03:00 |
 | REQ-XXX | 2 implement_test | #2 | e2e | passed | [E2E Regression](https://github.com/example/repo/actions/runs/124) (run 124, attempt 2) | e2e-results.json, screenshots.zip | Incident #501 fixed in PR #507 | 2026-07-16 11:19:00 |
 | REQ-089 | 4 uat_review | #1 | uat | passed | [UAT Review](https://devaudit.example/releases/REQ-089) | uat-checklist.md | None | 2026-07-16 12:02:00 |
 
-**Final assessment:** [First-class cycle records show all stage cycles passed / N cycles failed — see incidents]
+**Final assessment:** [First-class test execution records show all stage executions passed / N executions failed — see incidents]
 
 ## Bundled Release Context
 
@@ -338,12 +338,12 @@ status: "nil"
 
 ## Attestation
 
-No incidents or defects were discovered during the test cycle for release `<version>`.
+No incidents or defects were discovered during the test execution for release `<version>`.
 
 ## Scope
 
 - **Release:** <version>
-- **Test cycle:** <description>
+- **Test execution:** <description>
 - **Test cases executed:** <count>
 - **Test cases passed:** <count>
 - **Test cases failed:** 0
@@ -352,7 +352,7 @@ No incidents or defects were discovered during the test cycle for release `<vers
 
 ## Framework attribution
 
-- [x] `ISO29119.3.5.4` (Test incident report — nil report for this release cycle)
+- [x] `ISO29119.3.5.4` (Test incident report — nil report for this release execution)
 
 ## Sign-off
 

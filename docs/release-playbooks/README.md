@@ -51,7 +51,7 @@ hotfix/* from release -> PR to release -> terminal-green checks and review
 ```
 
 High priority while production is healthy remains normal GitFlow. A hotfix does
-not waive evidence, cycle reporting, review, deployment verification, or the
+not waive evidence, execution reporting, review, deployment verification, or the
 backmerge.
 
 ### Required release evidence
@@ -59,17 +59,17 @@ backmerge.
 Tracked releases have two evidence layers:
 
 1. Uploaded documents and artifacts.
-2. First-class test/deployment cycles and release checks.
+2. First-class test/deployment executions and release checks.
 
 The portal is the review source of truth. Reviewers must be able to see the
-release identity and title, SDLC stage, cycle ordinal within source release and
-stage, cycle kind, outcome, workflow/run link, commit SHA, branch, related
+release identity and title, SDLC stage, execution ordinal within source release and
+stage, execution kind, outcome, workflow/run link, commit SHA, branch, related
 evidence, and incident/remediation reference when relevant. Do not reconstruct
-cycle history from artifact filenames when portal cycle data is available.
+execution history from artifact filenames when portal execution data is available.
 
 At Stage 3, render the portal-backed table with
-`scripts/render-test-cycles.sh` where available. At Stage 5, verify that both
-production deployment and production smoke cycles exist and have terminal
+`scripts/render-test-executions.sh` where available. At Stage 5, verify that both
+production deployment and production smoke executions exist and have terminal
 successful outcomes before Production approval or `released`.
 
 ### Bundled release contract
@@ -84,7 +84,7 @@ release must contain:
 - bundled context in the release ticket, test-execution summary, security
   summary, and AI-use note when AI-assisted bundled work exists
 
-Source evidence and cycles remain owned by their source release. The portal
+Source evidence and executions remain owned by their source release. The portal
 ownership and journey views must show predecessors as linked historical context,
 not active approvals. The close-out moves absorbed predecessor tickets to
 `compliance/superseded-releases/` when the manifest identifies them.
@@ -178,8 +178,8 @@ Use the generated helper:
 
 Use `--outcome failed --remediation-ref <issue-or-pr>` when UAT finds a defect
 or missing acceptance criterion. The command records a deterministic
-`sdlcStage=4`, `environment=uat`, `cycleKind=uat` lifecycle pair through
-`scripts/report-test-cycle.sh`; rerunning the same execution updates the same
+`sdlcStage=4`, `environment=uat`, `suiteKind=uat` lifecycle pair through
+`scripts/report-test-execution.sh`; rerunning the same execution updates the same
 record instead of creating duplicate passed rows. UAT approval is allowed only
 after a successful Stage 4 UAT execution exists for the release under review.
 
@@ -219,10 +219,10 @@ disabled for feature, housekeeping, hotfix, and integration CI contexts.
 ## Operator recovery and historical data
 
 Use the portal's audit-loggable repair/backfill controls only for genuine
-historical gaps such as missing lineage, cycle records, or requirement matrix
+historical gaps such as missing lineage, test execution records, or requirement matrix
 rows. Re-run them idempotently and retain their audit event. Never invent bundle
 membership from guesswork; record unknown historical provenance as unknown.
-Reconcile legacy unknown/incorrect cycle outcomes from the corresponding GitHub
+Reconcile legacy unknown/incorrect execution outcomes from the corresponding GitHub
 Actions run before treating them as evidence.
 
 If an immutable historical E2E Regression run completed but its evidence import

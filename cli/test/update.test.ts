@@ -191,9 +191,9 @@ describe('syncProject — native TS sync against a fixture', () => {
     expect(await fs.stat(join(fixtureDir, '.prettierrc.json'))).toBeTruthy();
     // Section 2d — scripts
     expect(await fs.stat(join(fixtureDir, 'scripts', 'upload-evidence.sh'))).toBeTruthy();
-    expect(await fs.stat(join(fixtureDir, 'scripts', 'report-test-cycle.sh'))).toBeTruthy();
+    expect(await fs.stat(join(fixtureDir, 'scripts', 'report-test-execution.sh'))).toBeTruthy();
     expect(await fs.stat(join(fixtureDir, 'scripts', 'record-uat-execution.sh'))).toBeTruthy();
-    expect(await fs.stat(join(fixtureDir, 'scripts', 'render-test-cycles.sh'))).toBeTruthy();
+    expect(await fs.stat(join(fixtureDir, 'scripts', 'render-test-executions.sh'))).toBeTruthy();
     expect(await fs.stat(join(fixtureDir, 'scripts', 'validate-compliance-artifacts.sh'))).toBeTruthy();
     expect(await fs.stat(join(fixtureDir, 'scripts', 'generate-bundled-changes.sh'))).toBeTruthy();
     const generatedBundleScript = await fs.readFile(
@@ -236,9 +236,9 @@ describe('syncProject — native TS sync against a fixture', () => {
     expect(ciYml).toMatch(
       /upload-evidence:[\s\S]*if: \$\{\{ always\(\) && github\.ref_name == 'develop' && needs\.register-release\.result == 'success' \}\}/,
     );
-    expect(ciYml).toContain('scripts/report-test-cycle.sh start');
-    expect(ciYml).toContain('--evidence-scope cycle --test-cycle-record-id');
-    expect(ciYml).toContain('Complete primary quality-gate cycle');
+    expect(ciYml).toContain('scripts/report-test-execution.sh start');
+    expect(ciYml).toContain('--evidence-scope execution --test-execution-record-id');
+    expect(ciYml).toContain('Complete primary quality-gate execution');
     expect(Math.max(...runBlockByteLengths(ciYml))).toBeLessThan(20_000);
     // DevAudit-Installer#98 WS3 + WS4: governance auto-generation workflows
     // sync into .github/workflows/ alongside the gate workflows.
@@ -264,9 +264,9 @@ describe('syncProject — native TS sync against a fixture', () => {
     );
     expect(complianceEvidenceYml).toContain('/api/ci/projects/fixture-app/audit-log/export');
     expect(complianceEvidenceYml).toContain('audit_log "$AUDIT_LOG_FILE"');
-    expect(complianceEvidenceYml).not.toContain('FLAGS="${FLAGS} --test-cycle ${{ github.run_id }}"');
-    expect(complianceEvidenceYml).toContain('scripts/report-test-cycle.sh start');
-    expect(complianceEvidenceYml).toContain('scripts/report-test-cycle.sh complete');
+    expect(complianceEvidenceYml).not.toContain('FLAGS="${FLAGS} --test-execution ${{ github.run_id }}"');
+    expect(complianceEvidenceYml).toContain('scripts/report-test-execution.sh start');
+    expect(complianceEvidenceYml).toContain('scripts/report-test-execution.sh complete');
     // #409: ordinary housekeeping is integration history. The legacy path
     // that made approval artefacts, opened a PR, and dispatched CI is disabled.
     expect(complianceEvidenceYml).toContain('Legacy housekeeping approval path (disabled)');
@@ -311,8 +311,8 @@ describe('syncProject — native TS sync against a fixture', () => {
     const reconciliationYml = await fs.readFile(join(fixtureDir, '.github', 'workflows', 'reconcile-deployment.yml'), 'utf-8');
     expect(reconciliationYml).toContain('Verify provider deployment before reconciliation');
     expect(reconciliationYml).toContain('provenance=manual_reconciliation');
-    expect(postDeployYml).toContain('scripts/report-test-cycle.sh start');
-    expect(postDeployYml).toContain('scripts/report-test-cycle.sh complete');
+    expect(postDeployYml).toContain('scripts/report-test-execution.sh start');
+    expect(postDeployYml).toContain('scripts/report-test-execution.sh complete');
     // DevAudit-Installer#228 — every generated workflow must be valid YAML.
     await expectAllWorkflowsValidYaml(fixtureDir);
     await expectWorkflowTokenContract(fixtureDir);
@@ -337,9 +337,9 @@ describe('syncProject — native TS sync against a fixture', () => {
       join(fixtureDir, '.github', 'workflows', 'feature-e2e.yml'),
       'utf-8',
     );
-    expect(featureE2eYml).toContain('Register feature release and start feature E2E cycle');
-    expect(featureE2eYml).toContain('Complete feature E2E cycle');
-    expect(featureE2eYml).toContain('--evidence-scope cycle --test-cycle-record-id');
+    expect(featureE2eYml).toContain('Register feature release and start feature E2E execution');
+    expect(featureE2eYml).toContain('Complete feature E2E execution');
+    expect(featureE2eYml).toContain('--evidence-scope execution --test-execution-record-id');
     await expectNoCompactTableSeparators(fixtureDir);
     // DevAudit-Installer#349: a summary alone must downgrade the gate for
     // test-maintenance REQs even when no REQ-specific tags exist on disk.
