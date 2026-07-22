@@ -83,4 +83,13 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     expect(source).toContain('deployment_status:\n    types: [created]');
     expect(source).toContain("github.event_name == 'deployment_status'");
   });
+
+  it('runs self-hosted runner prerequisite preflight before quality gates', () => {
+    const source = template('ci.yml.template');
+    expect(source.indexOf('Validate self-hosted runner prerequisites')).toBeLessThan(
+      source.indexOf('Start authoritative quality-gate cycle'),
+    );
+    expect(source).toContain('DEVAUDIT_RUNNER_ENVIRONMENT: ${{ runner.environment }}');
+    expect(source).toContain('bash scripts/check-self-hosted-runner.sh');
+  });
 });

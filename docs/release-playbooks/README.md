@@ -138,6 +138,12 @@ absence of evidence: retain its partial Playwright report, traces, screenshots,
 server logs, and execution metadata; classify the cause before opening or
 updating an incident or recording an approved exception.
 
+On Linux self-hosted runners, generated CI validates inotify capacity before
+Turbopack/Playwright starts. A failure from
+`scripts/check-self-hosted-runner.sh` is runner infrastructure, not product-test
+evidence. Apply the durable host fix in
+[`docs/self-hosted-runner-ci.md`](../self-hosted-runner-ci.md), then rerun CI.
+
 ### Host Gate Topology
 
 For a host that waits for GitHub CI before deploying, only pre-deploy
