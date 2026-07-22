@@ -9,11 +9,12 @@ fail() {
   exit 1
 }
 
-grep -q 'repos/${GITHUB_REPOSITORY}/actions/permissions/workflow' "$WORKFLOW" \
-  || fail "workflow permission preflight endpoint is missing"
+if grep -q 'repos/${GITHUB_REPOSITORY}/actions/permissions/workflow' "$WORKFLOW"; then
+  fail "workflow must not call the repository workflow-permissions endpoint with GITHUB_TOKEN"
+fi
 
-grep -q "can_approve_pull_request_reviews" "$WORKFLOW" \
-  || fail "workflow does not inspect the Actions PR-creation setting"
+grep -q "Unable to create the reviewed hotfix back-merge PR" "$WORKFLOW" \
+  || fail "workflow does not report PR creation failures"
 
 grep -q "Allow GitHub Actions to create and approve pull requests" "$WORKFLOW" \
   || fail "workflow does not emit the actionable repository setting"

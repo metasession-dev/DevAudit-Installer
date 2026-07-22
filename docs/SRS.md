@@ -2406,7 +2406,7 @@ Area codes: FRAMEWORK-CIYML (ci.yml quality gates + evidence job), FRAMEWORK-EVI
 - **Source:** `sdlc/files/ci/ci-status-fallback.yml.template`, GitHub commit-status REST endpoint used by the workflow step.
 - **Preconditions / inputs:** Generated fallback workflow running under `github.token` / `GITHUB_TOKEN`.
 - **Given** the workflow emits a commit status via the GitHub API **When** the rendered workflow is inspected **Then** it declares the workflow-level permission required for that call (`statuses: write`; `contents: read` sufficient otherwise) rather than relying on repo-default token scopes.
-- **Error paths:** Missing `statuses: write` causes the runtime failure mode `403 Resource not accessible by integration`; this is a workflow defect, not a consumer misconfiguration.
+- **Error paths:** Missing `contents: write` prevents the back-merge branch push. Missing repository Actions PR-creation permission causes `gh pr create` to fail with `403 Resource not accessible by integration`; the workflow must report that setting explicitly instead of calling the repository workflow-permissions endpoint with `GITHUB_TOKEN`.
 - **Fixtures/env:** Rendered workflow file content; a docs-only push fixture asserting the status-post step succeeds.
 
 #### REQ-FRAMEWORK-VALIDATION-003 — Governance auto-PR workflows (periodic-review, incident-export, close-out)
