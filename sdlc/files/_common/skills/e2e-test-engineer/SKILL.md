@@ -366,7 +366,7 @@ Each filed issue needs:
 
 #### Framework classification + the `incident` label
 
-Every defect filed from Phase 6 becomes `incident_report` evidence when (a) the issue is labelled `incident` and (b) the issue is closed. The flow: closed-with-label → `incident-export.yml` exports the body to `compliance/governance/incident-report-<N>.md` → `compliance-evidence.yml` uploads as `incident_report` evidence → portal flips the attributed clauses MISSING → COVERED.
+Every defect filed from Phase 6 becomes `incident_report` evidence when (a) the issue is labelled `incident` and (b) the issue is closed. The flow: closed-with-label → `incident-export.yml` exports the body to `compliance/governance/incident-report-<N>.md` with `incident_kind`, `source_release`, `source_issue`, and `semantic_id` frontmatter → `compliance-evidence.yml` uploads it as source-owned `incident_report` evidence → portal flips the attributed clauses MISSING → COVERED for that source release.
 
 Classify the defect against this table when filing — the canonical version lives at `governance-doc-author/references/incident-classification.md`, mirrored here for the e2e workflow:
 
@@ -410,6 +410,8 @@ Once closed, the `incident-export.yml` workflow exports this issue's body to `co
 - **Path A (baseline-only — only `ISO29119.3.5.4` ticked):** direct-committed to `develop`, no PR. GDPR triage pre-filled as N/A. Next `compliance-evidence.yml` run uploads as `incident_report`.
 - **Path B (any of SOC2/GDPR/EUAIA ticked):** auto-files a PR with the GDPR triage + sign-off sections to fill in. Merge that PR → `compliance-evidence.yml` uploads as `incident_report`.
 ```
+
+The issue body must identify the owning `REQ-XXX` or standalone housekeeping release so the exported report's `source_release` is correct. Do not let a later bundled release claim the incident as newly produced evidence; bundles inherit by explicit lineage.
 
 Pre-tick boxes you're confident about. Leave the operator-judgement ones (GDPR triage, AI-failure classification) for the operator to confirm in the export PR.
 

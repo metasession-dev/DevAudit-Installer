@@ -2289,9 +2289,9 @@ Area codes: FRAMEWORK-CIYML (ci.yml quality gates + evidence job), FRAMEWORK-EVI
 #### REQ-FRAMEWORK-EVIDENCE-009 — Completeness gate blocks incomplete incident reports with unresolved REPLACE markers (#210 AC9)
 
 - **Priority:** Must — an incident report with unresolved REPLACE markers is not valid evidence; the gate must block the release.
-- **Source:** `sdlc/files/ci/compliance-evidence.yml.template` completeness gate step: scans `compliance/governance/incident-report-*.md` for unresolved `REPLACE` markers; if any are found, the gate fails with `::error::` listing the file and marker count.
-- **Preconditions / inputs:** Incident report files in `compliance/governance/`.
-- **Given** an incident report with unresolved REPLACE markers **When** the completeness gate runs **Then** the gate fails and the release is blocked; **Given** all REPLACE markers are resolved **Then** the gate passes.
+- **Source:** `sdlc/files/ci/compliance-evidence.yml.template` `upload_incident_report` function: validates incident ownership frontmatter and checks structured sections for unresolved `REPLACE` markers before upload.
+- **Preconditions / inputs:** Incident report files in `compliance/governance/` with `incident_kind`, `source_release` / `release_scope`, `source_issue` for real incidents, and a stable semantic id.
+- **Given** an owned incident report with unresolved REPLACE markers **When** the evidence upload runs **Then** the upload is skipped/blocked with a visible workflow diagnostic and the release remains uncovered; **Given** all required ownership and content fields are resolved **Then** the report uploads as source-owned `incident_report` evidence.
 - **Error paths:** This requirement is itself the error path.
 - **Fixtures/env:** Incident report with REPLACE markers (expect gate failure); incident report with all markers resolved (expect pass).
 
@@ -2307,9 +2307,9 @@ Area codes: FRAMEWORK-CIYML (ci.yml quality gates + evidence job), FRAMEWORK-EVI
 #### REQ-FRAMEWORK-EVIDENCE-011 — Nil incident report generated and uploaded when no incidents occurred (#210 AC15-AC18)
 
 - **Priority:** Should — a per-release "no incidents" attestation is required evidence when no incidents occurred during the release cycle.
-- **Source:** `sdlc/files/ci/compliance-evidence.yml.template` nil-report step: when no `incident-report-*.md` files exist in `compliance/governance/`, generates `nil-incident-report.md` from `nil-incident-report.md.template` and uploads it as `compliance_document`; `sdlc/files/_common/3-compile-evidence.md` Step 4b documents the nil-report generation walkthrough.
+- **Source:** `sdlc/files/ci/compliance-evidence.yml.template` incident upload step and `nil-incident-report.md.template`: the agent creates one `nil-incident-report-<version>.md` after the scoped verification passes and the workflow uploads it as source-owned `incident_report` evidence when `incident_kind: no_incidents_attestation` and `source_release: <version>` are present.
 - **Preconditions / inputs:** No incident reports in `compliance/governance/`; `nil-incident-report.md.template` present.
-- **Given** a release with no incidents **When** the evidence compile step runs **Then** `nil-incident-report.md` is generated with the release version and date, and uploaded as `compliance_document`; **Given** incident reports exist **Then** the nil report is not generated.
+- **Given** a release with no incidents **When** the evidence compile step runs **Then** `nil-incident-report-<version>.md` is generated with release ownership frontmatter, scope, date, and sign-off placeholders, and uploaded as `incident_report` after sign-off; **Given** incident reports exist for the same source release **Then** the nil report is not generated.
 - **Error paths:** Template missing → warning, continue.
 - **Fixtures/env:** Release with no incidents (expect nil report); release with incidents (expect no nil report).
 
@@ -2774,7 +2774,7 @@ The observable contract is derived entirely from source: adapter manifests under
 - **Given** each copied starter **Then** it begins with a YAML frontmatter block and an immediately-following blockquote banner containing `⚠️ **STARTER TEMPLATE — REPLACE BEFORE COMMITTING.`. Per-file required frontmatter keys:
   - `ai-disclosure.md`: `title, provider, intended_purpose, last_reviewed_at, review_cadence_days (180), risk_class`.
   - `dpia.md`: `title, processing_activity, controller, last_reviewed_at, review_cadence_days (365), risk_level`.
-  - `incident-report.md`: `title, incident_id, severity, detected_at, resolved_at, involves_personal_data, reported_to_supervisory_authority, notification_window_72h, last_reviewed_at`.
+  - `incident-report.md`: `title, incident_id, incident_kind, source_release, release_scope, source_issue, semantic_id, severity, detected_at, resolved_at, involves_personal_data, reported_to_supervisory_authority, notification_window_72h, last_reviewed_at`.
   - `periodic-review.md`: `title, period_start, period_end, reviewer, last_reviewed_at, review_cadence_days (90)`.
   - `risk-register.md`: `title, project, maintained_by, scoring_matrix, last_reviewed_at, review_cadence_days (90)`.
   - `ropa.md`: `title, controller, controller_contact, last_reviewed_at, review_cadence_days (365), processing_activities ([])`.

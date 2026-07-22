@@ -1,6 +1,11 @@
 ---
 title: "Incident Report"
 incident_id: "REPLACE — e.g. INC-2026-001"
+incident_kind: "incident"
+source_release: "REPLACE — REQ-XXX or vYYYY.MM.DD.N"
+release_scope: "REPLACE — optional broader owning release/scope"
+source_issue: "REPLACE — GitHub issue number"
+semantic_id: "REPLACE — stable id, usually incident_id or source_issue"
 severity: "REPLACE — low | medium | high | critical"
 detected_at: "REPLACE — ISO-8601 with timezone"
 resolved_at: "REPLACE — ISO-8601 or 'ongoing'"
@@ -30,7 +35,7 @@ last_reviewed_at: "REPLACE — YYYY-MM-DD"
 ## Uploading this artefact
 
 - **File path:** `compliance/governance/incident-report-<id>.md` (per-incident — recommended; the `incident-export.yml` workflow auto-produces these from closed GitHub issues labelled `incident`). The bare `incident-report.md` is the unedited starter — kept on disk as a reference but **skipped by the uploader** until you replace the STARTER TEMPLATE banner.
-- **Upload trigger:** automatic — on every push to `develop` that touches `compliance/**`, `compliance-evidence.yml` globs `incident-report*.md` under both layouts and uploads each non-stub file as `incident_report` evidence via the `upload_governance` helper. The starter stub is filtered out centrally by `upload-evidence.sh` (devaudit#133).
+- **Upload trigger:** automatic — on every push to `develop` that touches `compliance/**`, `compliance-evidence.yml` considers `incident-report*.md` under both layouts, but uploads only files whose frontmatter `source_release` / `release_scope` matches the current derived release. Historical files remain on disk and are skipped unless an explicit bundle manifest grants inheritance; inherited files are still uploaded to their source release, not relabelled as the current release.
 - **Verify after merge:** open `/projects/<slug>/compliance`. `ISO29119.3.5.4` flips to COVERED only when a non-stub `incident-report*.md` lands. `SOC2.CC7.2`, `GDPR.Art-33`, `GDPR.Art-34` flip only when the relevant attribution sections below are non-stub.
 - **Refresh cadence:** none — incidents are point-in-time. Authoring is event-driven.
 

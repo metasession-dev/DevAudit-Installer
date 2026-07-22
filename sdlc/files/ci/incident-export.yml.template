@@ -145,6 +145,11 @@ jobs:
           ISSUE_LABELS: ${{ toJSON(github.event.issue.labels.*.name) }}
         run: |
           mkdir -p compliance/governance
+          SOURCE_RELEASE=$(printf '%s\n' "$ISSUE_BODY" | grep -oE 'REQ-[0-9]+|v[0-9]{4}\.[0-9]{2}\.[0-9]{2}([.][0-9]+)?' | head -1 || true)
+          if [ -z "$SOURCE_RELEASE" ]; then
+            echo "::error::Baseline-only incident export requires the issue body to reference its owning REQ-XXX or housekeeping release. Reopen or route through Path B with human frontmatter review."
+            exit 1
+          fi
           ISSUE_JSON=$(gh issue view "$ISSUE_NUMBER" \
             --json title,body,labels,author,createdAt,closedAt,comments,url,assignees,number,state)
 
@@ -235,6 +240,11 @@ jobs:
               "---",
               ("title: " + (.title | @json)),
               ("incident_id: \"INC-" + (.createdAt[:10] | gsub("-";"")) + "-" + (.number|tostring) + "\""),
+              "incident_kind: \"incident\"",
+              ("source_release: \"'"${SOURCE_RELEASE}"'\""),
+              ("source_issue: \"" + (.number|tostring) + "\""),
+              ("source_issue_url: " + (.url | @json)),
+              ("semantic_id: \"INC-" + (.createdAt[:10] | gsub("-";"")) + "-" + (.number|tostring) + "\""),
               ("severity: \"'"${SEVERITY}"'\""),
               ("detected_at: " + (.createdAt | @json)),
               ("resolved_at: " + (.closedAt | @json)),
@@ -242,8 +252,6 @@ jobs:
               ("reported_to_supervisory_authority: \"n/a\""),
               ("notification_window_72h: \"n/a\""),
               ("last_reviewed_at: " + (.closedAt[:10] | @json)),
-              ("source_issue: " + (.url | @json)),
-              ("source_issue_number: " + (.number|tostring)),
               "---",
               "",
               "> ℹ️ Auto-exported by Incident Export workflow on issue close (Path A — baseline-only).",
@@ -349,8 +357,11 @@ jobs:
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           OUT: ${{ steps.paths.outputs.out }}
           SEVERITY: ${{ steps.route.outputs.severity }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
         run: |
           mkdir -p compliance/governance
+          SOURCE_RELEASE=$(printf '%s\n' "$ISSUE_BODY" | grep -oE 'REQ-[0-9]+|v[0-9]{4}\.[0-9]{2}\.[0-9]{2}([.][0-9]+)?' | head -1 || true)
+          [ -n "$SOURCE_RELEASE" ] || SOURCE_RELEASE="REPLACE — owning REQ-XXX or vYYYY.MM.DD.N"
           ISSUE_JSON=$(gh issue view "$ISSUE_NUMBER" \
             --json title,body,labels,author,createdAt,closedAt,comments,url,assignees,number,state)
           {
@@ -358,6 +369,11 @@ jobs:
               "---",
               ("title: " + (.title | @json)),
               ("incident_id: \"INC-" + (.createdAt[:10] | gsub("-";"")) + "-" + (.number|tostring) + "\""),
+              "incident_kind: \"incident\"",
+              ("source_release: \"'"${SOURCE_RELEASE}"'\""),
+              ("source_issue: \"" + (.number|tostring) + "\""),
+              ("source_issue_url: " + (.url | @json)),
+              ("semantic_id: \"INC-" + (.createdAt[:10] | gsub("-";"")) + "-" + (.number|tostring) + "\""),
               ("severity: \"REPLACE — low | medium | high | critical\""),
               ("detected_at: " + (.createdAt | @json)),
               ("resolved_at: " + (.closedAt | @json)),
@@ -365,8 +381,6 @@ jobs:
               ("reported_to_supervisory_authority: \"REPLACE — true | false | n/a\""),
               ("notification_window_72h: \"REPLACE — within | outside | n/a\""),
               ("last_reviewed_at: " + (.closedAt[:10] | @json)),
-              ("source_issue: " + (.url | @json)),
-              ("source_issue_number: " + (.number|tostring)),
               "---",
               "",
               "> ℹ️ Auto-exported by Incident Export workflow on issue close.",
