@@ -132,6 +132,11 @@ availability but never substitutes for a terminal deployment status. Retain the
 deployment ID, SHA, environment, final observed state, target URL, elapsed time,
 and probe result; inspect provider logs and fix forward before retrying.
 
+Generated production deployment-status workflows accept exact `production` or
+`prod` environments and qualified provider labels ending in `/ production` or
+`/production`, for example `Wawa Garden Bar / production`. UAT, staging,
+preview, and failed deployment statuses must not create production evidence.
+
 A consumer-enabled post-merge regression must also reach a terminal successful
 outcome before production approval. A timeout is a failed execution, not an
 absence of evidence: retain its partial Playwright report, traces, screenshots,
@@ -159,6 +164,11 @@ deployment eligibility requirements. If Railway skipped an approved SHA due to
 CI gating, redeploy that exact SHA, wait for its deployment status, then rerun
 post-deploy verification. Record the recovery; a healthy prior deployment is
 not evidence for the new SHA.
+
+For a reviewed `develop -> main` promotion, release-scope integrity may use an
+exactly-one pending release ticket or exactly-one active RTM row as the selected
+tracked scope. That fallback is not ordinary commit ownership and must remain
+disabled for feature, housekeeping, hotfix, and integration CI contexts.
 
 ## Operator recovery and historical data
 

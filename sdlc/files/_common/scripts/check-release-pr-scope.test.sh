@@ -134,10 +134,58 @@ assert_exit "hotfix branch skips" 0 "$CODE"
 assert_grep "hotfix skip message" 'Hotfix PR detected' "$OUT"
 echo ""
 
-echo "--- Test 5: bare-date releases require an explicit standalone declaration ---"
-make_fixture "$WORK/test5" "chore: standalone housekeeping release"
+echo "--- Test 5: develop-to-main promotion may use exactly one pending ticket ---"
+make_fixture "$WORK/test5" "chore: integration head without commit tag"
+cat > "$WORK/test5/compliance/pending-releases/RELEASE-TICKET-REQ-094.md" <<'EOF'
+# Release Ticket — REQ-094
+EOF
+OUT="$WORK/test5.out"
+if run_check "$WORK/test5" "$OUT" env HEAD_REF="develop" BASE_REF="main" PR_TITLE="Release: REQ-094" PR_BODY=$'## Release\n- Release: REQ-094\n'; then
+  CODE=0
+else
+  CODE=$?
+fi
+assert_exit "develop-to-main single pending ticket passes" 0 "$CODE"
+assert_grep "pending ticket promotion resolves REQ" 'Release Scope Integrity verified for REQ-094' "$OUT"
+echo ""
+
+echo "--- Test 6: non-promotion context cannot use pending ticket fallback ---"
+make_fixture "$WORK/test6" "chore: integration head without commit tag"
+cat > "$WORK/test6/compliance/pending-releases/RELEASE-TICKET-REQ-094.md" <<'EOF'
+# Release Ticket — REQ-094
+EOF
+OUT="$WORK/test6.out"
+if run_check "$WORK/test6" "$OUT" env HEAD_REF="feature/demo" BASE_REF="develop" PR_TITLE="Release: REQ-094" PR_BODY=$'## Release\n- Release: REQ-094\n'; then
+  CODE=0
+else
+  CODE=$?
+fi
+assert_exit "non-promotion single pending ticket fails" 1 "$CODE"
+assert_grep "non-promotion derives bare date" 'Derived effective scope: v[0-9]{4}\.[0-9]{2}\.[0-9]{2}' "$OUT"
+echo ""
+
+echo "--- Test 7: develop-to-main with ambiguous pending tickets fails closed ---"
+make_fixture "$WORK/test7" "chore: integration head without commit tag"
+cat > "$WORK/test7/compliance/pending-releases/RELEASE-TICKET-REQ-094.md" <<'EOF'
+# Release Ticket — REQ-094
+EOF
+cat > "$WORK/test7/compliance/pending-releases/RELEASE-TICKET-REQ-095.md" <<'EOF'
+# Release Ticket — REQ-095
+EOF
+OUT="$WORK/test7.out"
+if run_check "$WORK/test7" "$OUT" env HEAD_REF="develop" BASE_REF="main" PR_TITLE="Release: REQ-094" PR_BODY=$'## Release\n- Release: REQ-094\n'; then
+  CODE=0
+else
+  CODE=$?
+fi
+assert_exit "ambiguous pending tickets fail" 1 "$CODE"
+assert_grep "ambiguous promotion falls back to bare date" 'Derived effective scope: v[0-9]{4}\.[0-9]{2}\.[0-9]{2}' "$OUT"
+echo ""
+
+echo "--- Test 8: bare-date releases require an explicit standalone declaration ---"
+make_fixture "$WORK/test8" "chore: standalone housekeeping release"
 BARE_DATE_VERSION="v$(date -u +%Y.%m.%d)"
-cat > "$WORK/test5/compliance/standalone-housekeeping/STANDALONE-HOUSEKEEPING-${BARE_DATE_VERSION}.json" <<EOF
+cat > "$WORK/test8/compliance/standalone-housekeeping/STANDALONE-HOUSEKEEPING-${BARE_DATE_VERSION}.json" <<EOF
 {
   "schemaVersion": 1,
   "version": "${BARE_DATE_VERSION}",
@@ -145,8 +193,8 @@ cat > "$WORK/test5/compliance/standalone-housekeeping/STANDALONE-HOUSEKEEPING-${
   "reason": "Urgent operational change cannot wait for the next tracked requirement release."
 }
 EOF
-OUT="$WORK/test5.out"
-if run_check "$WORK/test5" "$OUT" env PR_TITLE="Standalone housekeeping promotion: ${BARE_DATE_VERSION}" PR_BODY=$"## Release\n- Release: ${BARE_DATE_VERSION}\n"; then
+OUT="$WORK/test8.out"
+if run_check "$WORK/test8" "$OUT" env PR_TITLE="Standalone housekeeping promotion: ${BARE_DATE_VERSION}" PR_BODY=$"## Release\n- Release: ${BARE_DATE_VERSION}\n"; then
   CODE=0
 else
   CODE=$?
@@ -155,9 +203,9 @@ assert_exit "declared standalone housekeeping release passes" 0 "$CODE"
 assert_grep "standalone validation is emitted" 'Standalone housekeeping declaration is valid' "$OUT"
 echo ""
 
-echo "--- Test 6: bare-date releases without the exception marker fail ---"
-make_fixture "$WORK/test6" "chore: standalone housekeeping release"
-cat > "$WORK/test6/compliance/standalone-housekeeping/STANDALONE-HOUSEKEEPING-${BARE_DATE_VERSION}.json" <<EOF
+echo "--- Test 9: bare-date releases without the exception marker fail ---"
+make_fixture "$WORK/test9" "chore: standalone housekeeping release"
+cat > "$WORK/test9/compliance/standalone-housekeeping/STANDALONE-HOUSEKEEPING-${BARE_DATE_VERSION}.json" <<EOF
 {
   "schemaVersion": 1,
   "version": "${BARE_DATE_VERSION}",
@@ -165,8 +213,8 @@ cat > "$WORK/test6/compliance/standalone-housekeeping/STANDALONE-HOUSEKEEPING-${
   "reason": "Urgent operational change cannot wait for the next tracked requirement release."
 }
 EOF
-OUT="$WORK/test6.out"
-if run_check "$WORK/test6" "$OUT" env PR_TITLE="Release: ${BARE_DATE_VERSION}" PR_BODY=$"## Release\n- Release: ${BARE_DATE_VERSION}\n"; then
+OUT="$WORK/test9.out"
+if run_check "$WORK/test9" "$OUT" env PR_TITLE="Release: ${BARE_DATE_VERSION}" PR_BODY=$"## Release\n- Release: ${BARE_DATE_VERSION}\n"; then
   CODE=0
 else
   CODE=$?
