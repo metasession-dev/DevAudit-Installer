@@ -107,9 +107,9 @@ The framework has one tracked path and two housekeeping outcomes: *tracked* (`RE
 
 See [`change-workflows.md`](./change-workflows.md) for the version-pattern triage at CI time and [`3-compile-evidence.md`](../sdlc/files/_common/3-compile-evidence.md) for the housekeeping walkthrough.
 
-## First-class cycle contract
+## First-class test execution contract
 
-The installer now defines a first-class producer contract for release lineage and test cycles:
+The installer now defines a first-class producer contract for release lineage and test executions:
 
 - machine-readable contract: [`../contracts/release-lineage-contract.json`](../contracts/release-lineage-contract.json)
 - typed helper: [`../cli/src/lib/release-lineage-contract.ts`](../cli/src/lib/release-lineage-contract.ts)

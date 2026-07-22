@@ -57,7 +57,18 @@ jobs:
           # tag each captured screenshot as feature vs regression.
           fetch-depth: 0
 
-      - name: Start authoritative quality-gate cycle
+      - name: Validate self-hosted runner prerequisites
+        env:
+          DEVAUDIT_RUNNER_ENVIRONMENT: ${{ runner.environment }}
+        run: |
+          if [ -f scripts/check-self-hosted-runner.sh ]; then
+            chmod +x scripts/check-self-hosted-runner.sh
+            bash scripts/check-self-hosted-runner.sh
+          else
+            echo "::warning::scripts/check-self-hosted-runner.sh missing; run devaudit update to sync runner preflight."
+          fi
+
+      - name: Start authoritative quality-gate execution
         if: github.event_name != 'pull_request' && github.ref_name == '{{INTEGRATION_BRANCH}}' && needs.register-release.outputs.version != 'skip'
         run: |
           BASE=""
@@ -65,13 +76,13 @@ jobs:
             BASE=$(jq -r '.devaudit.base_url // empty' sdlc-config.json 2>/dev/null || true)
           fi
           [ -n "$BASE" ] || BASE="$DEVAUDIT_BASE_URL_VAR"
-          [ -n "$BASE" ] || { echo "::warning::No DevAudit URL; cycle lifecycle disabled"; exit 0; }
+          [ -n "$BASE" ] || { echo "::warning::No DevAudit URL; test execution lifecycle disabled"; exit 0; }
           echo "DEVAUDIT_BASE_URL=${BASE%/}" >> "$GITHUB_ENV"
-          chmod +x scripts/report-test-cycle.sh scripts/report-release-check.sh 2>/dev/null || true
-          bash scripts/report-test-cycle.sh start \
+          chmod +x scripts/report-test-execution.sh scripts/report-release-check.sh 2>/dev/null || true
+          bash scripts/report-test-execution.sh start \
             --project-slug {{PROJECT_SLUG}} \
             --release "${{ needs.register-release.outputs.version }}" \
-            --sdlc-stage 2 --environment ci --cycle-kind quality_gate \
+            --sdlc-stage 2 --environment ci --suite-kind quality_gate \
             --provider github_actions --external-run-id "${{ github.run_id }}" \
             --external-run-attempt "${{ github.run_attempt }}" \
             --external-job-id "quality-gates" \
@@ -323,11 +334,11 @@ jobs:
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "Release version: ${VERSION}"
 
-      - name: Ensure release exists for gate-cycle lineage
+      - name: Ensure release exists for gate-execution lineage
         if: env.DEVAUDIT_BASE_URL != '' && steps.version.outputs.version != 'skip'
         run: |
-          # First-class cycle APIs need an exact release row before the
-          # stage-2 cycle can start. This keeps failed gate runs visible even
+          # First-class test execution APIs need an exact release row before the
+          # stage-2 execution can start. This keeps failed gate runs visible even
           # when later evidence generation fails.
           chmod +x scripts/upload-evidence.sh 2>/dev/null || true
           bash scripts/upload-evidence.sh \
@@ -501,17 +512,17 @@ jobs:
       - name: Generate and upload gate evidence
         if: env.DEVAUDIT_BASE_URL != ''
         run: |
-          chmod +x scripts/upload-evidence.sh scripts/report-test-cycle.sh 2>/dev/null || true
+          chmod +x scripts/upload-evidence.sh scripts/report-test-execution.sh 2>/dev/null || true
           FLAGS="--git-sha ${{ github.sha }} --ci-run-id ${{ github.run_id }} --branch ${{ github.ref_name }}"
           FLAGS="${FLAGS} --release ${{ needs.register-release.outputs.version }} --create-release-if-missing"
           FLAGS="${FLAGS} --environment uat"
           FLAGS="${FLAGS} --sdlc-stage 2"
-          PRIMARY_LINEAGE_FLAGS=(--test-cycle "${{ github.run_id }}")
-          CYCLE_OUT="$(mktemp)"
-          bash scripts/report-test-cycle.sh start \
+          PRIMARY_LINEAGE_FLAGS=(--test-execution "${{ github.run_id }}")
+          EXECUTION_OUT="$(mktemp)"
+          bash scripts/report-test-execution.sh start \
             --project-slug {{PROJECT_SLUG}} \
             --release "${{ needs.register-release.outputs.version }}" \
-            --sdlc-stage 2 --environment ci --cycle-kind quality_gate \
+            --sdlc-stage 2 --environment ci --suite-kind quality_gate \
             --provider github_actions --external-run-id "${{ github.run_id }}" \
             --external-run-attempt "${{ github.run_attempt }}" \
             --external-job-id "quality-gates" \
@@ -519,11 +530,11 @@ jobs:
             --commit-sha "${{ github.sha }}" --branch "${{ github.ref_name }}" \
             --workflow-name "Quality Gates" \
             --workflow-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
-            --output-file "$CYCLE_OUT"
-          . "$CYCLE_OUT"
-          rm -f "$CYCLE_OUT"
-          if [ "${cycle_supported:-false}" = "true" ] && [ -n "${cycle_record_id:-}" ]; then
-            PRIMARY_LINEAGE_FLAGS+=(--evidence-scope cycle --test-cycle-record-id "${cycle_record_id}")
+            --output-file "$EXECUTION_OUT"
+          . "$EXECUTION_OUT"
+          rm -f "$EXECUTION_OUT"
+          if [ "${execution_supported:-false}" = "true" ] && [ -n "${execution_record_id:-}" ]; then
+            PRIMARY_LINEAGE_FLAGS+=(--evidence-scope execution --test-execution-record-id "${execution_record_id}")
           fi
 
           # Track failures across all uploads so we can fail the job at the
@@ -646,17 +657,20 @@ jobs:
               --environment uat --sdlc-stage 2
           fi
 
-          # Per-REQ gate evidence fan-out.
-          # The gate evidence above was uploaded to the single commit-derived
-          # release (FLAGS carries --release <derived>). When multiple REQs
-          # have pending release tickets, only that one REQ gets gate evidence
-          # on the portal — other in-scope REQs show "no gate evidence" and
-          # "no tests tagged with this REQ" even though the gates ran and
-          # passed. Gate outcomes can be attached to every active REQ, but an
-          # E2E JSON result is REQ-scoped proof only when it actually contains
-          # an executed test tagged for that REQ. A smoke run must never
-          # overwrite or obscure a prior targeted feature execution merely
-          # because a pending ticket exists (DevAudit-Installer#435).
+          # Per-REQ E2E JSON attachment only.
+          # Gate outcomes above are intentionally uploaded only to the single
+          # commit-derived release in FLAGS. A generic integration Quality
+          # Gates run is run-level evidence; pending release tickets alone do
+          # not make that gate current approval evidence for every REQ. Bundle
+          # membership must be represented through an explicit bundle manifest
+          # and portal lineage, not by fanning out gate-outcomes.json rows
+          # (DevAudit-Installer#438).
+          #
+          # E2E JSON is different: it may be attached to a REQ only when the
+          # report itself contains an executed test tagged for that REQ. A smoke
+          # run must never overwrite or obscure a prior targeted feature
+          # execution merely because a pending ticket exists
+          # (DevAudit-Installer#435).
           has_req_tagged_e2e_result() {
             python3 - "$1" "$2" <<'PY'
           import json, re, sys
@@ -687,7 +701,7 @@ jobs:
           PY
           }
           COMMIT_REQ="${{ needs.register-release.outputs.version }}"
-          FANOUT_REQS=()
+          E2E_REQS=()
           if [ -d compliance/pending-releases ]; then
             for TICKET in compliance/pending-releases/RELEASE-TICKET-REQ-*.md; do
               [ -f "$TICKET" ] || continue
@@ -701,21 +715,17 @@ jobs:
               if [ "$REQ_ID" = "$COMMIT_REQ" ]; then
                 continue
               fi
-              FANOUT_REQS+=("$REQ_ID")
+              E2E_REQS+=("$REQ_ID")
             done
           fi
-          if [ "${#FANOUT_REQS[@]}" -gt 0 ]; then
-            echo "Fanning out gate evidence to in-scope REQs: ${FANOUT_REQS[*]}"
-            for REQ_ID in "${FANOUT_REQS[@]}"; do
+          if [ "${#E2E_REQS[@]}" -gt 0 ]; then
+            echo "Checking tagged E2E JSON attachment candidates: ${E2E_REQS[*]}"
+            echo "::notice::Not fanning out gate-outcomes.json to pending REQs; gate evidence remains on ${COMMIT_REQ} unless represented through explicit release lineage."
+            for REQ_ID in "${E2E_REQS[@]}"; do
               FANOUT_FLAGS="--git-sha ${{ github.sha }} --ci-run-id ${{ github.run_id }} --branch ${{ github.ref_name }}"
               FANOUT_FLAGS="${FANOUT_FLAGS} --release ${REQ_ID} --create-release-if-missing"
               FANOUT_FLAGS="${FANOUT_FLAGS} --environment uat --sdlc-stage 2"
-              FANOUT_FLAGS="${FANOUT_FLAGS} --test-cycle ${{ github.run_id }}"
-              if [ -f ci-evidence/gate-outcomes.json ]; then
-                upload "gate-outcomes.json -> ${REQ_ID}" \
-                  {{PROJECT_SLUG}} "${REQ_ID}" gate_outcome ci-evidence/gate-outcomes.json \
-                  --category ci_pipeline ${FANOUT_FLAGS}
-              fi
+              FANOUT_FLAGS="${FANOUT_FLAGS} --test-execution ${{ github.run_id }}"
               if [ -f ci-evidence/e2e-results.json ] && has_req_tagged_e2e_result "$REQ_ID" ci-evidence/e2e-results.json; then
                 upload "e2e-results.json -> ${REQ_ID}" \
                   {{PROJECT_SLUG}} "${REQ_ID}" e2e_result ci-evidence/e2e-results.json \
@@ -975,7 +985,7 @@ jobs:
             exit 1
           fi
 
-      - name: Complete primary quality-gate cycle
+      - name: Complete primary quality-gate execution
         if: always() && env.DEVAUDIT_BASE_URL != ''
         run: |
           case "${{ needs.quality-gates.result }}" in
@@ -983,13 +993,13 @@ jobs:
             cancelled) OUTCOME=cancelled ;;
             *)         OUTCOME=failed ;;
           esac
-          chmod +x scripts/report-test-cycle.sh scripts/report-release-check.sh 2>/dev/null || true
-          bash scripts/report-test-cycle.sh complete \
+          chmod +x scripts/report-test-execution.sh scripts/report-release-check.sh 2>/dev/null || true
+          bash scripts/report-test-execution.sh complete \
             --project-slug {{PROJECT_SLUG}} \
             --release "${{ needs.register-release.outputs.version }}" \
             --sdlc-stage 2 \
             --environment ci \
-            --cycle-kind quality_gate \
+            --suite-kind quality_gate \
             --provider github_actions \
             --external-run-id "${{ github.run_id }}" \
             --external-run-attempt "${{ github.run_attempt }}" \

@@ -43,6 +43,9 @@ PY
 }
 
 HEAD_REF="${HEAD_REF:-}"
+BASE_REF="${BASE_REF:-}"
+INTEGRATION_BRANCH="${INTEGRATION_BRANCH:-develop}"
+RELEASE_BRANCH="${RELEASE_BRANCH:-main}"
 if is_hotfix_branch "$HEAD_REF"; then
   echo "Hotfix PR detected (${HEAD_REF}) — release scope integrity check skipped."
   exit 0
@@ -51,7 +54,11 @@ fi
 if [ ! -x scripts/derive-release-version.sh ]; then
   chmod +x scripts/derive-release-version.sh 2>/dev/null || true
 fi
-CURRENT_RELEASE=$(bash scripts/derive-release-version.sh)
+ALLOW_PENDING_TICKET_FALLBACK=0
+if [ "$HEAD_REF" = "$INTEGRATION_BRANCH" ] && [ "$BASE_REF" = "$RELEASE_BRANCH" ]; then
+  ALLOW_PENDING_TICKET_FALLBACK=1
+fi
+CURRENT_RELEASE=$(DEVAUDIT_ALLOW_PENDING_TICKET_FALLBACK="$ALLOW_PENDING_TICKET_FALLBACK" bash scripts/derive-release-version.sh)
 if [ -z "$CURRENT_RELEASE" ]; then
   echo "::error::Could not derive the effective release scope from the current branch head."
   exit 1

@@ -2,7 +2,7 @@
 
 This is a tracked `REQ-XXX` release with limited blast radius. It skips the
 High/Critical plan-approval pause, but it is still a real requirement: it has a
-release record, evidence, first-class cycle history, and the project's approval
+release record, evidence, first-class test execution history, and the project's approval
 policy.
 
 ## Canonical route
@@ -27,8 +27,8 @@ not commit directly to a protected branch.
 4. Commit with `Ref: REQ-XXX`, push the feature branch, and open a PR to
    `$INTEGRATION_BRANCH`.
 5. After terminal-green checks and required review, merge the integration PR.
-6. Compile/upload evidence. Render first-class cycle history with
-   `scripts/render-test-cycles.sh` where available rather than writing cycle
+6. Compile/upload evidence. Render first-class test execution history with
+   `scripts/render-test-executions.sh` where available rather than writing execution
    history from filenames.
 7. Write the release ticket and submit the release for UAT review.
 
@@ -45,11 +45,15 @@ the configured approval policy. The author may self-merge only where the project
 policy permits it and every required check is terminal green on the current
 head SHA.
 
+When approval is not automatic, the reviewer records the actual UAT execution
+with `scripts/record-uat-execution.sh` before approving. Submission for UAT
+review is only a queue transition; it is not evidence that UAT passed.
+
 ### Stage 5: deploy, approve, close out
 
 After the merge, wait for `post-deploy-prod.yml` to reach a terminal successful
 state and for its hosting deployment check to confirm terminal success for the
-merged SHA. Confirm production deployment and smoke cycles are present and
+merged SHA. Confirm production deployment and smoke executions are present and
 successful on the portal. Do not call production green while any of those are
 still in progress.
 
@@ -68,7 +72,7 @@ use `scripts/close-out-release.sh` locally only for documented recovery.
 If the promotion includes prior housekeeping or earlier release rows, use the
 bundle artifacts and submitted manifest described in [README](./README.md).
 The successor owns the approval envelope; predecessors retain their own
-evidence/cycles and are linked as historical context. Do not silently relabel
+evidence/executions and are linked as historical context. Do not silently relabel
 their evidence as belonging to the successor.
 
 ## Hotfix

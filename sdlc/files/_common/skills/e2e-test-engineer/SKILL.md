@@ -229,9 +229,9 @@ Before running the suite (Phase 6), verify that the evidence traceability wiring
 
    Also verify the import is present: `import { tagTest } from './helpers/test-tags'` (or the correct relative path from the spec's location to `e2e/helpers/test-tags.ts`).
 
-4. **Check release and cycle provenance.** Before handing the work back to `sdlc-implementer`, identify the tracked `REQ-XXX`, the source branch SHA, and the expected SDLC stage/cycle for the run. The CI evidence upload must retain those values so the portal can show the result in the correct numbered cycle for the release that produced it.
+4. **Check release and execution provenance.** Before handing the work back to `sdlc-implementer`, identify the tracked `REQ-XXX`, the source branch SHA, and the expected SDLC stage/test execution for the run. The CI evidence upload must retain those values so the portal can show the result in the correct numbered execution for the release that produced it.
    - A passing local run is not portal evidence by itself. Report it as local verification and let the configured CI workflow upload the resulting report and screenshots.
-   - For a bundled release, evidence remains attributed to its originating REQ and cycle. The absorbing release may reference that source release through bundle lineage, but must not relabel the source E2E run as newly produced by the absorbing REQ.
+   - For a bundled release, evidence remains attributed to its originating REQ and execution. The absorbing release may reference that source release through bundle lineage, but must not relabel the source E2E run as newly produced by the absorbing REQ.
    - Confirm the CI invocation has an unambiguous release context (`REQ-XXX` or the documented standalone-housekeeping declaration). A bare-date integration housekeeping run is historical CI only; it must not create an approval-ready E2E evidence set.
    - If the project workflow cannot provide this context, halt and report a workflow-contract gap. Do not claim that screenshots or E2E results will appear correctly on the portal.
 
@@ -247,7 +247,7 @@ Halt and report the gap to the user:
 
 Do **not** proceed to Phase 6 until all gaps are resolved. The user may choose to skip an AC (e.g. API-only, transport-only) — that's valid, but it must be an explicit decision recorded in the test-execution-summary, not an omission.
 
-**Write the evidence-wiring sentinel (devaudit-installer#226).** After all Phase 5½ checks pass (all `@requirement`, `evidenceShot()`, `tagTest()`, and release/cycle provenance checks verified), write a `.e2e-evidence-wired` sentinel file in the repo root so the pre-push hook and `sdlc-implementer` Phase 2 step 5b can verify evidence wiring was validated:
+**Write the evidence-wiring sentinel (devaudit-installer#226).** After all Phase 5½ checks pass (all `@requirement`, `evidenceShot()`, `tagTest()`, and release/execution provenance checks verified), write a `.e2e-evidence-wired` sentinel file in the repo root so the pre-push hook and `sdlc-implementer` Phase 2 step 5b can verify evidence wiring was validated:
 
 ```bash
 echo "WIRED $(date -u +%Y-%m-%dT%H:%M:%SZ) REQ-XXX" > .e2e-evidence-wired
@@ -366,7 +366,7 @@ Each filed issue needs:
 
 #### Framework classification + the `incident` label
 
-Every defect filed from Phase 6 becomes `incident_report` evidence when (a) the issue is labelled `incident` and (b) the issue is closed. The flow: closed-with-label → `incident-export.yml` exports the body to `compliance/governance/incident-report-<N>.md` → `compliance-evidence.yml` uploads as `incident_report` evidence → portal flips the attributed clauses MISSING → COVERED.
+Every defect filed from Phase 6 becomes `incident_report` evidence when (a) the issue is labelled `incident` and (b) the issue is closed. The flow: closed-with-label → `incident-export.yml` exports the body to `compliance/governance/incident-report-<N>.md` with `incident_kind`, `source_release`, `source_issue`, and `semantic_id` frontmatter → `compliance-evidence.yml` uploads it as source-owned `incident_report` evidence → portal flips the attributed clauses MISSING → COVERED for that source release.
 
 Classify the defect against this table when filing — the canonical version lives at `governance-doc-author/references/incident-classification.md`, mirrored here for the e2e workflow:
 
@@ -411,6 +411,8 @@ Once closed, the `incident-export.yml` workflow exports this issue's body to `co
 - **Path B (any of SOC2/GDPR/EUAIA ticked):** auto-files a PR with the GDPR triage + sign-off sections to fill in. Merge that PR → `compliance-evidence.yml` uploads as `incident_report`.
 ```
 
+The issue body must identify the owning `REQ-XXX` or standalone housekeeping release so the exported report's `source_release` is correct. Do not let a later bundled release claim the incident as newly produced evidence; bundles inherit by explicit lineage.
+
 Pre-tick boxes you're confident about. Leave the operator-judgement ones (GDPR triage, AI-failure classification) for the operator to confirm in the export PR.
 
 #### Worked examples
@@ -448,7 +450,7 @@ Wrap up with a summary the user can drop into the PR or ticket:
 - Defects filed — count, with links.
 - Requirements gap reports — count, with details (devaudit-installer#212 Gap 4). These are ACs classified as "impossible to test" or "missing AC" — returned to `sdlc-implementer` for the requirements gap flow, not filed as defects.
 - Missed requirements — count, with links.
-- **Release provenance** — originating `REQ-XXX`, local run result, expected CI workflow/run, and expected portal stage/cycle. For bundled work, state the source REQ explicitly and that the absorbing release will reference it through lineage rather than overwrite its attribution.
+- **Release provenance** — originating `REQ-XXX`, local run result, expected CI workflow/run, and expected portal stage/execution. For bundled work, state the source REQ explicitly and that the absorbing release will reference it through lineage rather than overwrite its attribution.
 
 **Then feed the test-design record (devaudit#50).** The Stage 3 `test-execution-summary.md` (generated per `3-compile-evidence.md` Step 1a) carries a `## Test design` section at the top. Before Stage 3 finalises the file, populate that section with the design-time decisions this skill made, so the SDLC has a recorded trace that scope was *decided*, not implicit:
 
@@ -496,8 +498,8 @@ The canonical helper source lives at `references/evidence.ts` in this skill.
 
 The number of `evidenceShot` calls per spec should scale to the spec's role:
 
-- **While the spec is a feature artefact** (newly authored on the branch, before merge to develop): capture multiple stages — every meaningful transition or state the AC documents. The dense evidence is what reviewers use to verify the AC was met end-to-end during the feature cycle.
-- **Once the spec joins the regression pack** (post-merge, `git diff --diff-filter=A` no longer matches it): capture only the canonical "this still works" anchor per AC. Re-running the dense journey on every regression cycle is noise and inflates CI artefact storage with little signal.
+- **While the spec is a feature artefact** (newly authored on the branch, before merge to develop): capture multiple stages - every meaningful transition or state the AC documents. The dense evidence is what reviewers use to verify the AC was met end-to-end during the feature iteration.
+- **Once the spec joins the regression pack** (post-merge, `git diff --diff-filter=A` no longer matches it): capture only the canonical "this still works" anchor per AC. Re-running the dense journey on every regression execution is noise and inflates CI artefact storage with little signal.
 
 The `EvidenceShotOrigin` signal (`'feature' | 'regression'`) auto-detects from `E2E_NEW_SPECS`. Mark stage screenshots with `{ tier: 'feature' }`; the helper auto-suppresses them on regression runs. The canonical anchor uses the default tier (`'always'`).
 

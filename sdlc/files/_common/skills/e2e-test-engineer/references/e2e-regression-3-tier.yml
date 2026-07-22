@@ -49,7 +49,10 @@ jobs:
     if: >-
       github.event_name != 'deployment_status' ||
       (github.event.deployment_status.state == 'success' &&
-       (github.event.deployment.environment == 'production' || github.event.deployment.environment == 'prod'))
+       (github.event.deployment.environment == 'production' ||
+        github.event.deployment.environment == 'prod' ||
+        endsWith(github.event.deployment.environment, '/ production') ||
+        endsWith(github.event.deployment.environment, '/production')))
     runs-on: ubuntu-latest # adapt to your runner; e.g. self-hosted, ubuntu-24.04
     # The full regression target is about 35 minutes. Leave time to archive
     # partial output before GitHub terminates the job.

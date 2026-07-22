@@ -1,5 +1,8 @@
 ---
 incident_id: "NIL-<version>"
+incident_kind: "no_incidents_attestation"
+source_release: "<version>"
+semantic_id: "NIL-<version>"
 severity: "N/A"
 detected_at: "<release date>"
 resolved_at: "N/A"
@@ -10,12 +13,12 @@ status: "nil"
 
 ## Attestation
 
-No incidents or defects were discovered during the test cycle for release `<version>`.
+No incidents or defects were discovered during the test execution for release `<version>`.
 
 ## Scope
 
 - **Release:** <version>
-- **Test cycle:** <description of test cycle — e.g. "E2E Regression run on <date>", "Phase 6 full suite + Phase 3 re-run">
+- **Test cycle:** <description of test execution — e.g. "E2E Regression run on <date>", "Phase 6 full suite + Phase 3 re-run">
 - **Test cases executed:** <count>
 - **Test cases passed:** <count>
 - **Test cases failed:** 0

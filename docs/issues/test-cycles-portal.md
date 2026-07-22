@@ -1,4 +1,4 @@
-# First-class test cycles: portal-side acceptance + UI grouping
+# First-class test executions: portal-side acceptance + UI grouping
 
 **Status:** Proposed
 **Labels:** `enhancement`, `needs-triage`
@@ -52,7 +52,7 @@ In `lib/types.ts`, add `test_cycle_id: string | null` to the `ComplianceEvidence
 
 ### 5. UI: group evidence by `test_cycle_id` in release detail view
 
-In the release detail page (where evidence is listed per REQ), add a "Test Cycles" collapsible section. Within each REQ's evidence list:
+In the release detail page (where evidence is listed per REQ), add a "Test Executions" collapsible section. Within each REQ's evidence list:
 
 - Group evidence rows by `test_cycle_id` (non-null values only)
 - Each cycle section is collapsible, showing:
@@ -66,7 +66,7 @@ In the release detail page (where evidence is listed per REQ), add a "Test Cycle
 
 ### 6. UI: Test Completion Report badge
 
-Evidence with `evidence_type = test_report` (the per-REQ `test-execution-summary.md`) should display a badge or label indicating it is the **Test Completion Report** (ISO 29119-3 terminology), spanning all cycles. This is the encompassing artifact — not cycle-scoped.
+Evidence with `evidence_type = test_report` (the per-REQ `test-execution-summary.md`) should display a badge or label indicating it is the **Test Completion Report** (ISO 29119-3 terminology), spanning all cycles. This is the encompassing artifact — not execution-scoped.
 
 ---
 
@@ -77,7 +77,7 @@ Evidence with `evidence_type = test_report` (the per-REQ `test-execution-summary
 - AC3: `ComplianceEvidence` type includes `test_cycle_id: string | null`.
 - AC4: Release detail view groups evidence by `test_cycle_id` within each REQ; each cycle is collapsible.
 - AC5: Evidence with `test_cycle_id = null` (legacy uploads) still displays in the existing flat list — no regression.
-- AC6: `evidence_type = test_report` artifacts are visually distinguished as the Test Completion Report (encompassing, not cycle-scoped).
+- AC6: `evidence_type = test_report` artifacts are visually distinguished as the Test Completion Report (encompassing, not execution-scoped).
 - AC7: Uploads from pre-`testCycleId` producers still ingest and display without error.
 
 ---
@@ -87,7 +87,7 @@ Evidence with `evidence_type = test_report` (the per-REQ `test-execution-summary
 - A dedicated `test_cycles` database table — `testCycleId` is a grouping label on evidence, not an entity with its own lifecycle. A cycle exists because evidence exists for it.
 - Per-cycle markdown report generation — the per-cycle data is already structured evidence (JSON, screenshots, HTML report). The portal renders it; no markdown duplication needed.
 - Changes to evidence types or categories — `testCycleId` is orthogonal to `evidence_type` and `evidence_category`.
-- Changes to the completeness matrix — cycle grouping is a display concern; the completeness matrix already tracks per-REQ, per-stage completeness.
+- Changes to the completeness matrix — test execution grouping is a display concern; the completeness matrix already tracks per-REQ, per-stage completeness.
 
 ---
 

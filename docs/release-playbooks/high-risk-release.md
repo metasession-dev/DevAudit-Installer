@@ -39,8 +39,8 @@ required integration checks are terminal green on the current head SHA.
 
 Upload the test execution summary, security summary, AI-use record, required
 reports, and release ticket. Evidence has two layers: documents/artifacts and
-first-class test/deployment cycles. Render the cycle table from portal data with
-`scripts/render-test-cycles.sh` where it is available. A reviewer must be able
+first-class test/deployment executions. Render the execution table from portal data with
+`scripts/render-test-executions.sh` where it is available. A reviewer must be able
 to identify source release/title, stage, ordinal, kind, outcome, workflow link,
 SHA/branch, evidence, and any incident/remediation.
 
@@ -61,11 +61,18 @@ Integrity`, `Compliance Validation`, `DevAudit Release Approval`, and `E2E
 Regression Suite`. Do not merge while any is queued, running, stale, skipped
 unexpectedly, or failed.
 
+The reviewer must record the actual UAT execution before approving the portal
+release. `scripts/submit-for-uat-review.sh` only moves the release into review;
+after UAT is performed, run `scripts/record-uat-execution.sh` with the tested
+SHA/build, reviewer identity, checklist/evidence references, and truthful
+outcome. A failed UAT execution needs a remediation reference and returns to the
+change-request loop. A passed Stage 4 execution is required before UAT approval.
+
 ### Stage 5: production and close-out
 
 After merge, wait for `post-deploy-prod.yml` and the hosting-platform deployment
 status for the merged SHA to reach terminal success. Verify production deployment
-and smoke cycle records and their production evidence. Only then can the required
+and smoke test execution records and their production evidence. Only then can the required
 independent production approval move the portal release to `released`.
 
 Where post-merge regression is enabled, it must also finish terminal success.
@@ -80,6 +87,6 @@ close-out scripts are recovery-only.
 ## Hotfix
 
 For production-impacting urgency, branch `hotfix/REQ-XXX-*` from
-`$RELEASE_BRANCH`, retain plan/review/evidence/cycle controls, PR to release,
+`$RELEASE_BRANCH`, retain plan/review/evidence/execution controls, PR to release,
 and after merge immediately open the mandatory `backmerge/*` PR to integration.
 Never use a direct push to either protected branch.

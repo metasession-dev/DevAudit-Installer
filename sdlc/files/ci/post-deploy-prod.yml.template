@@ -38,7 +38,10 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event.deployment_status.state == 'success' &&
-       (github.event.deployment.environment == 'production' || github.event.deployment.environment == 'prod'))
+       (github.event.deployment.environment == 'production' ||
+        github.event.deployment.environment == 'prod' ||
+        endsWith(github.event.deployment.environment, '/ production') ||
+        endsWith(github.event.deployment.environment, '/production')))
     runs-on: {{RUNNER}}
     permissions:
       contents: read
@@ -144,17 +147,17 @@ jobs:
           echo "In-scope releases to promote: ${REQS}"
           echo "REQS=${REQS}" >> "$GITHUB_ENV"
 
-      - name: Start production deployment cycles
+      - name: Start production deployment executions
         run: |
-          chmod +x scripts/report-test-cycle.sh 2>/dev/null || true
+          chmod +x scripts/report-test-execution.sh 2>/dev/null || true
           for PREFIX in ${REQS}; do
             RESP=$(curl -fsS -H "Authorization: Bearer ${DEVAUDIT_API_KEY}" \
               "${BASE}/api/ci/releases/resolve?projectSlug=${PROJECT_SLUG}&versionPrefix=${PREFIX}")
             VERSION=$(echo "$RESP" | jq -r '.latest.version // empty')
             [ -n "$VERSION" ] || VERSION="$PREFIX"
-            bash scripts/report-test-cycle.sh start \
+            bash scripts/report-test-execution.sh start \
               --project-slug "$PROJECT_SLUG" --release "$VERSION" \
-              --sdlc-stage 5 --environment production --cycle-kind deployment \
+              --sdlc-stage 5 --environment production --suite-kind deployment \
               --provider github_actions --external-run-id "$CI_RUN" \
               --external-run-attempt "${{ github.run_attempt }}" --external-job-id "host-deployment" \
               --idempotency-key "github:${{ github.repository }}:post-deploy-prod.deployment:${CI_RUN}:${{ github.run_attempt }}:5:${VERSION}" \
@@ -213,7 +216,7 @@ jobs:
           fi
           exit "$SCRIPT_EXIT"
 
-      - name: Complete production deployment cycles
+      - name: Complete production deployment executions
         if: always() && env.BASE != ''
         run: |
           HOST_VERIFICATION="${{ steps.host_deployment.outputs.verification || 'not_run' }}"
@@ -231,15 +234,15 @@ jobs:
             OUTCOME=failed
             CHECK_STATUS=failed
           fi
-          chmod +x scripts/report-test-cycle.sh scripts/report-release-check.sh 2>/dev/null || true
+          chmod +x scripts/report-test-execution.sh scripts/report-release-check.sh 2>/dev/null || true
           for PREFIX in ${REQS}; do
             RESP=$(curl -fsS -H "Authorization: Bearer ${DEVAUDIT_API_KEY}" \
               "${BASE}/api/ci/releases/resolve?projectSlug=${PROJECT_SLUG}&versionPrefix=${PREFIX}")
             VERSION=$(echo "$RESP" | jq -r '.latest.version // empty')
             [ -n "$VERSION" ] || VERSION="$PREFIX"
-            bash scripts/report-test-cycle.sh complete \
+            bash scripts/report-test-execution.sh complete \
               --project-slug "$PROJECT_SLUG" --release "$VERSION" \
-              --sdlc-stage 5 --environment production --cycle-kind deployment \
+              --sdlc-stage 5 --environment production --suite-kind deployment \
               --provider github_actions --external-run-id "$CI_RUN" \
               --external-run-attempt "${{ github.run_attempt }}" --external-job-id "host-deployment" \
               --idempotency-key "github:${{ github.repository }}:post-deploy-prod.deployment:${CI_RUN}:${{ github.run_attempt }}:5:${VERSION}" \
@@ -269,18 +272,18 @@ jobs:
             exit 1
           fi
 
-      - name: Start production smoke cycles
+      - name: Start production smoke executions
         if: steps.production_probe.outputs.verification == 'production_health_success' && steps.host_deployment.outputs.verification == 'success'
         run: |
-          chmod +x scripts/report-test-cycle.sh 2>/dev/null || true
+          chmod +x scripts/report-test-execution.sh 2>/dev/null || true
           for PREFIX in ${REQS}; do
             RESP=$(curl -fsS -H "Authorization: Bearer ${DEVAUDIT_API_KEY}" \
               "${BASE}/api/ci/releases/resolve?projectSlug=${PROJECT_SLUG}&versionPrefix=${PREFIX}")
             VERSION=$(echo "$RESP" | jq -r '.latest.version // empty')
             [ -n "$VERSION" ] || VERSION="$PREFIX"
-            bash scripts/report-test-cycle.sh start \
+            bash scripts/report-test-execution.sh start \
               --project-slug "$PROJECT_SLUG" --release "$VERSION" \
-              --sdlc-stage 5 --environment production --cycle-kind smoke \
+              --sdlc-stage 5 --environment production --suite-kind smoke \
               --provider github_actions --external-run-id "$CI_RUN" \
               --external-run-attempt "${{ github.run_attempt }}" --external-job-id "production-smoke" \
               --idempotency-key "github:${{ github.repository }}:post-deploy-prod.smoke:${CI_RUN}:${{ github.run_attempt }}:5:${VERSION}" \
@@ -314,7 +317,7 @@ jobs:
           }
           RESULTS_EOF
 
-      - name: Complete production smoke cycles
+      - name: Complete production smoke executions
         if: always() && env.BASE != '' && steps.host_deployment.outcome == 'success'
         run: |
           case "${{ steps.production_smoke.outcome }}" in
@@ -323,15 +326,15 @@ jobs:
             skipped) OUTCOME=skipped; CHECK_STATUS=skipped ;;
             *) OUTCOME=failed; CHECK_STATUS=failed ;;
           esac
-          chmod +x scripts/report-test-cycle.sh scripts/report-release-check.sh 2>/dev/null || true
+          chmod +x scripts/report-test-execution.sh scripts/report-release-check.sh 2>/dev/null || true
           for PREFIX in ${REQS}; do
             RESP=$(curl -fsS -H "Authorization: Bearer ${DEVAUDIT_API_KEY}" \
               "${BASE}/api/ci/releases/resolve?projectSlug=${PROJECT_SLUG}&versionPrefix=${PREFIX}")
             VERSION=$(echo "$RESP" | jq -r '.latest.version // empty')
             [ -n "$VERSION" ] || VERSION="$PREFIX"
-            bash scripts/report-test-cycle.sh complete \
+            bash scripts/report-test-execution.sh complete \
               --project-slug "$PROJECT_SLUG" --release "$VERSION" \
-              --sdlc-stage 5 --environment production --cycle-kind smoke \
+              --sdlc-stage 5 --environment production --suite-kind smoke \
               --provider github_actions --external-run-id "$CI_RUN" \
               --external-run-attempt "${{ github.run_attempt }}" --external-job-id "production-smoke" \
               --idempotency-key "github:${{ github.repository }}:post-deploy-prod.smoke:${CI_RUN}:${{ github.run_attempt }}:5:${VERSION}" \
@@ -365,8 +368,8 @@ jobs:
           # incident-export.yml fires on close → incident_report evidence
           # lands on the portal → ISO29119.3.5.4 + SOC2.CC7.2 flip to COVERED.
           #
-          # testCycleId (CI run ID) cross-references #209 so the incident
-          # report traces back to the specific test cycle that detected
+          # testExecutionId (CI run ID) cross-references #209 so the incident
+          # report traces back to the specific test execution that detected
           # the production failure.
           #
           # Ensure the incident label exists (idempotent).
@@ -385,7 +388,7 @@ jobs:
 
           **Production URL:** ${PROD_URL}
           **Git SHA:** ${GIT_SHA}
-          **testCycleId:** ${CI_RUN}
+          **testExecutionId:** ${CI_RUN}
           **Workflow run:** ${WORKFLOW_URL}
           **Date:** ${DATE}
 
@@ -429,7 +432,7 @@ jobs:
       - name: Promote in-scope releases (evidence + status)
         if: steps.production_smoke.outcome == 'success'
         run: |
-          chmod +x scripts/upload-evidence.sh scripts/report-test-cycle.sh scripts/report-release-check.sh 2>/dev/null || true
+          chmod +x scripts/upload-evidence.sh scripts/report-test-execution.sh scripts/report-release-check.sh 2>/dev/null || true
           PROMOTED=0
           EVIDENCE_FAILURES=0
           for PREFIX in ${REQS}; do
@@ -440,14 +443,14 @@ jobs:
             [ -z "$VERSION" ] && VERSION="${PREFIX}"
             RELEASE_ID=$(echo "$RESP" | jq -r '.latest.id // empty')
             REQ_FAILURES=0
-            LINEAGE_FLAGS=(--test-cycle "${CI_RUN}")
-            CYCLE_OUT="$(mktemp)"
-            bash scripts/report-test-cycle.sh start \
+            LINEAGE_FLAGS=(--test-execution "${CI_RUN}")
+            EXECUTION_OUT="$(mktemp)"
+            bash scripts/report-test-execution.sh start \
               --project-slug "${PROJECT_SLUG}" \
               --release "${VERSION}" \
               --sdlc-stage 5 \
               --environment production \
-              --cycle-kind smoke \
+              --suite-kind smoke \
               --provider github_actions \
               --external-run-id "${CI_RUN}" \
               --external-run-attempt "${{ github.run_attempt }}" \
@@ -457,11 +460,11 @@ jobs:
               --branch main \
               --workflow-name "Post-Deploy Production" \
               --workflow-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
-              --output-file "$CYCLE_OUT"
-            . "$CYCLE_OUT"
-            rm -f "$CYCLE_OUT"
-            if [ "${cycle_supported:-false}" = "true" ] && [ -n "${cycle_record_id:-}" ]; then
-              LINEAGE_FLAGS+=(--evidence-scope cycle --test-cycle-record-id "${cycle_record_id}")
+              --output-file "$EXECUTION_OUT"
+            . "$EXECUTION_OUT"
+            rm -f "$EXECUTION_OUT"
+            if [ "${execution_supported:-false}" = "true" ] && [ -n "${execution_record_id:-}" ]; then
+              LINEAGE_FLAGS+=(--evidence-scope execution --test-execution-record-id "${execution_record_id}")
             fi
             # Production smoke evidence (whole-app health) attached to this release.
             if [ -f prod-smoke-results.json ]; then

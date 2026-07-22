@@ -179,7 +179,7 @@ CI runs automatically on this PR. The following gates must pass before merge:
 - [ ] Implementation plan present and matches implementation (MEDIUM/HIGH risk)
 - [ ] Release ticket created
 - [ ] Test evidence saved
-- [ ] Test execution summary includes Test Cycles section (all CI runs for this release listed)
+- [ ] Test execution summary includes Test Executions section (all CI runs for this release listed)
 - [ ] Security evidence saved
 - [ ] AI use documented
 

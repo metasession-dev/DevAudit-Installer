@@ -51,7 +51,7 @@ hotfix/* from release -> PR to release -> terminal-green checks and review
 ```
 
 High priority while production is healthy remains normal GitFlow. A hotfix does
-not waive evidence, cycle reporting, review, deployment verification, or the
+not waive evidence, execution reporting, review, deployment verification, or the
 backmerge.
 
 ### Required release evidence
@@ -59,17 +59,17 @@ backmerge.
 Tracked releases have two evidence layers:
 
 1. Uploaded documents and artifacts.
-2. First-class test/deployment cycles and release checks.
+2. First-class test/deployment executions and release checks.
 
 The portal is the review source of truth. Reviewers must be able to see the
-release identity and title, SDLC stage, cycle ordinal within source release and
-stage, cycle kind, outcome, workflow/run link, commit SHA, branch, related
+release identity and title, SDLC stage, execution ordinal within source release and
+stage, execution kind, outcome, workflow/run link, commit SHA, branch, related
 evidence, and incident/remediation reference when relevant. Do not reconstruct
-cycle history from artifact filenames when portal cycle data is available.
+execution history from artifact filenames when portal execution data is available.
 
 At Stage 3, render the portal-backed table with
-`scripts/render-test-cycles.sh` where available. At Stage 5, verify that both
-production deployment and production smoke cycles exist and have terminal
+`scripts/render-test-executions.sh` where available. At Stage 5, verify that both
+production deployment and production smoke executions exist and have terminal
 successful outcomes before Production approval or `released`.
 
 ### Bundled release contract
@@ -84,10 +84,25 @@ release must contain:
 - bundled context in the release ticket, test-execution summary, security
   summary, and AI-use note when AI-assisted bundled work exists
 
-Source evidence and cycles remain owned by their source release. The portal
+Source evidence and executions remain owned by their source release. The portal
 ownership and journey views must show predecessors as linked historical context,
 not active approvals. The close-out moves absorbed predecessor tickets to
 `compliance/superseded-releases/` when the manifest identifies them.
+
+Incident evidence follows the same ownership rule. `incident-report*.md` and
+`nil-incident-report*.md` must carry frontmatter that identifies
+`incident_kind`, `source_release`, and a stable semantic id. The generated
+evidence workflow uploads only incident artefacts owned by the derived release,
+or by an explicitly listed bundle predecessor; inherited incident artefacts are
+uploaded to their source release and referenced through lineage, never relabelled
+as evidence newly produced by the approval envelope.
+
+Quality-gate evidence also stays on the commit-derived release/run by default.
+Pending tickets do not justify copying `gate-outcomes.json` to every active REQ.
+If a bundled approval needs to show another release's gate result, it must do so
+through the explicit bundle manifest and portal lineage, not duplicate upload
+rows. Requirement-scoped E2E JSON is the exception only when the JSON contains an
+executed test tagged for that requirement.
 
 ### Close-out
 
@@ -132,11 +147,53 @@ availability but never substitutes for a terminal deployment status. Retain the
 deployment ID, SHA, environment, final observed state, target URL, elapsed time,
 and probe result; inspect provider logs and fix forward before retrying.
 
+Generated production deployment-status workflows accept exact `production` or
+`prod` environments and qualified provider labels ending in `/ production` or
+`/production`, for example `Wawa Garden Bar / production`. UAT, staging,
+preview, and failed deployment statuses must not create production evidence.
+
 A consumer-enabled post-merge regression must also reach a terminal successful
 outcome before production approval. A timeout is a failed execution, not an
 absence of evidence: retain its partial Playwright report, traces, screenshots,
 server logs, and execution metadata; classify the cause before opening or
 updating an incident or recording an approved exception.
+
+### UAT execution records
+
+Submitting a release for UAT review is not the same thing as executing or
+passing UAT. For every tracked release, the reviewer must complete the UAT
+activity and record a first-class Stage 4 execution before clicking approve.
+Use the generated helper:
+
+```bash
+./scripts/record-uat-execution.sh \
+  --project-slug <project-slug> \
+  --release REQ-XXX \
+  --outcome passed \
+  --executor "<reviewer identity>" \
+  --tested-sha <sha-under-review> \
+  --checklist-ref "<uat checklist or portal note>" \
+  --evidence-ref "<supporting evidence path or URL>"
+```
+
+Use `--outcome failed --remediation-ref <issue-or-pr>` when UAT finds a defect
+or missing acceptance criterion. The command records a deterministic
+`sdlcStage=4`, `environment=uat`, `suiteKind=uat` lifecycle pair through
+`scripts/report-test-execution.sh`; rerunning the same execution updates the same
+record instead of creating duplicate passed rows. UAT approval is allowed only
+after a successful Stage 4 UAT execution exists for the release under review.
+
+When full regression is triggered by a successful production
+`deployment_status`, its evidence importer must record it as Stage 5 production
+E2E evidence for the tracked REQ scope. It must not fall back to
+`_compliance-docs`; if the artifact cannot prove the in-scope REQ, stop and fix
+the attribution before approval.
+
+On Linux self-hosted runners, generated CI validates inotify capacity before
+Turbopack/Playwright starts. A failure from
+`scripts/check-self-hosted-runner.sh` is runner infrastructure, not product-test
+evidence. Apply the durable host fix in
+[`docs/self-hosted-runner-ci.md`](../self-hosted-runner-ci.md), then rerun CI.
 
 ### Host Gate Topology
 
@@ -154,14 +211,25 @@ CI gating, redeploy that exact SHA, wait for its deployment status, then rerun
 post-deploy verification. Record the recovery; a healthy prior deployment is
 not evidence for the new SHA.
 
+For a reviewed `develop -> main` promotion, release-scope integrity may use an
+exactly-one pending release ticket or exactly-one active RTM row as the selected
+tracked scope. That fallback is not ordinary commit ownership and must remain
+disabled for feature, housekeeping, hotfix, and integration CI contexts.
+
 ## Operator recovery and historical data
 
 Use the portal's audit-loggable repair/backfill controls only for genuine
-historical gaps such as missing lineage, cycle records, or requirement matrix
+historical gaps such as missing lineage, test execution records, or requirement matrix
 rows. Re-run them idempotently and retain their audit event. Never invent bundle
 membership from guesswork; record unknown historical provenance as unknown.
-Reconcile legacy unknown/incorrect cycle outcomes from the corresponding GitHub
+Reconcile legacy unknown/incorrect execution outcomes from the corresponding GitHub
 Actions run before treating them as evidence.
+
+If an immutable historical E2E Regression run completed but its evidence import
+was skipped, recover by re-importing that exact run artifact against its original
+run ID, attempt, head SHA, timestamps, source event, and tracked REQ. Record the
+operation as reconciliation. Do not create a fresh Playwright execution and label
+it as the historical run.
 
 The detailed paths are in the linked playbooks. `sdlc-implementer` is the
 default route for a tracked issue; the manual paths are the fallback.

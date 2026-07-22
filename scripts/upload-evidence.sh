@@ -42,19 +42,19 @@
 #                               4 submit-for-review, 5 deploy. Forwarded as
 #                               `sdlcStage`; unknown to older portals (ignored
 #                               server-side, no error).
-#   --test-cycle <id>           Test cycle identifier (typically the CI run
-#                               ID). Forwarded as `testCycleId`; lets the
-#                               portal group evidence by test cycle per
-#                               ISO/IEC/IEEE 29119-3. Optional — older
-#                               portals ignore the field (no error).
+#   --test-execution <id>       Test execution identifier (typically the CI run
+#                               ID). Forwarded to the portal transport as
+#                               `testCycleId` until the upload API field is
+#                               renamed.
 #   --evidence-scope <scope>    Evidence ownership scope: release | stage |
-#                               cycle | approval. Forwarded as
-#                               `evidenceScope`; optional and ignored by
-#                               older portals.
-#   --test-cycle-record-id <id> First-class portal cycle UUID. Requires
-#                               `--evidence-scope cycle`. Forwarded as
-#                               `testCycleRecordId`; preserved alongside
-#                               legacy `--test-cycle` during dual-write.
+#                               execution | approval. `execution` is mapped
+#                               to the portal transport value `cycle` until
+#                               the upload API field is renamed.
+#   --test-execution-record-id <id>
+#                               First-class portal test execution UUID.
+#                               Requires `--evidence-scope execution`.
+#                               Forwarded to the portal transport as
+#                               `testCycleRecordId`.
 #
 # Required environment variables:
 #   DEVAUDIT_BASE_URL  e.g. https://meta-comply-production.up.railway.app
@@ -136,9 +136,9 @@ while [ "$#" -gt 0 ]; do
     # DevAudit-Installer#96.
     --gate-status) GATE_STATUS="$2"; shift 2 ;;
     --sdlc-stage) SDLC_STAGE="$2"; shift 2 ;;
-    --test-cycle) TEST_CYCLE="$2"; shift 2 ;;
+    --test-execution) TEST_CYCLE="$2"; shift 2 ;;
     --evidence-scope) EVIDENCE_SCOPE="$2"; shift 2 ;;
-    --test-cycle-record-id) TEST_CYCLE_RECORD_ID="$2"; shift 2 ;;
+    --test-execution-record-id) TEST_CYCLE_RECORD_ID="$2"; shift 2 ;;
     # --meta-key key=value (repeatable). Merged into the metadata JSON
     # before posting. Validates the `key=value` shape; rejects bare
     # keys without `=`.
@@ -166,13 +166,17 @@ if [ -n "$SDLC_STAGE" ] && ! [[ "$SDLC_STAGE" =~ ^[1-5]$ ]]; then
   echo "Error: --sdlc-stage must be an integer 1-5 (got: $SDLC_STAGE)"
   exit 1
 fi
-if [ -n "$EVIDENCE_SCOPE" ] && ! [[ "$EVIDENCE_SCOPE" =~ ^(release|stage|cycle|approval)$ ]]; then
-  echo "Error: --evidence-scope must be one of: release, stage, cycle, approval"
+if [ -n "$EVIDENCE_SCOPE" ] && ! [[ "$EVIDENCE_SCOPE" =~ ^(release|stage|execution|approval)$ ]]; then
+  echo "Error: --evidence-scope must be one of: release, stage, execution, approval"
   exit 1
 fi
-if [ -n "$TEST_CYCLE_RECORD_ID" ] && [ "$EVIDENCE_SCOPE" != "cycle" ]; then
-  echo "Error: --test-cycle-record-id requires --evidence-scope cycle"
+if [ -n "$TEST_CYCLE_RECORD_ID" ] && [ "$EVIDENCE_SCOPE" != "execution" ]; then
+  echo "Error: --test-execution-record-id requires --evidence-scope execution"
   exit 1
+fi
+TRANSPORT_EVIDENCE_SCOPE="$EVIDENCE_SCOPE"
+if [ "$TRANSPORT_EVIDENCE_SCOPE" = "execution" ]; then
+  TRANSPORT_EVIDENCE_SCOPE="cycle"
 fi
 
 if [ -z "${DEVAUDIT_BASE_URL:-}" ]; then
@@ -553,7 +557,7 @@ for FILE in "${FILES[@]}"; do
   [ -n "$GATE_STATUS" ] && CURL_ARGS+=(-F "gateStatus=${GATE_STATUS}")
   [ -n "$SDLC_STAGE" ] && CURL_ARGS+=(-F "sdlcStage=${SDLC_STAGE}")
   [ -n "$TEST_CYCLE" ] && CURL_ARGS+=(-F "testCycleId=${TEST_CYCLE}")
-  [ -n "$EVIDENCE_SCOPE" ] && CURL_ARGS+=(-F "evidenceScope=${EVIDENCE_SCOPE}")
+  [ -n "$TRANSPORT_EVIDENCE_SCOPE" ] && CURL_ARGS+=(-F "evidenceScope=${TRANSPORT_EVIDENCE_SCOPE}")
   [ -n "$TEST_CYCLE_RECORD_ID" ] && CURL_ARGS+=(-F "testCycleRecordId=${TEST_CYCLE_RECORD_ID}")
   [ -n "$SENTINEL_CONTENT" ] && CURL_ARGS+=(-F "sentinelContent=${SENTINEL_CONTENT}")
   [ -n "$COMMIT_TIMESTAMP" ] && CURL_ARGS+=(-F "commitTimestamp=${COMMIT_TIMESTAMP}")

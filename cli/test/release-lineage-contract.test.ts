@@ -59,39 +59,39 @@ describe('release-lineage contract (#391)', () => {
     expect(contract.version).toBe('1.0.0');
     expect(Object.keys(contract.payloads)).toEqual(
       expect.arrayContaining([
-        'test_cycle_started',
-        'test_cycle_completed',
-        'test_cycle_reconciled',
+        'test_execution_started',
+        'test_execution_completed',
+        'test_execution_reconciled',
         'evidence_lineage_fields',
         'bundle_manifest',
       ]),
     );
   });
 
-  it('accepts the documented test cycle started example', () => {
-    const validate = compilePayloadSchema(ajv, contract, 'test_cycle_started');
-    expect(validate(contract.payloads['test_cycle_started']!.example)).toBe(true);
+  it('accepts the documented test execution started example', () => {
+    const validate = compilePayloadSchema(ajv, contract, 'test_execution_started');
+    expect(validate(contract.payloads['test_execution_started']!.example)).toBe(true);
   });
 
-  it('accepts the documented test cycle completed example', () => {
-    const validate = compilePayloadSchema(ajv, contract, 'test_cycle_completed');
-    expect(validate(contract.payloads['test_cycle_completed']!.example)).toBe(true);
+  it('accepts the documented test execution completed example', () => {
+    const validate = compilePayloadSchema(ajv, contract, 'test_execution_completed');
+    expect(validate(contract.payloads['test_execution_completed']!.example)).toBe(true);
   });
 
   it('rejects invalid enum values and malformed idempotency keys', () => {
-    const validate = compilePayloadSchema(ajv, contract, 'test_cycle_completed');
+    const validate = compilePayloadSchema(ajv, contract, 'test_execution_completed');
     const invalid = {
-      ...contract.payloads['test_cycle_completed']!.example,
+      ...contract.payloads['test_execution_completed']!.example,
       environment: 'staging',
       idempotencyKey: 'bad-key',
     };
     expect(validate(invalid)).toBe(false);
   });
 
-  it('rejects running as a terminal cycle outcome', () => {
-    const validate = compilePayloadSchema(ajv, contract, 'test_cycle_completed');
+  it('rejects running as a terminal execution outcome', () => {
+    const validate = compilePayloadSchema(ajv, contract, 'test_execution_completed');
     const invalid = {
-      ...contract.payloads['test_cycle_completed']!.example,
+      ...contract.payloads['test_execution_completed']!.example,
       outcome: 'running',
     };
     expect(validate(invalid)).toBe(false);
@@ -104,12 +104,12 @@ describe('release-lineage contract (#391)', () => {
     }
   });
 
-  it('rejects a cycle record id when the scope is not cycle', () => {
+  it('rejects a test execution record id when the scope is not execution', () => {
     const validate = compilePayloadSchema(ajv, contract, 'evidence_lineage_fields');
     expect(
       validate({
         evidenceScope: 'release',
-        testCycleRecordId: '11111111-1111-4111-8111-111111111111',
+        testExecutionRecordId: '11111111-1111-4111-8111-111111111111',
       }),
     ).toBe(false);
   });
@@ -169,33 +169,20 @@ describe('release-lineage contract (#391)', () => {
     expect(RELEASE_LINEAGE_IDEMPOTENCY_KEY_PATTERN.test('github:too-short')).toBe(false);
   });
 
-  it('renders legacy-compatible evidence lineage for old portals', () => {
+  it('renders evidence lineage for first-class test execution APIs', () => {
     expect(
       renderEvidenceLineageFields(
         {
-          evidenceScope: 'cycle',
-          testCycleRecordId: '11111111-1111-4111-8111-111111111111',
-          testCycleId: '12345',
+          evidenceScope: 'execution',
+          testExecutionRecordId: '11111111-1111-4111-8111-111111111111',
+          testExecutionId: '12345',
         },
-        { supportsFirstClassCycleApi: false },
-      ),
-    ).toEqual({ testCycleId: '12345' });
-  });
-
-  it('renders dual-write evidence lineage when the portal supports first-class cycle APIs', () => {
-    expect(
-      renderEvidenceLineageFields(
-        {
-          evidenceScope: 'cycle',
-          testCycleRecordId: '11111111-1111-4111-8111-111111111111',
-          testCycleId: '12345',
-        },
-        { supportsFirstClassCycleApi: true },
+        { supportsFirstClassTestExecutionApi: true },
       ),
     ).toEqual({
-      evidenceScope: 'cycle',
-      testCycleRecordId: '11111111-1111-4111-8111-111111111111',
-      testCycleId: '12345',
+      evidenceScope: 'execution',
+      testExecutionRecordId: '11111111-1111-4111-8111-111111111111',
+      testExecutionId: '12345',
     });
   });
 });

@@ -6,7 +6,6 @@ import type { SyncContext, SectionResult } from './types.js';
 
 const MAIN_REQUIRED_CHECKS: readonly string[] = [
   'Quality Gates',
-  'CI Status Fallback',
 ];
 
 const DEVELOP_REQUIRED_CHECKS: readonly string[] = [

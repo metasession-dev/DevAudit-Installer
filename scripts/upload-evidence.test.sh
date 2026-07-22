@@ -200,8 +200,8 @@ STUB
   rm -rf "$tmpdir"
 }
 
-case_cycle_lineage_fields_forwarded() {
-  echo "case: cycle lineage fields forward as multipart form values"
+case_execution_lineage_fields_forwarded() {
+  echo "case: execution lineage fields forward as multipart form values"
   local tmp tmpdir curl_log
   tmp=$(mktemp --suffix=.json)
   tmpdir=$(mktemp -d)
@@ -232,9 +232,9 @@ STUB
       --release REQ-001 \
       --environment uat \
       --category e2e_result \
-      --test-cycle 12345 \
-      --evidence-scope cycle \
-      --test-cycle-record-id 11111111-1111-4111-8111-111111111111 2>&1) && exit_code=0 || exit_code=$?
+      --test-execution 12345 \
+      --evidence-scope execution \
+      --test-execution-record-id 11111111-1111-4111-8111-111111111111 2>&1) && exit_code=0 || exit_code=$?
   rm -f "$tmp"
   if [ "$exit_code" -eq 0 ]; then
     ok "exit code 0"
@@ -259,8 +259,8 @@ STUB
   rm -rf "$tmpdir"
 }
 
-case_cycle_record_requires_cycle_scope() {
-  echo "case: --test-cycle-record-id without --evidence-scope cycle is rejected"
+case_execution_record_requires_execution_scope() {
+  echo "case: --test-execution-record-id without --evidence-scope execution is rejected"
   local tmp
   tmp=$(mktemp --suffix=.json)
   echo '{"ok":true}' > "$tmp"
@@ -269,7 +269,7 @@ case_cycle_record_requires_cycle_scope() {
     --release REQ-001 \
     --environment uat \
     --category e2e_result \
-    --test-cycle-record-id 11111111-1111-4111-8111-111111111111 2>&1) && exit_code=0 || exit_code=$?
+    --test-execution-record-id 11111111-1111-4111-8111-111111111111 2>&1) && exit_code=0 || exit_code=$?
   rm -f "$tmp"
   if [ "$exit_code" -ne 0 ]; then
     ok "exit code non-zero"
@@ -277,10 +277,10 @@ case_cycle_record_requires_cycle_scope() {
     no "expected non-zero exit; output:\n$out"
     return
   fi
-  if printf '%s\n' "$out" | grep -q 'requires --evidence-scope cycle'; then
-    ok "stderr explains required cycle scope"
+  if printf '%s\n' "$out" | grep -q 'requires --evidence-scope execution'; then
+    ok "stderr explains required execution scope"
   else
-    no "stderr missing cycle scope error; output:\n$out"
+    no "stderr missing execution scope error; output:\n$out"
   fi
 }
 
@@ -289,8 +289,8 @@ case_pre_v0136_banner_skipped
 case_non_stub_attempts_upload
 case_md_template_not_matched_by_glob
 case_upload_uses_bounded_curl_timeouts
-case_cycle_lineage_fields_forwarded
-case_cycle_record_requires_cycle_scope
+case_execution_lineage_fields_forwarded
+case_execution_record_requires_execution_scope
 
 case_sdlc_stage_invalid_rejected() {
   echo "case: --sdlc-stage 9 is rejected (exit non-zero, error message)"

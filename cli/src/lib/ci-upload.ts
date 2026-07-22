@@ -30,12 +30,12 @@ export interface UploadOptions {
   readonly gateStatus?: string;
   /** SDLC stage 1-5 — forwarded as `sdlcStage` (parity with upload-evidence.sh). */
   readonly sdlcStage?: string;
-  /** Test cycle identifier — forwarded as `testCycleId` (parity with upload-evidence.sh --test-cycle). */
-  readonly testCycleId?: string;
+  /** Test execution identifier - transported as `testCycleId` until the portal upload field is renamed. */
+  readonly testExecutionId?: string;
   /** Evidence ownership scope — forwarded as `evidenceScope`. */
   readonly evidenceScope?: EvidenceScope;
-  /** First-class cycle UUID — forwarded as `testCycleRecordId` during dual-write rollout. */
-  readonly testCycleRecordId?: string;
+  /** First-class test execution UUID - transported as `testCycleRecordId` until the upload field is renamed. */
+  readonly testExecutionRecordId?: string;
   /** Raw `.sdlc-implementer-invoked` content for portal-side sentinel verification. */
   readonly sentinelContent?: string;
   /** Commit timestamp used during portal-side sentinel verification. */
@@ -192,10 +192,10 @@ function buildUploadForm(file: string, source: UploadSource, opts: UploadOptions
   const lineageFields = renderEvidenceLineageFields(
     {
       evidenceScope: opts.evidenceScope,
-      testCycleRecordId: opts.testCycleRecordId,
-      testCycleId: opts.testCycleId,
+      testExecutionRecordId: opts.testExecutionRecordId,
+      testExecutionId: opts.testExecutionId,
     },
-    opts.lineageCapabilities ?? { supportsFirstClassCycleApi: true },
+    opts.lineageCapabilities ?? { supportsFirstClassTestExecutionApi: true },
   );
   const form = new FormData();
   form.set('file', source.blob, basename(file));
@@ -213,9 +213,13 @@ function buildUploadForm(file: string, source: UploadSource, opts: UploadOptions
   if (opts.changeType) form.set('changeType', opts.changeType);
   if (opts.gateStatus) form.set('gateStatus', opts.gateStatus);
   if (opts.sdlcStage) form.set('sdlcStage', opts.sdlcStage);
-  if (lineageFields.testCycleId) form.set('testCycleId', lineageFields.testCycleId);
-  if (lineageFields.evidenceScope) form.set('evidenceScope', lineageFields.evidenceScope);
-  if (lineageFields.testCycleRecordId) form.set('testCycleRecordId', lineageFields.testCycleRecordId);
+  if (lineageFields.testExecutionId) form.set('testCycleId', lineageFields.testExecutionId);
+  if (lineageFields.evidenceScope) {
+    form.set('evidenceScope', lineageFields.evidenceScope === 'execution' ? 'cycle' : lineageFields.evidenceScope);
+  }
+  if (lineageFields.testExecutionRecordId) {
+    form.set('testCycleRecordId', lineageFields.testExecutionRecordId);
+  }
   if (opts.sentinelContent) form.set('sentinelContent', opts.sentinelContent);
   if (opts.commitTimestamp) form.set('commitTimestamp', opts.commitTimestamp);
   return form;
@@ -334,10 +338,10 @@ async function uploadPresigned(
   const lineageFields = renderEvidenceLineageFields(
     {
       evidenceScope: opts.evidenceScope,
-      testCycleRecordId: opts.testCycleRecordId,
-      testCycleId: opts.testCycleId,
+      testExecutionRecordId: opts.testExecutionRecordId,
+      testExecutionId: opts.testExecutionId,
     },
-    opts.lineageCapabilities ?? { supportsFirstClassCycleApi: true },
+    opts.lineageCapabilities ?? { supportsFirstClassTestExecutionApi: true },
   );
 
   // Step 1: Request presigned upload URL
@@ -373,10 +377,15 @@ async function uploadPresigned(
           ...(opts.releaseSummary ? { releaseSummary: opts.releaseSummary } : {}),
           ...(opts.changeType ? { changeType: opts.changeType } : {}),
           ...(opts.sdlcStage ? { sdlcStage: opts.sdlcStage } : {}),
-          ...(lineageFields.testCycleId ? { testCycleId: lineageFields.testCycleId } : {}),
-          ...(lineageFields.evidenceScope ? { evidenceScope: lineageFields.evidenceScope } : {}),
-          ...(lineageFields.testCycleRecordId
-            ? { testCycleRecordId: lineageFields.testCycleRecordId }
+          ...(lineageFields.testExecutionId ? { testCycleId: lineageFields.testExecutionId } : {}),
+          ...(lineageFields.evidenceScope
+            ? {
+                evidenceScope:
+                  lineageFields.evidenceScope === 'execution' ? 'cycle' : lineageFields.evidenceScope,
+              }
+            : {}),
+          ...(lineageFields.testExecutionRecordId
+            ? { testCycleRecordId: lineageFields.testExecutionRecordId }
             : {}),
           ...(opts.sentinelContent ? { sentinelContent: opts.sentinelContent } : {}),
           ...(opts.commitTimestamp ? { commitTimestamp: opts.commitTimestamp } : {}),

@@ -114,6 +114,6 @@ revert is the same controlled hotfix path, not a direct push to `main`.
 
 Reviewers should see ordinary housekeeping only as historical/integration
 context. In the later tracked release, they should see exactly what was absorbed
-and which source cycles cover it. Auditors should be able to follow the linked
+and which source executions cover it. Auditors should be able to follow the linked
 predecessor, source evidence, and final approval envelope without interpreting
 the historical row as abandoned work.

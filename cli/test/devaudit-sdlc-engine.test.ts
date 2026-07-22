@@ -48,6 +48,13 @@ async function runEngine(args: readonly string[], cwd: string) {
   });
 }
 
+async function runEngineAt(enginePath: string, args: readonly string[], cwd: string) {
+  return execa(process.execPath, [enginePath, ...args], {
+    cwd,
+    reject: false,
+  });
+}
+
 async function readSentinel(cwd: string): Promise<unknown> {
   const sentinelPath = join(cwd, '.sdlc-implementer-invoked');
   const content = await fs.readFile(sentinelPath, 'utf8');
@@ -171,16 +178,25 @@ describe('devaudit-sdlc CLI engine', () => {
     }
 
     it('--view on a phase whose blueprint does not exist exits 1', async () => {
-      // Temporarily rename a blueprint to simulate missing file
-      const bpPath = join(BLUEPRINTS_DIR, '1-plan-requirement.raw.md');
-      const tmpPath = bpPath + '.bak';
-      await fs.rename(bpPath, tmpPath);
+      // Use an isolated engine copy so this negative-path test does not race
+      // with other tests that copy/read the repository's blueprint directory.
+      const isolated = await fs.mkdtemp(join(tmpdir(), 'devaudit-sdlc-missing-bp-'));
       try {
-        const res = await runEngine(['--phase=1', '--view'], sandbox);
+        const isolatedSrc = join(isolated, 'src');
+        await fs.mkdir(join(isolatedSrc, 'bin'), { recursive: true });
+        await fs.cp(dirname(ENGINE_PATH), join(isolatedSrc, 'bin'), { recursive: true });
+        await fs.cp(BLUEPRINTS_DIR, join(isolatedSrc, 'blueprints'), { recursive: true });
+        await fs.rm(join(isolatedSrc, 'blueprints', '1-plan-requirement.raw.md'));
+
+        const res = await runEngineAt(
+          join(isolatedSrc, 'bin', 'devaudit-sdlc.js'),
+          ['--phase=1', '--view'],
+          sandbox,
+        );
         expect(res.exitCode).toBe(1);
         expect(res.stderr).toContain('blueprint could not be resolved');
       } finally {
-        await fs.rename(tmpPath, bpPath);
+        await fs.rm(isolated, { recursive: true, force: true });
       }
     });
   });

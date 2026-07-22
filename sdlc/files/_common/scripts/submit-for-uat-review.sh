@@ -27,6 +27,8 @@
 #      If status is uat_review   → idempotent no-op (exit 0, "already submitted").
 #      If status is uat_approved → idempotent no-op (exit 0, "already approved").
 #      Any other status          → refuse with an explanatory message.
+#   6. Print the explicit Stage 4 UAT execution command to run after the
+#      reviewer has completed UAT. Submission is not UAT execution.
 
 set -euo pipefail
 
@@ -49,6 +51,23 @@ FAILED=0
 note() { printf '  - %s\n' "$*"; }
 fail() { printf '  ✗ %s\n' "$*"; FAILED=$((FAILED + 1)); }
 ok()   { printf '  ✓ %s\n' "$*"; }
+
+print_uat_execution_next_step() {
+  local tested_sha="${1:-}"
+  [ -n "$tested_sha" ] || tested_sha="$(git rev-parse HEAD 2>/dev/null || true)"
+  echo ""
+  echo "Next required control: after the reviewer performs UAT, record the Stage 4 execution explicitly."
+  echo "Submission only moves the release into review; it does not claim UAT passed."
+  echo ""
+  echo "  ./scripts/record-uat-execution.sh \\"
+  echo "    --project-slug ${PROJECT_SLUG} \\"
+  echo "    --release ${RELEASE_VERSION:-$VERSION_PREFIX} \\"
+  echo "    --outcome passed \\"
+  echo "    --executor \"<reviewer identity>\" \\"
+  echo "    --tested-sha ${tested_sha:-<tested sha>} \\"
+  echo "    --checklist-ref \"<UAT checklist or portal note>\" \\"
+  echo "    --evidence-ref \"<supporting evidence path or URL>\""
+}
 
 echo "Readiness checks for ${PROJECT_SLUG} ${VERSION_PREFIX}"
 
@@ -134,6 +153,7 @@ case "$RELEASE_STATUS" in
       NEW_STATUS=$(echo "$BODY" | jq -r '.status')
       echo "  Status: draft → ${NEW_STATUS}"
       echo "  Review page: ${BASE_URL}/projects/${PROJECT_SLUG}/releases/${RELEASE_ID}?env=uat"
+      print_uat_execution_next_step "$REMOTE_SHA"
     else
       echo "  Submission failed (HTTP ${HTTP_CODE}): $(echo "$BODY" | jq -r '.error // .')" >&2
       exit 1
@@ -143,6 +163,7 @@ case "$RELEASE_STATUS" in
     echo ""
     echo "Release already submitted for UAT review (status: uat_review). No action taken."
     echo "Review page: ${BASE_URL}/projects/${PROJECT_SLUG}/releases/${RELEASE_ID}?env=uat"
+    print_uat_execution_next_step "$REMOTE_SHA"
     ;;
   uat_approved | prod_review | prod_approved | released)
     echo ""
