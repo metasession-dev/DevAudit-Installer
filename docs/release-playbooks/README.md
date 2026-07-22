@@ -158,6 +158,31 @@ absence of evidence: retain its partial Playwright report, traces, screenshots,
 server logs, and execution metadata; classify the cause before opening or
 updating an incident or recording an approved exception.
 
+### UAT execution records
+
+Submitting a release for UAT review is not the same thing as executing or
+passing UAT. For every tracked release, the reviewer must complete the UAT
+activity and record a first-class Stage 4 execution before clicking approve.
+Use the generated helper:
+
+```bash
+./scripts/record-uat-execution.sh \
+  --project-slug <project-slug> \
+  --release REQ-XXX \
+  --outcome passed \
+  --executor "<reviewer identity>" \
+  --tested-sha <sha-under-review> \
+  --checklist-ref "<uat checklist or portal note>" \
+  --evidence-ref "<supporting evidence path or URL>"
+```
+
+Use `--outcome failed --remediation-ref <issue-or-pr>` when UAT finds a defect
+or missing acceptance criterion. The command records a deterministic
+`sdlcStage=4`, `environment=uat`, `cycleKind=uat` lifecycle pair through
+`scripts/report-test-cycle.sh`; rerunning the same execution updates the same
+record instead of creating duplicate passed rows. UAT approval is allowed only
+after a successful Stage 4 UAT execution exists for the release under review.
+
 When full regression is triggered by a successful production
 `deployment_status`, its evidence importer must record it as Stage 5 production
 E2E evidence for the tracked REQ scope. It must not fall back to
