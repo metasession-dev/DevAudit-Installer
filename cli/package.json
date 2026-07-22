@@ -1,6 +1,6 @@
 {
   "name": "@metasession.co/devaudit-cli",
-  "version": "0.3.19",
+  "version": "0.3.20",
   "description": "DevAudit CLI — installs, syncs, and operates the Metasession SDLC across consumer projects.",
   "type": "module",
   "bin": {
