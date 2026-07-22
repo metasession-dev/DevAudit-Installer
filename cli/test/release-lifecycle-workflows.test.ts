@@ -5,6 +5,8 @@ import { describe, expect, it } from 'vitest';
 const root = resolve(import.meta.dirname, '../..');
 const template = (name: string) =>
   readFileSync(resolve(root, 'sdlc/files/ci', name), 'utf8').replace(/\r\n/g, '\n');
+const commonScript = (name: string) =>
+  readFileSync(resolve(root, 'sdlc/files/_common/scripts', name), 'utf8').replace(/\r\n/g, '\n');
 const reference = (name: string) =>
   readFileSync(resolve(root, 'sdlc/files/_common/skills/e2e-test-engineer/references', name), 'utf8').replace(
     /\r\n/g,
@@ -143,5 +145,20 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     expect(source).toContain('source_issue: \\"" + (.number|tostring) + "\\"');
     expect(source).toContain('source_issue_url: ');
     expect(source).toContain('semantic_id: \\"INC-');
+  });
+
+  it('keeps UAT submission distinct from explicit Stage 4 execution recording', () => {
+    const submit = commonScript('submit-for-uat-review.sh');
+    const record = commonScript('record-uat-execution.sh');
+    expect(submit).toContain('Submission only moves the release into review; it does not claim UAT passed.');
+    expect(submit).toContain('./scripts/record-uat-execution.sh');
+    expect(record).toContain('--sdlc-stage 4');
+    expect(record).toContain('--environment uat');
+    expect(record).toContain('--cycle-kind uat');
+    expect(record).toContain('--provider manual_uat');
+    expect(record).toContain('manual-uat:${PROJECT_SLUG}:${RELEASE_VERSION}:${EXECUTION_ID}');
+    expect(record).toContain('executor=${EXECUTOR}; tested_sha=${TESTED_SHA}');
+    expect(record).toContain('"$REPORT_TEST_CYCLE" start');
+    expect(record).toContain('"$REPORT_TEST_CYCLE" complete');
   });
 });

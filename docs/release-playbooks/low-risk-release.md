@@ -45,6 +45,10 @@ the configured approval policy. The author may self-merge only where the project
 policy permits it and every required check is terminal green on the current
 head SHA.
 
+When approval is not automatic, the reviewer records the actual UAT execution
+with `scripts/record-uat-execution.sh` before approving. Submission for UAT
+review is only a queue transition; it is not evidence that UAT passed.
+
 ### Stage 5: deploy, approve, close out
 
 After the merge, wait for `post-deploy-prod.yml` to reach a terminal successful
