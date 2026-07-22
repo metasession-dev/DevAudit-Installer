@@ -38,6 +38,18 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     expect(source).not.toContain('if [ "$REQ_FAILURES" -gt 0 ]; then\n              REQ_OUTCOME=failed');
   });
 
+  it('imports deployment-origin E2E as production Stage 5 evidence only when REQ-scoped', () => {
+    const source = template('compliance-evidence.yml.template');
+    expect(source).toContain('deployment_status)  TIER=regression; STAGE=5; E2E_ENVIRONMENT=production ;;');
+    expect(source).toContain('--environment "${E2E_ENVIRONMENT}"');
+    expect(source).toContain('--sdlc-stage "${STAGE:-2}"');
+    expect(source).toContain('Deployment-origin E2E evidence requires tagged or in-scope REQ attribution');
+    expect(source).toContain('refusing _compliance-docs fallback');
+    expect(source).toContain('--meta-key source_event=${PRIOR_EVENT}');
+    expect(source).toContain('--meta-key source_workflow=E2E_Regression');
+    expect(source).toContain('${STAGE:-2}:${E2E_ENVIRONMENT}:${DERIVED_RELEASE}');
+  });
+
   it('records deployment and smoke as distinct always-finalized production cycles', () => {
     const source = template('post-deploy-prod.yml.template');
     expect(source.indexOf('Start production deployment cycles')).toBeLessThan(

@@ -143,6 +143,12 @@ absence of evidence: retain its partial Playwright report, traces, screenshots,
 server logs, and execution metadata; classify the cause before opening or
 updating an incident or recording an approved exception.
 
+When full regression is triggered by a successful production
+`deployment_status`, its evidence importer must record it as Stage 5 production
+E2E evidence for the tracked REQ scope. It must not fall back to
+`_compliance-docs`; if the artifact cannot prove the in-scope REQ, stop and fix
+the attribution before approval.
+
 On Linux self-hosted runners, generated CI validates inotify capacity before
 Turbopack/Playwright starts. A failure from
 `scripts/check-self-hosted-runner.sh` is runner infrastructure, not product-test
@@ -178,6 +184,12 @@ rows. Re-run them idempotently and retain their audit event. Never invent bundle
 membership from guesswork; record unknown historical provenance as unknown.
 Reconcile legacy unknown/incorrect cycle outcomes from the corresponding GitHub
 Actions run before treating them as evidence.
+
+If an immutable historical E2E Regression run completed but its evidence import
+was skipped, recover by re-importing that exact run artifact against its original
+run ID, attempt, head SHA, timestamps, source event, and tracked REQ. Record the
+operation as reconciliation. Do not create a fresh Playwright execution and label
+it as the historical run.
 
 The detailed paths are in the linked playbooks. `sdlc-implementer` is the
 default route for a tracked issue; the manual paths are the fallback.

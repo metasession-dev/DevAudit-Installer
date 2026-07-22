@@ -746,18 +746,24 @@ jobs:
           # push to main → regression; otherwise dispatch/schedule.
           PRIOR_EVENT="${{ github.event.workflow_run.event }}"
           PRIOR_BRANCH="${{ github.event.workflow_run.head_branch }}"
+          E2E_ENVIRONMENT=uat
           case "$PRIOR_EVENT" in
-            pull_request) TIER=critical; STAGE=2 ;;
-            push)         TIER=regression; STAGE=5 ;;
-            *)            TIER="${PRIOR_EVENT}"; STAGE="" ;;
+            pull_request)       TIER=critical; STAGE=2 ;;
+            push)               TIER=regression; STAGE=5 ;;
+            deployment_status)  TIER=regression; STAGE=5; E2E_ENVIRONMENT=production ;;
+            *)                  TIER="${PRIOR_EVENT}"; STAGE="" ;;
           esac
 
           # Common flags for upload-evidence.sh. Branch + SHA come from
           # the triggering run, not from this workflow_run dispatch.
-          FLAGS="--create-release-if-missing --environment uat \
+          FLAGS="--create-release-if-missing --environment ${E2E_ENVIRONMENT} \
                  --git-sha ${{ github.event.workflow_run.head_sha }} \
                  --ci-run-id ${{ github.event.workflow_run.id }} \
-                 --branch ${PRIOR_BRANCH}"
+                 --branch ${PRIOR_BRANCH} \
+                 --meta-key source_event=${PRIOR_EVENT} \
+                 --meta-key source_workflow=E2E_Regression \
+                 --meta-key source_run_id=${{ github.event.workflow_run.id }} \
+                 --meta-key source_run_attempt=${{ github.event.workflow_run.run_attempt }}"
           [ -n "$STAGE" ] && FLAGS="${FLAGS} --sdlc-stage ${STAGE}"
 
           # In-scope REQs from pending release tickets at the triggering
@@ -820,6 +826,11 @@ jobs:
             DERIVED_RELEASE="${REQS[0]}"
           fi
 
+          if [ "$PRIOR_EVENT" = "deployment_status" ] && [ "${#REQS[@]}" -eq 0 ]; then
+            echo "::error::Deployment-origin E2E evidence requires tagged or in-scope REQ attribution; refusing _compliance-docs fallback."
+            exit 1
+          fi
+
           if [ "${#REQS[@]}" -eq 0 ]; then
             REQS=(_compliance-docs)
           fi
@@ -845,12 +856,12 @@ jobs:
               --project-slug {{PROJECT_SLUG}} \
               --release "${DERIVED_RELEASE}" \
               --sdlc-stage "${STAGE:-2}" \
-              --environment uat \
+              --environment "${E2E_ENVIRONMENT}" \
               --cycle-kind e2e \
               --provider github_actions \
               --external-run-id "${{ github.event.workflow_run.id }}" \
               --external-run-attempt "${{ github.event.workflow_run.run_attempt }}" \
-              --idempotency-key "github:${{ github.repository }}:e2e-regression.${REQ}.e2e:${{ github.event.workflow_run.id }}:${{ github.event.workflow_run.run_attempt }}:${STAGE:-2}:${DERIVED_RELEASE}" \
+              --idempotency-key "github:${{ github.repository }}:e2e-regression.${REQ}.e2e:${{ github.event.workflow_run.id }}:${{ github.event.workflow_run.run_attempt }}:${STAGE:-2}:${E2E_ENVIRONMENT}:${DERIVED_RELEASE}" \
               --commit-sha "${{ github.event.workflow_run.head_sha }}" \
               --branch "${PRIOR_BRANCH}" \
               --workflow-name "E2E Regression" \
@@ -946,12 +957,12 @@ jobs:
               --project-slug {{PROJECT_SLUG}} \
               --release "${DERIVED_RELEASE}" \
               --sdlc-stage "${STAGE:-2}" \
-              --environment uat \
+              --environment "${E2E_ENVIRONMENT}" \
               --cycle-kind e2e \
               --provider github_actions \
               --external-run-id "${{ github.event.workflow_run.id }}" \
               --external-run-attempt "${{ github.event.workflow_run.run_attempt }}" \
-              --idempotency-key "github:${{ github.repository }}:e2e-regression.${REQ}.e2e:${{ github.event.workflow_run.id }}:${{ github.event.workflow_run.run_attempt }}:${STAGE:-2}:${DERIVED_RELEASE}" \
+              --idempotency-key "github:${{ github.repository }}:e2e-regression.${REQ}.e2e:${{ github.event.workflow_run.id }}:${{ github.event.workflow_run.run_attempt }}:${STAGE:-2}:${E2E_ENVIRONMENT}:${DERIVED_RELEASE}" \
               --commit-sha "${{ github.event.workflow_run.head_sha }}" \
               --branch "${PRIOR_BRANCH}" \
               --workflow-name "E2E Regression" \
