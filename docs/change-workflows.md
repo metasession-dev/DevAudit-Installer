@@ -46,7 +46,7 @@ and review -> merge -> mandatory backmerge/* PR to $INTEGRATION_BRANCH
 | --- | --- | --- |
 | 1 Plan | Allocate REQ, RTM entry, risk/test planning; HIGH/CRITICAL needs plan approval | Release can be created early for correctly scoped evidence |
 | 2 Implement | Feature branch, tests/gates, integration PR, then merge | Integration CI registers the release and uploads gate evidence |
-| 3 Evidence | Upload documents/artifacts and render first-class cycle history | Complete reviewer evidence: artifacts, cycles, checks, lineage |
+| 3 Evidence | Upload documents/artifacts and render first-class test execution history | Complete reviewer evidence: artifacts, cycles, checks, lineage |
 | 4 Review | Truthful integration -> release PR; submit for UAT | Approval gate and full release check set apply to every in-scope REQ |
 | 5 Deploy | Merge after terminal-green checks; wait for deployment and host verification | Deployment/smoke cycles, Production review, `released`, automated close-out PR |
 

@@ -16,7 +16,7 @@ The portal receiving side is implemented separately in `metasession-dev/devaudit
 
 The contract covers three things:
 
-1. first-class test-cycle lifecycle events
+1. first-class test-test execution lifecycle events
 2. evidence-lineage fields on uploads
 3. bundled-release manifests for approval envelopes
 
@@ -161,7 +161,7 @@ Example:
 
 `github:metasession-dev/wawagardenbar-app:Quality-Gates:12345:attempt:2:stage:2:REQ-093`
 
-The key must be stable across retries for the same logical cycle record.
+The key must be stable across retries for the same logical test execution record.
 
 ## Evidence upload compatibility
 
@@ -175,22 +175,22 @@ Supports only:
 
 Producer behaviour:
 
-- skip first-class cycle lifecycle API calls
+- skip first-class test execution lifecycle API calls
 - keep uploading evidence normally
-- send only `testCycleId` as the cycle grouping key
+- send only `testCycleId` as the test execution grouping key
 
 ### First-class lineage portal
 
 Supports:
 
-- cycle lifecycle endpoints
+- test execution lifecycle endpoints
 - `evidenceScope`
 - `testCycleRecordId`
 - legacy `testCycleId`
 
 Producer behaviour:
 
-- create/update cycle lifecycle records independently of evidence upload
+- create/update test execution lifetest execution records independently of evidence upload
 - upload execution evidence with `evidenceScope=cycle`
 - include `testCycleRecordId`
 - preserve `testCycleId` during dual-write rollout

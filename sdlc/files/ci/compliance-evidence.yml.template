@@ -816,7 +816,7 @@ jobs:
         if: steps.resolve.outputs.skip != 'true' && steps.version.outputs.version != 'skip'
         run: |
           set -euo pipefail
-          chmod +x scripts/report-test-cycle.sh scripts/report-release-check.sh 2>/dev/null || true
+          chmod +x scripts/report-test-execution.sh scripts/report-release-check.sh 2>/dev/null || true
           DERIVED_RELEASE="${{ steps.version.outputs.version }}"
 
           # Tier metadata for the portal (the operator filters/groups by
@@ -928,14 +928,14 @@ jobs:
           UPLOAD_FAILURES=0
           for REQ in "${REQS[@]}"; do
             REQ_FAILURES=0
-            LINEAGE_FLAGS=(--test-cycle "${{ github.event.workflow_run.id }}")
-            CYCLE_OUT="$(mktemp)"
-            bash scripts/report-test-cycle.sh start \
+            LINEAGE_FLAGS=(--test-execution "${{ github.event.workflow_run.id }}")
+            EXECUTION_OUT="$(mktemp)"
+            bash scripts/report-test-execution.sh start \
               --project-slug {{PROJECT_SLUG}} \
               --release "${DERIVED_RELEASE}" \
               --sdlc-stage "${STAGE:-2}" \
               --environment "${E2E_ENVIRONMENT}" \
-              --cycle-kind e2e \
+              --suite-kind e2e \
               --provider github_actions \
               --external-run-id "${{ github.event.workflow_run.id }}" \
               --external-run-attempt "${{ github.event.workflow_run.run_attempt }}" \
@@ -945,11 +945,11 @@ jobs:
               --workflow-name "E2E Regression" \
               --workflow-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}" \
               --started-at "${{ github.event.workflow_run.run_started_at }}" \
-              --output-file "$CYCLE_OUT"
-            . "$CYCLE_OUT"
-            rm -f "$CYCLE_OUT"
-            if [ "${cycle_supported:-false}" = "true" ] && [ -n "${cycle_record_id:-}" ]; then
-              LINEAGE_FLAGS+=(--evidence-scope cycle --test-cycle-record-id "${cycle_record_id}")
+              --output-file "$EXECUTION_OUT"
+            . "$EXECUTION_OUT"
+            rm -f "$EXECUTION_OUT"
+            if [ "${execution_supported:-false}" = "true" ] && [ -n "${execution_record_id:-}" ]; then
+              LINEAGE_FLAGS+=(--evidence-scope execution --test-execution-record-id "${execution_record_id}")
             fi
             # 1. JSON reporter output → e2e_result. The single canonical
             # machine-readable artefact for the run.
@@ -1031,12 +1031,12 @@ jobs:
             else
               OUTCOME_REASON="authoritative workflow_run conclusion: ${{ github.event.workflow_run.conclusion }}"
             fi
-            bash scripts/report-test-cycle.sh complete \
+            bash scripts/report-test-execution.sh complete \
               --project-slug {{PROJECT_SLUG}} \
               --release "${DERIVED_RELEASE}" \
               --sdlc-stage "${STAGE:-2}" \
               --environment "${E2E_ENVIRONMENT}" \
-              --cycle-kind e2e \
+              --suite-kind e2e \
               --provider github_actions \
               --external-run-id "${{ github.event.workflow_run.id }}" \
               --external-run-attempt "${{ github.event.workflow_run.run_attempt }}" \
@@ -1101,8 +1101,8 @@ jobs:
           # evidence). Classification rationale is included in every filed
           # issue body so a human can verify and reclassify.
           #
-          # testCycleId (CI run ID) cross-references #209 so the incident
-          # report traces back to the specific test cycle that found the defect.
+          # testExecutionId (CI run ID) cross-references #209 so the incident
+          # report traces back to the specific test execution that found the defect.
 
           if [ ! -f e2e-artifacts/e2e-regression-results.json ]; then
             echo "No e2e-regression-results.json found — cannot triage. Skipping incident filing."
@@ -1289,7 +1289,7 @@ jobs:
               **Classification:** ${CLASSIFICATION}
               **Classification rationale:** ${RATIONALE}
 
-              **testCycleId:** ${CI_RUN_ID}
+              **testExecutionId:** ${CI_RUN_ID}
               **Workflow run:** ${WORKFLOW_URL}
               **Git SHA:** ${GIT_SHA}
 
@@ -1334,7 +1334,7 @@ jobs:
               **Classification:** ${CLASSIFICATION}
               **Classification rationale:** ${RATIONALE}
 
-              **testCycleId:** ${CI_RUN_ID}
+              **testExecutionId:** ${CI_RUN_ID}
               **Workflow run:** ${WORKFLOW_URL}
               **Git SHA:** ${GIT_SHA}
 

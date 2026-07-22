@@ -17,7 +17,7 @@ make_fixture() {
   local dir="$1"
   rm -rf "$dir"
   mkdir -p "$dir/bin"
-  cat > "$dir/bin/report-test-cycle.sh" <<'EOF'
+  cat > "$dir/bin/report-test-execution.sh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 LOG_FILE="${UAT_TEST_LOG:?}"
@@ -33,20 +33,20 @@ while [ "$#" -gt 0 ]; do
 done
 if [ -n "$out" ]; then
   {
-    printf 'cycle_supported=true\n'
-    printf 'cycle_record_id=cycle-%s\n' "$mode"
-    printf 'cycle_idempotency_key=stub\n'
+    printf 'execution_supported=true\n'
+    printf 'execution_record_id=execution-%s\n' "$mode"
+    printf 'execution_idempotency_key=stub\n'
   } >> "$out"
 fi
 EOF
-  chmod +x "$dir/bin/report-test-cycle.sh"
+  chmod +x "$dir/bin/report-test-execution.sh"
 }
 
 run_helper() {
   UAT_TEST_LOG="$1/uat.log" \
   DEVAUDIT_BASE_URL="https://devaudit.example.test" \
   DEVAUDIT_API_KEY="mc_test_dummy" \
-  REPORT_TEST_CYCLE_HELPER="$1/bin/report-test-cycle.sh" \
+  REPORT_TEST_EXECUTION_HELPER="$1/bin/report-test-execution.sh" \
   "$HELPER" "${@:2}"
 }
 
@@ -79,7 +79,7 @@ case_passed_records_stage_four_pair() {
   assert_contains "called complete" "CALL:complete" "$dir/uat.log"
   assert_contains "stage 4" "--sdlc-stage 4" "$dir/uat.log"
   assert_contains "uat environment" "--environment uat" "$dir/uat.log"
-  assert_contains "uat kind" "--cycle-kind uat" "$dir/uat.log"
+  assert_contains "uat kind" "--suite-kind uat" "$dir/uat.log"
   assert_contains "manual provider" "--provider manual_uat" "$dir/uat.log"
   assert_contains "tested sha" "--commit-sha abc123def456" "$dir/uat.log"
   assert_contains "passed outcome" "--outcome passed" "$dir/uat.log"

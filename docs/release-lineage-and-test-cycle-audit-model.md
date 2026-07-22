@@ -33,7 +33,7 @@ The current implementation has useful foundations:
 
 However, the portal currently derives a cycle from the presence of evidence carrying the same string identifier. This creates four material limitations:
 
-1. A document upload can appear to be a test cycle even though no test execution occurred.
+1. A document upload can appear to be a test execution even though no test execution occurred.
 2. A failed workflow that produces no evidence can disappear from the release history.
 3. Global labels such as `Cycle 14/16` show chronology but become difficult to read when the list is grouped by stage.
 4. Evidence and predecessor releases can be attributed to the final REQ without preserving which constituent release and stage originally produced them.
@@ -108,7 +108,7 @@ Non-release work items are shown separately because they do not have a release l
 
 ### 3. Stage and cycle matrix
 
-The primary reviewer summary is a matrix derived from first-class cycle records, not evidence counts:
+The primary reviewer summary is a matrix derived from first-class test execution records, not evidence counts:
 
 | Constituent release | Plan | Implement/test | Evidence | UAT | Production | Final disposition |
 |---|---:|---:|---:|---:|---:|---|
@@ -178,7 +178,7 @@ Approval envelope
 `- Final approval and deployment evidence
 ```
 
-Release tickets, RTMs, plans, bundled-change manifests, security summaries, and AI-use notes are not cycles. Screenshots, gate outcomes, coverage, E2E reports, test results, and smoke results can be cycle-scoped.
+Release tickets, RTMs, plans, bundled-change manifests, security summaries, and AI-use notes are not cycles. Screenshots, gate outcomes, coverage, E2E reports, test results, and smoke results can be execution-scoped.
 
 Inherited evidence must be labelled with its original owner and inheritance path. The UI must not present 74 UAT artifacts and 2 production artifacts as one undifferentiated effective set.
 
@@ -238,7 +238,7 @@ One row per actual execution attempt:
 | `source_release_id` | Release whose scope was under test. |
 | `sdlc_stage` | Governed stage number/code. |
 | `environment` | `ci`, `uat`, `production`, or another configured environment. |
-| `cycle_kind` | `quality_gate`, `e2e`, `security`, `uat`, `deployment`, `smoke`, etc. |
+| `suite_kind` | `quality_gate`, `e2e`, `security`, `uat`, `deployment`, `smoke`, etc. |
 | `provider` | `github_actions`, `manual`, or another trusted source. |
 | `external_run_id` | Provider run identifier. |
 | `external_run_attempt` | Provider rerun attempt. |
@@ -256,7 +256,7 @@ The stage-scoped sequence is derived deterministically from `started_at`, then `
 
 ### Evidence relationship
 
-Add nullable `test_cycle_record_id` to `compliance_evidence`, referencing `test_cycles.id`. Retain the existing text `test_cycle_id` during compatibility rollout.
+Add nullable `test_execution_record_id` to `compliance_evidence`, referencing first-class test execution records. Until the portal upload API is renamed, producer fields may be mapped at the transport boundary to the existing multipart field names, but generated projects must use test-execution terminology.
 
 Evidence also retains `release_id`, which must remain the source release that owns the evidence. The approval envelope gains access through bundle membership; ingestion must not rewrite `release_id` to the successor.
 
@@ -264,7 +264,7 @@ Add or formalise evidence scope:
 
 - `release`: release ticket, RTM, plans, summaries, bundle manifest;
 - `stage`: stage completion or review document;
-- `cycle`: execution output tied to `test_cycle_record_id`;
+- `execution`: execution output tied to `test_execution_record_id`;
 - `approval`: approval signature, final audit snapshot, deployment decision.
 
 ### Audit events and snapshots
@@ -311,7 +311,7 @@ DevAudit-Installer must produce explicit lifecycle events. A representative payl
 
 The workflow must create/update the cycle independently of evidence upload. Completion reporting must run under `if: always()` so a failed execution is recorded even when artifact generation fails.
 
-Only execution artifacts receive the returned cycle record identifier. Release-level and stage-level documents must omit a cycle identifier.
+Only execution artifacts receive the returned test execution record identifier. Release-level and stage-level documents must omit a cycle identifier.
 
 ### Bundle manifest contract
 
@@ -341,7 +341,7 @@ The manifest must be produced from explicit release tickets and release orchestr
 
 ### Phase I2 - workflow and CLI production
 
-1. Extend the CLI and `upload-evidence.sh` with cycle lifecycle operations or a dedicated command such as `devaudit cycle start|complete`.
+1. Extend the CLI and `upload-evidence.sh` with test execution lifecycle operations or a dedicated command such as `devaudit cycle start|complete`.
 2. Add fields for source release, stage, environment, kind, run attempt, timestamps, result, and idempotency key.
 3. Update generated CI, E2E, compliance-evidence, UAT, post-deploy, and production-smoke templates.
 4. Ensure terminal reporting executes for success, failure, cancellation, and timeout paths.
@@ -360,7 +360,7 @@ The manifest must be produced from explicit release tickets and release orchestr
 ### Phase I4 - generated reports and skills
 
 1. Update `sdlc-implementer` to maintain the bundle manifest as release scope changes.
-2. Update the evidence compilation stage to query first-class cycles, not group uploaded files.
+2. Update the evidence compilation stage to query first-class test executions, not group uploaded files.
 3. Generate cycle tables per constituent release and stage in `test-execution-summary.md`.
 4. Include the same bundle identity in security, AI-use, incident, release-ticket, and completion reports where relevant.
 5. Update release playbooks for scope escalation from housekeeping to tracked change.
@@ -379,22 +379,22 @@ Add contract and rendered-workflow tests covering:
 - ambiguous predecessors rejected or held for reconciliation;
 - Markdown/JSON bundle parity;
 - legacy portal fallback; and
-- idempotent retry without duplicate cycle records.
+- idempotent retry without duplicate test execution records.
 
 ## DevAudit portal implementation plan
 
 ### Phase P1 - additive schema and repositories
 
-1. Add `release_bundle_memberships`, `test_cycles`, and approval snapshot storage.
-2. Add `test_cycle_record_id` and evidence scope to `compliance_evidence`.
+1. Add `release_bundle_memberships`, test execution records, and approval snapshot storage.
+2. Add `test_execution_record_id` and evidence scope to `compliance_evidence`.
 3. Add indexes and uniqueness constraints for project/release/stage chronology and idempotency.
-4. Retain `test_cycle_id`, `bundle_context`, and `superseded_by_release_id` during migration.
+4. Retain `bundle_context` and `superseded_by_release_id` during migration; do not require backward-compatible cycle terminology in generated producer artefacts.
 5. Add repository and service methods with project and organisation ownership checks.
 
 ### Phase P2 - ingestion APIs
 
 1. Add authenticated, idempotent cycle start/upsert/complete endpoints.
-2. Extend evidence upload endpoints to accept a cycle record key and scope.
+2. Extend evidence upload endpoints to accept a test execution record key and scope.
 3. Add a versioned bundle-manifest ingestion endpoint.
 4. Resolve constituent releases by project and exact release identifier; never by nearest date alone.
 5. Reject cross-project links, self-supersession, cycles without a source release, and evidence/cycle ownership mismatches.
@@ -461,7 +461,7 @@ Add unit, integration, API, database, and browser tests covering:
 Existing releases must be repaired conservatively, beginning with REQ-090 through REQ-093.
 
 1. Dry-run the repair and report proposed releases, memberships, cycles, excluded document-only groups, outcomes, and confidence.
-2. Create inferred cycle records only for groups containing execution evidence.
+2. Create inferred test execution records only for groups containing execution evidence.
 3. Use workflow run metadata and timestamps to recover stage, attempt, outcome, commit, and URL.
 4. Mark incomplete reconstructions as `legacy_inferred` with `unknown` outcomes; do not manufacture pass results.
 5. Convert explicit `superseded_by_release_id` links and structured bundle items into membership rows.
@@ -514,7 +514,7 @@ The implementation must update, at minimum:
 - evidence ownership and inheritance rules; and
 - migration/repair runbook.
 
-Existing documents `docs/issues/test-cycles-producer.md` and `docs/issues/test-cycles-portal.md` describe the original evidence-grouping implementation. Their statement that no dedicated cycle entity is required is superseded by this design because the reviewer requirement now includes cycle lifecycle, failed executions with no artifacts, stage-specific counts, release ownership, and immutable audit snapshots.
+Existing documents `docs/issues/test-cycles-producer.md` and `docs/issues/test-cycles-portal.md` describe the original evidence-grouping implementation. Their statement that no dedicated cycle entity is required is superseded by this design because the reviewer requirement now includes test execution lifecycle, failed executions with no artifacts, stage-specific counts, release ownership, and immutable audit snapshots.
 
 ## Acceptance criteria
 
@@ -538,7 +538,7 @@ The work is complete only when all of the following are true:
 
 - Do not create fake release records for individual housekeeping commits.
 - Do not duplicate evidence into the successor release merely to make it visible.
-- Do not treat every GitHub workflow as a test cycle; only governed execution attempts qualify.
+- Do not treat every GitHub workflow as a test execution; only governed execution attempts qualify.
 - Do not erase failed, cancelled, superseded, or abandoned attempts from the audit history.
 - Do not infer release bundling solely from dates, branch names, or the next REQ number.
 - Do not replace detailed evidence with the summary matrix; the matrix is a navigational audit view over the underlying records.

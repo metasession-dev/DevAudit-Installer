@@ -24,12 +24,12 @@ export interface PushOptions {
   readonly gateStatus?: string;
   /** SDLC stage 1-5 — forwarded as `sdlcStage` (parity with upload-evidence.sh --sdlc-stage). */
   readonly sdlcStage?: string;
-  /** Test cycle identifier — forwarded as `testCycleId` (parity with upload-evidence.sh --test-cycle). */
-  readonly testCycleId?: string;
+  /** Test execution identifier - transported as `testCycleId` until the portal upload field is renamed. */
+  readonly testExecutionId?: string;
   /** Evidence ownership scope — forwarded as `evidenceScope`. */
   readonly evidenceScope?: EvidenceScope;
-  /** First-class cycle UUID — forwarded as `testCycleRecordId`. */
-  readonly testCycleRecordId?: string;
+  /** First-class test execution UUID - transported as `testCycleRecordId` until the portal upload field is renamed. */
+  readonly testExecutionRecordId?: string;
   /** Repeatable `key=value` pairs merged into the metadata JSON. */
   readonly metaKeys?: readonly string[];
   readonly baseUrl?: string;
@@ -94,12 +94,12 @@ export function validateOptions(options: PushOptions): string | null {
   }
   if (
     options.evidenceScope !== undefined &&
-    !['release', 'stage', 'cycle', 'approval'].includes(options.evidenceScope)
+    !['release', 'stage', 'execution', 'approval'].includes(options.evidenceScope)
   ) {
-    return '--evidence-scope must be one of: release, stage, cycle, approval';
+    return '--evidence-scope must be one of: release, stage, execution, approval';
   }
-  if (options.testCycleRecordId && options.evidenceScope !== 'cycle') {
-    return '--test-cycle-record-id requires --evidence-scope cycle';
+  if (options.testExecutionRecordId && options.evidenceScope !== 'execution') {
+    return '--test-execution-record-id requires --evidence-scope execution';
   }
   return null;
 }
@@ -185,10 +185,10 @@ export async function runPush(options: PushOptions): Promise<void> {
     ...(options.changeType !== undefined ? { changeType: options.changeType } : {}),
     ...(options.gateStatus !== undefined ? { gateStatus: options.gateStatus } : {}),
     ...(options.sdlcStage !== undefined ? { sdlcStage: options.sdlcStage } : {}),
-    ...(options.testCycleId !== undefined ? { testCycleId: options.testCycleId } : {}),
+    ...(options.testExecutionId !== undefined ? { testExecutionId: options.testExecutionId } : {}),
     ...(options.evidenceScope !== undefined ? { evidenceScope: options.evidenceScope } : {}),
-    ...(options.testCycleRecordId !== undefined
-      ? { testCycleRecordId: options.testCycleRecordId }
+    ...(options.testExecutionRecordId !== undefined
+      ? { testExecutionRecordId: options.testExecutionRecordId }
       : {}),
     ...(sentinelContent !== undefined ? { sentinelContent } : {}),
     ...(commitTimestamp !== undefined ? { commitTimestamp } : {}),

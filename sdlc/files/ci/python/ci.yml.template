@@ -357,19 +357,19 @@ jobs:
       - name: Generate and upload gate evidence
         if: env.DEVAUDIT_BASE_URL != ''
         run: |
-          chmod +x scripts/upload-evidence.sh scripts/report-test-cycle.sh 2>/dev/null || true
+          chmod +x scripts/upload-evidence.sh scripts/report-test-execution.sh 2>/dev/null || true
           FLAGS="--git-sha ${{ github.sha }} --ci-run-id ${{ github.run_id }} --branch ${{ github.ref_name }}"
           FLAGS="${FLAGS} --release ${{ needs.register-release.outputs.version }} --create-release-if-missing"
           FLAGS="${FLAGS} --environment uat"
           FLAGS="${FLAGS} --sdlc-stage 2"
-          PRIMARY_LINEAGE_FLAGS=(--test-cycle "${{ github.run_id }}")
-          CYCLE_OUT="$(mktemp)"
-          bash scripts/report-test-cycle.sh start \
+          PRIMARY_LINEAGE_FLAGS=(--test-execution "${{ github.run_id }}")
+          EXECUTION_OUT="$(mktemp)"
+          bash scripts/report-test-execution.sh start \
             --project-slug {{PROJECT_SLUG}} \
             --release "${{ needs.register-release.outputs.version }}" \
             --sdlc-stage 2 \
             --environment uat \
-            --cycle-kind quality_gate \
+            --suite-kind quality_gate \
             --provider github_actions \
             --external-run-id "${{ github.run_id }}" \
             --external-run-attempt "${{ github.run_attempt }}" \
@@ -378,11 +378,11 @@ jobs:
             --branch "${{ github.ref_name }}" \
             --workflow-name "Quality Gates" \
             --workflow-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
-            --output-file "$CYCLE_OUT"
-          . "$CYCLE_OUT"
-          rm -f "$CYCLE_OUT"
-          if [ "${cycle_supported:-false}" = "true" ] && [ -n "${cycle_record_id:-}" ]; then
-            PRIMARY_LINEAGE_FLAGS+=(--evidence-scope cycle --test-cycle-record-id "${cycle_record_id}")
+            --output-file "$EXECUTION_OUT"
+          . "$EXECUTION_OUT"
+          rm -f "$EXECUTION_OUT"
+          if [ "${execution_supported:-false}" = "true" ] && [ -n "${execution_record_id:-}" ]; then
+            PRIMARY_LINEAGE_FLAGS+=(--evidence-scope execution --test-execution-record-id "${execution_record_id}")
           fi
 
           UPLOAD_FAILURES=0
@@ -546,7 +546,7 @@ jobs:
             exit 1
           fi
 
-      - name: Complete primary quality-gate cycle
+      - name: Complete primary quality-gate execution
         if: always() && env.DEVAUDIT_BASE_URL != ''
         run: |
           case "${{ job.status }}" in
@@ -554,13 +554,13 @@ jobs:
             cancelled) OUTCOME=cancelled ;;
             *)         OUTCOME=failed ;;
           esac
-          chmod +x scripts/report-test-cycle.sh 2>/dev/null || true
-          bash scripts/report-test-cycle.sh complete \
+          chmod +x scripts/report-test-execution.sh 2>/dev/null || true
+          bash scripts/report-test-execution.sh complete \
             --project-slug {{PROJECT_SLUG}} \
             --release "${{ needs.register-release.outputs.version }}" \
             --sdlc-stage 2 \
             --environment uat \
-            --cycle-kind quality_gate \
+            --suite-kind quality_gate \
             --provider github_actions \
             --external-run-id "${{ github.run_id }}" \
             --external-run-attempt "${{ github.run_attempt }}" \

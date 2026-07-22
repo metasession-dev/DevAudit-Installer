@@ -151,7 +151,7 @@ The backend stores both with reviewer identity, SHA, and timestamp. This satisfi
 
 1. Wait for `post-deploy-prod.yml` to complete successfully **and** for its host-deployment check to confirm terminal success for the merged SHA.
 2. Open the release in DevAudit: `https://[DEVAUDIT_BASE_URL]/projects/[PROJECT_SLUG]/releases/[releaseId]`.
-3. Review the production deployment and smoke cycle records, their evidence, and any post-deploy actions logged in the release ticket. Do not approve while either cycle or the host deployment remains queued/in progress.
+3. Review the production deployment and smoke test execution records, their evidence, and any post-deploy actions logged in the release ticket. Do not approve while either execution or the host deployment remains queued/in progress.
 4. Click **Approve Production** — status transitions to `prod_approved`.
 5. Click **Mark as Released** — status transitions to `released`. This dispatches the automated close-out flow.
 

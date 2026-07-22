@@ -1,12 +1,12 @@
 ---
 name: sdlc-implementer
-description: Take a GitHub issue end-to-end through the Metasession SDLC. Opens with a Workflow Triage step (Phase 0) that classifies the change and routes it — tracked work continues into the full cycle; housekeeping/trivial/doc-only is driven to merge down a lightweight path (same step-by-step guidance, no tracked ceremony). Use when the user wants to implement a single GitHub issue as a complete SDLC cycle — Phase 1 (classify risk, write implementation plan, update RTM) through Phase 4 (open PR, request UAT review on the portal), then halt; and Phase 5 (merge, post-deploy smoke evidence, mark Released, or change-request loop) on resume. Trigger phrases — "implement issue #N", "fix issue #N", "do issue #N", "implement #N", "implement issue #N under the SDLC", "run the SDLC for issue #N", "automate REQ-XXX from issue to release", "do the SDLC stages for [issue]". Resume phrase — "resume REQ-XXX". MUST delegate end-to-end and visual-regression test work to the e2e-test-engineer skill in Phase 2; never authors e2e tests directly. Do NOT use for partial work — for stage-1 planning only, run the manual walkthrough; for test work alone, invoke e2e-test-engineer directly.
+description: Take a GitHub issue end-to-end through the Metasession SDLC. Opens with a Workflow Triage step (Phase 0) that classifies the change and routes it — tracked work continues into the full execution; housekeeping/trivial/doc-only is driven to merge down a lightweight path (same step-by-step guidance, no tracked ceremony). Use when the user wants to implement a single GitHub issue as a complete SDLC execution — Phase 1 (classify risk, write implementation plan, update RTM) through Phase 4 (open PR, request UAT review on the portal), then halt; and Phase 5 (merge, post-deploy smoke evidence, mark Released, or change-request loop) on resume. Trigger phrases — "implement issue #N", "fix issue #N", "do issue #N", "implement #N", "implement issue #N under the SDLC", "run the SDLC for issue #N", "automate REQ-XXX from issue to release", "do the SDLC stages for [issue]". Resume phrase — "resume REQ-XXX". MUST delegate end-to-end and visual-regression test work to the e2e-test-engineer skill in Phase 2; never authors e2e tests directly. Do NOT use for partial work — for stage-1 planning only, run the manual walkthrough; for test work alone, invoke e2e-test-engineer directly.
 tags: [sdlc, orchestration, compliance, automation]
 ---
 
 # SDLC implementer
 
-Take a single GitHub issue end-to-end through the Metasession SDLC. The skill **triages first** (Phase 0): it classifies the change, announces the path it will take, and routes — only a **tracked** change continues into the full cycle, while housekeeping, trivial, and compliance-doc-only work is driven down its lighter path **to completion** (the skill still guides every step to merge; it just skips the tracked ceremony). For a tracked change, one command runs Phase 1 through Phase 4 unattended (with a plan-approval pause for HIGH/CRITICAL risk); the human enters the loop at the UAT review gate on the portal. On resume, the skill runs Phase 5 — merge, post-deploy smoke evidence, mark the release Released, or address change-requests and re-submit for UAT re-review.
+Take a single GitHub issue end-to-end through the Metasession SDLC. The skill **triages first** (Phase 0): it classifies the change, announces the path it will take, and routes — only a **tracked** change continues into the full execution, while housekeeping, trivial, and compliance-doc-only work is driven down its lighter path **to completion** (the skill still guides every step to merge; it just skips the tracked ceremony). For a tracked change, one command runs Phase 1 through Phase 4 unattended (with a plan-approval pause for HIGH/CRITICAL risk); the human enters the loop at the UAT review gate on the portal. On resume, the skill runs Phase 5 — merge, post-deploy smoke evidence, mark the release Released, or address change-requests and re-submit for UAT re-review.
 
 This skill is a single entry point that **routes**, not one that always runs heavy. The change-type taxonomy it routes against is the canonical table in [`change-workflows.md`](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/change-workflows.md) (six change-types → commit-type → requirement? → path).
 
@@ -105,7 +105,7 @@ This gate is distinct from Phase 2 step 4's "any deviation from the plan must be
 
 ## Requirements gap flow (devaudit-installer#212)
 
-A **requirements gap** is "the ACs themselves were wrong, incomplete, or missing" — discovered by the skill or sub-skills mid-cycle, not by a user request. This is distinct from:
+A **requirements gap** is "the ACs themselves were wrong, incomplete, or missing" — discovered by the skill or sub-skills mid-execution, not by a user request. This is distinct from:
 
 - **Scope expansion** (user asks for something beyond the ACs → scope-expansion halt gate above)
 - **Defect** (implementation doesn't match the ACs → incident filing)
@@ -146,7 +146,7 @@ Amendment steps:
 8. If Phase 3+: re-compile affected evidence
 9. Continue from current phase
 
-**(c) File a follow-up REQ** — ship the current REQ as-is, file a separate issue for the requirements gap. Appropriate when the gap is a genuine new behaviour that deserves its own cycle. Continue with the current REQ unchanged.
+**(c) File a follow-up REQ** — ship the current REQ as-is, file a separate issue for the requirements gap. Appropriate when the gap is a genuine new behaviour that deserves its own execution. Continue with the current REQ unchanged.
 
 ### Distinction from scope-expansion halt gate
 
@@ -324,7 +324,7 @@ _Workflow tweak (CI artifact upload, gate timeout bump, etc.)_
 
 ### Lightweight path (housekeeping / trivial / compliance-doc-only)
 
-Reached from Phase 0 for non-tracked change-types. The skill drives this end-to-end; the only difference from the tracked cycle is the absence of _ceremony_, not the absence of _guidance_. It pauses only where a human is genuinely required (PR review, merge).
+Reached from Phase 0 for non-tracked change-types. The skill drives this end-to-end; the only difference from the tracked execution is the absence of _ceremony_, not the absence of _guidance_. It pauses only where a human is genuinely required (PR review, merge).
 
 **CI trigger shape — read once before step 7.** DevAudit-Installer-generated `ci.yml.template` runs `Quality Gates` on PRs to the integration branch and on pushes to the integration branch. Older consumers may still have post-merge-only CI (`push: branches: [<integration>]`, no `pull_request:` trigger) until they re-run `devaudit update`. The skill must adapt step 7's wording to whichever shape the project uses; never poll a PR for checks that won't arrive on that consumer yet.
 
@@ -513,22 +513,22 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
 
    If the validator fails, fix the summary before proceeding. E2E gate results must be one of: `PASS`, `FAIL`, `NOT_NEEDED` (with reason), or `SKIPPED` (with operator-approved rationale). The word "deferred" must never appear in `test-execution-summary.md` — not as a gate state, not in prose, not in final assessment. "Deferred to CI" and "Playwright browsers not installed locally" are environment issues, not gate states. The CI validator (`validate-test-summary.sh`) will reject any summary containing "deferred" or "browsers not installed" on PRs to main.
 
-5bb. **Render the Test Cycles table from the portal's cycle read model when available (devaudit-installer#394).** Do not hand-build cycle rows from uploaded artefacts if the portal exposes first-class cycle records. Query the release-journey / cycle API, save the JSON, and render the markdown table with:
+5b.1. **Render the Test Executions table from the portal's execution read model when available (devaudit-installer#394).** Do not hand-build execution rows from uploaded artefacts if the portal exposes first-class test execution records. Query the release-journey / execution API, save the JSON, and render the markdown table with:
 
    ```bash
-   bash scripts/render-test-cycles.sh /tmp/release-journey.json
+   bash scripts/render-test-executions.sh /tmp/release-journey.json
    ```
 
    First-class rows must preserve:
    - source release
    - SDLC stage
-   - cycle ordinal within that source release + stage
-   - cycle kind / outcome
+   - execution ordinal within that source release + stage
+   - execution kind / outcome
    - workflow or run link
    - related evidence
    - incident or remediation reference
 
-   If the portal does not yet expose first-class cycles, the same helper emits the legacy `testCycleId` grouping fallback and labels it as such. Keep the fallback note in the final `test-execution-summary.md`; it is part of the audit trail during rollout.
+   If the portal does not expose first-class test executions, do not infer executions from uploaded artefact groups. Record the gap in the summary and keep the release unresolved until the execution read model is available.
 
 5c. **Run the Phase 3 completion guard before any PR/release-review step (devaudit-installer#341).** The tracked-release evidence pack is incomplete until the required Git artefacts exist. Before proceeding past Phase 3, verify:
 
@@ -708,7 +708,7 @@ Invoked separately by the user after UAT activity on the portal. Trigger: "resum
        These steps are mandatory — "PR merged" or "release marked Released" is not complete until the automated close-out PR has merged or a documented fallback reconciliation is complete. Without it, CI can keep uploading evidence against a completed REQ and pollute the audit trail.
      - **Update SDLC status sticky** to the terminal state: `bash scripts/update-sdlc-status.sh "$ISSUE_NUM" "Phase 5 complete — release marked Released; production smoke evidence uploaded; automated close-out reconciled RTM and release ticket" "Done — close issue + retire feature branch (sdlc-implementer halts)"`.
      - Close the issue only after close-out reconciliation completes.
-     - If production smoke fails: do NOT mark as Released. **Delegate incident filing to `governance-doc-author` (devaudit-installer#210 §6c)** — invoke `Skill(name: "governance-doc-author", args: "Production smoke failure for REQ-XXX. File an incident issue with the `incident` label + `### Framework attribution` section (ISO29119.3.5.4 + SOC2.CC7.2), severity `blocker`. Include the production URL, git SHA, testCycleId (CI run ID), and smoke results in the issue body.")`. Page the on-call per the project's incident playbook, follow the rollback plan from the implementation plan. If the rollback also fails: update the sticky to "Phase 5 CRITICAL — production smoke failed AND rollback failed. Production is in a broken state. Operator action — page on-call immediately, engage hosting platform support, declare incident per the project's incident playbook. This is beyond the skill's scope." Do NOT attempt further automated remediation. **Update the sticky** to reflect the incident state: `… "Phase 5 BLOCKED — production smoke failed; INCIDENT issue #N filed" "Operator action — read INCIDENT #N + execute rollback per plan"`.
+     - If production smoke fails: do NOT mark as Released. **Delegate incident filing to `governance-doc-author` (devaudit-installer#210 §6c)** — invoke `Skill(name: "governance-doc-author", args: "Production smoke failure for REQ-XXX. File an incident issue with the `incident` label + `### Framework attribution` section (ISO29119.3.5.4 + SOC2.CC7.2), severity `blocker`. Include the production URL, git SHA, testExecutionId (CI run ID), and smoke results in the issue body.")`. Page the on-call per the project's incident playbook, follow the rollback plan from the implementation plan. If the rollback also fails: update the sticky to "Phase 5 CRITICAL — production smoke failed AND rollback failed. Production is in a broken state. Operator action — page on-call immediately, engage hosting platform support, declare incident per the project's incident playbook. This is beyond the skill's scope." Do NOT attempt further automated remediation. **Update the sticky** to reflect the incident state: `… "Phase 5 BLOCKED — production smoke failed; INCIDENT issue #N filed" "Operator action — read INCIDENT #N + execute rollback per plan"`.
 
    - **Changes requested** → run change-request loop:
      - Fetch change-request comments from the PR (`gh pr view <M> --comments`) and from the portal release page.

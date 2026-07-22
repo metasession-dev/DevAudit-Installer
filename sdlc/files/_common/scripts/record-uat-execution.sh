@@ -26,7 +26,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPORT_TEST_CYCLE="${REPORT_TEST_CYCLE_HELPER:-${SCRIPT_DIR}/report-test-cycle.sh}"
+REPORT_TEST_EXECUTION="${REPORT_TEST_EXECUTION_HELPER:-${SCRIPT_DIR}/report-test-execution.sh}"
 
 usage() {
   sed -n '1,38p' "$0" >&2
@@ -98,8 +98,8 @@ if [ -z "${DEVAUDIT_API_KEY:-}" ]; then
   echo "Error: DEVAUDIT_API_KEY environment variable is required" >&2
   exit 1
 fi
-if [ ! -x "$REPORT_TEST_CYCLE" ]; then
-  echo "Error: report-test-cycle helper not found or not executable: $REPORT_TEST_CYCLE" >&2
+if [ ! -x "$REPORT_TEST_EXECUTION" ]; then
+  echo "Error: report-test-execution helper not found or not executable: $REPORT_TEST_EXECUTION" >&2
   exit 1
 fi
 
@@ -154,7 +154,8 @@ COMMON_ARGS=(
   --release "$RELEASE_VERSION"
   --sdlc-stage 4
   --environment uat
-  --cycle-kind uat
+  --suite-kind uat
+  --iteration-key "uat:${RELEASE_VERSION}:${TESTED_SHA}"
   --provider manual_uat
   --external-run-id "$EXECUTION_ID"
   --external-job-id "manual-uat-execution"
@@ -175,8 +176,8 @@ if [ -n "$REMEDIATION_REF" ]; then
   COMPLETE_ARGS+=(--incident-reference "$REMEDIATION_REF")
 fi
 
-"$REPORT_TEST_CYCLE" start "${COMMON_ARGS[@]}" --output-file "$START_OUTPUT"
-"$REPORT_TEST_CYCLE" complete "${COMPLETE_ARGS[@]}" --output-file "$COMPLETE_OUTPUT"
+"$REPORT_TEST_EXECUTION" start "${COMMON_ARGS[@]}" --output-file "$START_OUTPUT"
+"$REPORT_TEST_EXECUTION" complete "${COMPLETE_ARGS[@]}" --output-file "$COMPLETE_OUTPUT"
 
 if [ -n "$OUTPUT_FILE" ]; then
   {
@@ -184,7 +185,7 @@ if [ -n "$OUTPUT_FILE" ]; then
     printf 'uat_idempotency_key=%s\n' "$IDEMPOTENCY_KEY"
     printf 'uat_outcome=%s\n' "$OUTCOME"
     printf 'uat_executed_at=%s\n' "$EXECUTED_AT"
-    grep '^cycle_' "$COMPLETE_OUTPUT" || true
+    grep '^execution_' "$COMPLETE_OUTPUT" || true
   } >> "$OUTPUT_FILE"
 fi
 
