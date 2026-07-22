@@ -340,6 +340,10 @@ describe('syncProject — native TS sync against a fixture', () => {
     expect(featureE2eYml).toContain('Register feature release and start feature E2E execution');
     expect(featureE2eYml).toContain('Complete feature E2E execution');
     expect(featureE2eYml).toContain('--evidence-scope execution --test-execution-record-id');
+    expect(featureE2eYml).toContain('Feature E2E produced no e2e-results.json');
+    expect(featureE2eYml).toMatch(/fixture-app "\$REQ_ID" e2e_result e2e-results\.json/);
+    expect(featureE2eYml).toContain('No evidenceShot screenshots were captured for ${REQ_ID}.');
+    expect(featureE2eYml).toMatch(/fixture-app "\$REQ_ID" screenshot "\$shot"/);
     await expectNoCompactTableSeparators(fixtureDir);
     // DevAudit-Installer#349: a summary alone must downgrade the gate for
     // test-maintenance REQs even when no REQ-specific tags exist on disk.
@@ -589,6 +593,10 @@ describe('syncProject — native TS sync against a fixture', () => {
     // Evidence upload with origin=feature and stage 2
     expect(featureE2eYml).toContain('--sdlc-stage 2');
     expect(featureE2eYml).toContain('--meta-key "origin=feature"');
+    expect(featureE2eYml).toContain('Feature E2E produced no e2e-results.json');
+    expect(featureE2eYml).toMatch(/fixture-app "\$REQ_ID" e2e_result e2e-results\.json/);
+    expect(featureE2eYml).toContain('No evidenceShot screenshots were captured for ${REQ_ID}.');
+    expect(featureE2eYml).toMatch(/fixture-app "\$REQ_ID" screenshot "\$shot"/);
   }, 30_000);
 
   it('renders feature-e2e.yml with services block when database_service is configured (#186)', async () => {
