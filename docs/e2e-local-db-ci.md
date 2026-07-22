@@ -99,5 +99,8 @@ existing projects regenerate an identical `ci.yml`. This is purely additive and 
 ## See also
 
 - [change workflows](./change-workflows.md) — which change produces which release.
+- [self-hosted runner CI prerequisites](./self-hosted-runner-ci.md) — durable
+  Linux inotify settings required before Turbopack/Playwright E2E on
+  self-hosted runners.
 - `sdlc-config.example.json` — the documented config (`_comment_e2e_setup` / `_comment_e2e_env`).
 - The `e2e-test-engineer` skill — authoring the specs that this gate runs.

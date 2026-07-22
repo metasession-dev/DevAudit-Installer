@@ -57,6 +57,17 @@ jobs:
           # tag each captured screenshot as feature vs regression.
           fetch-depth: 0
 
+      - name: Validate self-hosted runner prerequisites
+        env:
+          DEVAUDIT_RUNNER_ENVIRONMENT: ${{ runner.environment }}
+        run: |
+          if [ -f scripts/check-self-hosted-runner.sh ]; then
+            chmod +x scripts/check-self-hosted-runner.sh
+            bash scripts/check-self-hosted-runner.sh
+          else
+            echo "::warning::scripts/check-self-hosted-runner.sh missing; run devaudit update to sync runner preflight."
+          fi
+
       - name: Start authoritative quality-gate cycle
         if: github.event_name != 'pull_request' && github.ref_name == '{{INTEGRATION_BRANCH}}' && needs.register-release.outputs.version != 'skip'
         run: |
