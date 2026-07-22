@@ -138,6 +138,21 @@ run_validator
 assert_exit "no active context exits 1" 1
 assert_grep "hard error emitted without any active release context" "ERROR .*implementation commit but cites no requirement" 1
 
+# Case 5: leading REQ prefix is accepted before the Conventional Commit type.
+echo "Case 5: leading REQ prefix before type is accepted"
+make_fixture "$WORKDIR/case5" "[REQ-123] fix(reports): map dynamic category reports" "Co-Authored-By: Test <test@example.com>"
+run_validator
+assert_exit "leading REQ prefix exits 0" 0
+assert_grep "no conventional-commit error for leading REQ prefix" "Not Conventional Commits format" 0
+assert_grep "no missing-requirement error for leading REQ prefix" "implementation commit but cites no requirement" 0
+
+# Case 6: malformed leading REQ prefixes remain invalid.
+echo "Case 6: malformed leading REQ prefix is rejected"
+make_fixture "$WORKDIR/case6" "[REQ-12] fix: invalid short req prefix" "Co-Authored-By: Test <test@example.com>"
+run_validator
+assert_exit "malformed leading REQ prefix exits 1" 1
+assert_grep "malformed prefix is not treated as conventional" "Not Conventional Commits format" 1
+
 echo
 echo "Result: $PASS passed, $FAIL failed"
 [ "$FAIL" = "0" ]
