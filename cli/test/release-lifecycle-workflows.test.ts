@@ -108,4 +108,31 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     expect(source).toContain('DEVAUDIT_RUNNER_ENVIRONMENT: ${{ runner.environment }}');
     expect(source).toContain('bash scripts/check-self-hosted-runner.sh');
   });
+
+  it('scopes incident report uploads to their owning release', () => {
+    const source = template('compliance-evidence.yml.template');
+    expect(source).toContain('frontmatter_value()');
+    expect(source).toContain('bundle_manifest_allows_source_release()');
+    expect(source).toContain('missing required frontmatter incident_kind');
+    expect(source).toContain('nil incident reports require source_release frontmatter');
+    expect(source).toContain('incident reports require source_issue frontmatter');
+    expect(source).toContain('source release ${TARGET_RELEASE} is not ${DERIVED_RELEASE}');
+    expect(source).toContain('--release "${TARGET_RELEASE}"');
+    expect(source).toContain('--evidence-scope release');
+    expect(source).toContain('--meta-key "incident_kind=${KIND}"');
+    expect(source).toContain('--meta-key "source_release=${TARGET_RELEASE}"');
+    expect(source).toContain('--meta-key "semantic_id=${SEMANTIC_ID}"');
+    expect(source).toContain('--meta-key "content_hash=${CONTENT_HASH}"');
+  });
+
+  it('exports incident reports with source ownership frontmatter', () => {
+    const source = template('incident-export.yml.template');
+    expect(source).toContain('Baseline-only incident export requires the issue body to reference its owning REQ-XXX');
+    expect(source).toContain('SOURCE_RELEASE=$(printf');
+    expect(source).toContain('incident_kind: \\"incident\\"');
+    expect(source).toContain('source_release: \\"\'"${SOURCE_RELEASE}"\'\\"');
+    expect(source).toContain('source_issue: \\"" + (.number|tostring) + "\\"');
+    expect(source).toContain('source_issue_url: ');
+    expect(source).toContain('semantic_id: \\"INC-');
+  });
 });

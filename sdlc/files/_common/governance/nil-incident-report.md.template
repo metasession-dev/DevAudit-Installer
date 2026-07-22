@@ -1,5 +1,8 @@
 ---
 incident_id: "NIL-<version>"
+incident_kind: "no_incidents_attestation"
+source_release: "<version>"
+semantic_id: "NIL-<version>"
 severity: "N/A"
 detected_at: "<release date>"
 resolved_at: "N/A"

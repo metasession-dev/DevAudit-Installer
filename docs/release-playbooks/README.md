@@ -89,6 +89,14 @@ ownership and journey views must show predecessors as linked historical context,
 not active approvals. The close-out moves absorbed predecessor tickets to
 `compliance/superseded-releases/` when the manifest identifies them.
 
+Incident evidence follows the same ownership rule. `incident-report*.md` and
+`nil-incident-report*.md` must carry frontmatter that identifies
+`incident_kind`, `source_release`, and a stable semantic id. The generated
+evidence workflow uploads only incident artefacts owned by the derived release,
+or by an explicitly listed bundle predecessor; inherited incident artefacts are
+uploaded to their source release and referenced through lineage, never relabelled
+as evidence newly produced by the approval envelope.
+
 ### Close-out
 
 `released` in the portal is the trigger for close-out, not merely a merged PR.

@@ -499,9 +499,10 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
 
 5. **Generate nil incident report if no incidents were closed (devaudit-installer#210 §8a).** After the test pack re-run passes, check whether any `incident`-labelled issues were closed during this REQ's lifecycle (`gh issue list --label incident --state closed --search "REQ-XXX" --json number`). If none were closed and the test pack re-run passes:
    - Create `compliance/governance/nil-incident-report-<version>.md` from the `nil-incident-report.md.template` template.
+   - Set frontmatter `incident_kind: "no_incidents_attestation"`, `source_release: "<version>"`, and `semantic_id: "NIL-<version>"`. The `source_release` must be the REQ or standalone housekeeping release that actually owns the attestation.
    - Fill in the scope section (test cases executed/passed/failed, defects filed, incidents reported).
    - Leave the sign-off section with REPLACE markers — the operator fills it in.
-   - The nil report uploads as `incident_report` evidence via `compliance-evidence.yml`'s `upload_incident_report` function, flipping `ISO29119.3.5.4` to COVERED for clean releases.
+   - The nil report uploads as source-owned `incident_report` evidence via `compliance-evidence.yml`'s `upload_incident_report` function, flipping `ISO29119.3.5.4` to COVERED for clean releases. Historical nil reports are not re-uploaded to later REQs unless an explicit bundle manifest references the source release; even then ownership remains on the source release.
    - If incidents WERE closed, skip nil report generation — the populated incident report(s) from `incident-export.yml` serve as the evidence.
 
 5b. **Validate test-execution-summary.md gate states (devaudit-installer#240).** Before uploading evidence, verify that `compliance/evidence/REQ-XXX/test-execution-summary.md` does not contain invalid gate states. Run:
