@@ -167,11 +167,47 @@ jobs:
           if [ -d playwright-report ]; then
             zip -qr playwright-report.zip playwright-report/ 2>/dev/null || true
           fi
+          LINEAGE_FLAGS=(--test-execution "${{ github.run_id }}")
+          if [ "${{ steps.exec.outputs.execution_supported }}" = "true" ] && [ -n "${{ steps.exec.outputs.execution_record_id }}" ]; then
+            LINEAGE_FLAGS+=(--evidence-scope execution --test-execution-record-id "${{ steps.exec.outputs.execution_record_id }}")
+          fi
+          UPLOAD_FAILURES=0
+
+          if [ ! -f e2e-results.json ]; then
+            echo "::error::Feature E2E produced no e2e-results.json"
+            exit 1
+          fi
+          bash scripts/upload-evidence.sh \
+            {{PROJECT_SLUG}} "$REQ_ID" e2e_result e2e-results.json \
+            --category e2e_result --release "$REQ_ID" --create-release-if-missing \
+            --environment uat --sdlc-stage 2 \
+            --git-sha "${{ github.event.pull_request.head.sha }}" \
+            --ci-run-id "${{ github.run_id }}" --branch "${{ github.head_ref }}" \
+            "${LINEAGE_FLAGS[@]}" \
+            --meta-key "origin=feature" \
+            || UPLOAD_FAILURES=$((UPLOAD_FAILURES + 1))
+
+          SHOT_DIR="compliance/evidence/${REQ_ID}/screenshots"
+          shopt -s nullglob
+          SHOTS=("${SHOT_DIR}"/*.png)
+          shopt -u nullglob
+          if [ "${#SHOTS[@]}" -eq 0 ]; then
+            echo "::error::No evidenceShot screenshots were captured for ${REQ_ID}."
+            exit 1
+          fi
+          for shot in "${SHOTS[@]}"; do
+            bash scripts/upload-evidence.sh \
+              {{PROJECT_SLUG}} "$REQ_ID" screenshot "$shot" \
+              --category screenshot --release "$REQ_ID" --create-release-if-missing \
+              --environment uat --sdlc-stage 2 \
+              --git-sha "${{ github.event.pull_request.head.sha }}" \
+              --ci-run-id "${{ github.run_id }}" --branch "${{ github.head_ref }}" \
+              "${LINEAGE_FLAGS[@]}" \
+              --meta-key "origin=feature" \
+              || UPLOAD_FAILURES=$((UPLOAD_FAILURES + 1))
+          done
+
           if [ -f playwright-report.zip ]; then
-            LINEAGE_FLAGS=(--test-execution "${{ github.run_id }}")
-            if [ "${{ steps.exec.outputs.execution_supported }}" = "true" ] && [ -n "${{ steps.exec.outputs.execution_record_id }}" ]; then
-              LINEAGE_FLAGS+=(--evidence-scope execution --test-execution-record-id "${{ steps.exec.outputs.execution_record_id }}")
-            fi
             bash scripts/upload-evidence.sh \
               {{PROJECT_SLUG}} "$REQ_ID" feature_e2e_report playwright-report.zip \
               --category e2e_report --release "$REQ_ID" --create-release-if-missing \
@@ -181,6 +217,10 @@ jobs:
               "${LINEAGE_FLAGS[@]}" \
               --meta-key "origin=feature" \
               || echo "::warning::feature E2E report upload failed"
+          fi
+          if [ "$UPLOAD_FAILURES" -gt 0 ]; then
+            echo "::error::${UPLOAD_FAILURES} feature E2E evidence upload(s) failed"
+            exit 1
           fi
 
       - name: Complete feature E2E execution
