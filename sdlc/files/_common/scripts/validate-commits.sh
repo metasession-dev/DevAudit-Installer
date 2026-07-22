@@ -21,11 +21,12 @@ echo "=== Commit Convention Validation ==="
 echo "Comparing: $BASE_BRANCH...HEAD"
 echo ""
 
-# Conventional Commit regex: type(optional-scope): description
+# Conventional Commit regex: optional [REQ-XXX] prefix, then
+# type(optional-scope): description.
 # Scope accepts anything except `)` so multi-scope subjects like
 # `feat(auth,profile):` and `fix(rewards/expiry):` validate. The closing-paren
-# guard prevents pathological inputs. DevAudit-Installer#93.
-CC_REGEX='^(feat|fix|docs|test|refactor|chore|compliance|security|perf|ci|build|revert)(\([^)]+\))?!?: .+'
+# guard prevents pathological inputs. DevAudit-Installer#93/#440.
+CC_REGEX='^(\[REQ-[0-9]{3,}\][[:space:]]+)?(feat|fix|docs|test|refactor|chore|compliance|security|perf|ci|build|revert)(\([^)]+\))?!?: .+'
 
 COMMITS=$(git log "$BASE_BRANCH"..HEAD --format='%H' || true)
 
@@ -78,7 +79,8 @@ while IFS= read -r sha; do
   # are exempt. Mirrors the commitlint rule; this is the PR-CI half that
   # `--no-verify` can't skip. Work starts from a requirement (which starts
   # from an issue) — use the sdlc-implementer skill to assign one.
-  TYPE=$(echo "$SUBJECT" | grep -oE '^[a-z]+' || true)
+  SUBJECT_FOR_TYPE=$(echo "$SUBJECT" | sed -E 's/^\[REQ-[0-9]{3,}\][[:space:]]+//')
+  TYPE=$(echo "$SUBJECT_FOR_TYPE" | grep -oE '^[a-z]+' || true)
   case "$TYPE" in
     feat|fix|refactor|perf)
       if ! echo "$SUBJECT" | grep -qP '\[REQ-\d{3,}\]' \
