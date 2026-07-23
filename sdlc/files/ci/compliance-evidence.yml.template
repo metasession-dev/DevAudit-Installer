@@ -910,6 +910,10 @@ jobs:
           fi
 
           if [ "${#REQS[@]}" -eq 0 ]; then
+            if echo "$DERIVED_RELEASE" | grep -qE '^v[0-9]{4}\.[0-9]{2}\.[0-9]{2}([.][0-9]+)?$'; then
+              echo "No tracked REQ was executed for standalone/integration housekeeping ${DERIVED_RELEASE}; preserving this as GitHub historical CI without portal approval evidence."
+              exit 0
+            fi
             REQS=(_compliance-docs)
           fi
           # A bounded Playwright process exits the workflow with `failure`
