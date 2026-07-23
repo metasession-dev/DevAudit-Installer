@@ -472,11 +472,11 @@ jobs:
     name: Upload Evidence
     runs-on: {{RUNNER}}
     needs: [quality-gates, register-release]
-    # `always()` instead of `!failure()` so failed gates still upload their
-    # evidence — `status=failed` is itself the audit trail. `!cancelled()`
-    # still guards against partial state on operator-cancel.
-    # DevAudit-Installer#96.
-    if: ${{ always() && github.ref_name == '{{INTEGRATION_BRANCH}}' && needs.register-release.result == 'success' }}
+    # `!cancelled()` preserves failed-gate evidence on eligible integration
+    # pushes, while a pull request remains an intentionally inapplicable,
+    # cleanly skipped job. `always()` caused GitHub to mark this job cancelled
+    # when Register Release was correctly skipped on a no-REQ PR (#500).
+    if: ${{ !cancelled() && github.event_name != 'pull_request' && github.ref_name == '{{INTEGRATION_BRANCH}}' && needs.register-release.result == 'success' }}
     env:
       DEVAUDIT_BASE_URL_VAR: ${{ vars.DEVAUDIT_BASE_URL }}
       DEVAUDIT_API_KEY: ${{ secrets.DEVAUDIT_API_KEY }}

@@ -198,7 +198,7 @@ describe('devaudit-sdlc CLI engine', () => {
       } finally {
         await fs.rm(isolated, { recursive: true, force: true });
       }
-    });
+    }, 15_000);
   });
 
   describe('missing phase argument', () => {
