@@ -14,6 +14,15 @@ const reference = (name: string) =>
   );
 
 describe('authoritative release lifecycle workflow templates (#405)', () => {
+  it('reports a tracked close-out only after its reconciliation PR merges', () => {
+    const source = template('close-out-completion.yml.template');
+    expect(source).toContain("types: [closed]");
+    expect(source).toContain("github.event.pull_request.merged == true");
+    expect(source).toContain("startsWith(github.event.pull_request.head.ref, 'chore/close-out-')");
+    expect(source).toContain('/api/ci/releases/resolve');
+    expect(source).toContain('/close-out');
+    expect(source).toContain('Standalone and integration housekeeping have no tracked close-out callback.');
+  });
   it('records quality-gate lifecycle around execution and uses the upstream job result', () => {
     const source = template('ci.yml.template');
     expect(source).toContain('quality-gates:\n    name: Quality Gates\n    needs: [register-release]');
