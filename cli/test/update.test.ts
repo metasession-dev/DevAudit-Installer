@@ -234,7 +234,7 @@ describe('syncProject — native TS sync against a fixture', () => {
     );
     expect(ciYml).toMatch(/register-release:[\s\S]*if: \$\{\{ github\.event_name != 'pull_request' && github\.ref_name == 'develop' \}\}/);
     expect(ciYml).toMatch(
-      /upload-evidence:[\s\S]*if: \$\{\{ always\(\) && github\.ref_name == 'develop' && needs\.register-release\.result == 'success' \}\}/,
+      /upload-evidence:[\s\S]*if: \$\{\{ !cancelled\(\) && github\.event_name != 'pull_request' && github\.ref_name == 'develop' && needs\.register-release\.result == 'success' \}\}/,
     );
     expect(ciYml).toContain('scripts/report-test-execution.sh start');
     expect(ciYml).toContain('--evidence-scope execution --test-execution-record-id');
