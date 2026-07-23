@@ -75,6 +75,12 @@ jobs:
             exit 0
           fi
 
+          chmod +x scripts/verify-auto-merge-checks.sh
+          if ! bash scripts/verify-auto-merge-checks.sh "$GITHUB_REPOSITORY" "$BASE_REF" "$HEAD_SHA"; then
+            echo "PR #$PR_NUMBER is not ready: every required check run for the current SHA must be terminal-green."
+            exit 0
+          fi
+
           if gh pr merge "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --merge; then
             echo "Merged PR #$PR_NUMBER."
             exit 0

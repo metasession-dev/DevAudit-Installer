@@ -16,6 +16,7 @@ rg -q --fixed-strings 'actions/checkout@v4' "$WORKFLOW"
 rg -q --fixed-strings 'ref: ${{ github.event.repository.default_branch }}' "$WORKFLOW"
 rg -q --fixed-strings 'persist-credentials: false' "$WORKFLOW"
 rg -q --fixed-strings 'resolve-auto-merge-pr.sh' "$WORKFLOW"
+rg -q --fixed-strings 'verify-auto-merge-checks.sh' "$WORKFLOW"
 
 checkout_line="$(rg -n --fixed-strings 'actions/checkout@v4' "$WORKFLOW" | cut -d: -f1)"
 helper_line="$(rg -n --fixed-strings 'resolve-auto-merge-pr.sh' "$WORKFLOW" | head -n1 | cut -d: -f1)"
