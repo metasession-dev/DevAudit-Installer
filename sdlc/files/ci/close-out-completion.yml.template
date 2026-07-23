@@ -1,0 +1,56 @@
+name: Report Release Close-out Completion
+
+on:
+  pull_request:
+    branches: [develop]
+    types: [closed]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  report-completion:
+    if: github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'chore/close-out-')
+    runs-on: {{RUNNER}}
+    env:
+      DEVAUDIT_API_KEY: ${{ secrets.DEVAUDIT_API_KEY }}
+      PROJECT_SLUG: {{PROJECT_SLUG}}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+
+      - name: Report tracked close-out completion
+        run: |
+          set -euo pipefail
+          REQ="$(printf '%s' '${{ github.event.pull_request.head.ref }}' | sed -n 's#^chore/close-out-\(REQ-[0-9][0-9][0-9]*\)$#\1#p')"
+          if [ -z "$REQ" ]; then
+            echo "Standalone and integration housekeeping have no tracked close-out callback."
+            exit 0
+          fi
+          BASE="$(jq -r '.devaudit.base_url // empty' sdlc-config.json)"
+          if [ -z "$BASE" ] || [ -z "$DEVAUDIT_API_KEY" ]; then
+            echo "::error::DevAudit base URL and project API key are required for tracked close-out completion."
+            exit 1
+          fi
+          RELEASE="$(curl --fail-with-body -sS -G "${BASE%/}/api/ci/releases/resolve" \
+            -H "Authorization: Bearer ${DEVAUDIT_API_KEY}" \
+            --data-urlencode "projectSlug=${PROJECT_SLUG}" \
+            --data-urlencode "versionPrefix=${REQ}")"
+          RELEASE_ID="$(jq -r '.latest.id // empty' <<<"$RELEASE")"
+          RELEASE_VERSION="$(jq -r '.latest.version // empty' <<<"$RELEASE")"
+          if [ -z "$RELEASE_ID" ] || [ "$RELEASE_VERSION" != "$REQ" ]; then
+            echo "::error::Unable to resolve the tracked release ${REQ}; refusing callback."
+            exit 1
+          fi
+          curl --fail-with-body -sS -X POST "${BASE%/}/api/ci/releases/${RELEASE_ID}/close-out" \
+            -H "Authorization: Bearer ${DEVAUDIT_API_KEY}" \
+            -H 'Content-Type: application/json' \
+            --data "$(jq -nc \
+              --arg workflowRunId '${{ github.run_id }}' \
+              --arg workflowUrl '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}' \
+              --arg pullRequestUrl '${{ github.event.pull_request.html_url }}' \
+              --arg mergeSha '${{ github.event.pull_request.merge_commit_sha }}' \
+              --argjson pullRequestNumber '${{ github.event.pull_request.number }}' \
+              '{status:"completed",workflowRunId:$workflowRunId,workflowUrl:$workflowUrl,pullRequestNumber:$pullRequestNumber,pullRequestUrl:$pullRequestUrl,mergeSha:$mergeSha}')"

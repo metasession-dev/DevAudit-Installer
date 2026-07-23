@@ -54,8 +54,8 @@ jobs:
           REQ="${{ github.event.inputs.release }}${{ github.event.client_payload.release }}"
           PR="${{ github.event.inputs.release_pr }}${{ github.event.client_payload.release_pr }}"
           if ! printf '%s' "$REQ" | grep -qE '^REQ-[0-9]{3,}$'; then
-            echo "::error::No valid REQ-XXX supplied (inputs.release / client_payload.release)."
-            exit 1
+            echo "Standalone and integration housekeeping have no ticket/RTM close-out. No-op."
+            exit 0
           fi
           echo "req=${REQ}" >> "$GITHUB_OUTPUT"
           echo "pr=${PR}" >> "$GITHUB_OUTPUT"

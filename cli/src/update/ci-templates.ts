@@ -17,6 +17,7 @@ const CI_TEMPLATES = [
   'compliance-evidence.yml.template',
   'feature-e2e.yml.template',
   'close-out-release.yml.template',
+  'close-out-completion.yml.template',
   // DevAudit-Installer#98 WS3: quarterly cron → auto-PR with the
   // periodic-review.md regenerated from local stats.
   'periodic-review.yml.template',

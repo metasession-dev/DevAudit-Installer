@@ -14,6 +14,15 @@ const reference = (name: string) =>
   );
 
 describe('authoritative release lifecycle workflow templates (#405)', () => {
+  it('reports a tracked close-out only after its reconciliation PR merges', () => {
+    const source = template('close-out-completion.yml.template');
+    expect(source).toContain("types: [closed]");
+    expect(source).toContain("github.event.pull_request.merged == true");
+    expect(source).toContain("startsWith(github.event.pull_request.head.ref, 'chore/close-out-')");
+    expect(source).toContain('/api/ci/releases/resolve');
+    expect(source).toContain('/close-out');
+    expect(source).toContain('Standalone and integration housekeeping have no tracked close-out callback.');
+  });
   it('records quality-gate lifecycle around execution and uses the upstream job result', () => {
     const source = template('ci.yml.template');
     expect(source).toContain('quality-gates:\n    name: Quality Gates\n    needs: [register-release]');
@@ -118,6 +127,29 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     );
     expect(source).toContain('DEVAUDIT_RUNNER_ENVIRONMENT: ${{ runner.environment }}');
     expect(source).toContain('bash scripts/check-self-hosted-runner.sh');
+  });
+
+  it('exports the resolved DevAudit URL into the current quality-execution shell', () => {
+    const source = template('ci.yml.template');
+    expect(source).toContain('export DEVAUDIT_BASE_URL="${BASE%/}"');
+    expect(source).toContain('echo "DEVAUDIT_BASE_URL=${DEVAUDIT_BASE_URL}" >> "$GITHUB_ENV"');
+    expect(source.indexOf('export DEVAUDIT_BASE_URL')).toBeLessThan(
+      source.indexOf('bash scripts/report-test-execution.sh start'),
+    );
+  });
+
+  it('admits only declared standalone promotions without tracked portal approval', () => {
+    const source = template('check-release-approval.yml.template');
+    expect(source).toContain('Detect declared standalone housekeeping promotion');
+    expect(source).toContain("Standalone housekeeping promotion");
+    expect(source).toContain('scripts/standalone-housekeeping-release.sh validate');
+    expect(source).toContain("steps.standalone.outputs.standalone != 'true'");
+  });
+
+  it('keeps untagged bare-date E2E runs out of portal approval evidence', () => {
+    const source = template('compliance-evidence.yml.template');
+    expect(source).toContain('No tracked REQ was executed for standalone/integration housekeeping');
+    expect(source).toContain('preserving this as GitHub historical CI without portal approval evidence');
   });
 
   it('scopes incident report uploads to their owning release', () => {

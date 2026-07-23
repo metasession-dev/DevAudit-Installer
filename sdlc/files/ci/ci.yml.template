@@ -77,7 +77,8 @@ jobs:
           fi
           [ -n "$BASE" ] || BASE="$DEVAUDIT_BASE_URL_VAR"
           [ -n "$BASE" ] || { echo "::warning::No DevAudit URL; test execution lifecycle disabled"; exit 0; }
-          echo "DEVAUDIT_BASE_URL=${BASE%/}" >> "$GITHUB_ENV"
+          export DEVAUDIT_BASE_URL="${BASE%/}"
+          echo "DEVAUDIT_BASE_URL=${DEVAUDIT_BASE_URL}" >> "$GITHUB_ENV"
           chmod +x scripts/report-test-execution.sh scripts/report-release-check.sh 2>/dev/null || true
           bash scripts/report-test-execution.sh start \
             --project-slug {{PROJECT_SLUG}} \
