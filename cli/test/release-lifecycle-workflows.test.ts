@@ -39,6 +39,7 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     expect(source).toContain("'advisoryId', 'package', 'vulnerableRange', 'expiresAt', 'approvedBy', 'reason', 'remediationIssue'");
     expect(source).toContain("item['expiresAt'] < date.today().isoformat()");
     expect(source).toContain("item['vulnerableRange'] == finding.get('range')");
+    expect(source).toContain('print(len(unresolved))\n          PY\n          )');
   });
 
   it('records quality-gate lifecycle around execution and uses the upstream job result', () => {
