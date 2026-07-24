@@ -21,7 +21,7 @@
   },
   "dependencies": {
     "@metasession.co/devaudit-plugin-sdk": "file:../../plugin-sdk",
-    "execa": "^9.5.1"
+    "execa": "^10.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.9.0",
