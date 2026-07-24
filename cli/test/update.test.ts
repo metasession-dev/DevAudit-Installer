@@ -48,6 +48,9 @@ async function expectAllWorkflowsValidYaml(dir: string): Promise<void> {
     if (!wf.endsWith('.yml') && !wf.endsWith('.yaml')) continue;
     const content = await fs.readFile(join(workflowDir, wf), 'utf-8');
     expect(() => yamlLoad(content), `YAML parse: ${wf}`).not.toThrow();
+    for (const bytes of runBlockByteLengths(content)) {
+      expect(bytes, `GitHub expression-template limit in ${wf}`).toBeLessThan(20_000);
+    }
   }
 }
 
@@ -240,7 +243,6 @@ describe('syncProject — native TS sync against a fixture', () => {
     expect(ciYml).toContain('scripts/report-test-execution.sh start');
     expect(ciYml).toContain('--evidence-scope execution --test-execution-record-id');
     expect(ciYml).toContain('Complete primary quality-gate execution');
-    expect(Math.max(...runBlockByteLengths(ciYml))).toBeLessThan(20_000);
     // DevAudit-Installer#98 WS3 + WS4: governance auto-generation workflows
     // sync into .github/workflows/ alongside the gate workflows.
     expect(await fs.stat(join(fixtureDir, '.github', 'workflows', 'periodic-review.yml'))).toBeTruthy();
@@ -263,11 +265,15 @@ describe('syncProject — native TS sync against a fixture', () => {
       join(fixtureDir, '.github', 'workflows', 'compliance-evidence.yml'),
       'utf-8',
     );
-    expect(complianceEvidenceYml).toContain('/api/ci/projects/fixture-app/audit-log/export');
-    expect(complianceEvidenceYml).toContain('audit_log "$AUDIT_LOG_FILE"');
-    expect(complianceEvidenceYml).not.toContain('FLAGS="${FLAGS} --test-execution ${{ github.run_id }}"');
-    expect(complianceEvidenceYml).toContain('scripts/report-test-execution.sh start');
-    expect(complianceEvidenceYml).toContain('scripts/report-test-execution.sh complete');
+    const complianceUploader = await fs.readFile(
+      join(fixtureDir, 'scripts', 'upload-compliance-documents.sh'),
+      'utf-8',
+    );
+    expect(complianceEvidenceYml).toContain('bash scripts/upload-compliance-documents.sh');
+    expect(complianceEvidenceYml).toContain('DEVAUDIT_RELEASE_VERSION: ${{ steps.version.outputs.version }}');
+    expect(complianceUploader).toContain('/api/ci/projects/${DEVAUDIT_PROJECT_SLUG}/audit-log/export');
+    expect(complianceUploader).toContain('audit_log "$AUDIT_LOG_FILE"');
+    expect(complianceUploader).not.toContain('FLAGS="${FLAGS} --test-execution ${{ github.run_id }}"');
     // #409: ordinary housekeeping is integration history. The legacy path
     // that made approval artefacts, opened a PR, and dispatched CI is disabled.
     expect(complianceEvidenceYml).toContain('Legacy housekeeping approval path (disabled)');

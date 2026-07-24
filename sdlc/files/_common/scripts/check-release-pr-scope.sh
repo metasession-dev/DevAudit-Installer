@@ -27,15 +27,23 @@ import re
 title = os.environ.get("PR_TITLE", "")
 body = os.environ.get("PR_BODY", "")
 text = f"{title}\n{body}"
+scope = r"(?:REQ-\d+|v\d+\.\d+\.\d+|v\d{4}\.\d{2}\.\d{2}(?:\.\d+)?)"
+
+# An explicit release field is authoritative. Do not let a historical REQ in
+# the surrounding prose override it, and fail closed if its value is invalid.
+explicit_field = re.search(r"^[ \t\-*]*release:\s*(.*)$", text, re.IGNORECASE | re.MULTILINE)
+if explicit_field:
+    value = explicit_field.group(1).strip()
+    match = re.match(rf"`?({scope})`?(?![A-Za-z0-9_.-])", value, re.IGNORECASE)
+    if match:
+        print(match.group(1))
+    raise SystemExit(0)
+
 patterns = [
-    r"^[ \t\-*]*Release:\s*((?:REQ-\d+)|(?:v\d+\.\d+\.\d+)|(?:v\d{4}\.\d{2}\.\d{2}(?:\.\d+)?))\b",
-    r"\b(REQ-\d+)\b",
-    r"\b(v\d+\.\d+\.\d+)\b",
-    r"\b(v\d{4}\.\d{2}\.\d{2}(?:\.\d+)?)\b",
+    rf"\b({scope})\b",
 ]
-flags = re.MULTILINE
 for pattern in patterns:
-    match = re.search(pattern, text, flags)
+    match = re.search(pattern, text, re.IGNORECASE)
     if match:
         print(match.group(1))
         break

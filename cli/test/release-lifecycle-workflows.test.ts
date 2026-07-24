@@ -172,18 +172,20 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
 
   it('scopes incident report uploads to their owning release', () => {
     const source = template('compliance-evidence.yml.template');
-    expect(source).toContain('frontmatter_value()');
-    expect(source).toContain('bundle_manifest_allows_source_release()');
-    expect(source).toContain('missing required frontmatter incident_kind');
-    expect(source).toContain('nil incident reports require source_release frontmatter');
-    expect(source).toContain('incident reports require source_issue frontmatter');
-    expect(source).toContain('source release ${TARGET_RELEASE} is not ${DERIVED_RELEASE}');
-    expect(source).toContain('--release "${TARGET_RELEASE}"');
-    expect(source).toContain('--evidence-scope release');
-    expect(source).toContain('--meta-key "incident_kind=${KIND}"');
-    expect(source).toContain('--meta-key "source_release=${TARGET_RELEASE}"');
-    expect(source).toContain('--meta-key "semantic_id=${SEMANTIC_ID}"');
-    expect(source).toContain('--meta-key "content_hash=${CONTENT_HASH}"');
+    const uploader = commonScript('upload-compliance-documents.sh');
+    expect(source).toContain('bash scripts/upload-compliance-documents.sh');
+    expect(uploader).toContain('frontmatter_value()');
+    expect(uploader).toContain('bundle_manifest_allows_source_release()');
+    expect(uploader).toContain('missing required frontmatter incident_kind');
+    expect(uploader).toContain('nil incident reports require source_release frontmatter');
+    expect(uploader).toContain('incident reports require source_issue frontmatter');
+    expect(uploader).toContain('source release ${TARGET_RELEASE} is not ${DERIVED_RELEASE}');
+    expect(uploader).toContain('--release "${TARGET_RELEASE}"');
+    expect(uploader).toContain('--evidence-scope release');
+    expect(uploader).toContain('--meta-key "incident_kind=${KIND}"');
+    expect(uploader).toContain('--meta-key "source_release=${TARGET_RELEASE}"');
+    expect(uploader).toContain('--meta-key "semantic_id=${SEMANTIC_ID}"');
+    expect(uploader).toContain('--meta-key "content_hash=${CONTENT_HASH}"');
   });
 
   it('exports incident reports with source ownership frontmatter', () => {
