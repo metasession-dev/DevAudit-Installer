@@ -230,7 +230,7 @@ for pkg in \
 done
 ```
 
-If any package shows `MISMATCH`, check the release workflow logs — the publish step for that package may have failed.
+If any package shows `MISMATCH`, the release is incomplete even when GitHub Actions and the GitHub release show success. Do not update consumers. Check the exact `name@version` and tarball URL on the public npm registry, then fix forward with a new patch version because npm versions are immutable. The release workflow must verify each published package before it creates the GitHub release.
 
 ### 10. Verify consumer install works
 
