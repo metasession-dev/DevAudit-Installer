@@ -193,6 +193,7 @@ jobs:
                         if finding.get('severity') in ('high', 'critical') and not accepted(name, finding)]
           print(len(unresolved))
           PY
+          )
           echo "Unaccepted high/critical: $UNACCEPTED"
           if [ "$UNACCEPTED" != "0" ] && [ "$UNACCEPTED" != "unknown" ]; then
             echo "::error::$UNACCEPTED unaccepted high/critical vulnerability(ies)."
