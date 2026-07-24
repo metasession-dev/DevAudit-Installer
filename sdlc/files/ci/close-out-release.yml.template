@@ -96,6 +96,29 @@ jobs:
             echo "Nothing to close out (idempotent no-op) — no PR opened."
           fi
 
+      - name: Report verified manual close-out catch-up
+        if: github.event_name == 'workflow_dispatch' && steps.closeout.outputs.changed != 'true' && steps.merge.outputs.merged != 'true'
+        run: |
+          set -euo pipefail
+          REQ="${{ steps.in.outputs.req }}"
+          PR_REF="${{ steps.in.outputs.pr }}"
+          [ -n "$REQ" ] && [ -n "$PR_REF" ] || { echo "::error::Manual no-op reporting requires release and release_pr."; exit 1; }
+          PR_JSON="$(gh pr view "$PR_REF" --repo "$GITHUB_REPOSITORY" --json mergedAt,baseRefName,headRefName,mergeCommit,number,url)"
+          HEAD="$(jq -r '.headRefName // empty' <<<"$PR_JSON")"
+          BASE="$(jq -r '.baseRefName // empty' <<<"$PR_JSON")"
+          MERGED="$(jq -r '.mergedAt // empty' <<<"$PR_JSON")"
+          SHA="$(jq -r '.mergeCommit.oid // empty' <<<"$PR_JSON")"
+          NUMBER="$(jq -r '.number' <<<"$PR_JSON")"
+          URL="$(jq -r '.url' <<<"$PR_JSON")"
+          [ -n "$MERGED" ] && [ "$BASE" = develop ] && [ "$HEAD" = "chore/close-out-$REQ" ] && [ -n "$SHA" ] || { echo "::error::release_pr must be a merged develop close-out PR for $REQ."; exit 1; }
+          BASE_URL="${DEVAUDIT_BASE_URL:-}"
+          [ -n "$BASE_URL" ] && [ -n "$DEVAUDIT_API_KEY" ] || { echo "::error::DevAudit base URL and project API key are required."; exit 1; }
+          RELEASE="$(curl --fail-with-body -sS -G "${BASE_URL%/}/api/ci/releases/resolve" -H "Authorization: Bearer ${DEVAUDIT_API_KEY}" --data-urlencode "projectSlug={{PROJECT_SLUG}}" --data-urlencode "versionPrefix=${REQ}")"
+          RELEASE_ID="$(jq -r '.latest.id // empty' <<<"$RELEASE")"
+          RELEASE_VERSION="$(jq -r '.latest.version // empty' <<<"$RELEASE")"
+          [ "$RELEASE_VERSION" = "$REQ" ] && [ -n "$RELEASE_ID" ] || { echo "::error::Unable to resolve $REQ."; exit 1; }
+          curl --fail-with-body -sS -X POST "${BASE_URL%/}/api/ci/releases/${RELEASE_ID}/close-out" -H "Authorization: Bearer ${DEVAUDIT_API_KEY}" -H 'Content-Type: application/json' --data "$(jq -nc --arg workflowRunId '${{ github.run_id }}' --arg workflowUrl '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}' --arg pullRequestUrl "$URL" --arg mergeSha "$SHA" --argjson pullRequestNumber "$NUMBER" '{status:"completed",workflowRunId:$workflowRunId,workflowUrl:$workflowUrl,pullRequestNumber:$pullRequestNumber,pullRequestUrl:$pullRequestUrl,mergeSha:$mergeSha}')"
+
       - name: Close existing sync PRs for same REQ
         if: steps.closeout.outputs.changed == 'true' || steps.merge.outputs.merged == 'true'
         run: |
