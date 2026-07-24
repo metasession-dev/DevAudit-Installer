@@ -178,7 +178,9 @@ jobs:
 {{E2E_DEV_SERVER_STEP}}
 
       - name: Wait for dev server
-        run: npx wait-on http://localhost:3000 --timeout 120000
+        # The inner wait-on timeout is diagnostic; the outer deadline keeps a
+        # hung child from consuming the entire quality-gates job budget.
+        run: timeout --signal=TERM --kill-after=15s 150s npx wait-on http://localhost:3000 --timeout 120000
 
       # Compute the set of e2e spec files added on this branch (relative
       # to the merge base). The evidenceShot helper in the consumer's

@@ -84,7 +84,8 @@ jobs:
 {{E2E_DEV_SERVER_STEP}}
 
       - name: Wait for dev server
-        run: npx wait-on http://localhost:3000 --timeout 120000
+        # Keep a process-level bound in addition to wait-on's internal timer.
+        run: timeout --signal=TERM --kill-after=15s 150s npx wait-on http://localhost:3000 --timeout 120000
 
       # Compute the set of e2e spec files added on this branch (relative
       # to the merge base). The evidenceShot helper reads E2E_NEW_SPECS

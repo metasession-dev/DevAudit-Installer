@@ -167,6 +167,14 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     expect(source).toContain('bash scripts/check-self-hosted-runner.sh');
   });
 
+  it('hard-bounds generated dev-server readiness probes (#544)', () => {
+    for (const workflow of ['ci.yml.template', 'feature-e2e.yml.template']) {
+      expect(template(workflow)).toContain(
+        'timeout --signal=TERM --kill-after=15s 150s npx wait-on http://localhost:3000 --timeout 120000',
+      );
+    }
+  });
+
   it('exports the resolved DevAudit URL into the current quality-execution shell', () => {
     const source = template('ci.yml.template');
     expect(source).toContain('export DEVAUDIT_BASE_URL="${BASE%/}"');
