@@ -223,5 +223,49 @@ assert_exit "bare-date release without exception marker fails" 1 "$CODE"
 assert_grep "exception marker failure is clear" 'explicit standalone housekeeping exception' "$OUT"
 echo ""
 
+echo "--- Test 10: Markdown standalone scope wins over historical REQ prose ---"
+make_fixture "$WORK/test10" "chore: standalone housekeeping release"
+cat > "$WORK/test10/compliance/standalone-housekeeping/STANDALONE-HOUSEKEEPING-${BARE_DATE_VERSION}.json" <<EOF
+{
+  "schemaVersion": 1,
+  "version": "${BARE_DATE_VERSION}",
+  "releaseMode": "standalone_housekeeping",
+  "reason": "Reviewed operational change cannot wait for the next tracked requirement release."
+}
+EOF
+OUT="$WORK/test10.out"
+if run_check "$WORK/test10" "$OUT" env PR_TITLE="Standalone housekeeping promotion: ${BARE_DATE_VERSION}" PR_BODY=$"## Scope\n- Release: \`${BARE_DATE_VERSION}\`\n- Historical context: REQ-094 close-out recovery.\n"; then
+  CODE=0
+else
+  CODE=$?
+fi
+assert_exit "Markdown standalone scope wins over historical REQ prose" 0 "$CODE"
+assert_grep "Markdown standalone scope is verified" "Release Scope Integrity verified for ${BARE_DATE_VERSION}" "$OUT"
+echo ""
+
+echo "--- Test 11: Markdown tracked scope passes ---"
+make_fixture "$WORK/test11" "[REQ-093] feat: ship release"
+OUT="$WORK/test11.out"
+if run_check "$WORK/test11" "$OUT" env PR_TITLE="release: REQ-093" PR_BODY=$'## Scope\n- Release: `REQ-093`\n'; then
+  CODE=0
+else
+  CODE=$?
+fi
+assert_exit "Markdown tracked scope passes" 0 "$CODE"
+assert_grep "Markdown tracked scope is verified" 'Release Scope Integrity verified for REQ-093' "$OUT"
+echo ""
+
+echo "--- Test 12: malformed explicit scope fails without falling back ---"
+make_fixture "$WORK/test12" "[REQ-093] feat: ship release"
+OUT="$WORK/test12.out"
+if run_check "$WORK/test12" "$OUT" env PR_TITLE="prepare release" PR_BODY=$'## Scope\n- Release: `not-a-release`\n- Historical context: REQ-093\n'; then
+  CODE=0
+else
+  CODE=$?
+fi
+assert_exit "malformed explicit scope fails" 1 "$CODE"
+assert_grep "malformed explicit scope has clear error" 'do not declare a release scope' "$OUT"
+echo ""
+
 echo "=== check-release-pr-scope.test.sh: $PASS passed, $FAIL failed ==="
 [ "$FAIL" -eq 0 ]
