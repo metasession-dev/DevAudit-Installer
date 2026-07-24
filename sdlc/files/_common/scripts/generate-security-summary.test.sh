@@ -53,5 +53,38 @@ assert_contains "spaced separator in sign-off table" '| --- | --- | --- | --- |'
 assert_not_contains_regex "no compact separators remain" '^\|[-:|]+\|$' "$OUTPUT"
 echo
 
+DIR2="$TMPDIR_BASE/test2"
+mkdir -p "$DIR2"
+cd "$DIR2"
+printf '{ "results": [] }\n' > sast-results.json
+printf '{ "vulnerabilities": { "postcss": { "severity": "high" } } }\n' > dependency-audit.json
+printf '{ "sast": "PASS", "dependency_audit": "PASS" }\n' > gate-outcomes.json
+cat > dependency-risk-evaluation.json <<'JSON'
+{
+  "schemaVersion": 1,
+  "accepted": [
+    {
+      "advisoryId": "GHSA-fixture",
+      "package": "postcss",
+      "vulnerableVersion": "8.4.31",
+      "introducedBy": "next@16.2.11",
+      "acceptance": {
+        "expiresAt": "2026-12-31",
+        "approvedBy": "reviewer@example.test",
+        "remediationIssue": "https://github.com/example/repo/issues/1"
+      }
+    }
+  ],
+  "unresolved": []
+}
+JSON
+
+echo "Test 2: accepted dependency risk is identified in generated evidence"
+OUTPUT=$(bash "$HELPER" "REQ-322" 2>&1)
+assert_contains "accepted advisory emitted" "Accepted GHSA-fixture" "$OUTPUT"
+assert_contains "accepted risk owner emitted" "owner reviewer@example.test" "$OUTPUT"
+assert_contains "accepted risk remediation emitted" "https://github.com/example/repo/issues/1" "$OUTPUT"
+echo
+
 echo "Result: $PASS passed, $FAIL failed"
 [ "$FAIL" = "0" ]

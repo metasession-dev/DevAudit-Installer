@@ -19,6 +19,7 @@
 # - `sast-results.json` (Semgrep) — high/critical findings count
 # - `dependency-audit.json` (npm audit / pip-audit) — high/critical
 #   vulnerability count
+# - `dependency-risk-evaluation.json` — governed temporary acceptances
 # - `gate-outcomes.json` (DevAudit-Installer v0.1.29) — per-gate
 #   pass/fail/skip status
 #
@@ -91,6 +92,25 @@ dep_audit_summary() {
   echo "$TOTAL total vulnerability/ies · $HIGH high · $CRITICAL critical"
 }
 
+risk_acceptance_summary() {
+  if [ ! -f dependency-risk-evaluation.json ]; then
+    echo "No dependency-risk decision artifact was present for this run."
+    return
+  fi
+  if ! command -v jq >/dev/null 2>&1; then
+    echo "REPLACE — \`jq\` not available; inspect \`dependency-risk-evaluation.json\` manually"
+    return
+  fi
+  jq -r '
+    if (.accepted | length) == 0 then
+      "No temporary high/critical dependency risks were accepted."
+    else
+      .accepted[] | "- Accepted \(.advisoryId) — \(.package)@\(.vulnerableVersion), introduced by \(.introducedBy), expires \(.acceptance.expiresAt), owner \(.acceptance.approvedBy), remediation \(.acceptance.remediationIssue)"
+    end
+  ' dependency-risk-evaluation.json 2>/dev/null \
+    || echo "REPLACE — could not parse \`dependency-risk-evaluation.json\`"
+}
+
 # Helper: gate-outcomes.json (DevAudit-Installer v0.1.29 onwards).
 gate_outcomes_summary() {
   if [ ! -f gate-outcomes.json ]; then
@@ -107,6 +127,7 @@ gate_outcomes_summary() {
 
 SAST_SUMMARY=$(sast_summary)
 DEP_SUMMARY=$(dep_audit_summary)
+RISK_ACCEPTANCE_SUMMARY=$(risk_acceptance_summary)
 GATES=$(gate_outcomes_summary)
 
 cat <<EOF
@@ -133,7 +154,7 @@ generated_by: "generate-security-summary.sh (DevAudit-Installer#116)"
 
 **Release shape:** $SHAPE
 **Generated:** $TODAY
-**Source data:** \`sast-results.json\` + \`dependency-audit.json\` + \`gate-outcomes.json\` (this CI run)
+**Source data:** \`sast-results.json\` + \`dependency-audit.json\` + \`dependency-risk-evaluation.json\` + \`gate-outcomes.json\` (this CI run)
 
 ## SAST findings (Semgrep)
 
@@ -145,7 +166,11 @@ $SAST_SUMMARY
 
 $DEP_SUMMARY
 
-> **Policy:** the dependency-audit gate fails the build at \`high\` or \`critical\` severity. If this release shipped, both are zero.
+> **Policy:** the dependency-audit gate fails at \`high\` or \`critical\` severity unless every affected advisory has an exact, unexpired, reviewer-attributed acceptance. The raw audit count may therefore be non-zero only when the governed decision record below identifies the accepted risk.
+
+## Governed temporary dependency risks
+
+$RISK_ACCEPTANCE_SUMMARY
 
 ## Gate outcomes (per CI run)
 
