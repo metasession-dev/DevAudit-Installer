@@ -33,13 +33,12 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     expect(source).toContain('/api/ci/releases/${RELEASE_ID}/close-out');
   });
 
-  it('accepts only expiring advisory- and range-scoped dependency risks', () => {
+  it('delegates advisory-scoped dependency-risk evaluation to the synced fail-closed helper', () => {
     const source = template('ci.yml.template');
-    expect(source).toContain('compliance/security/accepted-vulnerabilities.json');
-    expect(source).toContain("'advisoryId', 'package', 'vulnerableRange', 'expiresAt', 'approvedBy', 'reason', 'remediationIssue'");
-    expect(source).toContain("item['expiresAt'] < date.today().isoformat()");
-    expect(source).toContain("item['vulnerableRange'] == finding.get('range')");
-    expect(source).toContain('print(len(unresolved))\n          PY\n          )');
+    expect(source).toContain('bash scripts/evaluate-npm-audit.sh');
+    expect(source).toContain('dependency-risk-evaluation.json');
+    expect(source).not.toContain('UNACCEPTED=$(python3');
+    expect(source).not.toContain('echo "unknown"');
   });
 
   it('records quality-gate lifecycle around execution and uses the upstream job result', () => {

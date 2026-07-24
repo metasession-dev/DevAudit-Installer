@@ -161,44 +161,12 @@ jobs:
         run: |
           # stderr → /dev/null so warnings can't corrupt the JSON (DevAudit #48)
           npm audit --json > dependency-audit.json 2>/dev/null || true
-          # Optional, repository-owned exceptions must be advisory- and
-          # range-specific, approved, and unexpired. Missing means none.
-          UNACCEPTED=$(python3 - <<'PY' 2>/dev/null || echo "unknown"
-          import json, os
-          from datetime import date
-          with open('dependency-audit.json') as f:
-              audit = json.load(f)
-          path = 'compliance/security/accepted-vulnerabilities.json'
-          exceptions = []
-          if os.path.exists(path):
-              with open(path) as f:
-                  exceptions = json.load(f).get('exceptions', [])
-          def accepted(package, finding):
-              advisory_ids = {
-                  item.get('url', '').rsplit('/', 1)[-1]
-                  for item in finding.get('via', []) if isinstance(item, dict)
-              }
-              for item in exceptions:
-                  required = ('advisoryId', 'package', 'vulnerableRange', 'expiresAt', 'approvedBy', 'reason', 'remediationIssue')
-                  if not all(item.get(key) for key in required):
-                      continue
-                  if item['expiresAt'] < date.today().isoformat():
-                      continue
-                  if item['package'] == package and item['vulnerableRange'] == finding.get('range') and item['advisoryId'] in advisory_ids:
-                      print(f"Accepted temporary risk: {item['advisoryId']} ({package}) until {item['expiresAt']}")
-                      return True
-              return False
-          findings = audit.get('vulnerabilities', {})
-          unresolved = [name for name, finding in findings.items()
-                        if finding.get('severity') in ('high', 'critical') and not accepted(name, finding)]
-          print(len(unresolved))
-          PY
-          )
-          echo "Unaccepted high/critical: $UNACCEPTED"
-          if [ "$UNACCEPTED" != "0" ] && [ "$UNACCEPTED" != "unknown" ]; then
-            echo "::error::$UNACCEPTED unaccepted high/critical vulnerability(ies)."
-            exit 1
-          fi
+          # The helper evaluates each high/critical advisory independently
+          # against the installed package-lock path and writes an auditable
+          # decision record. It is intentionally fail-closed: malformed audit
+          # output or a malformed/expired exception fails this gate.
+          chmod +x scripts/evaluate-npm-audit.sh 2>/dev/null || true
+          bash scripts/evaluate-npm-audit.sh
 
       # ── Gate 4: E2E Tests (Playwright) ──
 
@@ -281,6 +249,7 @@ jobs:
           path: |
             sast-results.json
             dependency-audit.json
+            dependency-risk-evaluation.json
             e2e-results.json
             e2e-auth-results.json
             playwright-report/
@@ -630,6 +599,15 @@ jobs:
           if [ -f ci-evidence/dependency-audit.json ]; then
             upload dependency-audit.json \
               {{PROJECT_SLUG}} _compliance-docs dependency_audit ci-evidence/dependency-audit.json \
+              --category security_scan --gate-status "$STATUS_DEPAUDIT" ${FLAGS} "${PRIMARY_LINEAGE_FLAGS[@]}"
+          fi
+
+          # The decision record explains each accepted temporary risk with its
+          # exact advisory, installed provenance, expiry, owner, and tracked
+          # remediation. It is separate from the raw npm audit artifact.
+          if [ -f ci-evidence/dependency-risk-evaluation.json ]; then
+            upload dependency-risk-evaluation.json \
+              {{PROJECT_SLUG}} _compliance-docs dependency_audit ci-evidence/dependency-risk-evaluation.json \
               --category security_scan --gate-status "$STATUS_DEPAUDIT" ${FLAGS} "${PRIMARY_LINEAGE_FLAGS[@]}"
           fi
 

@@ -196,6 +196,7 @@ describe('syncProject — native TS sync against a fixture', () => {
     expect(await fs.stat(join(fixtureDir, 'scripts', 'render-test-executions.sh'))).toBeTruthy();
     expect(await fs.stat(join(fixtureDir, 'scripts', 'validate-compliance-artifacts.sh'))).toBeTruthy();
     expect(await fs.stat(join(fixtureDir, 'scripts', 'generate-bundled-changes.sh'))).toBeTruthy();
+    expect(await fs.stat(join(fixtureDir, 'scripts', 'evaluate-npm-audit.sh'))).toBeTruthy();
     const generatedBundleScript = await fs.readFile(
       join(fixtureDir, 'scripts', 'generate-bundled-changes.sh'),
       'utf-8',

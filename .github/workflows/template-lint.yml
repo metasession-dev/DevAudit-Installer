@@ -67,8 +67,10 @@ jobs:
         run: |
           chmod +x sdlc/files/_common/scripts/check-release-pr-scope.sh
           chmod +x sdlc/files/_common/scripts/standalone-housekeeping-release.sh
+          chmod +x sdlc/files/_common/scripts/evaluate-npm-audit.sh
           bash sdlc/files/_common/scripts/check-release-pr-scope.test.sh
           bash sdlc/files/_common/scripts/standalone-housekeeping-release.test.sh
+          bash sdlc/files/_common/scripts/evaluate-npm-audit.test.sh
 
       - name: Check canonical release playbooks
         run: |
