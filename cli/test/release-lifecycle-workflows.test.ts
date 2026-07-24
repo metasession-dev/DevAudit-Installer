@@ -23,6 +23,24 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     expect(source).toContain('/close-out');
     expect(source).toContain('Standalone and integration housekeeping have no tracked close-out callback.');
   });
+
+  it('reports a verified manual no-op close-out only for its merged reconciliation PR', () => {
+    const source = template('close-out-release.yml.template');
+    expect(source).toContain('Report verified manual close-out catch-up');
+    expect(source).toContain("github.event_name == 'workflow_dispatch'");
+    expect(source).toContain('headRefName,mergeCommit,number,url');
+    expect(source).toContain('chore/close-out-$REQ');
+    expect(source).toContain('/api/ci/releases/${RELEASE_ID}/close-out');
+  });
+
+  it('accepts only expiring advisory- and range-scoped dependency risks', () => {
+    const source = template('ci.yml.template');
+    expect(source).toContain('compliance/security/accepted-vulnerabilities.json');
+    expect(source).toContain("'advisoryId', 'package', 'vulnerableRange', 'expiresAt', 'approvedBy', 'reason', 'remediationIssue'");
+    expect(source).toContain("item['expiresAt'] < date.today().isoformat()");
+    expect(source).toContain("item['vulnerableRange'] == finding.get('range')");
+  });
+
   it('records quality-gate lifecycle around execution and uses the upstream job result', () => {
     const source = template('ci.yml.template');
     expect(source).toContain('quality-gates:\n    name: Quality Gates\n    needs: [register-release]');
