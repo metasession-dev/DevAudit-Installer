@@ -61,6 +61,10 @@ This regenerates a Gate 4 that: runs `supabase start` + loads the local schema (
 starts `next dev` with the **local** Supabase coords + a dummy email key, waits for it, then
 runs Playwright with the same local env. No remote project, no real email.
 
+Generated readiness probes use both `wait-on`'s two-minute diagnostic timeout and
+an outer 150-second process deadline. A server that never becomes ready therefore
+fails the job promptly instead of consuming the full quality-gate timeout.
+
 Notes for this stack:
 
 - The local Supabase anon/service keys are the **well-known local-dev defaults** printed by
