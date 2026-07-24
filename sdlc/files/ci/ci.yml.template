@@ -161,18 +161,38 @@ jobs:
         run: |
           # stderr → /dev/null so warnings can't corrupt the JSON (DevAudit #48)
           npm audit --json > dependency-audit.json 2>/dev/null || true
-          ACCEPTED="{{ACCEPTED_DEP_RISKS}}"
-          UNACCEPTED=$(python3 -c "
-          import json
+          # Optional, repository-owned exceptions must be advisory- and
+          # range-specific, approved, and unexpired. Missing means none.
+          UNACCEPTED=$(python3 - <<'PY' 2>/dev/null || echo "unknown"
+          import json, os
+          from datetime import date
           with open('dependency-audit.json') as f:
-            data = json.load(f)
-          accepted = set('${ACCEPTED}'.split()) if '${ACCEPTED}' else set()
-          vulns = data.get('vulnerabilities', {})
-          issues = [name for name, v in vulns.items()
-                    if v.get('severity') in ('high', 'critical')
-                    and name not in accepted]
-          print(len(issues))
-          " 2>/dev/null || echo "unknown")
+              audit = json.load(f)
+          path = 'compliance/security/accepted-vulnerabilities.json'
+          exceptions = []
+          if os.path.exists(path):
+              with open(path) as f:
+                  exceptions = json.load(f).get('exceptions', [])
+          def accepted(package, finding):
+              advisory_ids = {
+                  item.get('url', '').rsplit('/', 1)[-1]
+                  for item in finding.get('via', []) if isinstance(item, dict)
+              }
+              for item in exceptions:
+                  required = ('advisoryId', 'package', 'vulnerableRange', 'expiresAt', 'approvedBy', 'reason', 'remediationIssue')
+                  if not all(item.get(key) for key in required):
+                      continue
+                  if item['expiresAt'] < date.today().isoformat():
+                      continue
+                  if item['package'] == package and item['vulnerableRange'] == finding.get('range') and item['advisoryId'] in advisory_ids:
+                      print(f"Accepted temporary risk: {item['advisoryId']} ({package}) until {item['expiresAt']}")
+                      return True
+              return False
+          findings = audit.get('vulnerabilities', {})
+          unresolved = [name for name, finding in findings.items()
+                        if finding.get('severity') in ('high', 'critical') and not accepted(name, finding)]
+          print(len(unresolved))
+          PY
           echo "Unaccepted high/critical: $UNACCEPTED"
           if [ "$UNACCEPTED" != "0" ] && [ "$UNACCEPTED" != "unknown" ]; then
             echo "::error::$UNACCEPTED unaccepted high/critical vulnerability(ies)."
