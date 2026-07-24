@@ -34,6 +34,9 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+      - name: Verify plugin-sdk is publicly installable
+        run: bash scripts/verify-npm-publication.sh @metasession.co/devaudit-plugin-sdk "$(jq -r .version plugin-sdk/package.json)"
+
       # ----- Step 2: rewrite file:../plugin-sdk → ^X.Y.Z in dependents -----
       # The file: ref keeps local dev working from a fresh clone. At publish
       # time we swap it to the version we just published, so the published
@@ -62,6 +65,9 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+      - name: Verify CLI is publicly installable
+        run: bash scripts/verify-npm-publication.sh @metasession.co/devaudit-cli "$(jq -r .version cli/package.json)"
+
       # ----- Step 4: plugins -----
       - name: prisma plugin — install + build + publish
         working-directory: plugins/devaudit-plugin-prisma
@@ -72,6 +78,9 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+      - name: Verify Prisma plugin is publicly installable
+        run: bash scripts/verify-npm-publication.sh @metasession.co/devaudit-plugin-prisma "$(jq -r .version plugins/devaudit-plugin-prisma/package.json)"
+
       - name: evidence-export plugin — install + build + publish
         working-directory: plugins/devaudit-plugin-evidence-export
         run: |
@@ -81,6 +90,9 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+      - name: Verify evidence-export plugin is publicly installable
+        run: bash scripts/verify-npm-publication.sh @metasession.co/devaudit-plugin-evidence-export "$(jq -r .version plugins/devaudit-plugin-evidence-export/package.json)"
+
       # ----- Step 5: devaudit-sdlc engine (#244) -----
       - name: devaudit-sdlc — publish
         working-directory: sdlc
@@ -88,6 +100,9 @@ jobs:
           npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Verify SDLC engine is publicly installable
+        run: bash scripts/verify-npm-publication.sh @metasession.co/devaudit-sdlc "$(jq -r .version sdlc/package.json)"
 
       # ----- Step 6: GitHub Release with auto-generated notes -----
       - name: Create GitHub Release
