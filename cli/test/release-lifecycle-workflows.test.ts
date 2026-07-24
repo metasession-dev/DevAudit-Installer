@@ -14,6 +14,26 @@ const reference = (name: string) =>
   );
 
 describe('authoritative release lifecycle workflow templates (#405)', () => {
+  it('does not create a GitHub release until every npm package is publicly retrievable (#534)', () => {
+    const source = readFileSync(resolve(root, '.github/workflows/release.yml'), 'utf8');
+    const verifier = readFileSync(resolve(root, 'scripts/verify-npm-publication.sh'), 'utf8');
+    const verificationNames = [
+      'Verify plugin-sdk is publicly installable',
+      'Verify CLI is publicly installable',
+      'Verify Prisma plugin is publicly installable',
+      'Verify evidence-export plugin is publicly installable',
+      'Verify SDLC engine is publicly installable',
+    ];
+
+    for (const name of verificationNames) {
+      expect(source).toContain(name);
+      expect(source.indexOf(name)).toBeLessThan(source.indexOf('Create GitHub Release'));
+    }
+    expect(verifier).toContain('npm view "${PACKAGE_NAME}@${EXPECTED_VERSION}" version');
+    expect(verifier).toContain('curl --fail --silent --show-error --location --head "$tarball_url"');
+    expect(verifier).toContain('Public npm verification timed out');
+  });
+
   it('reports a tracked close-out only after its reconciliation PR merges', () => {
     const source = template('close-out-completion.yml.template');
     expect(source).toContain("types: [closed]");
