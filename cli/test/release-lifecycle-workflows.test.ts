@@ -184,6 +184,14 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     expect(source).toContain("steps.standalone.outputs.standalone != 'true'");
   });
 
+  it('uploads a standalone declaration as common evidence owned by its bare-date release (#540)', () => {
+    const source = template('ci.yml.template');
+    expect(source).toContain('Upload standalone housekeeping declaration');
+    expect(source).toContain('{{PROJECT_SLUG}} _compliance-docs release_ticket "$DECLARATION"');
+    expect(source).toContain('--release "$VERSION" --create-release-if-missing');
+    expect(source).not.toContain('{{PROJECT_SLUG}} "$VERSION" release_ticket "$DECLARATION"');
+  });
+
   it('keeps untagged bare-date E2E runs out of portal approval evidence', () => {
     const source = template('compliance-evidence.yml.template');
     expect(source).toContain('No tracked REQ was executed for standalone/integration housekeeping');
