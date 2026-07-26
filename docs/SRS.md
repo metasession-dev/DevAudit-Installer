@@ -3064,3 +3064,6 @@ Behaviours below are **implicit, possibly unintended, or divergent from stated i
 | SRS-PIPE-086-001 | RTM readers and writers shall use one context-aware Markdown-table helper that requires the key and target headers in the containing table and preserves escaped pipes. |
 | SRS-PIPE-086-002 | Release close-out and compliance validation shall resolve RTM status/risk from the requirements table, never from a similarly named legend or unrelated table. |
 | SRS-PIPE-087-001 | A repository fixture backed by a mock portal shall prove one exact release identifier is retained through derivation, execution start/completion, portal resolution, RTM mutation, ticket movement, and close-out. |
+| SRS-PATCH-084-001 | `devaudit update` shall apply committed `.devaudit-patches/*.patch` files after canonical template sync and before validation, in lexical order. |
+| SRS-PATCH-084-002 | Clean patches apply atomically; already-upstream patches are reported as obsolete; conflicting or combined-incompatible patches fail nonzero with an actionable message. |
+| SRS-PATCH-084-003 | The patch directory is consumer-owned, remains untouched by sync, uses repository-relative paths, and is documented as a temporary exception requiring an upstream issue and later removal. |
