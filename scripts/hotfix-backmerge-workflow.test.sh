@@ -9,14 +9,18 @@ fail() {
   exit 1
 }
 
-grep -q 'repos/${GITHUB_REPOSITORY}/actions/permissions/workflow' "$WORKFLOW" \
-  || fail "workflow does not preflight the repository Actions PR setting"
-
-preflight_line="$(grep -n 'can_approve_pull_request_reviews' "$WORKFLOW" | head -n1 | cut -d: -f1)"
-push_line="$(grep -n 'git push --force-with-lease' "$WORKFLOW" | head -n1 | cut -d: -f1)"
-if [ "$preflight_line" -ge "$push_line" ]; then
-  fail "workflow must verify PR creation policy before pushing a temporary branch"
+if grep -q 'actions/permissions/workflow' "$WORKFLOW"; then
+  fail "workflow must not query the admin-only Actions permissions endpoint with GITHUB_TOKEN"
 fi
+
+grep -q '^  contents: write$' "$WORKFLOW" \
+  || fail "workflow does not declare contents write permission"
+
+grep -q '^  pull-requests: write$' "$WORKFLOW" \
+  || fail "workflow does not declare pull-request write permission"
+
+grep -q "Unable to push.*for hotfix back-merge" "$WORKFLOW" \
+  || fail "workflow does not report branch push failures"
 
 grep -q "Unable to create the reviewed hotfix back-merge PR" "$WORKFLOW" \
   || fail "workflow does not report PR creation failures"
