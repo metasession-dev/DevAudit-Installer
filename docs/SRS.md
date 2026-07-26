@@ -3055,3 +3055,12 @@ Behaviours below are **implicit, possibly unintended, or divergent from stated i
 | SRS-LIN-405-004 | Every terminal execution state, including failure without artifacts, cancellation, timeout, skipped, and action-required, shall remain visible.                                      |
 | SRS-LIN-405-005 | Evidence upload completeness shall be reported as a separate required check and shall not overwrite the execution outcome.                                                           |
 | SRS-LIN-405-006 | Consumer rollout shall deploy the tolerant portal contract before installer schema-v2 strict emission.                                                                               |
+
+## Appendix D — Release pipeline quality requirements (#85, #86, #87)
+
+| ID | Requirement |
+| --- | --- |
+| SRS-PIPE-085-001 | Installer CI shall reject synced shell helpers whose final `[ ... ] && command` or `[ ... ] \|\| command` can leak a nonzero status under `set -e`; fixtures shall prove the rejection and explicit-success form. |
+| SRS-PIPE-086-001 | RTM readers and writers shall use one context-aware Markdown-table helper that requires the key and target headers in the containing table and preserves escaped pipes. |
+| SRS-PIPE-086-002 | Release close-out and compliance validation shall resolve RTM status/risk from the requirements table, never from a similarly named legend or unrelated table. |
+| SRS-PIPE-087-001 | A repository fixture backed by a mock portal shall prove one exact release identifier is retained through derivation, execution start/completion, portal resolution, RTM mutation, ticket movement, and close-out. |
