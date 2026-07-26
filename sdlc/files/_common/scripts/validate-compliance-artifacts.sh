@@ -12,6 +12,10 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=markdown-table.sh
+source "$SCRIPT_DIR/markdown-table.sh"
+
 BASE_BRANCH="${1:-origin/main}"
 EXIT_CODE=0
 
@@ -53,6 +57,7 @@ find_first_match() {
   local match=""
   match=$(compgen -G "$pattern" | head -1 || true)
   [ -n "$match" ] && printf '%s' "$match"
+  return 0
 }
 
 require_bundled_fields() {
@@ -81,7 +86,9 @@ for REQ in $REQUIREMENTS; do
   # The `| $REQ ` pattern (leading pipe + trailing space) matches the
   # markdown table row used in RTM, so a substring elsewhere doesn't
   # accidentally satisfy it.
-  if ! grep -q "| $REQ " compliance/RTM.md 2>/dev/null; then
+  RTM_STATUS="$(markdown_table_cell \
+    compliance/RTM.md "$REQ" Status REQ-ID/ID Status 2>/dev/null || true)"
+  if [ -z "$RTM_STATUS" ]; then
     echo "  INFO: $REQ is referenced in commits but has no RTM row — skipping (forward-reference, not a tracked requirement for this release)"
     continue
   fi
@@ -187,12 +194,12 @@ for REQ in $REQUIREMENTS; do
   # by a successor (e.g. REQ-030 superseded by REQ-031). Without this
   # branch every PR with a commit referencing a SUPERSEDED REQ blocks
   # CI (#232).
-  if grep -q "$REQ" compliance/RTM.md 2>/dev/null; then
-    if grep "$REQ" compliance/RTM.md | grep -q "TESTED - PENDING SIGN-OFF"; then
+  if [ -n "$RTM_STATUS" ]; then
+    if printf '%s' "$RTM_STATUS" | grep -q "TESTED - PENDING SIGN-OFF"; then
       echo "  OK: RTM status is TESTED - PENDING SIGN-OFF"
-    elif grep "$REQ" compliance/RTM.md | grep -q "APPROVED"; then
+    elif printf '%s' "$RTM_STATUS" | grep -q "APPROVED"; then
       echo "  OK: RTM status is APPROVED"
-    elif grep "$REQ" compliance/RTM.md | grep -q "SUPERSEDED"; then
+    elif printf '%s' "$RTM_STATUS" | grep -q "SUPERSEDED"; then
       echo "  OK: RTM status is SUPERSEDED"
     else
       echo "  WARNING: RTM entry exists but status is not TESTED - PENDING SIGN-OFF"
@@ -371,7 +378,9 @@ for REQ in $REQUIREMENTS; do
   fi
 
   # Check implementation-plan.md for MEDIUM/HIGH risk (check RTM for risk level)
-  if grep "$REQ" compliance/RTM.md 2>/dev/null | grep -qiE 'MEDIUM|HIGH'; then
+  RTM_RISK="$(markdown_table_cell \
+    compliance/RTM.md "$REQ" Risk REQ-ID/ID Risk 2>/dev/null || true)"
+  if printf '%s' "$RTM_RISK" | grep -qiE 'MEDIUM|HIGH'; then
     if [ ! -f "compliance/evidence/$REQ/implementation-plan.md" ]; then
       echo "  ERROR: Implementation plan missing for MEDIUM/HIGH risk: compliance/evidence/$REQ/implementation-plan.md"
       EXIT_CODE=1

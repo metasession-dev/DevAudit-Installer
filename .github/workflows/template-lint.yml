@@ -24,7 +24,10 @@ on:
       - 'scripts/release-routing-contract.test.sh'
       - 'scripts/action-runtime-contract.test.sh'
       - 'scripts/check-recovery-workflow.test.sh'
+      - 'scripts/lint-shell-failure-modes.sh'
+      - 'scripts/lint-shell-failure-modes.test.sh'
       - 'scripts/runner-host/**'
+      - 'tests/release-pipeline-e2e/**'
       - '.github/workflows/template-lint.yml'
   pull_request:
     branches: [main, develop]
@@ -38,7 +41,10 @@ on:
       - 'scripts/release-routing-contract.test.sh'
       - 'scripts/action-runtime-contract.test.sh'
       - 'scripts/check-recovery-workflow.test.sh'
+      - 'scripts/lint-shell-failure-modes.sh'
+      - 'scripts/lint-shell-failure-modes.test.sh'
       - 'scripts/runner-host/**'
+      - 'tests/release-pipeline-e2e/**'
       - '.github/workflows/template-lint.yml'
 
 permissions:
@@ -91,8 +97,13 @@ jobs:
           bash scripts/action-runtime-contract.test.sh
           bash scripts/check-recovery-workflow.test.sh
           bash scripts/runner-host/runner-host.test.sh
+          bash scripts/lint-shell-failure-modes.test.sh
+          bash scripts/lint-shell-failure-modes.sh sdlc/files
 
       - name: Run extract-release-metadata tests
         run: |
           chmod +x sdlc/files/_common/scripts/extract-release-metadata.sh
           bash sdlc/files/_common/scripts/extract-release-metadata.test.sh
+
+      - name: Run release pipeline E2E fixture
+        run: bash tests/release-pipeline-e2e/run.sh
