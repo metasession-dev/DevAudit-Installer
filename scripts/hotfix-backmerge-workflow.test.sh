@@ -9,8 +9,13 @@ fail() {
   exit 1
 }
 
-if grep -q 'repos/${GITHUB_REPOSITORY}/actions/permissions/workflow' "$WORKFLOW"; then
-  fail "workflow must not call the repository workflow-permissions endpoint with GITHUB_TOKEN"
+grep -q 'repos/${GITHUB_REPOSITORY}/actions/permissions/workflow' "$WORKFLOW" \
+  || fail "workflow does not preflight the repository Actions PR setting"
+
+preflight_line="$(grep -n 'can_approve_pull_request_reviews' "$WORKFLOW" | head -n1 | cut -d: -f1)"
+push_line="$(grep -n 'git push --force-with-lease' "$WORKFLOW" | head -n1 | cut -d: -f1)"
+if [ "$preflight_line" -ge "$push_line" ]; then
+  fail "workflow must verify PR creation policy before pushing a temporary branch"
 fi
 
 grep -q "Unable to create the reviewed hotfix back-merge PR" "$WORKFLOW" \
@@ -21,5 +26,8 @@ grep -q "Allow GitHub Actions to create and approve pull requests" "$WORKFLOW" \
 
 grep -q "gh pr create" "$WORKFLOW" \
   || fail "workflow no longer creates the reviewed back-merge PR"
+
+grep -q 'git push origin --delete "$BACKMERGE_BRANCH"' "$WORKFLOW" \
+  || fail "workflow does not clean up the temporary branch after PR creation failure"
 
 echo "hotfix-backmerge workflow contract passed"

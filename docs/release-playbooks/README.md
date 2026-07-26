@@ -40,6 +40,15 @@ stale, cancelled, unexpectedly skipped, or failed checks mean `waiting` or
 `blocked`, never green. If auto-merge does not fire after that verification,
 manual merge is allowed.
 
+When GitHub leaves a stale check projection, run **Recover Required Checks**
+for the open PR in dry-run mode, then repeat with `apply` only when it identifies
+a completed Actions run that can be rerun on the same SHA. If GitHub never
+created a required check suite, the recovery must fail closed. Push an auditable
+empty commit to the PR branch to create a new SHA and obtain fresh
+`pull_request` dispatches. Never post a synthetic status, remove the required
+context, use an administrator bypass, or describe an underlying successful job
+as equivalent to a terminal-green check on the current SHA.
+
 ### Hotfix exception
 
 Use a hotfix only for production-impacting urgency: broken production, urgent
