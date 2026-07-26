@@ -146,7 +146,34 @@ Syncing several projects at once from anywhere:
 npx @metasession.co/devaudit-cli@latest update ../wawagardenbar-app ../META-JOBS
 ```
 
-Either path syncs: `_common/` stage docs, AI agent pointer files, SDLC rules into `INSTRUCTIONS.md`, stack-specific hooks and scripts (`stacks/<name>/`), host-specific config (`hosts/<name>/`), and CI workflow templates (`ci/`). The CLI additionally fires `beforeSync` / `afterSync` plugin lifecycle hooks. **What it does not touch:** the portal project, your API keys, GitHub secrets, branch protection, `sdlc-config.json`, or anything under `compliance/` — only the framework-owned files listed above.
+Either path syncs: `_common/` stage docs, AI agent pointer files, SDLC rules into `INSTRUCTIONS.md`, stack-specific hooks and scripts (`stacks/<name>/`), host-specific config (`hosts/<name>/`), and CI workflow templates (`ci/`). The CLI additionally fires `beforeSync` / `afterSync` plugin lifecycle hooks and then applies any reviewed consumer overrides from `.devaudit-patches/`. **What it does not touch:** the portal project, your API keys, GitHub secrets, branch protection, `sdlc-config.json`, anything under `compliance/`, or the patch files themselves.
+
+### Temporary consumer patches
+
+Use `.devaudit-patches/` only when a consuming project needs a reviewed,
+temporary correction before the corresponding Installer fix is released and
+adopted. Keep each standard unified diff in a separate `*.patch` file and commit
+it with the issue that justifies the exception:
+
+```bash
+mkdir -p .devaudit-patches
+git diff -- .github/workflows/ci.yml > .devaudit-patches/ci.yml.patch
+```
+
+`devaudit update` writes the canonical templates first, then processes patch
+files in lexical order:
+
+- **applied:** the consumer override was reapplied to the freshly synced tree;
+- **obsolete/already upstream:** the reverse patch matches, so review and
+  remove the patch in the same adoption PR;
+- **conflict:** neither direction applies cleanly; update stops nonzero before
+  applying the patch set. Re-roll the patch against the new upstream template
+  or remove it if the upstream fix supersedes it.
+
+Patch files must use repository-relative paths and must never modify files
+outside the consumer repository. They are an auditable escape hatch, not a
+permanent fork: every patch needs an upstream issue and should be deleted once
+that fix reaches the consumer.
 
 ### One-time migration: `META_COMPLY_*` → `DEVAUDIT_*` rename
 
