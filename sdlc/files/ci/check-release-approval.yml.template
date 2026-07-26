@@ -22,6 +22,10 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      runner_label:
+        description: 'Optional one-run runner label override. Blank uses repository CI_RUNNER_LABEL.'
+        required: false
   repository_dispatch:
     types: [release-approved]
 
