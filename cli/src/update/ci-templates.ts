@@ -209,6 +209,11 @@ function buildDbUriStep(dbService: string, dbPort: string): string {
   ].join('\n');
 }
 
+function resolveRunner(cfg: SdlcConfig): string {
+  if (cfg.runner !== 'self-hosted') return cfg.runner;
+  return "${{ inputs.runner_label || vars.CI_RUNNER_LABEL || 'self-hosted' }}";
+}
+
 /**
  * Section 2f: Generate CI workflows from templates + sdlc-config.json.
  *
@@ -240,7 +245,7 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
     PYTHON_VERSION: String(cfg.python_version ?? ''),
     WORKING_DIRECTORY: workingDirectory || '.',
     WORKING_DIR_PREFIX: workingDirPrefix,
-    RUNNER: cfg.runner,
+    RUNNER: resolveRunner(cfg),
     SOURCE_DIRS: cfg.source_dirs,
     SAST_BASELINE: String(cfg.sast_baseline),
     ACCEPTED_DEP_RISKS: cfg.accepted_dep_risks,

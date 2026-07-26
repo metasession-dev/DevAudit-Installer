@@ -7,12 +7,12 @@ contract; a difference is a defect.
 
 ## Choose the path
 
-| Change type | Commit types | Requirement | Canonical path |
-| --- | --- | --- | --- |
-| Tracked feature, behavioral fix, refactor, or performance work | `feat`, `fix`, `refactor`, `perf` | `REQ-XXX` required | Feature branch -> PR to integration -> tracked release promotion |
-| Housekeeping | `chore`, `ci`, `build`, `test`, `compliance`, `revert` | No new REQ | Feature branch -> PR to integration -> wait for tracked promotion |
-| Trivial docs/formatting | `docs`, `chore` | No new REQ | Same lightweight integration path |
-| Compliance-doc-only | `compliance`, `docs` | Existing REQ only | Feature branch -> PR to integration; attach to existing release |
+| Change type                                                    | Commit types                                           | Requirement        | Canonical path                                                    |
+| -------------------------------------------------------------- | ------------------------------------------------------ | ------------------ | ----------------------------------------------------------------- |
+| Tracked feature, behavioral fix, refactor, or performance work | `feat`, `fix`, `refactor`, `perf`                      | `REQ-XXX` required | Feature branch -> PR to integration -> tracked release promotion  |
+| Housekeeping                                                   | `chore`, `ci`, `build`, `test`, `compliance`, `revert` | No new REQ         | Feature branch -> PR to integration -> wait for tracked promotion |
+| Trivial docs/formatting                                        | `docs`, `chore`                                        | No new REQ         | Same lightweight integration path                                 |
+| Compliance-doc-only                                            | `compliance`, `docs`                                   | Existing REQ only  | Feature branch -> PR to integration; attach to existing release   |
 
 A housekeeping type is not a way to avoid tracked controls. Anything affecting
 runtime or user-visible behavior, authentication, data handling, production
@@ -42,13 +42,13 @@ and review -> merge -> mandatory backmerge/* PR to $INTEGRATION_BRANCH
 
 ## Tracked release lifecycle
 
-| Stage | Operator / agent action | Portal outcome |
-| --- | --- | --- |
-| 1 Plan | Allocate REQ, RTM entry, risk/test planning; HIGH/CRITICAL needs plan approval | Release can be created early for correctly scoped evidence |
-| 2 Implement | Feature branch, tests/gates, integration PR, then merge | Integration CI registers the release and uploads gate evidence |
-| 3 Evidence | Upload documents/artifacts and render first-class test execution history | Complete reviewer evidence: artifacts, cycles, checks, lineage |
-| 4 Review | Truthful integration -> release PR; submit for UAT | Approval gate and full release check set apply to every in-scope REQ |
-| 5 Deploy | Merge after terminal-green checks; wait for deployment and host verification | Deployment/smoke cycles, Production review, `released`, automated close-out PR |
+| Stage       | Operator / agent action                                                        | Portal outcome                                                                              |
+| ----------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
+| 1 Plan      | Allocate REQ, RTM entry, risk/test planning; HIGH/CRITICAL needs plan approval | Release can be created early for correctly scoped evidence                                  |
+| 2 Implement | Feature branch, tests/gates, integration PR, then merge                        | Integration CI registers the release and uploads gate evidence                              |
+| 3 Evidence  | Upload documents/artifacts and render first-class test execution history       | Complete reviewer evidence: artifacts, iterations, test executions, checks, lineage         |
+| 4 Review    | Truthful integration -> release PR; submit for UAT                             | Approval gate and full release check set apply to every in-scope REQ                        |
+| 5 Deploy    | Merge after terminal-green checks; wait for deployment and host verification   | Deployment and smoke test executions, Production review, `released`, automated close-out PR |
 
 The standard release check set is `Quality Gates`, `Release Scope Integrity`,
 `Compliance Validation`, `DevAudit Release Approval`, and `E2E Regression
@@ -60,9 +60,9 @@ post-deploy, or host deployment check is queued or in progress.
 
 A release is keyed by `(project, version)`.
 
-| Version | Meaning | Review treatment |
-| --- | --- | --- |
-| `REQ-XXX` | Tracked release | Active approval envelope with per-REQ evidence and lifecycle |
+| Version       | Meaning                                   | Review treatment                                             |
+| ------------- | ----------------------------------------- | ------------------------------------------------------------ |
+| `REQ-XXX`     | Tracked release                           | Active approval envelope with per-REQ evidence and lifecycle |
 | `vYYYY.MM.DD` | Bare-date housekeeping/integration record | Historical CI context by default, not an active full release |
 
 A tracked promotion can bundle multiple REQs and/or prior housekeeping work. Each
@@ -71,7 +71,7 @@ tracked REQ keeps a distinct release record. The approval envelope must include
 manifest, and equivalent context in the ticket, test execution summary, security
 summary, and AI-use note where relevant.
 
-Evidence and test/deployment cycles remain owned by their source release. The
+Evidence and test/deployment executions remain owned by their source release. The
 portal shows predecessors as linked historical context. It must not make an
 absorbed bare-date record look abandoned or still pending approval.
 

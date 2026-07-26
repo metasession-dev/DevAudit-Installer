@@ -14,6 +14,10 @@ name: CI Pipeline
 
 on:
   workflow_dispatch:
+    inputs:
+      runner_label:
+        description: 'Optional one-run runner label override. Blank uses repository CI_RUNNER_LABEL.'
+        required: false
   pull_request:
     branches: [{{INTEGRATION_BRANCH}}]
   push:
@@ -311,11 +315,10 @@ jobs:
     name: Upload Evidence
     runs-on: {{RUNNER}}
     needs: [quality-gates, register-release]
-    # `always()` instead of `!failure()` so failed gates still upload their
-    # evidence — `status=failed` is itself the audit trail. `!cancelled()`
-    # still guards against partial state on operator-cancel.
-    # DevAudit-Installer#96.
-    if: ${{ always() && !cancelled() && github.ref_name == '{{INTEGRATION_BRANCH}}' && needs.register-release.result == 'success' }}
+    # Pull requests do not register or upload release evidence. Keeping this
+    # intentionally inapplicable job out of `always()` avoids a cancelled
+    # aggregate workflow when Register Release is correctly skipped (#500).
+    if: ${{ !cancelled() && github.event_name != 'pull_request' && github.ref_name == '{{INTEGRATION_BRANCH}}' && needs.register-release.result == 'success' }}
     env:
       DEVAUDIT_BASE_URL_VAR: ${{ vars.DEVAUDIT_BASE_URL }}
       DEVAUDIT_API_KEY: ${{ secrets.DEVAUDIT_API_KEY }}

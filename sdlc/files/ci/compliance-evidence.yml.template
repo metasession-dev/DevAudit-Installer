@@ -21,6 +21,10 @@ name: Compliance Evidence Upload
 
 on:
   workflow_dispatch:
+    inputs:
+      runner_label:
+        description: 'Optional one-run runner label override. Blank uses repository CI_RUNNER_LABEL.'
+        required: false
   push:
     branches: [develop]
     paths:
@@ -443,15 +447,14 @@ jobs:
             DERIVED_RELEASE="${REQS[0]}"
           fi
 
-          if [ "$PRIOR_EVENT" = "deployment_status" ] && [ "${#REQS[@]}" -eq 0 ]; then
-            echo "::error::Deployment-origin E2E evidence requires tagged or in-scope REQ attribution; refusing _compliance-docs fallback."
-            exit 1
-          fi
-
           if [ "${#REQS[@]}" -eq 0 ]; then
             if echo "$DERIVED_RELEASE" | grep -qE '^v[0-9]{4}\.[0-9]{2}\.[0-9]{2}([.][0-9]+)?$'; then
               echo "No tracked REQ was executed for standalone/integration housekeeping ${DERIVED_RELEASE}; preserving this as GitHub historical CI without portal approval evidence."
               exit 0
+            fi
+            if [ "$PRIOR_EVENT" = "deployment_status" ]; then
+              echo "::error::Deployment-origin E2E evidence requires tagged or in-scope REQ attribution; refusing _compliance-docs fallback."
+              exit 1
             fi
             REQS=(_compliance-docs)
           fi

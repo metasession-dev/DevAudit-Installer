@@ -28,6 +28,9 @@ on:
       release_pr:
         description: 'Release PR number or URL to backlink (optional)'
         required: false
+      runner_label:
+        description: 'Optional one-run runner label override. Blank uses repository CI_RUNNER_LABEL.'
+        required: false
   repository_dispatch:
     types: [release-closed]
 

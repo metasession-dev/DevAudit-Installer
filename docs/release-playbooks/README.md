@@ -40,6 +40,15 @@ stale, cancelled, unexpectedly skipped, or failed checks mean `waiting` or
 `blocked`, never green. If auto-merge does not fire after that verification,
 manual merge is allowed.
 
+When GitHub leaves a stale check projection, run **Recover Required Checks**
+for the open PR in dry-run mode, then repeat with `apply` only when it identifies
+a completed Actions run that can be rerun on the same SHA. If GitHub never
+created a required check suite, the recovery must fail closed. Push an auditable
+empty commit to the PR branch to create a new SHA and obtain fresh
+`pull_request` dispatches. Never post a synthetic status, remove the required
+context, use an administrator bypass, or describe an underlying successful job
+as equivalent to a terminal-green check on the current SHA.
+
 ### Hotfix exception
 
 Use a hotfix only for production-impacting urgency: broken production, urgent
@@ -157,6 +166,52 @@ outcome before production approval. A timeout is a failed execution, not an
 absence of evidence: retain its partial Playwright report, traces, screenshots,
 server logs, and execution metadata; classify the cause before opening or
 updating an incident or recording an approved exception.
+
+### Temporary dependency-risk acceptance
+
+A high or critical dependency advisory may be accepted only when no compatible
+upstream remediation exists and the project has a reviewed, temporary record at
+`compliance/security/accepted-vulnerabilities.json`. Package-name allowlists are
+forbidden. Each exception must identify the exact advisory, package, installed
+vulnerable version and range, lockfile dependency path, introducing dependency,
+approver and approval date, expiry, reason, and a dedicated GitHub remediation
+issue. Compensating controls may be recorded but do not replace those fields.
+
+The generated dependency gate compares every advisory and installed lockfile
+path to that contract. A missing file means no accepted risks. An unmatched,
+expired, malformed, broad, or partially matching exception fails closed. The
+raw npm audit JSON and `dependency-risk-evaluation.json` remain release
+evidence, and the security summary names the acceptance owner, expiry, and
+remediation issue.
+
+Review the upstream remediation issue on every dependency update and before
+each release. Remove the exception immediately when a compatible fix is
+available; do not wait for its expiry. Extending an expiry is a new risk
+decision requiring fresh review and evidence, not an administrative edit.
+
+The repository record uses this shape:
+
+```json
+{
+  "schemaVersion": 1,
+  "exceptions": [
+    {
+      "advisoryId": "GHSA-xxxx-yyyy-zzzz",
+      "package": "dependency-name",
+      "vulnerableRange": "<=1.2.3",
+      "vulnerableVersion": "1.2.3",
+      "dependencyPath": "node_modules/introducer/node_modules/dependency-name",
+      "introducedBy": "introducer@4.5.6",
+      "approvedAt": "2026-07-26",
+      "expiresAt": "2026-08-25",
+      "approvedBy": "reviewer identity",
+      "reason": "No compatible upstream release is currently available.",
+      "remediationIssue": "https://github.com/owner/repository/issues/123",
+      "compensatingControls": "Optional monitoring or exposure-reduction controls."
+    }
+  ]
+}
+```
 
 ### UAT execution records
 

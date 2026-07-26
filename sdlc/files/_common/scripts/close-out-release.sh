@@ -34,6 +34,10 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=markdown-table.sh
+source "$SCRIPT_DIR/markdown-table.sh"
+
 REQ_ID="${1:-}"
 RELEASE_PR=""
 shift || true
@@ -89,21 +93,14 @@ find_release_ticket_file() {
 update_rtm_status() {
   local req_id="$1"
   local target_status="$2"
-  local tmp_file
+  local tmp_file status_col
   tmp_file="$(mktemp)"
-  if [ -f "$RTM" ] && grep -qE "^\| ${req_id} " "$RTM"; then
-    awk -v req="$req_id" -v target_status="$target_status" '
-      BEGIN { FS="|"; OFS="|"; statuscol=0 }
+  status_col="$(markdown_table_column_index_for_row \
+    "$RTM" "$req_id" Status REQ-ID/ID Status 2>/dev/null || true)"
+  if [ -n "$status_col" ]; then
+    awk -v req="$req_id" -v target_status="$target_status" -v statuscol="$status_col" '
+      BEGIN { FS="|"; OFS="|" }
       /\\\|/ { gsub(/\\\|/, "\001", $0) }
-      {
-        cand=0; idseen=0
-        for (i=1; i<=NF; i++) {
-          c=$i; gsub(/^[[:space:]]+|[[:space:]]+$/, "", c)
-          if (c=="Status") cand=i
-          if (c=="ID" || c=="REQ-ID" || c=="REQ ID" || c ~ /^Requirement/) idseen=1
-        }
-        if (cand>0 && idseen) statuscol=cand
-      }
       $0 ~ ("^\\| " req " ") && statuscol>0 {
         cell=$statuscol
         note=""

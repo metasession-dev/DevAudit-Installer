@@ -8,6 +8,7 @@ WORKFLOWS="$ROOT/docs/change-workflows.md"
 SKILL="$ROOT/sdlc/files/_common/skills/sdlc-implementer/SKILL.md"
 E2E_SKILL="$ROOT/sdlc/files/_common/skills/e2e-test-engineer/SKILL.md"
 UPDATE_WORKFLOW="$ROOT/sdlc/files/_common/workflows/devaudit-update-install.md"
+RUNNER_RUNBOOK="$ROOT/docs/self-hosted-runner-ci.md"
 
 failures=0
 
@@ -30,6 +31,10 @@ expect_absent() {
 }
 
 expect_contains "$PLAYBOOKS/README.md" "terminal green on its current head SHA"
+expect_contains "$PLAYBOOKS/README.md" "Recover Required Checks"
+expect_contains "$PLAYBOOKS/README.md" "Never post a synthetic status"
+expect_contains "$PLAYBOOKS/README.md" "Temporary dependency-risk acceptance"
+expect_contains "$PLAYBOOKS/README.md" "Package-name allowlists are"
 expect_contains "$PLAYBOOKS/README.md" "repository_dispatch(release-closed)"
 expect_contains "$PLAYBOOKS/README.md" "BUNDLED-CHANGES-REQ-XXX.json"
 expect_contains "$PLAYBOOKS/README.md" "Submitting a release for UAT review is not the same thing as executing or"
@@ -41,11 +46,16 @@ expect_contains "$PLAYBOOKS/high-risk-release.md" "backmerge/*"
 expect_contains "$PLAYBOOKS/low-risk-release.md" "render-test-executions.sh"
 expect_contains "$WORKFLOWS" "Historical CI context by default"
 expect_contains "$SKILL" "mandatory automated reconciliation"
+expect_contains "$SKILL" "Recover Required Checks"
 expect_contains "$SKILL" "record Stage 4 UAT execution"
 expect_contains "$E2E_SKILL" "Check release and execution provenance"
 expect_contains "$E2E_SKILL" "must not relabel the source E2E run"
 expect_contains "$UPDATE_WORKFLOW" "wait for terminal-green checks on the current PR SHA"
 expect_contains "$UPDATE_WORKFLOW" "creates no tracked approval release"
+expect_contains "$RUNNER_RUNBOOK" "CI_RUNNER_LABEL"
+expect_contains "$RUNNER_RUNBOOK" "resolve-online-runner.sh"
+expect_contains "$RUNNER_RUNBOOK" "prepare-repository-cache.sh"
+expect_contains "$RUNNER_RUNBOOK" "organization scope"
 
 if grep -Fq "auto-generate housekeeping release stubs" "$UPDATE_WORKFLOW"; then
   echo "FAIL: consumer update workflow still describes obsolete housekeeping release stubs" >&2

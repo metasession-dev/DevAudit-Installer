@@ -21,6 +21,13 @@ on:
       - 'docs/release-playbooks/**'
       - 'docs/change-workflows.md'
       - 'scripts/release-playbook-contract.test.sh'
+      - 'scripts/release-routing-contract.test.sh'
+      - 'scripts/action-runtime-contract.test.sh'
+      - 'scripts/check-recovery-workflow.test.sh'
+      - 'scripts/lint-shell-failure-modes.sh'
+      - 'scripts/lint-shell-failure-modes.test.sh'
+      - 'scripts/runner-host/**'
+      - 'tests/release-pipeline-e2e/**'
       - '.github/workflows/template-lint.yml'
   pull_request:
     branches: [main, develop]
@@ -31,6 +38,13 @@ on:
       - 'docs/release-playbooks/**'
       - 'docs/change-workflows.md'
       - 'scripts/release-playbook-contract.test.sh'
+      - 'scripts/release-routing-contract.test.sh'
+      - 'scripts/action-runtime-contract.test.sh'
+      - 'scripts/check-recovery-workflow.test.sh'
+      - 'scripts/lint-shell-failure-modes.sh'
+      - 'scripts/lint-shell-failure-modes.test.sh'
+      - 'scripts/runner-host/**'
+      - 'tests/release-pipeline-e2e/**'
       - '.github/workflows/template-lint.yml'
 
 permissions:
@@ -41,7 +55,7 @@ jobs:
     name: Verify source paths in workflow templates
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Check no template sources from sdlc/files/
         run: |
@@ -77,7 +91,19 @@ jobs:
           chmod +x scripts/release-playbook-contract.test.sh
           bash scripts/release-playbook-contract.test.sh
 
+      - name: Check release routing and action runtimes
+        run: |
+          bash scripts/release-routing-contract.test.sh
+          bash scripts/action-runtime-contract.test.sh
+          bash scripts/check-recovery-workflow.test.sh
+          bash scripts/runner-host/runner-host.test.sh
+          bash scripts/lint-shell-failure-modes.test.sh
+          bash scripts/lint-shell-failure-modes.sh sdlc/files
+
       - name: Run extract-release-metadata tests
         run: |
           chmod +x sdlc/files/_common/scripts/extract-release-metadata.sh
           bash sdlc/files/_common/scripts/extract-release-metadata.test.sh
+
+      - name: Run release pipeline E2E fixture
+        run: bash tests/release-pipeline-e2e/run.sh
