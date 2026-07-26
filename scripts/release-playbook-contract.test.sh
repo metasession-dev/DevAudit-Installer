@@ -75,6 +75,16 @@ if ! grep -Fq 'standalone-housekeeping-release.sh promote' "$ROOT/sdlc/files/ci/
   echo "FAIL: post-deploy does not promote validated standalone housekeeping releases" >&2
   failures=$((failures + 1))
 fi
+POST_DEPLOY="$ROOT/sdlc/files/ci/post-deploy-prod.yml.template"
+expect_contains "$POST_DEPLOY" 'EVIDENCE_SCOPE="${VERSION}"'
+expect_contains "$POST_DEPLOY" 'EVIDENCE_SCOPE="_compliance-docs"'
+expect_contains "$POST_DEPLOY" '"${PROJECT_SLUG}" "${EVIDENCE_SCOPE}" smoke_test prod-smoke-results.json'
+expect_contains "$POST_DEPLOY" '"${PROJECT_SLUG}" "${EVIDENCE_SCOPE}" release_ticket "$TICKET"'
+if grep -Fq '"${PROJECT_SLUG}" "${VERSION}" smoke_test' "$POST_DEPLOY" ||
+   grep -Fq '"${PROJECT_SLUG}" "${VERSION}" release_ticket' "$POST_DEPLOY"; then
+  echo "FAIL: post-deploy still uses release ownership as the requirement evidence scope" >&2
+  failures=$((failures + 1))
+fi
 
 if [ "$failures" -gt 0 ]; then
   exit 1
