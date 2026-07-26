@@ -29,6 +29,9 @@ on:
       release:
         description: 'Optional REQ-XXX / version to promote (blank = all in-scope from pending release tickets).'
         required: false
+      runner_label:
+        description: 'Optional one-run runner label override. Blank uses repository CI_RUNNER_LABEL.'
+        required: false
   deployment_status:
     types: [created]
 

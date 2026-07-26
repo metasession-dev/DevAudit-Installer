@@ -21,6 +21,10 @@ name: Compliance Evidence Upload
 
 on:
   workflow_dispatch:
+    inputs:
+      runner_label:
+        description: 'Optional one-run runner label override. Blank uses repository CI_RUNNER_LABEL.'
+        required: false
   push:
     branches: [develop]
     paths:

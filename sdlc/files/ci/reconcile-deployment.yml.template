@@ -24,6 +24,9 @@ on:
       health_url:
         description: 'Configured production health URL'
         required: true
+      runner_label:
+        description: 'Optional one-run runner label override. Blank uses repository CI_RUNNER_LABEL.'
+        required: false
 
 jobs:
   reconcile:

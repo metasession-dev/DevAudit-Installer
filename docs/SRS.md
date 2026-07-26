@@ -2538,6 +2538,7 @@ Area codes: FRAMEWORK-CIYML (ci.yml quality gates + evidence job), FRAMEWORK-EVI
 - **Source:** `cli/src/lib/templates.ts:substituteTokens` (plain `split/join` per `{{KEY}}`); `cli/src/update/ci-templates.ts` token map: `PROJECT_SLUG`, `PRODUCTION_URL_SECRET`, `NODE_VERSION`, `PYTHON_VERSION`, `WORKING_DIRECTORY`, `WORKING_DIR_PREFIX`, `RUNNER`, `SOURCE_DIRS`, `SAST_BASELINE`, `ACCEPTED_DEP_RISKS`, `DATABASE_SERVICE/IMAGE/PORT`, `E2E_PROJECT`, `E2E_START_COMMAND`.
 - **Preconditions / inputs:** `sdlc-config.json` with the listed keys (defaults from `sdlc/files/stacks/<stack>/adapter.json` `config_keys.defaults`).
 - **Given** a consumer config (e.g. `runner: ubuntu-latest`, `project_slug: foo`) **When** `syncCiTemplates` renders a template **Then** every `{{RUNNER}}`→`ubuntu-latest`, `{{PROJECT_SLUG}}`→`foo`, `{{SAST_BASELINE}}`→config value, etc.; the rendered file contains no residual `{{…}}` scalar tokens.
+- **Given** `runner: self-hosted` **When** CI workflows are rendered **Then** substantive jobs select `workflow_dispatch.runner_label`, then repository `CI_RUNNER_LABEL`, then the legacy `self-hosted` fallback; workflows supporting manual dispatch expose the optional override without changing automatic-event routing.
 - **Error paths:** Missing keys render to empty string (`?? ''`).
 - **Fixtures/env:** Sample `sdlc-config.json`; assert rendered file substring matches.
 

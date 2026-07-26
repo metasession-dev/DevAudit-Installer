@@ -54,8 +54,19 @@ Each repository sets `CI_RUNNER_LABEL` as a repository or environment variable.
 All substantive CI and production deployment jobs for that repository use the
 selected label. A `workflow_dispatch.runner_label` input may override it for one
 manual run. Maintainers with repository-settings access may change the variable.
+For self-hosted projects, generated workflows resolve the runner in this order:
 
-Before dispatching work, a GitHub-hosted preflight calls:
+```text
+workflow_dispatch.runner_label
+CI_RUNNER_LABEL
+self-hosted
+```
+
+The final value preserves compatibility while a repository is migrated. Remove
+that generic fallback only after every supported host has a unique label and
+the repository variable is configured.
+
+The online admission preflight calls:
 
 ```bash
 ORG_RUNNER_READ_TOKEN=... \
@@ -67,7 +78,11 @@ The preflight checks existence, uniqueness, and `online` state only. A busy
 online runner may queue. An offline or missing runner fails immediately with
 instructions to change `CI_RUNNER_LABEL` or use the manual override. The token
 must be a narrowly scoped GitHub App or organization token that can read
-organization runner inventory.
+organization runner inventory. Until that token and the organization runner
+group are configured, run this resolver before dispatch and do not describe
+queued work as started or green. Wiring the resolver as an automatic hosted
+admission dependency is the final migration step; the substantive job still
+runs only on the selected self-hosted machine.
 
 ## Provision a Linux host
 

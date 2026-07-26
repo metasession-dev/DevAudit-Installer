@@ -14,6 +14,10 @@ name: CI Pipeline
 
 on:
   workflow_dispatch:
+    inputs:
+      runner_label:
+        description: 'Optional one-run runner label override. Blank uses repository CI_RUNNER_LABEL.'
+        required: false
   pull_request:
     branches: [{{INTEGRATION_BRANCH}}]
   push:

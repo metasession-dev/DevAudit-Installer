@@ -676,6 +676,34 @@ describe('syncProject — native TS sync against a fixture', () => {
     }
   }, 60_000);
 
+  it('renders repository and manual self-hosted runner selection with a safe fallback (#319)', async () => {
+    const dir = await buildFixture();
+    try {
+      const configPath = join(dir, 'sdlc-config.json');
+      const config = JSON.parse(await fs.readFile(configPath, 'utf8')) as Record<
+        string,
+        unknown
+      >;
+      config.runner = 'self-hosted';
+      await fs.writeFile(configPath, JSON.stringify(config));
+      process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
+
+      await syncProject(dir);
+
+      const ciYml = normalizeNewlines(
+        await fs.readFile(join(dir, '.github', 'workflows', 'ci.yml'), 'utf8'),
+      );
+      expect(ciYml).toContain(
+        "runs-on: ${{ inputs.runner_label || vars.CI_RUNNER_LABEL || 'self-hosted' }}",
+      );
+      expect(ciYml).toContain('runner_label:');
+      expect(ciYml).toContain('repository CI_RUNNER_LABEL');
+      await expectAllWorkflowsValidYaml(dir);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
   it('rejects an unknown stack', async () => {
     const badDir = await fs.mkdtemp(join(tmpdir(), 'cli-update-bad-'));
     try {
