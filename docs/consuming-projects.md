@@ -4,8 +4,8 @@ DevAudit serves as the central compliance hub for all Metasession projects. Each
 
 ## Active consumers
 
-| Project       | Slug                | Stack | Host    | Status |
-| ------------- | ------------------- | ----- | ------- | ------ |
+| Project       | Slug                | Stack | Host    | Status     |
+| ------------- | ------------------- | ----- | ------- | ---------- |
 | wawagardenbar | `wawagardenbar-app` | node  | railway | Integrated |
 | META-JOBS     | `meta-jobs`         | node  | railway | Integrated |
 
@@ -152,12 +152,12 @@ Either path syncs: `_common/` stage docs, AI agent pointer files, SDLC rules int
 
 During the META-COMPLY ↔ DevAudit-Installer repo split, four identifiers were renamed for brand alignment:
 
-| Old | New | Where |
-|---|---|---|
-| `META_COMPLY_USER_TOKEN` | `DEVAUDIT_USER_TOKEN` | GitHub secret + env var (PAT) |
-| `META_COMPLY_API_KEY` | `DEVAUDIT_API_KEY` | GitHub secret + env var (per-project CI key) |
-| `META_COMPLY_BASE_URL` | `DEVAUDIT_BASE_URL` | GitHub variable (portal URL) |
-| `X-Meta-Comply-Token` | `X-DevAudit-Token` | HTTP header on portal API calls (PAT-bearing) |
+| Old                      | New                   | Where                                         |
+| ------------------------ | --------------------- | --------------------------------------------- |
+| `META_COMPLY_USER_TOKEN` | `DEVAUDIT_USER_TOKEN` | GitHub secret + env var (PAT)                 |
+| `META_COMPLY_API_KEY`    | `DEVAUDIT_API_KEY`    | GitHub secret + env var (per-project CI key)  |
+| `META_COMPLY_BASE_URL`   | `DEVAUDIT_BASE_URL`   | GitHub variable (portal URL)                  |
+| `X-Meta-Comply-Token`    | `X-DevAudit-Token`    | HTTP header on portal API calls (PAT-bearing) |
 
 Each existing consumer onboarded before the rename needs **a one-time rotation** of its secrets and the variable. Rotate the secrets **before** re-syncing — workflow files synced after the rotation reference the new names, so the secrets must already exist when CI runs.
 
@@ -205,9 +205,19 @@ The HTTP header rename (`X-Meta-Comply-Token` → `X-DevAudit-Token`) is interna
 
 ### Versioning
 
-The SDLC framework is versioned via git tags on DevAudit (e.g., `sdlc-v1.23.0`). The sync script creates and pushes tags automatically. Consuming projects pin to a tag for `upload-evidence.sh` downloads at runtime.
+The SDLC framework is versioned and distributed with the public
+`@metasession.co/devaudit-cli` npm packages. Consumers adopt a release by
+running `devaudit update` on a feature branch, reviewing the generated diff,
+and promoting it through their normal GitFlow. The installed framework version
+is the CLI package version; do not use old `sdlc-v1.x` Git tags as the current
+consumer update mechanism.
 
-**Current version:** `sdlc-v1.23.x` (post-v1.24 onboarding-automation work merged into v1.23.x line; v1.24 cuts when the deprecation-warning tightening lands).
+Check the installed and public versions with:
+
+```bash
+devaudit --version
+npm view @metasession.co/devaudit-cli version
+```
 
 **Source tracking:** Every consumer's `sdlc-config.json` records the stack + host adapters it consumes. The sync script logs which templates were sourced (e.g. `CI workflow: generated ci.yml (from ci/python/)`).
 
@@ -215,15 +225,15 @@ The SDLC framework is versioned via git tags on DevAudit (e.g., `sdlc-v1.23.0`).
 
 #### Critical (breaking if out of sync)
 
-| Component                    | Source of Truth                                                                                      | How Consumers Use It                                                                              | Sync Method                                                                          |
-| ---------------------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| **`upload-evidence.sh`**     | `scripts/upload-evidence.sh` in DevAudit                                                             | Synced into consumer's `scripts/` by `devaudit update`                                                 | Re-sync on every framework version                                                   |
-| **CI job + status names**    | `Quality Gates`, `Compliance Validation`, `DevAudit Release Approval` (renamed in v1.22.0)           | GitHub branch protection references exact names                                                   | Must match — renaming requires updating consumer branch protection rules             |
-| **Project slug**             | `sdlc-config.json` `project_slug`                                                                    | Used to create releases, upload evidence, check approval                                          | Must match `compliance_projects.slug` in DevAudit                                    |
-| **GitHub vars/secrets**      | `DEVAUDIT_BASE_URL` (variable), `DEVAUDIT_API_KEY` (secret), `DEVAUDIT_USER_TOKEN` (secret) | Consuming projects' CI workflows authenticate against DevAudit                                    | Set by `devaudit install`; refresh manually when API keys rotate                      |
-| **Compliance doc filenames** | `RTM.md`, `test-plan.md`, `test-cases.md`, `test-summary-report.md`                                  | CI upload step looks for these exact filenames                                                    | Renaming requires updating all consumer CI workflows                                 |
-| **Release status values**    | `draft`, `uat_review`, `uat_approved`, `uat_rejected`, `prod_review`, `prod_approved`, `released`    | `check-release-approval.yml` checks for specific statuses                                         | Changing status names requires updating all consumer release-approval gate workflows |
-| **Risk tier column**         | `compliance_projects.risk_tier` (`low`, `medium`, `high`)                                            | Controls self-approval rules: LOW allows self-approval, MEDIUM/HIGH requires independent reviewer | Default `medium`; set per project in DevAudit portal                                 |
+| Component                    | Source of Truth                                                                                   | How Consumers Use It                                                                              | Sync Method                                                                          |
+| ---------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| **`upload-evidence.sh`**     | `scripts/upload-evidence.sh` in DevAudit                                                          | Synced into consumer's `scripts/` by `devaudit update`                                            | Re-sync on every framework version                                                   |
+| **CI job + status names**    | `Quality Gates`, `Compliance Validation`, `DevAudit Release Approval`                             | GitHub branch protection references exact names                                                   | Must match — renaming requires updating consumer branch protection rules             |
+| **Project slug**             | `sdlc-config.json` `project_slug`                                                                 | Used to create releases, upload evidence, check approval                                          | Must match `compliance_projects.slug` in DevAudit                                    |
+| **GitHub vars/secrets**      | `DEVAUDIT_BASE_URL` (variable), `DEVAUDIT_API_KEY` (secret), `DEVAUDIT_USER_TOKEN` (secret)       | Consuming projects' CI workflows authenticate against DevAudit                                    | Set by `devaudit install`; refresh manually when API keys rotate                     |
+| **Compliance doc filenames** | `RTM.md`, `test-plan.md`, `test-cases.md`, `test-summary-report.md`                               | CI upload step looks for these exact filenames                                                    | Renaming requires updating all consumer CI workflows                                 |
+| **Release status values**    | `draft`, `uat_review`, `uat_approved`, `uat_rejected`, `prod_review`, `prod_approved`, `released` | `check-release-approval.yml` checks for specific statuses                                         | Changing status names requires updating all consumer release-approval gate workflows |
+| **Risk tier column**         | `compliance_projects.risk_tier` (`low`, `medium`, `high`)                                         | Controls self-approval rules: LOW allows self-approval, MEDIUM/HIGH requires independent reviewer | Default `medium`; set per project in DevAudit portal                                 |
 
 #### Important (consistency, not immediately breaking)
 
@@ -271,9 +281,9 @@ Rules:
 3. `chore/close-out-*` branches are administrative reconciliation branches; heavy PR CI/E2E is not the intended gate there.
 4. If external suites still attach to close-out or compliance-only branches, treat that as integration drift and trim the upstream app/integration settings.
 
-4. **Compliance directory structure** — `compliance/evidence/REQ-XXX/`, `compliance/pending-releases/`, `compliance/approved-releases/`.
-5. **Release status lifecycle** — `check-release-approval.yml` depends on exact status values.
-6. **Stack + host adapter schemas** — `sdlc/files/stacks/_schema/adapter.schema.json`, `sdlc/files/hosts/_schema/adapter.schema.json`. Adding required fields breaks every existing adapter.
+5. **Compliance directory structure** — `compliance/evidence/REQ-XXX/`, `compliance/pending-releases/`, `compliance/approved-releases/`.
+6. **Release status lifecycle** — `check-release-approval.yml` depends on exact status values.
+7. **Stack + host adapter schemas** — `sdlc/files/stacks/_schema/adapter.schema.json`, `sdlc/files/hosts/_schema/adapter.schema.json`. Adding required fields breaks every existing adapter.
 
 ### Sync Checklist
 

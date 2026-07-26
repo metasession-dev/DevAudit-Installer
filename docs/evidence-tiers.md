@@ -4,11 +4,11 @@ DevAudit separates evidence by both storage medium and purpose. The goal is simp
 
 ## The three tiers
 
-| Tier | Typical content | Lives where | Why |
-| --- | --- | --- | --- |
-| Tier 1 | Universal SDLC policy and framework docs | Framework repo and synced consumer docs | Shared rules and baseline process; not release-specific |
-| Tier 2 | Persistent project source-of-truth docs | Consumer repo (`docs/`, `compliance/`, `SDLC/`) | Human-reviewable, versioned, and maintained over time |
-| Tier 3 | Release- or requirement-scoped evidence | Consumer repo for markdown, portal for large/binary artifacts | The per-change proof that a release actually satisfied the SDLC |
+| Tier   | Typical content                          | Lives where                                                   | Why                                                             |
+| ------ | ---------------------------------------- | ------------------------------------------------------------- | --------------------------------------------------------------- |
+| Tier 1 | Universal SDLC policy and framework docs | Framework repo and synced consumer docs                       | Shared rules and baseline process; not release-specific         |
+| Tier 2 | Persistent project source-of-truth docs  | Consumer repo (`docs/`, `compliance/`, `SDLC/`)               | Human-reviewable, versioned, and maintained over time           |
+| Tier 3 | Release- or requirement-scoped evidence  | Consumer repo for markdown, portal for large/binary artifacts | The per-change proof that a release actually satisfied the SDLC |
 
 ## Storage rule
 
@@ -19,44 +19,44 @@ The practical storage rule is:
 
 Examples from a tracked release:
 
-| Artifact | Tier | Storage |
-| --- | --- | --- |
-| `docs/SRS.md` | 2 | Git |
-| `docs/ADR/ADR-NNN-*.md` | 2 | Git |
-| `compliance/risk-register.md` | 2 | Git |
-| `compliance/evidence/REQ-XXX/test-plan.md` | 3 | Git |
-| `compliance/evidence/REQ-XXX/test-execution-summary.md` | 3 | Git |
-| `compliance/evidence/REQ-XXX/srs-alignment.md` | 3 | Git |
-| `compliance/evidence/REQ-XXX/architecture-decision.md` | 3 | Git |
-| `compliance/evidence/REQ-XXX/risk-assessment.md` | 3 | Git |
-| SAST JSON, dependency-audit JSON, E2E JSON, HTML reports, screenshots | 3 | Portal |
+| Artifact                                                              | Tier | Storage |
+| --------------------------------------------------------------------- | ---- | ------- |
+| `docs/SRS.md`                                                         | 2    | Git     |
+| `docs/ADR/ADR-NNN-*.md`                                               | 2    | Git     |
+| `compliance/risk-register.md`                                         | 2    | Git     |
+| `compliance/evidence/REQ-XXX/test-plan.md`                            | 3    | Git     |
+| `compliance/evidence/REQ-XXX/test-execution-summary.md`               | 3    | Git     |
+| `compliance/evidence/REQ-XXX/srs-alignment.md`                        | 3    | Git     |
+| `compliance/evidence/REQ-XXX/architecture-decision.md`                | 3    | Git     |
+| `compliance/evidence/REQ-XXX/risk-assessment.md`                      | 3    | Git     |
+| SAST JSON, dependency-audit JSON, E2E JSON, HTML reports, screenshots | 3    | Portal  |
 
 ## Two upload paths
 
 There are two normal upload paths into the portal:
 
-| Upload path | Producer | Typical evidence |
-| --- | --- | --- |
-| CI-uploaded | GitHub Actions workflows | Gate outputs, machine-generated reports, production smoke, release registration context |
-| Operator/repo-uploaded | committed markdown or explicit uploads | Test plans, release tickets, governance docs, scoped release evidence |
+| Upload path            | Producer                               | Typical evidence                                                                        |
+| ---------------------- | -------------------------------------- | --------------------------------------------------------------------------------------- |
+| CI-uploaded            | GitHub Actions workflows               | Gate outputs, machine-generated reports, production smoke, release registration context |
+| Operator/repo-uploaded | committed markdown or explicit uploads | Test plans, release tickets, governance docs, scoped release evidence                   |
 
 This is why the same release can show both:
 
 - CI-origin evidence proving what the pipeline ran
 - repo-authored markdown proving the human planning and review trail
 
-## First-class cycle rule
+## First-class execution rule
 
 With the release-lineage contract, Tier 3 evidence also carries an ownership scope:
 
 - `release`
 - `stage`
-- `cycle`
+- `execution`
 - `approval`
 
-Only real execution output should be `cycle` scoped. That means uploads like E2E results, gate output, screenshots, security scan output, and smoke results.
+Only real execution output is `execution` scoped. That means uploads like E2E results, gate output, screenshots, security scan output, and smoke results.
 
-The following are not cycles and must stay release-, stage-, or approval-scoped:
+The following are not test executions and must stay release-, stage-, or approval-scoped:
 
 - release tickets
 - RTMs

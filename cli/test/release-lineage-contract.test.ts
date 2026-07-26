@@ -78,6 +78,19 @@ describe('release-lineage contract (#391)', () => {
     expect(validate(contract.payloads['test_execution_completed']!.example)).toBe(true);
   });
 
+  it('keeps iteration provenance in the machine-readable execution contract', () => {
+    for (const payloadName of ['test_execution_started', 'test_execution_completed'] as const) {
+      const schema = contract.payloads[payloadName]!.schema;
+      const properties = schema['properties'] as Record<string, unknown>;
+      expect(properties).toHaveProperty('iterationKey');
+      expect(properties).toHaveProperty('iterationOrdinal');
+      expect(contract.payloads[payloadName]!.example).toMatchObject({
+        iterationKey: 'REQ-093:iteration:2',
+        iterationOrdinal: 2,
+      });
+    }
+  });
+
   it('rejects invalid enum values and malformed idempotency keys', () => {
     const validate = compilePayloadSchema(ajv, contract, 'test_execution_completed');
     const invalid = {

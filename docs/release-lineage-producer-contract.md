@@ -1,6 +1,6 @@
 # Release Lineage Producer Contract
 
-This document is the producer-side contract summary for the first-class release-lineage and test-cycle model introduced under umbrella `#397`.
+This document is the producer-side contract summary for the first-class release-lineage, iteration, and test-execution model introduced under umbrella `#397`.
 
 Machine-readable source of truth:
 
@@ -16,23 +16,23 @@ The portal receiving side is implemented separately in `metasession-dev/devaudit
 
 The contract covers three things:
 
-1. first-class test-test execution lifecycle events
+1. first-class test-execution lifecycle events
 2. evidence-lineage fields on uploads
 3. bundled-release manifests for approval envelopes
 
-It does not yet mean every generated workflow emits all of these fields. That rollout happens in later leaf issues. This issue establishes the canonical contract first so later workflow work does not invent its own payload shapes.
+Generated workflows must use this contract rather than inventing workflow-specific payload shapes.
 
 ## Canonical values
 
 ### SDLC stages
 
-| Code | Name | Meaning |
-| --- | --- | --- |
-| `1` | `plan` | planning and scoping; documents only |
-| `2` | `implement_test` | implementation-time governed execution such as CI gates, security, and E2E |
-| `3` | `compile_evidence` | evidence preparation and release-ticket compilation; documents only |
-| `4` | `uat_review` | UAT and reviewer validation |
-| `5` | `production` | deploy, smoke, production approval, release finalisation |
+| Code | Name               | Meaning                                                                    |
+| ---- | ------------------ | -------------------------------------------------------------------------- |
+| `1`  | `plan`             | planning and scoping; documents only                                       |
+| `2`  | `implement_test`   | implementation-time governed execution such as CI gates, security, and E2E |
+| `3`  | `compile_evidence` | evidence preparation and release-ticket compilation; documents only        |
+| `4`  | `uat_review`       | UAT and reviewer validation                                                |
+| `5`  | `production`       | deploy, smoke, production approval, release finalisation                   |
 
 ### Environments
 
@@ -40,7 +40,7 @@ It does not yet mean every generated workflow emits all of these fields. That ro
 - `uat`
 - `production`
 
-### Cycle kinds
+### Suite kinds
 
 - `quality_gate`
 - `e2e`
@@ -49,10 +49,23 @@ It does not yet mean every generated workflow emits all of these fields. That ro
 - `deployment`
 - `smoke`
 
+### Iterations and executions
+
+Iteration 1 is the initial implementation and verification pass. A later
+iteration opens only when a recorded defect, failed verification, missing
+acceptance criterion, approved scope correction, or reviewer rejection causes
+rework.
+
+A workflow run, rerun, retry, manual UAT attempt, deployment, or smoke check is
+a test execution. Repeating an execution against the same implementation does
+not create another iteration. Producers attach each execution to the active
+iteration and include the iteration-opening reference when rework begins.
+
 ### Providers
 
 - `github_actions`
 - `manual`
+- `manual_uat`
 
 ### Outcomes
 
@@ -74,21 +87,21 @@ Terminal:
 
 - `release`
 - `stage`
-- `cycle`
+- `execution`
 - `approval`
 
-The key rule is simple: uploads are only `cycle` scoped when they are execution outputs from a real governed run. Documents do not become cycles just because they were uploaded during a release.
+The key rule is simple: uploads are only `execution` scoped when they are outputs from a real governed run. Uploading a document does not create an iteration or test execution.
 
-## What is and is not a cycle
+## What is and is not a test execution
 
-Cycle-scoped evidence is execution output such as:
+Execution-scoped evidence is execution output such as:
 
 - E2E results
 - screenshots from execution
 - security scan output
 - gate outcome summaries
 - smoke-test output
-- deployment execution output when tied to a real deployment cycle
+- deployment execution output when tied to a real deployment test execution
 
 Release-, stage-, or approval-scoped evidence includes:
 
@@ -101,13 +114,13 @@ Release-, stage-, or approval-scoped evidence includes:
 - bundled-change manifests
 - approval records
 
-These documents may describe a cycle, but they do not create one.
+These documents may describe an iteration or execution, but they create neither.
 
 ## Lifecycle payloads
 
 The contract defines three payload families:
 
-### 1. `test_cycle.started`
+### 1. `test_execution.started`
 
 Emitted when a governed execution begins.
 
@@ -118,26 +131,26 @@ Required properties:
 - `sourceRelease`
 - `sdlcStage`
 - `environment`
-- `cycleKind`
+- `suiteKind`
 - `provider`
 - `startedAt`
 - `outcome = "running"`
 
 `completedAt` must not be present.
 
-### 2. `test_cycle.completed`
+### 2. `test_execution.completed`
 
 Emitted under `if: always()` when the execution reaches a terminal state.
 
 Required properties:
 
-- everything needed to identify the cycle
+- everything needed to identify the execution
 - `completedAt`
 - terminal `outcome`
 
-### 3. `test_cycle.reconciled`
+### 3. `test_execution.reconciled`
 
-Only for late correction of a previously recorded terminal cycle.
+Only for late correction of a previously recorded terminal execution.
 
 Use this when:
 
@@ -163,39 +176,17 @@ Example:
 
 The key must be stable across retries for the same logical test execution record.
 
-## Evidence upload compatibility
+## Evidence upload transport
 
-During rollout there are two portal capability states.
+Generated projects use `testExecutionId`, `testExecutionRecordId`, and
+`evidenceScope=execution`. The upload helper maps those canonical producer
+fields to any older multipart field names still required at the portal HTTP
+boundary. That mapping is an internal transport detail, not a legacy producer
+mode.
 
-### Legacy portal
-
-Supports only:
-
-- `testCycleId`
-
-Producer behaviour:
-
-- skip first-class test execution lifecycle API calls
-- keep uploading evidence normally
-- send only `testCycleId` as the test execution grouping key
-
-### First-class lineage portal
-
-Supports:
-
-- test execution lifecycle endpoints
-- `evidenceScope`
-- `testCycleRecordId`
-- legacy `testCycleId`
-
-Producer behaviour:
-
-- create/update test execution lifetest execution records independently of evidence upload
-- upload execution evidence with `evidenceScope=cycle`
-- include `testCycleRecordId`
-- preserve `testCycleId` during dual-write rollout
-
-The helper `renderEvidenceLineageFields()` in the CLI contract module exists specifically so later workflow code can render both modes consistently.
+If the portal does not expose the required first-class execution capability,
+the producer fails or leaves readiness unresolved. It must not treat an
+artifact grouping key as proof that a test execution occurred.
 
 ## Bundle manifest
 
@@ -227,8 +218,9 @@ original release title and an `evidenceInheritancePolicy`. The policy mode is on
 - `selected`: only the listed evidence identifiers are approval-eligible
 - `none`: source evidence remains visible as historical context but cannot satisfy readiness
 
-`includeCycles` independently controls whether source release cycles may satisfy the approval
-envelope. Evidence and cycles never change owner.
+The manifest's execution-inheritance policy independently controls whether
+source-release test executions may satisfy the approval envelope. Evidence,
+iterations, and executions never change owner.
 
 The manifest hash is SHA-256 over compact, recursively key-sorted JSON after removing
 `manifestHash` and `generator.generatedAt`. The portal independently recomputes this value and
@@ -241,9 +233,9 @@ Execution outcome and evidence completeness are separate records:
 
 - quality-gate outcome comes from the `quality-gates` job result
 - E2E outcome comes from the triggering `workflow_run.conclusion`
-- production deployment and smoke are separate stage-5 cycles
+- production deployment and smoke are separate stage-5 test executions
 - artifact upload success never changes an execution outcome
-- failed, cancelled, timed-out, skipped, setup-failed, and no-artifact executions still complete a cycle
+- failed, cancelled, timed-out, skipped, setup-failed, and no-artifact executions still complete a test execution
 - a later passing retry explicitly resolves the earlier failed attempt without removing it
 
 Generated workflows also report first-class required-check state through
@@ -256,7 +248,7 @@ The implementation sequence is:
 
 1. portal additive schema and tolerant APIs
 2. installer contract definition
-3. installer cycle-event emission
+3. installer iteration and test-execution event emission
 4. installer bundle-manifest generation/submission
 5. portal read model and reviewer UI hardening
 

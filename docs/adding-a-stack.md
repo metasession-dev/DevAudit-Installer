@@ -61,7 +61,13 @@ For the worked Python example:
   "hooks": [],
   "hook_config_files": [".pre-commit-config.yaml"],
   "stack_scripts": [],
-  "required_dev_dependencies": ["pytest", "ruff", "mypy", "pip-audit", "pre-commit"],
+  "required_dev_dependencies": [
+    "pytest",
+    "ruff",
+    "mypy",
+    "pip-audit",
+    "pre-commit"
+  ],
   "install": "pip install -e \".[dev]\"",
   "type_check": "mypy src/",
   "sast": "semgrep scan --config auto --json",
@@ -78,7 +84,12 @@ For the worked Python example:
     "with": { "python-version": "{{PYTHON_VERSION}}", "cache": "pip" }
   },
   "config_keys": {
-    "required": ["python_version", "source_dirs", "sast_baseline", "accepted_dep_risks"],
+    "required": [
+      "python_version",
+      "source_dirs",
+      "sast_baseline",
+      "accepted_dep_risks"
+    ],
     "defaults": {
       "python_version": "3.11",
       "source_dirs": "src/",
@@ -147,7 +158,7 @@ If your adapter only uses existing fields, the existing tests cover it.
 ## Step 8 — Dry-run sync against the real consumer
 
 ```bash
-devaudit update v1.23.x <path-to-consumer>
+devaudit update <path-to-consumer>
 ```
 
 The consumer must have `sdlc-config.json` with `"stack": "<name>"`. Inspect:
