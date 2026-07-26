@@ -8,6 +8,14 @@ import type { SyncContext } from "../src/update/types.js";
 
 const workspaces: string[] = [];
 
+async function readFixtureFile(ctx: SyncContext): Promise<string> {
+  const content = await readFile(
+    join(ctx.projectPath, "scripts", "example.sh"),
+    "utf8",
+  );
+  return content.replace(/\r\n/g, "\n");
+}
+
 async function fixture(content = "upstream\n"): Promise<SyncContext> {
   const projectPath = await mkdtemp(join(tmpdir(), "consumer-patches-"));
   workspaces.push(projectPath);
@@ -67,9 +75,7 @@ describe("consumer patch layer (#84)", () => {
     const result = await applyConsumerPatches(ctx);
     expect(result).toMatchObject({ filesSynced: 1 });
     expect(result.message).toContain("applied: example.patch");
-    await expect(
-      readFile(join(ctx.projectPath, "scripts", "example.sh"), "utf8"),
-    ).resolves.toBe("consumer override\n");
+    await expect(readFixtureFile(ctx)).resolves.toBe("consumer override\n");
   });
 
   it("reports a patch that is already present upstream as obsolete", async () => {
@@ -89,9 +95,9 @@ describe("consumer patch layer (#84)", () => {
     await expect(applyConsumerPatches(ctx)).rejects.toThrow(
       /consumer patch conflict: example\.patch/,
     );
-    await expect(
-      readFile(join(ctx.projectPath, "scripts", "example.sh"), "utf8"),
-    ).resolves.toBe("different upstream content\n");
+    await expect(readFixtureFile(ctx)).resolves.toBe(
+      "different upstream content\n",
+    );
   });
 
   it("preflights the combined patch set before applying any file", async () => {
@@ -101,8 +107,6 @@ describe("consumer patch layer (#84)", () => {
     await expect(applyConsumerPatches(ctx)).rejects.toThrow(
       /conflict when combined/,
     );
-    await expect(
-      readFile(join(ctx.projectPath, "scripts", "example.sh"), "utf8"),
-    ).resolves.toBe("upstream\n");
+    await expect(readFixtureFile(ctx)).resolves.toBe("upstream\n");
   });
 });
