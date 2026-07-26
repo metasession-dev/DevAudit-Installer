@@ -445,6 +445,10 @@ jobs:
             VERSION=$(echo "$RESP" | jq -r '.latest.version // empty')
             [ -z "$VERSION" ] && VERSION="${PREFIX}"
             RELEASE_ID=$(echo "$RESP" | jq -r '.latest.id // empty')
+            EVIDENCE_SCOPE="${VERSION}"
+            if [ -n "${STANDALONE_DECLARATION:-}" ] && [ "$VERSION" = "${REQS}" ]; then
+              EVIDENCE_SCOPE="_compliance-docs"
+            fi
             REQ_FAILURES=0
             LINEAGE_FLAGS=(--test-execution "${CI_RUN}")
             EXECUTION_OUT="$(mktemp)"
@@ -472,7 +476,7 @@ jobs:
             # Production smoke evidence (whole-app health) attached to this release.
             if [ -f prod-smoke-results.json ]; then
               bash scripts/upload-evidence.sh \
-                "${PROJECT_SLUG}" "${VERSION}" smoke_test prod-smoke-results.json \
+                "${PROJECT_SLUG}" "${EVIDENCE_SCOPE}" smoke_test prod-smoke-results.json \
                 --release "${VERSION}" --create-release-if-missing --environment production \
                 --category smoke_test --sdlc-stage 5 --git-sha "${GIT_SHA}" --ci-run-id "${CI_RUN}" --branch main \
                 "${LINEAGE_FLAGS[@]}" \
@@ -491,7 +495,7 @@ jobs:
             done
             if [ -n "$TICKET" ]; then
               bash scripts/upload-evidence.sh \
-                "${PROJECT_SLUG}" "${VERSION}" release_ticket "$TICKET" \
+                "${PROJECT_SLUG}" "${EVIDENCE_SCOPE}" release_ticket "$TICKET" \
                 --release "${VERSION}" --create-release-if-missing --environment production \
                 --category release_artifact --sdlc-stage 5 --git-sha "${GIT_SHA}" --ci-run-id "${CI_RUN}" --branch main \
                 || { echo "Warning: ticket upload failed for ${VERSION}"; REQ_FAILURES=$((REQ_FAILURES + 1)); }

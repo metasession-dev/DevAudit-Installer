@@ -103,10 +103,12 @@ this declaration as release-ticket evidence, sets the portal release mode to
 `standalone_housekeeping`, and marks it released without placing it in the normal
 UAT/production approval queue.
 
-The declaration is release-scoped evidence. Its upload uses `_compliance-docs`
-as the portal requirement scope and the bare-date value only in `--release`.
-Do not use `vYYYY.MM.DD` as a synthetic requirement ID: it is not a `REQ-*`
-identifier and the portal must reject it.
+The declaration and production smoke result are release-scoped evidence. Their
+registration and post-deploy uploads use `_compliance-docs` as the portal
+requirement scope and the bare-date value only in `--release`. Do not use
+`vYYYY.MM.DD` as a synthetic requirement ID: it is not a `REQ-*` identifier and
+the portal must reject it. Tracked releases continue to use their `REQ-XXX`
+identifier for both requirement scope and release ownership.
 
 ## Hotfixes and reversions
 
