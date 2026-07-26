@@ -68,14 +68,6 @@ jobs:
           SHORT_SHA="${AFTER:0:7}"
           BACKMERGE_BRANCH="backmerge/main-${SHORT_SHA}"
 
-          WORKFLOW_PERMISSIONS="$(gh api "repos/${GITHUB_REPOSITORY}/actions/permissions/workflow" 2>/dev/null || true)"
-          CAN_CREATE_PR="$(jq -r '.can_approve_pull_request_reviews // false' <<<"$WORKFLOW_PERMISSIONS")"
-          if [ "$CAN_CREATE_PR" != "true" ]; then
-            echo "::error::GitHub Actions is not permitted to create pull requests for ${GITHUB_REPOSITORY}." >&2
-            echo "Enable repository Actions setting 'Allow GitHub Actions to create and approve pull requests', then rerun this workflow." >&2
-            exit 1
-          fi
-
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
