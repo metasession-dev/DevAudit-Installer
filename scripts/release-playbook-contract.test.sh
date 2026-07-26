@@ -8,6 +8,7 @@ WORKFLOWS="$ROOT/docs/change-workflows.md"
 SKILL="$ROOT/sdlc/files/_common/skills/sdlc-implementer/SKILL.md"
 E2E_SKILL="$ROOT/sdlc/files/_common/skills/e2e-test-engineer/SKILL.md"
 UPDATE_WORKFLOW="$ROOT/sdlc/files/_common/workflows/devaudit-update-install.md"
+RUNNER_RUNBOOK="$ROOT/docs/self-hosted-runner-ci.md"
 
 failures=0
 
@@ -51,6 +52,10 @@ expect_contains "$E2E_SKILL" "Check release and execution provenance"
 expect_contains "$E2E_SKILL" "must not relabel the source E2E run"
 expect_contains "$UPDATE_WORKFLOW" "wait for terminal-green checks on the current PR SHA"
 expect_contains "$UPDATE_WORKFLOW" "creates no tracked approval release"
+expect_contains "$RUNNER_RUNBOOK" "CI_RUNNER_LABEL"
+expect_contains "$RUNNER_RUNBOOK" "resolve-online-runner.sh"
+expect_contains "$RUNNER_RUNBOOK" "prepare-repository-cache.sh"
+expect_contains "$RUNNER_RUNBOOK" "organization scope"
 
 if grep -Fq "auto-generate housekeeping release stubs" "$UPDATE_WORKFLOW"; then
   echo "FAIL: consumer update workflow still describes obsolete housekeeping release stubs" >&2

@@ -24,6 +24,7 @@ on:
       - 'scripts/release-routing-contract.test.sh'
       - 'scripts/action-runtime-contract.test.sh'
       - 'scripts/check-recovery-workflow.test.sh'
+      - 'scripts/runner-host/**'
       - '.github/workflows/template-lint.yml'
   pull_request:
     branches: [main, develop]
@@ -37,6 +38,7 @@ on:
       - 'scripts/release-routing-contract.test.sh'
       - 'scripts/action-runtime-contract.test.sh'
       - 'scripts/check-recovery-workflow.test.sh'
+      - 'scripts/runner-host/**'
       - '.github/workflows/template-lint.yml'
 
 permissions:
@@ -88,6 +90,7 @@ jobs:
           bash scripts/release-routing-contract.test.sh
           bash scripts/action-runtime-contract.test.sh
           bash scripts/check-recovery-workflow.test.sh
+          bash scripts/runner-host/runner-host.test.sh
 
       - name: Run extract-release-metadata tests
         run: |
