@@ -139,11 +139,26 @@
               "smoke"
             ]
           },
+          "iterationKey": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1
+          },
+          "iterationOrdinal": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
           "provider": {
             "type": "string",
             "enum": [
               "github_actions",
-              "manual"
+              "manual",
+              "manual_uat"
             ]
           },
           "externalRunId": {
@@ -229,6 +244,8 @@
         "sdlcStage": 2,
         "environment": "ci",
         "suiteKind": "quality_gate",
+        "iterationKey": "REQ-093:iteration:2",
+        "iterationOrdinal": 2,
         "provider": "github_actions",
         "externalRunId": "12345",
         "externalRunAttempt": 2,
@@ -288,11 +305,26 @@
               "smoke"
             ]
           },
+          "iterationKey": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1
+          },
+          "iterationOrdinal": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
           "provider": {
             "type": "string",
             "enum": [
               "github_actions",
-              "manual"
+              "manual",
+              "manual_uat"
             ]
           },
           "externalRunId": {
@@ -393,6 +425,8 @@
         "sdlcStage": 2,
         "environment": "ci",
         "suiteKind": "quality_gate",
+        "iterationKey": "REQ-093:iteration:2",
+        "iterationOrdinal": 2,
         "provider": "github_actions",
         "externalRunId": "12345",
         "externalRunAttempt": 2,
@@ -409,7 +443,7 @@
       }
     },
     "test_execution_reconciled": {
-      "description": "Emitted only when a late correction must update a previously terminal cycle outcome or metadata.",
+      "description": "Emitted only when a late correction must update a previously terminal test-execution outcome or metadata.",
       "schema": {
         "$ref": "#/payloads/test_execution_completed/schema"
       },

@@ -113,7 +113,7 @@ The cross-reference makes the skill discoverable to AI agents that have already 
 Sync the framework to a consumer and verify the skill lands in `.claude/skills/<name>/`:
 
 ```bash
-devaudit update v1.23.x ../some-consumer
+devaudit update ../some-consumer
 ls ../some-consumer/.claude/skills/<name>/
 ```
 

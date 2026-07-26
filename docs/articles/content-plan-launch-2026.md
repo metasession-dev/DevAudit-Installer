@@ -10,37 +10,37 @@ All articles should link back to existing pages. Authors must reference the cano
 
 ### devaudit.ai pages
 
-| Page | URL | Use in articles |
-|------|-----|------------------|
-| **Homepage** | https://devaudit.ai/ | Hero messaging: "Compliance as a byproduct, not a project." Three audiences (vibe coders, traditional engineers, builders/founders). Live evidence feed example. |
-| **The SDLC (manifesto)** | https://devaudit.ai/sdlc | Five stages explained, three pillars (framework + gates + portal), six AI skills, tracked/integration/standalone release modes, 3-tier E2E gating, "AI as a first-class contributor", "What DevAudit is not" section. |
-| **Standards coverage** | https://devaudit.ai/compliance | Clause-by-clause mapping: ISO 29119, ISO 27001, SOC 2, GDPR, EU AI Act. "One gate, multiple frameworks" concept. |
-| **Onboarding** | https://devaudit.ai/onboarding | Three paths in (install / update / join), onboarding form, "The framework adapts; the audit shape doesn't" positioning, open-source-first messaging. |
-| **Blog** | https://devaudit.ai/blog | Publication home for all content plan articles. |
-| **Sign in** | https://devaudit.ai/auth/sign-in | PAT issuance starting point for tutorials. |
-| **Embed widget** | https://devaudit.ai/projects/[slug]/settings/embed | Project-scoped compliance badges iframe. Copy-paste snippet for public websites. Shows SOC 2, ISO 27001, GDPR, EU AI Act badges live from project claims. Three 404 gates for privacy (global kill switch, project existence, publish toggle). |
+| Page                     | URL                                                | Use in articles                                                                                                                                                                                                                                |
+| ------------------------ | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Homepage**             | https://devaudit.ai/                               | Hero messaging: "Compliance as a byproduct, not a project." Three audiences (vibe coders, traditional engineers, builders/founders). Live evidence feed example.                                                                               |
+| **The SDLC (manifesto)** | https://devaudit.ai/sdlc                           | Five stages explained, three pillars (framework + gates + portal), six AI skills, tracked/integration/standalone release modes, 3-tier E2E gating, "AI as a first-class contributor", "What DevAudit is not" section.                          |
+| **Standards coverage**   | https://devaudit.ai/compliance                     | Clause-by-clause mapping: ISO 29119, ISO 27001, SOC 2, GDPR, EU AI Act. "One gate, multiple frameworks" concept.                                                                                                                               |
+| **Onboarding**           | https://devaudit.ai/onboarding                     | Three paths in (install / update / join), onboarding form, "The framework adapts; the audit shape doesn't" positioning, open-source-first messaging.                                                                                           |
+| **Blog**                 | https://devaudit.ai/blog                           | Publication home for all content plan articles.                                                                                                                                                                                                |
+| **Sign in**              | https://devaudit.ai/auth/sign-in                   | PAT issuance starting point for tutorials.                                                                                                                                                                                                     |
+| **Embed widget**         | https://devaudit.ai/projects/[slug]/settings/embed | Project-scoped compliance badges iframe. Copy-paste snippet for public websites. Shows SOC 2, ISO 27001, GDPR, EU AI Act badges live from project claims. Three 404 gates for privacy (global kill switch, project existence, publish toggle). |
 
 ### GitHub repo pages (metasession-dev/DevAudit-Installer)
 
-| Doc | URL | Use in articles |
-|------|-----|------------------|
-| **README** | https://github.com/metasession-dev/DevAudit-Installer/blob/main/README.md | CLI commands (`install`/`update`/`join`), agent compatibility table, architecture overview, three-pillar summary. |
-| **SDLC framework structure** | https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/sdlc-framework.md | Template layering: process → stack → host adapters. |
-| **Stage 1 — Plan requirement** | https://github.com/metasession-dev/DevAudit-Installer/blob/main/sdlc/files/_common/1-plan-requirement.md | Risk classification, RTM entry, implementation plan creation. |
-| **Stage 2 — Implement & test** | https://github.com/metasession-dev/DevAudit-Installer/blob/main/sdlc/files/_common/2-implement-and-test.md | TDD, E2E delegation, gate execution order. |
-| **Stage 3 — Compile evidence** | https://github.com/metasession-dev/DevAudit-Installer/blob/main/sdlc/files/_common/3-compile-evidence.md | Evidence artefact shape, upload paths, UAT verification. |
-| **Stage 4 — Submit for review** | https://github.com/metasession-dev/DevAudit-Installer/blob/main/sdlc/files/_common/4-submit-for-review.md | PR prerequisites, release approval gate. |
-| **Stage 5 — Deploy** | https://github.com/metasession-dev/DevAudit-Installer/blob/main/sdlc/files/_common/5-deploy-main.md | Merge, post-deploy smoke, production approval. |
-| **Implementing an SDLC issue** | https://github.com/metasession-dev/DevAudit-Installer/blob/main/sdlc/files/_common/implementing-an-sdlc-issue.md | End-to-end walkthrough (referenced from /sdlc page). |
-| **Change workflows** | https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/change-workflows.md | Tracked vs housekeeping, workflow triage, commit-type taxonomy. |
-| **Skills overview** | https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/skills.md | The six AI skills: what each produces. |
-| **Compliance gates** | https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/compliance-gates.md | Five CI workflows: how each fires, what each owns. |
-| **Evidence tiers** | https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/evidence-tiers.md | Tier 1/2/3 split, operator-upload vs CI-upload. |
-| **E2E test tiers** | https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/e2e-test-tiers.md | Smoke → critical → regression gating model. |
-| **Release playbooks** | https://github.com/metasession-dev/DevAudit-Installer/tree/main/docs/release-playbooks | High-risk, low-risk, housekeeping — each written for AI-driven and manual. |
-| **Onboarding (detailed)** | https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/onboarding.md | Full operator walkthrough for `devaudit install`. |
-| **Governance templates** | https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/governance-templates.md | ROPA, DPIA, AI disclosure, incident report, periodic review starters. |
-| **Adding a skill** | https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/adding-a-skill.md | Skill authoring contract (for Article 24). |
+| Doc                             | URL                                                                                                              | Use in articles                                                                                                   |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| **README**                      | https://github.com/metasession-dev/DevAudit-Installer/blob/main/README.md                                        | CLI commands (`install`/`update`/`join`), agent compatibility table, architecture overview, three-pillar summary. |
+| **SDLC framework structure**    | https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/sdlc-framework.md                           | Template layering: process → stack → host adapters.                                                               |
+| **Stage 1 — Plan requirement**  | https://github.com/metasession-dev/DevAudit-Installer/blob/main/sdlc/files/_common/1-plan-requirement.md         | Risk classification, RTM entry, implementation plan creation.                                                     |
+| **Stage 2 — Implement & test**  | https://github.com/metasession-dev/DevAudit-Installer/blob/main/sdlc/files/_common/2-implement-and-test.md       | TDD, E2E delegation, gate execution order.                                                                        |
+| **Stage 3 — Compile evidence**  | https://github.com/metasession-dev/DevAudit-Installer/blob/main/sdlc/files/_common/3-compile-evidence.md         | Evidence artefact shape, upload paths, UAT verification.                                                          |
+| **Stage 4 — Submit for review** | https://github.com/metasession-dev/DevAudit-Installer/blob/main/sdlc/files/_common/4-submit-for-review.md        | PR prerequisites, release approval gate.                                                                          |
+| **Stage 5 — Deploy**            | https://github.com/metasession-dev/DevAudit-Installer/blob/main/sdlc/files/_common/5-deploy-main.md              | Merge, post-deploy smoke, production approval.                                                                    |
+| **Implementing an SDLC issue**  | https://github.com/metasession-dev/DevAudit-Installer/blob/main/sdlc/files/_common/implementing-an-sdlc-issue.md | End-to-end walkthrough (referenced from /sdlc page).                                                              |
+| **Change workflows**            | https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/change-workflows.md                         | Tracked vs housekeeping, workflow triage, commit-type taxonomy.                                                   |
+| **Skills overview**             | https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/skills.md                                   | The six AI skills: what each produces.                                                                            |
+| **Compliance gates**            | https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/compliance-gates.md                         | Five CI workflows: how each fires, what each owns.                                                                |
+| **Evidence tiers**              | https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/evidence-tiers.md                           | Tier 1/2/3 split, operator-upload vs CI-upload.                                                                   |
+| **E2E test tiers**              | https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/e2e-test-tiers.md                           | Smoke → critical → regression gating model.                                                                       |
+| **Release playbooks**           | https://github.com/metasession-dev/DevAudit-Installer/tree/main/docs/release-playbooks                           | High-risk, low-risk, housekeeping — each written for AI-driven and manual.                                        |
+| **Onboarding (detailed)**       | https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/onboarding.md                               | Full operator walkthrough for `devaudit install`.                                                                 |
+| **Governance templates**        | https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/governance-templates.md                     | ROPA, DPIA, AI disclosure, incident report, periodic review starters.                                             |
+| **Adding a skill**              | https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/adding-a-skill.md                           | Skill authoring contract (for Article 24).                                                                        |
 
 ---
 
@@ -81,9 +81,9 @@ Before the broader thought-leadership and workflow series begins, the **first pu
 
 ### Launch article
 
-| Order | Funnel | Primary persona | Article title | Format |
-| --- | --- | --- | --- | --- |
-| **Launch-1** | Launch | Multi-persona | Soft Launch: Take DevAudit for a Test Drive | Long-form launch note (1200-1500w) |
+| Order        | Funnel | Primary persona | Article title                               | Format                             |
+| ------------ | ------ | --------------- | ------------------------------------------- | ---------------------------------- |
+| **Launch-1** | Launch | Multi-persona   | Soft Launch: Take DevAudit for a Test Drive | Long-form launch note (1200-1500w) |
 
 ### Required message for Launch-1
 
@@ -102,53 +102,53 @@ Before the broader thought-leadership and workflow series begins, the **first pu
 
 ## Persona × funnel matrix
 
-| # | Funnel | Primary persona | Article title | Format |
-|---|--------|----------------|---------------|--------|
-| **TOFU — Awareness** | | | | |
-| 1 | TOFU | CISO | The EU AI Act Hits Code in August 2026: What Your AI Coding Agents Mean for High-Risk Classification | Long-form (2500w) |
-| 2 | TOFU | CTO | The Agentic SDLC: Why 2026 Is the Year Software Engineering Gets a New Operating Model | Long-form (2500w) |
-| 3 | TOFU | Compliance Officer | SOC 2 in the Age of AI Agents: The Segregation-of-Duties Problem Nobody Solved Yet | Long-form (2000w) |
-| 4 | TOFU | Lead Developer | Vibe Coding Broke My CI Pipeline: A Post-Mortem on Unconstrained AI in Production | Narrative post-mortem (2000w) |
-| 5 | TOFU | CISO + CTO | 60% of Enterprises Have No AI Governance Framework — Here's What That Actually Costs | Data-driven report (1500w) |
-| **MOFU — Consideration** | | | | |
-| 6 | MOFU | CISO | Immutable Audit Trails for AI-Generated Code: How DevAudit Closes the SOC 2 Accountability Gap | Solution deep-dive (2000w) |
-| 7 | MOFU | CTO | Separating Code from Evidence: How DevAudit Keeps Git Fast While Scaling AI Compliance | Technical architecture piece (2000w) |
-| 8 | MOFU | Compliance Officer | From 40 Hours to 4: Automating Evidence Collection from CI/CD for Audit Preparation | ROI case study (1500w) |
-| 9 | MOFU | Lead Developer | DevAudit in 15 Minutes: `npx devaudit install` and Your First Compliant Release | Hands-on tutorial (2500w) |
-| 10 | MOFU | CTO + Compliance | The Four-Eyes Gate: How DevAudit Enforces Human Approval Without Slowing Down Releases | Workflow walkthrough (1800w) |
-| 11 | MOFU | CISO + Compliance | EU AI Act Art. 11 Technical Documentation: What DevAudit Generates Automatically vs. What You Still Write | Compliance mapping (2000w) |
-| **BOFU — Decision** | | | | |
-| 12 | BOFU | CTO | DevAudit vs. Building It Yourself: The True Cost of DIY Compliance Tooling | Comparison guide (2000w) |
-| 13 | BOFU | Lead Developer | Migrating from Manual Evidence Collection to DevAudit: A Step-by-Step Guide | Migration guide (2500w) |
-| 14 | BOFU | Compliance Officer | Giving Your Auditor Portal Access: Scoped, Read-Only, No Developer Handholding | Feature walkthrough (1200w) |
-| 15 | BOFU | CISO | DevAudit's Security Model: API Keys, PATs, Dual-Actor Approval, and the Kill Switch | Security whitepaper (2500w) |
-| **Workflow series — "How a Feature Ships"** | | | | |
-| 16 | MOFU | Lead Developer | Part 1: From GitHub Issue to Implementation Plan — How DevAudit Plans a Feature | Workflow deep-dive (2000w) |
-| 17 | MOFU | Lead Developer | Part 2: TDD, E2E, and evidenceShot — How DevAudit Captures Test Evidence at the Assertion Level | Workflow deep-dive (2000w) |
-| 18 | MOFU | Lead Developer + Compliance | Part 3: Compiling Evidence — What Happens Between "Tests Pass" and "Ready for Review" | Workflow deep-dive (2000w) |
-| 19 | MOFU | Compliance Officer + CTO | Part 4: The UAT Gate — Four-Eyes Approval, Change Requests, and the Audit Trail | Workflow deep-dive (2000w) |
-| 20 | MOFU | CTO | Part 5: Deploy to Production — Post-Deploy Smoke, Production Approval, and Release Finalisation | Workflow deep-dive (1500w) |
-| **Industry & trends** | | | | |
-| 21 | TOFU | CISO + CTO | The AI Agent Attack Surface: Prompt Injection, Memory Manipulation, and Why Your SDLC Is the Last Line of Defence | Thought leadership (2500w) |
-| 22 | TOFU | Compliance Officer | ISO 29119 Meets Agentic AI: How Test Standards Apply When the Machine Writes the Tests | Standards analysis (2000w) |
-| 23 | TOFU | CTO | The Binary Bloat Problem: Why AI-Generated Evidence Is Killing Your Git Repository | Technical problem piece (1500w) |
-| 24 | TOFU | Lead Developer | AI Skills vs. AI Prompts: Why Structured Agent Delegation Beats Ad-Hoc Copilot Usage | Technical opinion (1800w) |
-| **Role-specific workflow guides** | | | | |
-| 25 | MOFU | Lead Developer | The Developer's Day with DevAudit: What Changes and What Doesn't | Day-in-the-life (1800w) |
-| 26 | MOFU | Compliance Officer | The Auditor's View: Navigating the DevAudit Portal as a GRC Professional | Portal walkthrough (1500w) |
-| 27 | MOFU | CTO | Onboarding Your Engineering Team: From First `install` to Organisation-Wide Rollout | Deployment guide (2000w) |
-| 28 | MOFU | CISO | Configuring DevAudit for Your Risk Appetite: Approval Modes, Risk Classes, and UAT Gates | Configuration guide (1800w) |
-| **Technical deep-dives — SDK & internals** | | | | |
-| 29 | MOFU | CTO + Lead Developer | Extending DevAudit with the Plugin SDK: Custom Integrations Without Forking | Technical SDK guide (2000w) |
-| 30 | MOFU | Lead Developer | One Source of Truth, Five AI Agents: How DevAudit Keeps Cursor, Windsurf, Gemini, and Claude Aligned | Technical architecture (1800w) |
-| 31 | MOFU | Lead Developer | Screenshot Density: Feature vs. Regression — Managing Evidence Storage at Scale | Technical deep-dive (1500w) |
-| 32 | MOFU | Lead Developer + CTO | Developer Mode vs. Operator Mode: How DevAudit Adapts to Solo Devs vs. Teams | Feature explanation (1500w) |
-| 33 | MOFU | Compliance Officer + CISO | Why We Don't Auto-Generate Your GDPR Documentation: The Opt-In Governance Pattern | Transparency piece (1500w) |
-| 34 | MOFU | CTO + Lead Developer | How DevAudit Generates Valid CI YAML Every Time: The Template Substitution Engine | Technical architecture (1800w) |
-| 35 | MOFU | Compliance Officer | The Automation You Don't See: Housekeeping Releases and Bare-Date Versioning | Operational guide (1500w) |
-| 36 | MOFU | CISO + Compliance Officer | From Incident to Risk Register: The Closed-Loop Compliance Flow | Process deep-dive (1800w) |
-| 37 | MOFU | CISO | Fail-Closed: Security Design in the Release Gate — Preventing Shadow Approvals | Security deep-dive (1500w) |
-| 38 | MOFU | Lead Developer | The LAST/NEXT Status Sticky: Workflow Navigability for Distributed Teams | UX pattern guide (1500w) |
+| #                                           | Funnel | Primary persona             | Article title                                                                                                     | Format                               |
+| ------------------------------------------- | ------ | --------------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| **TOFU — Awareness**                        |        |                             |                                                                                                                   |                                      |
+| 1                                           | TOFU   | CISO                        | The EU AI Act Hits Code in August 2026: What Your AI Coding Agents Mean for High-Risk Classification              | Long-form (2500w)                    |
+| 2                                           | TOFU   | CTO                         | The Agentic SDLC: Why 2026 Is the Year Software Engineering Gets a New Operating Model                            | Long-form (2500w)                    |
+| 3                                           | TOFU   | Compliance Officer          | SOC 2 in the Age of AI Agents: The Segregation-of-Duties Problem Nobody Solved Yet                                | Long-form (2000w)                    |
+| 4                                           | TOFU   | Lead Developer              | Vibe Coding Broke My CI Pipeline: A Post-Mortem on Unconstrained AI in Production                                 | Narrative post-mortem (2000w)        |
+| 5                                           | TOFU   | CISO + CTO                  | 60% of Enterprises Have No AI Governance Framework — Here's What That Actually Costs                              | Data-driven report (1500w)           |
+| **MOFU — Consideration**                    |        |                             |                                                                                                                   |                                      |
+| 6                                           | MOFU   | CISO                        | Immutable Audit Trails for AI-Generated Code: How DevAudit Closes the SOC 2 Accountability Gap                    | Solution deep-dive (2000w)           |
+| 7                                           | MOFU   | CTO                         | Separating Code from Evidence: How DevAudit Keeps Git Fast While Scaling AI Compliance                            | Technical architecture piece (2000w) |
+| 8                                           | MOFU   | Compliance Officer          | From 40 Hours to 4: Automating Evidence Collection from CI/CD for Audit Preparation                               | ROI case study (1500w)               |
+| 9                                           | MOFU   | Lead Developer              | DevAudit in 15 Minutes: `npx devaudit install` and Your First Compliant Release                                   | Hands-on tutorial (2500w)            |
+| 10                                          | MOFU   | CTO + Compliance            | The Four-Eyes Gate: How DevAudit Enforces Human Approval Without Slowing Down Releases                            | Workflow walkthrough (1800w)         |
+| 11                                          | MOFU   | CISO + Compliance           | EU AI Act Art. 11 Technical Documentation: What DevAudit Generates Automatically vs. What You Still Write         | Compliance mapping (2000w)           |
+| **BOFU — Decision**                         |        |                             |                                                                                                                   |                                      |
+| 12                                          | BOFU   | CTO                         | DevAudit vs. Building It Yourself: The True Cost of DIY Compliance Tooling                                        | Comparison guide (2000w)             |
+| 13                                          | BOFU   | Lead Developer              | Migrating from Manual Evidence Collection to DevAudit: A Step-by-Step Guide                                       | Migration guide (2500w)              |
+| 14                                          | BOFU   | Compliance Officer          | Giving Your Auditor Portal Access: Scoped, Read-Only, No Developer Handholding                                    | Feature walkthrough (1200w)          |
+| 15                                          | BOFU   | CISO                        | DevAudit's Security Model: API Keys, PATs, Dual-Actor Approval, and the Kill Switch                               | Security whitepaper (2500w)          |
+| **Workflow series — "How a Feature Ships"** |        |                             |                                                                                                                   |                                      |
+| 16                                          | MOFU   | Lead Developer              | Part 1: From GitHub Issue to Implementation Plan — How DevAudit Plans a Feature                                   | Workflow deep-dive (2000w)           |
+| 17                                          | MOFU   | Lead Developer              | Part 2: TDD, E2E, and evidenceShot — How DevAudit Captures Test Evidence at the Assertion Level                   | Workflow deep-dive (2000w)           |
+| 18                                          | MOFU   | Lead Developer + Compliance | Part 3: Compiling Evidence — What Happens Between "Tests Pass" and "Ready for Review"                             | Workflow deep-dive (2000w)           |
+| 19                                          | MOFU   | Compliance Officer + CTO    | Part 4: The UAT Gate — Four-Eyes Approval, Change Requests, and the Audit Trail                                   | Workflow deep-dive (2000w)           |
+| 20                                          | MOFU   | CTO                         | Part 5: Deploy to Production — Post-Deploy Smoke, Production Approval, and Release Finalisation                   | Workflow deep-dive (1500w)           |
+| **Industry & trends**                       |        |                             |                                                                                                                   |                                      |
+| 21                                          | TOFU   | CISO + CTO                  | The AI Agent Attack Surface: Prompt Injection, Memory Manipulation, and Why Your SDLC Is the Last Line of Defence | Thought leadership (2500w)           |
+| 22                                          | TOFU   | Compliance Officer          | ISO 29119 Meets Agentic AI: How Test Standards Apply When the Machine Writes the Tests                            | Standards analysis (2000w)           |
+| 23                                          | TOFU   | CTO                         | The Binary Bloat Problem: Why AI-Generated Evidence Is Killing Your Git Repository                                | Technical problem piece (1500w)      |
+| 24                                          | TOFU   | Lead Developer              | AI Skills vs. AI Prompts: Why Structured Agent Delegation Beats Ad-Hoc Copilot Usage                              | Technical opinion (1800w)            |
+| **Role-specific workflow guides**           |        |                             |                                                                                                                   |                                      |
+| 25                                          | MOFU   | Lead Developer              | The Developer's Day with DevAudit: What Changes and What Doesn't                                                  | Day-in-the-life (1800w)              |
+| 26                                          | MOFU   | Compliance Officer          | The Auditor's View: Navigating the DevAudit Portal as a GRC Professional                                          | Portal walkthrough (1500w)           |
+| 27                                          | MOFU   | CTO                         | Onboarding Your Engineering Team: From First `install` to Organisation-Wide Rollout                               | Deployment guide (2000w)             |
+| 28                                          | MOFU   | CISO                        | Configuring DevAudit for Your Risk Appetite: Approval Modes, Risk Classes, and UAT Gates                          | Configuration guide (1800w)          |
+| **Technical deep-dives — SDK & internals**  |        |                             |                                                                                                                   |                                      |
+| 29                                          | MOFU   | CTO + Lead Developer        | Extending DevAudit with the Plugin SDK: Custom Integrations Without Forking                                       | Technical SDK guide (2000w)          |
+| 30                                          | MOFU   | Lead Developer              | One Source of Truth, Five AI Agents: How DevAudit Keeps Cursor, Windsurf, Gemini, and Claude Aligned              | Technical architecture (1800w)       |
+| 31                                          | MOFU   | Lead Developer              | Screenshot Density: Feature vs. Regression — Managing Evidence Storage at Scale                                   | Technical deep-dive (1500w)          |
+| 32                                          | MOFU   | Lead Developer + CTO        | Developer Mode vs. Operator Mode: How DevAudit Adapts to Solo Devs vs. Teams                                      | Feature explanation (1500w)          |
+| 33                                          | MOFU   | Compliance Officer + CISO   | Why We Don't Auto-Generate Your GDPR Documentation: The Opt-In Governance Pattern                                 | Transparency piece (1500w)           |
+| 34                                          | MOFU   | CTO + Lead Developer        | How DevAudit Generates Valid CI YAML Every Time: The Template Substitution Engine                                 | Technical architecture (1800w)       |
+| 35                                          | MOFU   | Compliance Officer          | The Automation You Don't See: Housekeeping Releases and Bare-Date Versioning                                      | Operational guide (1500w)            |
+| 36                                          | MOFU   | CISO + Compliance Officer   | From Incident to Risk Register: The Closed-Loop Compliance Flow                                                   | Process deep-dive (1800w)            |
+| 37                                          | MOFU   | CISO                        | Fail-Closed: Security Design in the Release Gate — Preventing Shadow Approvals                                    | Security deep-dive (1500w)           |
+| 38                                          | MOFU   | Lead Developer              | The LAST/NEXT Status Sticky: Workflow Navigability for Distributed Teams                                          | UX pattern guide (1500w)             |
 
 ---
 
@@ -165,14 +165,15 @@ Before the broader thought-leadership and workflow series begins, the **first pu
 **Primary persona:** CISO
 **Goal:** Establish urgency around the August 2026 enforcement deadline and position AI coding agents as an under-recognised compliance surface within the development lifecycle of regulated AI systems.
 **Key points:**
+
 - AI coding agents (Claude Code, Cursor, Copilot, Windsurf) may form part of the development lifecycle of systems regulated by the EU AI Act. Organisations developing or operating high-risk AI systems must be able to evidence how those systems were designed, changed, tested and reviewed — AI coding agents are not inherently high-risk merely because they write production code, but their use must be documented when the system being built is regulated
 - Where a team develops a high-risk AI system, Article 11 requires technical documentation. AI-assisted development can make reconstructing that lifecycle more difficult unless agent activity, testing and approvals are captured as work happens
 - Art. 13 requires transparency and disclosure — who knows which code blocks were AI-generated?
 - Fines: the highest tier (up to EUR 35M or 7% of global turnover) applies to prohibited AI practices; infringements of high-risk system obligations carry lower maximums (up to EUR 15M or 3%); the exact penalty depends on the infringement and the organisation
-- The gap: security teams are focused on AI products (chatbots, recommendation engines) while AI *development tools* fly under the radar
-**DevAudit hook:** DevAudit's `Co-Authored-By` commit enforcement, `ai-prompts.md` evidence artifact, and `ai-use-note.md` per-requirement record create the Art. 11 technical documentation trail automatically. The /sdlc page's "AI as a first-class contributor" section and the EU AI Act "Risk Elevation" control on /compliance are the canonical product references.
-**CTA:** "See how DevAudit maps to EU AI Act articles → [devaudit.ai/compliance](https://devaudit.ai/compliance)"
-**Cross-links:** [/sdlc § AI as a first-class contributor](https://devaudit.ai/sdlc) · [/compliance § EU AI Act](https://devaudit.ai/compliance)
+- The gap: security teams are focused on AI products (chatbots, recommendation engines) while AI _development tools_ fly under the radar
+  **DevAudit hook:** DevAudit's `Co-Authored-By` commit enforcement, `ai-prompts.md` evidence artifact, and `ai-use-note.md` per-requirement record create the Art. 11 technical documentation trail automatically. The /sdlc page's "AI as a first-class contributor" section and the EU AI Act "Risk Elevation" control on /compliance are the canonical product references.
+  **CTA:** "See how DevAudit maps to EU AI Act articles → [devaudit.ai/compliance](https://devaudit.ai/compliance)"
+  **Cross-links:** [/sdlc § AI as a first-class contributor](https://devaudit.ai/sdlc) · [/compliance § EU AI Act](https://devaudit.ai/compliance)
 
 ---
 
@@ -181,14 +182,15 @@ Before the broader thought-leadership and workflow series begins, the **first pu
 **Primary persona:** CTO
 **Goal:** Frame the industry shift from AI-assisted coding to AI-driven SDLC participation and position DevAudit as the governance layer for this transition.
 **Key points:**
+
 - 2025 was "Copilot autocompletes your line." 2026 is "the AI agent plans, implements, tests, compiles evidence, and opens the PR." The SDLC itself is becoming agentic
 - The CTO's decision: where does automation end and human judgment begin? DevAudit's answer: the AI does everything except approve and merge
 - The six-skill model: `sdlc-implementer` orchestrates, delegates to `e2e-test-engineer`, `governance-doc-author`, `requirements-aligner`, `adr-author`, `risk-register-keeper` — each with a defined contract
 - Agent-agnostic: Claude Code, Cursor, Windsurf, Gemini CLI, Codex — same SDLC, same gates, same evidence. No vendor lock-in on the AI side
 - The speed vs. governance tension: 60% of enterprises report no formal AI governance framework. DevAudit is the framework
-**DevAudit hook:** The `sdlc-implementer` skill takes a GitHub issue through Stages 1–5 unattended, pausing at the human approval gate — this is the agentic SDLC with guardrails. The /sdlc page's "One prompt" section (`> Implement issue #N under the SDLC.`) is the canonical demonstration.
-**CTA:** "Read the SDLC manifesto → [devaudit.ai/sdlc](https://devaudit.ai/sdlc)"
-**Cross-links:** [/sdlc § One orchestrator, five specialists](https://devaudit.ai/sdlc) · [docs/skills.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/skills.md) · [docs/change-workflows.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/change-workflows.md)
+  **DevAudit hook:** The `sdlc-implementer` skill orchestrates a GitHub issue through Stages 1–5, pausing at human approvals, risk decisions, and blockers it cannot safely resolve. The /sdlc page's "One prompt" section (`> Implement issue #N under the SDLC.`) is the canonical demonstration.
+  **CTA:** "Read the SDLC manifesto → [devaudit.ai/sdlc](https://devaudit.ai/sdlc)"
+  **Cross-links:** [/sdlc § One orchestrator, five specialists](https://devaudit.ai/sdlc) · [docs/skills.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/skills.md) · [docs/change-workflows.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/change-workflows.md)
 
 ---
 
@@ -197,14 +199,15 @@ Before the broader thought-leadership and workflow series begins, the **first pu
 **Primary persona:** Compliance Officer
 **Goal:** Surface the SOC 2 change-management challenge that AI agents create (the same entity writes, tests, and could approve code) and show how DevAudit's dual-approval gate supports segregation-of-duties and change-management objectives.
 **Key points:**
+
 - SOC 2 CC8.1 addresses controls over changes to systems and processes. When an AI agent writes the code AND generates the test evidence, the change-management chain becomes harder to evidence — the "segregation" is between a human and their tool, which auditors may not accept as meaningful separation
 - Dual approval supports segregation-of-duties and change-management objectives under CC8.1 — DevAudit's `dual_actor` mode is one concrete implementation, not a SOC 2 mandate
 - The `Co-Authored-By` tag attributes AI code to the human who directed it. The four-eyes approval gate (`dual_actor` mode) ensures `approver_user_id != release_creator_user_id`
 - `solo_with_gap` mode exists for solo developers but requires an explicit risk-register entry acknowledging the control gap — the auditor sees the acknowledgement, not a silent bypass
 - Evidence is immutable and timestamped on the portal — no post-hoc fabrication
-**DevAudit hook:** `approval.mode: dual_actor` in `sdlc-config.json`, enforced by `check-release-approval.yml` at PR merge time. The /compliance page's SOC 2 CC8.1 "Change Management" row and ISO 27001 A.5.3 "Separation of Duties" row are the canonical mappings.
-**CTA:** "See how DevAudit maps SOC 2 controls → [devaudit.ai/compliance](https://devaudit.ai/compliance)"
-**Cross-links:** [/compliance § SOC 2](https://devaudit.ai/compliance) · [docs/compliance-gates.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/compliance-gates.md)
+  **DevAudit hook:** `approval.mode: dual_actor` in `sdlc-config.json`, enforced by `check-release-approval.yml` at PR merge time. The /compliance page's SOC 2 CC8.1 "Change Management" row and ISO 27001 A.5.3 "Separation of Duties" row are the canonical mappings.
+  **CTA:** "See how DevAudit maps SOC 2 controls → [devaudit.ai/compliance](https://devaudit.ai/compliance)"
+  **Cross-links:** [/compliance § SOC 2](https://devaudit.ai/compliance) · [docs/compliance-gates.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/compliance-gates.md)
 
 ---
 
@@ -213,14 +216,15 @@ Before the broader thought-leadership and workflow series begins, the **first pu
 **Primary persona:** Lead Developer
 **Goal:** Hook developers with a relatable post-mortem about what happens when unconstrained AI generates code without structure — then show how DevAudit prevents it.
 **Key points:**
+
 - Narrative format: a developer uses an AI agent to "vibe code" a feature. The agent generates 12 test files with no REQ annotations, no `evidenceShot()` calls, no traceability. CI passes (tests green), but the compliance portal shows zero evidence for the requirement. The release reaches UAT review with nothing for the reviewer to review
 - The deeper problem: the agent pushed to a branch whose PR was already merged, then suggested cherry-picking orphaned commits to `develop`
 - Root cause: no scope guard, no branch-state check, no evidence-wiring validation
 - The fix: structured agent delegation (the `e2e-test-engineer` skill owns test authoring; the orchestrator doesn't inline specs), scope-check gates, branch-state pre-flight
 - The punchline: "The AI was productive. It just wasn't compliant. DevAudit makes those the same thing."
-**DevAudit hook:** The real incident from the wawagardenbar-app REQ-081 (anonymised). Issues #169, #170, #171. Tie to the "What DevAudit is not" disclaimer: "Not a replacement for code review — the four-eyes gate enforces THAT there's a second reviewer" — show that without the gate, unconstrained AI fails silently.
-**CTA:** "Try the 15-minute quickstart → [devaudit.ai/onboarding](https://devaudit.ai/onboarding)"
-**Cross-links:** [/sdlc § What DevAudit is not](https://devaudit.ai/sdlc) · [/onboarding](https://devaudit.ai/onboarding) · [docs/e2e-test-tiers.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/e2e-test-tiers.md)
+  **DevAudit hook:** The real incident from the wawagardenbar-app REQ-081 (anonymised). Issues #169, #170, #171. Tie to the "What DevAudit is not" disclaimer: "Not a replacement for code review — the four-eyes gate enforces THAT there's a second reviewer" — show that without the gate, unconstrained AI fails silently.
+  **CTA:** "Try the 15-minute quickstart → [devaudit.ai/onboarding](https://devaudit.ai/onboarding)"
+  **Cross-links:** [/sdlc § What DevAudit is not](https://devaudit.ai/sdlc) · [/onboarding](https://devaudit.ai/onboarding) · [docs/e2e-test-tiers.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/e2e-test-tiers.md)
 
 ---
 
@@ -229,13 +233,14 @@ Before the broader thought-leadership and workflow series begins, the **first pu
 **Primary persona:** CISO + CTO
 **Goal:** Data-driven piece establishing the governance gap and the cost of inaction.
 **Key points:**
+
 - Cite 2026 industry surveys on AI governance adoption rates
 - Map the gap to concrete risks: regulatory fines (EU AI Act), audit failures (SOC 2), IP liability (AI-generated code provenance), security incidents (prompt injection on agents with write access)
 - The cost of building governance in-house vs. adopting a purpose-built tool
 - Framework comparison: what exists today (manual spreadsheets, Jira workflows, GRC tools that don't speak CI/CD) vs. what's needed (developer-native, pipeline-integrated, evidence-automated)
-**DevAudit hook:** DevAudit is the governance framework that ships as a `npx install` — not a 6-month consulting engagement. Reference the /onboarding page's "No two SDLCs are the same" section — DevAudit is opinionated about WHAT evidence auditors expect; flexible about HOW your team produces it.
-**CTA:** "Tell us about your SDLC → [devaudit.ai/onboarding](https://devaudit.ai/onboarding)"
-**Cross-links:** [/onboarding § Tell us about your SDLC](https://devaudit.ai/onboarding) · [/compliance](https://devaudit.ai/compliance) · [README § The SDLC at a glance](https://github.com/metasession-dev/DevAudit-Installer/blob/main/README.md)
+  **DevAudit hook:** DevAudit is the governance framework that ships as a `npx install` — not a 6-month consulting engagement. Reference the /onboarding page's "No two SDLCs are the same" section — DevAudit is opinionated about WHAT evidence auditors expect; flexible about HOW your team produces it.
+  **CTA:** "Tell us about your SDLC → [devaudit.ai/onboarding](https://devaudit.ai/onboarding)"
+  **Cross-links:** [/onboarding § Tell us about your SDLC](https://devaudit.ai/onboarding) · [/compliance](https://devaudit.ai/compliance) · [README § The SDLC at a glance](https://github.com/metasession-dev/DevAudit-Installer/blob/main/README.md)
 
 ---
 
@@ -248,15 +253,16 @@ Before the broader thought-leadership and workflow series begins, the **first pu
 **Primary persona:** CISO
 **Goal:** Deep-dive into how DevAudit creates tamper-resistant evidence of AI involvement in code changes.
 **Key points:**
+
 - Every AI-generated code block carries a `Co-Authored-By` commit trailer — enforced by commitlint hooks, not optional
 - `ai-use-note.md` per requirement records: which AI tool, planned use areas, risk classification impact
 - `ai-prompts.md` records the human-AI interaction that produced the code
 - CI independently re-runs all quality gates on the PR branch — the human's local "it works on my machine" is not the evidence; GitHub Actions' tamper-resistant output is
 - Portal evidence is append-only: iteration N adds, it does not replace. The audit trail shows what each iteration looked like
 - SHA comparison: the Release Approval Gate compares the approved SHA against the PR HEAD — if code changed after approval, the gate warns
-**DevAudit hook:** `check-release-approval.yml` SHA comparison step, `ai-prompts.md` evidence artifact, append-only iteration evidence. The /sdlc page's "AI as a first-class contributor" section confirms: `Co-Authored-By` trailer enforced by commitlint, portal renders human/AI split per release.
-**CTA:** "See the evidence model in detail → [devaudit.ai/sdlc](https://devaudit.ai/sdlc)"
-**Cross-links:** [/sdlc § AI as a first-class contributor](https://devaudit.ai/sdlc) · [docs/evidence-tiers.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/evidence-tiers.md) · [docs/compliance-gates.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/compliance-gates.md)
+  **DevAudit hook:** `check-release-approval.yml` SHA comparison step, `ai-prompts.md` evidence artifact, append-only iteration evidence. The /sdlc page's "AI as a first-class contributor" section confirms: `Co-Authored-By` trailer enforced by commitlint, portal renders human/AI split per release.
+  **CTA:** "See the evidence model in detail → [devaudit.ai/sdlc](https://devaudit.ai/sdlc)"
+  **Cross-links:** [/sdlc § AI as a first-class contributor](https://devaudit.ai/sdlc) · [docs/evidence-tiers.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/evidence-tiers.md) · [docs/compliance-gates.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/compliance-gates.md)
 
 ---
 
@@ -265,14 +271,15 @@ Before the broader thought-leadership and workflow series begins, the **first pu
 **Primary persona:** CTO
 **Goal:** Explain the architectural decision to keep binary evidence out of Git and in the portal — and why this matters at scale.
 **Key points:**
+
 - The problem: AI agents generate massive evidence volumes — Playwright screenshots, SAST JSON reports, test coverage HTML, trace ZIPs. Committing these to Git degrades clone times, bloats CI caches, and makes `git log` unusable
 - DevAudit's answer: declarative compliance docs (markdown) live in Git (reviewable in PR diff). Binary evidence (JSON, PNG, HTML) uploads to the portal via `upload-evidence.sh` in CI
 - The portal is the evidence store; Git is the code store. Both reference the same `REQ-XXX` and release version
 - Architecture: `ci.yml` uploads gate evidence after tests pass; `compliance-evidence.yml` uploads committed docs on compliance-path pushes. Two workflows, no duplication (issue #45 — the dedup story)
 - For the CTO: this means your Git repo stays fast, your CI artifacts are retained for 90 days in GitHub + permanently in the portal, and your developers never touch an evidence management UI
-**DevAudit hook:** The explicit "Binary evidence in DevAudit, not git" rule from `3-compile-evidence.md`. The /sdlc page's "Three tiers, two upload paths" section explains the operator-upload vs CI-auto-upload split.
-**CTA:** "See the architecture → [sdlc-framework.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/sdlc-framework.md)"
-**Cross-links:** [/sdlc § Three tiers, two upload paths](https://devaudit.ai/sdlc) · [docs/evidence-tiers.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/evidence-tiers.md) · [Stage 3 doc](https://github.com/metasession-dev/DevAudit-Installer/blob/main/sdlc/files/_common/3-compile-evidence.md)
+  **DevAudit hook:** The explicit "Binary evidence in DevAudit, not git" rule from `3-compile-evidence.md`. The /sdlc page's "Three tiers, two upload paths" section explains the operator-upload vs CI-auto-upload split.
+  **CTA:** "See the architecture → [sdlc-framework.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/sdlc-framework.md)"
+  **Cross-links:** [/sdlc § Three tiers, two upload paths](https://devaudit.ai/sdlc) · [docs/evidence-tiers.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/evidence-tiers.md) · [Stage 3 doc](https://github.com/metasession-dev/DevAudit-Installer/blob/main/sdlc/files/_common/3-compile-evidence.md)
 
 ---
 
@@ -281,14 +288,15 @@ Before the broader thought-leadership and workflow series begins, the **first pu
 **Primary persona:** Compliance Officer
 **Goal:** Quantify the time savings from automated evidence collection and show the before/after.
 **Key points:**
+
 - Before: compliance officer chases developers for screenshots, exports test reports from Jenkins, manually cross-references SAST findings, assembles evidence packs in SharePoint, sends to auditor via email
 - After: CI uploads evidence automatically on every push. The portal organises it by requirement, release, and evidence type. The auditor gets scoped read-only portal access
 - Walkthrough of what CI uploads automatically: `security_scan` (SAST JSON), `ci_pipeline` (gate outcomes), `test_report` (Playwright HTML + JUnit XML), `screenshot` (per-AC `evidenceShot` PNGs), `compliance_document` (markdown artifacts)
-- What still requires human input: risk classification, acceptance criteria definition, UAT approval click, production approval click. DevAudit automates evidence *collection*, not evidence *judgment*
+- What still requires human input: risk classification, acceptance criteria definition, UAT approval click, production approval click. DevAudit automates evidence _collection_, not evidence _judgment_
 - ROI model: hours per audit cycle before vs. after, across 4 quarterly cycles per year
-**DevAudit hook:** The `upload-evidence` job in `ci.yml.template` and the portal's release-completeness matrix. The /compliance page's "One gate, multiple frameworks" concept shows how a single gate check satisfies multiple compliance clauses simultaneously — compounding the time savings.
-**CTA:** "See standards coverage → [devaudit.ai/compliance](https://devaudit.ai/compliance)"
-**Cross-links:** [/compliance § One gate, multiple frameworks](https://devaudit.ai/compliance) · [docs/compliance-gates.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/compliance-gates.md)
+  **DevAudit hook:** The `upload-evidence` job in `ci.yml.template` and the portal's release-completeness matrix. The /compliance page's "One gate, multiple frameworks" concept shows how a single gate check satisfies multiple compliance clauses simultaneously — compounding the time savings.
+  **CTA:** "See standards coverage → [devaudit.ai/compliance](https://devaudit.ai/compliance)"
+  **Cross-links:** [/compliance § One gate, multiple frameworks](https://devaudit.ai/compliance) · [docs/compliance-gates.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/compliance-gates.md)
 
 ---
 
@@ -297,6 +305,7 @@ Before the broader thought-leadership and workflow series begins, the **first pu
 **Primary persona:** Lead Developer
 **Goal:** Hands-on tutorial — `npx devaudit install` through first compliant release. No marketing, just commands and outputs.
 **Key points:**
+
 - Prerequisites: Node >= 22, a GitHub repo, a DevAudit PAT from `devaudit.ai/settings/tokens`
 - Step 1: `export DEVAUDIT_USER_TOKEN="mctok_..." && npx @metasession.co/devaudit-cli@latest install ../your-project` — walk through the 11-step interactive flow
 - Step 2: Review the diff — what got installed (workflows, hooks, rule files, skills, scripts)
@@ -304,9 +313,9 @@ Before the broader thought-leadership and workflow series begins, the **first pu
 - Step 4: Create a GitHub issue, run `sdlc-implementer` (or walk Stages 1–5 manually), watch evidence appear in the portal
 - Step 5: Open the portal — show the release dashboard, the evidence-by-requirement view, the completeness matrix
 - What to do next: `devaudit update` when a new framework version ships, `devaudit join` for teammates
-**DevAudit hook:** The actual CLI commands from `README.md`. Mirror the /onboarding page's 11-step breakdown (verify PAT → detect stack → confirm adapters → write config → create project → issue API key → upload secrets → install hooks → configure branch protection → sync templates → done report). The homepage's live evidence feed ("Production deploy wawagardenbar-app · main 2m") is what the portal looks like after completion.
-**CTA:** "Sign in to issue a token → [devaudit.ai/auth/sign-in](https://devaudit.ai/auth/sign-in)"
-**Cross-links:** [/onboarding § Onboard a new project](https://devaudit.ai/onboarding) · [README § Quick start](https://github.com/metasession-dev/DevAudit-Installer/blob/main/README.md) · [docs/onboarding.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/onboarding.md)
+  **DevAudit hook:** The actual CLI commands from `README.md`. Mirror the /onboarding page's 11-step breakdown (verify PAT → detect stack → confirm adapters → write config → create project → issue API key → upload secrets → install hooks → configure branch protection → sync templates → done report). The homepage's live evidence feed ("Production deploy wawagardenbar-app · main 2m") is what the portal looks like after completion.
+  **CTA:** "Sign in to issue a token → [devaudit.ai/auth/sign-in](https://devaudit.ai/auth/sign-in)"
+  **Cross-links:** [/onboarding § Onboard a new project](https://devaudit.ai/onboarding) · [README § Quick start](https://github.com/metasession-dev/DevAudit-Installer/blob/main/README.md) · [docs/onboarding.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/onboarding.md)
 
 ---
 
@@ -315,16 +324,17 @@ Before the broader thought-leadership and workflow series begins, the **first pu
 **Primary persona:** CTO + Compliance
 **Goal:** Explain the four-eyes approval mechanism end-to-end — from submission to merge.
 **Key points:**
+
 - The release lifecycle: `draft → uat_review → uat_approved → prod_review → prod_approved → released`
-- Step 11a: dev submits for UAT review (portal status: `uat_review`). Step 11b: a *different person* reviews evidence and clicks Approve
+- Step 11a: dev submits for UAT review (portal status: `uat_review`). Step 11b: a _different person_ reviews evidence and clicks Approve
 - `dual_actor` mode: `approver_user_id != release_creator_user_id` — enforced server-side, not honour-system
 - `auto_low_risk` mode: LOW-risk requirements auto-approve once CI evidence uploads complete — human four-eyes reserved for MEDIUM/HIGH where the risk justifies the ceremony
 - The `Release Approval Gate` workflow on the PR: polls the portal API, blocks merge until approval is recorded. `workflow_dispatch` re-trigger for when approval happens after the initial check
 - Change-request loop: reviewer clicks "Request Changes" → agent enters iteration loop → addresses items → pushes → portal auto-resets to `uat_review` → re-review. Up to 5 iterations before the skill halts
 - Post-merge: `post-deploy-prod.yml` runs production smoke, advances to `prod_review`, and a second approval promotes to `released`
-**DevAudit hook:** `check-release-approval.yml.template`, `change-request-loop.md`, `sdlc-config.json` approval modes. The /sdlc page confirms: "A reviewer approves on the portal. The merge gate stays red until they do." The homepage live feed shows the real-time evidence: "PR #347 approved — Four-eyes complete · UAT signed."
-**CTA:** "Read the SDLC manifesto → [devaudit.ai/sdlc](https://devaudit.ai/sdlc)"
-**Cross-links:** [/sdlc § Five stages](https://devaudit.ai/sdlc) · [Stage 4 doc](https://github.com/metasession-dev/DevAudit-Installer/blob/main/sdlc/files/_common/4-submit-for-review.md) · [docs/compliance-gates.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/compliance-gates.md)
+  **DevAudit hook:** `check-release-approval.yml.template`, `change-request-loop.md`, `sdlc-config.json` approval modes. The /sdlc page confirms: "A reviewer approves on the portal. The merge gate stays red until they do." The homepage live feed shows the real-time evidence: "PR #347 approved — Four-eyes complete · UAT signed."
+  **CTA:** "Read the SDLC manifesto → [devaudit.ai/sdlc](https://devaudit.ai/sdlc)"
+  **Cross-links:** [/sdlc § Five stages](https://devaudit.ai/sdlc) · [Stage 4 doc](https://github.com/metasession-dev/DevAudit-Installer/blob/main/sdlc/files/_common/4-submit-for-review.md) · [docs/compliance-gates.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/compliance-gates.md)
 
 ---
 
@@ -333,14 +343,15 @@ Before the broader thought-leadership and workflow series begins, the **first pu
 **Primary persona:** CISO + Compliance
 **Goal:** Clause-by-clause mapping of EU AI Act technical documentation requirements to specific DevAudit artifacts.
 **Key points:**
+
 - Art. 11 (high-risk AI systems) requires: general description of the AI system, development methodology, design specifications, data requirements, testing and validation results, risk management measures — AI-assisted development makes capturing this lifecycle harder unless agent activity is tracked automatically
 - What DevAudit generates automatically: `ai-use-note.md` (AI system description per REQ), `implementation-plan.md` (design specifications), test-execution-summary (testing results), SAST + dep-audit evidence (risk management), `Co-Authored-By` provenance trail
 - What you still write: the company-level AI system register, DPIA (template provided), AI disclosure statement (template provided), human oversight procedures
 - Art. 13 transparency: `ai-prompts.md` captures the human-AI interaction; the portal makes this reviewable by auditors
 - The governance doc starters: ROPA, DPIA, AI disclosure, incident report, periodic review — installed via `devaudit bootstrap-governance`, authored via the `governance-doc-author` skill
-**DevAudit hook:** `governance/` templates, `ai-prompts.md`, `ai-use-note.md`, standards-coverage page. The /compliance page's EU AI Act section lists five mapped controls (Human Oversight, Tool Governance, Transparency & Audit Trail, Risk Elevation, Regeneration Protocol) — use these as the article's structural backbone.
-**CTA:** "View the full standards coverage → [devaudit.ai/compliance](https://devaudit.ai/compliance)"
-**Cross-links:** [/compliance § EU AI Act](https://devaudit.ai/compliance) · [docs/governance-templates.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/governance-templates.md) · [/sdlc § AI as a first-class contributor](https://devaudit.ai/sdlc)
+  **DevAudit hook:** `governance/` templates, `ai-prompts.md`, `ai-use-note.md`, standards-coverage page. The /compliance page's EU AI Act section lists five mapped controls (Human Oversight, Tool Governance, Transparency & Audit Trail, Risk Elevation, Regeneration Protocol) — use these as the article's structural backbone.
+  **CTA:** "View the full standards coverage → [devaudit.ai/compliance](https://devaudit.ai/compliance)"
+  **Cross-links:** [/compliance § EU AI Act](https://devaudit.ai/compliance) · [docs/governance-templates.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/governance-templates.md) · [/sdlc § AI as a first-class contributor](https://devaudit.ai/sdlc)
 
 ---
 
@@ -353,14 +364,15 @@ Before the broader thought-leadership and workflow series begins, the **first pu
 **Primary persona:** CTO
 **Goal:** Honest comparison of DevAudit vs. the common alternative (custom scripts, Jira workflows, manual evidence collection).
 **Key points:**
+
 - The "we'll build it ourselves" path: custom CI scripts for evidence upload, a shared drive for screenshots, Jira custom fields for traceability, manual evidence assembly before audits
 - What you're actually building: an evidence portal, an approval workflow engine, a CI integration layer, a standards-mapping database, per-requirement traceability, iteration tracking, auditor access controls, **a public trust-badge system** (every enterprise website needs a SOC 2 / ISO 27001 badge — building this yourself means maintaining embeddable iframes, cache headers, privacy gates, and framework claim resolution)
 - The hidden costs: maintenance burden (every CI provider change breaks your scripts), no standard schema (auditors question bespoke formats), no iteration tracking (you can't see what changed between review cycles), no cross-project consistency, **no sales-ready compliance badges** (marketing asks for a trust badge, engineering says "we'll get to it", deal stalls)
 - DevAudit's answer: one `npx install`, framework-owned CI templates that update with `devaudit update`, a portal purpose-built for compliance evidence, auditor access built in, **embed widget live since 2026-06-06** — copy-paste iframe snippet, three privacy gates, global kill switch for CISO control
 - Comparison table: feature-by-feature (DIY vs. Jira + Confluence vs. traditional GRC tools vs. DevAudit)
-**DevAudit hook:** The `devaudit update` story — framework templates stay current without manual maintenance. The /sdlc page's three-pillar architecture (framework + gates + portal) is the structural answer to "what are you actually building if you DIY?" The /onboarding page's "The framework is open-source. Read it first if you prefer." messaging removes the sales objection.
-**CTA:** "Tell us about your SDLC → [devaudit.ai/onboarding](https://devaudit.ai/onboarding)"
-**Cross-links:** [/sdlc § Framework, gates, and portal](https://devaudit.ai/sdlc) · [/onboarding § The framework is open-source](https://devaudit.ai/onboarding) · [README § Quick start — update](https://github.com/metasession-dev/DevAudit-Installer/blob/main/README.md) · [/projects/[slug]/settings/embed](https://devaudit.ai/projects)
+  **DevAudit hook:** The `devaudit update` story — framework templates stay current without manual maintenance. The /sdlc page's three-pillar architecture (framework + gates + portal) is the structural answer to "what are you actually building if you DIY?" The /onboarding page's "The framework is open-source. Read it first if you prefer." messaging removes the sales objection.
+  **CTA:** "Tell us about your SDLC → [devaudit.ai/onboarding](https://devaudit.ai/onboarding)"
+  **Cross-links:** [/sdlc § Framework, gates, and portal](https://devaudit.ai/sdlc) · [/onboarding § The framework is open-source](https://devaudit.ai/onboarding) · [README § Quick start — update](https://github.com/metasession-dev/DevAudit-Installer/blob/main/README.md) · [/projects/[slug]/settings/embed](https://devaudit.ai/projects)
 
 ---
 
@@ -369,15 +381,16 @@ Before the broader thought-leadership and workflow series begins, the **first pu
 **Primary persona:** Lead Developer
 **Goal:** Step-by-step migration guide for teams currently doing compliance manually.
 **Key points:**
+
 - Assess your current state: where does evidence live today? (Git? SharePoint? Jira? Someone's desktop?)
 - Phase 1: Install DevAudit on one project (`devaudit install`). Run one feature through Stages 1–5. Compare the evidence output to your manual process
 - Phase 2: Add `evidenceShot()` calls to existing e2e tests. Add REQ annotations. Run CI and watch evidence populate in the portal
 - Phase 3: Onboard remaining projects (`devaudit install` for each). Use `devaudit join` for team members
 - Phase 4: Give your auditor portal access. Walk them through the release-completeness matrix
 - Common migration gotchas: existing tests without REQ annotations (the wawagardenbar-app lesson), `sdlc-config.json` customisation for non-standard stacks, UAT configuration for projects that don't auto-deploy `develop`
-**DevAudit hook:** The `install` → `update` → `join` lifecycle from `README.md`. The /onboarding page's three-path structure mirrors this migration journey perfectly.
-**CTA:** "Get started → [devaudit.ai/onboarding](https://devaudit.ai/onboarding)"
-**Cross-links:** [/onboarding § Three paths in](https://devaudit.ai/onboarding) · [README § When to use which command](https://github.com/metasession-dev/DevAudit-Installer/blob/main/README.md) · [docs/onboarding.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/onboarding.md)
+  **DevAudit hook:** The `install` → `update` → `join` lifecycle from `README.md`. The /onboarding page's three-path structure mirrors this migration journey perfectly.
+  **CTA:** "Get started → [devaudit.ai/onboarding](https://devaudit.ai/onboarding)"
+  **Cross-links:** [/onboarding § Three paths in](https://devaudit.ai/onboarding) · [README § When to use which command](https://github.com/metasession-dev/DevAudit-Installer/blob/main/README.md) · [docs/onboarding.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/onboarding.md)
 
 ---
 
@@ -386,15 +399,16 @@ Before the broader thought-leadership and workflow series begins, the **first pu
 **Primary persona:** Compliance Officer
 **Goal:** Show how simple it is to give an external auditor exactly what they need.
 **Key points:**
+
 - The old way: compile evidence into a folder, send via secure transfer, answer follow-up questions via email, repeat for every audit cycle
 - The DevAudit way: create a scoped, read-only auditor account on the portal. The auditor browses evidence by project, requirement, release, and evidence type — self-service
 - What the auditor sees: the release-completeness matrix (which evidence categories are present for each requirement), the evidence-by-requirement view (drill into any REQ to see screenshots, test reports, SAST results, compliance docs), the release timeline (when was each artifact uploaded, by which CI run)
 - What the auditor does NOT see: source code, CI secrets, developer chat transcripts, anything outside their scoped project access
 - The audit-pack export: `devaudit-plugin-evidence-export` bundles all evidence for a release into a downloadable archive if the auditor prefers offline review
-**DevAudit hook:** Portal scoped access, `evidence-export` plugin. The /sdlc page describes the portal as: "Project registry, immutable evidence storage, release-approval lifecycle, four-eyes approval, auditor dashboards, time-limited share links, framework-coverage matrix per release, append-only audit log." Each of these is an auditor-facing feature.
-**Embed widget (shipped 2026-06-06):** The public-facing complement to private auditor access — an iframe badge platter that displays live compliance framework claims (SOC 2, ISO 27001, GDPR, EU AI Act) on the project's own website. Unlike static trust badges, it connects to a living compliance system. Three 404 gates prevent information leakage; global kill switch gives CISO central control.
-**CTA:** "See the portal → [devaudit.ai/compliance](https://devaudit.ai/compliance)"
-**Cross-links:** [/sdlc § Pillar 3 — Evidence portal](https://devaudit.ai/sdlc) · [README § Related repositories](https://github.com/metasession-dev/DevAudit-Installer/blob/main/README.md) · [/projects/[slug]/settings/embed](https://devaudit.ai/projects)
+  **DevAudit hook:** Portal scoped access, `evidence-export` plugin. The /sdlc page describes the portal as: "Project registry, immutable evidence storage, release-approval lifecycle, four-eyes approval, auditor dashboards, time-limited share links, framework-coverage matrix per release, append-only audit log." Each of these is an auditor-facing feature.
+  **Embed widget (shipped 2026-06-06):** The public-facing complement to private auditor access — an iframe badge platter that displays live compliance framework claims (SOC 2, ISO 27001, GDPR, EU AI Act) on the project's own website. Unlike static trust badges, it connects to a living compliance system. Three 404 gates prevent information leakage; global kill switch gives CISO central control.
+  **CTA:** "See the portal → [devaudit.ai/compliance](https://devaudit.ai/compliance)"
+  **Cross-links:** [/sdlc § Pillar 3 — Evidence portal](https://devaudit.ai/sdlc) · [README § Related repositories](https://github.com/metasession-dev/DevAudit-Installer/blob/main/README.md) · [/projects/[slug]/settings/embed](https://devaudit.ai/projects)
 
 ---
 
@@ -403,6 +417,7 @@ Before the broader thought-leadership and workflow series begins, the **first pu
 **Primary persona:** CISO
 **Goal:** Security whitepaper for CISO technical due diligence before procurement.
 **Key points:**
+
 - Authentication: project-scoped API keys (CI uploads), Personal Access Tokens (human actions), GitHub OAuth (portal login)
 - Authorisation: `dual_actor` approval mode enforces segregation server-side. API keys are scoped to one project — a compromised key cannot access other projects
 - Evidence integrity: append-only evidence store, immutable once uploaded. SHA comparison detects code changes after approval
@@ -410,9 +425,9 @@ Before the broader thought-leadership and workflow series begins, the **first pu
 - Kill switch: the `Release Approval Gate` is a required status check on the PR — it blocks merge at GitHub's infrastructure level, not at the developer's discretion. Removing the gate requires branch-protection admin access
 - Bootstrap mode: first-time setup gracefully passes the gate (no evidence to check yet) with a documented notice, then enforcement activates on the next PR
 - Secret management: `DEVAUDIT_API_KEY` as repo secret, `DEVAUDIT_USER_TOKEN` as personal secret, base URL in `sdlc-config.json` (reviewable in PR diff, not hidden in repo variables)
-**DevAudit hook:** `check-release-approval.yml.template` security design, `sdlc-config.json` approval modes. The /sdlc page's "What DevAudit is not" section is critically important here — reference "Not a SIEM" and "Not an AI safety product" disclaimers to scope the security model honestly.
-**CTA:** "Tell us about your SDLC → [devaudit.ai/onboarding](https://devaudit.ai/onboarding)"
-**Cross-links:** [/sdlc § What DevAudit is not](https://devaudit.ai/sdlc) · [docs/compliance-gates.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/compliance-gates.md) · [/onboarding](https://devaudit.ai/onboarding)
+  **DevAudit hook:** `check-release-approval.yml.template` security design, `sdlc-config.json` approval modes. The /sdlc page's "What DevAudit is not" section is critically important here — reference "Not a SIEM" and "Not an AI safety product" disclaimers to scope the security model honestly.
+  **CTA:** "Tell us about your SDLC → [devaudit.ai/onboarding](https://devaudit.ai/onboarding)"
+  **Cross-links:** [/sdlc § What DevAudit is not](https://devaudit.ai/sdlc) · [docs/compliance-gates.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/compliance-gates.md) · [/onboarding](https://devaudit.ai/onboarding)
 
 ---
 
@@ -426,13 +441,14 @@ This is a five-part series that follows a single feature from GitHub issue to pr
 
 **Stage:** 1 (Plan Requirement)
 **Key points:**
+
 - Starts with a GitHub issue. The agent (or human) assigns `REQ-XXX`, classifies risk (LOW/MEDIUM/HIGH), creates the evidence directory
 - For MEDIUM/HIGH: the `sdlc-implementer` creates `implementation-plan.md` using the compliance template — threat model, data flows, surface inventory, acceptance criteria in Given/When/Then form
 - Sub-skill delegation: `requirements-aligner` maps ACs to SRS items, `adr-author` decides if an ADR is needed, `risk-register-keeper` identifies risks for MEDIUM/HIGH
 - WAIT CHECKPOINT: human approves the plan before implementation begins
 - Output: RTM entry, implementation plan, test scope, test plan — all committed to Git before a single line of product code is written
-**Illustrate with:** A real `implementation-plan.md` structure (redacted) showing the AC table, surface inventory, compliance clause slots
-**Cross-links:** [/sdlc § Five stages — Plan](https://devaudit.ai/sdlc) · [Stage 1 doc](https://github.com/metasession-dev/DevAudit-Installer/blob/main/sdlc/files/_common/1-plan-requirement.md) · [docs/skills.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/skills.md) · [docs/change-workflows.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/change-workflows.md)
+  **Illustrate with:** A real `implementation-plan.md` structure (redacted) showing the AC table, surface inventory, compliance clause slots
+  **Cross-links:** [/sdlc § Five stages — Plan](https://devaudit.ai/sdlc) · [Stage 1 doc](https://github.com/metasession-dev/DevAudit-Installer/blob/main/sdlc/files/_common/1-plan-requirement.md) · [docs/skills.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/skills.md) · [docs/change-workflows.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/change-workflows.md)
 
 ---
 
@@ -440,6 +456,7 @@ This is a five-part series that follows a single feature from GitHub issue to pr
 
 **Stage:** 2 (Implement and Test)
 **Key points:**
+
 - Write failing tests first — depth scales with risk class
 - E2E delegation gate: the orchestrator skill MUST invoke `e2e-test-engineer` before touching any `.spec.ts` file — structural defence against the "I'll just write the test inline" inertia trap
 - `evidenceShot(page, 'REQ-037', 1, 'edit-dialog-prefilled')` — captures a screenshot at the exact moment an AC is proven, not a generic post-test capture
@@ -447,8 +464,8 @@ This is a five-part series that follows a single feature from GitHub issue to pr
 - Transport-layer specs (API-only, no UI) — their evidence form is `test-execution-summary.md`, not screenshots. The portal correctly shows zero screenshots for these REQs
 - Gates: lint → typecheck → unit → SAST → dep-audit (fast, every change) → E2E (once, after fast gates clean)
 - Self-audit before Phase 3: `git diff` every `.spec.ts` and verify it was authored via the skill
-**Illustrate with:** A before/after of a test with and without `evidenceShot()` — what the portal shows in each case
-**Cross-links:** [/sdlc § Five stages — Implement & test](https://devaudit.ai/sdlc) · [Stage 2 doc](https://github.com/metasession-dev/DevAudit-Installer/blob/main/sdlc/files/_common/2-implement-and-test.md) · [docs/e2e-test-tiers.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/e2e-test-tiers.md) · [docs/skills.md § e2e-test-engineer](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/skills.md)
+  **Illustrate with:** A before/after of a test with and without `evidenceShot()` — what the portal shows in each case
+  **Cross-links:** [/sdlc § Five stages — Implement & test](https://devaudit.ai/sdlc) · [Stage 2 doc](https://github.com/metasession-dev/DevAudit-Installer/blob/main/sdlc/files/_common/2-implement-and-test.md) · [docs/e2e-test-tiers.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/e2e-test-tiers.md) · [docs/skills.md § e2e-test-engineer](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/skills.md)
 
 ---
 
@@ -456,13 +473,14 @@ This is a five-part series that follows a single feature from GitHub issue to pr
 
 **Stage:** 3 (Compile Evidence)
 **Key points:**
+
 - What gets committed to Git: `test-scope.md`, `test-plan.md`, `test-execution-summary.md`, `implementation-plan.md`, `security-summary.md`, `ai-prompts.md`, release ticket
 - What gets uploaded to the portal: SAST JSON, gate-outcomes JSON, Playwright report, JUnit XML, per-AC screenshots, coverage reports
 - Two CI workflows, no duplication: `ci.yml` uploads gate evidence, `compliance-evidence.yml` uploads committed docs. Both resolve the same release version via `derive-release-version.sh`
 - UAT-environment verification (Step 10): opt-in by risk class via `sdlc-config.json`. Health check → smoke test → feature verification → record results
 - The push-early lesson: commit and push compliance docs immediately so destination breakage (stale URL, revoked key) surfaces in seconds, not at the end of the stage
-**Illustrate with:** The portal's release-completeness matrix filling in as CI runs
-**Cross-links:** [/sdlc § Five stages — Evidence](https://devaudit.ai/sdlc) · [/sdlc § Three tiers, two upload paths](https://devaudit.ai/sdlc) · [Stage 3 doc](https://github.com/metasession-dev/DevAudit-Installer/blob/main/sdlc/files/_common/3-compile-evidence.md) · [docs/evidence-tiers.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/evidence-tiers.md) · [docs/compliance-gates.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/compliance-gates.md)
+  **Illustrate with:** The portal's release-completeness matrix filling in as CI runs
+  **Cross-links:** [/sdlc § Five stages — Evidence](https://devaudit.ai/sdlc) · [/sdlc § Three tiers, two upload paths](https://devaudit.ai/sdlc) · [Stage 3 doc](https://github.com/metasession-dev/DevAudit-Installer/blob/main/sdlc/files/_common/3-compile-evidence.md) · [docs/evidence-tiers.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/evidence-tiers.md) · [docs/compliance-gates.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/compliance-gates.md)
 
 ---
 
@@ -470,14 +488,15 @@ This is a five-part series that follows a single feature from GitHub issue to pr
 
 **Stage:** 4 (Submit for Review)
 **Key points:**
+
 - The PR is the merge request, not the development workspace. Don't create it prematurely — every push to `develop` while a PR is open triggers duplicate CI runs
 - Prerequisites: all development complete, CI green, UAT verification passed, evidence compiled, release approved in DevAudit
 - The `Release Approval Gate` workflow: polls the portal API for `release.status`, blocks merge until `uat_approved`. Initially fails (expected) — approve in DevAudit, then re-run the workflow
 - Risk-based review: LOW = self-merge after CI passes. MEDIUM/HIGH = second human reviewer required
 - Change-request loop: reviewer requests changes → agent categorises (must-address / question / out-of-scope) → delta-plan → re-implement → re-compile evidence → push → portal auto-resets → re-review. Max 5 iterations
 - The scope guard: if a change-request is fundamentally a new requirement, the agent halts and recommends a separate issue
-**Illustrate with:** The portal's approval panel, the PR checks view showing the Release Approval Gate
-**Cross-links:** [/sdlc § Five stages — UAT review](https://devaudit.ai/sdlc) · [Stage 4 doc](https://github.com/metasession-dev/DevAudit-Installer/blob/main/sdlc/files/_common/4-submit-for-review.md) · [docs/compliance-gates.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/compliance-gates.md) · [docs/release-playbooks/](https://github.com/metasession-dev/DevAudit-Installer/tree/main/docs/release-playbooks)
+  **Illustrate with:** The portal's approval panel, the PR checks view showing the Release Approval Gate
+  **Cross-links:** [/sdlc § Five stages — UAT review](https://devaudit.ai/sdlc) · [Stage 4 doc](https://github.com/metasession-dev/DevAudit-Installer/blob/main/sdlc/files/_common/4-submit-for-review.md) · [docs/compliance-gates.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/compliance-gates.md) · [docs/release-playbooks/](https://github.com/metasession-dev/DevAudit-Installer/tree/main/docs/release-playbooks)
 
 ---
 
@@ -485,14 +504,15 @@ This is a five-part series that follows a single feature from GitHub issue to pr
 
 **Stage:** 5 (Deploy to Main)
 **Key points:**
+
 - Merge via `gh pr merge --merge` (merge commit preserves audit trail — squash and rebase are blocked by branch protection)
 - `post-deploy-prod.yml` fires: production smoke check, uploads `environment=production` evidence, advances each in-scope release to `prod_review`
 - Production approval: a reviewer confirms production is healthy and clicks Approve → status becomes `released`
 - `close-out-release.yml` fires on `released`: reconciles the release ticket (moves to `approved-releases/`, flips RTM status to RELEASED)
 - Issue closure: the GitHub issue is closed with a comment linking the PR, the requirement, and the release
 - The traceability chain is complete: Issue → REQ-XXX → Implementation Plan → Test Scope → Test Plan → Test Execution → Evidence → UAT Approval → PR → Production Approval → Released
-**Illustrate with:** The portal's release detail page in `released` state showing the full evidence pack
-**Cross-links:** [/sdlc § Five stages — Deploy](https://devaudit.ai/sdlc) · [Stage 5 doc](https://github.com/metasession-dev/DevAudit-Installer/blob/main/sdlc/files/_common/5-deploy-main.md) · [docs/release-playbooks/](https://github.com/metasession-dev/DevAudit-Installer/tree/main/docs/release-playbooks) · [implementing-an-sdlc-issue.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/sdlc/files/_common/implementing-an-sdlc-issue.md)
+  **Illustrate with:** The portal's release detail page in `released` state showing the full evidence pack
+  **Cross-links:** [/sdlc § Five stages — Deploy](https://devaudit.ai/sdlc) · [Stage 5 doc](https://github.com/metasession-dev/DevAudit-Installer/blob/main/sdlc/files/_common/5-deploy-main.md) · [docs/release-playbooks/](https://github.com/metasession-dev/DevAudit-Installer/tree/main/docs/release-playbooks) · [implementing-an-sdlc-issue.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/sdlc/files/_common/implementing-an-sdlc-issue.md)
 
 ---
 
@@ -505,12 +525,13 @@ This is a five-part series that follows a single feature from GitHub issue to pr
 **Primary persona:** CISO + CTO
 **Goal:** Technical analysis of how AI coding agents expand the attack surface and why SDLC controls are the mitigation.
 **Key points:**
+
 - AI agents in 2026 have write access: they modify files, run commands, push to Git, create PRs, deploy to production (via CI)
 - Attack vectors: prompt injection (malicious instructions in issue descriptions, code comments, or dependency READMEs that the agent ingests), memory manipulation (poisoning the agent's context window with false instructions), tool-use exploitation (tricking the agent into running destructive commands)
 - The blast radius: a compromised agent with `git push` access can push malicious code that CI will test, evidence-package, and present for human approval — the human is now the last line of defence, reviewing AI-generated evidence about AI-generated code
 - Why SDLC controls matter: the four-eyes gate ensures a human reviews before merge. The scope guard prevents the agent from exceeding its mandate. The SHA comparison detects code changes after approval. The immutable audit trail means post-hoc investigation is possible
 - DevAudit's position: not an AI security product (that's a different market) — but the SDLC governance layer that ensures AI actions are bounded, attributed, and reviewable
-**Cross-links:** [/sdlc § What DevAudit is not — "Not an AI safety product"](https://devaudit.ai/sdlc) · [/sdlc § AI as a first-class contributor](https://devaudit.ai/sdlc) · [/compliance § EU AI Act — Human Oversight](https://devaudit.ai/compliance)
+  **Cross-links:** [/sdlc § What DevAudit is not — "Not an AI safety product"](https://devaudit.ai/sdlc) · [/sdlc § AI as a first-class contributor](https://devaudit.ai/sdlc) · [/compliance § EU AI Act — Human Oversight](https://devaudit.ai/compliance)
 
 ---
 
@@ -519,11 +540,12 @@ This is a five-part series that follows a single feature from GitHub issue to pr
 **Primary persona:** Compliance Officer
 **Goal:** Standards analysis of how traditional test standards apply when AI writes the tests.
 **Key points:**
+
 - ISO 29119 §3.4 (Test Plan) requires planned testing, not ad-hoc. When the AI generates tests, the plan must precede generation — DevAudit's Stage 1 `test-plan.md` is committed before the AI writes a single test
 - ISO 29119 §5.4 (Independent testing) requires independence between test design and implementation. When the same AI writes code and tests, independence requires structural separation — DevAudit's skill delegation (`sdlc-implementer` cannot author e2e specs; `e2e-test-engineer` owns that)
 - The "AI tested itself" problem: if the same model writes code and tests, confirmation bias is structural. DevAudit mitigates with: different skill contexts (different system prompts), CI re-execution (independent infrastructure), human approval (the four-eyes gate)
 - Test evidence must be traceable to requirements — `evidenceShot()` with REQ/AC parameters creates this traceability at the assertion level, not the test-suite level
-**Cross-links:** [/compliance § ISO 29119](https://devaudit.ai/compliance) · [/sdlc § One orchestrator, five specialists](https://devaudit.ai/sdlc) · [docs/e2e-test-tiers.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/e2e-test-tiers.md) · [Stage 2 doc](https://github.com/metasession-dev/DevAudit-Installer/blob/main/sdlc/files/_common/2-implement-and-test.md)
+  **Cross-links:** [/compliance § ISO 29119](https://devaudit.ai/compliance) · [/sdlc § One orchestrator, five specialists](https://devaudit.ai/sdlc) · [docs/e2e-test-tiers.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/e2e-test-tiers.md) · [Stage 2 doc](https://github.com/metasession-dev/DevAudit-Installer/blob/main/sdlc/files/_common/2-implement-and-test.md)
 
 ---
 
@@ -532,11 +554,12 @@ This is a five-part series that follows a single feature from GitHub issue to pr
 **Primary persona:** CTO
 **Goal:** Technical problem piece about Git repository degradation from AI-generated evidence, with DevAudit as the solution.
 **Key points:**
+
 - A single Playwright run generates: HTML report (~5MB), trace ZIPs (50MB+), screenshots (10-50 per REQ × 200KB each), coverage reports (5-20MB). Multiply by 3-5 releases per week
 - Git is designed for text diffs, not binary blobs. Binary evidence makes `git clone` slow, `git log` painful, CI cache inefficient
 - Common workarounds: `.gitignore` the evidence (lose traceability), Git LFS (adds complexity and cost), separate repos (fragmented audit trail)
 - DevAudit's answer: markdown docs in Git (reviewable in PR diffs, lightweight). Binary evidence in the portal (permanent, searchable, scoped access). Both keyed to the same REQ-XXX and release version. No workarounds needed
-**Cross-links:** [/sdlc § Three tiers, two upload paths](https://devaudit.ai/sdlc) · [docs/evidence-tiers.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/evidence-tiers.md) · [docs/sdlc-framework.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/sdlc-framework.md)
+  **Cross-links:** [/sdlc § Three tiers, two upload paths](https://devaudit.ai/sdlc) · [docs/evidence-tiers.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/evidence-tiers.md) · [docs/sdlc-framework.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/sdlc-framework.md)
 
 ---
 
@@ -545,11 +568,12 @@ This is a five-part series that follows a single feature from GitHub issue to pr
 **Primary persona:** Lead Developer
 **Goal:** Technical opinion piece arguing for structured agent delegation over ad-hoc prompting.
 **Key points:**
+
 - Ad-hoc prompting: "write e2e tests for this feature" → the agent produces tests in whatever style, with or without evidence hooks, with or without REQ annotations, with or without traceability. Quality depends entirely on prompt engineering skill
 - Structured skills: `e2e-test-engineer` has a defined 7-phase workflow, a contract for `evidenceShot()` calls per AC, a self-audit step, a density policy, a regression-pack handoff. The developer invokes the skill; the skill enforces the standard
 - The compounding benefit: skills compose (the orchestrator delegates to specialists), skills enforce (Phase 5½ evidence-wiring validation), skills evolve (update the skill once, every project gets the improvement via `devaudit update`)
 - The limitation: skills are opinionated. If your team's e2e conventions differ fundamentally from the skill's assumptions, you'll fight it. DevAudit's bet: most teams benefit more from a good default than from total flexibility
-**Cross-links:** [/sdlc § One orchestrator, five specialists](https://devaudit.ai/sdlc) · [docs/skills.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/skills.md) · [docs/adding-a-skill.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/adding-a-skill.md)
+  **Cross-links:** [/sdlc § One orchestrator, five specialists](https://devaudit.ai/sdlc) · [docs/skills.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/skills.md) · [docs/adding-a-skill.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/adding-a-skill.md)
 
 ---
 
@@ -562,13 +586,14 @@ This is a five-part series that follows a single feature from GitHub issue to pr
 **Primary persona:** Lead Developer
 **Goal:** Honest day-in-the-life showing what changes and what stays the same.
 **Key points:**
+
 - What doesn't change: you still write code in your IDE, you still use Git, you still open PRs, you still run tests locally
 - What changes: commits must follow Conventional Commits with `Ref: REQ-XXX` trailers (enforced by commitlint hooks). `feat`/`fix`/`refactor` commits without a REQ are rejected locally. Evidence artifacts are generated as part of the workflow, not as an afterthought
 - The overhead for a LOW-risk change: ~5 minutes of planning (RTM entry + test scope), ~0 minutes of evidence compilation (CI handles it), ~2 minutes of portal interaction (approve the release)
 - The overhead for a HIGH-risk change: ~20 minutes of planning (implementation plan + threat model + test plan, with human review checkpoint), ~10 minutes of evidence review, ~5 minutes of portal interaction
 - What developers actually like: not chasing compliance officers for evidence requests, not maintaining a separate test-management tool, the AI handling the compliance boilerplate
 - What developers push back on: the commit convention enforcement (initially), the "plan before you code" discipline for MEDIUM/HIGH risk (initially), the scope guard halting when they want to "just add one more thing"
-**Cross-links:** [/sdlc § Five stages](https://devaudit.ai/sdlc) · [/onboarding § Three paths in](https://devaudit.ai/onboarding) · [implementing-an-sdlc-issue.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/sdlc/files/_common/implementing-an-sdlc-issue.md) · [docs/release-playbooks/low-risk-release.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/release-playbooks/low-risk-release.md)
+  **Cross-links:** [/sdlc § Five stages](https://devaudit.ai/sdlc) · [/onboarding § Three paths in](https://devaudit.ai/onboarding) · [implementing-an-sdlc-issue.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/sdlc/files/_common/implementing-an-sdlc-issue.md) · [docs/release-playbooks/low-risk-release.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/release-playbooks/low-risk-release.md)
 
 ---
 
@@ -577,13 +602,14 @@ This is a five-part series that follows a single feature from GitHub issue to pr
 **Primary persona:** Compliance Officer (writing for the auditor audience they serve)
 **Goal:** Portal walkthrough from the auditor's perspective — what they see, how they navigate, what they're looking for.
 **Key points:**
+
 - The auditor landing page: project list, each with a release count and compliance status summary
 - Drilling into a project: the releases view — date-based versioning, status badges (draft/uat_review/uat_approved/released), evidence completeness per release
 - Drilling into a release: the evidence-by-requirement view — each REQ shows its evidence categories (PLAN, TEST, RELEASE), test results, screenshots, security scan results
 - The completeness matrix: which evidence categories are present (✓) or missing (✗) for each requirement. This is the first thing auditors check
 - The audit-pack export: download all evidence for a release as a ZIP — offline review, archive for the audit file
 - What the auditor can verify independently: CI ran on GitHub's infrastructure (links to workflow runs), approval was by a different user than the committer, evidence was uploaded by CI not manually
-**Cross-links:** [/sdlc § Pillar 3 — Evidence portal](https://devaudit.ai/sdlc) · [/compliance](https://devaudit.ai/compliance) · [docs/evidence-tiers.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/evidence-tiers.md)
+  **Cross-links:** [/sdlc § Pillar 3 — Evidence portal](https://devaudit.ai/sdlc) · [/compliance](https://devaudit.ai/compliance) · [docs/evidence-tiers.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/evidence-tiers.md)
 
 ---
 
@@ -592,12 +618,13 @@ This is a five-part series that follows a single feature from GitHub issue to pr
 **Primary persona:** CTO
 **Goal:** Deployment guide for rolling out DevAudit across an engineering organisation.
 **Key points:**
+
 - Phase 1: Pilot on one project with one team (the CTO's team or the most compliant team). Use `devaudit install` — full 11-step setup. Run 2-3 features through the full cycle. Measure: time to first compliant release, developer sentiment, evidence completeness
 - Phase 2: Roll out to remaining projects. Use `devaudit install` for each. Standardise `sdlc-config.json` settings across teams (approval mode, risk classes, UAT configuration). Train developers on the commit convention and the stage workflow
 - Phase 3: Ongoing. Use `devaudit update` when the framework ships new versions. Monitor the portal's cross-project compliance dashboard. Give auditors portal access
 - The `devaudit join` path for individual developers joining an already-onboarded project — no portal call-outs, no API key rotation, just local hooks and skill installation
 - Customisation knobs: `sdlc-config.json` lets you configure everything from approval modes to UAT risk classes to e2e project configuration — one config file per project, reviewable in Git
-**Cross-links:** [/onboarding § The framework adapts; the audit shape doesn't](https://devaudit.ai/onboarding) · [/onboarding § Onboard a new project](https://devaudit.ai/onboarding) · [README § Quick start](https://github.com/metasession-dev/DevAudit-Installer/blob/main/README.md) · [docs/onboarding.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/onboarding.md)
+  **Cross-links:** [/onboarding § The framework adapts; the audit shape doesn't](https://devaudit.ai/onboarding) · [/onboarding § Onboard a new project](https://devaudit.ai/onboarding) · [README § Quick start](https://github.com/metasession-dev/DevAudit-Installer/blob/main/README.md) · [docs/onboarding.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/onboarding.md)
 
 ---
 
@@ -606,12 +633,13 @@ This is a five-part series that follows a single feature from GitHub issue to pr
 **Primary persona:** CISO
 **Goal:** Configuration guide showing how `sdlc-config.json` maps to security policy decisions.
 **Key points:**
+
 - `approval.mode`: `dual_actor` (recommended — different approver than committer), `solo_with_gap` (solo developers — documented control gap), `auto_low_risk` (LOW auto-approves, MEDIUM/HIGH require human). Each mode has specific compliance implications
 - `uat.enabled` + `uat.required_risk_classes`: which requirements must be UAT-verified on a deployed environment before approval. Default risk classes: `payment`, `destructive_migration`, `realtime`, `physical_ux`. Wildcard `"*"` for projects that UAT everything
 - Risk classification criteria: LOW (internal tools, no regulated data), MEDIUM (PII, user-facing, API changes), HIGH (security, payments, RBAC, authentication). AI involvement raises risk by one level
 - The `--require-plan-approval` flag: force human approval of implementation plans for all risk classes, not just HIGH/CRITICAL
 - Periodic security review: `periodic-review.yml.template` auto-generates review issues on a configurable cadence — the CISO's mechanism for ensuring ongoing compliance, not just release-time compliance
-**Cross-links:** [/compliance § ISO 27001 — A.13 Operations Security](https://devaudit.ai/compliance) · [/sdlc § Tracked + housekeeping](https://devaudit.ai/sdlc) · [docs/compliance-gates.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/compliance-gates.md) · [docs/governance-templates.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/governance-templates.md)
+  **Cross-links:** [/compliance § ISO 27001 — A.13 Operations Security](https://devaudit.ai/compliance) · [/sdlc § Tracked + housekeeping](https://devaudit.ai/sdlc) · [docs/compliance-gates.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/compliance-gates.md) · [docs/governance-templates.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/governance-templates.md)
 
 ---
 
@@ -620,15 +648,16 @@ This is a five-part series that follows a single feature from GitHub issue to pr
 **Primary persona:** CTO + Lead Developer
 **Goal:** Technical guide to the plugin architecture for teams needing custom integrations.
 **Key points:**
+
 - Plugin SDK overview: `@metasession.co/devaudit-plugin-sdk` with lifecycle hooks (`beforeSync`/`afterSync`, `beforePush`/`afterPush`, `onDoctor`)
 - First-party plugins as reference: `devaudit-plugin-prisma` (ORM-specific evidence capture), `devaudit-plugin-evidence-export` (audit pack bundling)
 - Plugin store location: `~/.config/devaudit/plugins/` with manifest validation
 - Hook execution model: errors isolated per-plugin, hooks don't abort the main flow
 - When to build a plugin vs. use the framework: custom stack detection, proprietary CI systems, internal evidence sources
 - Plugin development workflow: `git clone` → `npm install` → implement hooks → `devaudit plugin install <path>`
-**DevAudit hook:** `discoverPlugins()`, `runHook()` in CLI core. Plugin manifest schema with `devaudit` field in `package.json`.
-**CTA:** "Explore the plugin SDK → [plugin-sdk README](https://github.com/metasession-dev/DevAudit-Installer/tree/main/plugin-sdk)"
-**Cross-links:** [Plugin SDK source](https://github.com/metasession-dev/DevAudit-Installer/tree/main/plugin-sdk) · [docs/adding-a-skill.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/adding-a-skill.md)
+  **DevAudit hook:** `discoverPlugins()`, `runHook()` in CLI core. Plugin manifest schema with `devaudit` field in `package.json`.
+  **CTA:** "Explore the plugin SDK → [plugin-sdk README](https://github.com/metasession-dev/DevAudit-Installer/tree/main/plugin-sdk)"
+  **Cross-links:** [Plugin SDK source](https://github.com/metasession-dev/DevAudit-Installer/tree/main/plugin-sdk) · [docs/adding-a-skill.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/adding-a-skill.md)
 
 ---
 
@@ -637,15 +666,16 @@ This is a five-part series that follows a single feature from GitHub issue to pr
 **Primary persona:** Lead Developer
 **Goal:** Explain how DevAudit keeps multiple AI agents aligned without configuration drift.
 **Key points:**
+
 - The multi-agent problem: Cursor, Windsurf, Gemini CLI, Claude Code — each reads different rule files, drifts apart over time
 - DevAudit's pointer pattern: `.cursorrules`, `.windsurfrules`, `GEMINI.md` are pointer files that reference `INSTRUCTIONS.md`
 - `CLAUDE.md` preservation: project-specific content above the `## SDLC Compliance Process` header is kept, old SDLC sections are truncated and refreshed
 - `INSTRUCTIONS.md` as canonical: holds the actual SDLC process content from `sdlc/ai-rules/INSTRUCTIONS-SDLC.md`
 - Idempotent sync: re-running `devaudit update` produces byte-identical outputs, no duplicate pointers
 - Why this matters: a team can use multiple agents without each having a different understanding of the SDLC
-**DevAudit hook:** `syncAiRules()` in `cli/src/update/ai-rules.ts`. Five target files written on every install/update.
-**CTA:** "Try multi-agent consistency → [devaudit.ai/onboarding](https://devaudit.ai/onboarding)"
-**Cross-links:** [/sdlc § AI as a first-class contributor](https://devaudit.ai/sdlc) · [docs/skills.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/skills.md)
+  **DevAudit hook:** `syncAiRules()` in `cli/src/update/ai-rules.ts`. Five target files written on every install/update.
+  **CTA:** "Try multi-agent consistency → [devaudit.ai/onboarding](https://devaudit.ai/onboarding)"
+  **Cross-links:** [/sdlc § AI as a first-class contributor](https://devaudit.ai/sdlc) · [docs/skills.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/skills.md)
 
 ---
 
@@ -654,15 +684,16 @@ This is a five-part series that follows a single feature from GitHub issue to pr
 **Primary persona:** Lead Developer
 **Goal:** Technical deep-dive on the three-tier E2E model and screenshot density controls.
 **Key points:**
+
 - Three-tier placement: `e2e/smoke/` (every push), `e2e/critical/` (consumer-enabled PR-to-release), `e2e/<area>/` (dispatch or consumer-configured cadence)
 - Screenshot density tiers: `tier: 'always'` for canonical anchors (always captured), `tier: 'feature'` for intermediate stages (auto-suppress on regression runs)
 - `evidenceShot()` helper signature: `evidenceShot(page, 'REQ-XXX', n, '<kebab-slug>', { tier: 'feature' })`
 - Sidecar metadata: `.meta.json` with `{ origin, reqId, ac, slug, specFile, capturedAt }`, origin auto-detected from `E2E_NEW_SPECS`
 - Storage efficiency: feature branches capture rich evidence, regression pack keeps only canonical anchors
 - Transport-layer specs: no `page` object → evidence is `test-execution-summary.md` row with `[REQ-XXX][ACn]` bracket convention
-**DevAudit hook:** `references/evidence.ts` shipped in skills. Three-tier gating model from v0.1.53.
-**CTA:** "See the E2E tier model → [docs/e2e-test-tiers.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/e2e-test-tiers.md)"
-**Cross-links:** [docs/e2e-test-tiers.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/e2e-test-tiers.md) · [Article 17 (Part 2)](https://devaudit.ai/blog)
+  **DevAudit hook:** `references/evidence.ts` shipped in skills. Three-tier gating model from v0.1.53.
+  **CTA:** "See the E2E tier model → [docs/e2e-test-tiers.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/e2e-test-tiers.md)"
+  **Cross-links:** [docs/e2e-test-tiers.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/e2e-test-tiers.md) · [Article 17 (Part 2)](https://devaudit.ai/blog)
 
 ---
 
@@ -671,6 +702,7 @@ This is a five-part series that follows a single feature from GitHub issue to pr
 **Primary persona:** Lead Developer + CTO
 **Goal:** Explain how DevAudit adapts to solo developers vs. teams automatically.
 **Key points:**
+
 - The problem: onboarding should be lightweight for the second developer, but full for the operator
 - Four-bit auto-detection: (1) `sdlc-config.json` exists, (2) portal project exists, (3) live `Onboarding-issued` API key, (4) `DEVAUDIT_USER_TOKEN` repo secret
 - **All four true** → developer mode: skips steps 4/6/7/9 (config rewrite, key issuance, secret writes, branch protection), runs 8/10 (hooks, sync)
@@ -678,9 +710,9 @@ This is a five-part series that follows a single feature from GitHub issue to pr
 - `--force-team-config` override: operator can force full mode for secret rotation
 - Safe defaults: `--dry-run` forces operator mode so preview shows maximal step set
 - Exit code 7: `devaudit join` refuses to run when `sdlc-config.json` absent (guards against joining non-onboarded projects)
-**DevAudit hook:** `detectInstallMode()` in `cli/src/install/index.ts`. `makeOnboardedProvider()` for testing.
-**CTA:** "Understand install modes → [README § install vs join](https://github.com/metasession-dev/DevAudit-Installer/blob/main/README.md)"
-**Cross-links:** [README § When to use which command](https://github.com/metasession-dev/DevAudit-Installer/blob/main/README.md) · [docs/onboarding.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/onboarding.md)
+  **DevAudit hook:** `detectInstallMode()` in `cli/src/install/index.ts`. `makeOnboardedProvider()` for testing.
+  **CTA:** "Understand install modes → [README § install vs join](https://github.com/metasession-dev/DevAudit-Installer/blob/main/README.md)"
+  **Cross-links:** [README § When to use which command](https://github.com/metasession-dev/DevAudit-Installer/blob/main/README.md) · [docs/onboarding.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/onboarding.md)
 
 ---
 
@@ -689,6 +721,7 @@ This is a five-part series that follows a single feature from GitHub issue to pr
 **Primary persona:** Compliance Officer + CISO
 **Goal:** Transparency about the governance opt-in pattern — avoiding false compliance.
 **Key points:**
+
 - The anti-pattern: auto-generated compliance docs that look real but are just templates — auditors reject them, liability increases
 - DevAudit's opt-in stance: governance starters are NOT auto-seeded since v0.1.36
 - Explicit `bootstrap-governance` command: operator must deliberately request RoPA, DPIA, AI disclosure, incident-report, periodic-review, risk-register starters
@@ -696,9 +729,9 @@ This is a five-part series that follows a single feature from GitHub issue to pr
 - CI does NOT upload governance docs: Tier 1/2 docs (RoPA/DPIA/AI Disclosure) are operator-uploaded only; Tier 3 (incident templates) are CI-auto-uploaded on push
 - Framework clause mapping: each starter declares its evidence type and clauses (RoPA→GDPR.Art-30, DPIA→GDPR.Art-35, etc.)
 - Skip-if-exists semantics: `bootstrap-governance` never overwrites operator-edited docs
-**DevAudit hook:** `bootstrapGovernanceDocs()` in `cli/src/install/bootstrap-governance.ts`. Governance templates in `sdlc/files/_common/governance/`.
-**CTA:** "Learn about governance docs → [docs/governance-templates.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/governance-templates.md)"
-**Cross-links:** [docs/governance-templates.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/governance-templates.md) · [/compliance § GDPR](https://devaudit.ai/compliance)
+  **DevAudit hook:** `bootstrapGovernanceDocs()` in `cli/src/install/bootstrap-governance.ts`. Governance templates in `sdlc/files/_common/governance/`.
+  **CTA:** "Learn about governance docs → [docs/governance-templates.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/governance-templates.md)"
+  **Cross-links:** [docs/governance-templates.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/governance-templates.md) · [/compliance § GDPR](https://devaudit.ai/compliance)
 
 ---
 
@@ -707,6 +740,7 @@ This is a five-part series that follows a single feature from GitHub issue to pr
 **Primary persona:** CTO + Lead Developer
 **Goal:** Technical architecture piece on the template substitution engine.
 **Key points:**
+
 - The problem: template rendering that leaves `{{TOKENS}}` unsubstituted = broken CI
 - Scalar substitution: `{{PROJECT_SLUG}}` → `foo`, `{{NODE_VERSION}}` → `20`
 - Block substitution: entire YAML sections dropped when config empty (prevents invalid `env:` blocks with blank lines)
@@ -714,9 +748,9 @@ This is a five-part series that follows a single feature from GitHub issue to pr
 - Stack-specific overrides: `sdlc/files/ci/python/ci.yml.template` overrides node defaults with ruff/mypy/pytest gates
 - Host adapter wiring: railway's `deploy_trigger`, `production_url_secret`, `wait_for_deploy` snippets
 - Idempotent sync: `devaudit update` re-renders all 10 CI templates, removes superseded workflows (`test-on-pr.yml`, `check-uat-approval.yml`)
-**DevAudit hook:** `substituteTokens()`, `substituteBlocks()`, `stripServicesBlock()` in `cli/src/lib/templates.ts`. `CI_TEMPLATES` list in `ci-templates.ts`.
-**CTA:** "See the framework architecture → [docs/sdlc-framework.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/sdlc-framework.md)"
-**Cross-links:** [docs/sdlc-framework.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/sdlc-framework.md) · [docs/compliance-gates.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/compliance-gates.md)
+  **DevAudit hook:** `substituteTokens()`, `substituteBlocks()`, `stripServicesBlock()` in `cli/src/lib/templates.ts`. `CI_TEMPLATES` list in `ci-templates.ts`.
+  **CTA:** "See the framework architecture → [docs/sdlc-framework.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/sdlc-framework.md)"
+  **Cross-links:** [docs/sdlc-framework.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/sdlc-framework.md) · [docs/compliance-gates.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/compliance-gates.md)
 
 ---
 
@@ -725,16 +759,17 @@ This is a five-part series that follows a single feature from GitHub issue to pr
 **Primary persona:** Compliance Officer
 **Goal:** Explain how non-tracked work remains traceable without creating noisy approval releases.
 **Key points:**
+
 - The problem: dependency updates, docs fixes, and CI tweaks need traceability but should not create noisy approval queues
 - Bare-date integration history: `v2024.06.17.1` for normal housekeeping (no REQ-XXX in commit subjects)
 - Normal path: gates, terminal-green PR review, merge to `develop`; no release-ticket/security-summary stub PR or UAT/production approval
-- Bundled lineage: the next tracked REQ names the absorbed work while retaining source title, evidence ownership, stage, and cycles
+- Bundled lineage: the next tracked REQ names the absorbed work while retaining source title, evidence ownership, stage, iterations, and test executions
 - Standalone exception: a validated declaration, documented reason, and production verification are required when the change cannot wait
 - Clause closure: CI and git history remain traceable without pretending every no-REQ change is a full release
 - Conventional commit prefixes: `chore/`, `docs/`, `ci/`, `build/`, `test/`, `compliance/` — no `[REQ-XXX]` in commit
-**DevAudit hook:** `docs/release-playbooks/housekeeping-release.md`, bundled-change manifest, and the portal release-ownership/journey views.
-**CTA:** "See release workflows → [docs/release-playbooks/](https://github.com/metasession-dev/DevAudit-Installer/tree/main/docs/release-playbooks)"
-**Cross-links:** [docs/change-workflows.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/change-workflows.md) · [docs/release-playbooks/housekeeping-release.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/release-playbooks/housekeeping-release.md)
+  **DevAudit hook:** `docs/release-playbooks/housekeeping-release.md`, bundled-change manifest, and the portal release-ownership/journey views.
+  **CTA:** "See release workflows → [docs/release-playbooks/](https://github.com/metasession-dev/DevAudit-Installer/tree/main/docs/release-playbooks)"
+  **Cross-links:** [docs/change-workflows.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/change-workflows.md) · [docs/release-playbooks/housekeeping-release.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/release-playbooks/housekeeping-release.md)
 
 ---
 
@@ -743,6 +778,7 @@ This is a five-part series that follows a single feature from GitHub issue to pr
 **Primary persona:** CISO + Compliance Officer
 **Goal:** Show the bidirectional linking between incidents and risk management.
 **Key points:**
+
 - Incident-driven risk entry: when `incident-export.yml` fires on issue close (label=`incident`)
 - `risk-register-keeper` skill Phase 2: creates residual-risk entry with status MITIGATED / OPEN / ACCEPTED
 - Bidirectional audit trail: incident report frontmatter gains `risk_register_entry: RISK-NNN`, register references `incident-report-N.md`
@@ -750,9 +786,9 @@ This is a five-part series that follows a single feature from GitHub issue to pr
 - `incident` label creation: idempotent `gh label create incident --force` applied at filing time
 - Close-with-label → `incident-export.yml` → `compliance-evidence.yml` flips clauses MISSING→COVERED
 - Incident report template: opt-in via `bootstrap-governance`, one incident per file, framework coverage declared
-**DevAudit hook:** `risk-register-keeper/SKILL.md` Phase 2 post-incident flow. `incident-export.yml.template` workflow.
-**CTA:** "Explore incident management → [docs/governance-templates.md § Incident Report](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/governance-templates.md)"
-**Cross-links:** [docs/governance-templates.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/governance-templates.md) · [/compliance § SOC 2 CC7.2](https://devaudit.ai/compliance)
+  **DevAudit hook:** `risk-register-keeper/SKILL.md` Phase 2 post-incident flow. `incident-export.yml.template` workflow.
+  **CTA:** "Explore incident management → [docs/governance-templates.md § Incident Report](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/governance-templates.md)"
+  **Cross-links:** [docs/governance-templates.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/governance-templates.md) · [/compliance § SOC 2 CC7.2](https://devaudit.ai/compliance)
 
 ---
 
@@ -761,6 +797,7 @@ This is a five-part series that follows a single feature from GitHub issue to pr
 **Primary persona:** CISO
 **Goal:** Technical security analysis of the bootstrap fail-closed protection.
 **Key points:**
+
 - The attack scenario: portal inconsistency (projects endpoint 404 but releases/resolve 2xx) could bypass four-eyes
 - Bootstrap fail-closed: `check-release-approval.yml` cross-checks both endpoints
 - Logic: projects 404 + releases/resolve 404 = bootstrap mode (gate passes, first PR introducing framework)
@@ -768,17 +805,18 @@ This is a five-part series that follows a single feature from GitHub issue to pr
 - 401/403 on either probe = invalid key = exit 1
 - Bootstrap mode: skips release resolution, skips SHA comparison, allows merge for first-time setup
 - Why this matters: prevents "shadow approvals" where a release exists but the project lookup fails
-**DevAudit hook:** `check-release-approval.yml.template` bootstrap detection. `APPROVAL-003` in SRS.
-**CTA:** "Read the security whitepaper → [Article 15](https://devaudit.ai/blog)"
-**Cross-links:** [Article 15: DevAudit's Security Model](https://devaudit.ai/blog) · [docs/compliance-gates.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/compliance-gates.md)
+  **DevAudit hook:** `check-release-approval.yml.template` bootstrap detection. `APPROVAL-003` in SRS.
+  **CTA:** "Read the security whitepaper → [Article 15](https://devaudit.ai/blog)"
+  **Cross-links:** [Article 15: DevAudit's Security Model](https://devaudit.ai/blog) · [docs/compliance-gates.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/compliance-gates.md)
 
 ---
 
 #### Article 38: The LAST/NEXT Status Sticky: Workflow Navigability
 
 **Primary persona:** Lead Developer
-**Goal:** UX pattern explanation for distributed teams managing long-running SDLC cycles.
+**Goal:** UX pattern explanation for distributed teams managing long-running SDLC work.
 **Key points:**
+
 - The problem: long-running issues (5 phases, multiple days) — where did we leave off? who's next?
 - Status sticky pattern: `scripts/update-sdlc-status.sh` invoked at every transition/handoff
 - Format: single marker-tagged issue comment, edited idempotently (never duplicated)
@@ -787,9 +825,9 @@ This is a five-part series that follows a single feature from GitHub issue to pr
 - Transitions that update: Stage 1→2, 2→3, 3→4 (hard stop), 4→5 (resume), sub-skill returns
 - Lead with the pattern: in-chat turn begins with the two-line LAST/NEXT shape
 - On divergence: issue comment is canonical source of truth
-**DevAudit hook:** `update-sdlc-status.sh` in `sdlc/files/_common/scripts/`. `sdlc-implementer/SKILL.md` § SDLC navigability.
-**CTA:** "Try the SDLC workflow → [devaudit.ai/onboarding](https://devaudit.ai/onboarding)"
-**Cross-links:** [implementing-an-sdlc-issue.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/sdlc/files/_common/implementing-an-sdlc-issue.md) · [docs/skills.md § sdlc-implementer](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/skills.md)
+  **DevAudit hook:** `update-sdlc-status.sh` in `sdlc/files/_common/scripts/`. `sdlc-implementer/SKILL.md` § SDLC navigability.
+  **CTA:** "Try the SDLC workflow → [devaudit.ai/onboarding](https://devaudit.ai/onboarding)"
+  **Cross-links:** [implementing-an-sdlc-issue.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/sdlc/files/_common/implementing-an-sdlc-issue.md) · [docs/skills.md § sdlc-implementer](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/skills.md)
 
 ---
 
@@ -797,34 +835,34 @@ This is a five-part series that follows a single feature from GitHub issue to pr
 
 The first four weeks publish **one article per week** to give each piece room to breathe, allow distribution and discussion, learn which positioning resonates, and build trust before increasing cadence. The EU AI Act article (#1) is deferred to W10 pending legal review of its regulatory framing.
 
-| Week | Articles | Theme |
-|------|----------|-------|
-| W1 | Launch-1 | Soft-launch invitation — recruit testers and reviewers |
-| W2 | #4 | Vibe Coding Broke My CI Pipeline — establish the concrete problem |
-| W3 | #9 | DevAudit in 15 Minutes — drive installation and activation |
-| W4 | #2 | The Agentic SDLC — establish the wider category and CTO narrative |
-| W5 | #3, #5, #6 | Governance gap — SOC 2 change management, the 60% stat, audit trail deep-dive |
-| W6 | #16, #17, #18 | Workflow series Pt 1–3 — plan → implement → evidence |
-| W7 | #19, #20, #10 | Workflow series Pt 4–5 + four-eyes gate |
-| W8 | #7, #23, #24 | Technical architecture — code/evidence separation, binary bloat, skills vs. prompts |
-| W9 | #8, #14, #26 | Compliance audience — ROI, auditor access, auditor's view |
-| W10 | #1, #11, #22 | EU AI Act + standards deep-dives — Article 1 (pending legal review), Art. 11 mapping, ISO 29119 |
-| W11 | #21, #12, #13 | Attack surface + decision stage — AI agent threats, DIY comparison, migration guide |
-| W12 | #15, #25, #27 | Security whitepaper + role guides — security deep-dive, developer day, team onboarding |
-| W13 | #28, #29, #30 | Risk config + technical deep-dives — risk configuration, plugin SDK, multi-agent rules |
-| W14 | #31, #32, #33 | Screenshot density, framework internals, governance opt-in |
-| W15 | #34, #35, #36 | CI template engine, housekeeping releases, incident→risk loop |
-| W16 | #37, #38 | Fail-closed design, workflow UX |
+| Week | Articles      | Theme                                                                                           |
+| ---- | ------------- | ----------------------------------------------------------------------------------------------- |
+| W1   | Launch-1      | Soft-launch invitation — recruit testers and reviewers                                          |
+| W2   | #4            | Vibe Coding Broke My CI Pipeline — establish the concrete problem                               |
+| W3   | #9            | DevAudit in 15 Minutes — drive installation and activation                                      |
+| W4   | #2            | The Agentic SDLC — establish the wider category and CTO narrative                               |
+| W5   | #3, #5, #6    | Governance gap — SOC 2 change management, the 60% stat, audit trail deep-dive                   |
+| W6   | #16, #17, #18 | Workflow series Pt 1–3 — plan → implement → evidence                                            |
+| W7   | #19, #20, #10 | Workflow series Pt 4–5 + four-eyes gate                                                         |
+| W8   | #7, #23, #24  | Technical architecture — code/evidence separation, binary bloat, skills vs. prompts             |
+| W9   | #8, #14, #26  | Compliance audience — ROI, auditor access, auditor's view                                       |
+| W10  | #1, #11, #22  | EU AI Act + standards deep-dives — Article 1 (pending legal review), Art. 11 mapping, ISO 29119 |
+| W11  | #21, #12, #13 | Attack surface + decision stage — AI agent threats, DIY comparison, migration guide             |
+| W12  | #15, #25, #27 | Security whitepaper + role guides — security deep-dive, developer day, team onboarding          |
+| W13  | #28, #29, #30 | Risk config + technical deep-dives — risk configuration, plugin SDK, multi-agent rules          |
+| W14  | #31, #32, #33 | Screenshot density, framework internals, governance opt-in                                      |
+| W15  | #34, #35, #36 | CI template engine, housekeeping releases, incident→risk loop                                   |
+| W16  | #37, #38      | Fail-closed design, workflow UX                                                                 |
 
 ### Social companion timing
 
 Short-form companions publish **same day** as the long-form, staggered by 2–4 hours (long-form first, so the link is live when the social post goes out). For X thread versions, publish **the following morning** to catch a second timezone window.
 
-| Day | Long-form publishes | Social companion same-day | X thread next morning |
-|-----|--------------------|--------------------------|-----------------------|
-| Mon/Tue | Blog articles (1–2 per week; 1 per week during W1–W4) | LinkedIn + Dev.to companions | High-signal only |
-| Wed | — | Reshare previous week's best-performing companion with new hook | — |
-| Thu/Fri | Blog articles (1–2 per week) | LinkedIn + Dev.to companions | — |
+| Day     | Long-form publishes                                   | Social companion same-day                                       | X thread next morning |
+| ------- | ----------------------------------------------------- | --------------------------------------------------------------- | --------------------- |
+| Mon/Tue | Blog articles (1–2 per week; 1 per week during W1–W4) | LinkedIn + Dev.to companions                                    | High-signal only      |
+| Wed     | —                                                     | Reshare previous week's best-performing companion with new hook | —                     |
+| Thu/Fri | Blog articles (1–2 per week)                          | LinkedIn + Dev.to companions                                    | —                     |
 
 ---
 
@@ -834,15 +872,15 @@ Every article ships in two formats: the **long-form** (devaudit.ai/blog) and a *
 
 ### Channel matrix
 
-| Channel | Content type | Articles |
-|---------|-------------|----------|
-| **devaudit.ai/blog** | Long-form (primary home, SEO-optimised) | All 38 |
-| **LinkedIn (posts + articles)** | Short-form companions | All CISO/CTO/Compliance articles: #1, #2, #3, #5, #6, #8, #10, #11, #12, #14, #15, #19, #21, #22, #26, #27, #28, #33, #35, #36, #37 |
-| **Dev.to / Hashnode** | Short-form companions (reposted with canonical URL pointing to devaudit.ai/blog) | All developer articles: #4, #7, #9, #13, #16, #17, #18, #20, #23, #24, #25, #29, #30, #31, #32, #34, #38 |
-| **X (Twitter)** | Thread versions (3–5 tweets) of the short-form companions | #4, #9, #2 (W2–W4) + highest-signal pieces (#5, #21, #23, #24, #30, #37) |
-| **Hacker News** | Direct long-form submissions | #4 (post-mortem format), #23 (binary bloat — technical problem), #30 (multi-agent rules — technical architecture), #34 (CI template engine — technical deep-dive) |
-| **Email nurture** | Long-form links | BOFU articles (#12, #13, #14, #15) to leads who've engaged with TOFU/MOFU content |
-| **Webinar** | Live walkthrough | "How a Feature Ships" series (#16–#20) with a real project |
+| Channel                         | Content type                                                                     | Articles                                                                                                                                                          |
+| ------------------------------- | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **devaudit.ai/blog**            | Long-form (primary home, SEO-optimised)                                          | All 38                                                                                                                                                            |
+| **LinkedIn (posts + articles)** | Short-form companions                                                            | All CISO/CTO/Compliance articles: #1, #2, #3, #5, #6, #8, #10, #11, #12, #14, #15, #19, #21, #22, #26, #27, #28, #33, #35, #36, #37                               |
+| **Dev.to / Hashnode**           | Short-form companions (reposted with canonical URL pointing to devaudit.ai/blog) | All developer articles: #4, #7, #9, #13, #16, #17, #18, #20, #23, #24, #25, #29, #30, #31, #32, #34, #38                                                          |
+| **X (Twitter)**                 | Thread versions (3–5 tweets) of the short-form companions                        | #4, #9, #2 (W2–W4) + highest-signal pieces (#5, #21, #23, #24, #30, #37)                                                                                          |
+| **Hacker News**                 | Direct long-form submissions                                                     | #4 (post-mortem format), #23 (binary bloat — technical problem), #30 (multi-agent rules — technical architecture), #34 (CI template engine — technical deep-dive) |
+| **Email nurture**               | Long-form links                                                                  | BOFU articles (#12, #13, #14, #15) to leads who've engaged with TOFU/MOFU content                                                                                 |
+| **Webinar**                     | Live walkthrough                                                                 | "How a Feature Ships" series (#16–#20) with a real project                                                                                                        |
 
 ---
 
@@ -857,7 +895,7 @@ Each companion post follows this structure:
 
 ### Writing rules
 
-- **No thread-bait.** The short-form delivers value without requiring the click. The long-form delivers *more* value, not the *only* value.
+- **No thread-bait.** The short-form delivers value without requiring the click. The long-form delivers _more_ value, not the _only_ value.
 - **Platform-native tone.** LinkedIn: professional, first-person perspective, no hashtag spam (max 3). Dev.to: technical, code-block-friendly, show don't tell. X: punchy, one-insight-per-tweet.
 - **Persona-appropriate voice.** CISO/Compliance posts reference regulation clauses and audit scenarios. Developer posts reference CLI commands, code patterns, and workflow friction. CTO posts reference architecture decisions and scaling trade-offs.
 - **Always link the canonical.** Social posts drive traffic to devaudit.ai/blog, not to Dev.to reposts. Dev.to reposts set `canonical_url` to the blog.
@@ -949,7 +987,7 @@ Each companion post follows this structure:
 **Platform:** LinkedIn
 **Hook:** "Before: chase developers for screenshots, export test reports from Jenkins, manually cross-reference SAST findings, assemble in SharePoint, email to auditor. After: CI uploads everything. The portal organises it. The auditor browses self-service."
 **Insight:** A single SAST scan in DevAudit generates evidence for ISO 27001 vulnerability management, SOC 2 system monitoring, GDPR security of processing, and EU AI Act transparency — one check, five frameworks.
-**Proof point:** The /compliance page: "One gate, multiple frameworks." DevAudit automates evidence *collection*, not evidence *judgment*. Human input stays where it should: risk classification, acceptance criteria, approval clicks.
+**Proof point:** The /compliance page: "One gate, multiple frameworks." DevAudit automates evidence _collection_, not evidence _judgment_. Human input stays where it should: risk classification, acceptance criteria, approval clicks.
 **CTA:** "See the standards coverage → devaudit.ai/compliance"
 
 ---
@@ -969,7 +1007,7 @@ Each companion post follows this structure:
 
 **Long-form parent:** Article 10 — The Four-Eyes Gate
 **Platform:** LinkedIn
-**Hook:** "The Release Approval Gate blocks merge until a person *who isn't the committer* approves on the portal. Server-side enforcement, not honour-system."
+**Hook:** "The Release Approval Gate blocks merge until a person _who isn't the committer_ approves on the portal. Server-side enforcement, not honour-system."
 **Insight:** Three modes: `dual_actor` (recommended), `auto_low_risk` (LOW auto-approves; MEDIUM/HIGH require human), `solo_with_gap` (solo devs — documented control gap visible to auditor). The reviewer can Request Changes → the agent enters the iteration loop → max 5 rounds → re-review. Scope creep halts the agent.
 **Proof point:** The homepage live feed: "PR #347 approved — Four-eyes complete · UAT signed." That's real-time. The gate stays red until approval is recorded.
 **CTA:** "Read the manifesto → devaudit.ai/sdlc"
@@ -1037,12 +1075,13 @@ Each companion post follows this structure:
 **Platform:** LinkedIn (#19), Dev.to (#16, #17, #18, #20)
 **Hook (series launch):** "We're publishing a 5-part series that follows one feature from GitHub issue to production. Every stage. Every artefact. Every gate. Here's Part 1."
 **Per-part hooks:**
+
 - **Part 1:** "Before a single line of code: risk classification, RTM entry, implementation plan, threat model, test scope. All committed to Git."
 - **Part 2:** "Write failing tests first. Delegate e2e to the specialist skill. Capture `evidenceShot()` at the assertion level, not the suite level."
 - **Part 3:** "Two CI workflows, no duplication. Markdown in Git, binaries in the portal. Both keyed to the same REQ and release version."
 - **Part 4:** "The merge gate stays red until a human who isn't the committer approves on the portal. Change requests enter a max-5 iteration loop."
 - **Part 5:** "Merge, post-deploy smoke, production approval. The traceability chain: Issue → REQ → Plan → Tests → Evidence → UAT → PR → Prod → Released."
-**CTA (each):** "Full walkthrough → devaudit.ai/blog/how-a-feature-ships-part-N"
+  **CTA (each):** "Full walkthrough → devaudit.ai/blog/how-a-feature-ships-part-N"
 
 ---
 
@@ -1136,13 +1175,13 @@ Each companion post follows this structure:
 
 ## SEO keyword targets
 
-| Cluster | Primary keywords | Articles |
-|---------|-----------------|----------|
-| EU AI Act compliance | eu ai act software development, ai act technical documentation, ai act august 2026 deadline | #1, #11, #21 |
-| SOC 2 AI governance | soc 2 ai agents, soc 2 segregation of duties ai, ai audit trail | #3, #6, #15 |
-| Agentic SDLC | agentic sdlc, ai coding agent governance, ai software development lifecycle | #2, #24, #25 |
+| Cluster               | Primary keywords                                                                                | Articles     |
+| --------------------- | ----------------------------------------------------------------------------------------------- | ------------ |
+| EU AI Act compliance  | eu ai act software development, ai act technical documentation, ai act august 2026 deadline     | #1, #11, #21 |
+| SOC 2 AI governance   | soc 2 ai agents, soc 2 segregation of duties ai, ai audit trail                                 | #3, #6, #15  |
+| Agentic SDLC          | agentic sdlc, ai coding agent governance, ai software development lifecycle                     | #2, #24, #25 |
 | Compliance automation | automated evidence collection ci/cd, compliance automation developer, audit evidence automation | #8, #14, #26 |
-| DevAudit specific | devaudit, devaudit.ai, devaudit install, devaudit vs, compliance evidence portal | #9, #12, #13 |
+| DevAudit specific     | devaudit, devaudit.ai, devaudit install, devaudit vs, compliance evidence portal                | #9, #12, #13 |
 
 ---
 
@@ -1150,17 +1189,17 @@ Each companion post follows this structure:
 
 Every article ends with one primary CTA that routes to a devaudit.ai page. This ensures consistent conversion paths.
 
-| Article | Primary CTA destination | Conversion intent |
-|---------|------------------------|-------------------|
-| #1, #3, #8, #11 | [devaudit.ai/compliance](https://devaudit.ai/compliance) | Standards-curious → see what's covered |
-| #2, #6, #10 | [devaudit.ai/sdlc](https://devaudit.ai/sdlc) | Architecture-curious → read the manifesto |
-| #4, #13 | [devaudit.ai/onboarding](https://devaudit.ai/onboarding) | Problem-aware → try the product |
-| #5, #12, #15 | [devaudit.ai/onboarding](https://devaudit.ai/onboarding) | Decision-stage → book a conversation |
-| #9 | [devaudit.ai/auth/sign-in](https://devaudit.ai/auth/sign-in) | Ready to start → issue a token now |
-| #14, #26 | [devaudit.ai/compliance](https://devaudit.ai/compliance) | Auditor-adjacent → see what the portal shows |
-| #16–#20 | [devaudit.ai/sdlc](https://devaudit.ai/sdlc) | Workflow-interested → read the full manifesto |
-| #21, #22, #23, #24 | [devaudit.ai/sdlc](https://devaudit.ai/sdlc) | Thought-leadership → understand the product philosophy |
-| #25, #27, #28 | [devaudit.ai/onboarding](https://devaudit.ai/onboarding) | Role-specific → start the adoption conversation |
+| Article            | Primary CTA destination                                      | Conversion intent                                      |
+| ------------------ | ------------------------------------------------------------ | ------------------------------------------------------ |
+| #1, #3, #8, #11    | [devaudit.ai/compliance](https://devaudit.ai/compliance)     | Standards-curious → see what's covered                 |
+| #2, #6, #10        | [devaudit.ai/sdlc](https://devaudit.ai/sdlc)                 | Architecture-curious → read the manifesto              |
+| #4, #13            | [devaudit.ai/onboarding](https://devaudit.ai/onboarding)     | Problem-aware → try the product                        |
+| #5, #12, #15       | [devaudit.ai/onboarding](https://devaudit.ai/onboarding)     | Decision-stage → book a conversation                   |
+| #9                 | [devaudit.ai/auth/sign-in](https://devaudit.ai/auth/sign-in) | Ready to start → issue a token now                     |
+| #14, #26           | [devaudit.ai/compliance](https://devaudit.ai/compliance)     | Auditor-adjacent → see what the portal shows           |
+| #16–#20            | [devaudit.ai/sdlc](https://devaudit.ai/sdlc)                 | Workflow-interested → read the full manifesto          |
+| #21, #22, #23, #24 | [devaudit.ai/sdlc](https://devaudit.ai/sdlc)                 | Thought-leadership → understand the product philosophy |
+| #25, #27, #28      | [devaudit.ai/onboarding](https://devaudit.ai/onboarding)     | Role-specific → start the adoption conversation        |
 
 ---
 

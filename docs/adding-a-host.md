@@ -115,6 +115,7 @@ Keep it idempotent and bounded — Railway's is a 30 × 10s loop; Fly's the same
 This is a schema-validated, operator-facing contract for the expected runtime shape on the host. Use it to encode the lean default so consuming projects do not drift into expensive production patterns by accident.
 
 For Railway, that means:
+
 - prefer compiled JS or framework standalone output
 - do not run `tsx` / `ts-node` in the long-lived production web process
 - keep background schedulers out of the web process where the platform shape allows it
@@ -152,7 +153,7 @@ If you're only using existing fields, the existing tests cover it.
 ## Step 7 — Dry-run sync against the real consumer
 
 ```bash
-devaudit update v1.23.x <path-to-consumer>
+devaudit update <path-to-consumer>
 ```
 
 The consumer's `sdlc-config.json` should have `"host": "<name>"` plus any host-specific config keys you declared in `config_keys`.

@@ -4,7 +4,7 @@ The `sdlc/` directory contains the compliance-grade SDLC template system used by
 
 ## Template Structure
 
-Layout from sdlc-v1.23.0 onwards — process / stack / host adapter layering. See [ADR-001](ADR/ADR-001-polyglot-sdlc-architecture.md) for the rationale and [STACK_ADAPTER.md](../sdlc/STACK_ADAPTER.md) / [HOST_ADAPTER.md](../sdlc/HOST_ADAPTER.md) for the adapter contracts.
+Current layout: process / stack / host adapter layering. See [ADR-001](ADR/ADR-001-polyglot-sdlc-architecture.md) for the rationale and [STACK_ADAPTER.md](../sdlc/STACK_ADAPTER.md) / [HOST_ADAPTER.md](../sdlc/HOST_ADAPTER.md) for the adapter contracts.
 
 ```
 sdlc/
@@ -89,7 +89,7 @@ Metasession projects follow a **single owner-developer partnered with AI coding 
 
 ## Workflow Pipeline
 
-The framework has one tracked path and two housekeeping outcomes: *tracked* (`REQ-XXX`) for user-visible changes, normal *integration housekeeping* (bare-date history) for lightweight work, and the explicit *standalone housekeeping* exception. Normal housekeeping follows branch → gates → PR review → merge, has no tracked-release ceremony, and is absorbed into the next tracked release through bundled-change lineage. Standalone housekeeping requires the declaration and promotion process in the release playbook.
+The framework has one tracked path and two housekeeping outcomes: _tracked_ (`REQ-XXX`) for user-visible changes, normal _integration housekeeping_ (bare-date history) for lightweight work, and the explicit _standalone housekeeping_ exception. Normal housekeeping follows branch → gates → PR review → merge, has no tracked-release ceremony, and is absorbed into the next tracked release through bundled-change lineage. Standalone housekeeping requires the declaration and promotion process in the release playbook.
 
 ```
 0. Project Setup    -- repo, branches, CI, compliance directories (run once)
@@ -115,12 +115,12 @@ The installer now defines a first-class producer contract for release lineage an
 - typed helper: [`../cli/src/lib/release-lineage-contract.ts`](../cli/src/lib/release-lineage-contract.ts)
 - human summary: [`release-lineage-producer-contract.md`](./release-lineage-producer-contract.md)
 
-This establishes the canonical stage codes, environments, cycle kinds, outcomes, evidence scopes, bundle-manifest shape, and legacy fallback rules before generated workflows start emitting the new payloads.
+This establishes the canonical stage codes, environments, suite kinds, outcomes, evidence scopes, bundle-manifest shape, and fail-closed cutover rules before generated workflows start emitting the new payloads.
 
 Two operational rules matter:
 
-1. a release is not a cycle
-2. a document upload is not a cycle
+1. a release is not an iteration or test execution
+2. a document upload is not a test execution
 
 So Stage 1 and Stage 3 evidence may be critical audit material, but they are still release- or stage-scoped documents unless they are tied to a real governed execution attempt.
 

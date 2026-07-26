@@ -2,7 +2,7 @@
 
 > **This is the operator's onboarding flow** — the first developer setting up a fresh DevAudit project. If you're a second / nth developer joining an **already-onboarded** project, see [`sdlc/files/_common/joining-an-existing-project.md`](../sdlc/files/_common/joining-an-existing-project.md) instead. `devaudit install` is destructive against team-shared state (repo secrets, branch protection); the second-dev path uses `devaudit join` which leaves all of that alone.
 
-Onboarding collapses the v1.23.0 manual onboarding sequence (9 steps) into **two operator actions**:
+Onboarding replaces the legacy manual setup sequence with **two operator actions**:
 
 1. Issue a Personal Access Token at `https://devaudit.ai/settings/tokens`.
 2. Run `npx @metasession.co/devaudit-cli@latest install <consumer-path>` with the token exported.
