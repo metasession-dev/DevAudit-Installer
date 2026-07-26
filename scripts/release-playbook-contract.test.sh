@@ -30,6 +30,8 @@ expect_absent() {
 }
 
 expect_contains "$PLAYBOOKS/README.md" "terminal green on its current head SHA"
+expect_contains "$PLAYBOOKS/README.md" "Recover Required Checks"
+expect_contains "$PLAYBOOKS/README.md" "Never post a synthetic status"
 expect_contains "$PLAYBOOKS/README.md" "repository_dispatch(release-closed)"
 expect_contains "$PLAYBOOKS/README.md" "BUNDLED-CHANGES-REQ-XXX.json"
 expect_contains "$PLAYBOOKS/README.md" "Submitting a release for UAT review is not the same thing as executing or"
@@ -41,6 +43,7 @@ expect_contains "$PLAYBOOKS/high-risk-release.md" "backmerge/*"
 expect_contains "$PLAYBOOKS/low-risk-release.md" "render-test-executions.sh"
 expect_contains "$WORKFLOWS" "Historical CI context by default"
 expect_contains "$SKILL" "mandatory automated reconciliation"
+expect_contains "$SKILL" "Recover Required Checks"
 expect_contains "$SKILL" "record Stage 4 UAT execution"
 expect_contains "$E2E_SKILL" "Check release and execution provenance"
 expect_contains "$E2E_SKILL" "must not relabel the source E2E run"
