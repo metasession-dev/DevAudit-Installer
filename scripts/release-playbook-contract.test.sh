@@ -32,6 +32,8 @@ expect_absent() {
 expect_contains "$PLAYBOOKS/README.md" "terminal green on its current head SHA"
 expect_contains "$PLAYBOOKS/README.md" "Recover Required Checks"
 expect_contains "$PLAYBOOKS/README.md" "Never post a synthetic status"
+expect_contains "$PLAYBOOKS/README.md" "Temporary dependency-risk acceptance"
+expect_contains "$PLAYBOOKS/README.md" "Package-name allowlists are"
 expect_contains "$PLAYBOOKS/README.md" "repository_dispatch(release-closed)"
 expect_contains "$PLAYBOOKS/README.md" "BUNDLED-CHANGES-REQ-XXX.json"
 expect_contains "$PLAYBOOKS/README.md" "Submitting a release for UAT review is not the same thing as executing or"

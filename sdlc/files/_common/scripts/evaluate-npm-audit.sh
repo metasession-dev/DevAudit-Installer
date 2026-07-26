@@ -39,6 +39,7 @@ done
 python3 - "$AUDIT_PATH" "$LOCK_PATH" "$EXCEPTIONS_PATH" "$OUTPUT_PATH" <<'PY'
 import json
 import os
+import re
 import sys
 from datetime import date
 
@@ -144,8 +145,11 @@ for index, item in enumerate(exceptions, start=1):
         fail(f"exception {index} approvedAt cannot be in the future")
     if expires_at <= today:
         fail(f"exception {index} is expired on {item['expiresAt']}")
-    if not item["remediationIssue"].startswith("https://github.com/"):
-        fail(f"exception {index} remediationIssue must be a GitHub issue URL")
+    if re.fullmatch(r"https://github\.com/[^/]+/[^/]+/issues/[1-9][0-9]*", item["remediationIssue"]) is None:
+        fail(f"exception {index} remediationIssue must be an exact GitHub issue URL")
+    controls = item.get("compensatingControls")
+    if controls is not None and (not isinstance(controls, str) or not controls.strip()):
+        fail(f"exception {index} compensatingControls must be a non-empty string when present")
     key = (item["advisoryId"], item["dependencyPath"])
     if key in seen_exception_keys:
         fail(f"duplicate exception for {item['advisoryId']} at {item['dependencyPath']}")
@@ -217,10 +221,13 @@ for finding_name, finding in audit["vulnerabilities"].items():
                     file=sys.stderr,
                 )
             else:
-                accepted.append({**context, "acceptance": {
+                acceptance = {
                     field: match[field]
                     for field in ("approvedAt", "expiresAt", "approvedBy", "reason", "remediationIssue")
-                }})
+                }
+                if "compensatingControls" in match:
+                    acceptance["compensatingControls"] = match["compensatingControls"]
+                accepted.append({**context, "acceptance": acceptance})
                 print(
                     f"Accepted temporary risk: {identifier} ({package}@{version}) "
                     f"until {match['expiresAt']} by {match['approvedBy']}; "

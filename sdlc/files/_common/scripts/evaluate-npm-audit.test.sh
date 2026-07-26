@@ -7,6 +7,9 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 HELPER="$SCRIPT_DIR/evaluate-npm-audit.sh"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
+APPROVED_AT="$(date -u -d 'yesterday' +%Y-%m-%d)"
+EXPIRES_AT="$(date -u -d '+30 days' +%Y-%m-%d)"
+EXPIRED_AT="$(date -u -d 'yesterday' +%Y-%m-%d)"
 
 mkdir -p "$WORK/compliance/security"
 
@@ -66,11 +69,16 @@ write_exception() {
       "expiresAt": "2026-12-31",
       "approvedBy": "reviewer@example.test",
       "reason": "Fixture acceptance while the introducing dependency awaits an upstream repair.",
-      "remediationIssue": "https://github.com/example/repo/issues/1"
+      "remediationIssue": "https://github.com/example/repo/issues/1",
+      "compensatingControls": "Monitor upstream releases and retain the unaffected root package."
     }
   ]
 }
 JSON
+  jq --arg approved "$APPROVED_AT" --arg expires "$EXPIRES_AT" \
+    '.exceptions[0].approvedAt = $approved | .exceptions[0].expiresAt = $expires' \
+    "$WORK/compliance/security/accepted-vulnerabilities.json" > "$WORK/changed.json"
+  mv "$WORK/changed.json" "$WORK/compliance/security/accepted-vulnerabilities.json"
 }
 
 run_helper() {
@@ -107,7 +115,7 @@ jq -e '.summary.accepted == 0 and .summary.unresolved == 0' "$WORK/dependency-ri
 write_audit
 write_exception
 expect_success
-jq -e '.summary.accepted == 1 and .summary.unresolved == 0 and .accepted[0].acceptance.remediationIssue == "https://github.com/example/repo/issues/1"' \
+jq -e '.summary.accepted == 1 and .summary.unresolved == 0 and .accepted[0].acceptance.remediationIssue == "https://github.com/example/repo/issues/1" and (.accepted[0].acceptance.compensatingControls | length > 0)' \
   "$WORK/dependency-risk-evaluation.json" >/dev/null
 
 jq '.exceptions[0].advisoryId = "GHSA-wrong"' "$WORK/compliance/security/accepted-vulnerabilities.json" > "$WORK/changed.json"
@@ -140,13 +148,25 @@ expect_failure
 
 write_exception
 write_audit
-jq '.exceptions[0].expiresAt = "2026-01-01"' "$WORK/compliance/security/accepted-vulnerabilities.json" > "$WORK/changed.json"
+jq --arg expired "$EXPIRED_AT" '.exceptions[0].expiresAt = $expired' "$WORK/compliance/security/accepted-vulnerabilities.json" > "$WORK/changed.json"
 mv "$WORK/changed.json" "$WORK/compliance/security/accepted-vulnerabilities.json"
 expect_failure
 
 write_exception
 write_audit
 jq '.exceptions[0].expiresAt = "not-a-date"' "$WORK/compliance/security/accepted-vulnerabilities.json" > "$WORK/changed.json"
+mv "$WORK/changed.json" "$WORK/compliance/security/accepted-vulnerabilities.json"
+expect_failure
+
+write_exception
+write_audit
+jq '.exceptions[0].remediationIssue = "https://github.com/example/repo"' "$WORK/compliance/security/accepted-vulnerabilities.json" > "$WORK/changed.json"
+mv "$WORK/changed.json" "$WORK/compliance/security/accepted-vulnerabilities.json"
+expect_failure
+
+write_exception
+write_audit
+jq '.exceptions[0].compensatingControls = []' "$WORK/compliance/security/accepted-vulnerabilities.json" > "$WORK/changed.json"
 mv "$WORK/changed.json" "$WORK/compliance/security/accepted-vulnerabilities.json"
 expect_failure
 

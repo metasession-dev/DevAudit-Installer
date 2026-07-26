@@ -2098,19 +2098,19 @@ Area codes: FRAMEWORK-CIYML (ci.yml quality gates + evidence job), FRAMEWORK-EVI
 
 - **Priority:** Must — these are the mandatory merge gates the whole framework exists to enforce.
 - **Source:** `sdlc/files/ci/ci.yml.template` job `quality-gates` steps: `TypeScript Check` (id `typescript`, `npx tsc --noEmit`), `SAST Scan` (id `sast`), `Dependency Audit` (id `dep-audit`), `E2E Tests` (rendered from `{{E2E_TEST_STEP}}`), `Build Check` (id `build`, `npm run build`).
-- **Preconditions / inputs:** node stack; rendered `ci.yml`; `{{RUNNER}}`, `{{NODE_VERSION}}`, `{{SOURCE_DIRS}}`, `{{SAST_BASELINE}}`, `{{ACCEPTED_DEP_RISKS}}` substituted.
-- **Given** the rendered `ci.yml` runs **When** `npx tsc --noEmit` reports any error **Then** the `typescript` step (and the job) fails. **When** the SAST findings count `> {{SAST_BASELINE}}` **Then** the `sast` step emits `::error::New SAST findings` and exits 1. **When** unaccepted high/critical npm-audit vulns `!= 0` (after removing `{{ACCEPTED_DEP_RISKS}}` names) **Then** the `dep-audit` step exits 1. **When** Playwright tests fail or `npm run build` fails **Then** the respective step fails. All five must pass for `quality-gates` to be green.
-- **Error paths:** Each gate exits 1 on violation; an unparseable `sast-results.json`/`dependency-audit.json` falls back to count `0`/`unknown` (stderr redirected to `/dev/null`, DevAudit #48) so warnings cannot corrupt the JSON.
+- **Preconditions / inputs:** node stack; rendered `ci.yml`; `{{RUNNER}}`, `{{NODE_VERSION}}`, `{{SOURCE_DIRS}}`, and `{{SAST_BASELINE}}` substituted; optional repository-owned `compliance/security/accepted-vulnerabilities.json`.
+- **Given** the rendered `ci.yml` runs **When** `npx tsc --noEmit` reports any error **Then** the `typescript` step (and the job) fails. **When** the SAST findings count `> {{SAST_BASELINE}}` **Then** the `sast` step emits `::error::New SAST findings` and exits 1. **When** any high/critical npm advisory lacks an exact, unexpired advisory-and-lockfile-path risk acceptance **Then** the `dep-audit` step exits 1. **When** Playwright tests fail or `npm run build` fails **Then** the respective step fails. All five must pass for `quality-gates` to be green.
+- **Error paths:** Each gate exits 1 on violation. Unparseable npm-audit JSON, malformed/expired exception JSON, unresolved installed versions, and broad package-only exceptions fail closed.
 - **Fixtures/env:** Rendered node consumer with a tsc error / a seeded high-sev dependency / a failing spec to exercise each gate.
 
-#### REQ-FRAMEWORK-CIYML-003 — SAST and dep-audit gates honour baseline/accepted-risk allowances
+#### REQ-FRAMEWORK-CIYML-003 — SAST baseline and advisory-scoped dependency-risk decisions
 
-- **Priority:** Must — without the baseline/allowlist the gate would be all-or-nothing and unusable on real repos.
-- **Source:** `sdlc/files/ci/ci.yml.template` `SAST Scan` (`BASELINE={{SAST_BASELINE}}`; fail iff `FINDINGS > BASELINE`) and `Dependency Audit` (`ACCEPTED="{{ACCEPTED_DEP_RISKS}}"`; high/critical vulns whose package name is in `ACCEPTED` are excluded).
-- **Preconditions / inputs:** `sast_baseline` (default `0`) and `accepted_dep_risks` (default `""`) from `sdlc-config.json` / stack adapter defaults.
-- **Given** a rendered `ci.yml` with `{{SAST_BASELINE}}=N` **When** semgrep returns exactly `N` findings **Then** the SAST gate passes; at `N+1` it fails. **Given** `{{ACCEPTED_DEP_RISKS}}="pkgA pkgB"` **When** only `pkgA`/`pkgB` carry high/critical vulns **Then** the dep-audit gate passes (count 0).
-- **Error paths:** Empty `ACCEPTED` → empty set → no exclusions.
-- **Fixtures/env:** Rendered repo with baseline `>0` and a known accepted-risk package.
+- **Priority:** Must — exceptions are security decisions and must be narrower than a package-name allowlist.
+- **Source:** `sdlc/files/ci/ci.yml.template` `SAST Scan`; `sdlc/files/_common/scripts/evaluate-npm-audit.sh`; `compliance/security/accepted-vulnerabilities.json` in a consumer when an exception is approved.
+- **Preconditions / inputs:** `sast_baseline` (default `0`), npm audit JSON, package-lock JSON, and an optional schema-versioned exception document.
+- **Given** a rendered `ci.yml` with `{{SAST_BASELINE}}=N` **When** semgrep returns exactly `N` findings **Then** the SAST gate passes; at `N+1` it fails. **Given** a high/critical npm advisory **When** its advisory ID, package, vulnerable range, installed version, dependency path, and introducing dependency exactly match one non-expired record with approver, dates, reason, and GitHub remediation issue **Then** the dependency gate records it as accepted. **When** every finding is accepted or no high/critical finding exists **Then** the gate passes and writes `dependency-risk-evaluation.json`.
+- **Error paths:** Missing exception file means no accepted risks. Unmatched, expired, malformed, duplicate, package-only, range/version/path/introducer mismatch, or an invalid remediation URL fails closed. Multiple findings are evaluated independently.
+- **Fixtures/env:** No finding, unaccepted finding, valid exact match, advisory/range/version/path/introducer mismatches, expiry, malformed documents, invalid remediation URL, and multiple-advisory fixtures.
 
 #### REQ-FRAMEWORK-CIYML-004 — E2E origin tagging via E2E_NEW_SPECS diff against merge base
 
@@ -2663,7 +2663,7 @@ The observable contract is derived entirely from source: adapter manifests under
 - **Priority:** Must — the node adapter is the canonical substitution surface; wrong commands break CI gates.
 - **Source:** `sdlc/files/stacks/node/adapter.json`
 - **Preconditions / inputs:** Resolved `stack=node`.
-- **Given** the node adapter is loaded **Then** it declares: `manifest_file=package.json`; `install="npm ci"`; `type_check="npx tsc --noEmit"`; `sast="npx semgrep scan --config auto --json"`; `dep_audit="npm audit --json --audit-level=high"`; `test="npm test"`; `build="npm run build"`; `runtime_setup.action="actions/setup-node@v4"` with `node-version={{NODE_VERSION}}`, `cache=npm`; `evidence_paths.sast="ci-evidence/sast-results.json"`, `dep_audit="ci-evidence/dependency-audit.json"`, `test="ci-evidence/e2e-results.json"`; and `config_keys.required` = `node_version, source_dirs, sast_baseline, accepted_dep_risks, e2e_project, e2e_start_command` with defaults `node_version=20, source_dirs="app/ lib/", e2e_project="chromium", e2e_start_command="npm run dev"`.
+- **Given** the node adapter is loaded **Then** it declares: `manifest_file=package.json`; `install="npm ci"`; `type_check="npx tsc --noEmit"`; `sast="npx semgrep scan --config auto --json"`; `dep_audit="npm audit --json --audit-level=high"`; `test="npm test"`; `build="npm run build"`; `runtime_setup.action="actions/setup-node@v6"` with `node-version={{NODE_VERSION}}`, `cache=npm`; `evidence_paths.sast="ci-evidence/sast-results.json"`, `dep_audit="ci-evidence/dependency-audit.json"`, `test="ci-evidence/e2e-results.json"`; and `config_keys.required` = `node_version, source_dirs, sast_baseline, accepted_dep_risks, e2e_project, e2e_start_command` with defaults `node_version=20, source_dirs="app/ lib/", e2e_project="chromium", e2e_start_command="npm run dev"`. The legacy `accepted_dep_risks` config value is preserved for config compatibility but does not permit Node advisory exceptions; Node decisions use `compliance/security/accepted-vulnerabilities.json`.
 - **Error paths:** N/A (static manifest); malformed JSON would fail at `JSON.parse` in `loadStackAdapter` — see ADAPTER-013.
 - **Fixtures/env:** node fixture repo; assert rendered CI/config carries these exact tokens (cross-ref FRAMEWORK-CI for the render).
 
