@@ -161,78 +161,108 @@ accepted = []
 unresolved = []
 seen_advisories = set()
 
-for finding_name, finding in audit["vulnerabilities"].items():
+vulnerabilities = audit["vulnerabilities"]
+
+
+def concrete_advisories(finding_name, trail=()):
+    if finding_name in trail:
+        fail(f"audit vulnerability graph contains a cycle: {' -> '.join((*trail, finding_name))}")
+    finding = vulnerabilities.get(finding_name)
     if not isinstance(finding, dict):
-        fail(f"audit vulnerability {finding_name} must be an object")
+        fail(f"audit vulnerability {finding_name} is missing or is not an object")
     via = finding.get("via", [])
     if not isinstance(via, list):
         fail(f"audit vulnerability {finding_name} has invalid via data")
-    advisory_objects = [
-        item for item in via
-        if isinstance(item, dict) and item.get("severity") in ("high", "critical")
-    ]
-    if finding.get("severity") in ("high", "critical") and not advisory_objects:
-        fail(f"high/critical audit vulnerability {finding_name} has no resolvable advisory object")
 
-    nodes = finding.get("nodes", [])
-    if advisory_objects and (not isinstance(nodes, list) or not nodes):
-        fail(f"audit vulnerability {finding_name} has no installed package-lock node")
+    resolved = []
+    for index, item in enumerate(via):
+        if isinstance(item, str):
+            if item not in vulnerabilities:
+                fail(f"audit vulnerability {finding_name} references missing vulnerability {item}")
+            resolved.extend(concrete_advisories(item, (*trail, finding_name)))
+        elif isinstance(item, dict):
+            if item.get("severity") in ("high", "critical"):
+                resolved.append((finding_name, index, item))
+        else:
+            fail(f"audit vulnerability {finding_name} has invalid via entry")
+    return resolved
 
-    for advisory in advisory_objects:
-        package = advisory.get("dependency") or finding_name
-        advisory_range = advisory.get("range")
-        if not isinstance(package, str) or not package:
-            fail(f"advisory in {finding_name} has no package name")
-        if not isinstance(advisory_range, str) or not advisory_range:
-            fail(f"advisory {advisory_id(advisory)} has no vulnerable range")
-        identifier = advisory_id(advisory)
-        for node_path in nodes:
-            if not isinstance(node_path, str):
-                fail(f"advisory {identifier} has invalid package-lock node")
-            node = packages.get(node_path)
-            if not isinstance(node, dict) or not isinstance(node.get("version"), str):
-                fail(f"cannot resolve installed version for {node_path}")
-            if package_name_from_path(node_path) != package:
-                fail(f"audit package {package} does not match package-lock node {node_path}")
-            version = node["version"]
-            introduced_by = introducer_for(node_path, packages)
-            decision_key = (identifier, node_path)
-            if decision_key in seen_advisories:
-                continue
-            seen_advisories.add(decision_key)
-            context = {
-                "advisoryId": identifier,
-                "severity": advisory["severity"],
-                "package": package,
-                "vulnerableRange": advisory_range,
-                "vulnerableVersion": version,
-                "dependencyPath": node_path,
-                "introducedBy": introduced_by,
+
+advisory_sources = {}
+for finding_name, finding in vulnerabilities.items():
+    if not isinstance(finding, dict):
+        fail(f"audit vulnerability {finding_name} must be an object")
+    resolved = concrete_advisories(finding_name)
+    if finding.get("severity") in ("high", "critical") and not resolved:
+        fail(f"high/critical audit vulnerability {finding_name} has no reachable advisory object")
+    for source_name, source_index, advisory in resolved:
+        advisory_sources.setdefault((source_name, source_index), {
+            "advisory": advisory,
+            "affectedFindings": set(),
+        })["affectedFindings"].add(finding_name)
+
+for (source_name, _source_index), source in advisory_sources.items():
+    advisory = source["advisory"]
+    source_finding = vulnerabilities[source_name]
+    nodes = source_finding.get("nodes", [])
+    if not isinstance(nodes, list) or not nodes:
+        fail(f"audit vulnerability {source_name} has no installed package-lock node")
+
+    package = advisory.get("dependency") or source_name
+    advisory_range = advisory.get("range")
+    if not isinstance(package, str) or not package:
+        fail(f"advisory in {source_name} has no package name")
+    if not isinstance(advisory_range, str) or not advisory_range:
+        fail(f"advisory {advisory_id(advisory)} has no vulnerable range")
+    identifier = advisory_id(advisory)
+    for node_path in nodes:
+        if not isinstance(node_path, str):
+            fail(f"advisory {identifier} has invalid package-lock node")
+        node = packages.get(node_path)
+        if not isinstance(node, dict) or not isinstance(node.get("version"), str):
+            fail(f"cannot resolve installed version for {node_path}")
+        if package_name_from_path(node_path) != package:
+            fail(f"audit package {package} does not match package-lock node {node_path}")
+        version = node["version"]
+        introduced_by = introducer_for(node_path, packages)
+        decision_key = (identifier, node_path)
+        if decision_key in seen_advisories:
+            continue
+        seen_advisories.add(decision_key)
+        context = {
+            "advisoryId": identifier,
+            "severity": advisory["severity"],
+            "package": package,
+            "vulnerableRange": advisory_range,
+            "vulnerableVersion": version,
+            "dependencyPath": node_path,
+            "introducedBy": introduced_by,
+            "affectedFindings": sorted(source["affectedFindings"]),
+        }
+        match = next((item for item in validated_exceptions if all(
+            item[field] == context[field]
+            for field in ("advisoryId", "package", "vulnerableRange", "vulnerableVersion", "dependencyPath", "introducedBy")
+        )), None)
+        if match is None:
+            unresolved.append(context)
+            print(
+                f"Unaccepted {context['severity']} risk: {identifier} "
+                f"({package}@{version} at {node_path})",
+                file=sys.stderr,
+            )
+        else:
+            acceptance = {
+                field: match[field]
+                for field in ("approvedAt", "expiresAt", "approvedBy", "reason", "remediationIssue")
             }
-            match = next((item for item in validated_exceptions if all(
-                item[field] == context[field]
-                for field in ("advisoryId", "package", "vulnerableRange", "vulnerableVersion", "dependencyPath", "introducedBy")
-            )), None)
-            if match is None:
-                unresolved.append(context)
-                print(
-                    f"Unaccepted {context['severity']} risk: {identifier} "
-                    f"({package}@{version} at {node_path})",
-                    file=sys.stderr,
-                )
-            else:
-                acceptance = {
-                    field: match[field]
-                    for field in ("approvedAt", "expiresAt", "approvedBy", "reason", "remediationIssue")
-                }
-                if "compensatingControls" in match:
-                    acceptance["compensatingControls"] = match["compensatingControls"]
-                accepted.append({**context, "acceptance": acceptance})
-                print(
-                    f"Accepted temporary risk: {identifier} ({package}@{version}) "
-                    f"until {match['expiresAt']} by {match['approvedBy']}; "
-                    f"remediation {match['remediationIssue']}",
-                )
+            if "compensatingControls" in match:
+                acceptance["compensatingControls"] = match["compensatingControls"]
+            accepted.append({**context, "acceptance": acceptance})
+            print(
+                f"Accepted temporary risk: {identifier} ({package}@{version}) "
+                f"until {match['expiresAt']} by {match['approvedBy']}; "
+                f"remediation {match['remediationIssue']}",
+            )
 
 result = {
     "schemaVersion": 1,

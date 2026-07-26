@@ -40,6 +40,47 @@ write_empty_audit() {
   printf '{"vulnerabilities":{}}\n' > "$WORK/dependency-audit.json"
 }
 
+write_meta_audit() {
+  cat > "$WORK/dependency-audit.json" <<'JSON'
+{
+  "vulnerabilities": {
+    "eslint": {
+      "name": "eslint",
+      "severity": "high",
+      "via": ["@eslint/eslintrc"],
+      "nodes": ["node_modules/eslint"]
+    },
+    "@eslint/eslintrc": {
+      "name": "@eslint/eslintrc",
+      "severity": "high",
+      "via": ["minimatch"],
+      "nodes": ["node_modules/@eslint/eslintrc"]
+    },
+    "minimatch": {
+      "name": "minimatch",
+      "severity": "high",
+      "via": ["brace-expansion"],
+      "nodes": ["node_modules/@eslint/eslintrc/node_modules/minimatch"]
+    },
+    "brace-expansion": {
+      "name": "brace-expansion",
+      "severity": "high",
+      "via": [
+        {
+          "name": "brace-expansion",
+          "dependency": "brace-expansion",
+          "url": "https://github.com/advisories/GHSA-meta-chain",
+          "severity": "high",
+          "range": "<=5.0.7"
+        }
+      ],
+      "nodes": ["node_modules/@eslint/eslintrc/node_modules/brace-expansion"]
+    }
+  }
+}
+JSON
+}
+
 write_lock() {
   cat > "$WORK/package-lock.json" <<'JSON'
 {
@@ -48,6 +89,21 @@ write_lock() {
     "": {"name": "fixture"},
     "node_modules/next": {"version": "16.2.11"},
     "node_modules/next/node_modules/postcss": {"version": "8.4.31"}
+  }
+}
+JSON
+}
+
+write_meta_lock() {
+  cat > "$WORK/package-lock.json" <<'JSON'
+{
+  "lockfileVersion": 3,
+  "packages": {
+    "": {"name": "fixture"},
+    "node_modules/eslint": {"version": "9.0.0"},
+    "node_modules/@eslint/eslintrc": {"version": "3.0.0"},
+    "node_modules/@eslint/eslintrc/node_modules/minimatch": {"version": "9.0.0"},
+    "node_modules/@eslint/eslintrc/node_modules/brace-expansion": {"version": "2.0.1"}
   }
 }
 JSON
@@ -191,6 +247,35 @@ expect_failure
 write_audit
 write_exception
 printf '{not-json}\n' > "$WORK/compliance/security/accepted-vulnerabilities.json"
+expect_failure
+
+write_meta_audit
+write_meta_lock
+rm -f "$WORK/compliance/security/accepted-vulnerabilities.json"
+expect_failure
+jq -e '
+  .summary.unresolved == 1 and
+  .unresolved[0].advisoryId == "GHSA-meta-chain" and
+  .unresolved[0].dependencyPath == "node_modules/@eslint/eslintrc/node_modules/brace-expansion" and
+  .unresolved[0].affectedFindings == ["@eslint/eslintrc", "brace-expansion", "eslint", "minimatch"]
+' "$WORK/dependency-risk-evaluation.json" >/dev/null
+
+write_meta_audit
+jq '.vulnerabilities.minimatch.via = ["missing-package"]' \
+  "$WORK/dependency-audit.json" > "$WORK/changed.json"
+mv "$WORK/changed.json" "$WORK/dependency-audit.json"
+expect_failure
+
+write_meta_audit
+jq '.vulnerabilities["brace-expansion"].via = ["eslint"]' \
+  "$WORK/dependency-audit.json" > "$WORK/changed.json"
+mv "$WORK/changed.json" "$WORK/dependency-audit.json"
+expect_failure
+
+write_meta_audit
+jq '.vulnerabilities["brace-expansion"].via = []' \
+  "$WORK/dependency-audit.json" > "$WORK/changed.json"
+mv "$WORK/changed.json" "$WORK/dependency-audit.json"
 expect_failure
 
 echo "evaluate-npm-audit: PASS"

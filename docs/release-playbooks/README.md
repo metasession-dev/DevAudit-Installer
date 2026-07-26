@@ -177,12 +177,17 @@ vulnerable version and range, lockfile dependency path, introducing dependency,
 approver and approval date, expiry, reason, and a dedicated GitHub remediation
 issue. Compensating controls may be recorded but do not replace those fields.
 
-The generated dependency gate compares every advisory and installed lockfile
-path to that contract. A missing file means no accepted risks. An unmatched,
-expired, malformed, broad, or partially matching exception fails closed. The
-raw npm audit JSON and `dependency-risk-evaluation.json` remain release
-evidence, and the security summary names the acceptance owner, expiry, and
-remediation issue.
+The generated dependency gate resolves npm's transitive vulnerability graph
+before comparing every concrete advisory and installed lockfile path to that
+contract. npm may represent an affected package with string `via` references
+that lead through several packages to the concrete advisory; those meta rows
+are dependency-chain context, not separate advisories to accept. A missing
+reference, cycle, or high/critical chain with no reachable concrete advisory
+fails closed. A missing exception file means no accepted risks. An unmatched,
+expired, malformed, broad, or partially matching exception also fails closed.
+The raw npm audit JSON and `dependency-risk-evaluation.json` remain release
+evidence, including the affected meta findings, and the security summary names
+the acceptance owner, expiry, and remediation issue.
 
 Review the upstream remediation issue on every dependency update and before
 each release. Remove the exception immediately when a compatible fix is
