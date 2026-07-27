@@ -32,8 +32,20 @@ approval before creating implementation commits.
 Branch from `$INTEGRATION_BRANCH` as `feat/REQ-XXX-short-description`. Implement
 against the approved plan, run unit/integration/e2e/security gates, and commit
 with `Ref: REQ-XXX`. Push the feature branch and open a PR to
-`$INTEGRATION_BRANCH`. Merge only after the independent reviewer and all
-required integration checks are terminal green on the current head SHA.
+`$INTEGRATION_BRANCH`. Merge only after all required integration checks are
+terminal green on the current head SHA.
+
+A second reviewer reading the implementation before it merges is good practice
+for HIGH/CRITICAL work and is expected as a human/process norm, but **nothing
+in this pipeline enforces it today** — `$INTEGRATION_BRANCH` branch protection
+ships with `required_approving_review_count: 0` for every project, every risk
+tier (`cli/src/install/branch-protection.ts`). Do not read "independent
+reviewer" here as a gate the pipeline will stop you from skipping. The two
+human gates this pipeline actually enforces are Stage 4's required review on
+`$RELEASE_BRANCH` (see below) and Stage 3's `dual_actor` UAT/production
+approval on the portal (`approver != release_creator`, `sdlc-config.json`
+`approval.mode`). See `docs/sdlc-framework.md`'s Stage 4 diagram for where the
+"MEDIUM/HIGH risk -> second human reviewer" language is actually enforced.
 
 ### Stage 3: auditable evidence
 

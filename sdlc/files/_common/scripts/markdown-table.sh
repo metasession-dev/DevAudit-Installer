@@ -60,6 +60,14 @@ markdown_table_cell() {
         }
         next
       }
+      # A blank line inside an otherwise-continuous table (accumulated
+      # editing/merge noise — devaudit-installer#583) must not end the
+      # active table region: the header row appears once, so resetting
+      # `active` here makes every row after the first stray blank line
+      # permanently unreachable for the rest of the file. Only a
+      # genuinely different, non-blank line (new heading, prose, a
+      # different table) ends the region.
+      /^[[:space:]]*$/ { next }
       { active=0; key_index=0; target_index=0 }
       END { if (!found) exit 1 }
     ' "$file"
@@ -120,6 +128,9 @@ markdown_table_column_index_for_row() {
         }
         next
       }
+      # See markdown_table_cell above (devaudit-installer#583) — a blank
+      # line inside the table must not end the active region.
+      /^[[:space:]]*$/ { next }
       { active=0 }
       END { if (!found) exit 1 }
     ' "$file"

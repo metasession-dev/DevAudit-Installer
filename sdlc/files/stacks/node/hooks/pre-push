@@ -72,8 +72,14 @@ while read -r local_ref local_sha remote_ref remote_sha; do
 
   if [ -n "$UI_FILES" ]; then
     E2E_PASSED=false
+    SENTINEL_REQS=""
     if [ -f .e2e-gate-passed ]; then
       E2E_PASSED=true
+      # New sentinel format (devaudit-installer#578): line 1 is the
+      # PASSED/NOT_NEEDED status, subsequent lines are REQ IDs this run
+      # covered. An old-format sentinel (status line only) yields an empty
+      # list here and the cross-check below degrades gracefully.
+      SENTINEL_REQS=$(tail -n +2 .e2e-gate-passed 2>/dev/null | grep -oE '^REQ-[0-9]+' || true)
     elif [ -d playwright-report ] && [ "$(find playwright-report -type f -newer .git/HEAD 2>/dev/null | head -1)" ]; then
       E2E_PASSED=true
     fi
@@ -88,6 +94,41 @@ while read -r local_ref local_sha remote_ref remote_sha; do
       echo "       Bypass with --no-verify (last resort, not a habit)."
       exit 1
     fi
+
+    # devaudit-installer#578: a run happened, but that alone doesn't prove it
+    # covers THIS push's REQ(s) — a stale, unrelated regression run satisfied
+    # this check on wawagardenbar-app REQ-095 while 0% of its planned
+    # Playwright coverage existed. Extract in-scope REQs for the push (same
+    # Ref: REQ-XXX lookup as check 3) and require each to be tagged by an
+    # actual spec file, regardless of report freshness or sentinel presence;
+    # additionally flag when the sentinel's own REQ list (if present) omits
+    # a REQ that IS tagged elsewhere, since that means the run that produced
+    # the sentinel didn't cover it even though a spec exists.
+    PUSH_REQS=$(git log "$RANGE" --format='%B' 2>/dev/null \
+      | grep -ioE '(\[REQ-[0-9]+\]|Ref:[[:space:]]*REQ-[0-9]+)' \
+      | grep -oiE 'REQ-[0-9]+' | tr '[:lower:]' '[:upper:]' | sort -u || true)
+
+    MISSING_REQS=""
+    for REQ_ID in $PUSH_REQS; do
+      if ! grep -rl "@requirement $REQ_ID" e2e/ --include="*.spec.ts" >/dev/null 2>&1; then
+        MISSING_REQS="${MISSING_REQS} ${REQ_ID}(no tagged spec)"
+      elif [ -n "$SENTINEL_REQS" ] && ! echo "$SENTINEL_REQS" | grep -qx "$REQ_ID"; then
+        MISSING_REQS="${MISSING_REQS} ${REQ_ID}(not in .e2e-gate-passed run)"
+      fi
+    done
+
+    if [ -n "$MISSING_REQS" ]; then
+      echo ""
+      echo "ERROR: E2E gate ran, but not for this push's REQ(s):${MISSING_REQS}"
+      echo "       UI-facing files changed, and at least one in-scope REQ has no spec"
+      echo "       tagged @requirement REQ-XXX, or wasn't covered by the run that wrote"
+      echo "       .e2e-gate-passed. A recent/unrelated Playwright run does not satisfy"
+      echo "       this (devaudit-installer#578)."
+      echo "       Invoke e2e-test-engineer to write and run REQ-scoped coverage."
+      echo "       Bypass with --no-verify (last resort, not a habit)."
+      exit 1
+    fi
+
     echo "Pre-push: E2E evidence check passed."
   fi
 

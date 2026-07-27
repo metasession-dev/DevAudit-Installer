@@ -394,6 +394,24 @@ for REQ in $REQUIREMENTS; do
     fi
   fi
 
+  # Check E2E coverage matches what implementation-plan.md scoped
+  # (devaudit-installer#578). A plan can name Playwright/E2E as the
+  # verification method for a surface and ship zero of it — a stale,
+  # unrelated Playwright run (or a --no-verify bypass of the pre-push hook)
+  # would otherwise let this reach Stage 3 evidence compilation unnoticed,
+  # exactly as happened on wawagardenbar-app REQ-095. This is the CI-side
+  # mirror of sdlc-implementer Phase 2 step 5b's plan <-> spec cross-check,
+  # catching any path that skips the husky hook.
+  if [ -f "compliance/evidence/$REQ/implementation-plan.md" ] \
+     && grep -qiE 'playwright|end-to-end|\be2e\b' "compliance/evidence/$REQ/implementation-plan.md"; then
+    if grep -rlE "@requirement $REQ|tagTest\(['\"]${REQ}['\"]" e2e/ --include="*.spec.ts" >/dev/null 2>&1; then
+      echo "  OK: implementation-plan.md names Playwright/E2E coverage and a spec tags $REQ"
+    else
+      echo "  ERROR: implementation-plan.md names Playwright/E2E as a verification method for $REQ, but no spec under e2e/ tags it (tagTest('$REQ', ...) / @requirement $REQ). Write and run the planned coverage via e2e-test-engineer."
+      EXIT_CODE=1
+    fi
+  fi
+
   echo ""
 done
 

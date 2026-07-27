@@ -22,12 +22,44 @@ jobs:
       has_tests: ${{ steps.detect.outputs.has_tests }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
       - name: Parse REQ from branch name
         id: detect
         run: |
           BRANCH="${{ github.head_ref }}"
-          if [[ $BRANCH =~ (REQ-[0-9]+) ]]; then
+          BASE_REF="${{ github.base_ref }}"
+
+          # Primary: scan the PR's own commits for a Ref: REQ-XXX trailer or a
+          # bracketed [REQ-XXX] tag. commitlint already enforces Ref: REQ-XXX
+          # on every feat/fix/refactor/perf commit, making this the reliable
+          # source of REQ-scope — unlike the branch name, which is an
+          # unenforced convention (DevAudit-Installer#580: a branch named
+          # after its GitHub issue number rather than its REQ id, e.g.
+          # fix/603-req095-post-merge-regression-fixes, never matched the
+          # branch-name regex even though every commit on it carried a
+          # correct Ref: REQ-095 trailer, so the tagged spec silently never
+          # ran).
+          BASE_SHA=$(git merge-base "origin/${BASE_REF}" HEAD 2>/dev/null || echo '')
+          RANGE_REQS=""
+          if [ -n "$BASE_SHA" ]; then
+            RANGE_REQS=$(git log "${BASE_SHA}..HEAD" --pretty=%B 2>/dev/null \
+              | grep -ioE '(\[REQ-[0-9]+\]|Ref:[[:space:]]*REQ-[0-9]+)' \
+              | grep -oiE 'REQ-[0-9]+' | tr '[:lower:]' '[:upper:]' | sort -u || true)
+          fi
+          RANGE_REQ_COUNT=$(echo "$RANGE_REQS" | grep -c . || true)
+
+          REQ_ID=""
+          if [ "$RANGE_REQ_COUNT" = "1" ]; then
+            REQ_ID="$RANGE_REQS"
+          elif [[ $BRANCH =~ (REQ-[0-9]+) ]]; then
+            # Fallback: branch-name regex, best-effort when no commit in
+            # range carries a trailer (e.g. a docs-only or
+            # pre-commitlint-era commit).
             REQ_ID="${BASH_REMATCH[1]}"
+          fi
+
+          if [ -n "$REQ_ID" ]; then
             echo "req_id=$REQ_ID" >> "$GITHUB_OUTPUT"
             if grep -rl "@requirement $REQ_ID" e2e/ --include="*.spec.ts" >/dev/null 2>&1; then
               echo "has_tests=true" >> "$GITHUB_OUTPUT"
@@ -37,6 +69,14 @@ jobs:
           else
             echo "req_id=none" >> "$GITHUB_OUTPUT"
             echo "has_tests=false" >> "$GITHUB_OUTPUT"
+            # Visible instead of silent (DevAudit-Installer#580 Option C):
+            # a skip here means feature-stage E2E verification did not run
+            # for this PR at all, which no other check surfaces.
+            if [ "$RANGE_REQ_COUNT" -gt 1 ] 2>/dev/null; then
+              echo "::warning::PR commits carry multiple distinct REQ tags ($(echo "$RANGE_REQS" | tr '\n' ' ')) and the branch name (${BRANCH}) doesn't disambiguate — skipping feature E2E. This workflow scopes one REQ per PR; split bundled REQs into separate PRs or verify this one's E2E coverage manually."
+            else
+              echo "::warning::No REQ could be determined for this PR from commit trailers (${BASE_SHA:-<no base>}..HEAD) or the branch name (${BRANCH}) — feature E2E is being skipped, not verified. If this PR is tracked, ensure at least one commit carries a 'Ref: REQ-XXX' trailer."
+            fi
           fi
 
   run-feature-e2e:
