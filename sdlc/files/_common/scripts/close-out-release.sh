@@ -116,6 +116,14 @@ update_rtm_status() {
     echo "RTM row ${req_id} -> ${target_status}."
   else
     rm -f "$tmp_file"
+    # devaudit-installer#583 — distinguish "no row for this REQ at all"
+    # (expected, handled by the caller's own grep-based check) from "the
+    # row exists but the table parser couldn't resolve its Status column"
+    # (a real, previously-silent failure). Both used to look identical:
+    # no RTM update, no visible signal.
+    if grep -qE "^\| ${req_id} " "$RTM" 2>/dev/null; then
+      echo "::warning::RTM row for ${req_id} exists in ${RTM} but its Status column could not be resolved — RTM flip skipped. Check for malformed rows (wrong cell count, stray blank lines) elsewhere in the table."
+    fi
   fi
 }
 
