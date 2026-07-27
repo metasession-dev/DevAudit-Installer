@@ -10,6 +10,10 @@
 #   2. Ref in commit body:            "Ref: REQ-037"                 -> REQ-037
 #   3. Bracketed tag in commit body:   merge commit whose body is the PR title
 #                                      "... [REQ-037] ..."           -> REQ-037
+#   3-bis. Merge-range scan:          HEAD is a two-parent merge commit and
+#                                      exactly one distinct REQ tag appears
+#                                      across the commits it merged in
+#                                                                    -> REQ-XXX
 #   4. Pending release ticket on disk: exactly one
 #                                      compliance/pending-releases/RELEASE-TICKET-REQ-XXX.md
 #                                                                    -> REQ-XXX
@@ -50,6 +54,19 @@
 # subject — without it, PR-merged work falls through to the date fallback and
 # fragments onto a phantom date release. Output: single line on stdout.
 #
+# Step 3-bis (DevAudit-Installer#581): steps 1-3 only ever look at the tip
+# commit. A standard GitHub "Merge pull request" commit whose own
+# subject/body carry no bracketed tag or Ref: line — but whose *underlying*,
+# commitlint-enforced commits do — fell all the way through to the bare-date
+# fallback even though every commit in the merge was properly tagged
+# (wawagardenbar-app REQ-095, PR #606: subject had no brackets, body's only
+# "REQ-095" mention was unbracketed prose). When HEAD has exactly two
+# parents, scan every commit reachable from the second parent but not the
+# first (the commits this merge actually introduced) for a bracketed tag or
+# Ref: line. Exactly one distinct REQ across that range wins; zero or
+# multiple (a bundled/mixed merge) is ambiguous and falls through unchanged,
+# same guard discipline as steps 4/4-bis.
+#
 # This ties a release record (project_id, version) to the feature the
 # commits belong to, so all CI uploads for one REQ converge on one
 # release container — fixing the fragmentation described in DevAudit #310.
@@ -84,22 +101,55 @@ if echo "$BODY" | grep -qE '\[REQ-[0-9]+\]'; then
   exit 0
 fi
 
+# 3-bis. Merge-range scan (DevAudit-Installer#581): if HEAD is a standard
+# two-parent merge commit, scan the commits it merged in (second parent,
+# excluding anything already reachable from the first) for a bracketed
+# [REQ-XXX] tag or a Ref: REQ-XXX line, same bracketed-only/Ref-line
+# discipline as steps 1-3. A single-parent HEAD (no merge, e.g. a squash or
+# fast-forward push) has nothing to scan here and falls through unchanged.
+PARENTS=$(git log -1 --format='%P' 2>/dev/null || echo '')
+if [ "$(echo "$PARENTS" | wc -w)" = "2" ]; then
+  FIRST_PARENT=$(echo "$PARENTS" | awk '{print $1}')
+  SECOND_PARENT=$(echo "$PARENTS" | awk '{print $2}')
+  RANGE_REQS=$(git log "${FIRST_PARENT}..${SECOND_PARENT}" --pretty=%B 2>/dev/null \
+    | grep -ioE '(\[REQ-[0-9]+\]|Ref:[[:space:]]*REQ-[0-9]+)' \
+    | grep -oiE 'REQ-[0-9]+' | tr '[:lower:]' '[:upper:]' | sort -u || true)
+  RANGE_REQ_COUNT=$(echo "$RANGE_REQS" | grep -c . || true)
+  if [ "$RANGE_REQ_COUNT" = "1" ]; then
+    echo "$RANGE_REQS"
+    exit 0
+  fi
+  if [ "$RANGE_REQ_COUNT" -gt 1 ] 2>/dev/null; then
+    echo "::warning::Merge range ${FIRST_PARENT:0:7}..${SECOND_PARENT:0:7} carries multiple distinct REQ tags ($(echo "$RANGE_REQS" | tr '\n' ' ')); refusing to guess which owns this release, falling through to disk/date fallback." >&2
+  fi
+fi
+
 # 4. Pending release ticket on disk: when exactly one
 # `compliance/pending-releases/RELEASE-TICKET-REQ-*.md` is present, the
 # operator's explicit state says THIS is the in-flight release. Use it.
 # Zero or multiple → ambiguous, fall through to the bare date.
 # DevAudit-Installer#92.
-if [ "${DEVAUDIT_ALLOW_PENDING_TICKET_FALLBACK:-0}" = "1" ] && [ -d compliance/pending-releases ]; then
+#
+# The candidate is computed regardless of the enable flag (devaudit#581,
+# Option B) so a resolvable-but-disabled candidate is a visible warning, not
+# a silent bare-date resolution — the flag gates whether it's *used*, not
+# whether its existence is surfaced.
+if [ -d compliance/pending-releases ]; then
   # NUL-delimited count so filenames with spaces don't trip us up.
   TICKET_COUNT=$(find compliance/pending-releases -maxdepth 1 -type f \
     -name 'RELEASE-TICKET-REQ-*.md' -print0 2>/dev/null \
     | tr -cd '\0' | wc -c)
   if [ "$TICKET_COUNT" = "1" ]; then
-    find compliance/pending-releases -maxdepth 1 -type f \
+    TICKET_CANDIDATE=$(find compliance/pending-releases -maxdepth 1 -type f \
       -name 'RELEASE-TICKET-REQ-*.md' -print 2>/dev/null \
       | head -1 | xargs -n1 basename \
-      | sed -E 's/^RELEASE-TICKET-(REQ-[0-9]+)\.md$/\1/'
-    exit 0
+      | sed -E 's/^RELEASE-TICKET-(REQ-[0-9]+)\.md$/\1/')
+    if [ "${DEVAUDIT_ALLOW_PENDING_TICKET_FALLBACK:-0}" = "1" ]; then
+      echo "$TICKET_CANDIDATE"
+      exit 0
+    else
+      echo "::warning::Exactly one pending release ticket (${TICKET_CANDIDATE}) exists but DEVAUDIT_ALLOW_PENDING_TICKET_FALLBACK is not set to 1 — falling through to the bare-date fallback instead of attributing this run to it. Set DEVAUDIT_ALLOW_PENDING_TICKET_FALLBACK=1 to enable this fallback." >&2
+    fi
   fi
 fi
 
@@ -111,7 +161,7 @@ fi
 # multiple IN PROGRESS rows → ambiguous, fall through.
 # DevAudit-Installer#95.
 RTM_PATH="${RTM_PATH:-compliance/RTM.md}"
-if [ "${DEVAUDIT_ALLOW_PENDING_TICKET_FALLBACK:-0}" = "1" ] && [ -f "$RTM_PATH" ]; then
+if [ -f "$RTM_PATH" ]; then
   # Match REQ rows whose status column starts with `IN PROGRESS`.
   # `\|[[:space:]]+IN PROGRESS` requires a pipe followed by whitespace,
   # so legend rows (`| \`IN PROGRESS\``) and prose mentions don't match.
@@ -125,8 +175,12 @@ if [ "${DEVAUDIT_ALLOW_PENDING_TICKET_FALLBACK:-0}" = "1" ] && [ -f "$RTM_PATH" 
   if [ -n "$IN_PROGRESS_REQS" ]; then
     IN_PROGRESS_COUNT=$(echo "$IN_PROGRESS_REQS" | grep -c .)
     if [ "$IN_PROGRESS_COUNT" = "1" ]; then
-      echo "$IN_PROGRESS_REQS"
-      exit 0
+      if [ "${DEVAUDIT_ALLOW_PENDING_TICKET_FALLBACK:-0}" = "1" ]; then
+        echo "$IN_PROGRESS_REQS"
+        exit 0
+      else
+        echo "::warning::Exactly one RTM row (${IN_PROGRESS_REQS}) is IN PROGRESS but DEVAUDIT_ALLOW_PENDING_TICKET_FALLBACK is not set to 1 — falling through to the bare-date fallback instead of attributing this run to it. Set DEVAUDIT_ALLOW_PENDING_TICKET_FALLBACK=1 to enable this fallback." >&2
+      fi
     fi
   fi
 fi
