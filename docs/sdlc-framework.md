@@ -265,6 +265,11 @@ So Stage 1 and Stage 3 evidence may be critical audit material, but they are sti
 │       ├── LOW risk ──→ Self-merge permitted                                             │
 │       └── MEDIUM/HIGH risk ──→ Second human reviewer required                           │
 │                                                                                         │
+│  This is the only native-branch-protection review gate this pipeline                    │
+│  enforces (1 required review, on main). The feature -> develop PR in Stage 2            │
+│  has no equivalent enforcement (develop ships at review-count 0 for every                │
+│  project/risk tier) — see release-playbooks/high-risk-release.md Stage 2.               │
+│                                                                                         │
 └─────────────────────────────────────────────────────────────────────────────────────────┘
                                          │
                                          ▼
