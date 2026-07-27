@@ -347,6 +347,24 @@ If you determined e2e is not needed for this REQ (schema-only, API-only, no UI s
 echo "NOT_NEEDED $(date -u +%Y-%m-%dT%H:%M:%SZ) <reason>" > .e2e-gate-passed
 ```
 
+**Record which REQ IDs this run actually covers (devaudit-installer#578).** A bare presence file only proves *a* run happened, not that it covers *this* REQ's acceptance criteria — a stale, unrelated regression run satisfied the pre-#578 sentinel check on `wawagardenbar-app` REQ-095 while 0% of its planned Playwright coverage had actually been written. After the status line, append one REQ ID per line for every REQ you wrote or verified `tagTest()`/`@requirement` coverage for in this run:
+
+```bash
+{
+  echo "PASSED $(date -u +%Y-%m-%dT%H:%M:%SZ) ${{ github.run_id }}"
+  echo "REQ-095"
+} > .e2e-gate-passed
+```
+
+Multiple REQs covered in one run get one line each. A `NOT_NEEDED` sentinel still names the REQ it applies to, so the pre-push hook can tell "deliberately not needed for REQ-097" apart from "REQ-097 not accounted for at all":
+
+```bash
+{
+  echo "NOT_NEEDED $(date -u +%Y-%m-%dT%H:%M:%SZ) schema-only change, no UI surface"
+  echo "REQ-097"
+} > .e2e-gate-passed
+```
+
 The file is gitignored and never committed — it's a local-only signal that the gate was run in this working directory.
 
 ### Filing defects
