@@ -144,6 +144,22 @@ configured required checks. The standard set is:
 - `DevAudit Release Approval`
 - `E2E Regression Suite`
 
+Only `Quality Gates` is a GitHub-native, hard-blocking branch-protection
+required status check — deliberately, not by oversight. It is the only one of
+the five guaranteed to fire unconditionally on every `pull_request`/`push` to
+the branch. The other four are a **reviewer-verified checklist** for this
+inspection step: a human confirms each is terminal green on the current PR
+head SHA before approving, but none of them are configured as GitHub branch
+protection contexts, because each is conditionally or event triggered (skips
+for non-feat/fix PRs, or fires on `workflow_run`/`push` rather than
+`pull_request`). Making a conditionally-triggered check a GitHub required
+status check means GitHub treats a PR where it never fires as "expected but
+not satisfied" — permanently blocked with no recourse short of an admin
+bypass. This cost three separate incident fixes in `DevAudit-Installer` before
+landing on the current split (`cli/src/lib/branch-protection-checks.ts`):
+devaudit-installer#264, #270, #432. Do not "fix" the installer to add the
+other four as required contexts — that regresses those three fixes.
+
 External platform checks are not a substitute for the repo-owned SDLC gates.
 After merge, `post-deploy-prod.yml` must itself finish successfully and confirm
 the hosting-platform deployment for the merged SHA reached terminal `success`.

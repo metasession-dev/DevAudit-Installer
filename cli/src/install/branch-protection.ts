@@ -2,17 +2,12 @@ import { join } from 'node:path';
 import { promises as fs } from 'node:fs';
 import type { GitProvider } from '../lib/git-provider/index.js';
 import type { InstallContext, StepResult } from './types.js';
-
-const MAIN_REQUIRED_CHECKS: readonly string[] = [
-  'Quality Gates',
-];
-
-const DEVELOP_REQUIRED_CHECKS: readonly string[] = [
-  'Quality Gates',
-];
-
-const MAIN_REVIEW_COUNT = 1;
-const DEVELOP_REVIEW_COUNT = 0;
+import {
+  MAIN_REQUIRED_CHECKS,
+  DEVELOP_REQUIRED_CHECKS,
+  MAIN_REVIEW_COUNT,
+  DEVELOP_REVIEW_COUNT,
+} from '../lib/branch-protection-checks.js';
 
 async function resolveIntegrationBranch(projectPath: string): Promise<string> {
   try {
