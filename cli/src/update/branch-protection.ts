@@ -3,17 +3,12 @@ import { promises as fs } from 'node:fs';
 import { getGitProvider } from '../lib/git-provider/index.js';
 import { readSdlcConfig } from '../lib/sdlc-config.js';
 import type { SyncContext, SectionResult } from './types.js';
-
-const MAIN_REQUIRED_CHECKS: readonly string[] = [
-  'Quality Gates',
-];
-
-const DEVELOP_REQUIRED_CHECKS: readonly string[] = [
-  'Quality Gates',
-];
-
-const MAIN_REVIEW_COUNT = 1;
-const DEVELOP_REVIEW_COUNT = 0;
+import {
+  MAIN_REQUIRED_CHECKS,
+  DEVELOP_REQUIRED_CHECKS,
+  MAIN_REVIEW_COUNT,
+  DEVELOP_REVIEW_COUNT,
+} from '../lib/branch-protection-checks.js';
 
 /**
  * Section 2j: Verify and re-apply branch protection.
