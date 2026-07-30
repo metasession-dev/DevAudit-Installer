@@ -179,3 +179,48 @@ jobs:
             --title "docs(compliance): close out ${REQ} — sync main + reconcile (RELEASED)" \
             --body "$PR_BODY" \
             || echo "::warning::PR may already exist for ${BRANCH}."
+          # devaudit#620 — arm auto-merge so a human doesn't have to notice the
+          # PR is green and click merge. This only *enables* auto-merge; GitHub
+          # still waits for develop's required checks to pass before merging.
+          # Requires the repo setting "Allow auto-merge" — see
+          # devaudit-update-install.md's prerequisites.
+          gh pr merge "$BRANCH" --auto --merge \
+            || echo "::warning::Could not enable auto-merge for ${BRANCH} — check the repo's \"Allow auto-merge\" setting."
+
+      - name: Report close-out PR opened
+        # devaudit#620/#740 — best-effort intermediate status report so the
+        # portal shows a direct link to this PR instead of generic "monitor
+        # the consumer repo" text while it's open. Never fails the job:
+        # older portal deployments that don't yet accept status=pr_opened
+        # (devaudit#740) should not break close-out.
+        if: steps.closeout.outputs.changed == 'true' || steps.merge.outputs.merged == 'true'
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          REQ="${{ steps.in.outputs.req }}"
+          BASE_URL="${DEVAUDIT_BASE_URL:-}"
+          if [ -z "$BASE_URL" ] || [ -z "$DEVAUDIT_API_KEY" ]; then
+            echo "::warning::DevAudit base URL and project API key are required to report the close-out PR; skipping."
+            exit 0
+          fi
+          source scripts/close-out-contract.sh 2>/dev/null || true
+          BRANCH="${CLOSEOUT_BRANCH_PREFIX}${REQ}"
+          [ -z "$BRANCH" ] && BRANCH="chore/close-out-${REQ}"
+          PR_JSON="$(gh pr view "$BRANCH" --repo "$GITHUB_REPOSITORY" --json number,url 2>/dev/null || true)"
+          NUMBER="$(jq -r '.number // empty' <<<"${PR_JSON:-{}}")"
+          URL="$(jq -r '.url // empty' <<<"${PR_JSON:-{}}")"
+          if [ -z "$NUMBER" ] || [ -z "$URL" ]; then
+            echo "::warning::Could not resolve the close-out PR for ${BRANCH}; skipping pr_opened report."
+            exit 0
+          fi
+          RELEASE="$(curl --fail-with-body -sS -G "${BASE_URL%/}/api/ci/releases/resolve" -H "Authorization: Bearer ${DEVAUDIT_API_KEY}" --data-urlencode "projectSlug={{PROJECT_SLUG}}" --data-urlencode "versionPrefix=${REQ}")"
+          RELEASE_ID="$(jq -r '.latest.id // empty' <<<"$RELEASE")"
+          RELEASE_VERSION="$(jq -r '.latest.version // empty' <<<"$RELEASE")"
+          if [ "$RELEASE_VERSION" != "$REQ" ] || [ -z "$RELEASE_ID" ]; then
+            echo "::warning::Unable to resolve ${REQ} on the portal; skipping pr_opened report."
+            exit 0
+          fi
+          curl --fail-with-body -sS -X POST "${BASE_URL%/}/api/ci/releases/${RELEASE_ID}/close-out" \
+            -H "Authorization: Bearer ${DEVAUDIT_API_KEY}" -H 'Content-Type: application/json' \
+            --data "$(jq -nc --arg workflowRunId '${{ github.run_id }}' --arg workflowUrl '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}' --arg pullRequestUrl "$URL" --argjson pullRequestNumber "$NUMBER" '{status:"pr_opened",workflowRunId:$workflowRunId,workflowUrl:$workflowUrl,pullRequestNumber:$pullRequestNumber,pullRequestUrl:$pullRequestUrl}')" \
+            || echo "::warning::Failed to report close-out PR-opened status (portal may not support pr_opened yet)."

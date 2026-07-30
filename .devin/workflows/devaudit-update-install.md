@@ -14,6 +14,7 @@ This workflow detects whether your project needs a fresh DevAudit install or jus
 - You are in the consuming project's root directory
 - For a fresh install: you need a DevAudit portal token (`DEVAUDIT_USER_TOKEN`) and know your project slug, stack, and host
 - For an update: the project was previously onboarded (has `sdlc-config.json`)
+- The repository's **"Allow auto-merge"** setting (repo Settings → General) should be enabled. `close-out-release.yml` arms auto-merge on the reconciliation PR it opens (devaudit#620) — with this off, `gh pr merge --auto` fails outright and the PR is left needing a manual merge. Neither `devaudit install` nor `devaudit update` sets this automatically today; check/enable it once per repo.
 
 ## Steps
 
@@ -187,3 +188,4 @@ The skill will:
 - **`SDLC/bin/devaudit-sdlc.js` missing after update** — the sync section 2h failed. Check that the CLI version you're using is >= 0.3.2 (the version that added the engine sync).
 - **Postinstall script not added** — ensure you're using CLI >= 0.3.3. If a `postinstall` script already exists (and doesn't mention `playwright install`), it won't be overwritten — a warning is logged instead. Add `playwright install chromium` manually if needed.
 - **Pre-push hook blocks pushes** — the hook checks for `.sdlc-implementer-invoked`. Run `node SDLC/bin/devaudit-sdlc.js --phase=issue` before committing to write the sentinel.
+- **Close-out reconciliation PR never merges itself** — `gh api repos/{owner}/{repo} -q '.allow_auto_merge'` should print `true`. If it's `false`, enable "Allow auto-merge" in repo Settings → General (or `gh api -X PATCH repos/{owner}/{repo} -f allow_auto_merge=true` with admin access) and re-run the close-out workflow, or manually merge the pending PR this once.
