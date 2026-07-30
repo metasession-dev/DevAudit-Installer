@@ -53,6 +53,24 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     expect(source).toContain('/api/ci/releases/${RELEASE_ID}/close-out');
   });
 
+  it('arms auto-merge on the close-out PR and best-effort reports it as opened (devaudit#620/#740)', () => {
+    const source = template('close-out-release.yml.template');
+    // Auto-merge is armed right after PR creation, not gated on it succeeding
+    // (a rerun where the PR already exists should still get auto-merge armed).
+    expect(source.indexOf('gh pr create --base develop')).toBeLessThan(
+      source.indexOf('gh pr merge "$BRANCH" --auto --merge'),
+    );
+    expect(source).toContain('gh pr merge "$BRANCH" --auto --merge');
+    // The pr_opened report step must never fail the job — devaudit may not
+    // yet accept status=pr_opened until #740 is deployed there.
+    expect(source).toContain('Report close-out PR opened');
+    expect(source).toContain('continue-on-error: true');
+    expect(source).toContain('status:"pr_opened"');
+    expect(source.indexOf('Report close-out PR opened')).toBeGreaterThan(
+      source.indexOf('gh pr merge "$BRANCH" --auto --merge'),
+    );
+  });
+
   it('delegates advisory-scoped dependency-risk evaluation to the synced fail-closed helper', () => {
     const source = template('ci.yml.template');
     expect(source).toContain('bash scripts/evaluate-npm-audit.sh');
