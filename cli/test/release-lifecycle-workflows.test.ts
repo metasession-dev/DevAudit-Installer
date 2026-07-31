@@ -104,6 +104,49 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     expect(curlDataIdx).toBeGreaterThan(payloadGuardIdx);
   });
 
+  it('self-reports close-out completion instead of depending solely on the pull_request:closed webhook (devaudit-installer#602)', () => {
+    const source = template('close-out-release.yml.template');
+    // The new step must exist, run after the PR is opened/auto-merge armed,
+    // and never fail the job — it's a best-effort supplement to
+    // close-out-completion.yml, not a replacement for it.
+    const openIdx = source.indexOf('gh pr merge "$BRANCH" --auto --merge');
+    const waitIdx = source.indexOf('Wait for close-out PR merge and report completion');
+    expect(openIdx).toBeGreaterThan(-1);
+    expect(waitIdx).toBeGreaterThan(openIdx);
+
+    const step = source.slice(waitIdx);
+    expect(step).toContain('continue-on-error: true');
+
+    // It polls rather than assuming the merge already happened, and treats
+    // a manual close (no merge) as a distinct, non-error outcome.
+    expect(step).toContain('gh pr view "$BRANCH" --repo "$GITHUB_REPOSITORY" --json state,mergedAt,mergeCommit,number,url');
+    expect(step).toContain('if [ "$STATE" = "MERGED" ]');
+    expect(step).toContain('if [ "$STATE" = "CLOSED" ]');
+    expect(step).toContain('was closed without merging; not reporting completion.');
+
+    // A bounded timeout backs off to the existing manual catch-up path
+    // instead of hanging the job or failing it outright.
+    expect(step).toContain('did not merge within');
+    expect(step).toContain('workflow_dispatch');
+
+    // Resolved values are guarded and logged the same way as the sibling
+    // pr_opened step (devaudit-installer#601) — no silent jq/curl aborts.
+    expect(step).toContain("jq -r '.number // empty' <<<\"$PR_JSON\" 2>/dev/null || true");
+    expect(step).toContain("jq -r '.mergeCommit.oid // empty' <<<\"$PR_JSON\" 2>/dev/null || true");
+    expect(step).toContain('is not a bare integer');
+
+    // Same completion shape as close-out-completion.yml's own report, so
+    // the portal-side handler doesn't need a second code path.
+    expect(step).toContain('status:"completed"');
+    expect(step).toContain('mergeSha:$mergeSha');
+    const payloadAssignIdx = step.indexOf('PAYLOAD="$(jq -nc');
+    const payloadGuardIdx = step.indexOf('Failed to build the completion payload');
+    const curlDataIdx = step.indexOf('--data "$PAYLOAD"');
+    expect(payloadAssignIdx).toBeGreaterThan(-1);
+    expect(payloadGuardIdx).toBeGreaterThan(payloadAssignIdx);
+    expect(curlDataIdx).toBeGreaterThan(payloadGuardIdx);
+  });
+
   it('delegates advisory-scoped dependency-risk evaluation to the synced fail-closed helper', () => {
     const source = template('ci.yml.template');
     expect(source).toContain('bash scripts/evaluate-npm-audit.sh');
