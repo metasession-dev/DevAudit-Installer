@@ -250,16 +250,18 @@ for version in "${EXPLICIT_PREDECESSORS[@]}"; do
   PREDECESSOR_LINES+=("- \`${version}\` (${role}/${relationship}) — ${title:-Untitled release ticket}")
 done
 
-# A tracked release only absorbs genuinely REQ-free housekeeping performed
-# during its own implementation window. Do not recast earlier history, or a
-# conventional commit explicitly owned by any REQ, as generic bundle work.
+# devaudit-installer#600 — scan the full SINCE_REF..HEAD window for
+# non-release housekeeping; do not re-narrow it to this REQ's own
+# implementation window. A predecessor housekeeping release (e.g. a
+# `devaudit update` sync) commonly lands on the integration branch shortly
+# *before* this REQ's own first commit — narrowing the scan floor to that
+# first commit's parent excluded exactly that predecessor from ever being
+# detected (confirmed live: a housekeeping commit one commit outside the
+# window was silently missed). The per-commit REQ-tag filter below already
+# excludes any commit explicitly owned by a REQ (this one or another), which
+# is what actually protects against recasting REQ-owned work as generic
+# bundle work — no additional window-narrowing is needed on top of it.
 SCAN_FROM="$SINCE_REF"
-if [[ "$VERSION" =~ ^REQ-[0-9]+$ ]]; then
-  FIRST_REQ_SHA="$(git log --reverse --format='%H' --grep="\\[${VERSION}\\]\\|Ref: ${VERSION}" 2>/dev/null | head -1 || true)"
-  if [ -n "$FIRST_REQ_SHA" ] && git rev-parse --verify "${FIRST_REQ_SHA}^" >/dev/null 2>&1; then
-    SCAN_FROM="${FIRST_REQ_SHA}^"
-  fi
-fi
 COMMITS="$(git log "$SCAN_FROM"..HEAD --format='%h%x09%s' 2>/dev/null || true)"
 BUNDLED=""
 while IFS=$'\t' read -r sha subject; do

@@ -204,7 +204,7 @@ describe('syncProject — native TS sync against a fixture', () => {
       join(fixtureDir, 'scripts', 'generate-bundled-changes.sh'),
       'utf-8',
     );
-    expect(generatedBundleScript).toContain('FIRST_REQ_SHA');
+    expect(generatedBundleScript).toContain('HOUSEKEEPING_TYPES');
     expect(generatedBundleScript).toContain('schemaVersion: 2');
     // Section 2e-iii — evidence helper (node only). All three files: the
     // Playwright wrapper, the pure helpers it imports, and the test-tags
