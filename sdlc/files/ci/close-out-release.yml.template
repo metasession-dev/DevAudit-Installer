@@ -193,6 +193,21 @@ jobs:
         # the consumer repo" text while it's open. Never fails the job:
         # older portal deployments that don't yet accept status=pr_opened
         # (devaudit#740) should not break close-out.
+        #
+        # devaudit-installer#601 — a jq failure while building the POST
+        # payload previously crashed this script silently. The failure lived
+        # inside a `$(...)` substitution feeding `curl --data`; under
+        # `set -e`, a failing assignment substitution (`VAR=$(...)`) aborts
+        # the script immediately, but the intended `|| echo "::warning::..."`
+        # safety net was attached to the outer `curl` command, which never
+        # even started — only the step's own `continue-on-error: true`
+        # caught the resulting non-zero exit, with no warning annotation
+        # ever posted and no diagnosis possible after the fact (the exact
+        # runtime value that tripped it wasn't recoverable from the log).
+        # Every jq/curl call that feeds a later step is now individually
+        # guarded (`|| true` inside the substitution, so `set -e` can't
+        # abort on it) and logged, so a future failure is diagnosable and
+        # never silent, regardless of which specific call trips it.
         if: steps.closeout.outputs.changed == 'true' || steps.merge.outputs.merged == 'true'
         continue-on-error: true
         run: |
@@ -207,20 +222,30 @@ jobs:
           BRANCH="${CLOSEOUT_BRANCH_PREFIX}${REQ}"
           [ -z "$BRANCH" ] && BRANCH="chore/close-out-${REQ}"
           PR_JSON="$(gh pr view "$BRANCH" --repo "$GITHUB_REPOSITORY" --json number,url 2>/dev/null || true)"
-          NUMBER="$(jq -r '.number // empty' <<<"${PR_JSON:-{}}")"
-          URL="$(jq -r '.url // empty' <<<"${PR_JSON:-{}}")"
+          NUMBER="$(jq -r '.number // empty' <<<"${PR_JSON:-{}}" 2>/dev/null || true)"
+          URL="$(jq -r '.url // empty' <<<"${PR_JSON:-{}}" 2>/dev/null || true)"
+          echo "Resolved close-out PR for ${BRANCH}: number='${NUMBER}' url='${URL}'"
           if [ -z "$NUMBER" ] || [ -z "$URL" ]; then
             echo "::warning::Could not resolve the close-out PR for ${BRANCH}; skipping pr_opened report."
             exit 0
           fi
-          RELEASE="$(curl --fail-with-body -sS -G "${BASE_URL%/}/api/ci/releases/resolve" -H "Authorization: Bearer ${DEVAUDIT_API_KEY}" --data-urlencode "projectSlug={{PROJECT_SLUG}}" --data-urlencode "versionPrefix=${REQ}")"
-          RELEASE_ID="$(jq -r '.latest.id // empty' <<<"$RELEASE")"
-          RELEASE_VERSION="$(jq -r '.latest.version // empty' <<<"$RELEASE")"
+          if ! printf '%s' "$NUMBER" | grep -qE '^[0-9]+$'; then
+            echo "::warning::Resolved PR number '${NUMBER}' is not a bare integer; skipping pr_opened report."
+            exit 0
+          fi
+          RELEASE="$(curl --fail-with-body -sS -G "${BASE_URL%/}/api/ci/releases/resolve" -H "Authorization: Bearer ${DEVAUDIT_API_KEY}" --data-urlencode "projectSlug={{PROJECT_SLUG}}" --data-urlencode "versionPrefix=${REQ}" || true)"
+          RELEASE_ID="$(jq -r '.latest.id // empty' <<<"${RELEASE:-{}}" 2>/dev/null || true)"
+          RELEASE_VERSION="$(jq -r '.latest.version // empty' <<<"${RELEASE:-{}}" 2>/dev/null || true)"
+          echo "Resolved portal release for ${REQ}: id='${RELEASE_ID}' version='${RELEASE_VERSION}'"
           if [ "$RELEASE_VERSION" != "$REQ" ] || [ -z "$RELEASE_ID" ]; then
             echo "::warning::Unable to resolve ${REQ} on the portal; skipping pr_opened report."
             exit 0
           fi
+          PAYLOAD="$(jq -nc --arg workflowRunId '${{ github.run_id }}' --arg workflowUrl '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}' --arg pullRequestUrl "$URL" --argjson pullRequestNumber "$NUMBER" '{status:"pr_opened",workflowRunId:$workflowRunId,workflowUrl:$workflowUrl,pullRequestNumber:$pullRequestNumber,pullRequestUrl:$pullRequestUrl}')" || {
+            echo "::warning::Failed to build the pr_opened payload for ${BRANCH} (jq error); skipping report."
+            exit 0
+          }
           curl --fail-with-body -sS -X POST "${BASE_URL%/}/api/ci/releases/${RELEASE_ID}/close-out" \
             -H "Authorization: Bearer ${DEVAUDIT_API_KEY}" -H 'Content-Type: application/json' \
-            --data "$(jq -nc --arg workflowRunId '${{ github.run_id }}' --arg workflowUrl '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}' --arg pullRequestUrl "$URL" --argjson pullRequestNumber "$NUMBER" '{status:"pr_opened",workflowRunId:$workflowRunId,workflowUrl:$workflowUrl,pullRequestNumber:$pullRequestNumber,pullRequestUrl:$pullRequestUrl}')" \
+            --data "$PAYLOAD" \
             || echo "::warning::Failed to report close-out PR-opened status (portal may not support pr_opened yet)."
