@@ -109,8 +109,11 @@ assert_file_exists() {
   fi
 }
 
-# Test 1: only REQ-free housekeeping inside the tracked REQ window is bundled.
-echo "Test 1: release ownership excludes tagged and historical work"
+# Test 1: REQ-free housekeeping across the whole SINCE_REF..HEAD window is
+# bundled (devaudit-installer#600 — do NOT re-narrow the scan floor to this
+# REQ's own first commit); REQ-tagged commits are excluded via the per-commit
+# tag filter regardless of their position in that window.
+echo "Test 1: release ownership excludes tagged work, includes housekeeping across the full window"
 DIR1="$TMPDIR_BASE/test1"
 make_fixture "$DIR1"
 add_commit "chore: sync DevAudit templates from v0.1.69 to v0.1.70 [skip ci]"
@@ -124,14 +127,14 @@ SINCE=$(git rev-list --max-parents=0 HEAD)
 JSON_OUT="$DIR1/bundle.json"
 OUTPUT=$(bash "$HELPER" "$SINCE" "REQ-042" --json-out "$JSON_OUT" 2>&1)
 assert_contains "markdown includes scoped chore commit" "chore(deps): bump eslint" "$OUTPUT"
-assert_not_contains "markdown excludes historical chore commit" "chore: sync DevAudit templates" "$OUTPUT"
-assert_not_contains "markdown excludes historical docs commit" "docs: update API reference" "$OUTPUT"
+assert_contains "markdown includes predecessor chore commit (#600)" "chore: sync DevAudit templates" "$OUTPUT"
+assert_contains "markdown includes predecessor docs commit (#600)" "docs: update API reference" "$OUTPUT"
 assert_not_contains "markdown excludes tagged test commit" "test: verify booking widget" "$OUTPUT"
 assert_not_contains "markdown excludes Ref-tagged docs commit" "docs: document booking widget" "$OUTPUT"
 assert_not_contains "markdown excludes feat commit" "feat: add booking widget" "$OUTPUT"
 assert_not_contains "markdown excludes fix commit" "fix: resolve null pointer" "$OUTPUT"
 assert_file_exists "json manifest emitted" "$JSON_OUT"
-assert_eq "non-release work count" "1" "$(jq -r '.nonReleaseWorkItems | length' "$JSON_OUT")"
+assert_eq "non-release work count" "3" "$(jq -r '.nonReleaseWorkItems | length' "$JSON_OUT")"
 assert_eq "member count with no tickets" "0" "$(jq -r '.members | length' "$JSON_OUT")"
 assert_eq "first housekeeping kind" "housekeeping_commit" "$(jq -r '.nonReleaseWorkItems[0].kind' "$JSON_OUT")"
 echo
@@ -236,6 +239,27 @@ NORMALIZED_ONE="$(jq -S 'del(.generator.generatedAt)' "$JSON_ONE")"
 NORMALIZED_TWO="$(jq -S 'del(.generator.generatedAt)' "$JSON_TWO")"
 assert_eq "normalized manifests match" "$NORMALIZED_ONE" "$NORMALIZED_TWO"
 assert_eq "manifest hashes match" "$(jq -r '.manifestHash' "$JSON_ONE")" "$(jq -r '.manifestHash' "$JSON_TWO")"
+echo
+
+# Test 7: devaudit-installer#600 regression — a predecessor housekeeping
+# commit landing as the very first commit after SINCE_REF, immediately
+# followed (zero gap) by this REQ's own first commit, must still be
+# detected. This mirrors the live wawagardenbar-app REQ-097 failure exactly:
+# under the old SCAN_FROM="${FIRST_REQ_SHA}^" narrowing, the scan floor
+# landed *on* the housekeeping commit itself, and `git log A..B` excludes
+# `A`, silently dropping it from nonReleaseWorkItems.
+echo "Test 7: adjacent predecessor housekeeping commit is detected (#600)"
+DIR7="$TMPDIR_BASE/test7"
+make_fixture "$DIR7"
+add_commit "chore: sync DevAudit SDLC templates to 0.3.33"
+add_commit "test: verify portion pricing fix [REQ-097]"
+SINCE=$(git rev-list --max-parents=0 HEAD)
+JSON_OUT="$DIR7/bundle.json"
+OUTPUT=$(bash "$HELPER" "$SINCE" "REQ-097" --json-out "$JSON_OUT" 2>&1)
+assert_contains "markdown includes the adjacent predecessor housekeeping commit" "chore: sync DevAudit SDLC templates" "$OUTPUT"
+assert_not_contains "markdown excludes this REQ's own REQ-tagged commit" "test: verify portion pricing fix" "$OUTPUT"
+assert_eq "non-release work count" "1" "$(jq -r '.nonReleaseWorkItems | length' "$JSON_OUT")"
+assert_eq "adjacent housekeeping kind" "housekeeping_commit" "$(jq -r '.nonReleaseWorkItems[0].kind' "$JSON_OUT")"
 echo
 
 echo "=== Summary: ${PASS} pass / ${FAIL} fail ==="
