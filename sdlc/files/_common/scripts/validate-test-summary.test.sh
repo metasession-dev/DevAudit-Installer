@@ -346,6 +346,86 @@ EOF
 EXIT15=$(run_validator "$D15")
 assert_exit "SKIPPED with accepted-skip rows missing Approved by — should fail" 1 "$EXIT15"
 
+# --- Case 16: 'not yet a CI run' surviving into the release PR — should fail (devaudit-installer#607) ---
+D16="$WORK/case16"
+make_fixture "$D16" "REQ-016" << 'EOF'
+# Test Execution Summary — REQ-016
+
+## Gate Results
+
+| Gate             | Result   | Details         |
+| ---------------- | -------- | --------------- |
+| E2E Tests        | PASS     | All specs green |
+
+## Test executions
+
+| Source  | Kind | Outcome | Workflow / run                    |
+| ------- | ---- | ------- | ---------------------------------- |
+| REQ-016 | unit | passed  | Local Vitest — not yet a CI run    |
+
+**Final assessment:** All gates passed.
+EOF
+EXIT16=$(run_validator "$D16")
+assert_exit "'not yet a CI run' surviving into release PR — should fail" 1 "$EXIT16"
+
+# --- Case 17: 'CI run: not yet available' surviving into the release PR — should fail (devaudit-installer#607) ---
+D17="$WORK/case17"
+make_fixture "$D17" "REQ-017" << 'EOF'
+# Test Execution Summary — REQ-017
+
+## Gate Results
+
+| Gate             | Result   | Details         |
+| ---------------- | -------- | --------------- |
+| E2E Tests        | PASS     | All specs green |
+
+## Evidence locations
+
+- CI run: not yet available — this evidence pack is being compiled ahead of the integration PR being opened
+
+**Final assessment:** All gates passed.
+EOF
+EXIT17=$(run_validator "$D17")
+assert_exit "'CI run: not yet available' surviving into release PR — should fail" 1 "$EXIT17"
+
+# --- Case 18: 'Production promotion remains blocked' surviving into the release PR — should fail (devaudit-installer#607) ---
+D18="$WORK/case18"
+make_fixture "$D18" "REQ-018" << 'EOF'
+# Test Execution Summary — REQ-018
+
+## Gate Results
+
+| Gate             | Result   | Details         |
+| ---------------- | -------- | --------------- |
+| E2E Tests        | PASS     | All specs green |
+
+**Final assessment:** Code and automated verification are complete. Production promotion remains blocked on the same items every tracked REQ needs.
+EOF
+EXIT18=$(run_validator "$D18")
+assert_exit "'Production promotion remains blocked' surviving into release PR — should fail" 1 "$EXIT18"
+
+# --- Case 19: clean, fully-refreshed summary — should pass (devaudit-installer#607) ---
+D19="$WORK/case19"
+make_fixture "$D19" "REQ-019" << 'EOF'
+# Test Execution Summary — REQ-019
+
+## Gate Results
+
+| Gate             | Result   | Details         |
+| ---------------- | -------- | --------------- |
+| E2E Tests        | PASS     | All specs green |
+
+## Test executions
+
+| Source  | Kind | Outcome | Workflow / run                                                             |
+| ------- | ---- | ------- | ---------------------------------------------------------------------------- |
+| REQ-019 | e2e  | passed  | [Quality Gates](https://github.com/example/example/actions/runs/12345)      |
+
+**Final assessment:** Code and automated verification are complete. This release has shipped to production.
+EOF
+EXIT19=$(run_validator "$D19")
+assert_exit "clean, fully-refreshed summary — should pass" 0 "$EXIT19"
+
 echo ""
 echo "=== Summary: $PASS pass / $FAIL fail ==="
 

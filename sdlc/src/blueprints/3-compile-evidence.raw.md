@@ -123,6 +123,8 @@ All must pass. Evidence must reflect a green suite.
 
 After confirming all gates pass, generate the test execution summary. This documents what ran, the results, and maps back to the test plan.
 
+**This file will be authored before the integration PR exists, so it will necessarily say things like `"CI Run: local"` or reference gates as not-yet-run-in-CI at this point — that's expected here.** It is not expected to still say that once the release PR (develop→main) opens. Before that PR merges, come back and replace any `[run ID or "local"]` placeholder with the real CI workflow run link, and update the closing assessment so it reflects what actually happened — not the pre-PR draft state. `validate-test-summary.sh` enforces this at the release-PR gate and will fail the PR on placeholder language like `"not yet a CI run"`, `"CI run: not yet available"`, or `"Production promotion remains blocked"` surviving that far (devaudit-installer#607) — the file that ships as this REQ's ISO 29119-3 §3.5.6 Test Completion Report must reflect the release that actually happened.
+
 ```bash
 cat > compliance/evidence/REQ-XXX/test-execution-summary.md << 'EOF'
 # Test Execution Summary — REQ-XXX
