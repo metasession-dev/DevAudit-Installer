@@ -10,6 +10,13 @@
 # or SKIPPED (with operator-approved rationale). "Deferred to CI" is not
 # a valid SDLC state (devaudit-installer#240).
 #
+# Also rejects Stage-3 pre-PR draft placeholder language ("not yet a CI
+# run", "CI run: not yet available", "Production promotion remains
+# blocked") surviving into the release PR — this script only runs on PRs
+# to main, so by definition real CI has already run on develop by the
+# time it executes; that language means the evidence was never refreshed
+# after the fact (devaudit-installer#607).
+#
 # Designed to run as a CI job on PRs to main, alongside
 # validate-compliance-artifacts.sh.
 #
@@ -168,6 +175,37 @@ for REQ in $REQUIREMENTS; do
         fi
       fi
     fi
+  fi
+
+  # Check 8: Reject pre-PR draft placeholder language surviving into the
+  # release PR (devaudit-installer#607). test-execution-summary.md is
+  # authored once, locally, at Stage 3 — before the integration PR even
+  # opens — and this script only ever runs on PRs to main (the final
+  # release gate). By the time a release PR exists, real CI has already
+  # run on develop; any of this language still present means the evidence
+  # was never refreshed and is actively misleading for a release that's
+  # about to (or already did) ship.
+  if grep -qi 'not yet a ci run' "$SUMMARY"; then
+    echo "  ERROR: 'not yet a CI run' found in $SUMMARY — this evidence pack was never refreshed after the integration PR's real CI run completed (devaudit-installer#607)."
+    echo "         Replace with the actual CI workflow run link/ID before this release PR merges."
+    echo "         Offending lines:"
+    grep -in 'not yet a ci run' "$SUMMARY" | sed 's/^/           /'
+    EXIT_CODE=1
+  fi
+
+  if grep -qi 'ci run.*not yet available' "$SUMMARY"; then
+    echo "  ERROR: 'CI run: not yet available' found in $SUMMARY — a release PR to main means real CI already ran on develop; this evidence pack was never refreshed (devaudit-installer#607)."
+    echo "         Offending lines:"
+    grep -in 'ci run.*not yet available' "$SUMMARY" | sed 's/^/           /'
+    EXIT_CODE=1
+  fi
+
+  if grep -qi 'production promotion remains blocked' "$SUMMARY"; then
+    echo "  ERROR: 'Production promotion remains blocked' found in $SUMMARY — this is Stage-3 draft boilerplate; it cannot still be true once a release PR to main exists for this REQ (devaudit-installer#607)."
+    echo "         Update the Final assessment to reflect the actual, current state before this release PR merges."
+    echo "         Offending lines:"
+    grep -in 'production promotion remains blocked' "$SUMMARY" | sed 's/^/           /'
+    EXIT_CODE=1
   fi
 
   echo ""
