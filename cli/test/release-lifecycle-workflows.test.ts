@@ -71,6 +71,39 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     );
   });
 
+  it('never lets a jq failure while building the pr_opened payload silently abort the report step (devaudit-installer#601)', () => {
+    const source = template('close-out-release.yml.template');
+    // Every jq call feeding a later variable inside "Report close-out PR
+    // opened" is guarded with `|| true` so a parse failure can't trip
+    // `set -e` and abort the script before the intended warning fires.
+    expect(source).toContain("jq -r '.number // empty' <<<\"${PR_JSON:-{}}\" 2>/dev/null || true");
+    expect(source).toContain("jq -r '.url // empty' <<<\"${PR_JSON:-{}}\" 2>/dev/null || true");
+    expect(source).toContain("jq -r '.latest.id // empty' <<<\"${RELEASE:-{}}\" 2>/dev/null || true");
+    expect(source).toContain("jq -r '.latest.version // empty' <<<\"${RELEASE:-{}}\" 2>/dev/null || true");
+    // The resolve-release curl call is guarded too, so a non-2xx response
+    // (--fail-with-body) can't abort the script ahead of the existing
+    // "Unable to resolve" warning branch.
+    expect(source).toContain('--data-urlencode "versionPrefix=${REQ}" || true)"');
+    // Resolved values are logged so a future failure is diagnosable from
+    // the Actions log alone, without needing after-the-fact DB forensics.
+    expect(source).toContain("Resolved close-out PR for ${BRANCH}: number='${NUMBER}' url='${URL}'");
+    expect(source).toContain("Resolved portal release for ${REQ}: id='${RELEASE_ID}' version='${RELEASE_VERSION}'");
+    // The resolved PR number is validated as a bare integer before being
+    // passed to `--argjson` (which requires valid JSON) — this is the most
+    // plausible trigger for the original parse error.
+    expect(source).toContain("is not a bare integer");
+    // The POST payload is built into its own variable with its own `||`
+    // guard, so a jq failure there is caught at the exact point it occurs
+    // — not masked by the step-level `continue-on-error: true` with no
+    // warning ever posted.
+    const payloadAssignIdx = source.indexOf('PAYLOAD="$(jq -nc');
+    const payloadGuardIdx = source.indexOf('Failed to build the pr_opened payload');
+    const curlDataIdx = source.indexOf('--data "$PAYLOAD"');
+    expect(payloadAssignIdx).toBeGreaterThan(-1);
+    expect(payloadGuardIdx).toBeGreaterThan(payloadAssignIdx);
+    expect(curlDataIdx).toBeGreaterThan(payloadGuardIdx);
+  });
+
   it('delegates advisory-scoped dependency-risk evaluation to the synced fail-closed helper', () => {
     const source = template('ci.yml.template');
     expect(source).toContain('bash scripts/evaluate-npm-audit.sh');
