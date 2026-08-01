@@ -9,3 +9,6 @@ contact_links:
   - name: 🛠️ Implementing an SDLC issue
     url: https://github.com/metasession-dev/devaudit/blob/main/docs/implementing-an-sdlc-issue.md
     about: End-to-end walkthrough — GitHub issue → merged. Required reading before opening a Requirement.
+  - name: 🚀 Full onboarding guide
+    url: https://devaudit.ai/onboarding/guide
+    about: Every document, token, and access step required to fully onboard a project — including when and how to use SRS Bootstrap below.
