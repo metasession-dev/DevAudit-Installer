@@ -367,6 +367,24 @@ git push origin develop
 
 ---
 
+## Step 6a: Bootstrap the Software Requirements Specification
+
+`docs/SRS.md` is the project's living spec — what `e2e-test-engineer` derives tests from, and what `requirements-aligner` checks every future requirement against. Nothing in the framework authors this for you: `requirements-aligner` explicitly refuses to write an SRS from scratch (it only maintains one that already exists), so this is the one manual bootstrap step in an otherwise-automated pipeline.
+
+1. File an **SRS Bootstrap** issue (synced to `.github/ISSUE_TEMPLATE/srs-bootstrap.yml`) — it walks through identifying your project's Must/Should/Could/Won't requirements using MoSCoW prioritisation.
+2. Work the issue from `SDLC/SRS_TEMPLATE.md` (synced alongside the stage docs) — it has the `REQ-AREA-NNN` ID scheme, the MoSCoW conventions, and two worked Given/When/Then examples to copy the format from.
+3. Commit the result as `docs/SRS.md`:
+
+```bash
+git add docs/SRS.md
+git commit -m "docs: bootstrap the Software Requirements Specification"
+git push origin develop
+```
+
+From your next requirement onward, use the **Requirement** issue template, not SRS Bootstrap again — `requirements-aligner` takes over incremental maintenance automatically (advisory at Stage 1, blocking at Stage 3).
+
+---
+
 ## Step 7: Verify Everything Works
 
 Run through the complete pipeline once with a small test change:
@@ -412,6 +430,7 @@ If any step fails, fix the configuration before starting real work.
 | AI assistant SDLC rules configured (AGENTS.md / CLAUDE.md / GEMINI.md / .windsurfrules / .cursorrules) | [ ] |
 | DevAudit evidence upload configured in CI | [ ] |
 | Project Test Plan created | [ ] |
+| SRS bootstrapped (`docs/SRS.md` exists) | [ ] |
 | End-to-end pipeline verified with test change | [ ] |
 
 ---
