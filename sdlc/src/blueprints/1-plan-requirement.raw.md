@@ -414,7 +414,7 @@ EOF
 
 ### Step 9: Update the Software Requirements Specification (If Applicable)
 
-If the requirement adds, changes, or removes **observable behaviour**, update the project's Software Requirements Specification (`docs/SRS.md`) — or `docs/REQUIREMENTS.md` if the project has not adopted the SRS — to reflect the intended change. The SRS is the MoSCoW-prioritised, Given/When/Then source that developers and the `e2e-test-engineer` skill derive tests from, so keeping it current is what carries the requirement through into test cases.
+If the requirement adds, changes, or removes **observable behaviour**, update the project's Software Requirements Specification (`docs/SRS.md`) — or `docs/REQUIREMENTS.md` if the project has not adopted the SRS — to reflect the intended change. The SRS is the MoSCoW-prioritised, Given/When/Then source that developers and the `e2e-test-engineer` skill derive tests from, so keeping it current is what carries the requirement through into test cases. This isn't a manual-only step: the `requirements-aligner` skill fuzzy-matches this plan's AC table against `docs/SRS.md` and proposes new `REQ-AREA-NNN` stubs or flags drift — the operator edits its proposals into final prose rather than authoring from a blank page.
 
 Only act if the document exists; do not introduce an SRS on a project that has not adopted one.
 

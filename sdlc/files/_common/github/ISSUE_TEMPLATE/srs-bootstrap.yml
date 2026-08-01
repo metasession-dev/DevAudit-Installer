@@ -1,0 +1,77 @@
+name: SRS Bootstrap
+description: Author this project's first Software Requirements Specification (docs/SRS.md). One-time — use Requirement for everything after.
+title: "[SRS] Bootstrap the Software Requirements Specification"
+labels: ["srs-bootstrap", "documentation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template **once per project**, to create `docs/SRS.md` for the first time. `requirements-aligner` deliberately refuses to author an SRS from scratch — it only maintains one that already exists — so this bootstrap is a human (or AI-agent-assisted) step, not an automated one.
+
+        Once `docs/SRS.md` exists and is committed, this template has done its job. From your next requirement onward, use [Requirement](./requirement.yml) instead — `requirements-aligner` will propose new `REQ-AREA-NNN` stubs against the SRS you create here automatically at Stage 1 and Stage 3.
+
+        Start from `SRS_TEMPLATE.md` (synced to `SDLC/` alongside the stage docs) — it has the MoSCoW conventions, the `REQ-AREA-NNN` ID scheme, and two worked examples to copy the format from.
+
+  - type: textarea
+    id: context
+    attributes:
+      label: What is this project, and who is it for?
+      description: A few sentences — enough for whoever works this issue to understand the system's purpose and users without reading the whole codebase first.
+      placeholder: |
+        [PROJECT NAME] is a [one-line description]. Primary users are [who]. It's currently at [stage — pre-launch / live with N users / internal tool / etc.].
+    validations:
+      required: true
+
+  - type: textarea
+    id: must
+    attributes:
+      label: Must — the system is broken or unshippable without these
+      description: The requirements that belong in the smoke/critical test suite. Start with the riskiest surfaces — auth, payments, data handling, anything an auditor would ask about first.
+      placeholder: |
+        - A registered user can sign in
+        - [core domain action] completes successfully for a valid input
+        - ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: should
+    attributes:
+      label: Should — important, expected functionality
+      description: Not launch-blocking on their own, but real gaps if missing. Goes in the regression suite.
+      placeholder: |
+        - A user can reset a forgotten password
+        - ...
+    validations:
+      required: false
+
+  - type: textarea
+    id: could
+    attributes:
+      label: Could — nice-to-have, edge-case, or polish
+      description: Lowest test priority. "None yet" is a valid answer for a first pass.
+      validations:
+        required: false
+
+  - type: textarea
+    id: wont
+    attributes:
+      label: Won't (this cycle) — explicitly out of scope for now
+      description: Recorded so it doesn't get silently re-litigated later. Not the same as "never."
+      validations:
+        required: false
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Pre-flight
+      options:
+        - label: I've checked — `docs/SRS.md` does not already exist in this repository. (If it does, this is drift maintenance, not a bootstrap — file a [Requirement](./requirement.yml) instead, or ask `requirements-aligner` to audit the existing document.)
+          required: true
+        - label: I've read `SDLC/SRS_TEMPLATE.md` (or `sdlc/files/_common/SRS_TEMPLATE.md` in the DevAudit-Installer repo) and will use its format.
+          required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        **Definition of done:** `docs/SRS.md` exists in this repository, seeded from `SRS_TEMPLATE.md`, with the Must/Should/Could/Won't items above expanded into `REQ-AREA-NNN` entries in Given/When/Then format, committed to `develop`. Close this issue once it's merged.
