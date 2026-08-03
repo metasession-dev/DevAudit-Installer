@@ -12,13 +12,32 @@ jobs:
   backmerge-hotfix:
     runs-on: ubuntu-latest
     steps:
+      # devaudit-installer#613 — PRs opened with the default GITHUB_TOKEN
+      # (actor github-actions[bot]) get their own pull_request-triggered
+      # required checks (including Enforce GitFlow) stuck at
+      # `action_required` instead of running, blocking every automated
+      # backmerge PR until a maintainer manually approves each pending
+      # workflow run. INSTALLER_DISPATCH_TOKEN, if set, authenticates the
+      # push/PR-create as a real, already-trusted account instead — PRs
+      # opened that way aren't subject to this gate.
+      #
+      # Reuses INSTALLER_DISPATCH_TOKEN rather than introducing a new
+      # secret: it's already a PAT with `repo` scope on this exact repo
+      # (metasession-dev/DevAudit-Installer) — see the devaudit repo's
+      # sync-evidence-contract.yml, which uses the same token to dispatch
+      # events here. Its value lives in the devaudit repo's secrets today;
+      # add that same value as a secret of this name in DevAudit-Installer
+      # too. Falls back to the default GITHUB_TOKEN (today's unchanged,
+      # still-gated behavior) when unset, so this is safe to merge before
+      # the secret exists here.
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          token: ${{ secrets.INSTALLER_DISPATCH_TOKEN || github.token }}
 
       - name: Open develop back-merge PR for reviewed hotfix merges
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.INSTALLER_DISPATCH_TOKEN || github.token }}
         shell: bash
         run: |
           set -euo pipefail

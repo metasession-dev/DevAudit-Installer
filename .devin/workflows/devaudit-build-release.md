@@ -14,6 +14,17 @@ This workflow takes you from "the release-ready commit is on main" to "all 5 pac
 - You know the target version (e.g. `0.3.1`, `0.4.0`)
 - `NPM_TOKEN` secret is set in the GitHub repo
 - You have push access to create tags
+- `INSTALLER_DISPATCH_TOKEN` secret is set on this repo (devaudit-installer#613)
+  — without it, `hotfix-backmerge.yml` falls back to `GITHUB_TOKEN`, and the
+  resulting `backmerge/* -> develop` PR's required checks (including `Enforce
+  GitFlow`) will sit at `action_required` until someone manually approves
+  each pending workflow run
+  (`gh api -X POST repos/metasession-dev/DevAudit-Installer/actions/runs/<id>/approve`
+  for each). This reuses the same PAT the `devaudit` repo's
+  `sync-evidence-contract.yml` already uses under this name (a `repo`-scope
+  PAT on `metasession-dev/DevAudit-Installer`) — copy that same token value
+  into this repo's secrets under the identical name, rather than creating a
+  new credential.
 
 ## Branch policy for release bumps
 
