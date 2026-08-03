@@ -45,9 +45,18 @@ fi
 
 BASE_URL="${DEVAUDIT_BASE_URL%/}"
 
+# devaudit-installer#622 — generate-bundled-changes.sh has produced
+# schemaVersion 2 manifests (manifestHash + generator metadata) for a
+# while; the portal's contract (devaudit's
+# lib/api/release-lineage-contract.ts) already accepts both 1 and 2.
+# This check was never updated to match, so any manifest with actual
+# content (members or non-release work items — the only case that
+# reaches this script at all, per the empty-manifest skip below) has
+# been hard-failing this step ever since. Accept both versions the
+# portal accepts.
 SCHEMA_VERSION="$(jq -r '.schemaVersion // empty' "$MANIFEST_PATH")"
-if [ "$SCHEMA_VERSION" != "1" ]; then
-  echo "Error: manifest schemaVersion must be 1." >&2
+if [ "$SCHEMA_VERSION" != "1" ] && [ "$SCHEMA_VERSION" != "2" ]; then
+  echo "Error: manifest schemaVersion must be 1 or 2 (got: ${SCHEMA_VERSION:-<empty>})." >&2
   exit 1
 fi
 

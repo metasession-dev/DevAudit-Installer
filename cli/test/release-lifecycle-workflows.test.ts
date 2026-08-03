@@ -318,6 +318,32 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     expect(uploader).toContain('--meta-key "content_hash=${CONTENT_HASH}"');
   });
 
+  it('uploads test-plan.md/test-cases.md/test-summary-report.md as project-level documents, not attached to any release (devaudit-installer#621)', () => {
+    const uploader = commonScript('upload-compliance-documents.sh');
+    expect(uploader).toContain('PROJECT_LEVEL_FLAGS=');
+    expect(uploader).toContain('upload_project_level_doc()');
+    expect(uploader).toContain('upload_project_level_doc compliance/test-plan.md   test_plan');
+    expect(uploader).toContain('upload_project_level_doc compliance/test-cases.md  test_cases');
+    expect(uploader).toContain('upload_project_level_doc compliance/test-summary-report.md compliance_document');
+
+    const levelFn = uploader.slice(
+      uploader.indexOf('upload_project_level_doc() {'),
+      uploader.indexOf('\n}', uploader.indexOf('upload_project_level_doc() {')),
+    );
+    expect(levelFn).not.toContain('--release');
+    expect(levelFn).toContain('${PROJECT_LEVEL_FLAGS}');
+
+    // RTM.md, unlike the three above, is genuinely per-release evidence
+    // (kept current per REQ, read by the portal's release-completeness
+    // check) and must stay release-scoped via the original function.
+    expect(uploader).toContain('upload_project_doc compliance/RTM.md rtm');
+    const docFn = uploader.slice(
+      uploader.indexOf('upload_project_doc() {'),
+      uploader.indexOf('\n}', uploader.indexOf('upload_project_doc() {')),
+    );
+    expect(docFn).toContain('--release "${DERIVED_RELEASE}"');
+  });
+
   it('exports incident reports with source ownership frontmatter', () => {
     const source = template('incident-export.yml.template');
     expect(source).toContain('Baseline-only incident export requires the issue body to reference its owning REQ-XXX');
@@ -342,5 +368,31 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     expect(record).toContain('executor=${EXECUTOR}; tested_sha=${TESTED_SHA}');
     expect(record).toContain('"$REPORT_TEST_EXECUTION" start');
     expect(record).toContain('"$REPORT_TEST_EXECUTION" complete');
+  });
+
+  it('uploads the project-level Test Summary Report without attaching it to any release (devaudit-installer#621)', () => {
+    const source = template('ci.yml.template');
+    const uploadBlockStart = source.indexOf('if [ -f "compliance/test-summary-report.md" ]; then');
+    const uploadBlockEnd = source.indexOf('\n          fi', uploadBlockStart);
+    const uploadBlock = source.slice(uploadBlockStart, uploadBlockEnd);
+    // Previously attached --release/--create-release-if-missing/
+    // --environment/--sdlc-stage, contradicting this block's own comment
+    // that the file is a release-independent Documents-tab baseline —
+    // every release displayed this often-months-stale file as if it were
+    // current per-release test evidence.
+    expect(uploadBlock).not.toContain('--release');
+    expect(uploadBlock).not.toContain('--create-release-if-missing');
+    expect(uploadBlock).not.toContain('--environment');
+    expect(uploadBlock).not.toContain('--sdlc-stage');
+    expect(uploadBlock).toContain('--category planning');
+    expect(uploadBlock).toContain('--git-sha');
+  });
+
+  it('generates and uploads bundled changes for bare-date housekeeping releases too, not just REQ releases (devaudit-installer#622)', () => {
+    const source = template('ci.yml.template');
+    expect(source).toContain('- name: Generate and upload bundled changes\n');
+    expect(source).not.toContain('name: Generate and upload bundled changes (REQ releases only)');
+    expect(source).not.toContain('housekeeping (bare-date) releases don\'t bundle other housekeeping.');
+    expect(source).not.toContain("is housekeeping — skipping bundled changes");
   });
 });
