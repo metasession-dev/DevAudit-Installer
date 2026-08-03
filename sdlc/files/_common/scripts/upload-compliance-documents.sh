@@ -25,6 +25,14 @@ FLAGS="--git-sha ${DEVAUDIT_GIT_SHA} --ci-run-id ${DEVAUDIT_CI_RUN_ID} --branch 
 FLAGS="${FLAGS} --create-release-if-missing --environment uat --sdlc-stage 3"
 DERIVED_RELEASE="${DEVAUDIT_RELEASE_VERSION}"
 
+# devaudit-installer#621 — flags for documents that are genuinely
+# project-level and must NOT be attached to any one release (see
+# upload_project_level_doc below). --environment/--sdlc-stage require
+# --release server-side (evidence without a release is "orphaned" by
+# design for exactly these documents), so all three release-scoping
+# flags are simply omitted here rather than passed and then overridden.
+PROJECT_LEVEL_FLAGS="--git-sha ${DEVAUDIT_GIT_SHA} --ci-run-id ${DEVAUDIT_CI_RUN_ID} --branch ${DEVAUDIT_BRANCH}"
+
 # Derive change_type for the bare-date (housekeeping) DERIVED_RELEASE:
 # the prefix of the most recent commit's subject. No-op for tracked
 # releases — they get per-REQ derivation in the loop below.
@@ -43,6 +51,10 @@ DERIVED_META=()
 #   - RTM.md        → rtm         (ISO 29119 §3.3 traceability)
 #   - test-plan.md  → test_plan   (ISO 29119 §3.4 test plan)
 #   - test-cases.md → test_cases  (ISO 29119 §3.4 test cases)
+#
+# RTM.md is genuinely per-release evidence — it's kept current per REQ
+# by sdlc-implementer and the portal's release-completeness check reads
+# it per release — so it stays release-scoped via upload_project_doc.
 upload_project_doc() {
   local DOC="$1" EVTYPE="$2"
   if [ ! -f "$DOC" ]; then return 0; fi
@@ -53,9 +65,29 @@ upload_project_doc() {
     "${DERIVED_META[@]}" \
     || echo "Warning: Failed to upload $(basename "$DOC")"
 }
-upload_project_doc compliance/RTM.md         rtm
-upload_project_doc compliance/test-plan.md   test_plan
-upload_project_doc compliance/test-cases.md  test_cases
+upload_project_doc compliance/RTM.md rtm
+
+# devaudit-installer#621 — test-plan.md and test-cases.md, unlike
+# RTM.md above, are project-level test-strategy documents, not
+# per-release evidence: they were previously attached to
+# "${DERIVED_RELEASE}" via upload_project_doc just like RTM.md, so the
+# portal displayed whatever these files happened to say (often stale by
+# months) as if it were current evidence for every release — most
+# visibly on bare-date housekeeping releases, which have no REQ-scoped
+# test-scope.md/test-plan.md to show instead. upload_project_level_doc
+# omits --release (and the flags that require it) so these upload as
+# genuine Documents-tab artefacts, decoupled from any one release.
+upload_project_level_doc() {
+  local DOC="$1" EVTYPE="$2"
+  if [ ! -f "$DOC" ]; then return 0; fi
+  echo "Uploading: $(basename "$DOC") (${EVTYPE} — project-level, no release attachment)"
+  bash scripts/upload-evidence.sh \
+    ${DEVAUDIT_PROJECT_SLUG} _compliance-docs "$EVTYPE" "$DOC" \
+    --category planning ${PROJECT_LEVEL_FLAGS} \
+    || echo "Warning: Failed to upload $(basename "$DOC")"
+}
+upload_project_level_doc compliance/test-plan.md   test_plan
+upload_project_level_doc compliance/test-cases.md  test_cases
 
 # Project-level Test Summary Report — a hand-authored baseline
 # describing the project's testing posture. As of v0.1.32 this is
@@ -66,14 +98,13 @@ upload_project_doc compliance/test-cases.md  test_cases
 # project-level TSR continues to ship as a Documents-tab baseline
 # but no longer poses as per-release test evidence.
 # See DevAudit-Installer#101.
-if [ -f "compliance/test-summary-report.md" ]; then
-  echo "Uploading: test-summary-report.md (compliance_document — baseline)"
-  bash scripts/upload-evidence.sh \
-    ${DEVAUDIT_PROJECT_SLUG} _compliance-docs compliance_document compliance/test-summary-report.md \
-    --category planning ${FLAGS} --release "${DERIVED_RELEASE}" \
-    "${DERIVED_META[@]}" \
-    || echo "Warning: Failed to upload test-summary-report.md"
-fi
+#
+# devaudit-installer#621 — the comment above was aspirational, not
+# actual: this call still attached --release "${DERIVED_RELEASE}", so
+# every release displayed this static file as if it were current
+# per-release test evidence. Uses upload_project_level_doc now, same
+# fix as test-plan.md/test-cases.md above.
+upload_project_level_doc compliance/test-summary-report.md compliance_document
 
 # NOTE: test-summary-report.md stays as compliance_document because
 # it is a project-level evergreen baseline, NOT per-release test

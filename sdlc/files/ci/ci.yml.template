@@ -366,16 +366,25 @@ jobs:
             --environment uat --category release_artifact --sdlc-stage 2 \
             --git-sha ${{ github.sha }} --branch ${{ github.ref_name }}
 
-      - name: Generate and upload bundled changes (REQ releases only)
+      - name: Generate and upload bundled changes
         if: env.DEVAUDIT_BASE_URL != '' && steps.version.outputs.version != 'skip'
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          # Only generate bundled changes for REQ-tagged releases —
-          # housekeeping (bare-date) releases don't bundle other housekeeping.
-          if [[ "$VERSION" =~ ^v[0-9]{4}\.[0-9]{2}\.[0-9]{2}(\.[0-9]+)?$ ]]; then
-            echo "Version ${VERSION} is housekeeping — skipping bundled changes."
-            exit 0
-          fi
+          # devaudit-installer#622 — this used to skip every bare-date
+          # (housekeeping) version entirely, on the theory that
+          # "housekeeping releases don't bundle other housekeeping."
+          # That's still true (a bare-date release should not absorb an
+          # unrelated EARLIER release's explicit predecessor ticket), but
+          # it doesn't cover the much more common case: a bare-date
+          # release describing its OWN constituent commits (e.g. three
+          # housekeeping PRs merged the same day into one vYYYY.MM.DD
+          # release row). Skipping unconditionally left every such
+          # release with no description of what it actually shipped.
+          # generate-bundled-changes.sh now handles bare-date versions
+          # itself (skips the release-ticket/explicit-predecessor
+          # machinery, which doesn't apply — a bare-date release has no
+          # ticket — and falls through to the commit-range scan, which
+          # is what actually describes "what's in this release").
           chmod +x scripts/generate-bundled-changes.sh 2>/dev/null || true
           chmod +x scripts/upload-evidence.sh 2>/dev/null || true
           # Find the previous release tag to scan from. Fall back to last 50
@@ -407,7 +416,8 @@ jobs:
             exit 0
           fi
           bash scripts/submit-bundle-manifest.sh {{PROJECT_SLUG}} "$VERSION" "$BUNDLED_MANIFEST"
-          # Upload as bundled_changes evidence against the REQ release.
+          # Upload as bundled_changes evidence against this release (REQ-tracked
+          # or bare-date housekeeping — devaudit-installer#622).
           bash scripts/upload-evidence.sh \
             {{PROJECT_SLUG}} _compliance-docs bundled_changes "$BUNDLED_FILE" \
             --release "$VERSION" \
@@ -657,12 +667,25 @@ jobs:
           # The project-level TSR remains useful as Documents-tab baseline
           # describing the project's testing posture but no longer poses
           # as per-release test evidence. See DevAudit-Installer#101.
+          #
+          # devaudit-installer#621 — the comment above was aspirational,
+          # not actual: this call still attached --release/--environment,
+          # so the portal displayed this static, infrequently-updated file
+          # as if it were current per-release evidence on every release —
+          # most visibly on bare-date housekeeping releases, which have no
+          # REQ-scoped test-execution-summary.md to show instead, so this
+          # stale baseline was the only "test evidence" an auditor saw.
+          # Dropping --release/--create-release-if-missing/--environment/
+          # --sdlc-stage (all release-scoping flags — --environment
+          # requires --release server-side, so they come out together)
+          # makes this upload genuinely release-independent, matching the
+          # comment's stated intent: an orphaned Documents-tab artefact,
+          # not evidence attached to whichever release happens to be
+          # current when CI runs.
           if [ -f "compliance/test-summary-report.md" ]; then
             upload test-summary-report.md \
               {{PROJECT_SLUG}} _compliance-docs compliance_document compliance/test-summary-report.md \
-              --category planning --git-sha ${{ github.sha }} --ci-run-id ${{ github.run_id }} --branch ${{ github.ref_name }} \
-              --release ${{ needs.register-release.outputs.version }} --create-release-if-missing \
-              --environment uat --sdlc-stage 2
+              --category planning --git-sha ${{ github.sha }} --ci-run-id ${{ github.run_id }} --branch ${{ github.ref_name }}
           fi
 
           # Per-REQ E2E JSON attachment only.
