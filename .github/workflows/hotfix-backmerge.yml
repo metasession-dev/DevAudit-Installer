@@ -12,13 +12,30 @@ jobs:
   backmerge-hotfix:
     runs-on: ubuntu-latest
     steps:
+      # devaudit-installer#613 — PRs opened with the default GITHUB_TOKEN
+      # (actor github-actions[bot]) get their own pull_request-triggered
+      # required checks (including Enforce GitFlow) stuck at
+      # `action_required` instead of running, blocking every automated
+      # backmerge PR until a maintainer manually approves each pending
+      # workflow run. HOTFIX_BACKMERGE_PAT, if set, authenticates the
+      # push/PR-create as a real, already-trusted account instead —
+      # PRs opened that way aren't subject to this gate.
+      #
+      # HOTFIX_BACKMERGE_PAT must be created manually (Settings → Actions
+      # is not sufficient here, and no API can mint a new PAT) — a classic
+      # PAT with `repo` scope from an account with write access, or a
+      # GitHub App installation token, added as a repository secret named
+      # HOTFIX_BACKMERGE_PAT. Falls back to the default GITHUB_TOKEN
+      # (today's unchanged, still-gated behavior) when unset, so this is
+      # safe to merge before the secret exists.
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          token: ${{ secrets.HOTFIX_BACKMERGE_PAT || github.token }}
 
       - name: Open develop back-merge PR for reviewed hotfix merges
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.HOTFIX_BACKMERGE_PAT || github.token }}
         shell: bash
         run: |
           set -euo pipefail

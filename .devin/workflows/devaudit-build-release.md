@@ -14,6 +14,15 @@ This workflow takes you from "the release-ready commit is on main" to "all 5 pac
 - You know the target version (e.g. `0.3.1`, `0.4.0`)
 - `NPM_TOKEN` secret is set in the GitHub repo
 - You have push access to create tags
+- `HOTFIX_BACKMERGE_PAT` secret is set (devaudit-installer#613) — without it,
+  `hotfix-backmerge.yml` falls back to `GITHUB_TOKEN`, and the resulting
+  `backmerge/* -> develop` PR's required checks (including `Enforce
+  GitFlow`) will sit at `action_required` until someone manually approves
+  each pending workflow run
+  (`gh api -X POST repos/metasession-dev/DevAudit-Installer/actions/runs/<id>/approve`
+  for each). Create a classic PAT with `repo` scope from an account with
+  write access (or a GitHub App installation token) and add it as a
+  repository secret named `HOTFIX_BACKMERGE_PAT` to remove this manual step.
 
 ## Branch policy for release bumps
 
