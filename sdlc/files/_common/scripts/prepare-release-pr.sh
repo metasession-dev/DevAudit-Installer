@@ -30,7 +30,7 @@ RELEASE_BRANCH=$(jq -r '.release_branch // "main"' sdlc-config.json 2>/dev/null 
 if [ ! -x scripts/derive-release-version.sh ]; then
   chmod +x scripts/derive-release-version.sh 2>/dev/null || true
 fi
-CURRENT_RELEASE=$(./scripts/derive-release-version.sh)
+CURRENT_RELEASE=$(DEVAUDIT_ALLOW_PENDING_TICKET_FALLBACK=1 ./scripts/derive-release-version.sh)
 if [ -z "$CURRENT_RELEASE" ]; then
   echo "No active release version derived; close-out reconciliation appears in progress." >&2
   exit 1
