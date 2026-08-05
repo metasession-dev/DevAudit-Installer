@@ -322,7 +322,7 @@ jobs:
           # compliance-evidence.yml call the same helper so a single
           # feature converges on one release record. See DevAudit #310.
           chmod +x scripts/derive-release-version.sh 2>/dev/null || true
-          VERSION=$(./scripts/derive-release-version.sh)
+          VERSION=$(DEVAUDIT_ALLOW_PENDING_TICKET_FALLBACK=1 ./scripts/derive-release-version.sh)
           if [ -z "$VERSION" ]; then
             echo "version=skip" >> "$GITHUB_OUTPUT"
             echo "Release registration skipped: close-out reconciliation detected."
@@ -387,9 +387,21 @@ jobs:
           # is what actually describes "what's in this release").
           chmod +x scripts/generate-bundled-changes.sh 2>/dev/null || true
           chmod +x scripts/upload-evidence.sh 2>/dev/null || true
-          # Find the previous release tag to scan from. Fall back to last 50
-          # commits if no prior tag exists.
+          # Find the previous release tag to scan from. Many projects never
+          # tag a release, so that lookup can come back empty — fall back to
+          # the merge-base with main (the last point the release branch and
+          # main actually shared, i.e. the real "since the last release"
+          # boundary) instead of a fixed commit count, which would silently
+          # re-absorb already-released commits into every release's
+          # bundled-changes list. HEAD~50 remains a last-ditch fallback only
+          # if origin/main truly can't be resolved.
           SINCE_REF=$(git tag --sort=-creatordate | head -1 || true)
+          if [ -z "$SINCE_REF" ]; then
+            git fetch origin main --quiet 2>/dev/null || true
+            if git rev-parse --verify origin/main >/dev/null 2>&1; then
+              SINCE_REF=$(git merge-base origin/main HEAD 2>/dev/null || true)
+            fi
+          fi
           if [ -z "$SINCE_REF" ]; then
             SINCE_REF="HEAD~50"
           fi

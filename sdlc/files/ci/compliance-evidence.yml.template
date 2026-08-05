@@ -121,7 +121,7 @@ jobs:
           # one release record regardless of whether the push touched
           # code or docs. See DevAudit #310.
           chmod +x scripts/derive-release-version.sh 2>/dev/null || true
-          VERSION=$(./scripts/derive-release-version.sh)
+          VERSION=$(DEVAUDIT_ALLOW_PENDING_TICKET_FALLBACK=1 ./scripts/derive-release-version.sh)
           if [ -z "$VERSION" ]; then
             echo "version=skip" >> "$GITHUB_OUTPUT"
             echo "Compliance evidence upload skipped: close-out reconciliation detected."
@@ -346,7 +346,7 @@ jobs:
         id: version
         run: |
           chmod +x scripts/derive-release-version.sh 2>/dev/null || true
-          VERSION=$(./scripts/derive-release-version.sh)
+          VERSION=$(DEVAUDIT_ALLOW_PENDING_TICKET_FALLBACK=1 ./scripts/derive-release-version.sh)
           if [ -z "$VERSION" ]; then
             echo "version=skip" >> "$GITHUB_OUTPUT"
             echo "E2E evidence upload skipped: close-out reconciliation detected."
@@ -852,7 +852,7 @@ jobs:
               - [ ] \`EUAIA.Art-9 / Art-14 / Art-15\` — AI failure: <REPLACE — yes/no, which article(s)>
 
               Once closed, the \`incident-export.yml\` workflow exports this issue's body to \`compliance/governance/incident-report-<N>.md\`.
-              EOF
+          EOF
               )
               # Strip the 14-space heredoc indentation so the issue body is clean.
               ISSUE_BODY=$(echo "$ISSUE_BODY" | sed 's/^              //')
@@ -885,7 +885,7 @@ jobs:
               **Git SHA:** ${GIT_SHA}
 
               This failure appears to be a ${CLASSIFICATION} (not an application defect). A human should confirm and fix the ${CLASSIFICATION}, not the application. Filed with the \`test-bug\` label — this does NOT produce \`incident_report\` evidence.
-              EOF
+          EOF
               )
               ISSUE_BODY=$(echo "$ISSUE_BODY" | sed 's/^              //')
 

@@ -71,7 +71,7 @@ jobs:
         run: |
           echo "standalone=false" >> "$GITHUB_OUTPUT"
           chmod +x scripts/derive-release-version.sh scripts/standalone-housekeeping-release.sh 2>/dev/null || true
-          VERSION=$(bash scripts/derive-release-version.sh)
+          VERSION=$(DEVAUDIT_ALLOW_PENDING_TICKET_FALLBACK=1 bash scripts/derive-release-version.sh)
           if ! [[ "$VERSION" =~ ^v[0-9]{4}\.[0-9]{2}\.[0-9]{2}([.][0-9]+)?$ ]]; then
             exit 0
           fi
@@ -204,7 +204,7 @@ jobs:
             # here makes the gate and the uploaders agree on release identity
             # (#81). The 8 scenarios are covered by derive-release-version.test.sh.
             chmod +x scripts/derive-release-version.sh 2>/dev/null || true
-            LOOKUP_PREFIX=$(bash scripts/derive-release-version.sh)
+            LOOKUP_PREFIX=$(DEVAUDIT_ALLOW_PENDING_TICKET_FALLBACK=1 bash scripts/derive-release-version.sh)
             echo "Derived release prefix from git history: ${LOOKUP_PREFIX}"
           fi
           echo "Resolving release for prefix: ${LOOKUP_PREFIX}"
