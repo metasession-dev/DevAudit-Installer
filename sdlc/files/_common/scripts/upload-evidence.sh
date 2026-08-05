@@ -235,6 +235,29 @@ is_tracked_change_type() {
   esac
 }
 
+# devaudit#775 — a CI checkout never has the gitignored, local-only
+# `.sdlc-implementer-invoked` file, so evidence uploaded from a CI
+# workflow run could never carry sentinel provenance even when
+# sdlc-implementer genuinely drove the work — it read identically to a
+# real manual bypass. The skill now embeds the same phase-history JSON
+# as a `Sdlc-Implementer-Sentinel:` trailer on every commit it makes
+# during a tracked session (see SKILL.md Phase 2 step 7). Scan the
+# target commit and its recent ancestors for that trailer when the
+# local file is absent — this also covers squash-merged PRs, since
+# GitHub's default squash message concatenates each original commit's
+# message (trailer included) into the merge commit body.
+detect_sentinel_git_trailer() {
+  local target="$1"
+  # `|| true` — under `set -o pipefail`, `grep -m1` finding no match (the
+  # common case: no trailer, genuinely untracked, or already covered by
+  # the local file) makes the whole pipeline exit non-zero, which would
+  # otherwise abort the entire upload script via `set -e`.
+  git log "$target" -n 50 --format='%B%x00' 2>/dev/null \
+    | tr '\0' '\n' \
+    | grep -m1 '^Sdlc-Implementer-Sentinel:' \
+    | sed -E 's/^Sdlc-Implementer-Sentinel:[[:space:]]*//' || true
+}
+
 resolve_sentinel_context() {
   if ! is_tracked_change_type "$CHANGE_TYPE"; then
     return 0
@@ -245,6 +268,9 @@ resolve_sentinel_context() {
   local git_target="HEAD"
   if [ -n "$GIT_SHA" ]; then
     git_target="$GIT_SHA"
+  fi
+  if [ -z "$SENTINEL_CONTENT" ]; then
+    SENTINEL_CONTENT=$(detect_sentinel_git_trailer "$git_target")
   fi
   COMMIT_TIMESTAMP=$(git show -s --format=%cI "$git_target" 2>/dev/null || true)
 }
