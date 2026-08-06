@@ -147,6 +147,29 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     expect(curlDataIdx).toBeGreaterThan(payloadGuardIdx);
   });
 
+  it('authenticates as INSTALLER_DISPATCH_TOKEN when available so its own PR is not action_required-gated (devaudit-installer#613)', () => {
+    const source = template('close-out-release.yml.template');
+    // A PR authored by the default GITHUB_TOKEN (actor github-actions[bot])
+    // has its own pull_request-triggered required checks stuck at
+    // action_required, blocking auto-merge until a maintainer manually
+    // approves each pending run — confirmed live on wgb#650 / devaudit#795.
+    // INSTALLER_DISPATCH_TOKEN opts out of that gate by authenticating as a
+    // real, already-trusted account instead; falling back to github.token
+    // keeps every consumer who hasn't configured the secret unaffected.
+    const expectedTokenExpr = '${{ secrets.INSTALLER_DISPATCH_TOKEN || github.token }}';
+    expect(source).toContain(`GH_TOKEN: ${expectedTokenExpr}`);
+    expect(source).toContain(`token: ${expectedTokenExpr}`);
+    // The checkout step is the one that needs the explicit token override
+    // (its default is a read-only, non-configurable github.token) —
+    // confirm it's the actions/checkout step specifically, not some
+    // unrelated `token:` field.
+    const checkoutIdx = source.indexOf('uses: actions/checkout@v6');
+    const checkoutTokenIdx = source.indexOf(`token: ${expectedTokenExpr}`);
+    expect(checkoutIdx).toBeGreaterThan(-1);
+    expect(checkoutTokenIdx).toBeGreaterThan(checkoutIdx);
+    expect(checkoutTokenIdx - checkoutIdx).toBeLessThan(200);
+  });
+
   it('delegates advisory-scoped dependency-risk evaluation to the synced fail-closed helper', () => {
     const source = template('ci.yml.template');
     expect(source).toContain('bash scripts/evaluate-npm-audit.sh');

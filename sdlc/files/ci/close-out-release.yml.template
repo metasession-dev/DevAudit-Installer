@@ -43,13 +43,25 @@ jobs:
     name: Close out release
     runs-on: {{RUNNER}}
     env:
-      GH_TOKEN: ${{ github.token }}
+      # devaudit-installer#613 — PRs opened with the default GITHUB_TOKEN
+      # (actor github-actions[bot]) get their own pull_request-triggered
+      # required checks stuck at `action_required` instead of running,
+      # blocking auto-merge until a maintainer manually approves each
+      # pending workflow run. Set INSTALLER_DISPATCH_TOKEN (a PAT/deploy
+      # token with contents+pull-requests write on this repo) to
+      # authenticate the checkout/push/PR-create as a real, already-trusted
+      # account instead — PRs opened that way aren't subject to this gate.
+      # Falls back to the default GITHUB_TOKEN (unchanged, still-gated
+      # behavior) when unset, so this is safe on every consumer regardless
+      # of whether they've configured the secret.
+      GH_TOKEN: ${{ secrets.INSTALLER_DISPATCH_TOKEN || github.token }}
       DEVAUDIT_API_KEY: ${{ secrets.DEVAUDIT_API_KEY }}
     steps:
       - uses: actions/checkout@v6
         with:
           ref: develop
           fetch-depth: 0
+          token: ${{ secrets.INSTALLER_DISPATCH_TOKEN || github.token }}
 
       - name: Resolve inputs
         id: in
