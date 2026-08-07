@@ -294,6 +294,14 @@ Generated workflows use two distinct auth domains:
 
 `DEVAUDIT_USER_TOKEN` is not the default GitHub auth token for workflow repo mutations. If a workflow is mutating GitHub state, the expected auth path is the workflow token plus explicit `permissions:` on the job.
 
+#### Optional: `INSTALLER_DISPATCH_TOKEN` (devaudit-installer#613, #795)
+
+A PR authored by the default `github.token` (actor `github-actions[bot]`) is subject to GitHub's own `action_required` gate on any `pull_request`-triggered workflow run *it* causes — required checks on that PR (e.g. `Quality Gates`) sit stuck until a maintainer manually clicks "Approve and run," once per PR. This is a GitHub platform behavior, not something `permissions:` can opt out of.
+
+`close-out-release.yml` is the one generated workflow that both mutates GitHub state *and* opens a PR expected to pass its own required checks unattended (so its pre-armed `--auto --merge` can actually complete). It authenticates as `${{ secrets.INSTALLER_DISPATCH_TOKEN || github.token }}` — set that repo secret (a PAT, classic `repo` scope or fine-grained with Contents + Pull requests read/write, on this repo) to skip the manual-approval click entirely. Unset, close-out still completes correctly, it just needs that one click per release. This is a repo secret, not something `devaudit install`/`devaudit update` sets — GitHub secrets are outside what the CLI touches (see "What it does not touch" above). Same secret name/pattern `DevAudit-Installer`'s own `hotfix-backmerge.yml` uses internally for the identical reason.
+
+Do **not** reuse `DEVAUDIT_USER_TOKEN` for this — it authenticates to the DevAudit *portal*, not to GitHub; GitHub's API will reject it outright regardless of scope or expiry.
+
 ### Status-check contract
 
 Generated consumers should keep a clear distinction between:
