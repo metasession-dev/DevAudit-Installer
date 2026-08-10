@@ -373,6 +373,8 @@ If incidents **were** closed during this REQ's lifecycle, skip nil report genera
 
 Verify `ai-use-note.md` and `ai-prompts.md` exist (if AI was used). If missing, create `ai-use-note.md` with YAML frontmatter (devaudit-installer#197):
 
+**Non-negotiable, regardless of format:** whether you use the YAML template below or write the note as narrative prose, it MUST include a `**Tool:** <name>` line (e.g. `**Tool:** Claude Code`) somewhere in the file — even a single bold line dropped into an otherwise free-form note satisfies this. This is the one fact the portal's AI Contributors panel cannot recover if it's missing, no matter how detailed the rest of the note is (devaudit-installer#653). Add `**Model:**`, `**Session ID:**`, and `**Date:**` alongside it when you have them.
+
 ```bash
 cat > compliance/evidence/REQ-XXX/ai-use-note.md << 'EOF'
 ---
@@ -429,7 +431,7 @@ ai_contributors:
     commits: ["abc1234"]
 ```
 
-**Backward compatibility:** Legacy `ai-use-note.md` files without YAML frontmatter are still accepted by the portal (falls back to text parsing). New files should use YAML.
+**Backward compatibility:** the portal also accepts narrative-prose `ai-use-note.md` files without YAML frontmatter, as long as they include a `**Tool:** <name>` bold field (or a legacy `AI Tool Used: <tool>` line) — see devaudit#799. YAML frontmatter is still the richer option (multiple contributors, commit lists, handoffs) and is recommended whenever more than one tool/session touched the requirement; a single `**Tool:**` line is the floor, not the target.
 
 If an AI agent handoff occurred mid-implementation, also create `ai-agent-handoff.md` (see Step 5b below).
 
