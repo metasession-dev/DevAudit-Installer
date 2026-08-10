@@ -72,7 +72,7 @@ The website establishes specific language and positioning that articles must rei
 3. **Funnel-aware.** Top-of-funnel (TOFU) = industry problem awareness. Middle (MOFU) = how DevAudit solves it. Bottom (BOFU) = implementation detail, migration guides, pricing justification.
 4. **Regulatory citations are specific.** "EU AI Act Art. 11" not "upcoming AI regulation." "SOC 2 CC8.1" not "compliance requirements." The personas we're targeting know the clause numbers.
 5. **Real incidents over hypotheticals.** Where possible, reference anonymised versions of real issues (like the REQ-081 scope-creep incident, the missing evidenceShot gap, the merged-branch orphan commit).
-6. **Long-form docs are capped at 2800 characters.** Every published `*-long-form.md` file in `docs/articles/` must not exceed 2800 characters, full stop — this is a hard ceiling on the file as written, not a target. The word-count figures in the Format columns throughout this plan (e.g. "Long-form (2500w)") describe the topic's scope and depth to draft *against*; they are not a license to exceed the character cap. When the two conflict, cut the draft down — don't raise the cap.
+6. **Short-form companions are capped at 2800 characters.** Every `*-short-form.md` file in `docs/articles/` must not exceed 2800 characters, full stop — this is a hard ceiling on the file as written, not a target. Long-form files keep the word-count targets in the Format columns throughout this plan (e.g. "Long-form (2500w)") — those are uncapped blog pieces for devaudit.ai/blog. (Article 1 shipped both: `eu-ai-act-deadline-deferred-long-form.md` for the blog, `eu-ai-act-deadline-deferred-short-form.md` — ≤2800 chars — as its companion.)
 
 ---
 
@@ -106,7 +106,7 @@ Before the broader thought-leadership and workflow series begins, the **first pu
 | #                                           | Funnel | Primary persona             | Article title                                                                                                     | Format                               |
 | ------------------------------------------- | ------ | --------------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
 | **TOFU — Awareness**                        |        |                             |                                                                                                                   |                                      |
-| 1                                           | TOFU   | CISO                        | The EU AI Act's High-Risk Deadline Just Moved to December 2027 — Don't Read That as "Stand Down"                  | Long-form (≤2800 characters)         |
+| 1                                           | TOFU   | CISO                        | The EU AI Act's High-Risk Deadline Just Moved to December 2027 — Don't Read That as "Stand Down"                  | Long-form (~2200w) + short-form      |
 | 2                                           | TOFU   | CTO                         | The Agentic SDLC: Why 2026 Is the Year Software Engineering Gets a New Operating Model                            | Long-form (2500w)                    |
 | 3                                           | TOFU   | Compliance Officer          | SOC 2 in the Age of AI Agents: The Segregation-of-Duties Problem Nobody Solved Yet                                | Long-form (2000w)                    |
 | 4                                           | TOFU   | Lead Developer              | Vibe Coding Broke My CI Pipeline: A Post-Mortem on Unconstrained AI in Production                                 | Narrative post-mortem (2000w)        |
@@ -161,7 +161,7 @@ Before the broader thought-leadership and workflow series begins, the **first pu
 
 #### Article 1: The EU AI Act's High-Risk Deadline Just Moved to December 2027
 
-> **Publication note:** Original framing ("The EU AI Act Hits Code in August 2026") was superseded on 2026-07-27 when Regulation (EU) 2026/1744 — the "Digital Omnibus on AI" — entered into force and deferred the Annex III high-risk-system deadline from 2026-08-02 to 2027-12-02 (Annex I product-embedded systems move to 2028-08-02). Retitled and rewritten around the deferral itself rather than the now-obsolete date. The Art. 13 claim in the original brief was dropped — Article 13 governs instructions for use to deployers, not AI-authorship disclosure of code; there is no clean EU AI Act citation for that specific claim. Still requires review by a qualified advisor before publication, per standing policy for regulatory content.
+> **Publication note:** Original framing ("The EU AI Act Hits Code in August 2026") was superseded on 2026-07-27 when Regulation (EU) 2026/1744 — the "Digital Omnibus on AI" — entered into force and deferred the Annex III high-risk-system deadline from 2026-08-02 to 2027-12-02 (Annex I product-embedded systems move to 2028-08-02). Retitled and rewritten around the deferral itself rather than the now-obsolete date. The Art. 13 claim in the earliest draft ("who knows which code blocks were AI-generated") was wrong and was corrected in the long-form: Article 13 covers transparency to deployers, and it's `ai-use-note.md` that satisfies it in DevAudit's own live clause mapping — verified directly against the `wgb` project's portal, not assumed. Article 12 (record-keeping) maps to `ai-prompts.md`; Article 11 (technical documentation) maps to the implementation plan. Ships as two files: a long-form for devaudit.ai/blog built around real evidence from released requirements REQ-098 and REQ-095 (including an honest gap — REQ-098 shipped without a required `ai-prompts.md`, and the portal's "AI Contributors" panel fails to parse either requirement's `ai-use-note.md` into structured data), and a ≤2800-character short-form companion. Still requires review by a qualified advisor before publication, per standing policy for regulatory content.
 
 **Primary persona:** CISO
 **Goal:** Reframe the deferral as a false all-clear — most of what Article 11 asks for is still owed, just on a longer clock — and position DevAudit as the way to build that evidence continuously instead of scrambling in Q4 2027.
@@ -869,7 +869,7 @@ Short-form companions publish **same day** as the long-form, staggered by 2–4 
 
 ## Distribution channels
 
-Every article ships in two formats: the **long-form** (devaudit.ai/blog, capped at 2800 characters — see Content principles) and a **short-form social companion** (~300 words / 2-min read) distributed to LinkedIn, Dev.to, and X. The short-form is not a summary — it's a self-contained hook that delivers one insight and links to the long-form for depth.
+Every article ships in two formats: the **long-form** (devaudit.ai/blog) and a **short-form companion** (≤2800 characters — see Content principles) distributed to LinkedIn, Dev.to, and X. The short-form is not a summary — it's a self-contained piece that delivers real value on its own and links to the long-form for depth.
 
 ### Channel matrix
 
