@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" font-family="'Helvetica Neue', Arial, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0B1220"/>
+      <stop offset="100%" stop-color="#141E33"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#5B8DEF"/>
+      <stop offset="100%" stop-color="#7FD1C8"/>
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1E293F" stroke-width="1"/>
+    </pattern>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect width="1200" height="630" fill="url(#grid)" opacity="0.5"/>
+
+  <!-- top eyebrow -->
+  <text x="80" y="92" fill="#7FD1C8" font-size="22" letter-spacing="4" font-weight="600">DEVAUDIT.AI &#8226; EU AI ACT</text>
+  <rect x="80" y="112" width="120" height="4" fill="url(#accent)"/>
+
+  <!-- deadline shift -->
+  <g transform="translate(80,190)">
+    <text x="0" y="0" fill="#64748B" font-size="34" font-weight="500">Was: </text>
+    <text x="100" y="0" fill="#64748B" font-size="34" font-weight="500" text-decoration="line-through">Aug 2, 2026</text>
+
+    <text x="0" y="110" fill="#F5F7FA" font-size="96" font-weight="800">Dec 2, 2027</text>
+    <text x="0" y="150" fill="#94A3B8" font-size="26" font-weight="500">New Annex III high-risk deadline &#8226; Reg. (EU) 2026/1744</text>
+  </g>
+
+  <!-- divider -->
+  <rect x="80" y="400" width="1040" height="1.5" fill="#1E293F"/>
+
+  <!-- headline -->
+  <text x="80" y="450" fill="#F5F7FA" font-size="34" font-weight="700">The deadline moved.</text>
+  <text x="80" y="492" fill="url(#accent)" font-size="34" font-weight="700">The Article 11 documentation duty didn't.</text>
+
+  <!-- footer -->
+  <text x="80" y="560" fill="#64748B" font-size="20">Technical documentation &#8226; AI development lifecycle &#8226; DevAudit</text>
+
+  <!-- accent shape -->
+  <circle cx="1080" cy="120" r="120" fill="none" stroke="url(#accent)" stroke-width="2" opacity="0.35"/>
+  <circle cx="1080" cy="120" r="80" fill="none" stroke="url(#accent)" stroke-width="2" opacity="0.25"/>
+</svg>

@@ -72,6 +72,7 @@ The website establishes specific language and positioning that articles must rei
 3. **Funnel-aware.** Top-of-funnel (TOFU) = industry problem awareness. Middle (MOFU) = how DevAudit solves it. Bottom (BOFU) = implementation detail, migration guides, pricing justification.
 4. **Regulatory citations are specific.** "EU AI Act Art. 11" not "upcoming AI regulation." "SOC 2 CC8.1" not "compliance requirements." The personas we're targeting know the clause numbers.
 5. **Real incidents over hypotheticals.** Where possible, reference anonymised versions of real issues (like the REQ-081 scope-creep incident, the missing evidenceShot gap, the merged-branch orphan commit).
+6. **Short-form companions are capped at 2800 characters.** Every `*-short-form.md` file in `docs/articles/` must not exceed 2800 characters, full stop — this is a hard ceiling on the file as written, not a target. Long-form files keep the word-count targets in the Format columns throughout this plan (e.g. "Long-form (2500w)") — those are uncapped blog pieces for devaudit.ai/blog. (Article 1 shipped both: `eu-ai-act-deadline-deferred-long-form.md` for the blog, `eu-ai-act-deadline-deferred-short-form.md` — ≤2800 chars — as its companion.)
 
 ---
 
@@ -105,7 +106,7 @@ Before the broader thought-leadership and workflow series begins, the **first pu
 | #                                           | Funnel | Primary persona             | Article title                                                                                                     | Format                               |
 | ------------------------------------------- | ------ | --------------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
 | **TOFU — Awareness**                        |        |                             |                                                                                                                   |                                      |
-| 1                                           | TOFU   | CISO                        | The EU AI Act Hits Code in August 2026: What Your AI Coding Agents Mean for High-Risk Classification              | Long-form (2500w)                    |
+| 1                                           | TOFU   | CISO                        | The EU AI Act's High-Risk Deadline Just Moved to December 2027 — Don't Read That as "Stand Down"                  | Long-form (~2200w) + short-form      |
 | 2                                           | TOFU   | CTO                         | The Agentic SDLC: Why 2026 Is the Year Software Engineering Gets a New Operating Model                            | Long-form (2500w)                    |
 | 3                                           | TOFU   | Compliance Officer          | SOC 2 in the Age of AI Agents: The Segregation-of-Duties Problem Nobody Solved Yet                                | Long-form (2000w)                    |
 | 4                                           | TOFU   | Lead Developer              | Vibe Coding Broke My CI Pipeline: A Post-Mortem on Unconstrained AI in Production                                 | Narrative post-mortem (2000w)        |
@@ -158,20 +159,20 @@ Before the broader thought-leadership and workflow series begins, the **first pu
 
 ---
 
-#### Article 1: The EU AI Act Hits Code in August 2026
+#### Article 1: The EU AI Act's High-Risk Deadline Just Moved to December 2027
 
-> **Publication note:** Deferred to W10 pending legal review of the EU AI Act regulatory framing. The article's claims about high-risk classification, Article 11 scope, and penalty tiers have been revised for accuracy but should be reviewed by a qualified advisor before publication.
+> **Publication note:** Original framing ("The EU AI Act Hits Code in August 2026") was superseded on 2026-07-27 when Regulation (EU) 2026/1744 — the "Digital Omnibus on AI" — entered into force and deferred the Annex III high-risk-system deadline from 2026-08-02 to 2027-12-02 (Annex I product-embedded systems move to 2028-08-02). Retitled and rewritten around the deferral itself rather than the now-obsolete date. The Art. 13 claim in the earliest draft ("who knows which code blocks were AI-generated") was wrong and was corrected in the long-form: Article 13 covers transparency to deployers, and it's `ai-use-note.md` that satisfies it in DevAudit's own live clause mapping — verified directly against the `wgb` project's portal, not assumed. Article 12 (record-keeping) maps to `ai-prompts.md`; Article 11 (technical documentation) maps to the implementation plan. Ships as two files: a long-form for devaudit.ai/blog built around real evidence from released requirements REQ-098 and REQ-095 (including an honest gap — REQ-098 shipped without a required `ai-prompts.md`, and the portal's "AI Contributors" panel fails to parse either requirement's `ai-use-note.md` into structured data), and a ≤2800-character short-form companion. Still requires review by a qualified advisor before publication, per standing policy for regulatory content.
 
 **Primary persona:** CISO
-**Goal:** Establish urgency around the August 2026 enforcement deadline and position AI coding agents as an under-recognised compliance surface within the development lifecycle of regulated AI systems.
+**Goal:** Reframe the deferral as a false all-clear — most of what Article 11 asks for is still owed, just on a longer clock — and position DevAudit as the way to build that evidence continuously instead of scrambling in Q4 2027.
 **Key points:**
 
-- AI coding agents (Claude Code, Cursor, Copilot, Windsurf) may form part of the development lifecycle of systems regulated by the EU AI Act. Organisations developing or operating high-risk AI systems must be able to evidence how those systems were designed, changed, tested and reviewed — AI coding agents are not inherently high-risk merely because they write production code, but their use must be documented when the system being built is regulated
-- Where a team develops a high-risk AI system, Article 11 requires technical documentation. AI-assisted development can make reconstructing that lifecycle more difficult unless agent activity, testing and approvals are captured as work happens
-- Art. 13 requires transparency and disclosure — who knows which code blocks were AI-generated?
-- Fines: the highest tier (up to EUR 35M or 7% of global turnover) applies to prohibited AI practices; infringements of high-risk system obligations carry lower maximums (up to EUR 15M or 3%); the exact penalty depends on the infringement and the organisation
-- The gap: security teams are focused on AI products (chatbots, recommendation engines) while AI _development tools_ fly under the radar
-  **DevAudit hook:** DevAudit's `Co-Authored-By` commit enforcement, `ai-prompts.md` evidence artifact, and `ai-use-note.md` per-requirement record create the Art. 11 technical documentation trail automatically. The /sdlc page's "AI as a first-class contributor" section and the EU AI Act "Risk Elevation" control on /compliance are the canonical product references.
+- Regulation (EU) 2026/1744 pushed the Annex III high-risk-system deadline from August 2, 2026 to December 2, 2027. This is confirmed, in-force law (published in the Official Journal 2026-07-24), not a proposal
+- The deferral does not remove the Article 11 technical documentation duty for teams building high-risk systems — it moves the date. AI coding agents used in that development lifecycle still need their involvement documented; a `Co-Authored-By` tag alone still isn't that documentation
+- The risk of reading "deferred" as "shelved": teams that stop now face reconstructing 16+ months of development history under deadline pressure in late 2027, instead of capturing it as they go
+- Fines are unchanged by the deferral: the top tier (up to EUR 35M or 7% of global turnover) applies to Article 5 prohibited practices; Article 11 non-compliance sits in the mid tier (up to EUR 15M or 3%); a lower tier (up to EUR 7.5M or 1%) covers misleading information to regulators
+- The gap: security teams are watching AI products (chatbots, recommendation engines); the AI tools writing the production code inside a regulated system are still flying under the radar, deadline or no deadline
+  **DevAudit hook:** DevAudit's `Co-Authored-By` commit enforcement, `ai-prompts.md` evidence artifact, and `ai-use-note.md` per-requirement record build the Art. 11 technical documentation trail as development happens, regardless of when enforcement lands. The /sdlc page's "AI as a first-class contributor" section and the EU AI Act "Risk Elevation" control on /compliance are the canonical product references.
   **CTA:** "See how DevAudit maps to EU AI Act articles → [devaudit.ai/compliance](https://devaudit.ai/compliance)"
   **Cross-links:** [/sdlc § AI as a first-class contributor](https://devaudit.ai/sdlc) · [/compliance § EU AI Act](https://devaudit.ai/compliance)
 
@@ -833,7 +834,7 @@ This is a five-part series that follows a single feature from GitHub issue to pr
 
 ## Publishing cadence
 
-The first four weeks publish **one article per week** to give each piece room to breathe, allow distribution and discussion, learn which positioning resonates, and build trust before increasing cadence. The EU AI Act article (#1) is deferred to W10 pending legal review of its regulatory framing.
+The first four weeks publish **one article per week** to give each piece room to breathe, allow distribution and discussion, learn which positioning resonates, and build trust before increasing cadence. The EU AI Act article (#1) is deferred to W10 pending legal review of its regulatory framing; it was retitled in 2026-08 to reflect the Digital Omnibus deferral of the high-risk deadline to December 2027 (see Article 1 brief).
 
 | Week | Articles      | Theme                                                                                           |
 | ---- | ------------- | ----------------------------------------------------------------------------------------------- |
@@ -846,7 +847,7 @@ The first four weeks publish **one article per week** to give each piece room to
 | W7   | #19, #20, #10 | Workflow series Pt 4–5 + four-eyes gate                                                         |
 | W8   | #7, #23, #24  | Technical architecture — code/evidence separation, binary bloat, skills vs. prompts             |
 | W9   | #8, #14, #26  | Compliance audience — ROI, auditor access, auditor's view                                       |
-| W10  | #1, #11, #22  | EU AI Act + standards deep-dives — Article 1 (pending legal review), Art. 11 mapping, ISO 29119 |
+| W10  | #1, #11, #22  | EU AI Act + standards deep-dives — Article 1 (deadline-deferral angle, pending legal review), Art. 11 mapping, ISO 29119 |
 | W11  | #21, #12, #13 | Attack surface + decision stage — AI agent threats, DIY comparison, migration guide             |
 | W12  | #15, #25, #27 | Security whitepaper + role guides — security deep-dive, developer day, team onboarding          |
 | W13  | #28, #29, #30 | Risk config + technical deep-dives — risk configuration, plugin SDK, multi-agent rules          |
@@ -868,7 +869,7 @@ Short-form companions publish **same day** as the long-form, staggered by 2–4 
 
 ## Distribution channels
 
-Every article ships in two formats: the **long-form** (devaudit.ai/blog) and a **short-form social companion** (~300 words / 2-min read) distributed to LinkedIn, Dev.to, and X. The short-form is not a summary — it's a self-contained hook that delivers one insight and links to the long-form for depth.
+Every article ships in two formats: the **long-form** (devaudit.ai/blog) and a **short-form companion** (≤2800 characters — see Content principles) distributed to LinkedIn, Dev.to, and X. The short-form is not a summary — it's a self-contained piece that delivers real value on its own and links to the long-form for depth.
 
 ### Channel matrix
 
@@ -904,14 +905,14 @@ Each companion post follows this structure:
 
 ---
 
-#### #1s: EU AI Act — The Deadline Your Engineering Team Doesn't Know About
+#### #1s: The EU AI Act's Deadline Just Moved — Don't Stand Down
 
-**Long-form parent:** Article 1 — The EU AI Act Hits Code in August 2026
+**Long-form parent:** Article 1 — The EU AI Act's High-Risk Deadline Just Moved to December 2027
 **Platform:** LinkedIn
-**Hook:** "Your AI coding agents are AI systems under the EU AI Act. August 2026 is the enforcement deadline. How's your technical documentation?"
-**Insight:** Most security teams are focused on AI products (chatbots, recommendation engines) while the AI tools writing production code fly under the radar. Art. 11 requires technical documentation of the AI system's development lifecycle — and a `Co-Authored-By` commit tag is not that documentation.
+**Hook:** "The EU just pushed the AI Act's high-risk deadline to December 2027. If your team read that as 'we're fine,' you're about to spend Q4 2027 reconstructing 16 months of history under deadline pressure."
+**Insight:** The Digital Omnibus (Reg. 2026/1744) deferred the date, not the Article 11 documentation duty. Most security teams are focused on AI products (chatbots, recommendation engines) while the AI tools writing production code fly under the radar. A `Co-Authored-By` commit tag is not technical documentation.
 **Proof point:** DevAudit auto-generates `ai-use-note.md` per requirement, records the human-AI interaction in `ai-prompts.md`, and enforces disclosure via commitlint. The /compliance page maps every SDLC artefact to the specific EU AI Act article it satisfies.
-**CTA:** "Full breakdown → devaudit.ai/blog/eu-ai-act-hits-code"
+**CTA:** "Full breakdown → devaudit.ai/blog/eu-ai-act-deadline-deferred"
 
 ---
 

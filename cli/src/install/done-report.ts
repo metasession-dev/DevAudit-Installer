@@ -51,6 +51,14 @@ export function doneReport(ctx: InstallContext, plan: InstallPlan): StepResult {
     '      registers the first release in DevAudit.',
     '    - Then walk REQ-001 through SDLC/0-project-setup.md → SDLC/5-deploy-main.md.',
     '',
+    '  Optional — smoother release close-out (devaudit-installer#613, devaudit#795):',
+    '    Without it, a release close-out PR still completes correctly, but needs one',
+    "    manual 'Approve and run' click on GitHub each time (its default token is",
+    '    subject to the action_required gate on its own required checks). Set a repo',
+    '    secret named INSTALLER_DISPATCH_TOKEN (a GitHub PAT — classic `repo` scope,',
+    '    or fine-grained with Contents + Pull requests read/write) to skip the click.',
+    '    Not created by this installer — see docs/consuming-projects.md#token-contract.',
+    '',
   ];
   return {
     step: '11/11 Done',

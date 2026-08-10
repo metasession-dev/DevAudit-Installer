@@ -394,6 +394,22 @@ for REQ in $REQUIREMENTS; do
     fi
   fi
 
+  # Check ai-use-note.md is machine-parseable by the portal's AI Contributors
+  # panel (devaudit#799) — the panel expects YAML frontmatter (an
+  # `ai_contributors:` key), a legacy `AI Tool Used: <tool>` line, or a
+  # `**Tool:**` bold field (the portal's parser was widened in devaudit#799
+  # to accept narrative-prose notes carrying that one field — see Step 5's
+  # "Non-negotiable, regardless of format" note, devaudit-installer#653). A
+  # note with none of these renders fine in the evidence list but fails to
+  # parse into structured contributor data, exactly as happened on
+  # wawagardenbar-app REQ-098 and REQ-095. Applies regardless of risk tier,
+  # since ai-use-note.md is created whenever AI was involved, not just for
+  # MEDIUM/HIGH.
+  if [ -f "compliance/evidence/$REQ/ai-use-note.md" ] \
+     && ! grep -qE '^ai_contributors:|AI Tool Used:|\*\*Tool:\*\*' "compliance/evidence/$REQ/ai-use-note.md"; then
+    echo "  WARNING: ai-use-note.md has no YAML frontmatter (ai_contributors:), legacy 'AI Tool Used:' line, or '**Tool:**' field — the portal's AI Contributors panel will fail to parse it (devaudit#799)"
+  fi
+
   # Check E2E coverage matches what implementation-plan.md scoped
   # (devaudit-installer#578). A plan can name Playwright/E2E as the
   # verification method for a surface and ship zero of it — a stale,

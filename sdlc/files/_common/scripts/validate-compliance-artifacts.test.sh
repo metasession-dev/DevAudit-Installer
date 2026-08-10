@@ -423,6 +423,101 @@ assert_grep "structured bundled evidence accepted" "OK: Bundled release evidence
 assert_exit "validator exits 0 when bundled artefacts carry required headings" 0
 cd "$WORKDIR"
 
+# --- case 11: prose-only ai-use-note.md triggers a portal-parseability warning ---
+#
+# Regression for devaudit#799: the portal's AI Contributors panel expects
+# YAML frontmatter (ai_contributors:) or a legacy "AI Tool Used: <tool>"
+# line. A note with neither renders fine in the evidence list but fails
+# to parse into structured contributor data — as happened for real on
+# wawagardenbar-app REQ-098 and REQ-095, neither of which had either
+# marker.
+
+echo "Case 11: prose-only ai-use-note.md triggers a portal-parseability warning"
+make_fixture "$WORKDIR/case11" "Ref: REQ-350"
+{
+  echo '# RTM'
+  echo
+  echo '| ID | Description | Status |'
+  echo '| --- | --- | --- |'
+  echo '| REQ-350 | Prose-only AI note | TESTED - PENDING SIGN-OFF |'
+} > compliance/RTM.md
+mkdir -p compliance/evidence/REQ-350
+cat > compliance/evidence/REQ-350/ai-use-note.md <<'EOF'
+# REQ-350 — AI use note
+
+## What the AI did
+
+- Implemented the feature end to end.
+EOF
+git add . && git commit -q --amend --no-edit
+run_validator
+assert_grep "prose-only note flagged" "WARNING: ai-use-note.md has no YAML frontmatter \(ai_contributors:\), legacy 'AI Tool Used:' line, or '\*\*Tool:\*\*' field" 1
+cd "$WORKDIR"
+
+# --- case 12: ai-use-note.md with YAML frontmatter is accepted silently ---
+
+echo "Case 12: ai-use-note.md with YAML frontmatter is accepted silently"
+make_fixture "$WORKDIR/case12" "Ref: REQ-351"
+{
+  echo '# RTM'
+  echo
+  echo '| ID | Description | Status |'
+  echo '| --- | --- | --- |'
+  echo '| REQ-351 | Structured AI note | TESTED - PENDING SIGN-OFF |'
+} > compliance/RTM.md
+mkdir -p compliance/evidence/REQ-351
+cat > compliance/evidence/REQ-351/ai-use-note.md <<'EOF'
+---
+ai_contributors:
+  - tool: "Claude Sonnet 5"
+    version: "claude-sonnet-5"
+    session_id: "abc123"
+    date_range: "2026-08-01 to 2026-08-01"
+    commits: ["abc1234"]
+---
+
+# AI Use Record — REQ-351
+
+## Summary
+Implemented the feature end to end.
+EOF
+git add . && git commit -q --amend --no-edit
+run_validator
+assert_grep "structured note not flagged" "WARNING: ai-use-note.md has no YAML frontmatter" 0
+cd "$WORKDIR"
+
+# --- case 13: prose ai-use-note.md with a **Tool:** field is accepted silently ---
+#
+# Regression for devaudit-installer#653 / devaudit#799: the portal's parser
+# was widened to accept a "**Tool:**" bold field in an otherwise free-form
+# note, not just YAML frontmatter or the legacy line. This check must not
+# flag notes that use the format Step 5 now explicitly requires.
+
+echo "Case 13: prose ai-use-note.md with a **Tool:** field is accepted silently"
+make_fixture "$WORKDIR/case13" "Ref: REQ-352"
+{
+  echo '# RTM'
+  echo
+  echo '| ID | Description | Status |'
+  echo '| --- | --- | --- |'
+  echo '| REQ-352 | Prose AI note with Tool field | TESTED - PENDING SIGN-OFF |'
+} > compliance/RTM.md
+mkdir -p compliance/evidence/REQ-352
+cat > compliance/evidence/REQ-352/ai-use-note.md <<'EOF'
+# REQ-352 — AI use note
+
+**Tool:** Claude Code
+**Model:** claude-sonnet-5
+
+## What the AI did
+
+- Implemented the feature end to end.
+EOF
+git add . && git commit -q --amend --no-edit
+run_validator
+assert_grep "prose note with Tool field not flagged" "WARNING: ai-use-note.md has no YAML frontmatter" 0
+cd "$WORKDIR"
+
 echo
 echo "=== validate-compliance-artifacts.test.sh: $PASS passed, $FAIL failed ==="
 [ "$FAIL" -eq 0 ]
