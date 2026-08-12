@@ -7,6 +7,15 @@
 > **Short-form companion:** [eu-ai-act-deadline-deferred-short-form.md](eu-ai-act-deadline-deferred-short-form.md)
 > **Cross-links:** [/sdlc](https://devaudit.ai/sdlc) · [/compliance](https://devaudit.ai/compliance) · [/onboarding](https://devaudit.ai/onboarding)
 
+> **Blog publishing fields** — the devaudit.ai blog stores posts as `{slug, title, excerpt, body, tags[], author}`, none of it derived automatically from this file. Paste these into the CMS admin form:
+> - **Title:** The EU AI Act's High-Risk Deadline Just Moved to December 2027 — Don't Read That as "Stand Down"
+> - **Slug:** `eu-ai-act-deadline-deferred`
+> - **Excerpt:** Regulation (EU) 2026/1744 pushed the high-risk deadline to December 2027 — but the Article 11 documentation duty didn't move with it. What that looks like on a real, released requirement.
+> - **Author:** Metasession
+> - **Tags:** `compliance`, `eu-ai-act`, `regulation`
+>
+> The 4 inline images (`images/eu-ai-act-*.png`/`.jpg`) are repo-relative and will not resolve on the live site — each needs uploading through the blog's CMS (`app/blog/uploads`) and its markdown reference swapped to the returned URL before publish. None of them function as the post's OG/social image — that's auto-generated server-side from title + author on a fixed template, with no per-post override.
+
 ---
 
 On July 27, 2026, Regulation (EU) 2026/1744 — the "Digital Omnibus on AI" — entered into force. It pushed the EU AI Act's high-risk-system deadline for standalone systems (Annex III) from August 2, 2026 to **December 2, 2027**. Product-embedded systems (Annex I) now have until August 2, 2028. The regulation was published in the Official Journal on July 24, 2026, and the deferral is confirmed, in-force law — not a Commission proposal still working through committee.

@@ -1,9 +1,18 @@
 # Who Can Do What, and With Which Key
 
 > **Scope:** `metasession-dev/DevAudit-Installer` (this repo, public — framework + CLI), `metasession-dev/devaudit` (the portal product, private), and a consumer project running the synced SDLC (e.g. `wawagardenbar-app`).
-> **Status:** Internal reference, not part of the blog content pipeline. Verified against DevAudit-Installer at `v0.3.39` — workflow files, CLI source, and live GitHub/npm state, not general GitHub knowledge. Anything that couldn't be verified programmatically is marked as such rather than guessed. Re-check after any change to `.github/workflows/`, `branch-protection-checks.ts`, or the portal's approval logic.
+> **Status:** Internal reference. Verified against DevAudit-Installer at `v0.3.39` — workflow files, CLI source, and live GitHub/npm state, not general GitHub knowledge. Anything that couldn't be verified programmatically is marked as such rather than guessed. Re-check after any change to `.github/workflows/`, `branch-protection-checks.ts`, or the portal's approval logic.
 
 A map of every actor, credential, and gate across this repo's release pipeline — GitHub's permission system and the DevAudit portal's, and the handful of places they touch.
+
+> **Blog publishing fields** — the devaudit.ai blog stores posts as `{slug, title, excerpt, body, tags[], author}`, none of it derived automatically from this file. Paste these into the CMS admin form:
+> - **Title:** Who Can Do What, and With Which Key
+> - **Slug:** `who-can-do-what-and-with-which-key`
+> - **Excerpt:** A map of every actor, credential, and gate across DevAudit-Installer's release pipeline — GitHub's permission system and the DevAudit portal's, and the handful of places they touch.
+> - **Author:** Metasession
+> - **Tags:** `security`, `ci-cd`, `engineering`
+>
+> The blog's Markdown renderer is `react-markdown` + `remark-gfm` only — no `rehype-raw` (raw HTML renders as literal text) and no Mermaid plugin. Everything below is written to stay inside those limits: the diagram is a real image, not a fenced `mermaid` block, and there's no raw HTML anywhere in the body. The OG/social image is auto-generated server-side from title + author on a fixed template — there's no hero-image field to fill in.
 
 ---
 
@@ -26,25 +35,7 @@ Six kinds of identity touch a release. Two never leave GitHub, two never leave t
 
 The mechanism worth seeing: a release zig-zags between GitHub's world and the portal's world several times before it ships. Each crossing is authenticated by a different call to the same credential — never by a different one, and never by a human logging into the other system directly.
 
-```mermaid
-flowchart LR
-  subgraph GH["GITHUB"]
-    direction LR
-    A["Push + open PR"] --> B["Quality Gates run"]
-    E["Release Gate\nunblocks PR"] --> F["PR merges"] --> G["Post-deploy smoke"]
-  end
-
-  subgraph PORTAL["DEVAUDIT PORTAL"]
-    direction LR
-    C["Evidence stored"] --> D["dual_actor approval"]
-    H["Production approval"] --> I(["RELEASED"])
-  end
-
-  B -- "DEVAUDIT_API_KEY\nuploads evidence" --> C
-  D -- "DEVAUDIT_API_KEY\ngate polls status" --> E
-  G -- "DEVAUDIT_API_KEY\nuploads prod evidence" --> H
-  I -. "read anytime" .-> AUD["Auditor — read-only\nnever touches GitHub"]
-```
+![A tracked requirement moving from first commit to released, crossing between GitHub and the DevAudit portal three times, each crossing authenticated by DEVAUDIT_API_KEY; an auditor reads the portal lane independently and never touches GitHub](images/permissions-release-flow-diagram.png)
 
 A tracked requirement moving from first commit to `released`. The three cross-boundary hops are where a credential from one system authenticates a call into the other — every one of them is `DEVAUDIT_API_KEY`. The auditor, bottom right, only ever touches the portal lane.
 
@@ -56,12 +47,12 @@ Ordered roughly by blast radius — what someone could do with it, not how often
 
 | Credential | System | Held by | Scope / blast radius | Where it's used |
 | --- | --- | --- | --- | --- |
-| **personal git access**<br>SSH key or `gh auth` token | GitHub | A human, directly | Whatever that GitHub account's repo role allows — for a write collaborator, every repo they can see. | Every `git push`, every `gh pr` command, in or out of CI |
-| **`GITHUB_TOKEN`**<br>auto-issued per workflow run | GitHub | The workflow run itself — identity `github-actions[bot]` | This one repo only. Exactly what that workflow's own `permissions:` block grants (often just `contents: read`). Dies when the job ends. | Nearly every workflow — CI, linting, the release pipeline |
-| **`INSTALLER_DISPATCH_TOKEN`**<br>optional repo secret | GitHub | A real human's PAT (classic `repo` scope, or fine-grained Contents+PRs read/write), stored as a secret | Whatever that PAT is scoped to — this repo, if set up correctly. Exists specifically so a bot-opened PR isn't authored by the bot. | `hotfix-backmerge.yml`; consumer projects' `close-out-release.yml` |
-| **`NPM_TOKEN`**<br>repo secret | GitHub | npm automation identity | Publish rights on the 5 `@metasession.co/*` packages. Nothing else. | `release.yml` only, on tag push |
-| **`DEVAUDIT_USER_TOKEN`**<br>`mctok_…` — a PAT | Portal | A human, directly | Carries the operator's full portal identity. Project creation, API-key issuance, and every audit-log entry it touches attribute to this person by name. | `devaudit install`/`join`, release approvals, portal login |
-| **`DEVAUDIT_API_KEY`**<br>issued by a `DEVAUDIT_USER_TOKEN` at onboarding | Portal | CI, not a human | **One project.** A compromised key can upload junk evidence or poll status for that project — it cannot touch any other project on the portal. | Every generated CI workflow that uploads evidence or checks release status |
+| **personal git access** — SSH key or `gh auth` token | GitHub | A human, directly | Whatever that GitHub account's repo role allows — for a write collaborator, every repo they can see. | Every `git push`, every `gh pr` command, in or out of CI |
+| **`GITHUB_TOKEN`** — auto-issued per workflow run | GitHub | The workflow run itself — identity `github-actions[bot]` | This one repo only. Exactly what that workflow's own `permissions:` block grants (often just `contents: read`). Dies when the job ends. | Nearly every workflow — CI, linting, the release pipeline |
+| **`INSTALLER_DISPATCH_TOKEN`** — optional repo secret | GitHub | A real human's PAT (classic `repo` scope, or fine-grained Contents+PRs read/write), stored as a secret | Whatever that PAT is scoped to — this repo, if set up correctly. Exists specifically so a bot-opened PR isn't authored by the bot. | `hotfix-backmerge.yml`; consumer projects' `close-out-release.yml` |
+| **`NPM_TOKEN`** — repo secret | GitHub | npm automation identity | Publish rights on the 5 `@metasession.co/*` packages. Nothing else. | `release.yml` only, on tag push |
+| **`DEVAUDIT_USER_TOKEN`** — `mctok_…`, a PAT | Portal | A human, directly | Carries the operator's full portal identity. Project creation, API-key issuance, and every audit-log entry it touches attribute to this person by name. | `devaudit install`/`join`, release approvals, portal login |
+| **`DEVAUDIT_API_KEY`** — issued by a `DEVAUDIT_USER_TOKEN` at onboarding | Portal | CI, not a human | **One project.** A compromised key can upload junk evidence or poll status for that project — it cannot touch any other project on the portal. | Every generated CI workflow that uploads evidence or checks release status |
 
 ---
 
@@ -75,10 +66,12 @@ Read / write / admin, set in GitHub's own org and repo settings — outside anyt
 
 | Repo | Branch | Required reviews | Required status checks |
 | --- | --- | --- | --- |
-| Consumer project<br><sub>set by `devaudit install`, via `cli/src/install/branch-protection.ts`</sub> | `main` | 1 | `Quality Gates` |
-| | `develop` | 0 | `Quality Gates` |
-| DevAudit-Installer<br><sub>this repo — configured directly in GitHub, not by the CLI</sub> | `main` | not readable via API — see note below | `enforce-gitflow`, `CodeQL` ×2, `Test` ×3 OS |
-| | `develop` | not readable via API | same set, plus template-lint checks on relevant PRs |
+| Consumer project | `main` | 1 | `Quality Gates` |
+| Consumer project | `develop` | 0 | `Quality Gates` |
+| DevAudit-Installer | `main` | not readable via API | `enforce-gitflow`, `CodeQL` ×2, `Test` ×3 OS |
+| DevAudit-Installer | `develop` | not readable via API | same set, plus template-lint checks on relevant PRs |
+
+Consumer-project rows are set by `devaudit install`, via `cli/src/install/branch-protection.ts`. DevAudit-Installer's own rows (this repo) are configured directly in GitHub, not by the CLI.
 
 Note on the two *not readable via API* cells: GitHub's branch-protection endpoint only answers for tokens with admin rights on the repo. I could confirm — empirically, by opening real PRs — that both branches are PR-only and gated on the checks listed; I could not confirm the exact configured reviewer count without admin API access, so it's left honest rather than guessed.
 
