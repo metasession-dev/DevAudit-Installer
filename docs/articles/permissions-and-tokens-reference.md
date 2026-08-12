@@ -33,26 +33,26 @@ Six kinds of identity touch a release. Two never leave GitHub, two never leave t
 
 ## 2. One release, two permission systems
 
-The mechanism worth seeing: a release zig-zags between GitHub's world and the portal's world several times before it ships. Each crossing is authenticated by a different call to the same credential — never by a different one, and never by a human logging into the other system directly.
+The mechanism worth seeing: a release zig-zags between GitHub's world and the portal's world several times before it ships, and a different credential is doing the work at nearly every step. Every node below carries the credential that authenticates it.
 
-![A tracked requirement moving from first commit to released, crossing between GitHub and the DevAudit portal three times, each crossing authenticated by DEVAUDIT_API_KEY; an auditor reads the portal lane independently and never touches GitHub](images/permissions-release-flow-diagram.png)
+![A tracked requirement moving from first commit through released to close-out, crossing between GitHub and the DevAudit portal four times via DEVAUDIT_API_KEY, with personal git access, GITHUB_TOKEN, branch protection, DEVAUDIT_USER_TOKEN, and INSTALLER_DISPATCH_TOKEN each labeled at the step that uses them; an auditor reads the portal lane independently with a scoped login and never touches GitHub; NPM_TOKEN is shown separately as an unrelated pipeline triggered by version tags](images/permissions-release-flow-diagram.png)
 
-A tracked requirement moving from first commit to `released`. The three cross-boundary hops are where a credential from one system authenticates a call into the other — every one of them is `DEVAUDIT_API_KEY`. The auditor, bottom right, only ever touches the portal lane.
+A tracked requirement moving from first commit to `released` and on to close-out. The four cross-boundary hops (down to evidence storage, up to the release gate, down to production evidence, up to close-out) are where a credential from one system authenticates a call into the other — three of them are `DEVAUDIT_API_KEY`; the fourth (the portal flipping to `released` triggering GitHub's close-out automation) is what actually invokes `GITHUB_TOKEN` or `INSTALLER_DISPATCH_TOKEN`. Every other node names the credential doing the work at that step, so nothing in the flow is unlabeled. The auditor, bottom, only ever touches the portal lane. `NPM_TOKEN`, top right, is deliberately drawn disconnected — it belongs to a different pipeline entirely (`release.yml` on a version-tag push), not to any single requirement's promotion.
 
 ---
 
 ## 3. Every credential, what it's worth if leaked
 
-Ordered roughly by blast radius — what someone could do with it, not how often it's used.
+Ordered roughly by blast radius — what someone could do with it, not how often it's used. **Obtained from** is where the credential is minted; **placed as** is where it actually lives once it's in use.
 
-| Credential | System | Held by | Scope / blast radius | Where it's used |
+| Credential | Obtained from | Placed as | Scope / blast radius | Consumed by |
 | --- | --- | --- | --- | --- |
-| **personal git access** — SSH key or `gh auth` token | GitHub | A human, directly | Whatever that GitHub account's repo role allows — for a write collaborator, every repo they can see. | Every `git push`, every `gh pr` command, in or out of CI |
-| **`GITHUB_TOKEN`** — auto-issued per workflow run | GitHub | The workflow run itself — identity `github-actions[bot]` | This one repo only. Exactly what that workflow's own `permissions:` block grants (often just `contents: read`). Dies when the job ends. | Nearly every workflow — CI, linting, the release pipeline |
-| **`INSTALLER_DISPATCH_TOKEN`** — optional repo secret | GitHub | A real human's PAT (classic `repo` scope, or fine-grained Contents+PRs read/write), stored as a secret | Whatever that PAT is scoped to — this repo, if set up correctly. Exists specifically so a bot-opened PR isn't authored by the bot. | `hotfix-backmerge.yml`; consumer projects' `close-out-release.yml` |
-| **`NPM_TOKEN`** — repo secret | GitHub | npm automation identity | Publish rights on the 5 `@metasession.co/*` packages. Nothing else. | `release.yml` only, on tag push |
-| **`DEVAUDIT_USER_TOKEN`** — `mctok_…`, a PAT | Portal | A human, directly | Carries the operator's full portal identity. Project creation, API-key issuance, and every audit-log entry it touches attribute to this person by name. | `devaudit install`/`join`, release approvals, portal login |
-| **`DEVAUDIT_API_KEY`** — issued by a `DEVAUDIT_USER_TOKEN` at onboarding | Portal | CI, not a human | **One project.** A compromised key can upload junk evidence or poll status for that project — it cannot touch any other project on the portal. | Every generated CI workflow that uploads evidence or checks release status |
+| **personal git access** | A human adds an SSH key to their GitHub account, or runs `gh auth login` | Local `~/.ssh/` key or the OS/`gh` credential store — never a repo secret | Whatever that GitHub account's repo role allows — for a write collaborator, every repo they can see. | Every `git push`, every `gh pr` command, in or out of CI |
+| **`GITHUB_TOKEN`** | Minted automatically by GitHub Actions — no human ever requests it | Injected as an env var into the running job only; never written anywhere | This one repo only. Exactly what that workflow's own `permissions:` block grants (often just `contents: read`). Dies when the job ends. | Nearly every workflow — CI, linting, the release pipeline |
+| **`INSTALLER_DISPATCH_TOKEN`** | A human generates a classic `repo`-scope (or fine-grained Contents+PRs read/write) PAT at github.com/settings/tokens | Pasted into repo **Settings → Secrets and variables → Actions** as `INSTALLER_DISPATCH_TOKEN` | Whatever that PAT is scoped to — this repo, if set up correctly. Exists specifically so a bot-opened PR isn't authored by the bot. | `hotfix-backmerge.yml`; consumer projects' `close-out-release.yml` |
+| **`NPM_TOKEN`** | A human generates an access token on npmjs.com (or `npm token create`) | Pasted into repo **Settings → Secrets and variables → Actions** as `NPM_TOKEN` | Publish rights on the 5 `@metasession.co/*` packages. Nothing else. | `release.yml` only, on tag push |
+| **`DEVAUDIT_USER_TOKEN`** — `mctok_…`, a PAT | A human issues it at devaudit.ai/settings/tokens | Exported locally (`export DEVAUDIT_USER_TOKEN=…`) for CLI use, **and** written as a repo secret by `devaudit install` itself | Carries the operator's full portal identity. Project creation, API-key issuance, and every audit-log entry it touches attribute to this person by name. | `devaudit install`/`join`, release approvals, portal login |
+| **`DEVAUDIT_API_KEY`** | Minted automatically by the portal during `devaudit install`, authenticated via the operator's `DEVAUDIT_USER_TOKEN` — not requested directly by a human | Written as a repo secret by `devaudit install` itself, as `DEVAUDIT_API_KEY` | **One project.** A compromised key can upload junk evidence or poll status for that project — it cannot touch any other project on the portal. | Every generated CI workflow that uploads evidence or checks release status |
 
 ---
 
