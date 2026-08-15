@@ -236,9 +236,29 @@ The cost is the generated-file trap: if you don't know which file is the source 
 
 ### Changing the runner
 
-1. Edit `sdlc-config.json` → change `"runner": "self-hosted"` to `"runner": "ubuntu-latest"`
+There are two ways to control which machine `ci.yml` runs on, and they're owned by different layers:
+
+**Static override — config-owned, ignores CI_RUNNER_LABEL entirely:**
+
+1. Edit `sdlc-config.json` → set `"runner"` to a literal value, e.g. `"ubuntu-latest"`
 2. Run `devaudit update`
-3. All generated workflows now use the new runner
+3. All generated workflows use that literal value for `runs-on:`, full stop — no repository/organization variable is consulted
+
+**Dynamic — org/project-managed via the `CI_RUNNER_LABEL` GitHub Actions variable (DevAudit-Installer#664 / DevAudit#803):**
+
+1. Edit `sdlc-config.json` → set `"runner": "self-hosted"`. This is the local opt-in flag — despite the name, it does not force a self-hosted runner; it hands the decision to `CI_RUNNER_LABEL`.
+2. Run `devaudit update`. Generated `runs-on:` lines become an expression that resolves `CI_RUNNER_LABEL`'s effective value at CI run time (GitHub Actions' own precedence: repository variable, else organization variable, else unset — personal-account repos simply have no organization tier).
+3. That value is mapped through a small, fixed table:
+
+   | `CI_RUNNER_LABEL` | Resolves to |
+   | --- | --- |
+   | `github-ci` (the system default) | `ubuntu-latest` |
+   | any other value, e.g. `ostendo-workhorse-ci` | passed through unchanged |
+   | missing or blank | `ubuntu-latest` (safe fallback — never the literal `self-hosted` label, which would hang the job waiting for a runner that may not exist) |
+
+4. Setting or changing `CI_RUNNER_LABEL` at the repository or organization level (via the DevAudit portal, per DevAudit#803) takes effect on the next CI run — no `devaudit update` or commit required, since the resolution happens in the generated expression, not at sync time.
+
+DevAudit-Installer owns the workflow structure and this stable resolution interface; it never hard-codes an organization's specific runner label into a template.
 
 ### What never to do
 
