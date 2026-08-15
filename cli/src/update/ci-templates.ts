@@ -269,6 +269,7 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
     E2E_AUTHENTICATED_STEP: buildAuthenticatedE2eStep(cfg),
   };
   let count = 0;
+  const filePaths: string[] = [];
   for (const tmpl of CI_TEMPLATES) {
     const stackTmpl = join(ctx.installerRoot, 'sdlc', 'files', 'ci', ctx.stack, tmpl);
     const defaultTmpl = join(ctx.installerRoot, 'sdlc', 'files', 'ci', tmpl);
@@ -289,7 +290,8 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
       content = stripServicesBlock(content);
     }
     await fs.writeFile(outputPath, content);
+    filePaths.push(outputPath);
     count += 1;
   }
-  return { name: 'CI workflows', filesSynced: count, message: `${count} generated` };
+  return { name: 'CI workflows', filesSynced: count, message: `${count} generated`, filePaths };
 }

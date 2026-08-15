@@ -10,12 +10,16 @@ export async function syncStageDocs(ctx: SyncContext): Promise<SectionResult> {
   await ensureDir(sdlcTarget);
   const commonDir = join(ctx.installerRoot, 'sdlc', 'files', '_common');
   const mdFiles = await listFiles(commonDir, (n) => n.endsWith('.md'));
+  const filePaths: string[] = [];
   for (const src of mdFiles) {
-    await copyFile(src, join(sdlcTarget, fileBasename(src)));
+    const dst = join(sdlcTarget, fileBasename(src));
+    await copyFile(src, dst);
+    filePaths.push(dst);
   }
   return {
     name: '_common docs',
     filesSynced: mdFiles.length,
     message: 'synced to SDLC/',
+    filePaths,
   };
 }

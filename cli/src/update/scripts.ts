@@ -21,11 +21,14 @@ export async function syncScripts(ctx: SyncContext): Promise<SectionResult> {
     return { name: 'scripts', filesSynced: 0, skipped: true, message: 'scripts/ not found' };
   }
   let count = 0;
+  const filePaths: string[] = [];
   const commonScriptsSrc = join(ctx.installerRoot, 'sdlc', 'files', '_common', 'scripts');
   if (await isDir(commonScriptsSrc)) {
     const candidates = await listFiles(commonScriptsSrc, (n) => n.endsWith('.sh') && !isTestScript(n));
     for (const src of candidates) {
-      await copyFile(src, join(scriptsDst, fileBasename(src)), 0o755);
+      const dst = join(scriptsDst, fileBasename(src));
+      await copyFile(src, dst, 0o755);
+      filePaths.push(dst);
       count += 1;
     }
   }
@@ -35,15 +38,19 @@ export async function syncScripts(ctx: SyncContext): Promise<SectionResult> {
     for (const scriptName of adapter.stack_scripts) {
       const src = join(stackScriptsSrc, scriptName);
       if (await exists(src)) {
-        await copyFile(src, join(scriptsDst, scriptName), 0o755);
+        const dst = join(scriptsDst, scriptName);
+        await copyFile(src, dst, 0o755);
+        filePaths.push(dst);
         count += 1;
       }
     }
   }
   const uploadEvidence = join(ctx.installerRoot, 'scripts', 'upload-evidence.sh');
   if (await exists(uploadEvidence)) {
-    await copyFile(uploadEvidence, join(scriptsDst, 'upload-evidence.sh'), 0o755);
+    const dst = join(scriptsDst, 'upload-evidence.sh');
+    await copyFile(uploadEvidence, dst, 0o755);
+    filePaths.push(dst);
     count += 1;
   }
-  return { name: 'scripts', filesSynced: count, message: 'synced to scripts/' };
+  return { name: 'scripts', filesSynced: count, message: 'synced to scripts/', filePaths };
 }
