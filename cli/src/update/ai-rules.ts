@@ -119,11 +119,22 @@ export async function syncAiRules(ctx: SyncContext): Promise<SectionResult> {
     return { name: 'AI rule pointers + INSTRUCTIONS.md', filesSynced: 0, skipped: true, message: 'INSTRUCTIONS-SDLC.md not found' };
   }
   const sdlcContent = await fs.readFile(sdlcSource, 'utf-8');
-  await writePointerFile(join(ctx.projectPath, '.cursorrules'), CURSOR_POINTER);
-  await writePointerFile(join(ctx.projectPath, '.windsurfrules'), WINDSURF_POINTER);
-  await writePointerFile(join(ctx.projectPath, 'GEMINI.md'), GEMINI_POINTER);
-  await writePointerFile(join(ctx.projectPath, 'AGENTS.md'), AGENTS_POINTER);
-  await updateClaudeFile(join(ctx.projectPath, 'CLAUDE.md'));
-  await updateInstructionsFile(join(ctx.projectPath, 'INSTRUCTIONS.md'), sdlcContent);
-  return { name: 'AI rule pointers + INSTRUCTIONS.md', filesSynced: 6, message: 'synced' };
+  const cursorPath = join(ctx.projectPath, '.cursorrules');
+  const windsurfPath = join(ctx.projectPath, '.windsurfrules');
+  const geminiPath = join(ctx.projectPath, 'GEMINI.md');
+  const agentsPath = join(ctx.projectPath, 'AGENTS.md');
+  const claudePath = join(ctx.projectPath, 'CLAUDE.md');
+  const instructionsPath = join(ctx.projectPath, 'INSTRUCTIONS.md');
+  await writePointerFile(cursorPath, CURSOR_POINTER);
+  await writePointerFile(windsurfPath, WINDSURF_POINTER);
+  await writePointerFile(geminiPath, GEMINI_POINTER);
+  await writePointerFile(agentsPath, AGENTS_POINTER);
+  await updateClaudeFile(claudePath);
+  await updateInstructionsFile(instructionsPath, sdlcContent);
+  return {
+    name: 'AI rule pointers + INSTRUCTIONS.md',
+    filesSynced: 6,
+    message: 'synced',
+    filePaths: [cursorPath, windsurfPath, geminiPath, agentsPath, claudePath, instructionsPath],
+  };
 }

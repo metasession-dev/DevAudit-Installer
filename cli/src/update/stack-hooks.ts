@@ -34,11 +34,13 @@ export async function syncStackHooks(ctx: SyncContext): Promise<SectionResult> {
     return { name: `${ctx.stack} hooks`, filesSynced: 0, skipped: true, message: 'stack has no hooks/' };
   }
   let count = 0;
+  const filePaths: string[] = [];
   for (const hook of adapter.hooks ?? []) {
     const src = join(stackHooksDir, hook);
     if (await exists(src)) {
       const dst = join(targetDir, hook);
       await copyFile(src, dst, 0o755);
+      filePaths.push(dst);
       count += 1;
     }
   }
@@ -47,8 +49,9 @@ export async function syncStackHooks(ctx: SyncContext): Promise<SectionResult> {
     if (await exists(src)) {
       const dst = join(ctx.projectPath, cfg);
       await copyFile(src, dst);
+      filePaths.push(dst);
       count += 1;
     }
   }
-  return { name: `${ctx.stack} hooks`, filesSynced: count, message: `synced to ${hookInstallDir}/` };
+  return { name: `${ctx.stack} hooks`, filesSynced: count, message: `synced to ${hookInstallDir}/`, filePaths };
 }

@@ -40,13 +40,23 @@ export async function syncStackDeps(ctx: SyncContext): Promise<SectionResult> {
   const missing = required.filter((dep) => !installed.has(dep));
   if (missing.length === 0) {
     const added = await ensurePostinstallScript(pkgPath, required);
-    return { name: `${ctx.stack} deps`, filesSynced: 0, message: added ? 'all present, added postinstall' : 'all present' };
+    return {
+      name: `${ctx.stack} deps`,
+      filesSynced: 0,
+      message: added ? 'all present, added postinstall' : 'all present',
+      filePaths: added ? [pkgPath] : [],
+    };
   }
   const args = ['install', '--save-dev', ...missing];
   const first = await execa('npm', args, { cwd: ctx.projectPath, reject: false, stdio: 'inherit' });
   if (first.exitCode === 0) {
     const added = await ensurePostinstallScript(pkgPath, required);
-    return { name: `${ctx.stack} deps`, filesSynced: missing.length, message: `installed ${missing.join(' ')}${added ? ', added postinstall' : ''}` };
+    return {
+      name: `${ctx.stack} deps`,
+      filesSynced: missing.length,
+      message: `installed ${missing.join(' ')}${added ? ', added postinstall' : ''}`,
+      filePaths: added ? [pkgPath] : [],
+    };
   }
   const legacyArgs = ['install', '--save-dev', '--legacy-peer-deps', ...missing];
   const second = await execa('npm', legacyArgs, { cwd: ctx.projectPath, reject: false, stdio: 'inherit' });
@@ -56,6 +66,7 @@ export async function syncStackDeps(ctx: SyncContext): Promise<SectionResult> {
       name: `${ctx.stack} deps`,
       filesSynced: missing.length,
       message: `installed ${missing.join(' ')} (with --legacy-peer-deps)${added ? ', added postinstall' : ''}`,
+      filePaths: added ? [pkgPath] : [],
     };
   }
   throw new Error(

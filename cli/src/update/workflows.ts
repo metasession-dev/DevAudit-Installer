@@ -18,12 +18,16 @@ export async function syncWorkflows(ctx: SyncContext): Promise<SectionResult> {
   const dst = join(ctx.projectPath, '.devin', 'workflows');
   await ensureDir(dst);
   const files = await listFiles(src, (n) => n.endsWith('.md'));
+  const filePaths: string[] = [];
   for (const file of files) {
-    await copyFile(file, join(dst, fileBasename(file)));
+    const out = join(dst, fileBasename(file));
+    await copyFile(file, out);
+    filePaths.push(out);
   }
   return {
     name: 'Workflows',
     filesSynced: files.length,
     message: files.length > 0 ? `synced to .devin/workflows/` : 'no workflow files found',
+    filePaths,
   };
 }

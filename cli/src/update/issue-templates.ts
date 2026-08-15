@@ -13,8 +13,11 @@ export async function syncIssueTemplates(ctx: SyncContext): Promise<SectionResul
   const dst = join(ctx.projectPath, '.github', 'ISSUE_TEMPLATE');
   await ensureDir(dst);
   const files = await listFiles(src, (n) => n.endsWith('.yml'));
+  const filePaths: string[] = [];
   for (const file of files) {
-    await copyFile(file, join(dst, fileBasename(file)));
+    const out = join(dst, fileBasename(file));
+    await copyFile(file, out);
+    filePaths.push(out);
   }
-  return { name: 'Issue templates', filesSynced: files.length, message: 'synced to .github/ISSUE_TEMPLATE/' };
+  return { name: 'Issue templates', filesSynced: files.length, message: 'synced to .github/ISSUE_TEMPLATE/', filePaths };
 }

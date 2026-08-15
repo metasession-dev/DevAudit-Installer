@@ -12,6 +12,13 @@ export interface SectionResult {
   readonly message?: string;
   readonly skipped?: boolean;
   readonly warning?: string;
+  /**
+   * Absolute paths of files this section wrote into the consumer project.
+   * Only populated by sections that write discrete, individually-trackable
+   * files (not bulk directory copies). Consumed by the post-sync formatter
+   * normalization step (DevAudit-Installer#663) to know what to re-format.
+   */
+  readonly filePaths?: readonly string[];
 }
 
 export interface SyncReport {
