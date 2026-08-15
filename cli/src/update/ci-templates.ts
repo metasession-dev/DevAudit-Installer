@@ -209,9 +209,34 @@ function buildDbUriStep(dbService: string, dbPort: string): string {
   ].join('\n');
 }
 
+/**
+ * `runner: "self-hosted"` in sdlc-config.json is the local opt-in to
+ * runtime, GitHub-Actions-variable-driven runner selection (the name
+ * predates DevAudit#803's github-ci/ostendo-* taxonomy — it now means
+ * "resolve dynamically", not literally "always self-hosted"). Any other
+ * `runner` value is a static, config-owned override and bypasses
+ * CI_RUNNER_LABEL entirely, per the config-is-source-of-truth contract in
+ * docs/articles/sdlc-config-ci-persistence-long-form.md.
+ *
+ * The dynamic branch implements the DevAudit-Installer#664 / DevAudit#803
+ * runner interface: CI_RUNNER_LABEL's effective value (repo variable, or
+ * organization variable if the repo one is unset, or the system default
+ * `github-ci` if neither is set — precedence resolved natively by GitHub
+ * Actions, including personal-account repos with no organization tier) is
+ * mapped through this table:
+ *
+ *   github-ci              -> ubuntu-latest   (logical selector)
+ *   ostendo-workhorse-ci   -> ostendo-workhorse-ci   (passed through)
+ *   ostendo-laptop2-ci     -> ostendo-laptop2-ci     (passed through)
+ *   (missing/blank)        -> ubuntu-latest   (safe fallback — NOT the
+ *                              literal 'self-hosted' label, which would
+ *                              hang the job waiting for a runner that may
+ *                              not exist)
+ */
 function resolveRunner(cfg: SdlcConfig): string {
   if (cfg.runner !== 'self-hosted') return cfg.runner;
-  return "${{ inputs.runner_label || vars.CI_RUNNER_LABEL || 'self-hosted' }}";
+  const label = "(inputs.runner_label || vars.CI_RUNNER_LABEL || 'github-ci')";
+  return `\${{ ${label} == 'github-ci' && 'ubuntu-latest' || ${label} }}`;
 }
 
 /**
@@ -269,6 +294,7 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
     E2E_AUTHENTICATED_STEP: buildAuthenticatedE2eStep(cfg),
   };
   let count = 0;
+  const filePaths: string[] = [];
   for (const tmpl of CI_TEMPLATES) {
     const stackTmpl = join(ctx.installerRoot, 'sdlc', 'files', 'ci', ctx.stack, tmpl);
     const defaultTmpl = join(ctx.installerRoot, 'sdlc', 'files', 'ci', tmpl);
@@ -289,7 +315,8 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
       content = stripServicesBlock(content);
     }
     await fs.writeFile(outputPath, content);
+    filePaths.push(outputPath);
     count += 1;
   }
-  return { name: 'CI workflows', filesSynced: count, message: `${count} generated` };
+  return { name: 'CI workflows', filesSynced: count, message: `${count} generated`, filePaths };
 }

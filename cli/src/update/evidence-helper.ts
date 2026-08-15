@@ -32,6 +32,7 @@ export async function syncEvidenceHelper(ctx: SyncContext): Promise<SectionResul
   );
   let copied = 0;
   const missing: string[] = [];
+  const filePaths: string[] = [];
   for (const fname of HELPER_FILES) {
     const src = join(srcDir, fname);
     if (!(await exists(src))) {
@@ -40,6 +41,7 @@ export async function syncEvidenceHelper(ctx: SyncContext): Promise<SectionResul
     }
     const dst = join(ctx.projectPath, 'e2e', 'helpers', fname);
     await copyFile(src, dst);
+    filePaths.push(dst);
     copied += 1;
   }
   if (copied === 0) {
@@ -49,5 +51,5 @@ export async function syncEvidenceHelper(ctx: SyncContext): Promise<SectionResul
     missing.length > 0
       ? `synced ${copied} to e2e/helpers/ (missing: ${missing.join(', ')})`
       : `synced to e2e/helpers/ (${HELPER_FILES.join(' + ')})`;
-  return { name: 'E2E evidence helper', filesSynced: copied, message };
+  return { name: 'E2E evidence helper', filesSynced: copied, message, filePaths };
 }

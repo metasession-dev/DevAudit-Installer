@@ -676,7 +676,7 @@ describe('syncProject — native TS sync against a fixture', () => {
     }
   }, 60_000);
 
-  it('renders repository and manual self-hosted runner selection with a safe fallback (#319)', async () => {
+  it('renders repository and manual self-hosted runner selection with a safe ubuntu-latest fallback (#319, #664)', async () => {
     const dir = await buildFixture();
     try {
       const configPath = join(dir, 'sdlc-config.json');
@@ -690,15 +690,62 @@ describe('syncProject — native TS sync against a fixture', () => {
 
       await syncProject(dir);
 
+      const runnerExpr =
+        "${{ (inputs.runner_label || vars.CI_RUNNER_LABEL || 'github-ci') == 'github-ci' && 'ubuntu-latest' || (inputs.runner_label || vars.CI_RUNNER_LABEL || 'github-ci') }}";
       const ciYml = normalizeNewlines(
         await fs.readFile(join(dir, '.github', 'workflows', 'ci.yml'), 'utf8'),
       );
-      expect(ciYml).toContain(
-        "runs-on: ${{ inputs.runner_label || vars.CI_RUNNER_LABEL || 'self-hosted' }}",
-      );
+      expect(ciYml).toContain(`runs-on: ${runnerExpr}`);
       expect(ciYml).toContain('runner_label:');
       expect(ciYml).toContain('repository CI_RUNNER_LABEL');
+      // No literal 'self-hosted' target anywhere in runs-on — an unset or
+      // blank CI_RUNNER_LABEL must resolve to ubuntu-latest, not hang
+      // waiting for a self-hosted runner that may not exist (DevAudit-Installer#664).
+      expect(ciYml).not.toMatch(/runs-on:\s*self-hosted\s*$/m);
+
+      // Regeneration is deterministic: re-syncing must not drift the
+      // interface or inject a machine-specific target (DevAudit-Installer#664
+      // acceptance criterion: "regenerating ci.yml preserves the runner
+      // interface").
+      await syncProject(dir);
+      const ciYmlAgain = normalizeNewlines(
+        await fs.readFile(join(dir, '.github', 'workflows', 'ci.yml'), 'utf8'),
+      );
+      expect(ciYmlAgain).toContain(`runs-on: ${runnerExpr}`);
+
       await expectAllWorkflowsValidYaml(dir);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it('treats any non-self-hosted runner value as a static, config-owned override (#664)', async () => {
+    const dir = await buildFixture();
+    try {
+      const configPath = join(dir, 'sdlc-config.json');
+      const config = JSON.parse(await fs.readFile(configPath, 'utf8')) as Record<
+        string,
+        unknown
+      >;
+      config.runner = 'ubuntu-latest';
+      await fs.writeFile(configPath, JSON.stringify(config));
+      process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
+
+      await syncProject(dir);
+
+      const ciYml = normalizeNewlines(
+        await fs.readFile(join(dir, '.github', 'workflows', 'ci.yml'), 'utf8'),
+      );
+      // Static override: every runs-on line is the literal config value,
+      // not a CI_RUNNER_LABEL-driven expression. (The workflow_dispatch
+      // runner_label input's description text still mentions
+      // CI_RUNNER_LABEL — that's static template copy, unrelated to which
+      // runs-on value actually gets used.)
+      const runsOnLines = ciYml.split('\n').filter((line) => /^\s*runs-on:/.test(line));
+      expect(runsOnLines.length).toBeGreaterThan(0);
+      for (const line of runsOnLines) {
+        expect(line).toBe('    runs-on: ubuntu-latest');
+      }
     } finally {
       await fs.rm(dir, { recursive: true, force: true });
     }

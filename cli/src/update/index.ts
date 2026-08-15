@@ -17,6 +17,7 @@ import { syncWorkflows } from "./workflows.js";
 import { verifyBranchProtection } from "./branch-protection.js";
 import { runValidation } from "./validation.js";
 import { applyConsumerPatches } from "./consumer-patches.js";
+import { formatSyncedFiles } from "./format-sync.js";
 import { logger } from "../lib/logger.js";
 import type { SyncContext, SectionResult, SyncReport } from "./types.js";
 
@@ -86,6 +87,25 @@ export async function syncProject(projectPath: string): Promise<SyncReport> {
       sectionWarnings.push(result.warning);
       log.warn(`  [${key}] ${result.warning}`);
     }
+  }
+  // Last step, deliberately outside the loop above and not counted into
+  // `total`: it re-formats files the sections just wrote rather than
+  // syncing new ones (DevAudit-Installer#663).
+  const syncedFilePaths = sections.flatMap((s) => s.filePaths ?? []);
+  const formatResult = await formatSyncedFiles(ctx, syncedFilePaths);
+  sections.push(formatResult);
+  if (formatResult.skipped) {
+    log.log(
+      `  [2l] ${formatResult.name}: SKIPPED${formatResult.message ? ` (${formatResult.message})` : ""}`,
+    );
+  } else {
+    log.log(
+      `  [2l] ${formatResult.name}: ${formatResult.filesSynced} file(s)${formatResult.message ? ` — ${formatResult.message}` : ""}`,
+    );
+  }
+  if (formatResult.warning) {
+    sectionWarnings.push(formatResult.warning);
+    log.warn(`  [2l] ${formatResult.warning}`);
   }
   log.log("");
   log.info(`  Total: ${total} files synced`);
