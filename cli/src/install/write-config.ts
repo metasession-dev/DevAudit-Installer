@@ -38,7 +38,7 @@ export async function writeSdlcConfig(ctx: InstallContext, plan: InstallPlan): P
   const pathsIgnore = plan.stack === 'node' ? NODE_PATHS_IGNORE : PYTHON_PATHS_IGNORE;
   const existing = ((await readSdlcConfig(ctx.projectPath)) as Record<string, unknown> | null) ?? null;
   const defaultedIfNew: Record<string, unknown> = {
-    runner: 'ubuntu-latest',
+    runner: 'self-hosted',
     integration_branch: 'develop',
     release_branch: 'main',
     sast_baseline: 0,
