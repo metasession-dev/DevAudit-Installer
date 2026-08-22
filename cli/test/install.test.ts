@@ -205,6 +205,9 @@ describe('runInstall — native TS install against a node fixture', () => {
       // develop-first branch defaults (DevAudit-Installer#70)
       expect(written.integration_branch).toBe('develop');
       expect(written.release_branch).toBe('main');
+      // new scaffolds default to the portal-configurable runner (DevAudit-Installer#664/#803),
+      // not a literal 'ubuntu-latest' that would bypass CI_RUNNER_LABEL
+      expect(written.runner).toBe('self-hosted');
       // provider was called for secrets + variable
       const secretCalls = providerCalls.filter((c) => c.method === 'setSecret');
       const secretNames = secretCalls.map((c) => c.args[0]);
