@@ -1,6 +1,6 @@
 import { promises as fs } from 'node:fs';
 import { join } from 'node:path';
-import { readSdlcConfig } from '../lib/sdlc-config.js';
+import { readSdlcConfig, resolveTargets, type SdlcConfig, type Target } from '../lib/sdlc-config.js';
 import type { InstallContext, InstallPlan, StepResult } from './types.js';
 
 const NODE_PATHS_IGNORE: readonly string[] = [
@@ -37,6 +37,36 @@ export async function writeSdlcConfig(ctx: InstallContext, plan: InstallPlan): P
   const runtimeKey = plan.stack === 'node' ? 'node_version' : 'python_version';
   const pathsIgnore = plan.stack === 'node' ? NODE_PATHS_IGNORE : PYTHON_PATHS_IGNORE;
   const existing = ((await readSdlcConfig(ctx.projectPath)) as Record<string, unknown> | null) ?? null;
+
+  // Multi-target (polyglot monorepo) safety — see #689/#691. A config
+  // already exists but describes a *different* target (different working
+  // directory / project slug) than the one this install run is planning:
+  // writing it wholesale would silently clobber the other target's fields.
+  // Re-running install against the *same* target (rotation) is unaffected —
+  // that's the existing single-target behaviour below.
+  let existingTargets: readonly Target[] = [];
+  let isNewTarget = false;
+  if (existing) {
+    existingTargets = resolveTargets(existing as SdlcConfig);
+    isNewTarget = !existingTargets.some(
+      (t) => t.working_directory === plan.workingDirectory || t.devaudit?.project_slug === plan.projectSlug,
+    );
+    if (isNewTarget && !ctx.addTarget) {
+      return {
+        step: '4/11 Write sdlc-config.json',
+        status: 'fail',
+        message: `sdlc-config.json already configures target(s) [${existingTargets.map((t) => t.name).join(', ')}] for a different working directory/project slug. Re-run with --add-target to add "${plan.projectSlug}" as a new target instead of overwriting.`,
+      };
+    }
+    if (isNewTarget && ctx.addTarget && existingTargets.some((t) => t.name === plan.projectSlug)) {
+      return {
+        step: '4/11 Write sdlc-config.json',
+        status: 'fail',
+        message: `A target named "${plan.projectSlug}" already exists in sdlc-config.json. Choose a different project slug for this target.`,
+      };
+    }
+  }
+
   const defaultedIfNew: Record<string, unknown> = {
     runner: 'self-hosted',
     integration_branch: 'develop',
@@ -83,6 +113,20 @@ export async function writeSdlcConfig(ctx: InstallContext, plan: InstallPlan): P
     ...(existing ?? {}),
     ...wizardOwned,
   };
+  if (isNewTarget && ctx.addTarget) {
+    // Keep the other target(s) intact under `targets`; the flat top-level
+    // fields above continue to describe *this* (the newest) target, which is
+    // what today's still-single-target-aware downstream steps (5-10) act on.
+    const newTarget: Target = {
+      name: plan.projectSlug,
+      stack: plan.stack,
+      working_directory: plan.workingDirectory,
+      source_dirs: plan.sourceDirs,
+      production_url_secret: plan.prodUrlSecretName,
+      devaudit: wizardOwned['devaudit'] as Target['devaudit'],
+    };
+    config['targets'] = [...existingTargets, newTarget];
+  }
   const outPath = join(ctx.projectPath, 'sdlc-config.json');
   if (ctx.dryRun) {
     const preserved = existing

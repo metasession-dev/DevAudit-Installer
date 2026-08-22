@@ -1,3 +1,4 @@
+import { basename } from 'node:path';
 import * as clack from '@clack/prompts';
 import type { DetectedStack, InstallContext, InstallPlan } from './types.js';
 import { readSdlcConfig } from '../lib/sdlc-config.js';
@@ -37,6 +38,28 @@ async function planFromConfig(
     throw new Error(
       '--yes requires an existing sdlc-config.json in the project directory. Run without --yes to create one interactively.',
     );
+  }
+  // --add-target (#689/#691): the existing config (if any) describes a
+  // *different* target — inheriting its slug/working_directory/runtime/
+  // prod-url-secret here would plan an install indistinguishable from that
+  // other target instead of a new one. Use fresh detection + stack defaults,
+  // deriving the new target's slug from the directory being installed into
+  // (the caller can still get an interactive, fully-custom slug by omitting
+  // --yes).
+  if (ctx.addTarget) {
+    const slug = defaultSlug(
+      detected.workingDirectory === '.' ? ctx.projectName : basename(detected.workingDirectory),
+    );
+    return {
+      stack: detected.stack,
+      host: 'railway',
+      projectSlug: slug,
+      runtimeVersion: defaults.runtimeVersion,
+      sourceDirs: defaults.sourceDirs,
+      workingDirectory: detected.workingDirectory,
+      prodUrlSecretName: prodUrlSecretDefault(slug),
+      prodUrlValue: '',
+    };
   }
   const slug = cfg?.project_slug ?? defaultSlug(ctx.projectName);
   const runtimeKey = detected.stack === 'node' ? cfg?.node_version : cfg?.python_version;

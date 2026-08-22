@@ -495,4 +495,100 @@ describe('runInstall — native TS install against a node fixture', () => {
       await fs.rm(dir, { recursive: true, force: true });
     }
   }, 30_000);
+
+  // --add-target (#689/#691): a polyglot-monorepo repo with an already-onboarded
+  // Node target at the root and a not-yet-onboarded Python target nested under
+  // api/. detectStack finds the nested pyproject.toml before the root
+  // package.json, so pointing install at the repo root without any extra flag
+  // naturally resolves to the *other* target.
+  async function buildPolyglotFixture(): Promise<string> {
+    const dir = await buildNodeFixture();
+    await fs.writeFile(
+      join(dir, 'sdlc-config.json'),
+      JSON.stringify({ project_slug: 'fixture-app', stack: 'node', host: 'railway', node_version: '20', working_directory: '.' }),
+    );
+    await fs.mkdir(join(dir, 'api'), { recursive: true });
+    await fs.writeFile(join(dir, 'api', 'pyproject.toml'), '[project]\nname = "fixture-api"\n');
+    return dir;
+  }
+
+  it('refuses to overwrite when the repo already configures a different target and --add-target is not passed', async () => {
+    const { runInstall } = await import('../src/install/index.js');
+    const dir = await buildPolyglotFixture();
+    try {
+      const report = await runInstall({
+        path: dir,
+        nonInteractive: true,
+        provider: makeFakeProvider(),
+      });
+      const step4 = report.steps.find((s) => s.step.startsWith('4/'));
+      expect(step4?.status).toBe('fail');
+      expect(step4?.message).toMatch(/--add-target/);
+      // The original single-target config is untouched.
+      const after = JSON.parse(await fs.readFile(join(dir, 'sdlc-config.json'), 'utf-8'));
+      expect(after.project_slug).toBe('fixture-app');
+      expect(after.targets).toBeUndefined();
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it('--add-target appends a new target instead of overwriting the existing one', async () => {
+    const { runInstall } = await import('../src/install/index.js');
+    const dir = await buildPolyglotFixture();
+    try {
+      const report = await runInstall({
+        path: dir,
+        nonInteractive: true,
+        addTarget: true,
+        provider: makeFakeProvider(),
+      });
+      const step4 = report.steps.find((s) => s.step.startsWith('4/'));
+      expect(step4?.status).toBe('ok');
+      const after = JSON.parse(await fs.readFile(join(dir, 'sdlc-config.json'), 'utf-8'));
+      expect(Array.isArray(after.targets)).toBe(true);
+      const names = (after.targets as Array<{ name: string }>).map((t) => t.name);
+      // The legacy flat config synthesizes as the 'default' target (per
+      // resolveTargets, #690); the newly-appended one is the auto-derived 'api'.
+      expect(names).toContain('default');
+      expect(names).toContain('api');
+      const apiTarget = (after.targets as Array<{ name: string; stack?: string; working_directory?: string }>).find(
+        (t) => t.name === 'api',
+      );
+      expect(apiTarget?.stack).toBe('python');
+      expect(apiTarget?.working_directory).toBe('api');
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it('--add-target refuses when a target with the same name already exists', async () => {
+    const { runInstall } = await import('../src/install/index.js');
+    const dir = await buildPolyglotFixture();
+    // Pre-seed a `targets` array that already claims the name the new
+    // (auto-derived) target would use ('api').
+    await fs.writeFile(
+      join(dir, 'sdlc-config.json'),
+      JSON.stringify({
+        project_slug: 'fixture-app',
+        targets: [
+          { name: 'fixture-app', stack: 'node', working_directory: '.' },
+          { name: 'api', stack: 'python', working_directory: 'other-dir' },
+        ],
+      }),
+    );
+    try {
+      const report = await runInstall({
+        path: dir,
+        nonInteractive: true,
+        addTarget: true,
+        provider: makeFakeProvider(),
+      });
+      const step4 = report.steps.find((s) => s.step.startsWith('4/'));
+      expect(step4?.status).toBe('fail');
+      expect(step4?.message).toMatch(/already exists/);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
 });
