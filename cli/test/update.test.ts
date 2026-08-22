@@ -454,6 +454,68 @@ describe('syncProject — native TS sync against a fixture', () => {
     }
   }, 60_000);
 
+  it('namespaces CI workflow filenames and check names when a config has multiple targets (#692)', async () => {
+    const dir = await fs.mkdtemp(join(tmpdir(), 'cli-update-multitarget-'));
+    try {
+      const baseTarget = {
+        stack: 'node',
+        working_directory: '.',
+        source_dirs: 'app/ lib/',
+        production_url_secret: 'FIXTURE_PROD_URL',
+        devaudit: { project_slug: 'fixture-app' },
+      };
+      await fs.writeFile(
+        join(dir, 'sdlc-config.json'),
+        JSON.stringify({
+          project_slug: 'fixture-app',
+          stack: 'node',
+          host: 'railway',
+          node_version: '20',
+          runner: 'ubuntu-latest',
+          working_directory: '.',
+          source_dirs: 'app/ lib/',
+          sast_baseline: 0,
+          accepted_dep_risks: '',
+          production_url_secret: 'FIXTURE_PROD_URL',
+          database_service: '',
+          database_image: '',
+          database_port: '',
+          database_env: {},
+          app_env: {},
+          build_env: {},
+          e2e_project: 'chromium',
+          e2e_start_command: 'npm run dev',
+          paths_ignore: ['SDLC/**', 'compliance/**'],
+          targets: [
+            { name: 'web', ...baseTarget },
+            { name: 'api', ...baseTarget, stack: 'python', working_directory: 'api', devaudit: { project_slug: 'fixture-api' } },
+          ],
+        }),
+      );
+      await fs.mkdir(join(dir, '.github', 'workflows'), { recursive: true });
+      await syncProject(dir);
+
+      const workflowsDir = join(dir, '.github', 'workflows');
+      const files = await fs.readdir(workflowsDir);
+      // No un-namespaced `ci.yml` — single-target output name must not collide.
+      expect(files).not.toContain('ci.yml');
+      expect(files).toContain('ci-web.yml');
+      expect(files).toContain('ci-api.yml');
+
+      const webCi = await fs.readFile(join(workflowsDir, 'ci-web.yml'), 'utf-8');
+      const apiCi = await fs.readFile(join(workflowsDir, 'ci-api.yml'), 'utf-8');
+      expect(webCi).toContain('Quality Gates (web)');
+      expect(apiCi).toContain('Quality Gates (api)');
+      expect(webCi).not.toContain('Quality Gates (api)');
+      expect(apiCi).not.toContain('fixture-api');
+      expect(webCi).toContain('fixture-app');
+
+      await expectAllWorkflowsValidYaml(dir);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
   it('threads a local-DB E2E setup step + e2e_env into the blocking gate when configured', async () => {
     const dir = await fs.mkdtemp(join(tmpdir(), 'cli-update-e2elocal-'));
     try {

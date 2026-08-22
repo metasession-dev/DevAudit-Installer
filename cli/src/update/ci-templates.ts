@@ -2,6 +2,7 @@ import { promises as fs } from 'node:fs';
 import { join } from 'node:path';
 import { exists, isDir, ensureDir } from '../lib/fs-utils.js';
 import { substituteTokens, substituteBlocks, stripServicesBlock } from '../lib/templates.js';
+import { resolveTargets, type Target } from '../lib/sdlc-config.js';
 import type { SyncContext, SectionResult } from './types.js';
 
 const CI_TEMPLATES = [
@@ -64,6 +65,36 @@ interface SdlcConfig {
   // the job-level remote secrets so tests never touch production.
   readonly e2e_env?: Readonly<Record<string, string>>;
   readonly paths_ignore?: readonly string[];
+  /** See #689/#690 — when present, sync runs once per target instead of once for the flat config. */
+  readonly targets?: readonly Target[];
+}
+
+/**
+ * Namespace a rendered workflow's filename and internal check/job names for a
+ * given target, so two targets in one repo don't collide on `ci.yml` /
+ * `Quality Gates` etc (#692). No-ops (returns content/name unchanged) when
+ * there's only one target, so single-target consumers regenerate byte-for-byte
+ * identical output.
+ */
+function namespaceForTarget(outputName: string, content: string, target: Target, multiTarget: boolean) {
+  if (!multiTarget) return { outputName, content };
+  const suffix = ` (${target.name})`;
+  const namespacedName = outputName.replace(/\.yml$/, `-${target.name}.yml`);
+  let namespacedContent = content;
+  // Workflow-level `name:` (column 0 only — job/step names are indented).
+  namespacedContent = namespacedContent.replace(/^name: (.+)$/m, (_m, title: string) => `name: ${title}${suffix}`);
+  // Job-level `name:` (4-space indent, not a `- name:` step entry).
+  namespacedContent = namespacedContent.replace(
+    /^ {4}name: (.+)$/gm,
+    (_m, title: string) => `    name: ${title}${suffix}`,
+  );
+  // "Quality Gates" is the one check name shared verbatim across ci.yml,
+  // ci-status-fallback.yml, and quality-gates-provenance.yml (branch
+  // protection matches on it, and the workflows cross-reference it by exact
+  // string in --workflow-name/--label script args) — namespace every
+  // occurrence so the three stay consistent for a given target.
+  namespacedContent = namespacedContent.split('Quality Gates').join(`Quality Gates${suffix}`);
+  return { outputName: namespacedName, content: namespacedContent };
 }
 
 function indentEnvBlock(env: Record<string, string>, indent: number): string {
@@ -259,64 +290,82 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
     const oldPath = join(workflowsDir, oldName);
     if (await exists(oldPath)) await fs.rm(oldPath);
   }
-  const workingDirectory = cfg.working_directory && cfg.working_directory !== '.' ? cfg.working_directory : '';
-  const workingDirPrefix = workingDirectory ? `${workingDirectory.replace(/\/$/, '')}/` : '';
-  const tokens: Record<string, string> = {
-    PROJECT_SLUG: cfg.project_slug,
-    PRODUCTION_URL_SECRET: cfg.production_url_secret,
-    INTEGRATION_BRANCH: cfg.integration_branch ?? 'develop',
-    RELEASE_BRANCH: cfg.release_branch ?? 'main',
-    NODE_VERSION: String(cfg.node_version ?? ''),
-    PYTHON_VERSION: String(cfg.python_version ?? ''),
-    WORKING_DIRECTORY: workingDirectory || '.',
-    WORKING_DIR_PREFIX: workingDirPrefix,
-    RUNNER: resolveRunner(cfg),
-    SOURCE_DIRS: cfg.source_dirs,
-    SAST_BASELINE: String(cfg.sast_baseline),
-    ACCEPTED_DEP_RISKS: cfg.accepted_dep_risks,
-    DATABASE_SERVICE: cfg.database_service,
-    DATABASE_IMAGE: cfg.database_image,
-    DATABASE_PORT: cfg.database_port,
-    E2E_PROJECT: cfg.e2e_project,
-    E2E_START_COMMAND: cfg.e2e_start_command,
-  };
-  const pathsIgnoreBlock = (cfg.paths_ignore ?? []).map((p) => `      - '${p}'`).join('\n');
-  const blocks: Record<string, string> = {
-    PATHS_IGNORE: pathsIgnoreBlock,
-    DATABASE_ENV: cfg.database_env ? indentEnvBlock({ ...cfg.database_env }, 6) : '',
-    APP_ENV: cfg.app_env ? indentEnvBlock({ ...cfg.app_env }, 6) : '',
-    BUILD_ENV: cfg.build_env ? indentEnvBlock({ ...cfg.build_env }, 10) : '',
-    DATABASE_URI_STEP: buildDbUriStep(cfg.database_service, cfg.database_port),
-    E2E_SETUP_STEP: buildE2eSetupStep(cfg),
-    E2E_DEV_SERVER_STEP: buildE2eDevServerStep(cfg),
-    E2E_TEST_STEP: buildE2eTestStep(cfg),
-    E2E_FEATURE_TEST_STEP: buildFeatureE2eTestStep(cfg),
-    E2E_AUTHENTICATED_STEP: buildAuthenticatedE2eStep(cfg),
-  };
+
+  const targets = resolveTargets(cfg);
+  const multiTarget = targets.length > 1;
   let count = 0;
   const filePaths: string[] = [];
-  for (const tmpl of CI_TEMPLATES) {
-    const stackTmpl = join(ctx.installerRoot, 'sdlc', 'files', 'ci', ctx.stack, tmpl);
-    const defaultTmpl = join(ctx.installerRoot, 'sdlc', 'files', 'ci', tmpl);
-    let tmplPath: string;
-    if (await exists(stackTmpl)) {
-      tmplPath = stackTmpl;
-    } else if (await exists(defaultTmpl)) {
-      tmplPath = defaultTmpl;
-    } else {
-      continue;
+
+  for (const target of targets) {
+    const projectSlug = target.devaudit?.project_slug ?? cfg.project_slug;
+    const productionUrlSecret = target.production_url_secret ?? cfg.production_url_secret;
+    const workingDirectory =
+      target.working_directory && target.working_directory !== '.'
+        ? target.working_directory
+        : cfg.working_directory && cfg.working_directory !== '.'
+          ? cfg.working_directory
+          : '';
+    const workingDirPrefix = workingDirectory ? `${workingDirectory.replace(/\/$/, '')}/` : '';
+    const sourceDirs = target.source_dirs ?? cfg.source_dirs;
+    const stack = target.stack ?? ctx.stack;
+
+    const tokens: Record<string, string> = {
+      PROJECT_SLUG: projectSlug,
+      PRODUCTION_URL_SECRET: productionUrlSecret,
+      INTEGRATION_BRANCH: cfg.integration_branch ?? 'develop',
+      RELEASE_BRANCH: cfg.release_branch ?? 'main',
+      NODE_VERSION: String(cfg.node_version ?? ''),
+      PYTHON_VERSION: String(cfg.python_version ?? ''),
+      WORKING_DIRECTORY: workingDirectory || '.',
+      WORKING_DIR_PREFIX: workingDirPrefix,
+      RUNNER: resolveRunner(cfg),
+      SOURCE_DIRS: sourceDirs,
+      SAST_BASELINE: String(cfg.sast_baseline),
+      ACCEPTED_DEP_RISKS: cfg.accepted_dep_risks,
+      DATABASE_SERVICE: cfg.database_service,
+      DATABASE_IMAGE: cfg.database_image,
+      DATABASE_PORT: cfg.database_port,
+      E2E_PROJECT: cfg.e2e_project,
+      E2E_START_COMMAND: cfg.e2e_start_command,
+    };
+    const pathsIgnoreBlock = (cfg.paths_ignore ?? []).map((p) => `      - '${p}'`).join('\n');
+    const blocks: Record<string, string> = {
+      PATHS_IGNORE: pathsIgnoreBlock,
+      DATABASE_ENV: cfg.database_env ? indentEnvBlock({ ...cfg.database_env }, 6) : '',
+      APP_ENV: cfg.app_env ? indentEnvBlock({ ...cfg.app_env }, 6) : '',
+      BUILD_ENV: cfg.build_env ? indentEnvBlock({ ...cfg.build_env }, 10) : '',
+      DATABASE_URI_STEP: buildDbUriStep(cfg.database_service, cfg.database_port),
+      E2E_SETUP_STEP: buildE2eSetupStep(cfg),
+      E2E_DEV_SERVER_STEP: buildE2eDevServerStep(cfg),
+      E2E_TEST_STEP: buildE2eTestStep(cfg),
+      E2E_FEATURE_TEST_STEP: buildFeatureE2eTestStep(cfg),
+      E2E_AUTHENTICATED_STEP: buildAuthenticatedE2eStep(cfg),
+    };
+
+    for (const tmpl of CI_TEMPLATES) {
+      const stackTmpl = join(ctx.installerRoot, 'sdlc', 'files', 'ci', stack, tmpl);
+      const defaultTmpl = join(ctx.installerRoot, 'sdlc', 'files', 'ci', tmpl);
+      let tmplPath: string;
+      if (await exists(stackTmpl)) {
+        tmplPath = stackTmpl;
+      } else if (await exists(defaultTmpl)) {
+        tmplPath = defaultTmpl;
+      } else {
+        continue;
+      }
+      let content = await fs.readFile(tmplPath, 'utf-8');
+      content = substituteTokens(content, tokens);
+      content = substituteBlocks(content, blocks);
+      if (!cfg.database_service) {
+        content = stripServicesBlock(content);
+      }
+      const baseOutputName = tmpl.replace(/\.template$/, '');
+      const namespaced = namespaceForTarget(baseOutputName, content, target, multiTarget);
+      const outputPath = join(workflowsDir, namespaced.outputName);
+      await fs.writeFile(outputPath, namespaced.content);
+      filePaths.push(outputPath);
+      count += 1;
     }
-    const outputName = tmpl.replace(/\.template$/, '');
-    const outputPath = join(workflowsDir, outputName);
-    let content = await fs.readFile(tmplPath, 'utf-8');
-    content = substituteTokens(content, tokens);
-    content = substituteBlocks(content, blocks);
-    if (!cfg.database_service) {
-      content = stripServicesBlock(content);
-    }
-    await fs.writeFile(outputPath, content);
-    filePaths.push(outputPath);
-    count += 1;
   }
   return { name: 'CI workflows', filesSynced: count, message: `${count} generated`, filePaths };
 }
