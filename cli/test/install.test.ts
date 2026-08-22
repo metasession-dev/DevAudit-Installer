@@ -665,4 +665,31 @@ describe('runInstall — native TS install against a node fixture', () => {
       await fs.rm(dir, { recursive: true, force: true });
     }
   }, 60_000);
+
+  // Branch protection multi-target namespacing (#689/#696): once a repo has
+  // two targets, each target's required check must be individually applied
+  // (and, per #695, unioned rather than overwritten) so branch protection
+  // actually matches what each target's namespaced CI workflow reports.
+  it('--add-target applies namespaced branch-protection checks for every target', async () => {
+    const { runInstall } = await import('../src/install/index.js');
+    const dir = await buildPolyglotFixture();
+    try {
+      const report = await runInstall({
+        path: dir,
+        nonInteractive: true,
+        addTarget: true,
+        provider: makeFakeProvider(),
+      });
+      const step9 = report.steps.find((s) => s.step.startsWith('9/'));
+      expect(step9?.status).toBe('ok');
+      const bpCalls = providerCalls.filter((c) => c.method === 'applyBranchProtection');
+      const mainCallsChecks = bpCalls
+        .filter((c) => c.args[0] === 'main')
+        .map((c) => c.args[1] as readonly string[]);
+      expect(mainCallsChecks).toContainEqual(['Quality Gates (default)']);
+      expect(mainCallsChecks).toContainEqual(['Quality Gates (api)']);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
 });
