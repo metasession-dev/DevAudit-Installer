@@ -507,7 +507,8 @@ describe('syncProject — native TS sync against a fixture', () => {
       expect(webCi).toContain('Quality Gates (web)');
       expect(apiCi).toContain('Quality Gates (api)');
       expect(webCi).not.toContain('Quality Gates (api)');
-      expect(apiCi).not.toContain('fixture-api');
+      expect(apiCi).toContain('fixture-api');
+      expect(webCi).not.toContain('fixture-api');
       expect(webCi).toContain('fixture-app');
 
       await expectAllWorkflowsValidYaml(dir);

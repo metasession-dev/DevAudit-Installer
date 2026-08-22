@@ -92,19 +92,23 @@ function namespaceForTarget(outputName: string, content: string, target: Target,
   const suffix = ` (${target.name})`;
   const namespacedName = outputName.replace(/\.yml$/, `-${target.name}.yml`);
   let namespacedContent = content;
-  // Workflow-level `name:` (column 0 only — job/step names are indented).
-  namespacedContent = namespacedContent.replace(/^name: (.+)$/m, (_m, title: string) => `name: ${title}${suffix}`);
-  // Job-level `name:` (4-space indent, not a `- name:` step entry).
-  namespacedContent = namespacedContent.replace(
-    /^ {4}name: (.+)$/gm,
-    (_m, title: string) => `    name: ${title}${suffix}`,
-  );
   // "Quality Gates" is the one check name shared verbatim across ci.yml,
   // ci-status-fallback.yml, and quality-gates-provenance.yml (branch
   // protection matches on it, and the workflows cross-reference it by exact
   // string in --workflow-name/--label script args) — namespace every
-  // occurrence so the three stay consistent for a given target.
+  // occurrence so the three stay consistent for a given target. Do this
+  // FIRST: it also covers the "name: Quality Gates" workflow/job title
+  // lines, so the generic title regexes below must not re-suffix them.
   namespacedContent = namespacedContent.split('Quality Gates').join(`Quality Gates${suffix}`);
+  const alreadySuffixed = (title: string) => title.endsWith(suffix);
+  // Workflow-level `name:` (column 0 only — job/step names are indented).
+  namespacedContent = namespacedContent.replace(/^name: (.+)$/m, (m: string, title: string) =>
+    alreadySuffixed(title) ? m : `name: ${title}${suffix}`,
+  );
+  // Job-level `name:` (4-space indent, not a `- name:` step entry).
+  namespacedContent = namespacedContent.replace(/^ {4}name: (.+)$/gm, (m: string, title: string) =>
+    alreadySuffixed(title) ? m : `    name: ${title}${suffix}`,
+  );
   return { outputName: namespacedName, content: namespacedContent };
 }
 

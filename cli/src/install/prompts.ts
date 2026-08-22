@@ -96,13 +96,21 @@ async function planFromConfig(
       ? (cfgRaw['production_url_secret'] as string)
       : undefined;
   const existingApiKeySecret = cfg?.devaudit?.api_key_secret;
+  // Only trust the config's working_directory when the freshly-detected stack
+  // still matches it — i.e. we're plausibly looking at the *same* target this
+  // config describes. If detection landed on a different stack, we've walked
+  // into a different (as yet unconfigured) target's directory instead, and
+  // must use where it was actually detected so write-config's target-identity
+  // check (#689/#691) can tell the two apart rather than silently blending
+  // this run's plan into the existing target's fields.
+  const stackMatchesConfig = cfg?.stack === detected.stack;
   return {
     stack: detected.stack,
     host: 'railway',
     projectSlug: slug,
     runtimeVersion: String(runtimeKey ?? defaults.runtimeVersion),
     sourceDirs: cfg?.source_dirs ?? defaults.sourceDirs,
-    workingDirectory: cfg?.working_directory ?? detected.workingDirectory,
+    workingDirectory: (stackMatchesConfig ? cfg?.working_directory : undefined) ?? detected.workingDirectory,
     prodUrlSecretName: existingProdUrlSecret ?? prodUrlSecretDefault(slug),
     prodUrlValue: '',
     apiKeySecretName: existingApiKeySecret ?? DEFAULT_API_KEY_SECRET,

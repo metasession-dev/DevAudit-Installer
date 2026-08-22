@@ -48,9 +48,13 @@ export async function writeSdlcConfig(ctx: InstallContext, plan: InstallPlan): P
   let isNewTarget = false;
   if (existing) {
     existingTargets = resolveTargets(existing);
-    isNewTarget = !existingTargets.some(
-      (t) => t.working_directory === plan.workingDirectory || t.devaudit?.project_slug === plan.projectSlug,
-    );
+    // Identity is the working_directory alone: in the non-`--add-target` path
+    // (see prompts.ts `planFromConfig`) the plan's project_slug is always
+    // inherited from the existing config regardless of which physical
+    // directory was detected, so OR-ing it in here would make every rerun
+    // look like "the same target" even when the detected stack/directory has
+    // actually moved to a different, unconfigured target. See #689/#691.
+    isNewTarget = !existingTargets.some((t) => t.working_directory === plan.workingDirectory);
     if (isNewTarget && !ctx.addTarget) {
       return {
         step: '4/11 Write sdlc-config.json',

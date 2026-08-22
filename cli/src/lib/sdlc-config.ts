@@ -58,10 +58,13 @@ export function resolveTargets(config: SdlcConfig): readonly Target[] {
     {
       name: 'default',
       stack: config.stack,
-      working_directory: config.working_directory,
+      working_directory: config.working_directory ?? '.',
       source_dirs: config.source_dirs,
       production_url_secret: config.production_url_secret,
-      devaudit: config.devaudit,
+      devaudit: {
+        ...config.devaudit,
+        project_slug: config.devaudit?.project_slug ?? config.project_slug,
+      },
     },
   ];
 }
