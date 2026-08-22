@@ -110,7 +110,7 @@ export async function writeSdlcConfig(ctx: InstallContext, plan: InstallPlan): P
   // production_url_secret/devaudit block come from the current install plan).
   const config: Record<string, unknown> = {
     ...defaultedIfNew,
-    ...((existing as Record<string, unknown> | null) ?? {}),
+    ...((existing as unknown as Record<string, unknown> | null) ?? {}),
     ...wizardOwned,
   };
   if (isNewTarget && ctx.addTarget) {
@@ -130,7 +130,7 @@ export async function writeSdlcConfig(ctx: InstallContext, plan: InstallPlan): P
   const outPath = join(ctx.projectPath, 'sdlc-config.json');
   if (ctx.dryRun) {
     const preserved = existing
-      ? `preserves existing customizations (${Object.keys(existing as Record<string, unknown>).filter((k) => !(k in wizardOwned)).length} non-wizard fields)`
+      ? `preserves existing customizations (${Object.keys(existing as unknown as Record<string, unknown>).filter((k) => !(k in wizardOwned)).length} non-wizard fields)`
       : 'fresh config';
     return {
       step: '4/11 Write sdlc-config.json',
