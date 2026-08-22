@@ -58,6 +58,16 @@ export interface InstallPlan {
   workingDirectory: string;
   prodUrlSecretName: string;
   prodUrlValue: string;
+  /**
+   * Name of the GitHub repo secret this target's DevAudit API key is stored
+   * under. Defaults to `'DEVAUDIT_API_KEY'` for the single-target case
+   * (unchanged from pre-#689 behaviour). For `--add-target`, GitHub repo
+   * secrets are repo-scoped (not per-directory), so a second target reusing
+   * that literal name would silently overwrite the first target's key —
+   * `collectPlan` derives a collision-free name from the new target's slug
+   * instead. See #694.
+   */
+  apiKeySecretName: string;
   projectId?: string;
   apiKey?: string;
 }

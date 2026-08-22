@@ -101,7 +101,7 @@ export async function writeSdlcConfig(ctx: InstallContext, plan: InstallPlan): P
     devaudit: {
       base_url: ctx.baseUrl,
       project_slug: plan.projectSlug,
-      api_key_secret: 'DEVAUDIT_API_KEY',
+      api_key_secret: plan.apiKeySecretName,
     },
   };
   // Existing values override the "defaultedIfNew" defaults (preserves customizations
