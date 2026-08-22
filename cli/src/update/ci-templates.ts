@@ -70,6 +70,17 @@ interface SdlcConfig {
 }
 
 /**
+ * Resolve a target's effective working directory, falling back to the flat
+ * config's working_directory, treating '.' / empty as "repo root" (i.e. not a
+ * scopeable subtree). Shared by the trigger-scoping logic in #693.
+ */
+function resolveTargetWorkingDir(target: Target, cfg: SdlcConfig): string {
+  if (target.working_directory && target.working_directory !== '.') return target.working_directory;
+  if (cfg.working_directory && cfg.working_directory !== '.') return cfg.working_directory;
+  return '';
+}
+
+/**
  * Namespace a rendered workflow's filename and internal check/job names for a
  * given target, so two targets in one repo don't collide on `ci.yml` /
  * `Quality Gates` etc (#692). No-ops (returns content/name unchanged) when
@@ -296,16 +307,27 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
   let count = 0;
   const filePaths: string[] = [];
 
-  for (const target of targets) {
+  // Each target's own working_directory, in target order — used below to scope
+  // out *other* targets' subtrees from a target's triggers (#693), so an
+  // unrelated target's commit doesn't fire this target's pipeline. Root/empty
+  // working directories are left out: a root target can't be meaningfully
+  // path-scoped away from (it would have to exclude everything), so any target
+  // sharing a repo with a root target keeps unscoped triggers against it.
+  const allWorkingDirs = targets.map((t) => resolveTargetWorkingDir(t, cfg));
+
+  for (let targetIdx = 0; targetIdx < targets.length; targetIdx += 1) {
+    const target = targets[targetIdx]!;
     const projectSlug = target.devaudit?.project_slug ?? cfg.project_slug;
     const productionUrlSecret = target.production_url_secret ?? cfg.production_url_secret;
-    const workingDirectory =
-      target.working_directory && target.working_directory !== '.'
-        ? target.working_directory
-        : cfg.working_directory && cfg.working_directory !== '.'
-          ? cfg.working_directory
-          : '';
+    const workingDirectory = allWorkingDirs[targetIdx]!;
     const workingDirPrefix = workingDirectory ? `${workingDirectory.replace(/\/$/, '')}/` : '';
+    // Other targets' directories to scope this target's triggers away from.
+    // Only meaningful when this target itself has a real (non-root) working
+    // directory — see comment on allWorkingDirs above.
+    const otherTargetDirs =
+      multiTarget && workingDirectory
+        ? allWorkingDirs.filter((d, i) => i !== targetIdx && d !== '').map((d) => `${d.replace(/\/$/, '')}/**`)
+        : [];
     const sourceDirs = target.source_dirs ?? cfg.source_dirs;
     const stack = target.stack ?? ctx.stack;
 
@@ -328,9 +350,24 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
       E2E_PROJECT: cfg.e2e_project,
       E2E_START_COMMAND: cfg.e2e_start_command,
     };
-    const pathsIgnoreBlock = (cfg.paths_ignore ?? []).map((p) => `      - '${p}'`).join('\n');
+    // otherTargetDirs is appended here (not just to PATHS_IGNORE's push
+    // consumer) because ci-status-fallback.yml.template reuses the exact same
+    // {{PATHS_IGNORE}} block as its *inclusion* `paths:` filter (it fires on
+    // exactly what ci.yml's push ignores, to satisfy branch protection on
+    // docs-only commits) — extending the shared list keeps both templates'
+    // triggers consistent for a given target without touching that template.
+    const pathsIgnoreBlock = [...(cfg.paths_ignore ?? []), ...otherTargetDirs]
+      .map((p) => `      - '${p}'`)
+      .join('\n');
+    // pull_request had no paths filter at all before #693 — only emit one
+    // when this target actually has other targets' subtrees to scope away
+    // from, so single-target repos (and multi-target repos where every other
+    // target has already been filtered out above) regenerate byte-identical.
+    const prPathsIgnoreBlock =
+      otherTargetDirs.length > 0 ? `    paths-ignore:\n${otherTargetDirs.map((p) => `      - '${p}'`).join('\n')}` : '';
     const blocks: Record<string, string> = {
       PATHS_IGNORE: pathsIgnoreBlock,
+      PR_PATHS_IGNORE: prPathsIgnoreBlock,
       DATABASE_ENV: cfg.database_env ? indentEnvBlock({ ...cfg.database_env }, 6) : '',
       APP_ENV: cfg.app_env ? indentEnvBlock({ ...cfg.app_env }, 6) : '',
       BUILD_ENV: cfg.build_env ? indentEnvBlock({ ...cfg.build_env }, 10) : '',

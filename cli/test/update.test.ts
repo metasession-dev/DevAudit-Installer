@@ -516,6 +516,66 @@ describe('syncProject — native TS sync against a fixture', () => {
     }
   }, 60_000);
 
+  it('scopes ci.yml triggers to each target\'s own working_directory when both targets are non-root (#693)', async () => {
+    const dir = await fs.mkdtemp(join(tmpdir(), 'cli-update-multitarget-paths-'));
+    try {
+      const baseTarget = {
+        stack: 'node',
+        source_dirs: 'app/ lib/',
+        production_url_secret: 'FIXTURE_PROD_URL',
+        devaudit: { project_slug: 'fixture-app' },
+      };
+      await fs.writeFile(
+        join(dir, 'sdlc-config.json'),
+        JSON.stringify({
+          project_slug: 'fixture-app',
+          stack: 'node',
+          host: 'railway',
+          node_version: '20',
+          runner: 'ubuntu-latest',
+          working_directory: '.',
+          source_dirs: 'app/ lib/',
+          sast_baseline: 0,
+          accepted_dep_risks: '',
+          production_url_secret: 'FIXTURE_PROD_URL',
+          database_service: '',
+          database_image: '',
+          database_port: '',
+          database_env: {},
+          app_env: {},
+          build_env: {},
+          e2e_project: 'chromium',
+          e2e_start_command: 'npm run dev',
+          targets: [
+            { name: 'web', ...baseTarget, working_directory: 'mission-control', devaudit: { project_slug: 'thorstack-web' } },
+            { name: 'api', ...baseTarget, stack: 'python', working_directory: 'mission-control-api', devaudit: { project_slug: 'thorstack-api' } },
+          ],
+        }),
+      );
+      await fs.mkdir(join(dir, '.github', 'workflows'), { recursive: true });
+      await syncProject(dir);
+
+      const workflowsDir = join(dir, '.github', 'workflows');
+      const webCi = await fs.readFile(join(workflowsDir, 'ci-web.yml'), 'utf-8');
+      const apiCi = await fs.readFile(join(workflowsDir, 'ci-api.yml'), 'utf-8');
+
+      // Each target's push trigger ignores the OTHER target's subtree...
+      expect(webCi).toContain("- 'mission-control-api/**'");
+      expect(apiCi).toContain("- 'mission-control/**'");
+      // ...but not its own.
+      expect(webCi).not.toContain("- 'mission-control/**'");
+      expect(apiCi).not.toContain("- 'mission-control-api/**'");
+
+      // pull_request gains a matching paths-ignore block (previously absent).
+      expect(webCi).toMatch(/pull_request:\s*\n\s*branches: \[develop\]\s*\n\s*paths-ignore:\s*\n\s*- 'mission-control-api\/\*\*'/);
+      expect(apiCi).toMatch(/pull_request:\s*\n\s*branches: \[develop\]\s*\n\s*paths-ignore:\s*\n\s*- 'mission-control\/\*\*'/);
+
+      await expectAllWorkflowsValidYaml(dir);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
   it('threads a local-DB E2E setup step + e2e_env into the blocking gate when configured', async () => {
     const dir = await fs.mkdtemp(join(tmpdir(), 'cli-update-e2elocal-'));
     try {
