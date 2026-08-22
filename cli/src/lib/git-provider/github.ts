@@ -30,6 +30,21 @@ async function ghAvailable(): Promise<boolean> {
   }
 }
 
+/** Order-preserving, deduped union of two required-check-context lists. Exported for tests. */
+export function unionRequiredChecks(
+  existing: readonly string[],
+  requested: readonly string[],
+): readonly string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const check of [...existing, ...requested]) {
+    if (seen.has(check)) continue;
+    seen.add(check);
+    result.push(check);
+  }
+  return result;
+}
+
 export class GitHubProvider implements GitProvider {
   readonly name = 'github' as const;
   private readonly preferGhCli: boolean;
@@ -130,6 +145,46 @@ export class GitHubProvider implements GitProvider {
     if (!res.ok) throw new Error(`GitHub REST variable create failed: HTTP ${res.status}`);
   }
 
+  /**
+   * Current required-status-check contexts for `branch`, or `[]` if the
+   * branch has no protection yet (404) or the read otherwise fails. Used by
+   * `applyBranchProtection` to merge rather than blindly replace — see
+   * `unionRequiredChecks` and #695.
+   */
+  private async currentRequiredChecks(cwd: string, branch: string): Promise<readonly string[]> {
+    if (this.preferGhCli && (await ghAvailable())) {
+      const meta = await this.getRepoMeta(cwd);
+      const res = await execa(
+        'gh',
+        [
+          'api',
+          `/repos/${meta.owner}/${meta.name}/branches/${branch}/protection/required_status_checks/contexts`,
+        ],
+        { cwd, reject: false },
+      );
+      if (res.exitCode !== 0) return [];
+      try {
+        const parsed = JSON.parse(res.stdout) as unknown;
+        return Array.isArray(parsed) ? parsed.filter((c): c is string => typeof c === 'string') : [];
+      } catch {
+        return [];
+      }
+    }
+    const meta = await this.getRepoMeta(cwd);
+    if (!this.token) return [];
+    const res = await fetch(
+      `https://api.github.com/repos/${meta.owner}/${meta.name}/branches/${branch}/protection/required_status_checks/contexts`,
+      { headers: this.authHeaders() },
+    );
+    if (!res.ok) return [];
+    try {
+      const parsed = (await res.json()) as unknown;
+      return Array.isArray(parsed) ? parsed.filter((c): c is string => typeof c === 'string') : [];
+    } catch {
+      return [];
+    }
+  }
+
   async applyBranchProtection(
     cwd: string,
     branch: string,
@@ -137,8 +192,14 @@ export class GitHubProvider implements GitProvider {
     options?: { readonly requiredReviewCount?: number },
   ): Promise<BranchProtectionResult> {
     const reviewCount = options?.requiredReviewCount ?? 0;
+    // Read-merge-write (#695): a second `install`/`--add-target` run for
+    // another target must not drop the first target's required checks by
+    // blindly PUTting a fresh list. Union whatever's currently required with
+    // what this call is asking for — additive, order-preserving, deduped.
+    const existingChecks = await this.currentRequiredChecks(cwd, branch);
+    const contexts = unionRequiredChecks(existingChecks, requiredChecks);
     const body = {
-      required_status_checks: { strict: false, contexts: requiredChecks },
+      required_status_checks: { strict: false, contexts },
       enforce_admins: true,
       required_pull_request_reviews: { dismiss_stale_reviews: true, required_approving_review_count: reviewCount },
       restrictions: null,
