@@ -1,6 +1,6 @@
 import { promises as fs } from 'node:fs';
 import { join } from 'node:path';
-import { readSdlcConfig, resolveTargets, type SdlcConfig, type Target } from '../lib/sdlc-config.js';
+import { readSdlcConfig, resolveTargets, type Target } from '../lib/sdlc-config.js';
 import type { InstallContext, InstallPlan, StepResult } from './types.js';
 
 const NODE_PATHS_IGNORE: readonly string[] = [
@@ -36,7 +36,7 @@ export async function writeSdlcConfig(ctx: InstallContext, plan: InstallPlan): P
   }
   const runtimeKey = plan.stack === 'node' ? 'node_version' : 'python_version';
   const pathsIgnore = plan.stack === 'node' ? NODE_PATHS_IGNORE : PYTHON_PATHS_IGNORE;
-  const existing = ((await readSdlcConfig(ctx.projectPath)) as Record<string, unknown> | null) ?? null;
+  const existing = await readSdlcConfig(ctx.projectPath);
 
   // Multi-target (polyglot monorepo) safety — see #689/#691. A config
   // already exists but describes a *different* target (different working
@@ -47,7 +47,7 @@ export async function writeSdlcConfig(ctx: InstallContext, plan: InstallPlan): P
   let existingTargets: readonly Target[] = [];
   let isNewTarget = false;
   if (existing) {
-    existingTargets = resolveTargets(existing as SdlcConfig);
+    existingTargets = resolveTargets(existing);
     isNewTarget = !existingTargets.some(
       (t) => t.working_directory === plan.workingDirectory || t.devaudit?.project_slug === plan.projectSlug,
     );
@@ -110,7 +110,7 @@ export async function writeSdlcConfig(ctx: InstallContext, plan: InstallPlan): P
   // production_url_secret/devaudit block come from the current install plan).
   const config: Record<string, unknown> = {
     ...defaultedIfNew,
-    ...(existing ?? {}),
+    ...((existing as Record<string, unknown> | null) ?? {}),
     ...wizardOwned,
   };
   if (isNewTarget && ctx.addTarget) {
@@ -130,7 +130,7 @@ export async function writeSdlcConfig(ctx: InstallContext, plan: InstallPlan): P
   const outPath = join(ctx.projectPath, 'sdlc-config.json');
   if (ctx.dryRun) {
     const preserved = existing
-      ? `preserves existing customizations (${Object.keys(existing).filter((k) => !(k in wizardOwned)).length} non-wizard fields)`
+      ? `preserves existing customizations (${Object.keys(existing as Record<string, unknown>).filter((k) => !(k in wizardOwned)).length} non-wizard fields)`
       : 'fresh config';
     return {
       step: '4/11 Write sdlc-config.json',
