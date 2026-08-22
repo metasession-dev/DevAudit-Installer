@@ -32,7 +32,7 @@ When reporting, please include:
 
 ## Supported versions
 
-This project is pre-1.0 and not yet published to a package registry. Today there is one supported channel: the `main` branch. Once the CLI publishes a v1.x line we'll list which majors receive security fixes here.
+As of v1.0, packages are published to npm under `@metasession.co/`. The latest `1.x` release receives security fixes; upgrade with `npx @metasession.co/devaudit-cli@latest update` (or your package manager's equivalent) to stay covered. Pre-1.0 (`0.x`) releases are no longer supported.
 
 ## Disclosure
 
