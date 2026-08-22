@@ -12,7 +12,7 @@ This workflow takes you from "the release-ready commit is on main" to "all 5 pac
 - `Enforce GitFlow` is green on `main`
 - There is no outstanding hotfix back-merge PR waiting to be merged into `develop`
 - You know the target version (e.g. `0.3.1`, `0.4.0`)
-- `NPM_TOKEN` secret is set in the GitHub repo
+- Each of the 5 packages (`devaudit-plugin-sdk`, `devaudit-cli`, `devaudit-sdlc`, `devaudit-plugin-prisma`, `devaudit-plugin-evidence-export`) has an npm **Trusted Publisher** configured (npmjs.org package settings → Publishing access → GitHub Actions), pointing at this repo + `release.yml`. Publishing uses OIDC (the job's `id-token: write` permission) — no `NPM_TOKEN` secret is used or needed.
 - You have push access to create tags
 - `INSTALLER_DISPATCH_TOKEN` secret is set on this repo (devaudit-installer#613)
   — without it, `hotfix-backmerge.yml` falls back to `GITHUB_TOKEN`, and the
@@ -207,7 +207,7 @@ gh run view "$RUN_ID" --log-failed
 ```
 
 Common failures:
-- `npm publish` 403 — `NPM_TOKEN` expired or lacks publish permission
+- `npm publish` 403 "Two-factor authentication or granular access token with bypass 2fa enabled is required" / 404 on the publish PUT — the package's npm **Trusted Publisher** isn't configured (or doesn't match this repo/workflow filename exactly), or the runner's npm predates OIDC Trusted Publishing support (needs npm >= 11.5.1 — see the `Ensure npm supports OIDC Trusted Publishing` step in `release.yml`)
 - `npm publish` 409 — version already exists on npm (bump the version)
 - `tsup` build failure — TypeScript error in the package
 - `bundle-templates` failure — `sdlc/` directory missing from repo root
