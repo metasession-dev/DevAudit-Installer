@@ -2,19 +2,19 @@
 
 Thanks for looking. This repo holds the `devaudit` CLI, the plugin SDK, first-party plugins, and the SDLC framework templates that consumers sync. The web portal lives in a separate repository — [`metasession-dev/devaudit`](https://github.com/metasession-dev/devaudit) (formerly `META-COMPLY`; renamed during the 2026-05 repo split).
 
-## Pre-1.0 contribution policy
+## Contribution policy
 
-The project is pre-1.0. The contract surface (CLI command shape, plugin SDK types, SDLC template structure) is still moving. To avoid landing changes that get reworked or reverted shortly after, **external pull requests are not accepted by default at this stage**.
+As of v1.0, the contract surface (CLI command shape, plugin SDK types, SDLC template structure) follows semver — breaking changes land as a major version bump, not silently. External pull requests are welcome.
 
-What you can do instead:
+Before sending a substantial PR:
 
-- **Open an issue** with the problem you're hitting, the change you'd propose, or a reference to a comparable tool's design. We respond on issues; we'll tell you if the change is in scope and whether to send a PR.
+- **Open an issue first** for anything beyond a small fix — the problem you're hitting, the change you'd propose, or a reference to a comparable tool's design. We'll confirm the change is in scope before you put in the work.
 - **Security reports**: see [`SECURITY.md`](./SECURITY.md). Don't open public issues for those.
 - **Questions**: open a discussion if Discussions are enabled, or an issue tagged `question` otherwise.
 
-Once the contract surface stabilises (target: v1.0 release) we'll relax this policy and accept PRs without a prior issue conversation.
+Small, obviously-scoped fixes (typos, docs, a clear bug with an obvious one-line fix) can go straight to a PR.
 
-## If a maintainer asked you to PR
+## Setting up a PR
 
 Local setup:
 
