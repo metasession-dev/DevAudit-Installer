@@ -20,6 +20,7 @@ on:
         required: false
   pull_request:
     branches: [{{INTEGRATION_BRANCH}}]
+{{PR_PATHS_IGNORE}}
   push:
     branches: [{{INTEGRATION_BRANCH}}]
     paths-ignore:

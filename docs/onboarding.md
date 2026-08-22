@@ -112,6 +112,40 @@ See [`governance-templates.md`](./governance-templates.md) for the per-framework
 
 From the next requirement onward, use the **Requirement** issue template instead of SRS Bootstrap again — `requirements-aligner` takes over incremental maintenance automatically (advisory at Stage 1, blocking at Stage 3, per `sdlc-config.json`'s `requirements_aligner` defaults).
 
+## Polyglot monorepos (multiple targets in one repo)
+
+By default, `install` describes one repo as one stack: `sdlc-config.json`'s flat top-level fields (`stack`, `working_directory`, `devaudit.project_slug`, etc.) are sugar for a single implicit target. Some consumers are polyglot monorepos — e.g. ThorStack (`metasession-dev/META-AGENT`) has a Next.js frontend (`mission-control/`) and a FastAPI backend (`mission-control-api/`) that each want independent DevAudit compliance gating (two portal projects, `thorstack-web` + `thorstack-api`, inside one GitHub repo). `sdlc-config.json` supports this via an optional `targets` array:
+
+```jsonc
+{
+  // present only once there's more than one target — a single-target repo
+  // never has this key, and its flat fields keep meaning what they always did
+  "targets": [
+    { "name": "web", "stack": "node", "working_directory": "mission-control", "devaudit": { "project_slug": "thorstack-web", "api_key_secret": "WEB_API_KEY" } },
+    { "name": "api", "stack": "python", "working_directory": "mission-control-api", "devaudit": { "project_slug": "thorstack-api", "api_key_secret": "API_API_KEY" } }
+  ]
+}
+```
+
+**Onboarding a second target.** Run `install` again, pointed at the new target's subdirectory, with `--add-target`:
+
+```bash
+devaudit install ../monorepo/mission-control-api --add-target
+```
+
+Without `--add-target`, `install` refuses (rather than clobbering) when it detects the target directory/slug doesn't match what's already configured. `--add-target` reads the existing config, migrates a legacy flat config to the `targets` array shape if needed, and appends the new target — the first target's fields are preserved untouched.
+
+**What becomes target-aware once `targets` has more than one entry:**
+
+- **CI workflow files** are namespaced per target: `ci.yml` → `ci-web.yml` / `ci-api.yml`, and the job/check names inside them get a `(web)` / `(api)` suffix (e.g. `Quality Gates (web)`) so two targets' pipelines don't collide on the same filename or check name.
+- **Trigger paths** are scoped to each target's `working_directory`, so a commit touching only `mission-control-api/` doesn't fire `mission-control`'s pipeline and vice versa (a target at the repo root can't be scoped this way and keeps unscoped triggers).
+- **`api_key_secret` names** are derived per target (not the single `DEVAUDIT_API_KEY` every single-target repo uses) — GitHub repo secrets are repo-scoped, not per-directory, so reusing that name across targets would have the second target's install silently overwrite the first target's key.
+- **Branch protection** required checks are applied per target (`Quality Gates (web)`, `Quality Gates (api)`, …) via a read-merge-write against GitHub's API — a second target's `install`/`--add-target` run unions its check into whatever's already required rather than replacing the list, so it can't silently drop another target's requirement.
+- **`devaudit update`** resyncs every target's namespaced CI files and re-verifies branch protection for all of them in one run, not just the most-recently-installed target.
+- **Hook framework bootstrap** (husky for a Node target, pre-commit for a Python target) coexists in one repo: whichever framework bootstraps second delegates into the first's hook file (via a `pre-commit run --hook-stage commit "$@"` line appended to `.husky/pre-commit`) instead of git's single `core.hooksPath` silently dropping the first framework's checks.
+
+Single-target repos are unaffected by all of the above — no `targets` array, no namespacing, byte-identical output to pre-#689 installs.
+
 ## What onboarding can't do (and why)
 
 Some operations remain out of scope by design:
@@ -225,3 +259,4 @@ The command starts immediately, but the full operator onboarding flow usually ta
 - [ADR-001](./ADR/ADR-001-polyglot-sdlc-architecture.md) — why the framework is layered this way.
 - [`docs/skills.md`](./skills.md) — the `requirements-aligner` skill that maintains `docs/SRS.md` after Step 3b's bootstrap.
 - [adding-a-stack.md](./adding-a-stack.md) / [adding-a-host.md](./adding-a-host.md) — adding new stacks or hosts.
+- [consuming-projects.md](./consuming-projects.md) — which consumers are polyglot-monorepo (`targets`) vs single-target.

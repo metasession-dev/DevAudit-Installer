@@ -21,6 +21,75 @@ async function dirExists(path: string): Promise<boolean> {
   }
 }
 
+async function fileExists(path: string): Promise<boolean> {
+  try {
+    const s = await fs.stat(path);
+    return s.isFile();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Marker line appended to `.husky/pre-commit` so pre-commit's checks still
+ * run when husky owns `core.hooksPath` (#689/#697 — see module docstring
+ * below for the full coexistence problem). Idempotency-checked by exact
+ * substring match before appending.
+ */
+const PRE_COMMIT_DELEGATE_LINE = 'pre-commit run --hook-stage commit "$@"';
+
+/**
+ * Whether a `.pre-commit-config.yaml` exists at the repo root — the signal
+ * that a Python target's hooks are configured (installed or not).
+ */
+async function preCommitConfigured(projectPath: string): Promise<boolean> {
+  return fileExists(join(projectPath, '.pre-commit-config.yaml'));
+}
+
+/**
+ * Append the pre-commit delegate line to `.husky/pre-commit` if it isn't
+ * there already. No-op if the file is missing (husky not yet bootstrapped —
+ * caller is responsible for ordering).
+ */
+async function ensurePreCommitDelegated(projectPath: string): Promise<boolean> {
+  const huskyHook = join(projectPath, '.husky', 'pre-commit');
+  let content: string;
+  try {
+    content = await fs.readFile(huskyHook, 'utf-8');
+  } catch {
+    return false;
+  }
+  if (content.includes(PRE_COMMIT_DELEGATE_LINE)) return false;
+  const updated = content.trimEnd() + `\n${PRE_COMMIT_DELEGATE_LINE}\n`;
+  await fs.writeFile(huskyHook, updated, 'utf-8');
+  return true;
+}
+
+/**
+ * Bootstraps a target's git-hook framework: husky for a Node target,
+ * pre-commit for a Python target.
+ *
+ * Polyglot-monorepo coexistence (#689/#697): git only honors ONE hook file
+ * per hook type (e.g. `pre-commit`), resolved via a single repo-wide
+ * `core.hooksPath`. `npx husky init` unconditionally repoints
+ * `core.hooksPath` at `.husky/_` — if a Python target's `pre-commit install`
+ * had already written the native git hook (under `.git/hooks` or whatever
+ * `core.hooksPath` pointed at before), that hook silently stops firing the
+ * moment husky repoints it, with no error. The reverse is worse: running
+ * `pre-commit install` while `core.hooksPath` already points at `.husky/_`
+ * overwrites husky's own hook shim at that path outright.
+ *
+ * Fix: whichever framework bootstraps second doesn't fight over the hook
+ * file — it delegates. If pre-commit is configured (`.pre-commit-config.yaml`
+ * exists) when husky bootstraps, `.husky/pre-commit` gets a trailing
+ * `pre-commit run --hook-stage commit "$@"` line appended so pre-commit's
+ * checks still execute through husky's now-active hook. If husky already
+ * owns `core.hooksPath` when pre-commit bootstraps, its native
+ * `pre-commit install` for the `pre-commit` hook type is skipped (it would
+ * clobber husky's shim) and the same delegate line is appended instead;
+ * `commit-msg` is a distinct hook file so pre-commit's `--hook-type
+ * commit-msg` install still runs natively without conflict either way.
+ */
 export async function bootstrapHooks(ctx: InstallContext, plan: InstallPlan): Promise<StepResult> {
   if (ctx.dryRun) {
     const action = plan.stack === 'python' ? 'pre-commit install' : 'npx husky init';
@@ -42,6 +111,22 @@ async function bootstrapPython(ctx: InstallContext): Promise<StepResult> {
       message: 'pre-commit not on PATH — run `pip install pre-commit && pre-commit install` manually',
     };
   }
+  const huskyOwnsHooks = await dirExists(join(ctx.projectPath, '.husky'));
+  if (huskyOwnsHooks) {
+    // Coexistence (#697): husky already owns core.hooksPath. Installing
+    // pre-commit's own `pre-commit` hook natively would overwrite husky's
+    // shim at that path — delegate into husky's hook instead. `commit-msg`
+    // is a separate hook file husky doesn't create, so it installs natively.
+    const delegated = await ensurePreCommitDelegated(ctx.projectPath);
+    await execa('pre-commit', ['install', '--hook-type', 'commit-msg'], { cwd: ctx.projectPath, stdio: 'inherit' });
+    return {
+      step: '8/11 Bootstrap hook framework',
+      status: 'ok',
+      message: delegated
+        ? 'husky already owns hooks — delegated pre-commit into .husky/pre-commit, installed commit-msg hook natively'
+        : 'husky already owns hooks — pre-commit already delegated in .husky/pre-commit, installed commit-msg hook natively',
+    };
+  }
   await execa('pre-commit', ['install'], { cwd: ctx.projectPath, stdio: 'inherit' });
   await execa('pre-commit', ['install', '--hook-type', 'commit-msg'], { cwd: ctx.projectPath, stdio: 'inherit' });
   return { step: '8/11 Bootstrap hook framework', status: 'ok', message: 'pre-commit hooks installed' };
@@ -50,7 +135,16 @@ async function bootstrapPython(ctx: InstallContext): Promise<StepResult> {
 async function bootstrapNode(ctx: InstallContext): Promise<StepResult> {
   const huskyDir = join(ctx.projectPath, '.husky');
   if (await dirExists(huskyDir)) {
-    return { step: '8/11 Bootstrap hook framework', status: 'ok', message: '.husky/ already exists' };
+    // Coexistence (#697): husky's already bootstrapped (this run or a prior
+    // target's), but pre-commit may have been configured for a Python
+    // target since then without husky's hook re-running — make sure the
+    // delegate line is present either way.
+    const delegated = (await preCommitConfigured(ctx.projectPath)) && (await ensurePreCommitDelegated(ctx.projectPath));
+    return {
+      step: '8/11 Bootstrap hook framework',
+      status: 'ok',
+      message: delegated ? '.husky/ already exists — delegated pre-commit into .husky/pre-commit' : '.husky/ already exists',
+    };
   }
   if (!(await commandExists('npx'))) {
     return {
@@ -60,5 +154,14 @@ async function bootstrapNode(ctx: InstallContext): Promise<StepResult> {
     };
   }
   await execa('npx', ['husky', 'init'], { cwd: ctx.projectPath, stdio: 'inherit' });
-  return { step: '8/11 Bootstrap hook framework', status: 'ok', message: '.husky/ bootstrapped' };
+  // Coexistence (#697): a Python target's pre-commit may already be
+  // configured (installed before this Node target's husky bootstrap ran,
+  // in this same repo) — delegate into the fresh husky hook so its checks
+  // keep firing now that husky owns core.hooksPath.
+  const delegated = (await preCommitConfigured(ctx.projectPath)) && (await ensurePreCommitDelegated(ctx.projectPath));
+  return {
+    step: '8/11 Bootstrap hook framework',
+    status: 'ok',
+    message: delegated ? '.husky/ bootstrapped — delegated pre-commit into .husky/pre-commit' : '.husky/ bootstrapped',
+  };
 }

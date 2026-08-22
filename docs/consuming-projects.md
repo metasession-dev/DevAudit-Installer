@@ -38,6 +38,12 @@ The original bash installer (`scripts/sdlc-onboard.sh`) has been removed — `de
 
 For projects using new languages/hosts not yet supported by an adapter, see [docs/adding-a-stack.md](adding-a-stack.md) or [docs/adding-a-host.md](adding-a-host.md) — author the adapter first, then onboard the consumer against it.
 
+### Polyglot monorepo consumers (multiple targets)
+
+Most consumers are one repo = one stack = one `sdlc-config.json` (the flat top-level fields describe a single implicit target). A polyglot monorepo — one GitHub repo with independently-gated stacks in different subdirectories, e.g. a Next.js frontend + FastAPI backend each wanting their own compliance project — instead uses `sdlc-config.json`'s `targets` array. Onboard the first target normally (`devaudit install <repo>/<subdir>`), then each additional target with `devaudit install <repo>/<other-subdir> --add-target`.
+
+CI workflow filenames, job/check names, trigger paths, `api_key_secret` names, and branch-protection required checks are all namespaced per target once `targets` has more than one entry — a single-target consumer sees none of this. See [onboarding.md's "Polyglot monorepos" section](onboarding.md#polyglot-monorepos-multiple-targets-in-one-repo) for the full mechanics and a worked `targets` example.
+
 ## AI Agent Configuration (Single Source of Truth)
 
 All Metasession projects adopting DevAudit use the **single source of truth** model for AI coding agent configuration. This ensures every AI tool (Claude Code, Cursor, Windsurf, Gemini, Codex) enforces the same SDLC rules from the same canonical file.

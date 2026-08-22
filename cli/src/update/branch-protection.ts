@@ -1,13 +1,14 @@
 import { join } from 'node:path';
 import { promises as fs } from 'node:fs';
 import { getGitProvider } from '../lib/git-provider/index.js';
-import { readSdlcConfig } from '../lib/sdlc-config.js';
+import { readSdlcConfig, resolveTargets } from '../lib/sdlc-config.js';
 import type { SyncContext, SectionResult } from './types.js';
 import {
   MAIN_REQUIRED_CHECKS,
   DEVELOP_REQUIRED_CHECKS,
   MAIN_REVIEW_COUNT,
   DEVELOP_REVIEW_COUNT,
+  namespacedRequiredChecks,
 } from '../lib/branch-protection-checks.js';
 
 /**
@@ -43,18 +44,39 @@ export async function verifyBranchProtection(ctx: SyncContext): Promise<SectionR
     };
   }
   const results: string[] = [];
-  const mainResult = await provider.applyBranchProtection(ctx.projectPath, meta.defaultBranch, MAIN_REQUIRED_CHECKS, { requiredReviewCount: MAIN_REVIEW_COUNT });
-  if (mainResult.applied) {
-    results.push(`${meta.defaultBranch}: ok`);
-  } else {
-    results.push(`${meta.defaultBranch}: failed — ${mainResult.message ?? 'unknown'}`);
-  }
-  if (integrationBranch !== meta.defaultBranch) {
-    const devResult = await provider.applyBranchProtection(ctx.projectPath, integrationBranch, DEVELOP_REQUIRED_CHECKS, { requiredReviewCount: DEVELOP_REVIEW_COUNT });
-    if (devResult.applied) {
-      results.push(`${integrationBranch}: ok`);
+  // Multi-target (#689/#696): apply once per target with that target's
+  // namespaced check name (mirroring the CI workflow job-name suffix from
+  // #692), so branch protection actually requires what each target's
+  // workflow reports. GitHubProvider.applyBranchProtection unions rather
+  // than replaces (#695), so looping here is additive across targets/calls.
+  const targets = resolveTargets(config ?? { project_slug: '' });
+  const multiTarget = targets.length > 1;
+  for (const target of targets) {
+    // eslint-disable-next-line no-await-in-loop
+    const mainResult = await provider.applyBranchProtection(
+      ctx.projectPath,
+      meta.defaultBranch,
+      namespacedRequiredChecks(MAIN_REQUIRED_CHECKS, target.name, multiTarget),
+      { requiredReviewCount: MAIN_REVIEW_COUNT },
+    );
+    if (mainResult.applied) {
+      results.push(`${meta.defaultBranch}${multiTarget ? ` (${target.name})` : ''}: ok`);
     } else {
-      results.push(`${integrationBranch}: failed — ${devResult.message ?? 'unknown'}`);
+      results.push(`${meta.defaultBranch}${multiTarget ? ` (${target.name})` : ''}: failed — ${mainResult.message ?? 'unknown'}`);
+    }
+    if (integrationBranch !== meta.defaultBranch) {
+      // eslint-disable-next-line no-await-in-loop
+      const devResult = await provider.applyBranchProtection(
+        ctx.projectPath,
+        integrationBranch,
+        namespacedRequiredChecks(DEVELOP_REQUIRED_CHECKS, target.name, multiTarget),
+        { requiredReviewCount: DEVELOP_REVIEW_COUNT },
+      );
+      if (devResult.applied) {
+        results.push(`${integrationBranch}${multiTarget ? ` (${target.name})` : ''}: ok`);
+      } else {
+        results.push(`${integrationBranch}${multiTarget ? ` (${target.name})` : ''}: failed — ${devResult.message ?? 'unknown'}`);
+      }
     }
   }
   const allOk = results.every((r) => r.endsWith(': ok'));

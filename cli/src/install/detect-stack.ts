@@ -1,5 +1,5 @@
 import { promises as fs } from 'node:fs';
-import { join, relative } from 'node:path';
+import { dirname, join, relative, sep } from 'node:path';
 import type { DetectedStack, InstallContext, StepResult } from './types.js';
 
 const MAX_DEPTH = 3;
@@ -38,7 +38,11 @@ export async function detectStack(ctx: InstallContext): Promise<{ result: StepRe
   }
   const nested = await findPyproject(root, 1, root);
   if (nested) {
-    const wd = relative(root, nested).split('/').slice(0, -1).join('/') || '.';
+    // working_directory is stored/compared as a POSIX-style relative path
+    // (e.g. 'api', 'mission-control-api') everywhere else in the config —
+    // `dirname`/`relative` return `sep`-joined paths, which is backslashes
+    // on Windows, so normalize before using it as that identifier.
+    const wd = dirname(relative(root, nested)).split(sep).join('/') || '.';
     return { result: ok('python', wd), detected: { stack: 'python', workingDirectory: wd } };
   }
   if (await fileExists(join(root, 'package.json'))) {

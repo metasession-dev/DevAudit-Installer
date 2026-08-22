@@ -14,6 +14,7 @@ const execaCalls: ExecaCall[] = [];
 let ghAvailable = true;
 let ghRepoViewStdout = JSON.stringify({ owner: 'foo', name: 'bar', defaultBranch: 'main' });
 let ghSecretListStdout = '[]';
+let ghExistingRequiredChecks: string[] = [];
 
 vi.mock('execa', () => ({
   execa: async (file: string, args: readonly string[] = [], opts: { input?: string } = {}) => {
@@ -33,6 +34,9 @@ vi.mock('execa', () => ({
     }
     if (file === 'gh' && args[0] === 'variable' && args[1] === 'set') {
       return { exitCode: 0, stdout: '', stderr: '' };
+    }
+    if (file === 'gh' && args[0] === 'api' && args.some((a) => a.includes('required_status_checks/contexts'))) {
+      return { exitCode: 0, stdout: JSON.stringify(ghExistingRequiredChecks), stderr: '' };
     }
     if (file === 'gh' && args[0] === 'api') {
       return { exitCode: 0, stdout: '', stderr: '' };
@@ -63,6 +67,7 @@ afterEach(async () => {
   execaCalls.length = 0;
   ghAvailable = true;
   ghRepoViewStdout = JSON.stringify({ owner: 'foo', name: 'bar', defaultBranch: 'main' });
+  ghExistingRequiredChecks = [];
   const mod = await import('../src/lib/git-provider/github.js');
   mod.resetGhAvailabilityCache();
 });
@@ -77,6 +82,15 @@ describe('classifyRemoteUrl', () => {
     expect(classifyRemoteUrl('https://bitbucket.org/x/y').provider).toBe('bitbucket');
     expect(classifyRemoteUrl('git@code.example.com:x/y.git').provider).toBe('self-hosted');
     expect(classifyRemoteUrl('git@code.example.com:x/y.git').host).toBe('code.example.com');
+  });
+});
+
+describe('unionRequiredChecks', () => {
+  it('dedupes and preserves order, existing checks first', async () => {
+    const { unionRequiredChecks } = await import('../src/lib/git-provider/github.js');
+    expect(unionRequiredChecks(['A', 'B'], ['B', 'C'])).toEqual(['A', 'B', 'C']);
+    expect(unionRequiredChecks([], ['A'])).toEqual(['A']);
+    expect(unionRequiredChecks(['A'], [])).toEqual(['A']);
   });
 });
 
@@ -103,8 +117,37 @@ describe('GitHubProvider (gh-CLI-preferred path)', () => {
     const p = new GitHubProvider();
     const result = await p.applyBranchProtection('/tmp/x', 'main', ['Check 1', 'Check 2']);
     expect(result.applied).toBe(true);
-    const call = execaCalls.find((c) => c.file === 'gh' && c.args[0] === 'api');
-    expect(call?.args).toContain('/repos/foo/bar/branches/main/protection');
+    const putCall = execaCalls.find(
+      (c) => c.file === 'gh' && c.args[0] === 'api' && c.args.includes('-X'),
+    );
+    expect(putCall?.args).toContain('/repos/foo/bar/branches/main/protection');
+  });
+  // Read-merge-write (#689/#695): a second target's install run must not
+  // drop the first target's already-required check by blindly PUTting a
+  // fresh list — the write is a union of what's already required and what
+  // this call asks for.
+  it('applyBranchProtection unions with existing required checks instead of replacing them', async () => {
+    ghExistingRequiredChecks = ['Quality Gates (api)'];
+    const { GitHubProvider } = await import('../src/lib/git-provider/github.js');
+    const p = new GitHubProvider();
+    const result = await p.applyBranchProtection('/tmp/x', 'main', ['Quality Gates (web)']);
+    expect(result.applied).toBe(true);
+    const putCall = execaCalls.find(
+      (c) => c.file === 'gh' && c.args[0] === 'api' && c.args.includes('-X'),
+    );
+    const body = JSON.parse(putCall?.input ?? '{}') as { required_status_checks: { contexts: string[] } };
+    expect(body.required_status_checks.contexts).toEqual(['Quality Gates (api)', 'Quality Gates (web)']);
+  });
+  it('applyBranchProtection dedupes when the requested check is already required', async () => {
+    ghExistingRequiredChecks = ['Quality Gates'];
+    const { GitHubProvider } = await import('../src/lib/git-provider/github.js');
+    const p = new GitHubProvider();
+    await p.applyBranchProtection('/tmp/x', 'main', ['Quality Gates']);
+    const putCall = execaCalls.find(
+      (c) => c.file === 'gh' && c.args[0] === 'api' && c.args.includes('-X'),
+    );
+    const body = JSON.parse(putCall?.input ?? '{}') as { required_status_checks: { contexts: string[] } };
+    expect(body.required_status_checks.contexts).toEqual(['Quality Gates']);
   });
   it('hasSecret: true when gh secret list reports the name', async () => {
     ghSecretListStdout = JSON.stringify([{ name: 'DEVAUDIT_USER_TOKEN' }, { name: 'OTHER' }]);

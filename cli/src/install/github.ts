@@ -9,7 +9,7 @@ interface SecretOperation {
 
 function buildOperations(ctx: InstallContext, plan: InstallPlan): SecretOperation[] {
   const operations: SecretOperation[] = [];
-  if (plan.apiKey) operations.push({ kind: 'secret', name: 'DEVAUDIT_API_KEY', value: plan.apiKey });
+  if (plan.apiKey) operations.push({ kind: 'secret', name: plan.apiKeySecretName, value: plan.apiKey });
   operations.push({ kind: 'secret', name: 'DEVAUDIT_USER_TOKEN', value: ctx.token });
   if (plan.prodUrlValue) {
     operations.push({ kind: 'secret', name: plan.prodUrlSecretName, value: plan.prodUrlValue });
@@ -20,7 +20,7 @@ function buildOperations(ctx: InstallContext, plan: InstallPlan): SecretOperatio
 
 function buildSkipped(plan: InstallPlan): string[] {
   const skipped: string[] = [];
-  if (!plan.apiKey) skipped.push('DEVAUDIT_API_KEY (no new key issued)');
+  if (!plan.apiKey) skipped.push(`${plan.apiKeySecretName} (no new key issued)`);
   if (!plan.prodUrlValue) skipped.push(`${plan.prodUrlSecretName} (no value provided)`);
   return skipped;
 }

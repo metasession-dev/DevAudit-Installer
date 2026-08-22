@@ -47,6 +47,12 @@ export interface RunInstallOptions {
    * have skipped them. The operator's rotation lane.
    */
   readonly forceTeamConfig?: boolean;
+  /**
+   * Append a new target to an existing multi-target `sdlc-config.json`
+   * instead of refusing when the repo is already configured for a different
+   * target. See #689 / #691.
+   */
+  readonly addTarget?: boolean;
 }
 
 export interface InstallReport {
@@ -78,6 +84,7 @@ export async function runInstall(options: RunInstallOptions): Promise<InstallRep
     dryRun: Boolean(options.dryRun),
     nonInteractive: Boolean(options.nonInteractive),
     installMode: 'operator',
+    addTarget: Boolean(options.addTarget),
   };
   banner(tentativeCtx);
   const steps: StepResult[] = [];
