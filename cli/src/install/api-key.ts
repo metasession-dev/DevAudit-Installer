@@ -29,7 +29,7 @@ export async function issueApiKey(ctx: InstallContext, plan: InstallPlan): Promi
     return {
       step: '6/11 Issue project API key',
       status: 'warn',
-      message: `'${KEY_NAME}' API key already exists — revoke it in the portal and re-run, or set DEVAUDIT_API_KEY manually`,
+      message: `'${KEY_NAME}' API key already exists — revoke it in the portal and re-run, or set ${plan.apiKeySecretName} manually`,
     };
   }
   const issued = await client.issueApiKey(plan.projectId, KEY_NAME);
@@ -37,6 +37,6 @@ export async function issueApiKey(ctx: InstallContext, plan: InstallPlan): Promi
   return {
     step: '6/11 Issue project API key',
     status: 'ok',
-    message: `issued (will be stored as repo secret DEVAUDIT_API_KEY)`,
+    message: `issued (will be stored as repo secret ${plan.apiKeySecretName})`,
   };
 }

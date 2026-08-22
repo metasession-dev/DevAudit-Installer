@@ -23,3 +23,20 @@ export const DEVELOP_REQUIRED_CHECKS: readonly string[] = ['Quality Gates'];
 
 export const MAIN_REVIEW_COUNT = 1;
 export const DEVELOP_REVIEW_COUNT = 0;
+
+/**
+ * Namespace a set of required-check names for a target, mirroring the CI
+ * template job/check-name suffix from #692 (`namespaceForTarget` in
+ * `update/ci-templates.ts`) so branch protection's required contexts match
+ * what each target's workflow actually reports. No-ops for the single-target
+ * case so existing single-target repos keep requiring the bare `Quality
+ * Gates` context. See #689/#696.
+ */
+export function namespacedRequiredChecks(
+  checks: readonly string[],
+  targetName: string,
+  multiTarget: boolean,
+): readonly string[] {
+  if (!multiTarget) return checks;
+  return checks.map((c) => `${c} (${targetName})`);
+}

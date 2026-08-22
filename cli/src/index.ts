@@ -53,10 +53,14 @@ export async function main(argv: readonly string[]): Promise<void> {
     .option('--token <token>', 'PAT to use (otherwise reads DEVAUDIT_USER_TOKEN env or ~/.config/devaudit/auth.json)')
     .option('--base-url <url>', 'override portal URL (defaults to DEVAUDIT_BASE_URL env or production)')
     .option('--force-team-config', 'Re-run the destructive steps (write sdlc-config, issue API key, set GH secrets, apply branch protection) even when dev-mode detection would have skipped them. The operator-only rotation lane.')
+    .option(
+      '--add-target',
+      'Append this install as a new target in an already-configured (polyglot monorepo) repo instead of refusing. See #689.',
+    )
     .action(
       async (
         path: string | undefined,
-        cmdOpts: { token?: string; baseUrl?: string; forceTeamConfig?: boolean },
+        cmdOpts: { token?: string; baseUrl?: string; forceTeamConfig?: boolean; addTarget?: boolean },
         cmd,
       ) => {
         const globals = cmd.optsWithGlobals();
@@ -67,6 +71,7 @@ export async function main(argv: readonly string[]): Promise<void> {
           ...(cmdOpts.forceTeamConfig !== undefined
             ? { forceTeamConfig: Boolean(cmdOpts.forceTeamConfig) }
             : {}),
+          ...(cmdOpts.addTarget !== undefined ? { addTarget: Boolean(cmdOpts.addTarget) } : {}),
           ...(globals.dryRun !== undefined ? { dryRun: Boolean(globals.dryRun) } : {}),
           ...(globals.yes !== undefined ? { yes: Boolean(globals.yes) } : {}),
         });

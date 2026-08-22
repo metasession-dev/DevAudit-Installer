@@ -31,6 +31,15 @@ export interface InstallContext {
   readonly dryRun: boolean;
   readonly nonInteractive: boolean;
   /**
+   * When the repo already has an `sdlc-config.json` describing a *different*
+   * target (different working directory / project slug — a polyglot
+   * monorepo scenario, see #689), `writeSdlcConfig` normally refuses rather
+   * than clobbering it. Passing `--add-target` appends the new target
+   * instead. Re-running install against the *same* target (rotation) is
+   * unaffected either way.
+   */
+  readonly addTarget: boolean;
+  /**
    * Set to `'developer'` only AFTER the orchestrator's mode-detection runs
    * (between step 6 and step 7); the steps that run before that point (1–6)
    * see `'operator'` and proceed as usual. The destructive steps (7, 9) and
@@ -49,6 +58,16 @@ export interface InstallPlan {
   workingDirectory: string;
   prodUrlSecretName: string;
   prodUrlValue: string;
+  /**
+   * Name of the GitHub repo secret this target's DevAudit API key is stored
+   * under. Defaults to `'DEVAUDIT_API_KEY'` for the single-target case
+   * (unchanged from pre-#689 behaviour). For `--add-target`, GitHub repo
+   * secrets are repo-scoped (not per-directory), so a second target reusing
+   * that literal name would silently overwrite the first target's key —
+   * `collectPlan` derives a collision-free name from the new target's slug
+   * instead. See #694.
+   */
+  apiKeySecretName: string;
   projectId?: string;
   apiKey?: string;
 }

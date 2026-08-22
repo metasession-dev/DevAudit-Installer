@@ -495,4 +495,201 @@ describe('runInstall — native TS install against a node fixture', () => {
       await fs.rm(dir, { recursive: true, force: true });
     }
   }, 30_000);
+
+  // --add-target (#689/#691): a polyglot-monorepo repo with an already-onboarded
+  // Node target at the root and a not-yet-onboarded Python target nested under
+  // api/. detectStack finds the nested pyproject.toml before the root
+  // package.json, so pointing install at the repo root without any extra flag
+  // naturally resolves to the *other* target.
+  async function buildPolyglotFixture(): Promise<string> {
+    const dir = await buildNodeFixture();
+    await fs.writeFile(
+      join(dir, 'sdlc-config.json'),
+      JSON.stringify({ project_slug: 'fixture-app', stack: 'node', host: 'railway', node_version: '20', working_directory: '.' }),
+    );
+    await fs.mkdir(join(dir, 'api'), { recursive: true });
+    await fs.writeFile(join(dir, 'api', 'pyproject.toml'), '[project]\nname = "fixture-api"\n');
+    return dir;
+  }
+
+  it('refuses to overwrite when the repo already configures a different target and --add-target is not passed', async () => {
+    const { runInstall } = await import('../src/install/index.js');
+    const dir = await buildPolyglotFixture();
+    try {
+      const report = await runInstall({
+        path: dir,
+        nonInteractive: true,
+        provider: makeFakeProvider(),
+      });
+      const step4 = report.steps.find((s) => s.step.startsWith('4/'));
+      expect(step4?.status).toBe('fail');
+      expect(step4?.message).toMatch(/--add-target/);
+      // The original single-target config is untouched.
+      const after = JSON.parse(await fs.readFile(join(dir, 'sdlc-config.json'), 'utf-8'));
+      expect(after.project_slug).toBe('fixture-app');
+      expect(after.targets).toBeUndefined();
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it('--add-target appends a new target instead of overwriting the existing one', async () => {
+    const { runInstall } = await import('../src/install/index.js');
+    const dir = await buildPolyglotFixture();
+    try {
+      const report = await runInstall({
+        path: dir,
+        nonInteractive: true,
+        addTarget: true,
+        provider: makeFakeProvider(),
+      });
+      const step4 = report.steps.find((s) => s.step.startsWith('4/'));
+      expect(step4?.status).toBe('ok');
+      const after = JSON.parse(await fs.readFile(join(dir, 'sdlc-config.json'), 'utf-8'));
+      expect(Array.isArray(after.targets)).toBe(true);
+      const names = (after.targets as Array<{ name: string }>).map((t) => t.name);
+      // The legacy flat config synthesizes as the 'default' target (per
+      // resolveTargets, #690); the newly-appended one is the auto-derived 'api'.
+      expect(names).toContain('default');
+      expect(names).toContain('api');
+      const apiTarget = (after.targets as Array<{ name: string; stack?: string; working_directory?: string }>).find(
+        (t) => t.name === 'api',
+      );
+      expect(apiTarget?.stack).toBe('python');
+      expect(apiTarget?.working_directory).toBe('api');
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it('--add-target refuses when a target with the same name already exists', async () => {
+    const { runInstall } = await import('../src/install/index.js');
+    const dir = await buildPolyglotFixture();
+    // Pre-seed a `targets` array that already claims the name the new
+    // (auto-derived) target would use ('api').
+    await fs.writeFile(
+      join(dir, 'sdlc-config.json'),
+      JSON.stringify({
+        project_slug: 'fixture-app',
+        targets: [
+          { name: 'fixture-app', stack: 'node', working_directory: '.' },
+          { name: 'api', stack: 'python', working_directory: 'other-dir' },
+        ],
+      }),
+    );
+    try {
+      const report = await runInstall({
+        path: dir,
+        nonInteractive: true,
+        addTarget: true,
+        provider: makeFakeProvider(),
+      });
+      const step4 = report.steps.find((s) => s.step.startsWith('4/'));
+      expect(step4?.status).toBe('fail');
+      expect(step4?.message).toMatch(/already exists/);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  // api_key_secret collision safety (#689/#694): GitHub repo secrets are
+  // repo-scoped, not per-directory. A second target must not silently reuse
+  // (and overwrite) the first target's secret name.
+  it('--add-target derives a distinct api_key_secret name instead of reusing the existing target\'s', async () => {
+    const { runInstall } = await import('../src/install/index.js');
+    const dir = await buildPolyglotFixture();
+    try {
+      const report = await runInstall({
+        path: dir,
+        nonInteractive: true,
+        addTarget: true,
+        provider: makeFakeProvider(),
+      });
+      const step4 = report.steps.find((s) => s.step.startsWith('4/'));
+      expect(step4?.status).toBe('ok');
+      const after = JSON.parse(await fs.readFile(join(dir, 'sdlc-config.json'), 'utf-8'));
+      const apiTarget = (
+        after.targets as Array<{ name: string; devaudit?: { api_key_secret?: string } }>
+      ).find((t) => t.name === 'api');
+      // The root/default target has no devaudit.api_key_secret in this
+      // fixture, so the derived name is collision-free by construction —
+      // the real assertion is that it's target-specific, not the literal
+      // 'DEVAUDIT_API_KEY' the first (default) target would use.
+      expect(apiTarget?.devaudit?.api_key_secret).toBeTruthy();
+      expect(apiTarget?.devaudit?.api_key_secret).not.toBe('DEVAUDIT_API_KEY');
+      // The secret actually pushed to GitHub for this run uses that same name.
+      const secretCalls = providerCalls.filter((c) => c.method === 'setSecret');
+      const secretNames = secretCalls.map((c) => c.args[0]);
+      expect(secretNames).toContain(apiTarget?.devaudit?.api_key_secret);
+      expect(secretNames).not.toContain('DEVAUDIT_API_KEY');
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it('--add-target disambiguates when the derived api_key_secret name is already claimed', async () => {
+    const { runInstall } = await import('../src/install/index.js');
+    const dir = await buildPolyglotFixture();
+    // Pre-seed a targets array where the *other* target already claims the
+    // name the new 'api' target would naturally derive ('API_API_KEY').
+    await fs.writeFile(
+      join(dir, 'sdlc-config.json'),
+      JSON.stringify({
+        project_slug: 'fixture-app',
+        targets: [
+          {
+            name: 'fixture-app',
+            stack: 'node',
+            working_directory: '.',
+            devaudit: { project_slug: 'fixture-app', api_key_secret: 'API_API_KEY' },
+          },
+        ],
+      }),
+    );
+    try {
+      const report = await runInstall({
+        path: dir,
+        nonInteractive: true,
+        addTarget: true,
+        provider: makeFakeProvider(),
+      });
+      const step4 = report.steps.find((s) => s.step.startsWith('4/'));
+      expect(step4?.status).toBe('ok');
+      const after = JSON.parse(await fs.readFile(join(dir, 'sdlc-config.json'), 'utf-8'));
+      const apiTarget = (
+        after.targets as Array<{ name: string; devaudit?: { api_key_secret?: string } }>
+      ).find((t) => t.name === 'api');
+      expect(apiTarget?.devaudit?.api_key_secret).not.toBe('API_API_KEY');
+      expect(apiTarget?.devaudit?.api_key_secret).toBeTruthy();
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  // Branch protection multi-target namespacing (#689/#696): once a repo has
+  // two targets, each target's required check must be individually applied
+  // (and, per #695, unioned rather than overwritten) so branch protection
+  // actually matches what each target's namespaced CI workflow reports.
+  it('--add-target applies namespaced branch-protection checks for every target', async () => {
+    const { runInstall } = await import('../src/install/index.js');
+    const dir = await buildPolyglotFixture();
+    try {
+      const report = await runInstall({
+        path: dir,
+        nonInteractive: true,
+        addTarget: true,
+        provider: makeFakeProvider(),
+      });
+      const step9 = report.steps.find((s) => s.step.startsWith('9/'));
+      expect(step9?.status).toBe('ok');
+      const bpCalls = providerCalls.filter((c) => c.method === 'applyBranchProtection');
+      const mainCallsChecks = bpCalls
+        .filter((c) => c.args[0] === 'main')
+        .map((c) => c.args[1] as readonly string[]);
+      expect(mainCallsChecks).toContainEqual(['Quality Gates (default)']);
+      expect(mainCallsChecks).toContainEqual(['Quality Gates (api)']);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
 });

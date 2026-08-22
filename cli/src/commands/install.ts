@@ -13,6 +13,12 @@ export interface InstallOptions {
    * second-dev re-run on an onboarded project auto-routes to developer mode.
    */
   readonly forceTeamConfig?: boolean;
+  /**
+   * Append a new target to an existing multi-target `sdlc-config.json`
+   * instead of refusing when the repo already configures a different
+   * target. See #689 / #691.
+   */
+  readonly addTarget?: boolean;
 }
 
 export async function runInstallCommand(options: InstallOptions): Promise<void> {
@@ -27,6 +33,7 @@ export async function runInstallCommand(options: InstallOptions): Promise<void> 
       ...(options.forceTeamConfig !== undefined
         ? { forceTeamConfig: options.forceTeamConfig }
         : {}),
+      ...(options.addTarget !== undefined ? { addTarget: options.addTarget } : {}),
     });
   } catch (err) {
     log.error((err as Error).message);
