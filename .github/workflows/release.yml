@@ -103,10 +103,19 @@ jobs:
         run: bash scripts/verify-npm-publication.sh @metasession.co/devaudit-sdlc "$(jq -r .version sdlc/package.json)"
 
       # ----- Step 6: GitHub Release with auto-generated notes -----
+      # GITHUB_REF_NAME is set for both trigger types (the branch name on
+      # workflow_dispatch, the tag name on a tag push) — it's never empty,
+      # so a `${GITHUB_REF_NAME:-...}` fallback can't distinguish them and
+      # would tag a manual dispatch's release as the branch name (e.g.
+      # "main") instead of "v<version>". Branch explicitly on event_name.
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="${GITHUB_REF_NAME:-v${{ inputs.version }}}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="v${{ inputs.version }}"
+          else
+            TAG="${GITHUB_REF_NAME}"
+          fi
           echo "Creating GitHub Release $TAG"
           gh release create "$TAG" --generate-notes --title "$TAG"
