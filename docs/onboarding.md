@@ -102,6 +102,16 @@ Open each file, replace the `REPLACE — …` placeholders with content that ref
 
 See [`governance-templates.md`](./governance-templates.md) for the per-framework mapping and authoritative external references (ICO ROPA template, EDPB DPIA guidelines, NIST AI RMF, etc.).
 
+### Step 3b — Bootstrap the Software Requirements Specification
+
+`docs/SRS.md` is the project's living spec — what `e2e-test-engineer` derives tests from, and what `requirements-aligner` checks every future requirement against. Like the governance docs above, `devaudit install` deliberately does not author this for you: `requirements-aligner` explicitly refuses to write an SRS from scratch (it only maintains one that already exists), so this is the one manual bootstrap step in an otherwise-automated pipeline.
+
+1. File an **SRS Bootstrap** issue in the consumer repo — synced by `install`/`update` to `.github/ISSUE_TEMPLATE/srs-bootstrap.yml`. It walks through identifying the project's Must/Should/Could/Won't requirements using MoSCoW prioritisation.
+2. Work the issue from `SDLC/SRS_TEMPLATE.md` (synced alongside the stage docs in step 11 above) — it has the `REQ-AREA-NNN` ID scheme, the MoSCoW conventions, and two worked Given/When/Then examples to copy the format from.
+3. Commit the result as `docs/SRS.md` on `develop`.
+
+From the next requirement onward, use the **Requirement** issue template instead of SRS Bootstrap again — `requirements-aligner` takes over incremental maintenance automatically (advisory at Stage 1, blocking at Stage 3, per `sdlc-config.json`'s `requirements_aligner` defaults).
+
 ## What onboarding can't do (and why)
 
 Some operations remain out of scope by design:
@@ -213,4 +223,5 @@ The command starts immediately, but the full operator onboarding flow usually ta
 - [STACK_ADAPTER.md](../sdlc/STACK_ADAPTER.md) — the stack-adapter contract.
 - [HOST_ADAPTER.md](../sdlc/HOST_ADAPTER.md) — the host-adapter contract.
 - [ADR-001](./ADR/ADR-001-polyglot-sdlc-architecture.md) — why the framework is layered this way.
+- [`docs/skills.md`](./skills.md) — the `requirements-aligner` skill that maintains `docs/SRS.md` after Step 3b's bootstrap.
 - [adding-a-stack.md](./adding-a-stack.md) / [adding-a-host.md](./adding-a-host.md) — adding new stacks or hosts.
