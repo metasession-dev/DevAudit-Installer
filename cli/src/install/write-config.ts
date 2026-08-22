@@ -130,7 +130,7 @@ export async function writeSdlcConfig(ctx: InstallContext, plan: InstallPlan): P
   const outPath = join(ctx.projectPath, 'sdlc-config.json');
   if (ctx.dryRun) {
     const preserved = existing
-      ? `preserves existing customizations (${Object.keys(existing as unknown as Record<string, unknown>).filter((k) => !(k in wizardOwned)).length} non-wizard fields)`
+      ? `preserves existing customizations (${Object.keys(existing as unknown as object).filter((k) => !(k in wizardOwned)).length} non-wizard fields)`
       : 'fresh config';
     return {
       step: '4/11 Write sdlc-config.json',
