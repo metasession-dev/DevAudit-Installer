@@ -632,6 +632,66 @@ describe('syncProject — native TS sync against a fixture', () => {
     }
   }, 60_000);
 
+  it('reads each target\'s own devaudit.api_key_secret in release-lifecycle workflows, not the literal DEVAUDIT_API_KEY', async () => {
+    const dir = await fs.mkdtemp(join(tmpdir(), 'cli-update-multitarget-apikey-'));
+    try {
+      const baseTarget = {
+        stack: 'node',
+        working_directory: '.',
+        source_dirs: 'app/ lib/',
+        production_url_secret: 'FIXTURE_PROD_URL',
+      };
+      await fs.writeFile(
+        join(dir, 'sdlc-config.json'),
+        JSON.stringify({
+          project_slug: 'fixture-app',
+          stack: 'node',
+          host: 'railway',
+          node_version: '20',
+          runner: 'ubuntu-latest',
+          working_directory: '.',
+          source_dirs: 'app/ lib/',
+          sast_baseline: 0,
+          accepted_dep_risks: '',
+          production_url_secret: 'FIXTURE_PROD_URL',
+          database_service: '',
+          database_image: '',
+          database_port: '',
+          database_env: {},
+          app_env: {},
+          build_env: {},
+          e2e_project: 'chromium',
+          e2e_start_command: 'npm run dev',
+          paths_ignore: ['SDLC/**', 'compliance/**'],
+          targets: [
+            // No explicit api_key_secret on the first target -> the legacy default.
+            { name: 'web', ...baseTarget, devaudit: { project_slug: 'fixture-app' } },
+            {
+              name: 'api-ui',
+              ...baseTarget,
+              working_directory: 'api-ui',
+              devaudit: { project_slug: 'fixture-api-ui', api_key_secret: 'FIXTURE_API_UI_API_KEY' },
+            },
+          ],
+        }),
+      );
+      await fs.mkdir(join(dir, '.github', 'workflows'), { recursive: true });
+      await syncProject(dir);
+
+      const workflowsDir = join(dir, '.github', 'workflows');
+      const webCi = await fs.readFile(join(workflowsDir, 'ci-web.yml'), 'utf-8');
+      const apiUiCi = await fs.readFile(join(workflowsDir, 'ci-api-ui.yml'), 'utf-8');
+
+      expect(webCi).toContain('secrets.DEVAUDIT_API_KEY');
+      expect(apiUiCi).toContain('secrets.FIXTURE_API_UI_API_KEY');
+      expect(apiUiCi).not.toContain('secrets.DEVAUDIT_API_KEY');
+
+      await expectAllWorkflowsValidYaml(dir);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
   it('scopes ci.yml triggers to each target\'s own working_directory when both targets are non-root (#693)', async () => {
     const dir = await fs.mkdtemp(join(tmpdir(), 'cli-update-multitarget-paths-'));
     try {
