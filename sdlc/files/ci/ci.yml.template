@@ -59,7 +59,7 @@ jobs:
 {{DATABASE_ENV}}
 {{APP_ENV}}
       DEVAUDIT_BASE_URL_VAR: ${{ vars.DEVAUDIT_BASE_URL }}
-      DEVAUDIT_API_KEY: ${{ secrets.DEVAUDIT_API_KEY }}
+      DEVAUDIT_API_KEY: ${{ secrets.{{API_KEY_SECRET}} }}
 
     steps:
       - uses: actions/checkout@v6
@@ -296,7 +296,7 @@ jobs:
       version: ${{ steps.version.outputs.version }}
     env:
       DEVAUDIT_BASE_URL_VAR: ${{ vars.DEVAUDIT_BASE_URL }}
-      DEVAUDIT_API_KEY: ${{ secrets.DEVAUDIT_API_KEY }}
+      DEVAUDIT_API_KEY: ${{ secrets.{{API_KEY_SECRET}} }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -516,7 +516,7 @@ jobs:
     if: ${{ !cancelled() && github.event_name != 'pull_request' && github.ref_name == '{{INTEGRATION_BRANCH}}' && needs.register-release.result == 'success' }}
     env:
       DEVAUDIT_BASE_URL_VAR: ${{ vars.DEVAUDIT_BASE_URL }}
-      DEVAUDIT_API_KEY: ${{ secrets.DEVAUDIT_API_KEY }}
+      DEVAUDIT_API_KEY: ${{ secrets.{{API_KEY_SECRET}} }}
     steps:
       - uses: actions/checkout@v6
 

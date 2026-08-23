@@ -35,6 +35,7 @@ const OLD_WORKFLOWS_TO_REMOVE = ['test-on-pr.yml', 'check-uat-approval.yml'];
 interface SdlcConfig {
   readonly project_slug: string;
   readonly production_url_secret: string;
+  readonly devaudit?: { readonly api_key_secret?: string };
   readonly integration_branch?: string;
   readonly release_branch?: string;
   readonly node_version?: string | number;
@@ -352,6 +353,15 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
     const target = targets[targetIdx]!;
     const projectSlug = target.devaudit?.project_slug ?? cfg.project_slug;
     const productionUrlSecret = target.production_url_secret ?? cfg.production_url_secret;
+    // Each target's DevAudit API key is written to its OWN uniquely-named
+    // repo secret (apiKeySecretNameFor() in install/prompts.ts) precisely so
+    // a second target's install never collides with the first's — but every
+    // generated workflow read the literal `secrets.DEVAUDIT_API_KEY` instead
+    // of this field, so only the (legacy, single-target-default-named)
+    // "default" target's release-lifecycle jobs could ever authenticate.
+    // Found on the develop->main release PR for metasession-dev/META-AGENT:
+    // every non-default target's "Register Release" job failed outright.
+    const apiKeySecret = target.devaudit?.api_key_secret ?? cfg.devaudit?.api_key_secret ?? 'DEVAUDIT_API_KEY';
     const workingDirectory = allWorkingDirs[targetIdx]!;
     const workingDirPrefix = workingDirectory ? `${workingDirectory.replace(/\/$/, '')}/` : '';
     // Other targets' directories to scope this target's triggers away from.
@@ -390,6 +400,7 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
       E2E_PROJECT: cfg.e2e_project,
       E2E_START_COMMAND: cfg.e2e_start_command,
       E2E_PORT: e2ePort,
+      API_KEY_SECRET: apiKeySecret,
     };
     // otherTargetDirs is appended here (not just to PATHS_IGNORE's push
     // consumer) because ci-status-fallback.yml.template reuses the exact same

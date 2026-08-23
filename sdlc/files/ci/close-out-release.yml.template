@@ -55,7 +55,7 @@ jobs:
       # behavior) when unset, so this is safe on every consumer regardless
       # of whether they've configured the secret.
       GH_TOKEN: ${{ secrets.INSTALLER_DISPATCH_TOKEN || github.token }}
-      DEVAUDIT_API_KEY: ${{ secrets.DEVAUDIT_API_KEY }}
+      DEVAUDIT_API_KEY: ${{ secrets.{{API_KEY_SECRET}} }}
     steps:
       - uses: actions/checkout@v6
         with:
