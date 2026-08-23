@@ -152,7 +152,16 @@ function buildE2eDevServerStep(cfg: SdlcConfig): string {
   const env = cfg.e2e_env ?? {};
   const lines = ['      - name: Start dev server'];
   if (Object.keys(env).length > 0) lines.push('        env:', indentEnvBlock({ ...env }, 10));
-  lines.push(`        run: ${cfg.e2e_start_command} &`);
+  // e2e_start_command is '' on every fresh install (no prompt collects it —
+  // it's a deliberate post-install manual edit) — `run: <empty> &` is a bare
+  // `&`, which YAML parses as the start of an anchor name and rejects as
+  // invalid (anchor cannot be empty), breaking ci.yml for every consumer
+  // before they've configured it. Fall back to a harmless no-op so the
+  // workflow stays valid YAML (it'll just fail the "Wait for dev server"
+  // step below at runtime, same as any other misconfiguration, instead of
+  // never parsing at all).
+  const startCommand = (cfg.e2e_start_command ?? '').trim() || 'true';
+  lines.push(`        run: ${startCommand} &`);
   return lines.join('\n');
 }
 
@@ -292,7 +301,10 @@ function resolveRunner(cfg: SdlcConfig): string {
  */
 export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> {
   const configPath = join(ctx.projectPath, 'sdlc-config.json');
-  const workflowsDir = join(ctx.projectPath, '.github', 'workflows');
+  // GitHub Actions only reads .github/workflows/ from the repo root, never
+  // from a target's own subdirectory — repoRoot === projectPath for a
+  // single-target repo, so this is unchanged there. See #689 follow-up.
+  const workflowsDir = join(ctx.repoRoot, '.github', 'workflows');
   if (!(await exists(configPath))) {
     return { name: 'CI workflows', filesSynced: 0, skipped: true, message: 'no sdlc-config.json' };
   }
@@ -374,7 +386,16 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
       PR_PATHS_IGNORE: prPathsIgnoreBlock,
       DATABASE_ENV: cfg.database_env ? indentEnvBlock({ ...cfg.database_env }, 6) : '',
       APP_ENV: cfg.app_env ? indentEnvBlock({ ...cfg.app_env }, 6) : '',
-      BUILD_ENV: cfg.build_env ? indentEnvBlock({ ...cfg.build_env }, 10) : '',
+      // Unlike DATABASE_ENV/APP_ENV (both followed by more hardcoded env
+      // lines in the job-level `env:` block, so an empty result there is
+      // harmless), the Build Check step's `env:` key has ONLY this block as
+      // content — the template no longer hardcodes `env:` above it, so this
+      // must supply its own header, and only when there's something to put
+      // under it, or `env:` with nothing after is invalid YAML.
+      BUILD_ENV:
+        cfg.build_env && Object.keys(cfg.build_env).length > 0
+          ? `        env:\n${indentEnvBlock({ ...cfg.build_env }, 10)}`
+          : '',
       DATABASE_URI_STEP: buildDbUriStep(cfg.database_service, cfg.database_port),
       E2E_SETUP_STEP: buildE2eSetupStep(cfg),
       E2E_DEV_SERVER_STEP: buildE2eDevServerStep(cfg),

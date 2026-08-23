@@ -191,4 +191,4 @@ How the team will know the REQ is correct in production:
 
 This file lives at `compliance/plans/REQ-XXX/implementation-plan.md` and is uploaded automatically on the next push to `develop` via `compliance-evidence.yml`. The portal's framework-coverage matrix flips ISO 29119 §3.4, ISO 27001 A.8.25, GDPR Art. 25, and EU AI Act Art. 11 to COVERED for this REQ once the upload lands.
 
-Verify the upload at `https://devaudit.metasession.co/projects/<slug>/releases/REQ-XXX` — the "Evidence by requirement" list should show this plan tagged with `category=planning`.
+Verify the upload at `https://devaudit.ai/projects/<slug>/releases/REQ-XXX` — the "Evidence by requirement" list should show this plan tagged with `category=planning`.

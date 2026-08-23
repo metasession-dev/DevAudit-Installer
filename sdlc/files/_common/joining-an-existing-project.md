@@ -8,7 +8,7 @@ You're the second (or nth) developer joining a project that's already been DevAu
 
 ```bash
 npm install -g @metasession.co/devaudit-cli            # one-time, all projects
-# Issue a personal PAT at https://devaudit.metasession.co/settings/tokens
+# Issue a personal PAT at https://devaudit.ai/settings/tokens
 devaudit auth login                                    # paste mctok_…
 gh auth login                                          # if not already
 devaudit doctor                                        # node ≥22, git, gh, jq, curl
@@ -81,7 +81,7 @@ The `npx @metasession.co/devaudit-cli@latest` invocation always pulls the latest
 
 ### 2. Issue + paste a personal access token
 
-Visit `https://devaudit.metasession.co/settings/tokens`, create a token (it starts with `mctok_`), then:
+Visit `https://devaudit.ai/settings/tokens`, create a token (it starts with `mctok_`), then:
 
 ```bash
 devaudit auth login
@@ -93,7 +93,7 @@ Verify:
 ```bash
 devaudit auth status
 #   token source: ~/.config/devaudit/auth.json
-#   portal:       https://devaudit.metasession.co
+#   portal:       https://devaudit.ai
 #   accessible projects: <slug>, <slug>, …
 ```
 

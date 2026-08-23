@@ -1,4 +1,4 @@
-const DEFAULT_BASE_URL = 'https://devaudit.metasession.co';
+const DEFAULT_BASE_URL = 'https://devaudit.ai';
 
 export interface ResolvedAuth {
   readonly token: string;

@@ -220,7 +220,6 @@ jobs:
       - name: Build Check
         id: build
         run: npm run build
-        env:
 {{BUILD_ENV}}
 
       # ── Summarise per-gate outcomes ──

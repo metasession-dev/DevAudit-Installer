@@ -24,6 +24,16 @@ export type InstallMode = 'operator' | 'developer';
 
 export interface InstallContext {
   readonly projectPath: string;
+  /**
+   * The git repository's top-level directory — `projectPath` itself for a
+   * single-target repo, but its parent (or further up) for a target living
+   * in a polyglot-monorepo subdirectory (#689). Steps that write files an
+   * external tool reads from a fixed repo-root-relative location
+   * (`.github/workflows`, `.github/ISSUE_TEMPLATE`, `.husky`,
+   * `.pre-commit-config.yaml`, `.devin/workflows`) must use this, not
+   * `projectPath`. See `resolveRepoRoot()`.
+   */
+  readonly repoRoot: string;
   readonly projectName: string;
   readonly installerRoot: string;
   readonly token: string;

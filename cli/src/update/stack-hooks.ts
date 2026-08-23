@@ -20,7 +20,10 @@ export async function syncStackHooks(ctx: SyncContext): Promise<SectionResult> {
   if (!hookInstallDir) {
     return { name: `${ctx.stack} hooks`, filesSynced: 0, skipped: true, message: 'no hook_install_dir declared' };
   }
-  const targetDir = join(ctx.projectPath, hookInstallDir);
+  // Git hooks + their config files live at the repo root (see
+  // hooks-bootstrap.ts's relocateHuskyToRepoRoot — #689 follow-up), not a
+  // target's own subdirectory.
+  const targetDir = join(ctx.repoRoot, hookInstallDir);
   if (!(await isDir(targetDir))) {
     return {
       name: `${ctx.stack} hooks`,
@@ -47,7 +50,7 @@ export async function syncStackHooks(ctx: SyncContext): Promise<SectionResult> {
   for (const cfg of adapter.hook_config_files ?? []) {
     const src = join(stackHooksDir, cfg);
     if (await exists(src)) {
-      const dst = join(ctx.projectPath, cfg);
+      const dst = join(ctx.repoRoot, cfg);
       await copyFile(src, dst);
       filePaths.push(dst);
       count += 1;

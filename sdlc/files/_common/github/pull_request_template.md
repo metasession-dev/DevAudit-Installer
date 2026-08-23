@@ -26,7 +26,7 @@ Risk:
 
 ## Evidence link (REQUIRED for Requirement and Bug PRs)
 
-<!-- https://devaudit.metasession.co/projects/<slug>/requirements/REQ-XXX -->
+<!-- https://devaudit.ai/projects/<slug>/requirements/REQ-XXX -->
 
 Evidence:
 

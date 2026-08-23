@@ -1,6 +1,13 @@
 export interface SyncContext {
   readonly installerRoot: string;
   readonly projectPath: string;
+  /**
+   * The git repository's top-level directory — see the matching field on
+   * `InstallContext` (`install/types.ts`) for why sections that write
+   * `.github/`, `.husky`, `.pre-commit-config.yaml`, or `.devin/workflows`
+   * must use this instead of `projectPath` (#689 follow-up).
+   */
+  readonly repoRoot: string;
   readonly projectName: string;
   readonly stack: string;
   readonly host: string;

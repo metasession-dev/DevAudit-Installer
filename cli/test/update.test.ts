@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { basename, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { load as yamlLoad } from 'js-yaml';
+import { execa } from 'execa';
 import { syncProject } from '../src/update/index.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -570,6 +571,151 @@ describe('syncProject — native TS sync against a fixture', () => {
       // pull_request gains a matching paths-ignore block (previously absent).
       expect(webCi).toMatch(/pull_request:\s*\n\s*branches: \[develop\]\s*\n\s*paths-ignore:\s*\n\s*- 'mission-control-api\/\*\*'/);
       expect(apiCi).toMatch(/pull_request:\s*\n\s*branches: \[develop\]\s*\n\s*paths-ignore:\s*\n\s*- 'mission-control\/\*\*'/);
+
+      await expectAllWorkflowsValidYaml(dir);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  // #689 follow-up: GitHub Actions only reads .github/workflows/ from the
+  // repo root — never from a target's own subdirectory. When a target lives
+  // in a polyglot-monorepo subdirectory (the whole point of --add-target),
+  // syncing CI output relative to the target's own directory instead of the
+  // repo root produces files GitHub never runs.
+  it('writes .github/workflows/ at the git repo root, not a subdirectory target\'s own path', async () => {
+    const repoRoot = await fs.mkdtemp(join(tmpdir(), 'cli-update-reporoot-'));
+    try {
+      await execa('git', ['init', '-q'], { cwd: repoRoot });
+      const targetDir = join(repoRoot, 'mission-control');
+      await fs.mkdir(targetDir, { recursive: true });
+      await fs.writeFile(
+        join(targetDir, 'sdlc-config.json'),
+        JSON.stringify({
+          project_slug: 'mission-control',
+          stack: 'node',
+          host: 'railway',
+          node_version: '20',
+          runner: 'ubuntu-latest',
+          working_directory: '.',
+          source_dirs: 'app/ lib/',
+          sast_baseline: 0,
+          accepted_dep_risks: '',
+          production_url_secret: 'MISSION_CONTROL_PROD_URL',
+          database_service: '',
+          database_image: '',
+          database_port: '',
+          e2e_project: 'chromium',
+          e2e_start_command: 'npm run dev',
+        }),
+      );
+      // .github/workflows/ pre-exists at the repo root (syncCiTemplates
+      // requires it, matching the precondition a real onboarded repo has).
+      await fs.mkdir(join(repoRoot, '.github', 'workflows'), { recursive: true });
+
+      await syncProject(targetDir);
+
+      const rootWorkflows = await fs.readdir(join(repoRoot, '.github', 'workflows'));
+      expect(rootWorkflows).toContain('ci.yml');
+      const targetGithubExists = await fs
+        .stat(join(targetDir, '.github'))
+        .then(() => true)
+        .catch(() => false);
+      expect(targetGithubExists).toBe(false);
+
+      const rootIssueTemplates = await fs
+        .readdir(join(repoRoot, '.github', 'ISSUE_TEMPLATE'))
+        .catch(() => []);
+      expect(rootIssueTemplates.length).toBeGreaterThan(0);
+
+      const rootDevinWorkflows = await fs
+        .readdir(join(repoRoot, '.devin', 'workflows'))
+        .catch(() => []);
+      expect(rootDevinWorkflows.length).toBeGreaterThan(0);
+    } finally {
+      await fs.rm(repoRoot, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  // e2e_start_command is '' on every fresh install (no prompt collects it —
+  // filling it in is a deliberate post-install manual edit). `run: <empty> &`
+  // renders as a bare `&`, which YAML parses as an empty anchor name and
+  // rejects outright — breaking ci.yml and feature-e2e.yml for every
+  // consumer before they've configured a dev-server command.
+  it('renders a valid (harmless no-op) dev-server step when e2e_start_command is empty', async () => {
+    const dir = await fs.mkdtemp(join(tmpdir(), 'cli-update-empty-e2e-'));
+    try {
+      await fs.writeFile(
+        join(dir, 'sdlc-config.json'),
+        JSON.stringify({
+          project_slug: 'fixture-app',
+          stack: 'node',
+          host: 'railway',
+          node_version: '20',
+          runner: 'ubuntu-latest',
+          working_directory: '.',
+          source_dirs: 'app/ lib/',
+          sast_baseline: 0,
+          accepted_dep_risks: '',
+          production_url_secret: 'FIXTURE_PROD_URL',
+          database_service: '',
+          database_image: '',
+          database_port: '',
+          e2e_project: 'chromium',
+          e2e_start_command: '',
+        }),
+      );
+      await fs.mkdir(join(dir, '.github', 'workflows'), { recursive: true });
+      await syncProject(dir);
+
+      const ci = await fs.readFile(join(dir, '.github', 'workflows', 'ci.yml'), 'utf-8');
+      expect(ci).not.toMatch(/run:\s*&\s*$/m);
+      expect(ci).toContain('run: true &');
+
+      await expectAllWorkflowsValidYaml(dir);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  // build_env: {} is the default on every fresh install (an empty object is
+  // truthy in JS, so a naive `cfg.build_env ? ... : ''` check renders the
+  // block as empty anyway) — but the Build Check step's `env:` key had no
+  // other content to fall back on, so it ended up as a dangling `env:` with
+  // nothing after it. js-yaml parses that fine (as `env: null`), but GitHub
+  // Actions' schema validator rejects it outright ("expecting a single
+  // ${{...}} expression or mapping value for 'env' section") — a class of
+  // break `expectAllWorkflowsValidYaml` can't catch, only found by actually
+  // running actionlint against the onboarded mission-control repo.
+  it('does not emit a dangling env: key on the Build Check step when build_env is empty', async () => {
+    const dir = await fs.mkdtemp(join(tmpdir(), 'cli-update-emptybuildenv-'));
+    try {
+      await fs.writeFile(
+        join(dir, 'sdlc-config.json'),
+        JSON.stringify({
+          project_slug: 'fixture-app',
+          stack: 'node',
+          host: 'railway',
+          node_version: '20',
+          runner: 'ubuntu-latest',
+          working_directory: '.',
+          source_dirs: 'app/ lib/',
+          sast_baseline: 0,
+          accepted_dep_risks: '',
+          production_url_secret: 'FIXTURE_PROD_URL',
+          database_service: '',
+          database_image: '',
+          database_port: '',
+          build_env: {},
+          e2e_project: 'chromium',
+          e2e_start_command: 'npm run dev',
+        }),
+      );
+      await fs.mkdir(join(dir, '.github', 'workflows'), { recursive: true });
+      await syncProject(dir);
+
+      const ci = await fs.readFile(join(dir, '.github', 'workflows', 'ci.yml'), 'utf-8');
+      expect(ci).not.toMatch(/env:[ \t]*\n[ \t]*\n/);
 
       await expectAllWorkflowsValidYaml(dir);
     } finally {
