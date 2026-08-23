@@ -175,7 +175,7 @@ Goal: every test result + report + screenshot lands on the portal under REQ-XXX 
      --git-sha "$(git rev-parse HEAD)" --branch "$(git rev-parse --abbrev-ref HEAD)"
    ```
    Repeat per evidence type (`screenshot`, `test_report`, `audit_log`, `compliance_document`, `manual_upload`).
-4. **Verify uploads** at `https://devaudit.metasession.co/projects/<slug>/requirements/REQ-XXX`. Every entry should render.
+4. **Verify uploads** at `https://devaudit.ai/projects/<slug>/requirements/REQ-XXX`. Every entry should render.
 5. **Update `compliance/RTM.md`** with the portal links for each evidence row.
 
 CI also uploads evidence automatically on `develop` push (via the `ci.yml.template` workflow synced from DevAudit-Installer). Manual stage 3 uploads from your laptop are a belt-and-braces complement, mostly useful when you want to attach evidence the automated workflow doesn't produce (manual sign-off PDFs, threat models, etc.).
@@ -193,7 +193,7 @@ Goal: PR open against `main` with all gates green and the UAT approval requested
    - Four-eyes attestation (HIGH/CRITICAL only)
    - Rollback plan (HIGH/CRITICAL only)
 3. **Add labels** — `awaiting-uat-review` is the canonical "ready for human review" signal. Add `risk:HIGH` or `risk:CRITICAL` where applicable so reviewers can prioritise.
-4. **Wait for UAT approval on the portal.** Reviewer opens `https://devaudit.metasession.co/projects/<slug>/releases/<version>` and clicks Approve (or Request Changes). The `DevAudit Release Approval` check unblocks once approval is granted.
+4. **Wait for UAT approval on the portal.** Reviewer opens `https://devaudit.ai/projects/<slug>/releases/<version>` and clicks Approve (or Request Changes). The `DevAudit Release Approval` check unblocks once approval is granted.
 
 If a reviewer asks for changes:
 
@@ -207,7 +207,7 @@ Goal: PR merged → production deploys → smoke evidence captured → release m
 
 1. **Merge** the PR via `gh pr merge --merge` (preserves audit trail per the SDLC merge-commit convention). Branch protection blocks `--squash` and `--rebase` on SDLC repos.
 2. **Watch the deploy** — `gh run watch` against the `post-deploy-prod.yml` workflow. ~3–5 minutes typically.
-3. **Verify production smoke evidence uploaded.** The post-deploy workflow runs production smoke tests and pushes evidence with `--environment production`. Confirm at `https://devaudit.metasession.co/projects/<slug>/releases/<version>`.
+3. **Verify production smoke evidence uploaded.** The post-deploy workflow runs production smoke tests and pushes evidence with `--environment production`. Confirm at `https://devaudit.ai/projects/<slug>/releases/<version>`.
 4. **Mark the release as Released** on the portal once production smoke is green.
 
 If production smoke fails:
@@ -291,7 +291,7 @@ Compile evidence for REQ-{REQ_ID} per SDLC stage 3 (compile-evidence):
    evidence-type is one of: screenshot, e2e_result, test_report, audit_log,
    compliance_document, manual_upload.
 4. Verify uploads landed at
-   https://devaudit.metasession.co/projects/{PROJECT_SLUG}/requirements/REQ-{REQ_ID}
+   https://devaudit.ai/projects/{PROJECT_SLUG}/requirements/REQ-{REQ_ID}
 5. Update compliance/RTM.md with portal links per evidence row.
 ```
 
@@ -306,7 +306,7 @@ Open the PR for REQ-{REQ_ID} per SDLC stage 4 (submit-for-review):
      - "Closes #{ISSUE_NUMBER}"
      - "REQ: REQ-{REQ_ID}"
      - "Risk: {RISK_CLASS}"
-     - "Evidence: https://devaudit.metasession.co/projects/{PROJECT_SLUG}/requirements/REQ-{REQ_ID}"
+     - "Evidence: https://devaudit.ai/projects/{PROJECT_SLUG}/requirements/REQ-{REQ_ID}"
      - For HIGH/CRITICAL: "Four-eyes attestation: <reviewer-username>" and
        "Rollback plan: <ref to plan §rollback>"
 3. Add labels: `awaiting-uat-review`, `risk:{RISK_CLASS}`.
@@ -328,7 +328,7 @@ Merge REQ-{REQ_ID} per SDLC stage 5 (deploy-main), then track to production:
    never --rebase).
 3. Watch `gh run watch` against the post-deploy-prod.yml workflow.
 4. Verify production smoke evidence uploaded (environment=production) at
-   https://devaudit.metasession.co/projects/{PROJECT_SLUG}/releases/{VERSION}
+   https://devaudit.ai/projects/{PROJECT_SLUG}/releases/{VERSION}
 5. Mark the release as `Released` on the portal.
 
 If production smoke FAILS:
@@ -416,7 +416,7 @@ The sample prompts in this doc are a stopgap that lets us run the SDLC manually 
 | ---------------------------------------------------- | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `devaudit push` returns 401                          | Token expired or wrong account                   | `devaudit auth status` → `devaudit auth login` if needed                                                                                                   |
 | `devaudit push` returns 403                          | Project key missing or wrong                     | Verify `DEVAUDIT_API_KEY` is set; re-issue from the portal `/settings/api-keys` if rotated                                                                 |
-| `gh pr checks` shows `DevAudit Release Approval` red | UAT review not granted or release not registered | Visit `https://devaudit.metasession.co/projects/<slug>/releases/<version>` → request approval; if release missing, `ci.yml` registers it on `develop` push |
+| `gh pr checks` shows `DevAudit Release Approval` red | UAT review not granted or release not registered | Visit `https://devaudit.ai/projects/<slug>/releases/<version>` → request approval; if release missing, `ci.yml` registers it on `develop` push |
 | Production smoke flaky on the same test repeatedly   | Test flake, not a real defect                    | File the flake as a separate issue tagged `flaky-test`; do NOT mark the release failed                                                                     |
 | Forgot to add `Ref: REQ-XXX` to commits              | RTM traceability gap                             | Amend the commit (if local) or add a follow-up commit with the trailer; CI's compliance-validation workflow will flag it on PR                             |
 | Stage 1 plan deviates significantly mid-stage-2      | Implementation discovered a gap in the plan      | Update the plan IN PLACE; note the deviation in a new `## Plan deviation` section. The plan is the source of truth, not a one-shot artefact                |

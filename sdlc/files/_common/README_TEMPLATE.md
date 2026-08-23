@@ -429,7 +429,7 @@ Add these to your GitHub repository (Settings → Secrets and variables → Acti
 
 | Setting | Tab | Value | Source |
 | -------- | ----- | ------- | -------- |
-| `DEVAUDIT_BASE_URL` | Variables | The deployed DevAudit URL, e.g. `https://devaudit.metasession.co` | The hosting team |
+| `DEVAUDIT_BASE_URL` | Variables | The deployed DevAudit URL, e.g. `https://devaudit.ai` | The hosting team |
 | `DEVAUDIT_API_KEY` | Secrets | Project-scoped API key (`mc_…`) with `uploader` role | DevAudit → Project Settings → API Keys → New key |
 
 ### Project Registration

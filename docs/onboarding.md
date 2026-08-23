@@ -174,18 +174,18 @@ Re-running the script on the same consumer is safe:
 
 ## Worked example: onboarding META-AGENT (historical trace)
 
-A trace of an early `devaudit install ../META-AGENT` run (the bash installer it replaced produced the same 11-step flow). The META-AGENT onboarding has since been reverted (META-AGENT is no longer an active consumer — see [consuming-projects.md](./consuming-projects.md)), but the trace is preserved here as a concrete demonstration of what onboarding does. The example below uses the historical `devaudit.metasession.co` host from that period; current public entry points use `https://devaudit.ai`.
+A trace of an early `devaudit install ../META-AGENT` run (the bash installer it replaced produced the same 11-step flow). The META-AGENT onboarding has since been reverted (META-AGENT is no longer an active consumer — see [consuming-projects.md](./consuming-projects.md)), but the trace is preserved here as a concrete demonstration of what onboarding does. The example below uses the historical `devaudit.ai` host from that period; current public entry points use `https://devaudit.ai`.
 
 ```text
 ══════════════════════════════════════════════════════════════
   Metasession SDLC Onboarding
   Consumer:  META-AGENT
   Path:      /home/william/Documents/SoftwareProjects/Metasession/META-AGENT
-  DevAudit:  https://devaudit.metasession.co
+  DevAudit:  https://devaudit.ai
 ══════════════════════════════════════════════════════════════
 
 == 1/11 · Authenticate with DevAudit ==
-  ✓ PAT accepted; DevAudit reachable at https://devaudit.metasession.co
+  ✓ PAT accepted; DevAudit reachable at https://devaudit.ai
 
 == 2/11 · Detect stack and host ==
   ✓ Stack:                python
@@ -213,7 +213,7 @@ A trace of an early `devaudit install ../META-AGENT` run (the bash installer it 
   ✓ DEVAUDIT_API_KEY (secret)
   ✓ DEVAUDIT_USER_TOKEN (secret)
   ✓ META_AGENT_PROD_URL (secret)
-  ✓ DEVAUDIT_BASE_URL (variable) = https://devaudit.metasession.co
+  ✓ DEVAUDIT_BASE_URL (variable) = https://devaudit.ai
 
 == 8/11 · Bootstrap hook framework ==
   ✓ pre-commit hooks installed

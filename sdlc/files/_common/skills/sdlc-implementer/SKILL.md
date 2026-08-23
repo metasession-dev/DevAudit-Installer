@@ -609,7 +609,7 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
      --branch "$(git rev-parse --abbrev-ref HEAD)"
    ```
    Evidence types: `screenshot`, `e2e_result`, `test_report`, `audit_log`, `compliance_document`, `manual_upload`, `srs_alignment` (from step 1), `architecture_decision` (from step 2), `risk_assessment` (from step 3).
-7. **Verify uploads landed.** `gh api` or `curl` against `https://devaudit.metasession.co/projects/<slug>/requirements/REQ-XXX/evidence` should show every artefact. Any artefact marked `UPLOAD_FAILED` in step 6 should be re-attempted here.
+7. **Verify uploads landed.** `gh api` or `curl` against `https://devaudit.ai/projects/<slug>/requirements/REQ-XXX/evidence` should show every artefact. Any artefact marked `UPLOAD_FAILED` in step 6 should be re-attempted here.
 8. **Update `compliance/RTM.md`** with portal links for each evidence row. Rows with `UPLOAD_FAILED` status remain marked as failed — do not mark them verified.
 9. **Update SDLC status sticky** before exiting Phase 3: `bash scripts/update-sdlc-status.sh "$ISSUE_NUM" "Phase 3 complete — evidence uploaded; SRS-alignment + ADR + risk-assessment artefacts attached" "Phase 4 — sdlc-implementer auto-continuing (open release PR)"`.
 
@@ -631,7 +631,7 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
    - Closes #N
    - REQ-XXX
    - Risk: <class>
-   - Evidence: `https://devaudit.metasession.co/projects/<slug>/requirements/REQ-XXX`
+   - Evidence: `https://devaudit.ai/projects/<slug>/requirements/REQ-XXX`
    - For HIGH/CRITICAL: Four-eyes attestation: `@<reviewer-username>`
    - For HIGH/CRITICAL: Rollback plan: reference to `compliance/plans/REQ-XXX/implementation-plan.md` §Rollback
    - Test plan
@@ -695,7 +695,7 @@ Invoked separately by the user after UAT activity on the portal. Trigger: "resum
    - Check `git log` for the merge commit on `$RELEASE_BRANCH`.
    - If resuming after an environment detour (not a UAT approval), re-read `compliance/evidence/REQ-XXX/` to see which artefacts already exist and resume at the appropriate phase.
 
-1. **Read portal state.** `curl` `https://devaudit.metasession.co/api/projects/<slug>/releases/<version>` and inspect the approval status. Retry up to 3 times with exponential backoff (5s, 15s, 45s) on 5xx responses. If all retries fail, halt — "Portal unreachable at <URL>. Cannot determine UAT approval state. Operator action — verify portal availability + API key, then ping `resume REQ-XXX`." If the API returns 401/403, halt — "Portal API key rejected (HTTP 401/403). The `DEVAUDIT_API_KEY` secret may be expired or revoked. Operator action — rotate the API key, then ping `resume REQ-XXX`." Never guess the portal state.
+1. **Read portal state.** `curl` `https://devaudit.ai/api/projects/<slug>/releases/<version>` and inspect the approval status. Retry up to 3 times with exponential backoff (5s, 15s, 45s) on 5xx responses. If all retries fail, halt — "Portal unreachable at <URL>. Cannot determine UAT approval state. Operator action — verify portal availability + API key, then ping `resume REQ-XXX`." If the API returns 401/403, halt — "Portal API key rejected (HTTP 401/403). The `DEVAUDIT_API_KEY` secret may be expired or revoked. Operator action — rotate the API key, then ping `resume REQ-XXX`." Never guess the portal state.
 
 2. **Branch on state:**
    - **UAT approved** → run stage 5:
@@ -705,7 +705,7 @@ Invoked separately by the user after UAT activity on the portal. Trigger: "resum
      - **Gate topology:** when a host waits for CI before deploy, only pre-deploy eligibility belongs to the main-push suite. Post-deploy evidence and full regression trigger from a successful production `deployment_status`, not that same push. If the provider skipped the SHA due to CI gating, redeploy that exact SHA before running post-deploy verification.
      - Watch `post-deploy-prod.yml` via `gh run watch` — block until the workflow reaches a terminal state. Wrap in a timeout (30 minutes default, configurable via `sdlc-config.json:post_deploy.timeout_minutes`). If the timeout fires: halt — "post-deploy-prod.yml has not reached a terminal state in N minutes. The deployment may be stuck. Operator action — check hosting platform logs, decide whether to wait or rollback, then ping `resume REQ-XXX`."
      - Treat `post-deploy-prod.yml` success as necessary but not sufficient. The workflow must also confirm the hosting platform's GitHub deployment status for the merged SHA reached terminal `success`. If it reports `deployment_status_timeout`, `deployment_status_missing`, or terminal failure, remain blocked and preserve the deployment ID, SHA, environment, final observed state, target URL, elapsed time, and independent health-probe result. A successful health probe is corroboration only, never deployment-status proof. Halt — "The host deployment for <sha> is not terminal-successful after merge. Do not approve Production or mark Released. Operator action — inspect provider logs, fix forward or rollback, then rerun post-deploy verification once the production state is understood."
-     - Verify production smoke evidence uploaded (`--environment production`) at `https://devaudit.metasession.co/projects/<slug>/releases/<version>`.
+     - Verify production smoke evidence uploaded (`--environment production`) at `https://devaudit.ai/projects/<slug>/releases/<version>`.
      - **Read `production_review.terminal_status` from `sdlc-config.json`** (default: `prod_review`). Branch:
        - If `released` (Option B): PATCH directly to `released` — `PATCH /releases/<version>` with `{"status": "released"}`.
        - If `prod_review` (Option A, default): after `post-deploy-prod.yml` completes, the release is at `prod_review`. Update the sticky to "Phase 5 — production deployed; awaiting prod approval on portal" and halt. The operator clicks "Approve Production" (`prod_review` → `prod_approved`) then "Mark as Released" (`prod_approved` → `released`) in the portal. On next `resume REQ-XXX`, the skill reads the portal state — if `released`, finalise (close issue, update sticky to terminal). If `prod_approved`, prompt the operator to click "Mark as Released". If still `prod_review`, report "awaiting production approval" and stop.

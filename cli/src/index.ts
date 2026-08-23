@@ -249,7 +249,7 @@ export async function main(argv: readonly string[]): Promise<void> {
   authCmd
     .command('login')
     .option('--token <token>', 'PAT to use (skips the interactive prompt)')
-    .option('--base-url <url>', 'override portal base URL', 'https://devaudit.metasession.co')
+    .option('--base-url <url>', 'override portal base URL', 'https://devaudit.ai')
     .description('Sign in via PAT paste; stores token in ~/.config/devaudit/auth.json')
     .action(async (opts: { token?: string; baseUrl?: string }) => {
       await runAuthLogin({ token: opts.token, baseUrl: opts.baseUrl });

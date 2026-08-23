@@ -148,7 +148,6 @@ jobs:
       - name: Build Check
         id: build
         run: python -m build --sdist --wheel
-        env:
 {{BUILD_ENV}}
 
       # ── Summarise per-gate outcomes ──

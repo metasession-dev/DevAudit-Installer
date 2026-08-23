@@ -30,7 +30,7 @@ export DEVAUDIT_USER_TOKEN=$(jq -r '.token' ~/.config/devaudit/auth.json)
 ```jsonc
 {
   "project_slug": "wawagardenbar-app",
-  "base_url": "https://devaudit.metasession.co",
+  "base_url": "https://devaudit.ai",
   "generated_at": "2026-05-19T08:19:00.123Z",
   "total_files": 42,
   "successful": 42,

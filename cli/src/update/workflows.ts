@@ -15,7 +15,8 @@ export async function syncWorkflows(ctx: SyncContext): Promise<SectionResult> {
   if (!(await isDir(src))) {
     return { name: 'Workflows', filesSynced: 0, skipped: true };
   }
-  const dst = join(ctx.projectPath, '.devin', 'workflows');
+  // Devin reads .devin/workflows/ from the repo root. See #689 follow-up.
+  const dst = join(ctx.repoRoot, '.devin', 'workflows');
   await ensureDir(dst);
   const files = await listFiles(src, (n) => n.endsWith('.md'));
   const filePaths: string[] = [];

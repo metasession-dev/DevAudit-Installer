@@ -8,7 +8,7 @@ interface AuthRecord {
   readonly base_url: string;
 }
 
-const DEFAULT_BASE_URL = 'https://devaudit.metasession.co';
+const DEFAULT_BASE_URL = 'https://devaudit.ai';
 
 export async function readAuth(): Promise<AuthRecord | null> {
   try {

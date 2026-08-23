@@ -2,6 +2,7 @@ import { basename, resolve } from 'node:path';
 import { resolveToken } from '../lib/auth.js';
 import { resolveInstallerRoot } from '../lib/installer-root.js';
 import { isDir, isFile } from '../lib/fs-utils.js';
+import { resolveRepoRoot } from '../lib/git-root.js';
 import { logger } from '../lib/logger.js';
 import { getGitProvider, type GitProvider } from '../lib/git-provider/index.js';
 import { DevAuditClient } from '../lib/devaudit-api.js';
@@ -71,12 +72,14 @@ export async function runInstall(options: RunInstallOptions): Promise<InstallRep
   const projectName = basename(projectPath);
   const auth = await resolveTokenForInstall(options);
   const installerRoot = await resolveInstallerRoot();
+  const repoRoot = await resolveRepoRoot(projectPath);
 
   // Pre-flight mode detection runs after step 3 (plan), because it needs the
   // project slug. We build a tentative ctx for steps 1–3 here with mode set to
   // 'operator' (safe default — those steps don't consult installMode anyway).
   const tentativeCtx: InstallContext = {
     projectPath,
+    repoRoot,
     projectName,
     installerRoot,
     token: auth.token,
@@ -252,7 +255,7 @@ async function resolveProvider(
 
 async function resolveTokenForInstall(options: RunInstallOptions): Promise<{ token: string; baseUrl: string }> {
   if (options.token) {
-    return { token: options.token, baseUrl: options.baseUrl ?? 'https://devaudit.metasession.co' };
+    return { token: options.token, baseUrl: options.baseUrl ?? 'https://devaudit.ai' };
   }
   const resolved = await resolveToken();
   if (!resolved) {

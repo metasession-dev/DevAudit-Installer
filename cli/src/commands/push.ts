@@ -38,7 +38,7 @@ export interface PushOptions {
   readonly plugins?: readonly LoadedPlugin[];
 }
 
-const DEFAULT_BASE_URL = 'https://devaudit.metasession.co';
+const DEFAULT_BASE_URL = 'https://devaudit.ai';
 const TRACKED_CHANGE_TYPES = new Set(['feat', 'fix', 'refactor', 'perf', 'compliance', 'revert']);
 
 function buildMetadata(options: PushOptions): Record<string, unknown> {

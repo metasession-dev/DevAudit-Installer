@@ -10,7 +10,8 @@ export async function syncIssueTemplates(ctx: SyncContext): Promise<SectionResul
   if (!(await isDir(src))) {
     return { name: 'Issue templates', filesSynced: 0, skipped: true };
   }
-  const dst = join(ctx.projectPath, '.github', 'ISSUE_TEMPLATE');
+  // GitHub only reads .github/ISSUE_TEMPLATE/ from the repo root. See #689 follow-up.
+  const dst = join(ctx.repoRoot, '.github', 'ISSUE_TEMPLATE');
   await ensureDir(dst);
   const files = await listFiles(src, (n) => n.endsWith('.yml'));
   const filePaths: string[] = [];

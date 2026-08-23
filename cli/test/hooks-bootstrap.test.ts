@@ -27,9 +27,10 @@ vi.mock('execa', () => ({
   },
 }));
 
-function baseCtx(projectPath: string) {
+function baseCtx(projectPath: string, repoRoot: string = projectPath) {
   return {
     projectPath,
+    repoRoot,
     projectName: 'fixture',
     installerRoot: '/dev/null',
     token: 'tok',
@@ -151,6 +152,41 @@ describe('bootstrapHooks — husky/pre-commit coexistence (#689/#697)', () => {
       expect(occurrences).toBe(1);
     } finally {
       await fs.rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  // #689 follow-up: `npx husky init` needs package.json in its cwd (the
+  // target's own subdirectory in a polyglot monorepo) but git only honors
+  // core.hooksPath relative to the actual repo root — bootstrapHooks must
+  // relocate the result there rather than leaving .husky/ stranded in the
+  // target's subdirectory where git never looks for it.
+  it('Node target in a monorepo subdirectory: relocates .husky/ to the repo root and sets core.hooksPath there', async () => {
+    const { bootstrapHooks } = await import('../src/install/hooks-bootstrap.js');
+    const repoRoot = await mkdtemp();
+    const projectPath = join(repoRoot, 'mission-control');
+    await fs.mkdir(projectPath, { recursive: true });
+    try {
+      const result = await bootstrapHooks(baseCtx(projectPath, repoRoot), basePlan('node'));
+      expect(result.status).toBe('ok');
+
+      const rootHook = await fs
+        .readFile(join(repoRoot, '.husky', 'pre-commit'), 'utf-8')
+        .catch(() => null);
+      expect(rootHook).not.toBeNull();
+
+      const targetHuskyExists = await fs
+        .stat(join(projectPath, '.husky'))
+        .then(() => true)
+        .catch(() => false);
+      expect(targetHuskyExists).toBe(false);
+
+      const hooksPathCall = execaCalls.find(
+        (c) => c.file === 'git' && c.args[0] === 'config' && c.args[1] === 'core.hooksPath',
+      );
+      expect(hooksPathCall).toBeDefined();
+      expect(hooksPathCall?.args[2]).toBe('.husky/_');
+    } finally {
+      await fs.rm(repoRoot, { recursive: true, force: true });
     }
   });
 });

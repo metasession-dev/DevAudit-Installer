@@ -25,6 +25,7 @@ async function fixture(content = "upstream\n"): Promise<SyncContext> {
   return {
     installerRoot: projectPath,
     projectPath,
+    repoRoot: projectPath,
     projectName: "fixture",
     stack: "node",
     host: "railway",
