@@ -575,6 +575,63 @@ describe('syncProject — native TS sync against a fixture', () => {
     }
   }, 60_000);
 
+  it('renders each target\'s own e2e_port override into the dev-server wait step, defaulting to 3000', async () => {
+    const dir = await fs.mkdtemp(join(tmpdir(), 'cli-update-multitarget-e2eport-'));
+    try {
+      const baseTarget = {
+        stack: 'node',
+        working_directory: '.',
+        source_dirs: 'app/ lib/',
+        production_url_secret: 'FIXTURE_PROD_URL',
+        devaudit: { project_slug: 'fixture-app' },
+      };
+      await fs.writeFile(
+        join(dir, 'sdlc-config.json'),
+        JSON.stringify({
+          project_slug: 'fixture-app',
+          stack: 'node',
+          host: 'railway',
+          node_version: '20',
+          runner: 'ubuntu-latest',
+          working_directory: '.',
+          source_dirs: 'app/ lib/',
+          sast_baseline: 0,
+          accepted_dep_risks: '',
+          production_url_secret: 'FIXTURE_PROD_URL',
+          database_service: '',
+          database_image: '',
+          database_port: '',
+          database_env: {},
+          app_env: {},
+          build_env: {},
+          e2e_project: 'chromium',
+          e2e_start_command: 'npm run dev',
+          paths_ignore: ['SDLC/**', 'compliance/**'],
+          targets: [
+            { name: 'web', ...baseTarget, working_directory: 'web', e2e_port: 3100 },
+            { name: 'api-ui', ...baseTarget, working_directory: 'api-ui', devaudit: { project_slug: 'fixture-api-ui' } },
+          ],
+        }),
+      );
+      await fs.mkdir(join(dir, '.github', 'workflows'), { recursive: true });
+      await syncProject(dir);
+
+      const workflowsDir = join(dir, '.github', 'workflows');
+      const webCi = await fs.readFile(join(workflowsDir, 'ci-web.yml'), 'utf-8');
+      const apiUiCi = await fs.readFile(join(workflowsDir, 'ci-api-ui.yml'), 'utf-8');
+
+      expect(webCi).toContain('http://localhost:3100 --timeout 120000');
+      expect(webCi).toContain('lsof -ti:3100');
+      // No per-target override -> falls back to the 3000 default.
+      expect(apiUiCi).toContain('http://localhost:3000 --timeout 120000');
+      expect(apiUiCi).toContain('lsof -ti:3000');
+
+      await expectAllWorkflowsValidYaml(dir);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
   it('scopes ci.yml triggers to each target\'s own working_directory when both targets are non-root (#693)', async () => {
     const dir = await fs.mkdtemp(join(tmpdir(), 'cli-update-multitarget-paths-'));
     try {
