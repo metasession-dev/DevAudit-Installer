@@ -14,13 +14,19 @@ async function fileExists(path: string): Promise<boolean> {
   }
 }
 
+// `pyproject.toml` is preferred (the Python packaging standard), but a repo
+// managed with a plain `requirements.txt` — no `pyproject.toml` at all — is
+// a real, valid convention (e.g. an unpackaged FastAPI service pinned via
+// pip-compile/uv rather than declared as an installable package) and must
+// still be detectable, or `--add-target` can never onboard it.
+const PYTHON_MARKERS = ['pyproject.toml', 'requirements.txt'];
+
 async function findPyproject(root: string, depth: number, current: string): Promise<string | null> {
   if (depth > MAX_DEPTH) return null;
   const entries = await fs.readdir(current, { withFileTypes: true });
-  for (const e of entries) {
-    if (e.isFile() && e.name === 'pyproject.toml') {
-      return join(current, e.name);
-    }
+  for (const marker of PYTHON_MARKERS) {
+    const hit = entries.find((e) => e.isFile() && e.name === marker);
+    if (hit) return join(current, hit.name);
   }
   for (const e of entries) {
     if (e.isDirectory() && !SKIP_DIRS.has(e.name)) {
@@ -52,9 +58,11 @@ function toRepoRelativeWorkingDirectory(ctx: InstallContext, absoluteTargetDir: 
 
 export async function detectStack(ctx: InstallContext): Promise<{ result: StepResult; detected: DetectedStack }> {
   const root = ctx.projectPath;
-  if (await fileExists(join(root, 'pyproject.toml'))) {
-    const wd = toRepoRelativeWorkingDirectory(ctx, root);
-    return { result: ok('python', wd), detected: { stack: 'python', workingDirectory: wd } };
+  for (const marker of PYTHON_MARKERS) {
+    if (await fileExists(join(root, marker))) {
+      const wd = toRepoRelativeWorkingDirectory(ctx, root);
+      return { result: ok('python', wd), detected: { stack: 'python', workingDirectory: wd } };
+    }
   }
   const nested = await findPyproject(root, 1, root);
   if (nested) {
@@ -66,7 +74,7 @@ export async function detectStack(ctx: InstallContext): Promise<{ result: StepRe
     return { result: ok('node', wd), detected: { stack: 'node', workingDirectory: wd } };
   }
   throw new Error(
-    'Could not detect stack — no pyproject.toml or package.json found within 3 directory levels.',
+    'Could not detect stack — no pyproject.toml, requirements.txt, or package.json found within 3 directory levels.',
   );
 }
 
