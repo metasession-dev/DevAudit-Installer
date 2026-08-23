@@ -298,6 +298,9 @@ describe('syncProject — native TS sync against a fixture', () => {
       join(fixtureDir, '.github', 'workflows', 'quality-gates-provenance.yml'),
       'utf-8',
     );
+    expect(provenanceYml).toContain('permissions:');
+    expect(provenanceYml).toContain('checks: read');
+    expect(provenanceYml).toContain('actions: write');
     expect(provenanceYml).toContain('name: Release Scope Integrity');
     expect(provenanceYml).toContain("!startsWith(github.event.pull_request.head.ref, 'hotfix/')");
     expect(provenanceYml).toContain('bash scripts/check-release-pr-scope.sh');
