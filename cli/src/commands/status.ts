@@ -1,5 +1,6 @@
 import { resolve } from 'node:path';
 import { readSdlcConfig, checkFrameworkFiles } from '../lib/sdlc-config.js';
+import { resolveRepoRoot } from '../lib/git-root.js';
 import { emitJsonResult, isJsonMode, logger } from '../lib/logger.js';
 
 const FRAMEWORK_FILES = [
@@ -23,7 +24,10 @@ interface StatusOptions {
 export async function runStatus(options: StatusOptions): Promise<void> {
   const log = logger();
   const projectPath = resolve(options.path ?? process.cwd());
-  const config = await readSdlcConfig(projectPath);
+  // sdlc-config.json lives at the repo root (#689 follow-up), not
+  // necessarily projectPath itself for a polyglot-monorepo target.
+  const repoRoot = await resolveRepoRoot(projectPath);
+  const config = await readSdlcConfig(repoRoot);
   if (!config) {
     if (isJsonMode()) {
       emitJsonResult({ ok: false, reason: 'not_onboarded', projectPath });

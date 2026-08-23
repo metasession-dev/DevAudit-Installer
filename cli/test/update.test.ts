@@ -589,8 +589,10 @@ describe('syncProject — native TS sync against a fixture', () => {
       await execa('git', ['init', '-q'], { cwd: repoRoot });
       const targetDir = join(repoRoot, 'mission-control');
       await fs.mkdir(targetDir, { recursive: true });
+      // sdlc-config.json lives at the repo root (#689 follow-up), not this
+      // target's own directory — see write-config.ts for why.
       await fs.writeFile(
-        join(targetDir, 'sdlc-config.json'),
+        join(repoRoot, 'sdlc-config.json'),
         JSON.stringify({
           project_slug: 'mission-control',
           stack: 'node',
@@ -632,6 +634,62 @@ describe('syncProject — native TS sync against a fixture', () => {
         .readdir(join(repoRoot, '.devin', 'workflows'))
         .catch(() => []);
       expect(rootDevinWorkflows.length).toBeGreaterThan(0);
+    } finally {
+      await fs.rm(repoRoot, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  // #689 follow-up: `syncProject` (and `resolveAdapters` underneath it) must
+  // find sdlc-config.json at the repo root even when invoked with a
+  // subdirectory target path — not just tolerate the config already being
+  // there when someone happens to point it at the root. A config that only
+  // exists at the target's own directory (the pre-fix, buggy write location)
+  // must NOT be picked up: proves the discovery is genuinely repo-root, not
+  // "whichever one happens to be readable".
+  it('resolves stack/host from the repo-root config, not a stale copy in the target\'s own directory', async () => {
+    const repoRoot = await fs.mkdtemp(join(tmpdir(), 'cli-update-reporoot-discovery-'));
+    try {
+      await execa('git', ['init', '-q'], { cwd: repoRoot });
+      const targetDir = join(repoRoot, 'api');
+      await fs.mkdir(targetDir, { recursive: true });
+      await fs.mkdir(join(repoRoot, '.github', 'workflows'), { recursive: true });
+
+      const rootConfig = {
+        project_slug: 'api',
+        stack: 'python',
+        host: 'railway',
+        python_version: '3.12',
+        runner: 'ubuntu-latest',
+        working_directory: 'api',
+        source_dirs: 'src/',
+        sast_baseline: 0,
+        accepted_dep_risks: '',
+        production_url_secret: 'API_PROD_URL',
+        database_service: '',
+        database_image: '',
+        database_port: '',
+        e2e_project: '',
+        e2e_start_command: '',
+      };
+      await fs.writeFile(join(repoRoot, 'sdlc-config.json'), JSON.stringify(rootConfig));
+
+      // A stale/never-cleaned-up copy in the target's own directory, with a
+      // *different* stack — proves the sync actually reads the repo-root
+      // file rather than this one, which the old (buggy) call sites would
+      // have preferred.
+      await fs.writeFile(
+        join(targetDir, 'sdlc-config.json'),
+        JSON.stringify({ ...rootConfig, stack: 'node' }),
+      );
+
+      const report = await syncProject(targetDir);
+
+      expect(report.stack).toBe('python');
+      const rootWorkflows = await fs.readdir(join(repoRoot, '.github', 'workflows'));
+      expect(rootWorkflows).toContain('ci.yml');
+      const ciContent = await fs.readFile(join(repoRoot, '.github', 'workflows', 'ci.yml'), 'utf-8');
+      expect(ciContent).toContain('working-directory: api');
+      expect(ciContent).not.toMatch(/npm ci\b/);
     } finally {
       await fs.rm(repoRoot, { recursive: true, force: true });
     }

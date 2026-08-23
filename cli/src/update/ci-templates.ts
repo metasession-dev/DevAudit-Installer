@@ -300,7 +300,9 @@ function resolveRunner(cfg: SdlcConfig): string {
  * Skipped if the consumer has no sdlc-config.json or no .github/workflows/.
  */
 export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> {
-  const configPath = join(ctx.projectPath, 'sdlc-config.json');
+  // sdlc-config.json lives at the repo root (#689 follow-up), not this
+  // target's own directory — see write-config.ts for why.
+  const configPath = join(ctx.repoRoot, 'sdlc-config.json');
   // GitHub Actions only reads .github/workflows/ from the repo root, never
   // from a target's own subdirectory — repoRoot === projectPath for a
   // single-target repo, so this is unchanged there. See #689 follow-up.

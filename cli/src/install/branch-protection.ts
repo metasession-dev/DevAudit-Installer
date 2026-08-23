@@ -9,9 +9,11 @@ import {
   namespacedRequiredChecks,
 } from '../lib/branch-protection-checks.js';
 
-async function resolveConfig(projectPath: string): Promise<SdlcConfig | null> {
+async function resolveConfig(repoRoot: string): Promise<SdlcConfig | null> {
   try {
-    return await readSdlcConfig(projectPath);
+    // sdlc-config.json lives at the repo root (#689 follow-up), not this
+    // target's own directory — see write-config.ts for why.
+    return await readSdlcConfig(repoRoot);
   } catch {
     return null;
   }
@@ -40,7 +42,7 @@ export async function configureBranchProtection(
     };
   }
   const repo = `${meta.owner}/${meta.name}`;
-  const config = await resolveConfig(ctx.projectPath);
+  const config = await resolveConfig(ctx.repoRoot);
   const integrationBranch = config?.integration_branch ?? 'develop';
   // Multi-target (#689/#696): apply once per target with that target's
   // namespaced check name (mirroring the CI workflow job-name suffix from

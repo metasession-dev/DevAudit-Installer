@@ -165,8 +165,10 @@ jobs:
           REQ_ID="${{ needs.detect-req.outputs.req_id }}"
           : > "$GITHUB_OUTPUT"
           CONFIG_URL=""
-          if [ -f sdlc-config.json ]; then
-            CONFIG_URL=$(jq -r '.devaudit.base_url // empty' sdlc-config.json 2>/dev/null || true)
+          # sdlc-config.json lives at the repo root (#689 follow-up), not this
+          # job's working-directory (a target's own subdirectory).
+          if [ -f "$GITHUB_WORKSPACE/sdlc-config.json" ]; then
+            CONFIG_URL=$(jq -r '.devaudit.base_url // empty' "$GITHUB_WORKSPACE/sdlc-config.json" 2>/dev/null || true)
           fi
           BASE="${CONFIG_URL:-$DEVAUDIT_BASE_URL_VAR}"
           if [ -z "$BASE" ] || [ -z "$DEVAUDIT_API_KEY" ]; then
@@ -204,8 +206,10 @@ jobs:
         run: |
           REQ_ID="${{ needs.detect-req.outputs.req_id }}"
           CONFIG_URL=""
-          if [ -f sdlc-config.json ]; then
-            CONFIG_URL=$(jq -r '.devaudit.base_url // empty' sdlc-config.json 2>/dev/null || true)
+          # sdlc-config.json lives at the repo root (#689 follow-up), not this
+          # job's working-directory (a target's own subdirectory).
+          if [ -f "$GITHUB_WORKSPACE/sdlc-config.json" ]; then
+            CONFIG_URL=$(jq -r '.devaudit.base_url // empty' "$GITHUB_WORKSPACE/sdlc-config.json" 2>/dev/null || true)
           fi
           BASE="${CONFIG_URL:-$DEVAUDIT_BASE_URL_VAR}"
           if [ -z "$BASE" ] || [ -z "$DEVAUDIT_API_KEY" ]; then
@@ -279,8 +283,10 @@ jobs:
             exit 0
           fi
           CONFIG_URL=""
-          if [ -f sdlc-config.json ]; then
-            CONFIG_URL=$(jq -r '.devaudit.base_url // empty' sdlc-config.json 2>/dev/null || true)
+          # sdlc-config.json lives at the repo root (#689 follow-up), not this
+          # job's working-directory (a target's own subdirectory).
+          if [ -f "$GITHUB_WORKSPACE/sdlc-config.json" ]; then
+            CONFIG_URL=$(jq -r '.devaudit.base_url // empty' "$GITHUB_WORKSPACE/sdlc-config.json" 2>/dev/null || true)
           fi
           BASE="${CONFIG_URL:-$DEVAUDIT_BASE_URL_VAR}"
           if [ -z "$BASE" ] || [ -z "$DEVAUDIT_API_KEY" ]; then

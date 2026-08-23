@@ -52,8 +52,10 @@ export async function syncProject(projectPath: string): Promise<SyncReport> {
   const log = logger();
   const projectName = basename(absPath);
   log.info(`--- Syncing to: ${projectName} (${absPath}) ---`);
+  // sdlc-config.json lives at the repo root (#689 follow-up), not this
+  // target's own directory — see write-config.ts for why.
   const { stack, host, deprecatedDefaults } = await resolveAdapters(
-    absPath,
+    repoRoot,
     installerRoot,
   );
   log.info(`  Stack: ${stack} | Host: ${host}`);

@@ -88,8 +88,10 @@ jobs:
         if: github.event_name != 'pull_request' && github.ref_name == '{{INTEGRATION_BRANCH}}' && needs.register-release.outputs.version != 'skip'
         run: |
           BASE=""
-          if [ -f sdlc-config.json ]; then
-            BASE=$(jq -r '.devaudit.base_url // empty' sdlc-config.json 2>/dev/null || true)
+          # sdlc-config.json lives at the repo root (#689 follow-up), not this
+          # job's working-directory (a target's own subdirectory).
+          if [ -f "$GITHUB_WORKSPACE/sdlc-config.json" ]; then
+            BASE=$(jq -r '.devaudit.base_url // empty' "$GITHUB_WORKSPACE/sdlc-config.json" 2>/dev/null || true)
           fi
           [ -n "$BASE" ] || BASE="$DEVAUDIT_BASE_URL_VAR"
           [ -n "$BASE" ] || { echo "::warning::No DevAudit URL; test execution lifecycle disabled"; exit 0; }

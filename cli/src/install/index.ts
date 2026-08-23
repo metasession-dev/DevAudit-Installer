@@ -207,7 +207,7 @@ async function detectInstallMode(
     // mode=developer cases above still take effect in dry-run.)
     return { mode: 'operator', allBitsMatched: false };
   }
-  const sdlcConfigExisted = await isFile(`${ctx.projectPath}/sdlc-config.json`);
+  const sdlcConfigExisted = await isFile(`${ctx.repoRoot}/sdlc-config.json`);
   if (!sdlcConfigExisted) return { mode: 'operator', allBitsMatched: false };
   let projectExists = false;
   let keyExists = false;
