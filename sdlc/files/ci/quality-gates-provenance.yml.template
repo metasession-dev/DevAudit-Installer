@@ -26,6 +26,17 @@ on:
   pull_request:
     branches: [{{RELEASE_BRANCH}}]
 
+# A repo with tightened default GITHUB_TOKEN permissions (GitHub's
+# increasingly common secure-by-default setting) grants only `contents:
+# read` unless a workflow asks for more — this job's "Verify prior Quality
+# Gates success" step reads check-runs (`checks: read`) and the hotfix path
+# dispatches + watches a run (`actions: write`), so both must be requested
+# explicitly or the same-SHA provenance check 403s outright on such a repo.
+permissions:
+  contents: read
+  checks: read
+  actions: write
+
 jobs:
   release-scope-integrity:
     name: Release Scope Integrity
