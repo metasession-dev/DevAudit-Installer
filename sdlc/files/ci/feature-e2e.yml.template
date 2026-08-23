@@ -61,7 +61,7 @@ jobs:
 
           if [ -n "$REQ_ID" ]; then
             echo "req_id=$REQ_ID" >> "$GITHUB_OUTPUT"
-            if grep -rl "@requirement $REQ_ID" e2e/ --include="*.spec.ts" >/dev/null 2>&1; then
+            if grep -rl "@requirement $REQ_ID" {{WORKING_DIR_PREFIX}}e2e/ --include="*.spec.ts" >/dev/null 2>&1; then
               echo "has_tests=true" >> "$GITHUB_OUTPUT"
             else
               echo "has_tests=false" >> "$GITHUB_OUTPUT"
@@ -84,6 +84,14 @@ jobs:
     needs: detect-req
     if: needs.detect-req.outputs.has_tests == 'true'
     runs-on: {{RUNNER}}
+
+    # See ci.yml.template's quality-gates job for why this exists (#689
+    # polyglot-monorepo subdir targets, e.g. META-AGENT's mission-control/).
+    # scripts/ stays repo-root-relative below (via $GITHUB_WORKSPACE) since
+    # register-release-style tooling lives there regardless of target.
+    defaults:
+      run:
+        working-directory: {{WORKING_DIRECTORY}}
 
     services:
       {{DATABASE_SERVICE}}:
@@ -167,14 +175,14 @@ jobs:
             exit 0
           fi
           export DEVAUDIT_BASE_URL="${BASE%/}"
-          chmod +x scripts/upload-evidence.sh scripts/report-test-execution.sh 2>/dev/null || true
-          bash scripts/upload-evidence.sh \
+          chmod +x $GITHUB_WORKSPACE/scripts/upload-evidence.sh $GITHUB_WORKSPACE/scripts/report-test-execution.sh 2>/dev/null || true
+          bash $GITHUB_WORKSPACE/scripts/upload-evidence.sh \
             {{PROJECT_SLUG}} _compliance-docs release_registration README.md \
             --release "$REQ_ID" --create-release-if-missing \
             --environment uat --category planning \
             --git-sha "${{ github.event.pull_request.head.sha }}" \
             --branch "${{ github.head_ref }}" || true
-          bash scripts/report-test-execution.sh start \
+          bash $GITHUB_WORKSPACE/scripts/report-test-execution.sh start \
             --project-slug {{PROJECT_SLUG}} \
             --release "$REQ_ID" \
             --sdlc-stage 2 \
@@ -218,7 +226,7 @@ jobs:
             echo "::error::Feature E2E produced no e2e-results.json"
             exit 1
           fi
-          bash scripts/upload-evidence.sh \
+          bash $GITHUB_WORKSPACE/scripts/upload-evidence.sh \
             {{PROJECT_SLUG}} "$REQ_ID" e2e_result e2e-results.json \
             --category e2e_result --release "$REQ_ID" --create-release-if-missing \
             --environment uat --sdlc-stage 2 \
@@ -237,7 +245,7 @@ jobs:
             exit 1
           fi
           for shot in "${SHOTS[@]}"; do
-            bash scripts/upload-evidence.sh \
+            bash $GITHUB_WORKSPACE/scripts/upload-evidence.sh \
               {{PROJECT_SLUG}} "$REQ_ID" screenshot "$shot" \
               --category screenshot --release "$REQ_ID" --create-release-if-missing \
               --environment uat --sdlc-stage 2 \
@@ -249,7 +257,7 @@ jobs:
           done
 
           if [ -f playwright-report.zip ]; then
-            bash scripts/upload-evidence.sh \
+            bash $GITHUB_WORKSPACE/scripts/upload-evidence.sh \
               {{PROJECT_SLUG}} "$REQ_ID" feature_e2e_report playwright-report.zip \
               --category e2e_report --release "$REQ_ID" --create-release-if-missing \
               --environment uat --sdlc-stage 2 \
@@ -284,8 +292,8 @@ jobs:
             *)         OUTCOME=failed ;;
           esac
           export DEVAUDIT_BASE_URL="${BASE%/}"
-          chmod +x scripts/report-test-execution.sh 2>/dev/null || true
-          bash scripts/report-test-execution.sh complete \
+          chmod +x $GITHUB_WORKSPACE/scripts/report-test-execution.sh 2>/dev/null || true
+          bash $GITHUB_WORKSPACE/scripts/report-test-execution.sh complete \
             --project-slug {{PROJECT_SLUG}} \
             --release "${{ needs.detect-req.outputs.req_id }}" \
             --sdlc-stage 2 \

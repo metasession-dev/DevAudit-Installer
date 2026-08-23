@@ -16,7 +16,12 @@ function isTestScript(name: string): boolean {
  * Skipped if the consumer has no scripts/ directory.
  */
 export async function syncScripts(ctx: SyncContext): Promise<SectionResult> {
-  const scriptsDst = join(ctx.projectPath, 'scripts');
+  // ci.yml.template (both stacks) calls scripts/upload-evidence.sh,
+  // scripts/derive-release-version.sh, etc. from the register-release /
+  // upload-evidence jobs, which run at the actual git checkout root (no
+  // per-target `defaults: working-directory`) — so this must land at the
+  // repo root too, not a target's own subdirectory. #689 follow-up.
+  const scriptsDst = join(ctx.repoRoot, 'scripts');
   if (!(await isDir(scriptsDst))) {
     return { name: 'scripts', filesSynced: 0, skipped: true, message: 'scripts/ not found' };
   }
