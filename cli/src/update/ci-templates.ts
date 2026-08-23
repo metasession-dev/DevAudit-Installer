@@ -52,6 +52,7 @@ interface SdlcConfig {
   readonly build_env?: Readonly<Record<string, string>>;
   readonly e2e_project: string;
   readonly e2e_start_command: string;
+  readonly e2e_port?: string | number;
   // Optional pre-E2E setup command (foreground, blocking) run before the dev
   // server starts — e.g. `supabase start` + load schema + seed for a disposable
   // local database. Multi-line allowed. Absent → no setup step rendered.
@@ -362,6 +363,13 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
         : [];
     const sourceDirs = target.source_dirs ?? cfg.source_dirs;
     const stack = target.stack ?? ctx.stack;
+    // Per-target override, not just repo-wide: a polyglot monorepo commonly
+    // needs each Node target's dev server on its own port (avoiding local
+    // collisions between sibling apps), so the "Wait for dev server" step
+    // must poll the right one instead of the Next.js default for every
+    // target. Found onboarding thorstack-site (port 3100) and
+    // fleet-control-ui (port 3002) in metasession-dev/META-AGENT.
+    const e2ePort = String(target.e2e_port ?? cfg.e2e_port ?? 3000);
 
     const tokens: Record<string, string> = {
       PROJECT_SLUG: projectSlug,
@@ -381,6 +389,7 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
       DATABASE_PORT: cfg.database_port,
       E2E_PROJECT: cfg.e2e_project,
       E2E_START_COMMAND: cfg.e2e_start_command,
+      E2E_PORT: e2ePort,
     };
     // otherTargetDirs is appended here (not just to PATHS_IGNORE's push
     // consumer) because ci-status-fallback.yml.template reuses the exact same

@@ -287,7 +287,7 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
   it('hard-bounds generated dev-server readiness probes (#544)', () => {
     for (const workflow of ['ci.yml.template', 'feature-e2e.yml.template']) {
       expect(template(workflow)).toContain(
-        'timeout --signal=TERM --kill-after=15s 150s npx wait-on http://localhost:3000 --timeout 120000',
+        'timeout --signal=TERM --kill-after=15s 150s npx wait-on http://localhost:{{E2E_PORT}} --timeout 120000',
       );
     }
   });
