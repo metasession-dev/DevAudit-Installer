@@ -53,7 +53,7 @@ function makeFakeProvider() {
 }
 
 vi.mock('execa', () => ({
-  execa: async (file: string, args: readonly string[] = [], _opts: unknown = {}) => {
+  execa: async (file: string, args: readonly string[] = [], opts: { cwd?: string } = {}) => {
     execaCalls.push({ file, args });
     if (file === 'which' || file === 'where') {
       return { exitCode: 0, stdout: `/usr/bin/${args[0]}`, stderr: '' };
@@ -69,6 +69,24 @@ vi.mock('execa', () => ({
     }
     if (file === 'pre-commit' || file === 'npx' || file === 'npm') {
       return { exitCode: 0, stdout: '', stderr: '' };
+    }
+    // resolveRepoRoot() calls `git rev-parse --show-toplevel` — real git is
+    // never actually invoked in this test file (see the fs-fixture-based
+    // `.git-root-marker` helper below), so walk up from opts.cwd looking for
+    // that marker, mirroring what a real git top-level lookup would resolve.
+    if (file === 'git' && args[0] === 'rev-parse' && args.includes('--show-toplevel')) {
+      const nodeFs = await import('node:fs');
+      const path = await import('node:path');
+      let dir = opts.cwd ?? process.cwd();
+      for (;;) {
+        if (nodeFs.existsSync(path.join(dir, '.git-root-marker'))) {
+          return { exitCode: 0, stdout: dir, stderr: '' };
+        }
+        const parent = path.dirname(dir);
+        if (parent === dir) break;
+        dir = parent;
+      }
+      return { exitCode: 128, stdout: '', stderr: 'not a git repository' };
     }
     return { exitCode: 0, stdout: '', stderr: '' };
   },
@@ -690,6 +708,97 @@ describe('runInstall — native TS install against a node fixture', () => {
       expect(mainCallsChecks).toContainEqual(['Quality Gates (api)']);
     } finally {
       await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  // Repo-root discovery (#689 follow-up): a git repo where the first
+  // target's install ran from *its own* subdirectory (not the repo root),
+  // and --add-target for the second target is invoked from a *different*
+  // subdirectory. Neither ever pointed `path` at the repo root itself — this
+  // is what `--add-target` looked like in the real ThorStack onboarding that
+  // surfaced the bug: `sdlc-config.json` must be found (and appended to) at
+  // the git repo root regardless of which target directory install runs
+  // from, not just when someone happens to invoke it from the root.
+  //
+  // execa is mocked file-wide (see vi.mock('execa', ...) above) so git is
+  // never really invoked here; `.git-root-marker` stands in for a real
+  // `.git/` for the mock's `rev-parse --show-toplevel` walk-up.
+  it('--add-target finds and appends to the repo-root config when invoked from a different subdirectory than the first target', async () => {
+    const { runInstall } = await import('../src/install/index.js');
+    const repoDir = await fs.mkdtemp(join(tmpdir(), 'cli-install-multirepo-'));
+    try {
+      await fs.writeFile(join(repoDir, '.git-root-marker'), '');
+
+      const serviceA = join(repoDir, 'service-a');
+      await fs.mkdir(join(serviceA, '.husky'), { recursive: true });
+      await fs.mkdir(join(serviceA, 'scripts'), { recursive: true });
+      await fs.writeFile(
+        join(serviceA, 'package.json'),
+        JSON.stringify({ name: 'service-a', version: '0.0.0', private: true }),
+      );
+
+      const serviceB = join(repoDir, 'service-b');
+      await fs.mkdir(serviceB, { recursive: true });
+      await fs.writeFile(join(serviceB, 'pyproject.toml'), '[project]\nname = "service-b"\n');
+
+      // --yes/nonInteractive requires an existing sdlc-config.json to plan
+      // from, even for the very first target — seed it at the repo root,
+      // matching the working_directory detectStack will resolve for
+      // service-a so writeSdlcConfig treats this as the *same* target
+      // (a rotation) rather than a second, unconfigured one.
+      await fs.writeFile(
+        join(repoDir, 'sdlc-config.json'),
+        JSON.stringify({
+          project_slug: 'service-a',
+          stack: 'node',
+          host: 'railway',
+          node_version: '20',
+          working_directory: 'service-a',
+        }),
+      );
+
+      const firstReport = await runInstall({
+        path: serviceA,
+        nonInteractive: true,
+        provider: makeFakeProvider(),
+      });
+      const firstStep4 = firstReport.steps.find((s) => s.step.startsWith('4/'));
+      expect(firstStep4?.status).toBe('ok');
+      // Written at the repo root, not inside service-a/.
+      const rootConfigAfterFirst = JSON.parse(
+        await fs.readFile(join(repoDir, 'sdlc-config.json'), 'utf-8'),
+      );
+      expect(rootConfigAfterFirst.project_slug).toBe('service-a');
+      await expect(fs.stat(join(serviceA, 'sdlc-config.json'))).rejects.toThrow();
+
+      const secondReport = await runInstall({
+        path: serviceB,
+        nonInteractive: true,
+        addTarget: true,
+        provider: makeFakeProvider(),
+      });
+      const secondStep4 = secondReport.steps.find((s) => s.step.startsWith('4/'));
+      expect(secondStep4?.status).toBe('ok');
+
+      const rootConfigAfterSecond = JSON.parse(
+        await fs.readFile(join(repoDir, 'sdlc-config.json'), 'utf-8'),
+      );
+      const names = (rootConfigAfterSecond.targets as Array<{ name: string; working_directory?: string }>).map(
+        (t) => t.name,
+      );
+      // The legacy flat config (service-a, seeded with no `targets` array)
+      // synthesizes as the 'default' target per resolveTargets (#690).
+      expect(names).toContain('default');
+      expect(names).toContain('service-b');
+      const serviceBTarget = (
+        rootConfigAfterSecond.targets as Array<{ name: string; working_directory?: string }>
+      ).find((t) => t.name === 'service-b');
+      expect(serviceBTarget?.working_directory).toBe('service-b');
+      // Still only one config file, at the repo root — not a second one
+      // inside service-b/.
+      await expect(fs.stat(join(serviceB, 'sdlc-config.json'))).rejects.toThrow();
+    } finally {
+      await fs.rm(repoDir, { recursive: true, force: true });
     }
   }, 60_000);
 });

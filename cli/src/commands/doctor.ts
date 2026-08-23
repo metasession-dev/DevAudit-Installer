@@ -2,6 +2,7 @@ import { execa } from 'execa';
 import { resolve } from 'node:path';
 import { promises as fs } from 'node:fs';
 import { logger } from '../lib/logger.js';
+import { resolveRepoRoot } from '../lib/git-root.js';
 import { discoverPlugins, buildPluginContext, runHook, type LoadedPlugin } from '../lib/plugin/index.js';
 
 export interface DoctorOptions {
@@ -44,7 +45,10 @@ async function checkReleaseCloseoutDrift(): Promise<CheckResult> {
   const name = 'releases';
   let cfg: { project_slug?: string; devaudit?: { project_slug?: string; base_url?: string } };
   try {
-    cfg = JSON.parse(await fs.readFile('sdlc-config.json', 'utf-8'));
+    // sdlc-config.json lives at the repo root (#689 follow-up), not
+    // necessarily cwd itself for a polyglot-monorepo target.
+    const repoRoot = await resolveRepoRoot(process.cwd());
+    cfg = JSON.parse(await fs.readFile(`${repoRoot}/sdlc-config.json`, 'utf-8'));
   } catch {
     return { name, ok: true, detail: 'skipped (not a consumer project)' };
   }

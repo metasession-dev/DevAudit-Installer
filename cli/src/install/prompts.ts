@@ -59,10 +59,12 @@ async function planFromConfig(
   detected: DetectedStack,
   defaults: { runtimeVersion: string; sourceDirs: string },
 ): Promise<InstallPlan> {
-  const cfg = await readSdlcConfig(ctx.projectPath);
+  // sdlc-config.json lives at the repo root (#689 follow-up), not this
+  // target's own directory — see write-config.ts for why.
+  const cfg = await readSdlcConfig(ctx.repoRoot);
   if (!cfg && !ctx.dryRun) {
     throw new Error(
-      '--yes requires an existing sdlc-config.json in the project directory. Run without --yes to create one interactively.',
+      '--yes requires an existing sdlc-config.json at the repository root. Run without --yes to create one interactively.',
     );
   }
   // --add-target (#689/#691): the existing config (if any) describes a
@@ -155,7 +157,7 @@ async function planFromPrompts(
   );
   const projectSlug = String(answers.projectSlug);
   const workingDirectory = String(answers.workingDirectory) || '.';
-  const existing = await readSdlcConfig(ctx.projectPath);
+  const existing = await readSdlcConfig(ctx.repoRoot);
   const apiKeySecretName = ctx.addTarget
     ? apiKeySecretNameFor(projectSlug, existingApiKeySecretNames(existing))
     : (existing?.devaudit?.api_key_secret ?? DEFAULT_API_KEY_SECRET);

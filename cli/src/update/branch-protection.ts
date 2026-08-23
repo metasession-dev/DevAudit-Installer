@@ -20,7 +20,9 @@ import {
  * a warning — don't fail the sync.
  */
 export async function verifyBranchProtection(ctx: SyncContext): Promise<SectionResult> {
-  const config = await readSdlcConfig(ctx.projectPath);
+  // sdlc-config.json lives at the repo root (#689 follow-up), not this
+  // target's own directory — see write-config.ts for why.
+  const config = await readSdlcConfig(ctx.repoRoot);
   const integrationBranch = config?.integration_branch ?? 'develop';
   const releaseBranch = config?.release_branch ?? 'main';
   let provider;
