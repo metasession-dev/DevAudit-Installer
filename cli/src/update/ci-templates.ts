@@ -386,7 +386,16 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
       PR_PATHS_IGNORE: prPathsIgnoreBlock,
       DATABASE_ENV: cfg.database_env ? indentEnvBlock({ ...cfg.database_env }, 6) : '',
       APP_ENV: cfg.app_env ? indentEnvBlock({ ...cfg.app_env }, 6) : '',
-      BUILD_ENV: cfg.build_env ? indentEnvBlock({ ...cfg.build_env }, 10) : '',
+      // Unlike DATABASE_ENV/APP_ENV (both followed by more hardcoded env
+      // lines in the job-level `env:` block, so an empty result there is
+      // harmless), the Build Check step's `env:` key has ONLY this block as
+      // content — the template no longer hardcodes `env:` above it, so this
+      // must supply its own header, and only when there's something to put
+      // under it, or `env:` with nothing after is invalid YAML.
+      BUILD_ENV:
+        cfg.build_env && Object.keys(cfg.build_env).length > 0
+          ? `        env:\n${indentEnvBlock({ ...cfg.build_env }, 10)}`
+          : '',
       DATABASE_URI_STEP: buildDbUriStep(cfg.database_service, cfg.database_port),
       E2E_SETUP_STEP: buildE2eSetupStep(cfg),
       E2E_DEV_SERVER_STEP: buildE2eDevServerStep(cfg),

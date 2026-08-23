@@ -678,6 +678,51 @@ describe('syncProject — native TS sync against a fixture', () => {
     }
   }, 60_000);
 
+  // build_env: {} is the default on every fresh install (an empty object is
+  // truthy in JS, so a naive `cfg.build_env ? ... : ''` check renders the
+  // block as empty anyway) — but the Build Check step's `env:` key had no
+  // other content to fall back on, so it ended up as a dangling `env:` with
+  // nothing after it. js-yaml parses that fine (as `env: null`), but GitHub
+  // Actions' schema validator rejects it outright ("expecting a single
+  // ${{...}} expression or mapping value for 'env' section") — a class of
+  // break `expectAllWorkflowsValidYaml` can't catch, only found by actually
+  // running actionlint against the onboarded mission-control repo.
+  it('does not emit a dangling env: key on the Build Check step when build_env is empty', async () => {
+    const dir = await fs.mkdtemp(join(tmpdir(), 'cli-update-emptybuildenv-'));
+    try {
+      await fs.writeFile(
+        join(dir, 'sdlc-config.json'),
+        JSON.stringify({
+          project_slug: 'fixture-app',
+          stack: 'node',
+          host: 'railway',
+          node_version: '20',
+          runner: 'ubuntu-latest',
+          working_directory: '.',
+          source_dirs: 'app/ lib/',
+          sast_baseline: 0,
+          accepted_dep_risks: '',
+          production_url_secret: 'FIXTURE_PROD_URL',
+          database_service: '',
+          database_image: '',
+          database_port: '',
+          build_env: {},
+          e2e_project: 'chromium',
+          e2e_start_command: 'npm run dev',
+        }),
+      );
+      await fs.mkdir(join(dir, '.github', 'workflows'), { recursive: true });
+      await syncProject(dir);
+
+      const ci = await fs.readFile(join(dir, '.github', 'workflows', 'ci.yml'), 'utf-8');
+      expect(ci).not.toMatch(/env:[ \t]*\n[ \t]*\n/);
+
+      await expectAllWorkflowsValidYaml(dir);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
   it('threads a local-DB E2E setup step + e2e_env into the blocking gate when configured', async () => {
     const dir = await fs.mkdtemp(join(tmpdir(), 'cli-update-e2elocal-'));
     try {
