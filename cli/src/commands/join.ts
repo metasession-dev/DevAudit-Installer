@@ -1,6 +1,7 @@
 import { resolve } from 'node:path';
 import { runInstall } from '../install/index.js';
 import { isFile } from '../lib/fs-utils.js';
+import { resolveRepoRoot } from '../lib/git-root.js';
 import { logger } from '../lib/logger.js';
 
 export interface JoinOptions {
@@ -31,10 +32,13 @@ export interface JoinOptions {
 export async function runJoinCommand(options: JoinOptions): Promise<void> {
   const log = logger();
   const projectPath = resolve(options.path ?? process.cwd());
-  const sdlcConfigExists = await isFile(`${projectPath}/sdlc-config.json`);
+  // sdlc-config.json lives at the repo root (#689 follow-up), not
+  // necessarily projectPath itself for a polyglot-monorepo target.
+  const repoRoot = await resolveRepoRoot(projectPath);
+  const sdlcConfigExists = await isFile(`${repoRoot}/sdlc-config.json`);
   if (!sdlcConfigExists) {
     log.error(
-      `No sdlc-config.json at ${projectPath}. This project hasn't been onboarded yet — the project operator should run \`devaudit install\`. See SDLC/joining-an-existing-project.md (synced into onboarded repos) for the second-developer guide.`,
+      `No sdlc-config.json at ${repoRoot}. This project hasn't been onboarded yet — the project operator should run \`devaudit install\`. See SDLC/joining-an-existing-project.md (synced into onboarded repos) for the second-developer guide.`,
     );
     process.exit(7);
   }

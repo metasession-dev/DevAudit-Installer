@@ -6,6 +6,7 @@ import type {
 } from '@metasession.co/devaudit-plugin-sdk';
 import { readSdlcConfig } from '../sdlc-config.js';
 import { logger } from '../logger.js';
+import { resolveRepoRoot } from '../git-root.js';
 
 export interface BuildPluginContextOptions {
   readonly projectPath: string;
@@ -13,7 +14,10 @@ export interface BuildPluginContextOptions {
 }
 
 export async function buildPluginContext(opts: BuildPluginContextOptions): Promise<PluginContext> {
-  const cfg = await readSdlcConfig(opts.projectPath);
+  // sdlc-config.json lives at the repo root (#689 follow-up), not
+  // necessarily projectPath itself for a polyglot-monorepo target.
+  const repoRoot = await resolveRepoRoot(opts.projectPath);
+  const cfg = await readSdlcConfig(repoRoot);
   const sdlcConfig: PluginSdlcConfigView = (cfg as unknown as PluginSdlcConfigView) ?? {
     project_slug: '',
   };

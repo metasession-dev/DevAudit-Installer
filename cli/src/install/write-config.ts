@@ -36,7 +36,13 @@ export async function writeSdlcConfig(ctx: InstallContext, plan: InstallPlan): P
   }
   const runtimeKey = plan.stack === 'node' ? 'node_version' : 'python_version';
   const pathsIgnore = plan.stack === 'node' ? NODE_PATHS_IGNORE : PYTHON_PATHS_IGNORE;
-  const existing = await readSdlcConfig(ctx.projectPath);
+  // sdlc-config.json always lives at the repo root (#689 follow-up) — never
+  // a target's own directory. A single-target repo installed from its own
+  // root has repoRoot === projectPath, so this is a no-op there; for a
+  // polyglot-monorepo target in a subdirectory, this is what lets
+  // --add-target find (and append to) the first target's config instead of
+  // looking in its own directory, where nothing was ever written.
+  const existing = await readSdlcConfig(ctx.repoRoot);
 
   // Multi-target (polyglot monorepo) safety — see #689/#691. A config
   // already exists but describes a *different* target (different working
@@ -131,7 +137,7 @@ export async function writeSdlcConfig(ctx: InstallContext, plan: InstallPlan): P
     };
     config['targets'] = [...existingTargets, newTarget];
   }
-  const outPath = join(ctx.projectPath, 'sdlc-config.json');
+  const outPath = join(ctx.repoRoot, 'sdlc-config.json');
   if (ctx.dryRun) {
     const preserved = existing
       ? `preserves existing customizations (${Object.keys(existing as unknown as object).filter((k) => !(k in wizardOwned)).length} non-wizard fields)`
