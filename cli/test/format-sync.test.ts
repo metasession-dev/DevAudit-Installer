@@ -35,7 +35,14 @@ async function installFakePrettier(projectPath: string): Promise<void> {
 }
 
 function makeCtx(projectPath: string, stack = 'node'): SyncContext {
-  return { installerRoot: '/unused', projectPath, projectName: 'fixture', stack, host: 'railway' };
+  return {
+    installerRoot: '/unused',
+    projectPath,
+    repoRoot: projectPath,
+    projectName: 'fixture',
+    stack,
+    host: 'railway',
+  };
 }
 
 const dirs: string[] = [];

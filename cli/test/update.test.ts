@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { basename, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { load as yamlLoad } from 'js-yaml';
+import { execa } from 'execa';
 import { syncProject } from '../src/update/index.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -574,6 +575,65 @@ describe('syncProject — native TS sync against a fixture', () => {
       await expectAllWorkflowsValidYaml(dir);
     } finally {
       await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  // #689 follow-up: GitHub Actions only reads .github/workflows/ from the
+  // repo root — never from a target's own subdirectory. When a target lives
+  // in a polyglot-monorepo subdirectory (the whole point of --add-target),
+  // syncing CI output relative to the target's own directory instead of the
+  // repo root produces files GitHub never runs.
+  it('writes .github/workflows/ at the git repo root, not a subdirectory target\'s own path', async () => {
+    const repoRoot = await fs.mkdtemp(join(tmpdir(), 'cli-update-reporoot-'));
+    try {
+      await execa('git', ['init', '-q'], { cwd: repoRoot });
+      const targetDir = join(repoRoot, 'mission-control');
+      await fs.mkdir(targetDir, { recursive: true });
+      await fs.writeFile(
+        join(targetDir, 'sdlc-config.json'),
+        JSON.stringify({
+          project_slug: 'mission-control',
+          stack: 'node',
+          host: 'railway',
+          node_version: '20',
+          runner: 'ubuntu-latest',
+          working_directory: '.',
+          source_dirs: 'app/ lib/',
+          sast_baseline: 0,
+          accepted_dep_risks: '',
+          production_url_secret: 'MISSION_CONTROL_PROD_URL',
+          database_service: '',
+          database_image: '',
+          database_port: '',
+          e2e_project: 'chromium',
+          e2e_start_command: 'npm run dev',
+        }),
+      );
+      // .github/workflows/ pre-exists at the repo root (syncCiTemplates
+      // requires it, matching the precondition a real onboarded repo has).
+      await fs.mkdir(join(repoRoot, '.github', 'workflows'), { recursive: true });
+
+      await syncProject(targetDir);
+
+      const rootWorkflows = await fs.readdir(join(repoRoot, '.github', 'workflows'));
+      expect(rootWorkflows).toContain('ci.yml');
+      const targetGithubExists = await fs
+        .stat(join(targetDir, '.github'))
+        .then(() => true)
+        .catch(() => false);
+      expect(targetGithubExists).toBe(false);
+
+      const rootIssueTemplates = await fs
+        .readdir(join(repoRoot, '.github', 'ISSUE_TEMPLATE'))
+        .catch(() => []);
+      expect(rootIssueTemplates.length).toBeGreaterThan(0);
+
+      const rootDevinWorkflows = await fs
+        .readdir(join(repoRoot, '.devin', 'workflows'))
+        .catch(() => []);
+      expect(rootDevinWorkflows.length).toBeGreaterThan(0);
+    } finally {
+      await fs.rm(repoRoot, { recursive: true, force: true });
     }
   }, 60_000);
 

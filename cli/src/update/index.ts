@@ -1,6 +1,7 @@
 import { basename, resolve } from "node:path";
 import { isDir } from "../lib/fs-utils.js";
 import { resolveInstallerRoot } from "../lib/installer-root.js";
+import { resolveRepoRoot } from "../lib/git-root.js";
 import { resolveAdapters } from "./resolve-adapters.js";
 import { syncStageDocs } from "./stage-docs.js";
 import { syncAiRules } from "./ai-rules.js";
@@ -47,6 +48,7 @@ export async function syncProject(projectPath: string): Promise<SyncReport> {
     throw new Error(`Project path not found: ${absPath}`);
   }
   const installerRoot = await resolveInstallerRoot();
+  const repoRoot = await resolveRepoRoot(absPath);
   const log = logger();
   const projectName = basename(absPath);
   log.info(`--- Syncing to: ${projectName} (${absPath}) ---`);
@@ -63,6 +65,7 @@ export async function syncProject(projectPath: string): Promise<SyncReport> {
   const ctx: SyncContext = {
     installerRoot,
     projectPath: absPath,
+    repoRoot,
     projectName,
     stack,
     host,

@@ -292,7 +292,10 @@ function resolveRunner(cfg: SdlcConfig): string {
  */
 export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> {
   const configPath = join(ctx.projectPath, 'sdlc-config.json');
-  const workflowsDir = join(ctx.projectPath, '.github', 'workflows');
+  // GitHub Actions only reads .github/workflows/ from the repo root, never
+  // from a target's own subdirectory — repoRoot === projectPath for a
+  // single-target repo, so this is unchanged there. See #689 follow-up.
+  const workflowsDir = join(ctx.repoRoot, '.github', 'workflows');
   if (!(await exists(configPath))) {
     return { name: 'CI workflows', filesSynced: 0, skipped: true, message: 'no sdlc-config.json' };
   }

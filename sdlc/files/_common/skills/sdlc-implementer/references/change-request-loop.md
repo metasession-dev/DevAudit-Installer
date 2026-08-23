@@ -29,7 +29,7 @@ When the user runs `> Resume REQ-XXX` and the portal state is `uat_changes_reque
 Two sources to read:
 
 1. **PR comments** — `gh pr view <M> --comments --json comments,reviews --jq '.comments[].body, .reviews[].body'`. Includes line-level review comments and top-level discussion.
-2. **Portal release-page comments** — `curl https://devaudit.metasession.co/api/projects/<slug>/releases/<version>/comments`. Includes any comments the UAT reviewer left on the release card itself.
+2. **Portal release-page comments** — `curl https://devaudit.ai/api/projects/<slug>/releases/<version>/comments`. Includes any comments the UAT reviewer left on the release card itself.
 
 Both sources matter: PR comments are usually code-level; portal comments are usually about-the-release-as-a-whole.
 
@@ -133,7 +133,7 @@ The portal's release-approval state automatically resets to `uat_review` on the 
 
 Even though state has reset, the reviewer needs notification. Two actions:
 
-1. **Portal API**: `POST https://devaudit.metasession.co/api/projects/<slug>/releases/<version>/approval-requests` with `{"iteration": N, "summary": "Change-request iteration N addressed"}`. This notifies the reviewer on their portal dashboard.
+1. **Portal API**: `POST https://devaudit.ai/api/projects/<slug>/releases/<version>/approval-requests` with `{"iteration": N, "summary": "Change-request iteration N addressed"}`. This notifies the reviewer on their portal dashboard.
 2. **PR comment**: post a summary comment on the PR linking to the new commits and the iteration-N evidence on the portal:
 
 ```
@@ -143,7 +143,7 @@ Items addressed:
 - <bullet, link to original comment>
 - <bullet, link to original comment>
 
-Updated evidence: https://devaudit.metasession.co/projects/<slug>/requirements/REQ-XXX (filter by iteration N)
+Updated evidence: https://devaudit.ai/projects/<slug>/requirements/REQ-XXX (filter by iteration N)
 
 @<reviewer-username> — UAT re-review requested.
 ```

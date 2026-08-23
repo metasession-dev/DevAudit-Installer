@@ -749,7 +749,7 @@ Black-box SRS for `devaudit install [path]` (the full interactive onboarding flo
 
 - **Priority:** Must — auth is the gate for the whole flow.
 - **Source:** `cli/src/install/index.ts` (`resolveTokenForInstall`); `cli/src/lib/auth.ts` (`resolveToken`, `readAuth`)
-- **Preconditions / inputs:** Token resolved in order: (1) `--token <token>` flag wins (baseUrl then `--base-url` or default `https://devaudit.metasession.co`); (2) else `resolveToken()` reads `DEVAUDIT_USER_TOKEN` env (with `DEVAUDIT_BASE_URL` env or default); (3) else `~/.config/devaudit/auth.json` (`AUTH_FILE`, version 1 record). `--base-url` overrides the resolved baseUrl when present.
+- **Preconditions / inputs:** Token resolved in order: (1) `--token <token>` flag wins (baseUrl then `--base-url` or default `https://devaudit.ai`); (2) else `resolveToken()` reads `DEVAUDIT_USER_TOKEN` env (with `DEVAUDIT_BASE_URL` env or default); (3) else `~/.config/devaudit/auth.json` (`AUTH_FILE`, version 1 record). `--base-url` overrides the resolved baseUrl when present.
 - **Given** none of `--token`, `DEVAUDIT_USER_TOKEN`, or a cached `auth.json` is available **When** `devaudit install` **Then** `runInstall` throws `No DevAudit token found. Set DEVAUDIT_USER_TOKEN, pass --token, or run \`devaudit auth login\` first.`, which surfaces on stderr with exit code 1; no portal calls, no files written.
 - **Error paths:** As above (exit 1). With `--token` set but invalid, the failure surfaces later in step 1 (REQ-CLI-INSTALL-004), not here.
 - **Fixtures/env:** Run with `DEVAUDIT_USER_TOKEN` unset and `HOME`/config dir pointed at an empty temp dir so no `auth.json` exists.
@@ -1328,7 +1328,7 @@ Black-box SRS for the `devaudit` CLI areas: evidence upload (`push`), authentica
 Key cross-cutting facts (asserted once, relied on below):
 
 - Config root is resolved by `env-paths('devaudit', { suffix: '' })` (`cli/src/lib/paths.ts`). On Linux this is `~/.config/devaudit/`. `AUTH_FILE = <config>/auth.json`, `PLUGINS_DIR = <config>/plugins`, `CONFIG_FILE = <config>/config.json`. Tests MUST override `HOME`/`XDG_CONFIG_HOME` (or pass `{ root }` to the plugin command functions, which accept it) to sandbox these.
-- Default portal base URL is `https://devaudit.metasession.co` (`DEFAULT_BASE_URL` in `push.ts`, `auth.ts`, `login.ts`).
+- Default portal base URL is `https://devaudit.ai` (`DEFAULT_BASE_URL` in `push.ts`, `auth.ts`, `login.ts`).
 - Logger (`cli/src/lib/logger.ts`): `--json` mode replaces all `consola` output with one NDJSON record per call written to stdout as `{level,tag,args,date}`; `emitJsonResult()` writes a single raw `JSON.stringify(payload)+"\n"` to stdout. `--no-color` sets `process.env.NO_COLOR='1'`. `--verbose` raises log level 3→5. The `preAction` hook configures the logger from `cmd.optsWithGlobals()` before any action runs.
 
 ---
@@ -1355,7 +1355,7 @@ Key cross-cutting facts (asserted once, relied on below):
 
 - **Priority:** Must — controls where evidence is sent.
 - **Source:** `cli/src/commands/push.ts` (`baseUrl = options.baseUrl ?? process.env.DEVAUDIT_BASE_URL ?? DEFAULT_BASE_URL`), `cli/src/lib/ci-upload.ts` (`opts.baseUrl.replace(/\/$/, '')`).
-- **Given** `--base-url https://portal.test/` (trailing slash) **When** push runs **Then** the POST URL is exactly `https://portal.test/api/evidence/upload` (single slash). Precedence: `--base-url` > `DEVAUDIT_BASE_URL` > `https://devaudit.metasession.co`.
+- **Given** `--base-url https://portal.test/` (trailing slash) **When** push runs **Then** the POST URL is exactly `https://portal.test/api/evidence/upload` (single slash). Precedence: `--base-url` > `DEVAUDIT_BASE_URL` > `https://devaudit.ai`.
 - **Error paths:** n/a (resolution only).
 - **Fixtures/env:** msw handler asserting the resolved URL; set/clear `DEVAUDIT_BASE_URL`.
 
@@ -1497,7 +1497,7 @@ Key cross-cutting facts (asserted once, relied on below):
 
 - **Priority:** Must — token acquisition + secure cache are core security behaviour.
 - **Source:** `cli/src/commands/auth/login.ts` (`runAuthLogin`), `cli/src/lib/auth.ts` (`writeAuth`), `cli/src/lib/devaudit-api.ts` (`DevAuditClient.listProjects` → `GET /api/projects` with header `x-devaudit-token`).
-- **Preconditions / inputs:** `--token mctok_…` (or `DEVAUDIT_USER_TOKEN` env). `--base-url` defaults to `https://devaudit.metasession.co` (commander default in `index.ts`).
+- **Preconditions / inputs:** `--token mctok_…` (or `DEVAUDIT_USER_TOKEN` env). `--base-url` defaults to `https://devaudit.ai` (commander default in `index.ts`).
 - **Given** a token the portal accepts **When** `devaudit auth login --token mctok_abc` **Then** the CLI sends `GET <baseUrl>/api/projects` with header `x-devaudit-token: mctok_abc`; on success it writes `~/.config/devaudit/auth.json` containing `{"version":1,"token":"mctok_abc","base_url":"<baseUrl>"}` (pretty-printed + trailing newline); the parent dir is created `mode 0o700`, the file `mode 0o600`; stdout: `Logged in. Token cached at ~/.config/devaudit/auth.json (mode 0600).`; exit 0.
 - **Error paths:** see AUTH-003.
 - **Fixtures/env:** msw `GET /api/projects`; temp `HOME`; assert `(await fs.stat(authFile)).mode & 0o777 === 0o600` and parsed contents shape.
@@ -1686,7 +1686,7 @@ Key cross-cutting facts (asserted once, relied on below):
 - **`upgrade` is a stub, not a self-updater.** The task brief describes `upgrade` as "self-update to latest npm release". In v0.1.54 it is wired to `makeStub` and only prints a "not implemented" message + exits 1 (REQ-CLI-UPGRADE-001). I documented the actual stub behaviour, not the aspirational one.
 - **CLI vs `scripts/upload-evidence.sh` parity gaps** (documented where load-bearing): the CLI now implements the base-URL **drift warning**, recursive directory traversal, starter-stub skip, `releaseBranch`/`releaseTitle`/`changeType`/`gateStatus`/`--meta-key` form fields, and the `--environment requires --release` / `--release requires --category` validations. The remaining notable gaps are: the CLI still does **not** validate `--sdlc-stage 1-5` client-side because that flag belongs to the shell contract, and the shell remains the CI-authoritative path for stage stamping. The shell sends `releaseBranch=<branch>` while the CLI also keeps `branch` in metadata. These are stated as facts from the two sources, not as defects.
 - **API key header / format:** the upload uses `Authorization: Bearer <key>` (`ci-upload.ts`); the portal-validation calls in `devaudit-api.ts` use header `x-devaudit-token`. The shell docs describe project keys as `mc_…` and PATs as `mctok_…`; the CLI only validates the `mctok_` prefix on interactive login (AUTH-002) — `--api-key`/`DEVAUDIT_API_KEY` values are not format-checked.
-- **`auth login --base-url` default:** set as a commander option default (`'https://devaudit.metasession.co'`) in `index.ts`, so `runAuthLogin` always receives a base URL; the `?? DEFAULT_BASE_URL` fallback inside `login.ts` is belt-and-suspenders.
+- **`auth login --base-url` default:** set as a commander option default (`'https://devaudit.ai'`) in `index.ts`, so `runAuthLogin` always receives a base URL; the `?? DEFAULT_BASE_URL` fallback inside `login.ts` is belt-and-suspenders.
 - **`auth status` env precedence:** `resolveToken` lets `DEVAUDIT_USER_TOKEN` override the cached file, and `DEVAUDIT_BASE_URL` overrides the file's `base_url` only for the env-token path. Tests must clear these envs to exercise the file path.
 - **Interactive `auth login` prompt** (AUTH-002) is impractical to E2E headlessly; assumed coverage is via `--token`/`DEVAUDIT_USER_TOKEN`.
 - **`--org` is inert** in this command area (GLOBAL-006) — no reader exists in push/auth/plugin code; treated as parse-only.

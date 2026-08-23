@@ -8,7 +8,7 @@ interface LoginOptions {
   readonly baseUrl?: string;
 }
 
-const DEFAULT_BASE_URL = 'https://devaudit.metasession.co';
+const DEFAULT_BASE_URL = 'https://devaudit.ai';
 
 export async function runAuthLogin(options: LoginOptions): Promise<void> {
   const log = logger();
