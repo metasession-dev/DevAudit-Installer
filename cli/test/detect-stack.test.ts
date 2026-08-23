@@ -93,4 +93,33 @@ describe('detectStack — working_directory is repo-root-relative (#689)', () =>
     const { detected } = await detectStack(baseCtx({ projectPath: dir, repoRoot: dir }));
     expect(detected.workingDirectory).toBe('.');
   });
+
+  // A Python service with no pyproject.toml at all — just requirements.txt —
+  // is a real, valid convention (e.g. an unpackaged FastAPI app pinned via
+  // pip-compile/uv), not a malformed project. Found onboarding
+  // fleet-control-api (metasession-dev/META-AGENT) as a --add-target: it had
+  // no pyproject.toml anywhere, so detection failed even though the project
+  // is unambiguously Python.
+  it('Python target with only requirements.txt (no pyproject.toml) is still detected as python', async () => {
+    const repoRoot = await mkdtemp();
+    await execa('git', ['init', '-q'], { cwd: repoRoot });
+    const targetDir = join(repoRoot, 'fleet-control-api');
+    await fs.mkdir(targetDir, { recursive: true });
+    await fs.writeFile(join(targetDir, 'requirements.txt'), 'fastapi>=0.100,<1\n');
+
+    const { detected } = await detectStack(baseCtx({ projectPath: targetDir, repoRoot }));
+    expect(detected).toEqual({ stack: 'python', workingDirectory: 'fleet-control-api' });
+  });
+
+  it('prefers pyproject.toml over requirements.txt when both are present in the same directory', async () => {
+    const repoRoot = await mkdtemp();
+    await execa('git', ['init', '-q'], { cwd: repoRoot });
+    const targetDir = join(repoRoot, 'api');
+    await fs.mkdir(targetDir, { recursive: true });
+    await fs.writeFile(join(targetDir, 'requirements.txt'), 'fastapi>=0.100,<1\n');
+    await fs.writeFile(join(targetDir, 'pyproject.toml'), '[project]\nname = "api"\n');
+
+    const { detected } = await detectStack(baseCtx({ projectPath: targetDir, repoRoot }));
+    expect(detected).toEqual({ stack: 'python', workingDirectory: 'api' });
+  });
 });
