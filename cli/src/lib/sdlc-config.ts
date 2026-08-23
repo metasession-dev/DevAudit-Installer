@@ -12,6 +12,12 @@ export interface SdlcConfig {
   readonly production_url_secret?: string;
   readonly integration_branch?: string;
   readonly release_branch?: string;
+  // Port the E2E dev server (started via e2e_start_command) listens on, for
+  // CI's "Wait for dev server" step to poll. Defaults to 3000 (Next.js' own
+  // default) when absent — override per-target (see Target.e2e_port) when a
+  // target's dev script binds elsewhere, e.g. to avoid colliding with a
+  // sibling target in the same polyglot-monorepo repo.
+  readonly e2e_port?: string | number;
   readonly devaudit?: {
     readonly base_url?: string;
     readonly project_slug?: string;
@@ -38,6 +44,7 @@ export interface Target {
   readonly working_directory?: string;
   readonly source_dirs?: string;
   readonly production_url_secret?: string;
+  readonly e2e_port?: string | number;
   readonly devaudit?: {
     readonly base_url?: string;
     readonly project_slug?: string;
@@ -61,6 +68,7 @@ export function resolveTargets(config: SdlcConfig): readonly Target[] {
       working_directory: config.working_directory ?? '.',
       source_dirs: config.source_dirs,
       production_url_secret: config.production_url_secret,
+      e2e_port: config.e2e_port,
       devaudit: {
         ...config.devaudit,
         project_slug: config.devaudit?.project_slug ?? config.project_slug,
