@@ -172,7 +172,7 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
 
   it('delegates advisory-scoped dependency-risk evaluation to the synced fail-closed helper', () => {
     const source = template('ci.yml.template');
-    expect(source).toContain('bash scripts/evaluate-npm-audit.sh');
+    expect(source).toContain('bash "$GITHUB_WORKSPACE/scripts/evaluate-npm-audit.sh"');
     expect(source).toContain('dependency-risk-evaluation.json');
     expect(source).not.toContain('UNACCEPTED=$(python3');
     expect(source).not.toContain('echo "unknown"');
@@ -281,7 +281,7 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
       source.indexOf('Start authoritative quality-gate execution'),
     );
     expect(source).toContain('DEVAUDIT_RUNNER_ENVIRONMENT: ${{ runner.environment }}');
-    expect(source).toContain('bash scripts/check-self-hosted-runner.sh');
+    expect(source).toContain('bash "$GITHUB_WORKSPACE/scripts/check-self-hosted-runner.sh"');
   });
 
   it('hard-bounds generated dev-server readiness probes (#544)', () => {
