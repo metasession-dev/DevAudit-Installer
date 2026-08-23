@@ -325,6 +325,20 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
   let count = 0;
   const filePaths: string[] = [];
 
+  // A repo that just gained its second target leaves behind the unsuffixed
+  // workflow files a single-target sync wrote previously (ci.yml,
+  // feature-e2e.yml, ...) — every output this generator writes is now
+  // target-suffixed, so those stale files never get overwritten or removed
+  // on their own and end up running as an extra, unscoped duplicate pipeline
+  // alongside the real per-target ones.
+  if (multiTarget) {
+    for (const tmpl of CI_TEMPLATES) {
+      const staleName = tmpl.replace(/\.template$/, '');
+      const stalePath = join(workflowsDir, staleName);
+      if (await exists(stalePath)) await fs.rm(stalePath);
+    }
+  }
+
   // Each target's own working_directory, in target order — used below to scope
   // out *other* targets' subtrees from a target's triggers (#693), so an
   // unrelated target's commit doesn't fire this target's pipeline. Root/empty
