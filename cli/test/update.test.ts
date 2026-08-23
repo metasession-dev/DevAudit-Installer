@@ -637,6 +637,47 @@ describe('syncProject — native TS sync against a fixture', () => {
     }
   }, 60_000);
 
+  // e2e_start_command is '' on every fresh install (no prompt collects it —
+  // filling it in is a deliberate post-install manual edit). `run: <empty> &`
+  // renders as a bare `&`, which YAML parses as an empty anchor name and
+  // rejects outright — breaking ci.yml and feature-e2e.yml for every
+  // consumer before they've configured a dev-server command.
+  it('renders a valid (harmless no-op) dev-server step when e2e_start_command is empty', async () => {
+    const dir = await fs.mkdtemp(join(tmpdir(), 'cli-update-empty-e2e-'));
+    try {
+      await fs.writeFile(
+        join(dir, 'sdlc-config.json'),
+        JSON.stringify({
+          project_slug: 'fixture-app',
+          stack: 'node',
+          host: 'railway',
+          node_version: '20',
+          runner: 'ubuntu-latest',
+          working_directory: '.',
+          source_dirs: 'app/ lib/',
+          sast_baseline: 0,
+          accepted_dep_risks: '',
+          production_url_secret: 'FIXTURE_PROD_URL',
+          database_service: '',
+          database_image: '',
+          database_port: '',
+          e2e_project: 'chromium',
+          e2e_start_command: '',
+        }),
+      );
+      await fs.mkdir(join(dir, '.github', 'workflows'), { recursive: true });
+      await syncProject(dir);
+
+      const ci = await fs.readFile(join(dir, '.github', 'workflows', 'ci.yml'), 'utf-8');
+      expect(ci).not.toMatch(/run:\s*&\s*$/m);
+      expect(ci).toContain('run: true &');
+
+      await expectAllWorkflowsValidYaml(dir);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
   it('threads a local-DB E2E setup step + e2e_env into the blocking gate when configured', async () => {
     const dir = await fs.mkdtemp(join(tmpdir(), 'cli-update-e2elocal-'));
     try {

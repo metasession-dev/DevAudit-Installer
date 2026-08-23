@@ -152,7 +152,16 @@ function buildE2eDevServerStep(cfg: SdlcConfig): string {
   const env = cfg.e2e_env ?? {};
   const lines = ['      - name: Start dev server'];
   if (Object.keys(env).length > 0) lines.push('        env:', indentEnvBlock({ ...env }, 10));
-  lines.push(`        run: ${cfg.e2e_start_command} &`);
+  // e2e_start_command is '' on every fresh install (no prompt collects it —
+  // it's a deliberate post-install manual edit) — `run: <empty> &` is a bare
+  // `&`, which YAML parses as the start of an anchor name and rejects as
+  // invalid (anchor cannot be empty), breaking ci.yml for every consumer
+  // before they've configured it. Fall back to a harmless no-op so the
+  // workflow stays valid YAML (it'll just fail the "Wait for dev server"
+  // step below at runtime, same as any other misconfiguration, instead of
+  // never parsing at all).
+  const startCommand = (cfg.e2e_start_command ?? '').trim() || 'true';
+  lines.push(`        run: ${startCommand} &`);
   return lines.join('\n');
 }
 
