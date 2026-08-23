@@ -41,6 +41,14 @@ jobs:
     if: ${{ always() && (github.event_name != 'pull_request' || !startsWith(github.head_ref, 'chore/close-out-')) && (github.event_name == 'pull_request' || needs.register-release.result == 'success') }}
     runs-on: {{RUNNER}}
 
+    # `working-directory` lets monorepo / subdir Node projects (e.g. META-AGENT
+    # with mission-control/package.json) run gates from the right place without
+    # prefixing every command. Defaults to '.' (repo root) when
+    # sdlc-config.json doesn't set working_directory.
+    defaults:
+      run:
+        working-directory: {{WORKING_DIRECTORY}}
+
     services:
       {{DATABASE_SERVICE}}:
         image: {{DATABASE_IMAGE}}
@@ -247,22 +255,26 @@ jobs:
 
       # ── Upload artifacts ──
 
+      # actions/upload-artifact@v7 doesn't honour the job's `working-directory`;
+      # paths are workspace-relative. Prefix with WORKING_DIR_PREFIX so artifacts
+      # uploaded from a subdir project (e.g. mission-control/) include the
+      # subdir in their stored path, matching where the gate steps wrote them.
       - uses: actions/upload-artifact@v7
         if: always()
         continue-on-error: true
         with:
           name: ci-results
           path: |
-            sast-results.json
-            dependency-audit.json
-            dependency-risk-evaluation.json
-            e2e-results.json
-            e2e-auth-results.json
-            playwright-report/
-            coverage/coverage-summary.json
-            gate-outcomes.json
-            compliance/evidence/*/screenshots/*.png
-            compliance/evidence/*/screenshots/*.png.meta.json
+            {{WORKING_DIR_PREFIX}}sast-results.json
+            {{WORKING_DIR_PREFIX}}dependency-audit.json
+            {{WORKING_DIR_PREFIX}}dependency-risk-evaluation.json
+            {{WORKING_DIR_PREFIX}}e2e-results.json
+            {{WORKING_DIR_PREFIX}}e2e-auth-results.json
+            {{WORKING_DIR_PREFIX}}playwright-report/
+            {{WORKING_DIR_PREFIX}}coverage/coverage-summary.json
+            {{WORKING_DIR_PREFIX}}gate-outcomes.json
+            {{WORKING_DIR_PREFIX}}compliance/evidence/*/screenshots/*.png
+            {{WORKING_DIR_PREFIX}}compliance/evidence/*/screenshots/*.png.meta.json
           retention-days: 90
 
   # ──────────────────────────────────────────────
