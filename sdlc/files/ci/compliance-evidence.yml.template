@@ -60,7 +60,7 @@ jobs:
       contents: read
     env:
       DEVAUDIT_BASE_URL_VAR: ${{ vars.DEVAUDIT_BASE_URL }}
-      DEVAUDIT_API_KEY: ${{ secrets.DEVAUDIT_API_KEY }}
+      DEVAUDIT_API_KEY: ${{ secrets.{{API_KEY_SECRET}} }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -296,7 +296,7 @@ jobs:
       issues: write
     env:
       DEVAUDIT_BASE_URL_VAR: ${{ vars.DEVAUDIT_BASE_URL }}
-      DEVAUDIT_API_KEY: ${{ secrets.DEVAUDIT_API_KEY }}
+      DEVAUDIT_API_KEY: ${{ secrets.{{API_KEY_SECRET}} }}
     steps:
       - uses: actions/checkout@v6
         with:
