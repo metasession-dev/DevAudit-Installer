@@ -73,10 +73,13 @@ jobs:
       - name: Validate self-hosted runner prerequisites
         env:
           DEVAUDIT_RUNNER_ENVIRONMENT: ${{ runner.environment }}
+        # scripts/ syncs to the repo root (#689), not this job's
+        # working-directory (a target's own subdirectory) — reference it via
+        # $GITHUB_WORKSPACE so this resolves correctly either way.
         run: |
-          if [ -f scripts/check-self-hosted-runner.sh ]; then
-            chmod +x scripts/check-self-hosted-runner.sh
-            bash scripts/check-self-hosted-runner.sh
+          if [ -f "$GITHUB_WORKSPACE/scripts/check-self-hosted-runner.sh" ]; then
+            chmod +x "$GITHUB_WORKSPACE/scripts/check-self-hosted-runner.sh"
+            bash "$GITHUB_WORKSPACE/scripts/check-self-hosted-runner.sh"
           else
             echo "::warning::scripts/check-self-hosted-runner.sh missing; run devaudit update to sync runner preflight."
           fi
@@ -92,8 +95,8 @@ jobs:
           [ -n "$BASE" ] || { echo "::warning::No DevAudit URL; test execution lifecycle disabled"; exit 0; }
           export DEVAUDIT_BASE_URL="${BASE%/}"
           echo "DEVAUDIT_BASE_URL=${DEVAUDIT_BASE_URL}" >> "$GITHUB_ENV"
-          chmod +x scripts/report-test-execution.sh scripts/report-release-check.sh 2>/dev/null || true
-          bash scripts/report-test-execution.sh start \
+          chmod +x "$GITHUB_WORKSPACE/scripts/report-test-execution.sh" "$GITHUB_WORKSPACE/scripts/report-release-check.sh" 2>/dev/null || true
+          bash "$GITHUB_WORKSPACE/scripts/report-test-execution.sh" start \
             --project-slug {{PROJECT_SLUG}} \
             --release "${{ needs.register-release.outputs.version }}" \
             --sdlc-stage 2 --environment ci --suite-kind quality_gate \
@@ -178,8 +181,8 @@ jobs:
           # against the installed package-lock path and writes an auditable
           # decision record. It is intentionally fail-closed: malformed audit
           # output or a malformed/expired exception fails this gate.
-          chmod +x scripts/evaluate-npm-audit.sh 2>/dev/null || true
-          bash scripts/evaluate-npm-audit.sh
+          chmod +x "$GITHUB_WORKSPACE/scripts/evaluate-npm-audit.sh" 2>/dev/null || true
+          bash "$GITHUB_WORKSPACE/scripts/evaluate-npm-audit.sh"
 
       # ── Gate 4: E2E Tests (Playwright) ──
 
