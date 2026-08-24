@@ -6,6 +6,7 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ### Added
 
+- **#731** — `devaudit install`/`devaudit update` now set the consumer repo's GitHub default branch to `integration_branch` (new step 9/12 on install; idempotent, no-op if already correct). GitHub creates every repo with `main` as default; without this, a contributor using GitHub's own UI (new-branch dropdown, "Compare & pull request") lands on `main` instead of `develop`, silently skipping the real Quality Gates workflow (which only triggers on PRs to the integration branch). Found onboarding metasession-dev/META-AGENT.
 - **#370** — release-branch Quality Gates now emit a dedicated `Release Scope Integrity` check that fails closed when the PR title/body scope drifts from the release currently derived from the integration-branch head, including bundled-release context markers.
 
 ### Changed
@@ -18,6 +19,7 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ### Fixed
 
+- **#731** — `configureBranchProtection`/`verifyBranchProtection` now key the release-branch protection rule off `sdlc-config.json`'s `release_branch` instead of the GitHub-reported default branch. This only worked before because GitHub's default always happened to equal `main`; now that install can set the default branch to `integration_branch`, using the reported default here would have applied the strict main-only rule to `develop` instead and skipped protecting `main` entirely.
 - **#378** — post-merge regression triage now walks nested Playwright JSON reliably and includes spec file, full test title, final failing status, and first available error message in the filed issue body instead of falling back prematurely.
 
 ### Fixed

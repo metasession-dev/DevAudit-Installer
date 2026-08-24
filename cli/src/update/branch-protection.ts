@@ -35,9 +35,11 @@ export async function verifyBranchProtection(ctx: SyncContext): Promise<SectionR
       warning: `git provider unavailable (${(err as Error).message}) — verify manually`,
     };
   }
-  let meta;
   try {
-    meta = await provider.getRepoMeta(ctx.projectPath);
+    // Validates the repo is resolvable via the provider before proceeding —
+    // the release branch itself is config-owned (releaseBranch above), not
+    // read from this call. See devaudit#731.
+    await provider.getRepoMeta(ctx.projectPath);
   } catch (err) {
     return {
       name: 'Branch protection',
@@ -57,16 +59,16 @@ export async function verifyBranchProtection(ctx: SyncContext): Promise<SectionR
     // eslint-disable-next-line no-await-in-loop
     const mainResult = await provider.applyBranchProtection(
       ctx.projectPath,
-      meta.defaultBranch,
+      releaseBranch,
       namespacedRequiredChecks(MAIN_REQUIRED_CHECKS, target.name, multiTarget),
       { requiredReviewCount: MAIN_REVIEW_COUNT },
     );
     if (mainResult.applied) {
-      results.push(`${meta.defaultBranch}${multiTarget ? ` (${target.name})` : ''}: ok`);
+      results.push(`${releaseBranch}${multiTarget ? ` (${target.name})` : ''}: ok`);
     } else {
-      results.push(`${meta.defaultBranch}${multiTarget ? ` (${target.name})` : ''}: failed — ${mainResult.message ?? 'unknown'}`);
+      results.push(`${releaseBranch}${multiTarget ? ` (${target.name})` : ''}: failed — ${mainResult.message ?? 'unknown'}`);
     }
-    if (integrationBranch !== meta.defaultBranch) {
+    if (integrationBranch !== releaseBranch) {
       // eslint-disable-next-line no-await-in-loop
       const devResult = await provider.applyBranchProtection(
         ctx.projectPath,

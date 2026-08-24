@@ -5,6 +5,7 @@ import type {
   PullRequestCreateOptions,
   PullRequestCreated,
   RepoMeta,
+  SetDefaultBranchResult,
 } from './types.js';
 
 interface GithubProviderOptions {
@@ -114,6 +115,30 @@ export class GitHubProvider implements GitProvider {
       { headers: this.authHeaders() },
     );
     return res.ok;
+  }
+
+  async setDefaultBranch(cwd: string, branch: string): Promise<SetDefaultBranchResult> {
+    const meta = await this.getRepoMeta(cwd);
+    if (meta.defaultBranch === branch) return { changed: false };
+    if (this.preferGhCli && (await ghAvailable())) {
+      const res = await execa(
+        'gh',
+        ['repo', 'edit', `${meta.owner}/${meta.name}`, '--default-branch', branch],
+        { cwd, reject: false },
+      );
+      if (res.exitCode === 0) return { changed: true };
+      return { changed: false, message: res.stderr.split('\n')[0] || 'gh repo edit failed' };
+    }
+    if (!this.token) {
+      return { changed: false, message: 'No `gh` CLI and no GH_TOKEN — cannot set default branch.' };
+    }
+    const res = await fetch(`https://api.github.com/repos/${meta.owner}/${meta.name}`, {
+      method: 'PATCH',
+      headers: { ...this.authHeaders(), 'content-type': 'application/json' },
+      body: JSON.stringify({ default_branch: branch }),
+    });
+    if (res.ok) return { changed: true };
+    return { changed: false, message: `GitHub REST default-branch PATCH failed: HTTP ${res.status}` };
   }
 
   async setVariable(cwd: string, name: string, value: string): Promise<void> {

@@ -11,6 +11,11 @@ export interface BranchProtectionResult {
   readonly message?: string;
 }
 
+export interface SetDefaultBranchResult {
+  readonly changed: boolean;
+  readonly message?: string;
+}
+
 export interface PullRequestCreateOptions {
   readonly base: string;
   readonly head: string;
@@ -35,6 +40,17 @@ export interface GitProvider {
    * `false` return — only on auth / network failures.
    */
   hasSecret(cwd: string, name: string): Promise<boolean>;
+  /**
+   * Set the repo's GitHub-reported default branch to `branch` (idempotent —
+   * reads the current value via getRepoMeta() first; a no-op if it already
+   * matches returns `{ changed: false }`). GitHub creates every repo with
+   * `main` as default; without this, a contributor using GitHub's own UI
+   * (new-branch dropdown, "Compare & pull request") lands on `main` instead
+   * of the integration branch, silently skipping the real Quality Gates
+   * workflow (which only triggers on PRs to the integration branch). See
+   * devaudit#731.
+   */
+  setDefaultBranch(cwd: string, branch: string): Promise<SetDefaultBranchResult>;
   applyBranchProtection(
     cwd: string,
     branch: string,
