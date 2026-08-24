@@ -63,8 +63,9 @@ If `sdlc-config.json` already exists in the target, `install` runs non-interacti
    - The production URL secret (e.g. `META_AGENT_PROD_URL`)
 8. **Set the GitHub variable** `DEVAUDIT_BASE_URL`.
 9. **Bootstrap the hook framework** — `pre-commit install` for Python, `npx husky init` for Node.
-10. **Configure branch protection on `main`** — required status checks: `Compliance Validation`, `DevAudit Release Approval`, `Quality Gates`. Keep third-party hosting checks such as Vercel / Railway / Cloudflare informational unless you intentionally want them to gate merges. (Required-approving-reviews set to 0 by default; raise to 1+ once your team has more than one admin.)
-11. **Sync framework templates** — populates all framework files in the consumer from the templates bundled in the CLI. Includes: SDLC/ stage docs, the canonical `INSTRUCTIONS.md`, the per-agent rule files (`AGENTS.md` for Codex/AGENTS-compatible agents, `CLAUDE.md` for Claude Code, `.cursorrules` for Cursor, `.windsurfrules` for Windsurf, `GEMINI.md` for Gemini CLI), the `.claude/skills/` orchestrator + sibling skills (Claude Code only — the other agents read `INSTRUCTIONS.md` on demand instead of auto-firing), git hooks, scripts, and CI workflows. Equivalent to a `devaudit update` run. **Any LLM-driven agent works** — Copilot, Aider, Continue, etc. read `INSTRUCTIONS.md` directly; the listed agents get a more ergonomic rule-file mechanism on top.
+10. **Set the default branch** to `integration_branch` (`develop` unless overridden in `sdlc-config.json`) — idempotent, no-op if already correct. GitHub creates every repo with `main` as default; without this, a contributor using GitHub's own UI (new-branch dropdown, "Compare & pull request") lands on `main` instead of `develop`, silently skipping the real Quality Gates workflow (which only triggers on PRs to the integration branch). See devaudit#731.
+11. **Configure branch protection** on both `main` (the release branch) and `develop` (the integration branch) — required status checks: `Compliance Validation`, `DevAudit Release Approval`, `Quality Gates`. Keep third-party hosting checks such as Vercel / Railway / Cloudflare informational unless you intentionally want them to gate merges. (Required-approving-reviews set to 0 by default; raise to 1+ once your team has more than one admin.)
+12. **Sync framework templates** — populates all framework files in the consumer from the templates bundled in the CLI. Includes: SDLC/ stage docs, the canonical `INSTRUCTIONS.md`, the per-agent rule files (`AGENTS.md` for Codex/AGENTS-compatible agents, `CLAUDE.md` for Claude Code, `.cursorrules` for Cursor, `.windsurfrules` for Windsurf, `GEMINI.md` for Gemini CLI), the `.claude/skills/` orchestrator + sibling skills (Claude Code only — the other agents read `INSTRUCTIONS.md` on demand instead of auto-firing), git hooks, scripts, and CI workflows. Equivalent to a `devaudit update` run. **Any LLM-driven agent works** — Copilot, Aider, Continue, etc. read `INSTRUCTIONS.md` directly; the listed agents get a more ergonomic rule-file mechanism on top.
 
 The consumer's working tree is left dirty so the operator can review the diff before committing.
 
@@ -77,10 +78,10 @@ git checkout -b feat/sdlc-onboarding
 git add -A
 git commit -m "feat: onboard <slug> to Metasession SDLC"
 git push -u origin feat/sdlc-onboarding
-gh pr create --base main
+gh pr create --base develop
 ```
 
-Open the PR for review. Once merged, the project is fully active under the SDLC framework.
+Open the PR for review. Once merged, the project is active under the SDLC framework on `develop` — promote `develop` to `main` via a separate release PR when you're ready to go live (see devaudit#731).
 
 ### Step 3a — Author the governance docs before your first production release
 
@@ -184,15 +185,15 @@ A trace of an early `devaudit install ../META-AGENT` run (the bash installer it 
   DevAudit:  https://devaudit.ai
 ══════════════════════════════════════════════════════════════
 
-== 1/11 · Authenticate with DevAudit ==
+== 1/12 · Authenticate with DevAudit ==
   ✓ PAT accepted; DevAudit reachable at https://devaudit.ai
 
-== 2/11 · Detect stack and host ==
+== 2/12 · Detect stack and host ==
   ✓ Stack:                python
   ✓ Working directory:    mission-control-api
   ✓ Host (default):       railway
 
-== 3/11 · Configure ==
+== 3/12 · Configure ==
   Project slug [meta-agent]:
   Python version [3.11]:
   Source dirs (space-sep) [src/ tests/]:
@@ -200,33 +201,37 @@ A trace of an early `devaudit install ../META-AGENT` run (the bash installer it 
   Production URL secret name [META_AGENT_PROD_URL]:
   Production URL (https://...): https://meta-agent.metasession.co
 
-== 4/11 · Write sdlc-config.json ==
+== 4/12 · Write sdlc-config.json ==
   ✓ Written to .../META-AGENT/sdlc-config.json
 
-== 5/11 · Create / find DevAudit project ==
+== 5/12 · Create / find DevAudit project ==
   ✓ Project 'meta-agent' created (id 4f3a2b1c…)
 
-== 6/11 · Issue project API key ==
+== 6/12 · Issue project API key ==
   ✓ API key issued (will be stored as repo secret DEVAUDIT_API_KEY)
 
-== 7/11 · Set GitHub repo secrets and variables ==
+== 7/12 · Set GitHub repo secrets and variables ==
   ✓ DEVAUDIT_API_KEY (secret)
   ✓ DEVAUDIT_USER_TOKEN (secret)
   ✓ META_AGENT_PROD_URL (secret)
   ✓ DEVAUDIT_BASE_URL (variable) = https://devaudit.ai
 
-== 8/11 · Bootstrap hook framework ==
+== 8/12 · Bootstrap hook framework ==
   ✓ pre-commit hooks installed
 
-== 9/11 · Configure branch protection on main ==
+== 9/12 · Set default branch ==
+  ✓ main -> develop
+
+== 10/12 · Configure branch protection ==
   ✓ Branch protection on main: required checks ["Compliance Validation","DevAudit Release Approval","Quality Gates"]
+  ✓ Branch protection on develop: required checks ["Quality Gates"]
   ⚠ Required approving reviews set to 0 — raise to 1+ once your team has multiple admins.
 
-== 10/11 · Sync SDLC templates ==
+== 11/12 · Sync SDLC templates ==
   ... 31 files synced ...
   ✓ Templates synced
 
-== 11/11 · Done ==
+== 12/12 · Done ==
 
   META-AGENT is onboarded.
 

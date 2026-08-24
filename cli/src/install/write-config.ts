@@ -28,7 +28,7 @@ const PYTHON_PATHS_IGNORE: readonly string[] = [
 export async function writeSdlcConfig(ctx: InstallContext, plan: InstallPlan): Promise<StepResult> {
   if (ctx.installMode === 'developer') {
     return {
-      step: '4/11 Write sdlc-config.json',
+      step: '4/12 Write sdlc-config.json',
       status: 'skipped',
       message:
         'developer mode — leaving sdlc-config.json untouched (the team config is already on disk from the project operator). Use --force-team-config if you need to refresh wizard-owned fields.',
@@ -63,14 +63,14 @@ export async function writeSdlcConfig(ctx: InstallContext, plan: InstallPlan): P
     isNewTarget = !existingTargets.some((t) => t.working_directory === plan.workingDirectory);
     if (isNewTarget && !ctx.addTarget) {
       return {
-        step: '4/11 Write sdlc-config.json',
+        step: '4/12 Write sdlc-config.json',
         status: 'fail',
         message: `sdlc-config.json already configures target(s) [${existingTargets.map((t) => t.name).join(', ')}] for a different working directory/project slug. Re-run with --add-target to add "${plan.projectSlug}" as a new target instead of overwriting.`,
       };
     }
     if (isNewTarget && ctx.addTarget && existingTargets.some((t) => t.name === plan.projectSlug)) {
       return {
-        step: '4/11 Write sdlc-config.json',
+        step: '4/12 Write sdlc-config.json',
         status: 'fail',
         message: `A target named "${plan.projectSlug}" already exists in sdlc-config.json. Choose a different project slug for this target.`,
       };
@@ -143,11 +143,11 @@ export async function writeSdlcConfig(ctx: InstallContext, plan: InstallPlan): P
       ? `preserves existing customizations (${Object.keys(existing as unknown as object).filter((k) => !(k in wizardOwned)).length} non-wizard fields)`
       : 'fresh config';
     return {
-      step: '4/11 Write sdlc-config.json',
+      step: '4/12 Write sdlc-config.json',
       status: 'planned',
       message: `would write ${outPath} (stack=${plan.stack}, slug=${plan.projectSlug}) — ${preserved}`,
     };
   }
   await fs.writeFile(outPath, JSON.stringify(config, null, 2) + '\n', 'utf-8');
-  return { step: '4/11 Write sdlc-config.json', status: 'ok', message: `wrote ${outPath}` };
+  return { step: '4/12 Write sdlc-config.json', status: 'ok', message: `wrote ${outPath}` };
 }

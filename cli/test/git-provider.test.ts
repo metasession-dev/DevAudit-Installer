@@ -15,6 +15,8 @@ let ghAvailable = true;
 let ghRepoViewStdout = JSON.stringify({ owner: 'foo', name: 'bar', defaultBranch: 'main' });
 let ghSecretListStdout = '[]';
 let ghExistingRequiredChecks: string[] = [];
+let ghRepoEditExitCode = 0;
+let ghRepoEditStderr = '';
 
 vi.mock('execa', () => ({
   execa: async (file: string, args: readonly string[] = [], opts: { input?: string } = {}) => {
@@ -33,6 +35,12 @@ vi.mock('execa', () => ({
       return { exitCode: 0, stdout: ghSecretListStdout, stderr: '' };
     }
     if (file === 'gh' && args[0] === 'variable' && args[1] === 'set') {
+      return { exitCode: 0, stdout: '', stderr: '' };
+    }
+    if (file === 'gh' && args[0] === 'repo' && args[1] === 'edit') {
+      if (ghRepoEditExitCode !== 0) {
+        return { exitCode: ghRepoEditExitCode, stdout: '', stderr: ghRepoEditStderr };
+      }
       return { exitCode: 0, stdout: '', stderr: '' };
     }
     if (file === 'gh' && args[0] === 'api' && args.some((a) => a.includes('required_status_checks/contexts'))) {
@@ -58,6 +66,7 @@ const restServer = setupServer(
   http.post('https://api.github.com/repos/foo/bar/actions/variables', () =>
     HttpResponse.json({ name: 'X', value: 'y' }, { status: 201 }),
   ),
+  http.patch('https://api.github.com/repos/foo/bar', () => HttpResponse.json({ default_branch: 'develop' })),
 );
 
 beforeAll(() => restServer.listen({ onUnhandledRequest: 'error' }));
@@ -68,6 +77,8 @@ afterEach(async () => {
   ghAvailable = true;
   ghRepoViewStdout = JSON.stringify({ owner: 'foo', name: 'bar', defaultBranch: 'main' });
   ghExistingRequiredChecks = [];
+  ghRepoEditExitCode = 0;
+  ghRepoEditStderr = '';
   const mod = await import('../src/lib/git-provider/github.js');
   mod.resetGhAvailabilityCache();
 });
@@ -149,6 +160,31 @@ describe('GitHubProvider (gh-CLI-preferred path)', () => {
     const body = JSON.parse(putCall?.input ?? '{}') as { required_status_checks: { contexts: string[] } };
     expect(body.required_status_checks.contexts).toEqual(['Quality Gates']);
   });
+  it('setDefaultBranch: no-op when already matching', async () => {
+    ghRepoViewStdout = JSON.stringify({ owner: 'foo', name: 'bar', defaultBranch: 'develop' });
+    const { GitHubProvider } = await import('../src/lib/git-provider/github.js');
+    const p = new GitHubProvider();
+    const result = await p.setDefaultBranch('/tmp/x', 'develop');
+    expect(result.changed).toBe(false);
+    expect(execaCalls.find((c) => c.file === 'gh' && c.args[0] === 'repo' && c.args[1] === 'edit')).toBeUndefined();
+  });
+  it('setDefaultBranch: gh repo edit succeeds when default differs', async () => {
+    const { GitHubProvider } = await import('../src/lib/git-provider/github.js');
+    const p = new GitHubProvider();
+    const result = await p.setDefaultBranch('/tmp/x', 'develop');
+    expect(result.changed).toBe(true);
+    const call = execaCalls.find((c) => c.file === 'gh' && c.args[0] === 'repo' && c.args[1] === 'edit');
+    expect(call?.args).toEqual(['repo', 'edit', 'foo/bar', '--default-branch', 'develop']);
+  });
+  it('setDefaultBranch: surfaces gh repo edit failure', async () => {
+    ghRepoEditExitCode = 1;
+    ghRepoEditStderr = 'permission denied';
+    const { GitHubProvider } = await import('../src/lib/git-provider/github.js');
+    const p = new GitHubProvider();
+    const result = await p.setDefaultBranch('/tmp/x', 'develop');
+    expect(result.changed).toBe(false);
+    expect(result.message).toBe('permission denied');
+  });
   it('hasSecret: true when gh secret list reports the name', async () => {
     ghSecretListStdout = JSON.stringify([{ name: 'DEVAUDIT_USER_TOKEN' }, { name: 'OTHER' }]);
     const { GitHubProvider } = await import('../src/lib/git-provider/github.js');
@@ -177,5 +213,33 @@ describe('GitHubProvider (REST fallback when gh is missing)', () => {
     const { GitHubProvider } = await import('../src/lib/git-provider/github.js');
     const p = new GitHubProvider({ token: 'gho_test' });
     await expect(p.setSecret('/tmp/x', 'X', 'y')).rejects.toThrow(/sodium encryption/);
+  });
+  it('setDefaultBranch falls back to REST PATCH when default differs', async () => {
+    ghAvailable = false;
+    const { GitHubProvider } = await import('../src/lib/git-provider/github.js');
+    const p = new GitHubProvider({ token: 'gho_test' });
+    const result = await p.setDefaultBranch('/tmp/x', 'develop');
+    expect(result.changed).toBe(true);
+  });
+  it('setDefaultBranch REST fallback surfaces failure', async () => {
+    ghAvailable = false;
+    restServer.use(
+      http.patch('https://api.github.com/repos/foo/bar', () => new HttpResponse(null, { status: 403 })),
+    );
+    const { GitHubProvider } = await import('../src/lib/git-provider/github.js');
+    const p = new GitHubProvider({ token: 'gho_test' });
+    const result = await p.setDefaultBranch('/tmp/x', 'develop');
+    expect(result.changed).toBe(false);
+    expect(result.message).toMatch(/403/);
+  });
+  it('setDefaultBranch without gh CLI or token fails clearly (getRepoMeta itself requires one)', async () => {
+    ghAvailable = false;
+    const { GitHubProvider } = await import('../src/lib/git-provider/github.js');
+    const p = new GitHubProvider();
+    // Matches setVariable/applyBranchProtection's existing behaviour: the
+    // getRepoMeta() call these all share throws first when neither gh CLI
+    // nor a token is available, before any provider-specific no-token check
+    // can run.
+    await expect(p.setDefaultBranch('/tmp/x', 'develop')).rejects.toThrow(/No `gh` CLI/);
   });
 });
