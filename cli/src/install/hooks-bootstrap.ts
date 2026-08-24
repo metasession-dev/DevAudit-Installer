@@ -119,7 +119,7 @@ export async function bootstrapHooks(ctx: InstallContext, plan: InstallPlan): Pr
   if (ctx.dryRun) {
     const action = plan.stack === 'python' ? 'pre-commit install' : 'npx husky init';
     return {
-      step: '8/11 Bootstrap hook framework',
+      step: '8/12 Bootstrap hook framework',
       status: 'planned',
       message: `would run \`${action}\` in ${ctx.repoRoot}`,
     };
@@ -131,7 +131,7 @@ export async function bootstrapHooks(ctx: InstallContext, plan: InstallPlan): Pr
 async function bootstrapPython(ctx: InstallContext): Promise<StepResult> {
   if (!(await commandExists('pre-commit'))) {
     return {
-      step: '8/11 Bootstrap hook framework',
+      step: '8/12 Bootstrap hook framework',
       status: 'warn',
       message: 'pre-commit not on PATH — run `pip install pre-commit && pre-commit install` manually',
     };
@@ -145,7 +145,7 @@ async function bootstrapPython(ctx: InstallContext): Promise<StepResult> {
     const delegated = await ensurePreCommitDelegated(ctx.repoRoot);
     await execa('pre-commit', ['install', '--hook-type', 'commit-msg'], { cwd: ctx.repoRoot, stdio: 'inherit' });
     return {
-      step: '8/11 Bootstrap hook framework',
+      step: '8/12 Bootstrap hook framework',
       status: 'ok',
       message: delegated
         ? 'husky already owns hooks — delegated pre-commit into .husky/pre-commit, installed commit-msg hook natively'
@@ -154,7 +154,7 @@ async function bootstrapPython(ctx: InstallContext): Promise<StepResult> {
   }
   await execa('pre-commit', ['install'], { cwd: ctx.repoRoot, stdio: 'inherit' });
   await execa('pre-commit', ['install', '--hook-type', 'commit-msg'], { cwd: ctx.repoRoot, stdio: 'inherit' });
-  return { step: '8/11 Bootstrap hook framework', status: 'ok', message: 'pre-commit hooks installed' };
+  return { step: '8/12 Bootstrap hook framework', status: 'ok', message: 'pre-commit hooks installed' };
 }
 
 async function bootstrapNode(ctx: InstallContext): Promise<StepResult> {
@@ -166,14 +166,14 @@ async function bootstrapNode(ctx: InstallContext): Promise<StepResult> {
     // delegate line is present either way.
     const delegated = (await preCommitConfigured(ctx.repoRoot)) && (await ensurePreCommitDelegated(ctx.repoRoot));
     return {
-      step: '8/11 Bootstrap hook framework',
+      step: '8/12 Bootstrap hook framework',
       status: 'ok',
       message: delegated ? '.husky/ already exists — delegated pre-commit into .husky/pre-commit' : '.husky/ already exists',
     };
   }
   if (!(await commandExists('npx'))) {
     return {
-      step: '8/11 Bootstrap hook framework',
+      step: '8/12 Bootstrap hook framework',
       status: 'warn',
       message: 'npx not on PATH — run `npx husky init` manually',
     };
@@ -186,7 +186,7 @@ async function bootstrapNode(ctx: InstallContext): Promise<StepResult> {
   // keep firing now that husky owns core.hooksPath.
   const delegated = (await preCommitConfigured(ctx.repoRoot)) && (await ensurePreCommitDelegated(ctx.repoRoot));
   return {
-    step: '8/11 Bootstrap hook framework',
+    step: '8/12 Bootstrap hook framework',
     status: 'ok',
     message: delegated ? '.husky/ bootstrapped — delegated pre-commit into .husky/pre-commit' : '.husky/ bootstrapped',
   };

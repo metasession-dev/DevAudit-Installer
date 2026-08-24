@@ -26,7 +26,7 @@ export function doneReport(ctx: InstallContext, plan: InstallPlan): StepResult {
       '',
     ];
     return {
-      step: '11/11 Done (developer mode)',
+      step: '12/12 Done (developer mode)',
       status: 'ok',
       message: lines.join('\n'),
       data: { mode: 'developer' },
@@ -44,7 +44,11 @@ export function doneReport(ctx: InstallContext, plan: InstallPlan): StepResult {
     '    git add -A',
     `    git commit -m "feat: onboard ${plan.projectSlug} to Metasession SDLC"`,
     `    git push -u origin ${branch}`,
-    '    gh pr create --base main',
+    // The onboarding PR targets develop, like every other PR in this
+    // framework's GitFlow model — never main (devaudit#731). Line 50 below
+    // already assumed develop as the working branch; this brings the two in
+    // sync.
+    '    gh pr create --base develop',
     '',
     '  After the PR merges:',
     '    - Push a compliance/ doc to develop so compliance-evidence.yml',
@@ -61,7 +65,7 @@ export function doneReport(ctx: InstallContext, plan: InstallPlan): StepResult {
     '',
   ];
   return {
-    step: '11/11 Done',
+    step: '12/12 Done',
     status: 'ok',
     message: lines.join('\n'),
     data: { nextBranch: branch, mode: 'operator' },

@@ -15,6 +15,7 @@ import { syncCiTemplates } from "./ci-templates.js";
 import { syncGitignore } from "./gitignore.js";
 import { syncSdlcEngine } from "./sdlc-engine.js";
 import { syncWorkflows } from "./workflows.js";
+import { verifyDefaultBranch } from "./default-branch.js";
 import { verifyBranchProtection } from "./branch-protection.js";
 import { runValidation } from "./validation.js";
 import { applyConsumerPatches } from "./consumer-patches.js";
@@ -39,6 +40,7 @@ const SECTION_RUNNERS: ReadonlyArray<{
   { key: "2h", run: syncSdlcEngine },
   { key: "2i", run: syncWorkflows },
   { key: "2j", run: applyConsumerPatches },
+  { key: "2j-i", run: verifyDefaultBranch },
   { key: "2k", run: verifyBranchProtection },
 ];
 

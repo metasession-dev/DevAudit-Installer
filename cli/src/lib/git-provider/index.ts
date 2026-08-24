@@ -9,6 +9,7 @@ export type {
   GitProviderName,
   RepoMeta,
   BranchProtectionResult,
+  SetDefaultBranchResult,
   PullRequestCreateOptions,
   PullRequestCreated,
 } from './types.js';

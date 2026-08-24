@@ -25,7 +25,7 @@ export async function configureBranchProtection(
 ): Promise<StepResult> {
   if (ctx.installMode === 'developer') {
     return {
-      step: '9/11 Configure branch protection',
+      step: '10/12 Configure branch protection',
       status: 'skipped',
       message:
         'developer mode — leaving branch protection unchanged. Use --force-team-config to re-apply as the project operator.',
@@ -36,7 +36,7 @@ export async function configureBranchProtection(
     meta = await provider.getRepoMeta(ctx.projectPath);
   } catch (err) {
     return {
-      step: '9/11 Configure branch protection',
+      step: '10/12 Configure branch protection',
       status: 'warn',
       message: `could not resolve git repo (${(err as Error).message}) — configure manually`,
     };
@@ -44,6 +44,15 @@ export async function configureBranchProtection(
   const repo = `${meta.owner}/${meta.name}`;
   const config = await resolveConfig(ctx.repoRoot);
   const integrationBranch = config?.integration_branch ?? 'develop';
+  // The release branch is config-owned, not GitHub's reported default —
+  // devaudit#731: default branch was never repointed to develop by install,
+  // so this used to accidentally work only because GitHub's default always
+  // happened to equal 'main'. Now that install can set the default branch to
+  // integration_branch, using meta.defaultBranch here would apply the strict
+  // main-only protection rules to develop instead, and skip protecting main
+  // entirely (the integrationBranch !== releaseBranch guard below would go
+  // false).
+  const releaseBranch = config?.release_branch ?? 'main';
   // Multi-target (#689/#696): apply once per target with that target's
   // namespaced check name (mirroring the CI workflow job-name suffix from
   // #692). GitHubProvider.applyBranchProtection unions rather than replaces
@@ -60,9 +69,9 @@ export async function configureBranchProtection(
       )
       .join(' | ');
     return {
-      step: '9/11 Configure branch protection',
+      step: '10/12 Configure branch protection',
       status: 'planned',
-      message: `would apply branch protection on ${repo}:${meta.defaultBranch} (1 review) + ${integrationBranch} (0 reviews) — ${checksSummary}`,
+      message: `would apply branch protection on ${repo}:${releaseBranch} (1 review) + ${integrationBranch} (0 reviews) — ${checksSummary}`,
     };
   }
   const results: string[] = [];
@@ -70,17 +79,17 @@ export async function configureBranchProtection(
     // eslint-disable-next-line no-await-in-loop
     const mainResult = await provider.applyBranchProtection(
       ctx.projectPath,
-      meta.defaultBranch,
+      releaseBranch,
       namespacedRequiredChecks(MAIN_REQUIRED_CHECKS, target.name, multiTarget),
       { requiredReviewCount: MAIN_REVIEW_COUNT },
     );
-    const mainLabel = `${meta.defaultBranch}${multiTarget ? ` (${target.name})` : ''}`;
+    const mainLabel = `${releaseBranch}${multiTarget ? ` (${target.name})` : ''}`;
     if (mainResult.applied) {
       results.push(`${mainLabel}: ok (${MAIN_REVIEW_COUNT} review)`);
     } else {
       results.push(`${mainLabel}: FAILED — ${mainResult.message ?? 'unknown'}`);
     }
-    if (integrationBranch !== meta.defaultBranch) {
+    if (integrationBranch !== releaseBranch) {
       // eslint-disable-next-line no-await-in-loop
       const devResult = await provider.applyBranchProtection(
         ctx.projectPath,
@@ -98,7 +107,7 @@ export async function configureBranchProtection(
   }
   const allOk = results.every((r) => r.includes(': ok'));
   return {
-    step: '9/11 Configure branch protection',
+    step: '10/12 Configure branch protection',
     status: allOk ? 'ok' : 'warn',
     message: allOk ? results.join(' | ') : `${results.join(' | ')} — configure manually`,
   };

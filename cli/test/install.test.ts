@@ -41,6 +41,10 @@ function makeFakeProvider() {
       providerCalls.push({ method: 'hasSecret', args: [name] });
       return false;
     },
+    async setDefaultBranch(_cwd: string, branch: string) {
+      providerCalls.push({ method: 'setDefaultBranch', args: [branch] });
+      return { changed: true };
+    },
     async applyBranchProtection(_cwd: string, branch: string, checks: readonly string[]) {
       providerCalls.push({ method: 'applyBranchProtection', args: [branch, [...checks]] });
       return { applied: true };
@@ -233,6 +237,14 @@ describe('runInstall — native TS install against a node fixture', () => {
       expect(secretNames).toContain('DEVAUDIT_USER_TOKEN');
       const variableCall = providerCalls.find((c) => c.method === 'setVariable');
       expect(variableCall?.args[0]).toBe('DEVAUDIT_BASE_URL');
+      // default branch set via provider (devaudit#731), before branch
+      // protection is configured
+      const defaultBranchCall = providerCalls.find((c) => c.method === 'setDefaultBranch');
+      expect(defaultBranchCall?.args[0]).toBe('develop');
+      const bpFirstIdx = providerCalls.findIndex((c) => c.method === 'applyBranchProtection');
+      const dbIdx = providerCalls.findIndex((c) => c.method === 'setDefaultBranch');
+      expect(dbIdx).toBeGreaterThanOrEqual(0);
+      expect(dbIdx).toBeLessThan(bpFirstIdx);
       // branch protection applied via provider
       expect(providerCalls.find((c) => c.method === 'applyBranchProtection')).toBeDefined();
       // DevAudit-Installer#264/#432: only emitted unconditional check
@@ -247,6 +259,49 @@ describe('runInstall — native TS install against a node fixture', () => {
         expect(checks).toEqual(['Quality Gates']);
         expect(checks).not.toContain('CI Status Fallback');
       }
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  // devaudit#731 regression: branch protection must key off the config's own
+  // release_branch, not the GitHub-reported default branch. Before this fix,
+  // once a repo's actual default branch was 'develop' (as it now can be,
+  // via the new default-branch step), applyBranchProtection would apply the
+  // strict main-only rule to 'develop' and skip protecting 'main' entirely
+  // (the integrationBranch !== meta.defaultBranch guard would go false).
+  it('branch protection uses release_branch from config, not the reported default branch', async () => {
+    const { runInstall } = await import('../src/install/index.js');
+    const dir = await buildNodeFixture();
+    await fs.writeFile(
+      join(dir, 'sdlc-config.json'),
+      JSON.stringify({
+        project_slug: 'fixture-app',
+        stack: 'node',
+        host: 'railway',
+        node_version: '20',
+        integration_branch: 'develop',
+        release_branch: 'main',
+      }),
+    );
+    const provider = {
+      ...makeFakeProvider(),
+      async getRepoMeta(_cwd: string) {
+        providerCalls.push({ method: 'getRepoMeta', args: [] });
+        // Simulates a repo where GitHub's default branch is already
+        // 'develop' (e.g. the new default-branch step already ran).
+        return { owner: 'metasession-dev', name: 'fixture-app', defaultBranch: 'develop' };
+      },
+    };
+    try {
+      await runInstall({ path: dir, nonInteractive: true, provider });
+      const bpCalls = providerCalls.filter((c) => c.method === 'applyBranchProtection');
+      const branches = bpCalls.map((c) => c.args[0]);
+      // Both branches protected — main with the strict 1-review rule, develop
+      // with the lighter 0-review rule — regardless of which one GitHub
+      // reports as the default.
+      expect(branches).toContain('main');
+      expect(branches).toContain('develop');
     } finally {
       await fs.rm(dir, { recursive: true, force: true });
     }
@@ -369,7 +424,7 @@ describe('runInstall — native TS install against a node fixture', () => {
     );
   }
 
-  it('developer mode: skips steps 4, 6, 7, 9 when all four detection bits are true', async () => {
+  it('developer mode: skips steps 4, 6, 7, 9, 10 when all four detection bits are true', async () => {
     seedOnboardedPortal();
     const { runInstall } = await import('../src/install/index.js');
     const dir = await buildNodeFixture();
@@ -387,15 +442,21 @@ describe('runInstall — native TS install against a node fixture', () => {
       const step6 = report.steps.find((s) => s.step.startsWith('6/'));
       const step7 = report.steps.find((s) => s.step.startsWith('7/'));
       const step9 = report.steps.find((s) => s.step.startsWith('9/'));
+      const step10 = report.steps.find((s) => s.step.startsWith('10/'));
       expect(step4?.status).toBe('skipped');
       expect(step6?.status).toBe('skipped');
       expect(step7?.status).toBe('skipped');
       expect(step9?.status).toBe('skipped');
+      expect(step10?.status).toBe('skipped');
       expect(step7?.message).toMatch(/developer mode/);
       expect(step9?.message).toMatch(/developer mode/);
+      expect(step9?.step).toMatch(/Set default branch/);
+      expect(step10?.message).toMatch(/developer mode/);
+      expect(step10?.step).toMatch(/Configure branch protection/);
       // The provider's mutating methods were never called.
       expect(providerCalls.find((c) => c.method === 'setSecret')).toBeUndefined();
       expect(providerCalls.find((c) => c.method === 'setVariable')).toBeUndefined();
+      expect(providerCalls.find((c) => c.method === 'setDefaultBranch')).toBeUndefined();
       expect(providerCalls.find((c) => c.method === 'applyBranchProtection')).toBeUndefined();
       // The done report carries the developer-mode marker.
       const stepDone = report.steps.find((s) => s.step.includes('Done'));
@@ -454,7 +515,7 @@ describe('runInstall — native TS install against a node fixture', () => {
       expect(step7?.status).toBe('ok');
       const stepDone = report.steps.find((s) => s.step.includes('Done'));
       // Operator copy ('Done', not 'Done (developer mode)').
-      expect(stepDone?.step).toBe('11/11 Done');
+      expect(stepDone?.step).toBe('12/12 Done');
     } finally {
       await fs.rm(dir, { recursive: true, force: true });
     }
@@ -698,8 +759,8 @@ describe('runInstall — native TS install against a node fixture', () => {
         addTarget: true,
         provider: makeFakeProvider(),
       });
-      const step9 = report.steps.find((s) => s.step.startsWith('9/'));
-      expect(step9?.status).toBe('ok');
+      const step10 = report.steps.find((s) => s.step.startsWith('10/'));
+      expect(step10?.status).toBe('ok');
       const bpCalls = providerCalls.filter((c) => c.method === 'applyBranchProtection');
       const mainCallsChecks = bpCalls
         .filter((c) => c.args[0] === 'main')
