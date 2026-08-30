@@ -367,6 +367,43 @@ Multiple REQs covered in one run get one line each. A `NOT_NEEDED` sentinel stil
 
 The file is gitignored and never committed — it's a local-only signal that the gate was run in this working directory.
 
+**Write the durable `e2e-scope-decision.md` evidence artefact (devaudit-installer#737).** The `.e2e-gate-passed` sentinel above is gitignored and local-only — it tells the pre-push hook the gate ran, but nothing about the *scope decision* (was e2e needed, and why) persists once the working directory is cleaned. That absence is what leaves the DevAudit portal's per-REQ production-review page unable to distinguish "e2e deliberately not needed" from "e2e evidence genuinely missing" (both render as zero `e2e_screenshot` rows). Write `compliance/evidence/REQ-XXX/e2e-scope-decision.md` — committed, not gitignored — mirroring `architecture-decision.md` (`adr-author`) and `risk-assessment.md` (`risk-register-keeper`):
+
+```markdown
+---
+req: REQ-XXX
+generated_by: e2e-test-engineer
+generated_at: <ISO timestamp>
+e2e_required: true|false
+spec_path: <path under e2e/ | null>
+---
+
+# E2E scope decision — REQ-XXX
+
+## Outcome
+
+REPLACE — one of:
+
+- "**E2E required — covered.**" — spec(s) were written/updated and the gate passed.
+- "**E2E not required.**" — REPLACE one-line rationale (the same rationale injected into the plan's *E2E test coverage* section, e.g. "transport-layer change only, no `page` object / UI surface exists").
+
+## Detail
+
+- **`e2e_required`:** REPLACE — `true` or `false`.
+- **Rationale:** REPLACE — the `@e2e-deferred` reason when `e2e_required: false`; otherwise "N/A — covered below."
+- **Spec path(s):** REPLACE — path(s) under `e2e/`, or `null` when not required.
+- **ACs covered:** REPLACE — AC IDs from the implementation plan proved by the spec(s), or `N/A`.
+
+## Operator sign-off
+
+I have reviewed the e2e-scope verdict above and confirm it matches the actual scope of this REQ's diff.
+
+**Reviewer:** <operator-name>
+**Date:** <YYYY-MM-DD>
+```
+
+Tag for upload as `evidence_type=e2e_scope_decision` — a sibling of `architecture_decision` / `risk_assessment` in the evidence-type registry (see `scripts/upload-evidence.sh`). `sdlc-implementer` picks this up at Stage 3 (Phase 3) alongside the ADR and risk-register artefacts; see its SKILL.md for the upload step. Never skip writing this file — an `e2e_required: false` REQ with no artefact is indistinguishable from a REQ where the question was never asked, which is exactly the silent-drift failure mode this file exists to close.
+
 ### Filing defects
 
 Use whatever tracker integration you found in Phase 1: `gh issue create`, `glab issue create`, a Jira or Linear MCP tool, `az boards work-item create`. If nothing is available, produce a markdown report with each defect formatted ready to paste.

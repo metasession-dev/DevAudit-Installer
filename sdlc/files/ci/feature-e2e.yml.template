@@ -78,6 +78,43 @@ jobs:
               echo "::warning::No REQ could be determined for this PR from commit trailers (${BASE_SHA:-<no base>}..HEAD) or the branch name (${BRANCH}) — feature E2E is being skipped, not verified. If this PR is tracked, ensure at least one commit carries a 'Ref: REQ-XXX' trailer."
             fi
           fi
+      # devaudit-installer#737: has_tests=false is ambiguous by itself — it
+      # covers both "sdlc-implementer/e2e-test-engineer deliberately decided
+      # no e2e was needed" (a committed compliance/evidence/<REQ>/
+      # e2e-scope-decision.md proves it) and "a real coverage gap" (no such
+      # file). Upload the artefact when it exists so the deliberate case
+      # stops reading as silence beyond this workflow's log; leave the
+      # ::warning:: above as the only signal for the genuinely-ambiguous
+      # case, per the issue's explicit out-of-scope note.
+      - name: Upload e2e-scope-decision evidence, if the deliberate-skip artefact was committed
+        if: steps.detect.outputs.has_tests == 'false' && steps.detect.outputs.req_id != 'none'
+        env:
+          DEVAUDIT_BASE_URL_VAR: ${{ vars.DEVAUDIT_BASE_URL }}
+          DEVAUDIT_API_KEY: ${{ secrets.{{API_KEY_SECRET}} }}
+        run: |
+          REQ_ID="${{ steps.detect.outputs.req_id }}"
+          ARTEFACT="compliance/evidence/${REQ_ID}/e2e-scope-decision.md"
+          if [ ! -f "$ARTEFACT" ]; then
+            echo "No $ARTEFACT on this branch — leaving the has_tests=false warning above as the only signal (ambiguous case, unchanged)."
+            exit 0
+          fi
+          CONFIG_URL=""
+          if [ -f "$GITHUB_WORKSPACE/sdlc-config.json" ]; then
+            CONFIG_URL=$(jq -r '.devaudit.base_url // empty' "$GITHUB_WORKSPACE/sdlc-config.json" 2>/dev/null || true)
+          fi
+          BASE="${CONFIG_URL:-$DEVAUDIT_BASE_URL_VAR}"
+          if [ -z "$BASE" ] || [ -z "$DEVAUDIT_API_KEY" ]; then
+            echo "::warning::DevAudit not configured — skipping e2e-scope-decision upload."
+            exit 0
+          fi
+          export DEVAUDIT_BASE_URL="${BASE%/}"
+          chmod +x "$GITHUB_WORKSPACE/scripts/upload-evidence.sh" 2>/dev/null || true
+          bash "$GITHUB_WORKSPACE/scripts/upload-evidence.sh" \
+            {{PROJECT_SLUG}} "$REQ_ID" e2e_scope_decision "$ARTEFACT" \
+            --category planning --release "$REQ_ID" --create-release-if-missing \
+            --environment uat --sdlc-stage 3 \
+            --git-sha "${{ github.event.pull_request.head.sha }}" \
+            --branch "${{ github.head_ref }}"
 
   run-feature-e2e:
     name: Run in-scope E2E
