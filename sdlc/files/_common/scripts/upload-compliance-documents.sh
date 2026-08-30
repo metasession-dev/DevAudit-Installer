@@ -454,6 +454,12 @@ else
       #       SOC 2 CC3.2 (Risk identification).
       #       DevAudit-Installer#121.
       #
+      #   - e2e-scope-decision.md → e2e_scope_decision
+      #       Records the e2e-test-engineer invoke/skip decision so the
+      #       portal's per-REQ "No E2E screenshots" advisory can tell a
+      #       deliberate no-e2e call apart from a genuine coverage gap.
+      #       DevAudit-Installer#737.
+      #
       #   - test-scope.md → test_scope
       #       ISO 29119 §3.3 (Test scope).
       #
@@ -486,6 +492,8 @@ else
           EVTYPE=architecture_decision; EVCAT=planning ;;
         risk-assessment.md)
           EVTYPE=risk_assessment; EVCAT=planning ;;
+        e2e-scope-decision.md)
+          EVTYPE=e2e_scope_decision; EVCAT=planning ;;
         test-scope.md)
           EVTYPE=test_scope; EVCAT=planning ;;
         test-plan.md)

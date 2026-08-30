@@ -90,6 +90,11 @@
       "description": "Per-REQ risk assessment from risk register",
       "clause_predicates": ["SOC2.CC3.2"]
     },
+    "e2e_scope_decision": {
+      "category": "planning",
+      "description": "Per-REQ e2e-test-engineer invoke/skip decision (DevAudit-Installer#737)",
+      "clause_predicates": []
+    },
     "test_scope": {
       "category": "planning",
       "description": "Per-REQ test scope document",
@@ -209,7 +214,8 @@
         "test_report",
         "srs_alignment",
         "architecture_decision",
-        "risk_assessment"
+        "risk_assessment",
+        "e2e_scope_decision"
       ],
       "optional_evidence_types": [
         "ai_use_note",
@@ -253,6 +259,7 @@
         "srs_alignment",
         "architecture_decision",
         "risk_assessment",
+        "e2e_scope_decision",
         "ai_use_note",
         "ai_prompt_log",
         "ai_agent_handoff",
