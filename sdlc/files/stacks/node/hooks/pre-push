@@ -44,6 +44,27 @@ printf '%s\n' "$PUSH_REFS" > "$PUSH_REFS_FILE"
 
 INTEGRATION_BRANCH=$(jq -r '.integration_branch // "develop"' sdlc-config.json 2>/dev/null || echo "develop")
 
+# Compute the commit range for a given (remote_sha, local_sha) pair. For a
+# brand-new ref (remote_sha all-zeros), a bare local_sha walks the entire
+# history reachable from that commit, not just the commits being pushed —
+# use the merge-base against the integration branch instead, falling back
+# to the bare SHA only if the merge-base can't be resolved
+# (devaudit-installer#741).
+compute_range() {
+  _remote_sha="$1"
+  _local_sha="$2"
+  if [ "$_remote_sha" = "0000000000000000000000000000000000000000" ]; then
+    _base=$(git merge-base "origin/$INTEGRATION_BRANCH" "$_local_sha" 2>/dev/null || true)
+    if [ -n "$_base" ]; then
+      echo "${_base}..${_local_sha}"
+    else
+      echo "$_local_sha"
+    fi
+  else
+    echo "${_remote_sha}..${_local_sha}"
+  fi
+}
+
 # ── 2. E2E evidence check (devaudit-installer#226) ───────────────────
 # Only fires if UI-facing files are in the push. Checks for either
 # playwright-report/ directory or .e2e-gate-passed sentinel (written by
@@ -61,11 +82,7 @@ while read -r local_ref local_sha remote_ref remote_sha; do
   esac
 
   # Determine the commit range being pushed
-  if [ "$remote_sha" = "0000000000000000000000000000000000000000" ]; then
-    RANGE="$local_sha"
-  else
-    RANGE="${remote_sha}..${local_sha}"
-  fi
+  RANGE=$(compute_range "$remote_sha" "$local_sha")
 
   # Check for UI-facing files in the push
   UI_FILES=$(git diff --name-only "$RANGE" -- 'app/**/*.tsx' 'src/**/*.tsx' 'pages/**/*.tsx' 'app/**/*.jsx' 'src/**/*.jsx' 'pages/**/*.jsx' 2>/dev/null || true)
@@ -163,11 +180,7 @@ HAS_TRACKED=false
 # Parse captured refs in the current shell so HAS_TRACKED propagates.
 while read -r local_ref local_sha remote_ref remote_sha; do
   [ -n "${local_ref:-}" ] || continue
-  if [ "$remote_sha" = "0000000000000000000000000000000000000000" ]; then
-    RANGE="$local_sha"
-  else
-    RANGE="${remote_sha}..${local_sha}"
-  fi
+  RANGE=$(compute_range "$remote_sha" "$local_sha")
   COMMITS=$(git log "$RANGE" --format='%s' 2>/dev/null || true)
   if echo "$COMMITS" | grep -qE "$TRACKED_TYPES"; then
     HAS_TRACKED=true
@@ -192,11 +205,7 @@ if [ "$HAS_TRACKED" = "true" ]; then
   # close-out (approved-releases/ or RTM RELEASED), sentinel must have phase "5".
   while read -r local_ref local_sha remote_ref remote_sha; do
     [ -n "${local_ref:-}" ] || continue
-    if [ "$remote_sha" = "0000000000000000000000000000000000000000" ]; then
-      RANGE="$local_sha"
-    else
-      RANGE="${remote_sha}..${local_sha}"
-    fi
+    RANGE=$(compute_range "$remote_sha" "$local_sha")
 
     PHASE3_FILES=$(git diff --name-only "$RANGE" -- 'compliance/evidence/REQ-*/' 2>/dev/null || true)
     PHASE5_FILES=$(git diff --name-only "$RANGE" -- 'compliance/approved-releases/' 'compliance/RTM.md' 2>/dev/null || true)
