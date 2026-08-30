@@ -102,7 +102,28 @@ When **No ADR needed**:
 
 The negative case is audit evidence too — auditors examine "no ADR — <rationale>" to confirm the question was asked. Never leave this section empty.
 
-## 4. Threat model + security considerations
+## 4. E2E test coverage
+
+> _Populated by the [`e2e-test-engineer` skill](../skills/e2e-test-engineer/SKILL.md) (when invoked) or by the [`sdlc-implementer` skill](../skills/sdlc-implementer/SKILL.md) itself (when it decides not to invoke `e2e-test-engineer` at all) at Stage 1/2 of the SDLC._
+
+Either a pointer to the spec(s) that cover this REQ's UI-facing acceptance criteria, OR an explicit `@e2e-deferred: <rationale>` annotation when no UI-facing files are touched by this REQ's diff. **Don't author this section inline as prose** — the deciding skill fills it in per the shape below. Symmetric with the *Architecture decisions* (§3) and *Risk register entries* (§6) sections: the negative case is recorded, not omitted.
+
+When **`e2e-test-engineer` is invoked and writes/updates coverage**:
+
+- **Spec(s):** REPLACE — path(s) under `e2e/` (or the project's e2e directory) covering this REQ's ACs, e.g. `e2e/orders/express-checkout.spec.ts`.
+- **ACs covered:** REPLACE — which AC IDs from §1 are proved by the spec(s) above.
+
+When **`e2e-test-engineer` is invoked but determines no spec is warranted** (e.g. the change is transport-layer only, or an AC is genuinely non-UI):
+
+- **`@e2e-deferred: <rationale>`** — REPLACE one-line reason, authored by `e2e-test-engineer` itself, not `sdlc-implementer`.
+
+When **`sdlc-implementer` does not invoke `e2e-test-engineer` at all** (no UI-facing files in the diff — see Phase 2 step 3 of `sdlc-implementer/SKILL.md`):
+
+- **`@e2e-deferred: <rationale>`** — REPLACE one-line reason. Example: "No UI-facing files touched by this REQ's diff (`services/financial-report-service.ts` only) — no e2e/visual-regression surface exists to test."
+
+The corresponding per-REQ evidence artefact is `compliance/evidence/REQ-XXX/e2e-scope-decision.md` (evidence type `e2e_scope_decision`), produced at Stage 3 — see `e2e-test-engineer/SKILL.md` Phase 7 and `sdlc-implementer/SKILL.md` Phase 3. That artefact is what lets the DevAudit portal's production-review page distinguish "E2E deliberately not needed" from "E2E evidence genuinely missing" ([DevAudit-Installer#737](https://github.com/metasession-dev/DevAudit-Installer/issues/737)).
+
+## 5. Threat model + security considerations
 
 > _Closes ISO 27001 A.8.25 — secure development life cycle_
 
@@ -126,7 +147,7 @@ When **risk class is MEDIUM or HIGH**, expect a list like:
 
 When **risk class is LOW** OR no register-worthy risk is identified, write: _"@risk-deferred: <one-line rationale>"_ — the negative case is audit evidence too. Don't leave this section empty.
 
-## 5. Data protection (GDPR Art. 25)
+## 6. Data protection (GDPR Art. 25)
 
 > _Closes GDPR Art. 25 — data protection by design_
 
@@ -148,7 +169,7 @@ If **yes**, fill in:
 
 If **no**, write: _"N/A — this REQ does not process personal data. <Why — e.g. UI-only change, internal-routing refactor, dev-tooling.>"_
 
-## 6. AI / model considerations (EU AI Act Art. 11)
+## 7. AI / model considerations (EU AI Act Art. 11)
 
 > _Closes EUAIA Art. 11 — technical documentation_
 
@@ -166,22 +187,22 @@ If **yes**, fill in:
 
 If **no**, write: _"N/A — this REQ does not introduce or change AI behaviour. <Why.>"_
 
-## 7. Rollback plan
+## 8. Rollback plan
 
 - **Reversible via:** REPLACE — git revert / migration down / config flip / etc.
 - **Data implications of rollback:** REPLACE — any data written by the new code that an older version can't read?
 - **Notification path if rollback during a release:** REPLACE — who hears, how quickly?
 
-## 8. Verification
+## 9. Verification
 
 How the team will know the REQ is correct in production:
 
 - **Unit + integration tests:** REPLACE — what's added / changed
-- **E2E coverage:** REPLACE — which spec(s); reference per-AC `evidenceShot()` captures
+- **E2E coverage:** see §4 *E2E test coverage* for the spec pointer or `@e2e-deferred` rationale; reference per-AC `evidenceShot()` captures here
 - **Manual smoke after deploy:** REPLACE — bullet-list, or "none" with reason
 - **Monitoring / alerting:** REPLACE — what dashboards / alerts the change adds or relies on
 
-## 9. Sign-off
+## 10. Sign-off
 
 - **Plan reviewer (eng):** REPLACE — name + date
 - **Plan reviewer (security / DPO):** REPLACE — when GDPR or threat-model sections are non-trivial; otherwise "N/A"

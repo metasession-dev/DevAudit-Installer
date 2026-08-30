@@ -341,6 +341,20 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     expect(uploader).toContain('--meta-key "content_hash=${CONTENT_HASH}"');
   });
 
+  it('routes e2e-scope-decision.md to its own evidence type, distinguishing deliberate no-e2e from missing coverage (#737)', () => {
+    const uploader = commonScript('upload-compliance-documents.sh');
+    expect(uploader).toContain('e2e-scope-decision.md)');
+    expect(uploader).toContain('EVTYPE=e2e_scope_decision; EVCAT=planning ;;');
+    // Sits alongside the other per-REQ SoT-alignment artefacts, not the
+    // catch-all — see the #205 unrecognized-basename skip-with-warning path.
+    const caseBlock = uploader.slice(
+      uploader.indexOf('case "$BASENAME" in'),
+      uploader.indexOf('esac', uploader.indexOf('case "$BASENAME" in')),
+    );
+    expect(caseBlock).toContain('risk-assessment.md)');
+    expect(caseBlock).toContain('e2e-scope-decision.md)');
+  });
+
   it('uploads test-plan.md/test-cases.md/test-summary-report.md as project-level documents, not attached to any release (devaudit-installer#621)', () => {
     const uploader = commonScript('upload-compliance-documents.sh');
     expect(uploader).toContain('PROJECT_LEVEL_FLAGS=');

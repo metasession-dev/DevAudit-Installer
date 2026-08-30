@@ -1108,6 +1108,13 @@ describe('syncProject — native TS sync against a fixture', () => {
     expect(featureE2eYml).toMatch(/fixture-app "\$REQ_ID" e2e_result e2e-results\.json/);
     expect(featureE2eYml).toContain('No evidenceShot screenshots were captured for ${REQ_ID}.');
     expect(featureE2eYml).toMatch(/fixture-app "\$REQ_ID" screenshot "\$shot"/);
+    // #737: the has_tests=false path uploads a committed e2e-scope-decision.md
+    // as its own evidence type instead of leaving only the ::warning:: log line.
+    expect(featureE2eYml).toContain(
+      "if: steps.detect.outputs.has_tests == 'false' && steps.detect.outputs.req_id != 'none'",
+    );
+    expect(featureE2eYml).toContain('compliance/evidence/${REQ_ID}/e2e-scope-decision.md');
+    expect(featureE2eYml).toMatch(/fixture-app "\$REQ_ID" e2e_scope_decision "\$ARTEFACT"/);
   }, 30_000);
 
   it('renders feature-e2e.yml with services block when database_service is configured (#186)', async () => {
