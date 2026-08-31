@@ -172,6 +172,18 @@ if ! [[ "$VERSION" =~ $DATE_VERSION_RE ]]; then
     fi
   )
 
+  # extract_explicit_predecessors() can't distinguish "field absent" from
+  # "field explicitly None" through its stdout alone — both produce an
+  # empty EXPLICIT_PREDECESSORS list. Check presence separately, directly
+  # in this shell (not inside the process substitution above, whose
+  # variable side effects wouldn't survive the subshell), so the two
+  # checks below can tell a deliberate "None" declaration apart from an
+  # omitted field (devaudit-installer#746).
+  PREDECESSORS_FIELD_PRESENT=false
+  if [ -n "$CURRENT_TICKET" ] && grep -q -m1 '^\- \*\*Absorbed predecessor releases:\*\*' "$CURRENT_TICKET" 2>/dev/null; then
+    PREDECESSORS_FIELD_PRESENT=true
+  fi
+
   declare -A EXPLICIT_SET=()
   for version in "${EXPLICIT_PREDECESSORS[@]}"; do
     if [ "$version" = "$VERSION" ]; then
@@ -189,18 +201,24 @@ if ! [[ "$VERSION" =~ $DATE_VERSION_RE ]]; then
     fi
   done
 
-  if [ "${#CANDIDATE_RELEASES[@]}" -gt 0 ] && [ "${#EXPLICIT_PREDECESSORS[@]}" -eq 0 ]; then
+  if [ "${#CANDIDATE_RELEASES[@]}" -gt 0 ] && [ "$PREDECESSORS_FIELD_PRESENT" = false ]; then
     echo "Error: ambiguous predecessor ownership for ${VERSION}. Pending release tickets exist but the release ticket does not explicitly list absorbed predecessor releases." >&2
     printf 'Candidates: %s\n' "${CANDIDATE_RELEASES[*]}" >&2
     exit 1
   fi
 
+  # An explicit, full "None" already answers the accounting question for
+  # every candidate release at once — only demand per-release accounting
+  # when the ticket named at least one real predecessor (partial bundling),
+  # not when it explicitly declared zero (devaudit-installer#746).
   UNACCOUNTED=()
-  for version in "${CANDIDATE_RELEASES[@]}"; do
-    if [ -z "${EXPLICIT_SET[$version]:-}" ]; then
-      UNACCOUNTED+=("$version")
-    fi
-  done
+  if [ "${#EXPLICIT_PREDECESSORS[@]}" -gt 0 ]; then
+    for version in "${CANDIDATE_RELEASES[@]}"; do
+      if [ -z "${EXPLICIT_SET[$version]:-}" ]; then
+        UNACCOUNTED+=("$version")
+      fi
+    done
+  fi
   if [ "${#UNACCOUNTED[@]}" -gt 0 ]; then
     echo "Error: ambiguous predecessor ownership for ${VERSION}. The following pending releases are not explicitly listed in the release ticket bundle section:" >&2
     printf '  - %s\n' "${UNACCOUNTED[@]}" >&2

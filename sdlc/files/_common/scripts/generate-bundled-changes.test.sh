@@ -164,21 +164,68 @@ EXPECTED_HASH="sha256:$(jq -cS 'del(.manifestHash, .generator.generatedAt)' "$JS
 assert_eq "canonical manifest hash verifies" "$EXPECTED_HASH" "$(jq -r '.manifestHash' "$JSON_OUT")"
 echo
 
-# Test 3: ambiguous predecessor ownership fails.
-echo "Test 3: ambiguous predecessor ownership is rejected"
+# Test 3: an explicit "None" declaration, with other unrelated pending
+# releases open concurrently, is NOT ambiguous — devaudit-installer#746.
+# extract_explicit_predecessors() previously couldn't distinguish "field
+# absent" from "field explicitly None" (both yielded an empty predecessor
+# list), so a ticket that correctly declared "None" was rejected as
+# ambiguous whenever any other pending release ticket happened to exist,
+# even though the field had already answered the question.
+echo "Test 3: explicit 'None' with other pending releases open succeeds"
 DIR3="$TMPDIR_BASE/test3"
 make_fixture "$DIR3"
 write_release_ticket "REQ-041" "REQ-041 - Prior tracked release" "Prior release summary." "None"
 write_release_ticket "REQ-042" "REQ-042 - Current tracked release" "Current release summary." "None"
+JSON_OUT3="$DIR3/bundle.json"
+set +e
+OUTPUT=$(bash "$HELPER" "$(git rev-list --max-parents=0 HEAD)" "REQ-042" --json-out "$JSON_OUT3" 2>&1)
+RC=$?
+set -e
+if [ "$RC" -eq 0 ]; then
+  echo "  PASS: zero exit for explicit None with unrelated pending release"
+  PASS=$((PASS + 1))
+else
+  echo "  FAIL: expected zero exit for explicit None with unrelated pending release"
+  echo "$OUTPUT"
+  FAIL=$((FAIL + 1))
+fi
+assert_eq "no members absorbed" "0" "$(jq -r '.members | length' "$JSON_OUT3" 2>/dev/null || echo err)"
+echo
+
+# Test 3b: the field truly absent (no "Absorbed predecessor releases:" line
+# at all) — this is the genuinely-ambiguous case and must still hard-fail,
+# distinguishing it from Test 3's explicit "None" (devaudit-installer#746).
+echo "Test 3b: field genuinely absent, other pending releases open, is rejected"
+DIR3B="$TMPDIR_BASE/test3b"
+make_fixture "$DIR3B"
+mkdir -p compliance/pending-releases
+cat > compliance/pending-releases/RELEASE-TICKET-REQ-041.md <<'EOF'
+# Release Ticket - REQ-041
+
+**Requirement:** REQ-041 - Prior tracked release
+
+## Summary
+
+Prior release summary.
+EOF
+cat > compliance/pending-releases/RELEASE-TICKET-REQ-042.md <<'EOF'
+# Release Ticket - REQ-042
+
+**Requirement:** REQ-042 - Current tracked release
+
+## Summary
+
+Current release summary, no bundle section at all.
+EOF
 set +e
 OUTPUT=$(bash "$HELPER" "$(git rev-list --max-parents=0 HEAD)" "REQ-042" 2>&1)
 RC=$?
 set -e
 if [ "$RC" -ne 0 ]; then
-  echo "  PASS: non-zero exit for ambiguous predecessor set"
+  echo "  PASS: non-zero exit for genuinely absent field"
   PASS=$((PASS + 1))
 else
-  echo "  FAIL: expected non-zero exit for ambiguous predecessor set"
+  echo "  FAIL: expected non-zero exit for genuinely absent field"
   FAIL=$((FAIL + 1))
 fi
 assert_contains "ambiguous error text" "ambiguous predecessor ownership" "$OUTPUT"
