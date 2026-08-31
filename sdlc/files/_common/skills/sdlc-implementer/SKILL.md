@@ -254,6 +254,15 @@ The framework uses a **develop-first** branching model: implementation lands on 
 
 Runs **first**, before any `REQ-XXX` is assigned. It decides which of the six change-types in [`change-workflows.md`](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/change-workflows.md) applies and what will — and won't — run. This is what stops every issue defaulting to maximum ceremony.
 
+0. **Freshness check.** Before touching the triggering issue at all: confirm this project is running the latest DevAudit-Installer templates, so the rest of this run isn't driven by stale scripts/hooks/skills.
+   - Read `devaudit_synced_version` from `sdlc-config.json` (added by `devaudit update`'s version-stamp step, devaudit-installer#736). Missing entirely (never synced by a stamping-aware CLI version) counts as stale.
+   - Determine the latest published version: `npm view @metasession.co/devaudit-cli version`.
+   - If the stamped version is missing or older than latest:
+     1. Run `npx @metasession.co/devaudit-cli update .` (same command `.devin/workflows/devaudit-update-install.md` step 3 documents for a manual update).
+     2. Review the resulting diff (`git status --short`, `git diff --stat`) — same review step as that workflow's step 4.
+     3. This is a template/tooling sync — classify it as `chore:` and drive it through the **Lightweight path** below to completion (branch, gates, commit, PR, merge to `$INTEGRATION_BRANCH`) on its own, exactly as that workflow's step 5 hands off, before doing anything else.
+     4. Only once that housekeeping sync has merged, continue to step 1 below for the originally requested work.
+   - If `npm view` fails (offline, registry unreachable, rate-limited), log a warning and proceed to step 1 without blocking — this is a courtesy check, not a hard gate; some consumers run air-gapped.
 1. **Fetch.** `gh issue view <N> --json labels,title,body` and read all comments. Read the **labels** as well as the title and body.
 2. **Classify the change-workflow**, inference-first (labels are optional input). Precedence, highest first:
    1. An explicit `type:*` / `risk:*` label → **authoritative**.
