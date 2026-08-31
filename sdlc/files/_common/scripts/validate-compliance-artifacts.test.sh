@@ -518,6 +518,72 @@ run_validator
 assert_grep "prose note with Tool field not flagged" "WARNING: ai-use-note.md has no YAML frontmatter" 0
 cd "$WORKDIR"
 
+# --- case 14: @e2e-deferred annotation must not trip the E2E-named-in-plan check ---
+#
+# Regression for devaudit-installer#745: \be2e\b matched inside the literal
+# "@e2e-deferred:" annotation (@ and - are non-word chars, so \b is satisfied
+# on both sides of "e2e"), so a plan that correctly followed
+# Implementation_Plan_TEMPLATE.md's documented negative-case convention was
+# treated as if it named Playwright/E2E as a verification method, then
+# ERRORed for having no tagged e2e/ spec — penalizing the exact thing the
+# template asks for.
+
+echo "Case 14: @e2e-deferred annotation is not mistaken for an E2E verification claim"
+make_fixture "$WORKDIR/case14" "Ref: REQ-360"
+{
+  echo '# RTM'
+  echo
+  echo '| ID | Description | Status |'
+  echo '| --- | --- | --- |'
+  echo '| REQ-360 | Backend-only, no UI surface | TESTED - PENDING SIGN-OFF |'
+} > compliance/RTM.md
+mkdir -p compliance/evidence/REQ-360
+cat > compliance/evidence/REQ-360/implementation-plan.md <<'EOF'
+# Implementation Plan — REQ-360
+
+## 4. E2E test coverage
+
+`@e2e-deferred: no UI-facing files touched by this REQ's diff (services/financial-report-service.ts only) — no e2e/visual-regression surface exists to test.`
+EOF
+echo "scope" > compliance/evidence/REQ-360/test-scope.md
+echo "plan" > compliance/evidence/REQ-360/test-plan.md
+echo "summary" > compliance/evidence/REQ-360/test-execution-summary.md
+touch compliance/pending-releases/RELEASE-TICKET-REQ-360.md
+git add . && git commit -q --amend --no-edit
+run_validator
+assert_grep "no E2E-verification-method ERROR for a deferred plan" 'ERROR: implementation-plan.md names Playwright/E2E as a verification method' 0
+assert_exit "validator does not fail on a correctly-deferred plan" 0
+cd "$WORKDIR"
+
+# Regression guard: a plan that genuinely names Playwright/E2E as its
+# verification method, with no tagged spec, must still be caught.
+echo "Case 15: plan naming Playwright with no tagged spec still ERRORs"
+make_fixture "$WORKDIR/case15" "Ref: REQ-361"
+{
+  echo '# RTM'
+  echo
+  echo '| ID | Description | Status |'
+  echo '| --- | --- | --- |'
+  echo '| REQ-361 | UI change, verified via Playwright | TESTED - PENDING SIGN-OFF |'
+} > compliance/RTM.md
+mkdir -p compliance/evidence/REQ-361
+cat > compliance/evidence/REQ-361/implementation-plan.md <<'EOF'
+# Implementation Plan — REQ-361
+
+## 4. E2E test coverage
+
+Verified via Playwright end-to-end tests covering the new checkout flow.
+EOF
+echo "scope" > compliance/evidence/REQ-361/test-scope.md
+echo "plan" > compliance/evidence/REQ-361/test-plan.md
+echo "summary" > compliance/evidence/REQ-361/test-execution-summary.md
+touch compliance/pending-releases/RELEASE-TICKET-REQ-361.md
+git add . && git commit -q --amend --no-edit
+run_validator
+assert_grep "E2E-verification-method ERROR still fires for a real claim" 'ERROR: implementation-plan.md names Playwright/E2E as a verification method' 1
+assert_exit "validator fails when Playwright is named but no spec tags it" 1
+cd "$WORKDIR"
+
 echo
 echo "=== validate-compliance-artifacts.test.sh: $PASS passed, $FAIL failed ==="
 [ "$FAIL" -eq 0 ]

@@ -20,6 +20,7 @@ import { verifyBranchProtection } from "./branch-protection.js";
 import { runValidation } from "./validation.js";
 import { applyConsumerPatches } from "./consumer-patches.js";
 import { formatSyncedFiles } from "./format-sync.js";
+import { stampVersion } from "./stamp-version.js";
 import { logger } from "../lib/logger.js";
 import type { SyncContext, SectionResult, SyncReport } from "./types.js";
 
@@ -113,6 +114,15 @@ export async function syncProject(projectPath: string): Promise<SyncReport> {
   if (formatResult.warning) {
     sectionWarnings.push(formatResult.warning);
     log.warn(`  [2l] ${formatResult.warning}`);
+  }
+  // Stamp last, deliberately after every other section: it should only
+  // reflect a sync that actually ran to completion.
+  const stampResult = await stampVersion(ctx);
+  sections.push(stampResult);
+  if (stampResult.skipped) {
+    log.log(`  [2m] ${stampResult.name}: SKIPPED${stampResult.message ? ` (${stampResult.message})` : ""}`);
+  } else {
+    log.log(`  [2m] ${stampResult.name}: ${stampResult.message ?? ""}`);
   }
   log.log("");
   log.info(`  Total: ${total} files synced`);

@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { load as yamlLoad } from 'js-yaml';
 import { execa } from 'execa';
 import { syncProject } from '../src/update/index.js';
+import { CLI_VERSION } from '../src/lib/version.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const INSTALLER_ROOT = resolve(HERE, '..', '..');
@@ -173,6 +174,13 @@ describe('syncProject — native TS sync against a fixture', () => {
     expect(report.stack).toBe('node');
     expect(report.host).toBe('railway');
     expect(report.totalFilesSynced).toBeGreaterThan(20);
+    // Section 2m — version stamp (devaudit-installer#736 freshness-check
+    // follow-on): sdlc-config.json gains devaudit_synced_version matching
+    // the running CLI's own version once a sync completes.
+    const stampedConfig = JSON.parse(
+      await fs.readFile(join(fixtureDir, 'sdlc-config.json'), 'utf-8'),
+    );
+    expect(stampedConfig.devaudit_synced_version).toBe(CLI_VERSION);
     // Section 2a — stage docs
     expect(await fs.stat(join(fixtureDir, 'SDLC', '0-project-setup.md'))).toBeTruthy();
     expect(await fs.stat(join(fixtureDir, 'SDLC', 'Test_Policy.md'))).toBeTruthy();

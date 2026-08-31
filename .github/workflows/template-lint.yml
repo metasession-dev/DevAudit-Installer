@@ -18,6 +18,8 @@ on:
       - 'sdlc/files/ci/**'
       - 'sdlc/files/_common/scripts/**'
       - 'sdlc/files/_common/skills/sdlc-implementer/**'
+      - 'sdlc/files/stacks/node/hooks/pre-push'
+      - 'sdlc/files/stacks/node/hooks/pre-push.test.sh'
       - 'docs/release-playbooks/**'
       - 'docs/change-workflows.md'
       - 'scripts/release-playbook-contract.test.sh'
@@ -35,6 +37,8 @@ on:
       - 'sdlc/files/ci/**'
       - 'sdlc/files/_common/scripts/**'
       - 'sdlc/files/_common/skills/sdlc-implementer/**'
+      - 'sdlc/files/stacks/node/hooks/pre-push'
+      - 'sdlc/files/stacks/node/hooks/pre-push.test.sh'
       - 'docs/release-playbooks/**'
       - 'docs/change-workflows.md'
       - 'scripts/release-playbook-contract.test.sh'
@@ -85,6 +89,18 @@ jobs:
           bash sdlc/files/_common/scripts/check-release-pr-scope.test.sh
           bash sdlc/files/_common/scripts/standalone-housekeeping-release.test.sh
           bash sdlc/files/_common/scripts/evaluate-npm-audit.test.sh
+
+      - name: Run bundled-changes and compliance-artifact validator tests
+        run: |
+          chmod +x sdlc/files/_common/scripts/generate-bundled-changes.sh
+          chmod +x sdlc/files/_common/scripts/validate-compliance-artifacts.sh
+          bash sdlc/files/_common/scripts/generate-bundled-changes.test.sh
+          bash sdlc/files/_common/scripts/validate-compliance-artifacts.test.sh
+
+      - name: Run pre-push hook tests
+        run: |
+          chmod +x sdlc/files/stacks/node/hooks/pre-push
+          bash sdlc/files/stacks/node/hooks/pre-push.test.sh
 
       - name: Check canonical release playbooks
         run: |

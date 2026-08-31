@@ -12,6 +12,16 @@ export interface SdlcConfig {
   readonly production_url_secret?: string;
   readonly integration_branch?: string;
   readonly release_branch?: string;
+  /**
+   * The @metasession.co/devaudit-cli version that last completed a
+   * `devaudit update` sync of this project's templates. Written by
+   * `stampVersion` (cli/src/update/stamp-version.ts) as the final step of
+   * every sync. Consumed by sdlc-implementer's freshness check to decide
+   * whether to run `devaudit update .` before starting a REQ — see
+   * devaudit-installer#736. Absent means never synced by a stamping-aware
+   * CLI version (treat as stale).
+   */
+  readonly devaudit_synced_version?: string;
   // Port the E2E dev server (started via e2e_start_command) listens on, for
   // CI's "Wait for dev server" step to poll. Defaults to 3000 (Next.js' own
   // default) when absent — override per-target (see Target.e2e_port) when a

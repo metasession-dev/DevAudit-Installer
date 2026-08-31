@@ -27,7 +27,7 @@ This is an **orchestration skill**. It drives Claude Code's native tools (`gh`, 
 
 **Out of scope**
 
-- Issues that decompose into multiple requirements — refuse at Phase 1 and ask the user to split.
+- Issues that decompose into multiple requirements — refuse at Phase 1 and ask the user to split, **unless** the operator has explicitly declared a bundle (`Bundles: #A, #B` — see Phase 1 step 4's eligibility check) and it passes eligibility. Bundling is never inferred from prose alone.
 - Stage-1 planning in isolation — run the manual walkthrough instead.
 - E2E or visual-regression test work in isolation — invoke `e2e-test-engineer` directly.
 - Cross-issue refactors that touch multiple REQ-XXX scopes — these are out of the one-issue contract.
@@ -254,6 +254,15 @@ The framework uses a **develop-first** branching model: implementation lands on 
 
 Runs **first**, before any `REQ-XXX` is assigned. It decides which of the six change-types in [`change-workflows.md`](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/change-workflows.md) applies and what will — and won't — run. This is what stops every issue defaulting to maximum ceremony.
 
+0. **Freshness check.** Before touching the triggering issue at all: confirm this project is running the latest DevAudit-Installer templates, so the rest of this run isn't driven by stale scripts/hooks/skills.
+   - Read `devaudit_synced_version` from `sdlc-config.json` (added by `devaudit update`'s version-stamp step, devaudit-installer#736). Missing entirely (never synced by a stamping-aware CLI version) counts as stale.
+   - Determine the latest published version: `npm view @metasession.co/devaudit-cli version`.
+   - If the stamped version is missing or older than latest:
+     1. Run `npx @metasession.co/devaudit-cli update .` (same command `.devin/workflows/devaudit-update-install.md` step 3 documents for a manual update).
+     2. Review the resulting diff (`git status --short`, `git diff --stat`) — same review step as that workflow's step 4.
+     3. This is a template/tooling sync — classify it as `chore:` and drive it through the **Lightweight path** below to completion (branch, gates, commit, PR, merge to `$INTEGRATION_BRANCH`) on its own, exactly as that workflow's step 5 hands off, before doing anything else.
+     4. Only once that housekeeping sync has merged, continue to step 1 below for the originally requested work.
+   - If `npm view` fails (offline, registry unreachable, rate-limited), log a warning and proceed to step 1 without blocking — this is a courtesy check, not a hard gate; some consumers run air-gapped.
 1. **Fetch.** `gh issue view <N> --json labels,title,body` and read all comments. Read the **labels** as well as the title and body.
 2. **Classify the change-workflow**, inference-first (labels are optional input). Precedence, highest first:
    1. An explicit `type:*` / `risk:*` label → **authoritative**.
@@ -322,6 +331,19 @@ _Workflow tweak (CI artifact upload, gate timeout bump, etc.)_
 > - **Your approvals:** PR review only
 > - **Skipped:** RTM, evidence pack, UAT four-eyes, Production approval
 
+**Bundled-REQs variant (devaudit-installer#736)** — used instead of the single-issue template above when Phase 1 step 4's eligibility check accepts an operator-declared bundle:
+
+> **Workflow decision — bundle #A, #B**
+>
+> - **Requirements:** REQ-XXX (from #A), REQ-YYY (from #B)
+> - **Risk (per REQ):** REQ-XXX MEDIUM, REQ-YYY LOW — **bundle ceremony runs at MEDIUM** (max across the set)
+> - **Path:** Full SDLC Stages 1–5, one shared branch/PR/release for both REQs
+> - **Gates/evidence:** each REQ gets its own plan, RTM row, and evidence folder; gates run once against the shared diff at MEDIUM depth
+> - **Your approvals:** one UAT four-eyes + one Production approval, covering both REQs
+> - **Skipped:** none
+> - **Bundling cost:** if UAT requests changes, only the specific REQ(s) needing rework re-enter Phase 2–3 — but the shared PR still needs full re-review, since it's one PR covering both REQs. This is the trade-off of bundling; reclassify to separate REQs now if that's not acceptable.
+>   Proceed? _(or reclassify to separate REQs)_
+
 ### Lightweight path (housekeeping / trivial / compliance-doc-only)
 
 Reached from Phase 0 for non-tracked change-types. The skill drives this end-to-end; the only difference from the tracked execution is the absence of _ceremony_, not the absence of _guidance_. It pauses only where a human is genuinely required (PR review, merge).
@@ -354,6 +376,15 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
 2. **Classify risk** per `Test_Policy.md` §Risk-Based Testing. Emit a one-paragraph rationale citing the signals you used (auth surface, financial calc, data egress, RBAC, AI decisioning, etc.).
 3. **Assign REQ-XXX.** Inspect `compliance/RTM.md` for existing entries; take the next free number. If the issue references an existing REQ, use that instead. **Create the portal release immediately** (DevAudit-Installer#200 Fix 3) by running `bash scripts/upload-evidence.sh {{PROJECT_SLUG}} REQ-XXX compliance_document compliance/evidence/REQ-XXX/test-scope.md --category planning --release REQ-XXX --create-release-if-missing --environment uat --sdlc-stage 1` (or a placeholder file if test-scope.md isn't written yet). This ensures: (a) incident reports during Stage 2 implementation attach to the correct `REQ-XXX` release instead of a bare-date housekeeping release, (b) planning evidence can upload as Stage 1 evidence, (c) CI `register-release` on push to `develop` becomes a safety net (finds the existing release) rather than the primary creation mechanism.
 4. **Detect over-scoping.** If the issue spans clearly distinct deliverables (e.g. "build SAML SSO + reorganise the admin dashboard + migrate from Postgres 14 to 16"), halt with a clear message asking the user to split the issue into separate ones. Do not proceed past Phase 1.
+
+   **Bundle eligibility (devaudit-installer#736).** A hard halt is the wrong answer when several already-tracked, genuinely-independent issues just happen to be small — forcing N full REQ→plan→PR→UAT→release cycles for e.g. two five-line unrelated fixes is avoidable ceremony. The operator can opt into sharing one branch/PR/release across multiple REQs by structurally declaring it — `Bundles: #A, #B` in the triggering issue's body/comment, or by invoking `sdlc-implementer` directly against multiple issue numbers. **Never infer bundle-worthiness from free prose alone** — the declaration must be structural.
+
+   When a bundle is declared, evaluate eligibility instead of halting unconditionally:
+   - **Reject** (fall back to the halt-and-ask-to-split behavior above) if: any bundled issue classifies as CRITICAL risk; the bundled issues' risk classes span more than one tier apart (e.g. LOW + HIGH); or any two bundled issues touch overlapping files/logic (evidence and rollback must stay REQ-isolated even inside one shared PR).
+   - **Otherwise eligible.** Run Phase 1 steps 1–12 once per REQ-XXX in the bundle — own plan, own AC table, own SRS-IDs, own ADR/risk assessment, own RTM row, same as the single-REQ path — but targeting one shared branch (Phase 2 step 1) instead of each REQ getting its own, and landing as one shared PR (Phase 2 step 8) instead of N.
+   - **Bundle-level ceremony = the max risk class across the set.** A HIGH member anywhere in the bundle means the whole bundle gets HIGH-level gates and the Phase 1 step 11 checkpoint fires — bundling must never quietly downgrade the depth of gates or evidence a higher-risk member would have received alone.
+   - Author the declared-bundle manifest (`compliance/pending-releases/BUNDLED-CHANGES-<primary-REQ>.md`/`.json`, extending `generate-bundled-changes.sh`'s existing schema with `role: "co-tracked"` / `relationship: "bundled"` members — distinct from that script's existing `predecessor`/`housekeeping` roles, which model absorbing *other* releases, not co-equal REQs declared together up front) once the REQ numbers are assigned in step 3, so Phase 2's shared-PR and Phase 4's release-scope validation can both read it.
+   - This trade-off must be visible to the operator at declaration time, not discovered later: the Phase 0 "Workflow Decision" announcement (see the bundled variant below) must call out that if UAT requests changes, only the specific REQ(s) needing rework re-enter Phase 2–3, but the *shared PR* still needs full re-review since it's one PR.
 5. **Write the implementation plan.** Create `compliance/plans/REQ-XXX/implementation-plan.md` from `sdlc/files/_common/Implementation_Plan_TEMPLATE.md` (synced into the consumer's `SDLC/` directory at install). The template's shape is load-bearing — it carries the **Framework attribution** section that closes four framework clauses on upload:
 
    | Clause                                        | What the plan must contain                                                                                |
@@ -393,7 +424,7 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
 
 ### Phase 2 — Implement and test (SDLC stage 2)
 
-1. **Branch off `$INTEGRATION_BRANCH`.** `git checkout "$INTEGRATION_BRANCH" && git pull && git checkout -b feat/REQ-XXX-<slug>`. The slug is a kebab-case fragment of the issue title (max 6 words). **Advisory — concurrent REQ check:** check for existing open PRs to `$INTEGRATION_BRANCH` that touch overlapping files (`gh pr list --base "$INTEGRATION_BRANCH" --state open --json files`). If overlap is detected: warn the operator — "PR #M (REQ-YYY) is open and touches <overlapping files>. Merging this REQ first may cause conflicts for REQ-YYY. Proceed with caution." This is advisory, not blocking.
+1. **Branch off `$INTEGRATION_BRANCH`.** `git checkout "$INTEGRATION_BRANCH" && git pull && git checkout -b feat/REQ-XXX-<slug>`. The slug is a kebab-case fragment of the issue title (max 6 words). **Bundle mode (devaudit-installer#736):** when Phase 1 step 4 determined the bundle is eligible, branch once for the whole bundle instead — `feat/bundle-<slug>` — and every bundled REQ's steps 2–7 below commit onto that same shared branch (still one commit per REQ, preserving per-REQ `git revert`ability). **Advisory — concurrent REQ check:** check for existing open PRs to `$INTEGRATION_BRANCH` that touch overlapping files (`gh pr list --base "$INTEGRATION_BRANCH" --state open --json files`). If overlap is detected: warn the operator — "PR #M (REQ-YYY) is open and touches <overlapping files>. Merging this REQ first may cause conflicts for REQ-YYY. Proceed with caution." This is advisory, not blocking.
 2. **Write failing tests first** per [`Test_Architecture.md`](../../Test_Architecture.md). Depth scales with risk class:
    - LOW — unit tests on the changed function(s); no e2e required unless the change touches a user-facing flow.
    - MEDIUM — unit + integration; e2e for any UI-facing change.
@@ -458,7 +489,7 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
 
 6. **On gate failure**, iterate up to N=3 attempts. Each iteration: read the failure output, propose a fix, apply, re-run. On exhausted attempts, halt with the full failure output and explicit resume instructions: "Gate <name> failed after N=3 attempts. Last failure: <output>. Operator action — fix the failure, commit to the feature branch, push, then ping `resume REQ-XXX`. The skill will re-run the gate from where it left off." Update the sticky with the same. Never use `--no-verify`, `eslint-disable`, `@ts-expect-error`, `xfail`, or any other bypass.
 7. **Commit** using Conventional Commits with `Ref: REQ-XXX` trailer and `Co-Authored-By: Claude` trailer. One commit per logical step; never amend a commit that's already been pushed. **Also include the sentinel git trailer (devaudit#775).** `node SDLC/bin/devaudit-sdlc.js --phase=<N>` prints a `Sdlc-Implementer-Sentinel: <json>` line after appending the phase record — copy it verbatim into every commit message trailer for the rest of this tracked session. The `.sdlc-implementer-invoked` file it also writes is gitignored and never reaches a CI checkout, so CI-uploaded evidence (`upload-evidence.sh` running inside `ci.yml`) has no way to prove sdlc-implementer provenance without this trailer — without it, every CI-sourced evidence item reads as "MANUAL BYPASS ATTEMPT" on the portal even though the skill genuinely drove the work.
-8. **Land the work on `$INTEGRATION_BRANCH`.** Push the feature branch, then open a PR `feat/REQ-XXX-<slug> → $INTEGRATION_BRANCH` and merge it once CI is green. This is the **integration hop** — there is no UAT four-eyes gate here (that's the release PR in Phase 4); for MEDIUM+ risk get a peer review on this PR per the project's norms. The push to `$INTEGRATION_BRANCH` is what triggers `ci.yml` to register the release and upload gate evidence. **Merge conflict resolution:** if the PR has merge conflicts (another feature branch merged first), pull the latest `$INTEGRATION_BRANCH` into the feature branch (`git merge "$INTEGRATION_BRANCH" --no-edit`), resolve conflicts (preferring the feature branch's changes for files this REQ touches), push, wait for CI. If conflicts are in files this REQ doesn't touch, halt — "Merge conflict in <files> from another feature. Operator action — review the conflict, these files are outside REQ-XXX's scope."
+8. **Land the work on `$INTEGRATION_BRANCH`.** Push the feature branch, then open a PR `feat/REQ-XXX-<slug> → $INTEGRATION_BRANCH` and merge it once CI is green. **Bundle mode:** once every bundled REQ has completed steps 2–7 on the shared branch, open **one** PR `feat/bundle-<slug> → $INTEGRATION_BRANCH` referencing every bundled REQ-XXX in its title/body, instead of one PR per REQ. This is the **integration hop** — there is no UAT four-eyes gate here (that's the release PR in Phase 4); for MEDIUM+ risk get a peer review on this PR per the project's norms. The push to `$INTEGRATION_BRANCH` is what triggers `ci.yml` to register the release and upload gate evidence. **Merge conflict resolution:** if the PR has merge conflicts (another feature branch merged first), pull the latest `$INTEGRATION_BRANCH` into the feature branch (`git merge "$INTEGRATION_BRANCH" --no-edit`), resolve conflicts (preferring the feature branch's changes for files this REQ touches), push, wait for CI. If conflicts are in files this REQ doesn't touch, halt — "Merge conflict in <files> from another feature. Operator action — review the conflict, these files are outside REQ-XXX's scope."
 
 9. **E2E delegation self-audit — mandatory before Phase 3 (devaudit#132).** Run `git diff "$INTEGRATION_BRANCH"...HEAD --name-only` and walk the file list. For **every** entry matching `e2e/**/*.spec.ts`, state out loud one of:
 
@@ -831,7 +862,7 @@ Plus one process risk surfaced explicitly in the principles below (rubber-stampi
 
 **Confirm before destructive operations.** Force-pushing, branch deletion, tag deletion, `git reset --hard`, modifying CI/CD pipelines — all need explicit user sign-off when they arise mid-skill. The cost of confirming is a sentence; the cost of getting it wrong is real.
 
-**Issue too big? Refuse at Phase 1.** If the issue spans multiple distinct deliverables, the right answer is "split this issue" — not "sub-divide into multiple REQs silently". Halt at Phase 1 with the proposed split for the user to confirm.
+**Issue too big? Refuse at Phase 1.** If the issue spans multiple distinct deliverables, the right answer is "split this issue" — not "sub-divide into multiple REQs silently". Halt at Phase 1 with the proposed split for the user to confirm. The one exception is an operator-declared bundle (`Bundles: #A, #B`) that passes Phase 1 step 4's eligibility check (devaudit-installer#736) — that's an explicit, structural opt-in, never inferred, and still gets full per-REQ ceremony at the bundle's max risk class.
 
 **Ambiguity is a question, not a guess.** If the issue is unclear about scope, acceptance criteria, or which subsystem is affected, ask. Implementing on guesses is worse than no implementation — it encodes the misunderstanding into evidence and the audit trail.
 
