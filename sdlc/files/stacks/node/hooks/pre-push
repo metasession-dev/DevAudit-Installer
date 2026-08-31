@@ -44,6 +44,33 @@ printf '%s\n' "$PUSH_REFS" > "$PUSH_REFS_FILE"
 
 INTEGRATION_BRANCH=$(jq -r '.integration_branch // "develop"' sdlc-config.json 2>/dev/null || echo "develop")
 
+# Compute the commit range for a given (remote_sha, local_sha) pair. For a
+# brand-new ref (remote_sha all-zeros), a bare local_sha walks the entire
+# history reachable from that commit, not just the commits being pushed —
+# use the merge-base against the integration branch instead, falling back
+# to the bare SHA only if the merge-base can't be resolved
+# (devaudit-installer#741). If origin/$INTEGRATION_BRANCH itself isn't
+# resolvable locally (e.g. a fork/mirror that hasn't fetched it, or a
+# misconfigured integration_branch name), try origin/HEAD before giving up
+# to the bare SHA (devaudit-installer#743).
+compute_range() {
+  _remote_sha="$1"
+  _local_sha="$2"
+  if [ "$_remote_sha" = "0000000000000000000000000000000000000000" ]; then
+    _base=$(git merge-base "origin/$INTEGRATION_BRANCH" "$_local_sha" 2>/dev/null || true)
+    if [ -z "$_base" ]; then
+      _base=$(git merge-base origin/HEAD "$_local_sha" 2>/dev/null || true)
+    fi
+    if [ -n "$_base" ]; then
+      echo "${_base}..${_local_sha}"
+    else
+      echo "$_local_sha"
+    fi
+  else
+    echo "${_remote_sha}..${_local_sha}"
+  fi
+}
+
 # ── 2. E2E evidence check (devaudit-installer#226) ───────────────────
 # Only fires if UI-facing files are in the push. Checks for either
 # playwright-report/ directory or .e2e-gate-passed sentinel (written by
@@ -61,11 +88,7 @@ while read -r local_ref local_sha remote_ref remote_sha; do
   esac
 
   # Determine the commit range being pushed
-  if [ "$remote_sha" = "0000000000000000000000000000000000000000" ]; then
-    RANGE="$local_sha"
-  else
-    RANGE="${remote_sha}..${local_sha}"
-  fi
+  RANGE=$(compute_range "$remote_sha" "$local_sha")
 
   # Check for UI-facing files in the push
   UI_FILES=$(git diff --name-only "$RANGE" -- 'app/**/*.tsx' 'src/**/*.tsx' 'pages/**/*.tsx' 'app/**/*.jsx' 'src/**/*.jsx' 'pages/**/*.jsx' 2>/dev/null || true)
@@ -163,11 +186,7 @@ HAS_TRACKED=false
 # Parse captured refs in the current shell so HAS_TRACKED propagates.
 while read -r local_ref local_sha remote_ref remote_sha; do
   [ -n "${local_ref:-}" ] || continue
-  if [ "$remote_sha" = "0000000000000000000000000000000000000000" ]; then
-    RANGE="$local_sha"
-  else
-    RANGE="${remote_sha}..${local_sha}"
-  fi
+  RANGE=$(compute_range "$remote_sha" "$local_sha")
   COMMITS=$(git log "$RANGE" --format='%s' 2>/dev/null || true)
   if echo "$COMMITS" | grep -qE "$TRACKED_TYPES"; then
     HAS_TRACKED=true
@@ -189,17 +208,22 @@ if [ "$HAS_TRACKED" = "true" ]; then
   # ── 3b. Phase-progression validation (devaudit-installer#278) ──────
   # If the commit touches Phase 3 artifacts (compliance/evidence/REQ-XXX/),
   # the sentinel must contain a phase "3" record. If it touches Phase 5
-  # close-out (approved-releases/ or RTM RELEASED), sentinel must have phase "5".
+  # close-out (approved-releases/ or an RTM row flipping to RELEASED),
+  # sentinel must have phase "5".
   while read -r local_ref local_sha remote_ref remote_sha; do
     [ -n "${local_ref:-}" ] || continue
-    if [ "$remote_sha" = "0000000000000000000000000000000000000000" ]; then
-      RANGE="$local_sha"
-    else
-      RANGE="${remote_sha}..${local_sha}"
-    fi
+    RANGE=$(compute_range "$remote_sha" "$local_sha")
 
     PHASE3_FILES=$(git diff --name-only "$RANGE" -- 'compliance/evidence/REQ-*/' 2>/dev/null || true)
-    PHASE5_FILES=$(git diff --name-only "$RANGE" -- 'compliance/approved-releases/' 'compliance/RTM.md' 2>/dev/null || true)
+    PHASE5_APPROVED_DIR=$(git diff --name-only "$RANGE" -- 'compliance/approved-releases/' 2>/dev/null || true)
+    # RTM.md alone is not a Phase-5 signal — Phase 1 legitimately adds new
+    # DRAFT rows (devaudit-installer#744). Only an *added* line carrying a
+    # RELEASED status transition counts as close-out.
+    PHASE5_RTM_RELEASED=""
+    if git diff "$RANGE" -- 'compliance/RTM.md' 2>/dev/null | grep -qE '^\+.*\bRELEASED\b'; then
+      PHASE5_RTM_RELEASED="yes"
+    fi
+    PHASE5_FILES="${PHASE5_APPROVED_DIR}${PHASE5_RTM_RELEASED}"
 
     if [ -n "$PHASE3_FILES" ]; then
       PHASES_IN_SENTINEL=$(jq -r '.[].currentPhase // .[].phase // empty' .sdlc-implementer-invoked 2>/dev/null || true)

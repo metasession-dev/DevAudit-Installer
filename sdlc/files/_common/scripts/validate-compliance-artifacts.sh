@@ -418,7 +418,15 @@ for REQ in $REQUIREMENTS; do
   # exactly as happened on wawagardenbar-app REQ-095. This is the CI-side
   # mirror of sdlc-implementer Phase 2 step 5b's plan <-> spec cross-check,
   # catching any path that skips the husky hook.
+  # A plan carrying `@e2e-deferred: <rationale>` (Implementation_Plan_TEMPLATE.md's
+  # documented negative-case annotation) has already answered the "is E2E
+  # needed" question — skip the verification-method scan entirely rather
+  # than stripping just the annotation line, since the template's own §4
+  # heading ("## 4. E2E test coverage") and boilerplate prose also contain
+  # the bare word "e2e" and would otherwise still trip \be2e\b
+  # (devaudit-installer#745).
   if [ -f "compliance/evidence/$REQ/implementation-plan.md" ] \
+     && ! grep -qiE '@e2e-deferred' "compliance/evidence/$REQ/implementation-plan.md" \
      && grep -qiE 'playwright|end-to-end|\be2e\b' "compliance/evidence/$REQ/implementation-plan.md"; then
     if grep -rlE "@requirement $REQ|tagTest\(['\"]${REQ}['\"]" e2e/ --include="*.spec.ts" >/dev/null 2>&1; then
       echo "  OK: implementation-plan.md names Playwright/E2E coverage and a spec tags $REQ"

@@ -24,9 +24,18 @@ else
 fi
 
 JSON_OUT=""
+DECLARED_BUNDLE=""
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --json-out) JSON_OUT="$2"; shift 2 ;;
+    # devaudit-installer#736 — a comma-separated list of REQ-XXX declared
+    # co-primary at Phase 1 planning time by sdlc-implementer's bundle
+    # eligibility check, as opposed to the predecessor/housekeeping
+    # absorption modelled by the rest of this script. Additive: does not
+    # touch the ambiguity-guard logic above, since these REQs are declared
+    # directly here, not extracted from a ticket's "Absorbed predecessor
+    # releases" field.
+    --declared-bundle) DECLARED_BUNDLE="$2"; shift 2 ;;
     *) echo "Unknown argument: $1" >&2; exit 2 ;;
   esac
 done
@@ -172,6 +181,18 @@ if ! [[ "$VERSION" =~ $DATE_VERSION_RE ]]; then
     fi
   )
 
+  # extract_explicit_predecessors() can't distinguish "field absent" from
+  # "field explicitly None" through its stdout alone — both produce an
+  # empty EXPLICIT_PREDECESSORS list. Check presence separately, directly
+  # in this shell (not inside the process substitution above, whose
+  # variable side effects wouldn't survive the subshell), so the two
+  # checks below can tell a deliberate "None" declaration apart from an
+  # omitted field (devaudit-installer#746).
+  PREDECESSORS_FIELD_PRESENT=false
+  if [ -n "$CURRENT_TICKET" ] && grep -q -m1 '^\- \*\*Absorbed predecessor releases:\*\*' "$CURRENT_TICKET" 2>/dev/null; then
+    PREDECESSORS_FIELD_PRESENT=true
+  fi
+
   declare -A EXPLICIT_SET=()
   for version in "${EXPLICIT_PREDECESSORS[@]}"; do
     if [ "$version" = "$VERSION" ]; then
@@ -189,18 +210,24 @@ if ! [[ "$VERSION" =~ $DATE_VERSION_RE ]]; then
     fi
   done
 
-  if [ "${#CANDIDATE_RELEASES[@]}" -gt 0 ] && [ "${#EXPLICIT_PREDECESSORS[@]}" -eq 0 ]; then
+  if [ "${#CANDIDATE_RELEASES[@]}" -gt 0 ] && [ "$PREDECESSORS_FIELD_PRESENT" = false ]; then
     echo "Error: ambiguous predecessor ownership for ${VERSION}. Pending release tickets exist but the release ticket does not explicitly list absorbed predecessor releases." >&2
     printf 'Candidates: %s\n' "${CANDIDATE_RELEASES[*]}" >&2
     exit 1
   fi
 
+  # An explicit, full "None" already answers the accounting question for
+  # every candidate release at once — only demand per-release accounting
+  # when the ticket named at least one real predecessor (partial bundling),
+  # not when it explicitly declared zero (devaudit-installer#746).
   UNACCOUNTED=()
-  for version in "${CANDIDATE_RELEASES[@]}"; do
-    if [ -z "${EXPLICIT_SET[$version]:-}" ]; then
-      UNACCOUNTED+=("$version")
-    fi
-  done
+  if [ "${#EXPLICIT_PREDECESSORS[@]}" -gt 0 ]; then
+    for version in "${CANDIDATE_RELEASES[@]}"; do
+      if [ -z "${EXPLICIT_SET[$version]:-}" ]; then
+        UNACCOUNTED+=("$version")
+      fi
+    done
+  fi
   if [ "${#UNACCOUNTED[@]}" -gt 0 ]; then
     echo "Error: ambiguous predecessor ownership for ${VERSION}. The following pending releases are not explicitly listed in the release ticket bundle section:" >&2
     printf '  - %s\n' "${UNACCOUNTED[@]}" >&2
@@ -262,6 +289,69 @@ for version in "${EXPLICIT_PREDECESSORS[@]}"; do
   )"
   PREDECESSOR_LINES+=("- \`${version}\` (${role}/${relationship}) — ${title:-Untitled release ticket}")
 done
+
+# devaudit-installer#736 — declared co-tracked bundle members (Phase-1
+# planning-time opt-in, not retroactive absorption). Additive to the
+# predecessor-absorption members above.
+CO_TRACKED_LINES=()
+if [ -n "$DECLARED_BUNDLE" ]; then
+  declare -A CO_TRACKED_SET=()
+  IFS=',' read -ra DECLARED_BUNDLE_ITEMS <<<"$DECLARED_BUNDLE"
+  for raw_version in "${DECLARED_BUNDLE_ITEMS[@]}"; do
+    version="$(printf '%s' "$raw_version" | xargs)"
+    [ -n "$version" ] || continue
+    if [ "$version" = "$VERSION" ]; then
+      echo "Error: declared bundle cannot include its own core release ${VERSION}." >&2
+      exit 1
+    fi
+    if [ -n "${CO_TRACKED_SET[$version]:-}" ]; then
+      echo "Error: duplicate declared bundle member '${version}'." >&2
+      exit 1
+    fi
+    CO_TRACKED_SET["$version"]=1
+
+    ticket="$(find_release_ticket "$version" 2>/dev/null || true)"
+    title=""
+    summary=""
+    if [ -n "$ticket" ]; then
+      title="$(extract_ticket_title "$ticket")"
+      summary="$(extract_ticket_summary "$ticket")"
+    fi
+    range_meta="$(derive_commit_range "$version" "${ticket:-}")"
+    commit_from="${range_meta%%$'\t'*}"
+    commit_to="${range_meta#*$'\t'}"
+    reason="Declared co-primary REQ, bundled onto one shared branch/PR/release at Phase 1 planning time."
+
+    MEMBERS="$(
+      jq -c \
+        --arg version "$version" \
+        --arg reason "$reason" \
+        --arg scopeSummary "$summary" \
+        --arg commitFrom "$commit_from" \
+        --arg commitTo "$commit_to" \
+        --arg originalTitle "${title:-Bundled REQ $version}" \
+        '. + [{
+          version: $version,
+          role: "co-tracked",
+          relationship: "bundled",
+          reason: $reason,
+          scopeSummary: (if $scopeSummary == "" then null else $scopeSummary end),
+          commitFrom: (if $commitFrom == "" then null else $commitFrom end),
+          commitTo: (if $commitTo == "" then null else $commitTo end),
+          prNumber: null,
+          prUrl: null,
+          originalTitle: $originalTitle,
+          evidenceInheritancePolicy: {
+            mode: "none",
+            includeCycles: false,
+            scopes: [],
+            reason: "Co-tracked bundle members keep fully isolated per-REQ evidence — nothing is inherited between them."
+          }
+        }]' <<<"$MEMBERS"
+    )"
+    CO_TRACKED_LINES+=("- \`${version}\` (co-tracked/bundled) — ${title:-Bundled REQ $version}")
+  done
+fi
 
 # devaudit-installer#600 — scan the full SINCE_REF..HEAD window for
 # non-release housekeeping; do not re-narrow it to this REQ's own
@@ -351,6 +441,9 @@ echo "- **Core tracked release:** \`${VERSION}\`"
 echo "- **Bundle manifest:** \`BUNDLED-CHANGES-${VERSION}.json\`"
 echo "- **Manifest hash:** \`${MANIFEST_HASH}\`"
 echo "- **Absorbed predecessor releases:** $(if [ "${#PREDECESSOR_LINES[@]}" -gt 0 ]; then printf '%s' "${EXPLICIT_PREDECESSORS[*]}"; else printf 'None'; fi)"
+if [ "${#CO_TRACKED_LINES[@]}" -gt 0 ]; then
+  echo "- **Co-tracked bundle members:** $(printf '%s' "${DECLARED_BUNDLE_ITEMS[*]}")"
+fi
 if [ "${#NON_RELEASE_LINES[@]}" -gt 0 ]; then
   echo "- **Absorbed non-release work:** housekeeping commits since \`${SINCE_REF}\`"
 else
@@ -380,3 +473,12 @@ else
   echo "- None"
 fi
 echo ""
+
+if [ "${#CO_TRACKED_LINES[@]}" -gt 0 ]; then
+  echo "### Co-Tracked Bundle Members"
+  echo ""
+  echo "Declared co-primary at Phase 1 planning time (devaudit-installer#736) — not absorbed predecessors, each keeps fully isolated per-REQ evidence:"
+  echo ""
+  printf '%s\n' "${CO_TRACKED_LINES[@]}"
+  echo ""
+fi
