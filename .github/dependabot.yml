@@ -5,23 +5,53 @@ updates:
     schedule:
       interval: "weekly"
     target-branch: "develop"
+    groups:
+      # Patch/minor bumps are low-risk — batch them into one PR per week
+      # instead of one per dependency, so the backlog doesn't pile up.
+      # Majors are deliberately excluded here so they still open as their
+      # own individually-reviewed PR (a major bump can break APIs even in
+      # a devDependency).
+      patch-and-minor:
+        update-types:
+          - "minor"
+          - "patch"
   - package-ecosystem: "npm"
     directory: "/plugin-sdk"
     schedule:
       interval: "weekly"
     target-branch: "develop"
+    groups:
+      patch-and-minor:
+        update-types:
+          - "minor"
+          - "patch"
   - package-ecosystem: "npm"
     directory: "/plugins/devaudit-plugin-evidence-export"
     schedule:
       interval: "weekly"
     target-branch: "develop"
+    groups:
+      patch-and-minor:
+        update-types:
+          - "minor"
+          - "patch"
   - package-ecosystem: "npm"
     directory: "/plugins/devaudit-plugin-prisma"
     schedule:
       interval: "weekly"
     target-branch: "develop"
+    groups:
+      patch-and-minor:
+        update-types:
+          - "minor"
+          - "patch"
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
     target-branch: "develop"
+    groups:
+      patch-and-minor:
+        update-types:
+          - "minor"
+          - "patch"
