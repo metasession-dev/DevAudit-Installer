@@ -80,6 +80,34 @@ assert_eq "body lowercase ref/req normalised -> REQ-037" "REQ-037" "$(run_helper
 make_fixture "$WORK/c4" "[REQ-037][REQ-038] feat: combined feature"
 assert_eq "subject [REQ-037][REQ-038] -> REQ-037 (first)" "REQ-037" "$(run_helper)"
 
+# Case 4b: a declared-bundle manifest (devaudit-installer#736) wins over the
+# subject's first-bracketed-tag rule — the shared bundle branch's tip commit
+# might tag either bundled REQ, but the manifest's filename is authoritative.
+make_fixture "$WORK/c4b" "[REQ-038] feat: bundled work, tip commit tags REQ-038"
+mkdir -p compliance/pending-releases
+cat > compliance/pending-releases/BUNDLED-CHANGES-REQ-037.md <<'EOF'
+## Bundled Changes
+
+### Co-Tracked Bundle Members
+
+- `REQ-038` (co-tracked/bundled) — Second bundled REQ
+EOF
+assert_eq "declared-bundle manifest REQ-037 wins over tip commit's REQ-038 tag" "REQ-037" "$(run_helper)"
+
+# Case 4c: an absorption-only bundle file (no "Co-Tracked Bundle Members"
+# section) must NOT trigger the priority-0 tier — falls through to the
+# ordinary subject-tag rule unchanged.
+make_fixture "$WORK/c4c" "[REQ-038] feat: absorption bundle present, not a declared one"
+mkdir -p compliance/pending-releases
+cat > compliance/pending-releases/BUNDLED-CHANGES-REQ-037.md <<'EOF'
+## Bundled Changes
+
+### Explicit Constituent Releases
+
+- `REQ-036` (predecessor/superseded) — Absorbed predecessor
+EOF
+assert_eq "absorption-only bundle file does not override subject tag -> REQ-038" "REQ-038" "$(run_helper)"
+
 # Case 5: subject overrides body
 make_fixture "$WORK/c5" "[REQ-037] feat: subject wins
 

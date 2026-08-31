@@ -309,5 +309,40 @@ assert_eq "non-release work count" "1" "$(jq -r '.nonReleaseWorkItems | length' 
 assert_eq "adjacent housekeeping kind" "housekeeping_commit" "$(jq -r '.nonReleaseWorkItems[0].kind' "$JSON_OUT")"
 echo
 
+# Test 8: --declared-bundle emits co-tracked/bundled members, additive to
+# (and independent of) predecessor absorption (devaudit-installer#736).
+echo "Test 8: --declared-bundle emits co-tracked bundle members"
+DIR8="$TMPDIR_BASE/test8"
+make_fixture "$DIR8"
+write_release_ticket "REQ-042" "REQ-042 - Current tracked release" "Current release summary." "None"
+JSON_OUT8="$DIR8/bundle.json"
+OUTPUT=$(bash "$HELPER" "$(git rev-list --max-parents=0 HEAD)" "REQ-042" --json-out "$JSON_OUT8" --declared-bundle "REQ-043, REQ-044" 2>&1)
+assert_contains "markdown shows co-tracked bundle members section" "Co-Tracked Bundle Members" "$OUTPUT"
+assert_eq "manifest has two co-tracked members" "2" "$(jq -r '[.members[] | select(.role == "co-tracked")] | length' "$JSON_OUT8")"
+assert_eq "first co-tracked member version" "REQ-043" "$(jq -r '.members[0].version' "$JSON_OUT8")"
+assert_eq "first co-tracked member relationship" "bundled" "$(jq -r '.members[0].relationship' "$JSON_OUT8")"
+assert_eq "co-tracked member does not inherit evidence" "none" "$(jq -r '.members[0].evidenceInheritancePolicy.mode' "$JSON_OUT8")"
+echo
+
+# Test 9: --declared-bundle rejects self-inclusion and duplicates.
+echo "Test 9: --declared-bundle rejects self and duplicate members"
+DIR9="$TMPDIR_BASE/test9"
+make_fixture "$DIR9"
+write_release_ticket "REQ-042" "REQ-042 - Current tracked release" "Current release summary." "None"
+set +e
+OUTPUT=$(bash "$HELPER" "$(git rev-list --max-parents=0 HEAD)" "REQ-042" --declared-bundle "REQ-042" 2>&1)
+RC=$?
+set -e
+assert_eq "self-inclusion rejected" "1" "$RC"
+assert_contains "self-inclusion error text" "cannot include its own core release" "$OUTPUT"
+
+set +e
+OUTPUT=$(bash "$HELPER" "$(git rev-list --max-parents=0 HEAD)" "REQ-042" --declared-bundle "REQ-043,REQ-043" 2>&1)
+RC=$?
+set -e
+assert_eq "duplicate member rejected" "1" "$RC"
+assert_contains "duplicate member error text" "duplicate declared bundle member" "$OUTPUT"
+echo
+
 echo "=== Summary: ${PASS} pass / ${FAIL} fail ==="
 [ "$FAIL" -eq 0 ]

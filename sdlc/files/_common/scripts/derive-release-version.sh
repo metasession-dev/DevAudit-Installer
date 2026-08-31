@@ -6,6 +6,11 @@
 #   VERSION=$(./scripts/derive-release-version.sh)
 #
 # Priority:
+#   0. Declared-bundle manifest:      exactly one
+#                                      compliance/pending-releases/BUNDLED-CHANGES-REQ-XXX.md
+#                                      carrying a "Co-Tracked Bundle Members"
+#                                      section (devaudit-installer#736)
+#                                                                    -> REQ-XXX
 #   1. REQ tag in commit subject:     "[REQ-037] feat(kitchen): ..." -> REQ-037
 #   2. Ref in commit body:            "Ref: REQ-037"                 -> REQ-037
 #   3. Bracketed tag in commit body:   merge commit whose body is the PR title
@@ -74,6 +79,31 @@
 # Install: cp this file to your project's scripts/ directory && chmod +x scripts/derive-release-version.sh
 
 set -euo pipefail
+
+# 0. Declared-bundle manifest (devaudit-installer#736) — takes priority over
+# steps 1-3 below. A shared bundle branch's individual commits are each
+# tagged with their own REQ, so step 1's "first bracketed tag wins" would
+# silently misattribute the release to whichever REQ happened to tag the
+# tip commit, dropping the other bundled REQ(s)' provenance. When exactly
+# one compliance/pending-releases/BUNDLED-CHANGES-*.md file exists AND it
+# was authored as a declared bundle (carries the "Co-Tracked Bundle
+# Members" section generate-bundled-changes.sh's --declared-bundle mode
+# writes, as opposed to a retroactive predecessor/housekeeping-absorption-
+# only bundle with no such section), its filename's REQ-XXX is the
+# authoritative bundle version. Zero or more than one such file is
+# ambiguous and falls through to steps 1-5 unchanged, same guard discipline
+# as steps 4/4-bis.
+if [ -d compliance/pending-releases ]; then
+  DECLARED_BUNDLE_FILES=()
+  while IFS= read -r -d '' f; do
+    DECLARED_BUNDLE_FILES+=("$f")
+  done < <(find compliance/pending-releases -maxdepth 1 -name 'BUNDLED-CHANGES-REQ-*.md' -print0 2>/dev/null)
+  if [ "${#DECLARED_BUNDLE_FILES[@]}" -eq 1 ] && grep -q 'Co-Tracked Bundle Members' "${DECLARED_BUNDLE_FILES[0]}" 2>/dev/null; then
+    basename_no_ext="$(basename "${DECLARED_BUNDLE_FILES[0]}" .md)"
+    echo "${basename_no_ext#BUNDLED-CHANGES-}"
+    exit 0
+  fi
+fi
 
 SUBJECT=$(git log -1 --format='%s' 2>/dev/null || echo '')
 BODY=$(git log -1 --format='%b' 2>/dev/null || echo '')
