@@ -1,8 +1,9 @@
 import { promises as fs } from 'node:fs';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import { exists, isDir, ensureDir } from '../lib/fs-utils.js';
 import { substituteTokens, substituteBlocks, stripServicesBlock } from '../lib/templates.js';
 import { resolveTargets, type Target } from '../lib/sdlc-config.js';
+import { isDriftUnpatched, formatDriftWarning } from './drift-warning.js';
 import type { SyncContext, SectionResult } from './types.js';
 
 const CI_TEMPLATES = [
@@ -66,6 +67,17 @@ interface SdlcConfig {
   // (e.g. E2E_LOCAL=1 + local Supabase coords + a dummy email key), overriding
   // the job-level remote secrets so tests never touch production.
   readonly e2e_env?: Readonly<Record<string, string>>;
+  // Env applied to the "TypeScript Check" step only — e.g. NODE_OPTIONS to
+  // raise the heap on a project where `tsc --noEmit` OOMs at V8's default.
+  // Optional; absent → no env: block rendered (byte-identical to before
+  // this field existed). DevAudit-Installer#759.
+  readonly typescript_check_env?: Readonly<Record<string, string>>;
+  // Flags appended to `npm ci` in "Install dependencies (skip if lockfile
+  // unchanged)" — e.g. `--legacy-peer-deps` for a project whose lockfile
+  // has a peer-dep mismatch npm can't resolve strictly. Optional; absent →
+  // plain `npm ci`, byte-identical to before this field existed.
+  // DevAudit-Installer#759.
+  readonly install_flags?: string;
   readonly paths_ignore?: readonly string[];
   /** See #689/#690 — when present, sync runs once per target instead of once for the flat config. */
   readonly targets?: readonly Target[];
@@ -326,6 +338,11 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
   const multiTarget = targets.length > 1;
   let count = 0;
   const filePaths: string[] = [];
+  // DevAudit-Installer#758 — repo-relative paths (for the warning message)
+  // of any generated file this sync is about to overwrite where the
+  // current content differs from canonical and isn't covered by a
+  // .devaudit-patches/*.patch.
+  const driftedRelPaths: string[] = [];
 
   // A repo that just gained its second target leaves behind the unsuffixed
   // workflow files a single-target sync wrote previously (ci.yml,
@@ -399,6 +416,11 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
       DATABASE_PORT: cfg.database_port,
       E2E_PROJECT: cfg.e2e_project,
       E2E_START_COMMAND: cfg.e2e_start_command,
+      // Leading space so `npm ci{{NPM_CI_FLAGS}}` renders as plain `npm ci`
+      // when unset (space-then-nothing trims to nothing) and `npm ci
+      // --legacy-peer-deps` when set — never a token literally substituted
+      // into the middle of the word with no separating space.
+      NPM_CI_FLAGS: cfg.install_flags ? ` ${cfg.install_flags}` : '',
       E2E_PORT: e2ePort,
       API_KEY_SECRET: apiKeySecret,
     };
@@ -432,6 +454,13 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
         cfg.build_env && Object.keys(cfg.build_env).length > 0
           ? `        env:\n${indentEnvBlock({ ...cfg.build_env }, 10)}`
           : '',
+      // Same shape as BUILD_ENV: the TypeScript Check step has no hardcoded
+      // env: block above it, so this supplies its own header and only
+      // renders when there's something to put under it. DevAudit-Installer#759.
+      TYPESCRIPT_CHECK_ENV:
+        cfg.typescript_check_env && Object.keys(cfg.typescript_check_env).length > 0
+          ? `        env:\n${indentEnvBlock({ ...cfg.typescript_check_env }, 10)}`
+          : '',
       DATABASE_URI_STEP: buildDbUriStep(cfg.database_service, cfg.database_port),
       E2E_SETUP_STEP: buildE2eSetupStep(cfg),
       E2E_DEV_SERVER_STEP: buildE2eDevServerStep(cfg),
@@ -460,10 +489,19 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
       const baseOutputName = tmpl.replace(/\.template$/, '');
       const namespaced = namespaceForTarget(baseOutputName, content, target, multiTarget);
       const outputPath = join(workflowsDir, namespaced.outputName);
+      if (await isDriftUnpatched(ctx.repoRoot, outputPath, namespaced.content)) {
+        driftedRelPaths.push(relative(ctx.repoRoot, outputPath).split('\\').join('/'));
+      }
       await fs.writeFile(outputPath, namespaced.content);
       filePaths.push(outputPath);
       count += 1;
     }
   }
-  return { name: 'CI workflows', filesSynced: count, message: `${count} generated`, filePaths };
+  return {
+    name: 'CI workflows',
+    filesSynced: count,
+    message: `${count} generated`,
+    filePaths,
+    ...(driftedRelPaths.length > 0 ? { warning: formatDriftWarning(driftedRelPaths) } : {}),
+  };
 }

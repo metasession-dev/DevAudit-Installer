@@ -1,9 +1,39 @@
-import { readdir } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { execa } from "execa";
 import type { SectionResult, SyncContext } from "./types.js";
 
 const PATCH_DIRECTORY = ".devaudit-patches";
+
+/**
+ * DevAudit-Installer#761 — every patch is meant to be temporary scaffolding
+ * tied to a specific upstream issue (docs/consuming-projects.md's "Deciding:
+ * config key vs. patch" procedure), not a permanent per-project mechanism.
+ * That's only true as long as the link survives -- a patch with no recorded
+ * reason is indistinguishable, at every future sync, from one nobody
+ * remembers the reason for. Require a companion `<name>.patch.json` (same
+ * basename as the `.patch` file) declaring it:
+ *
+ *   { "upstream_issue": "https://github.com/.../issues/759", "reason": "..." }
+ */
+interface PatchMetadata {
+  readonly upstream_issue: string;
+  readonly reason?: string;
+}
+
+async function readPatchMetadata(patchPath: string): Promise<PatchMetadata | undefined> {
+  const metaPath = `${patchPath}.json`;
+  let raw: string;
+  try {
+    raw = await readFile(metaPath, "utf-8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    throw error;
+  }
+  const parsed = JSON.parse(raw) as Partial<PatchMetadata>;
+  if (!parsed.upstream_issue) return undefined;
+  return { upstream_issue: parsed.upstream_issue, reason: parsed.reason };
+}
 
 async function gitApplyCheck(
   projectPath: string,
@@ -49,6 +79,16 @@ export async function applyConsumerPatches(
       message: `no *.patch files in ${PATCH_DIRECTORY}/`,
     };
   }
+
+  // DevAudit-Installer#761 — surface every patch's linked upstream issue
+  // (or flag its absence) regardless of apply outcome, so an outstanding
+  // patch and its reason stay visible at every sync rather than only being
+  // discoverable by reading the file.
+  const metadataByPath = new Map<string, PatchMetadata | undefined>();
+  for (const patchPath of patchPaths) {
+    metadataByPath.set(patchPath, await readPatchMetadata(patchPath));
+  }
+  const missingMetadata = patchPaths.filter((p) => !metadataByPath.get(p));
 
   const applicable: string[] = [];
   const obsolete: string[] = [];
@@ -117,8 +157,16 @@ export async function applyConsumerPatches(
     }
   }
 
-  const appliedNames = applicable.map((path) => relative(patchRoot, path));
-  const obsoleteNames = obsolete.map((path) => relative(patchRoot, path));
+  // DevAudit-Installer#761 — name each patch alongside its linked issue
+  // (when it has one) so the sync output itself is the audit trail, not
+  // just the file on disk.
+  const withIssue = (path: string): string => {
+    const name = relative(patchRoot, path);
+    const meta = metadataByPath.get(path);
+    return meta ? `${name} (see ${meta.upstream_issue})` : name;
+  };
+  const appliedNames = applicable.map(withIssue);
+  const obsoleteNames = obsolete.map(withIssue);
   const details = [
     appliedNames.length > 0 ? `applied: ${appliedNames.join(", ")}` : "",
     obsoleteNames.length > 0
@@ -126,12 +174,19 @@ export async function applyConsumerPatches(
       : "",
   ].filter(Boolean);
 
+  const warnings = [
+    obsoleteNames.length > 0 ? `${obsoleteNames.length} obsolete consumer patch(es)` : "",
+    missingMetadata.length > 0
+      ? `${missingMetadata.length} patch(es) missing a companion <name>.patch.json with an upstream_issue link: ${missingMetadata
+          .map((p) => relative(patchRoot, p))
+          .join(", ")} — every patch needs one (see docs/consuming-projects.md#deciding-config-key-vs-patch)`
+      : "",
+  ].filter(Boolean);
+
   return {
     name: "consumer patches",
     filesSynced: applicable.length,
     message: details.join("; "),
-    ...(obsoleteNames.length > 0
-      ? { warning: `${obsoleteNames.length} obsolete consumer patch(es)` }
-      : {}),
+    ...(warnings.length > 0 ? { warning: warnings.join("; ") } : {}),
   };
 }
