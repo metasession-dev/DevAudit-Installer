@@ -53,6 +53,19 @@ async function writePatch(
   );
 }
 
+async function writePatchMetadata(
+  ctx: SyncContext,
+  name = "example.patch.json",
+  upstreamIssue = "https://github.com/metasession-dev/DevAudit-Installer/issues/759",
+): Promise<void> {
+  const patchRoot = join(ctx.projectPath, ".devaudit-patches");
+  await mkdir(patchRoot, { recursive: true });
+  await writeFile(
+    join(patchRoot, name),
+    JSON.stringify({ upstream_issue: upstreamIssue, reason: "test fixture" }),
+  );
+}
+
 afterEach(async () => {
   await Promise.all(
     workspaces
@@ -77,6 +90,26 @@ describe("consumer patch layer (#84)", () => {
     expect(result).toMatchObject({ filesSynced: 1 });
     expect(result.message).toContain("applied: example.patch");
     await expect(readFixtureFile(ctx)).resolves.toBe("consumer override\n");
+  });
+
+  // DevAudit-Installer#761
+  it("warns when a patch has no companion <name>.patch.json", async () => {
+    const ctx = await fixture();
+    await writePatch(ctx);
+    const result = await applyConsumerPatches(ctx);
+    expect(result.warning).toContain("missing a companion");
+    expect(result.warning).toContain("example.patch");
+  });
+
+  it("surfaces the linked upstream issue and suppresses the missing-metadata warning when present (#761)", async () => {
+    const ctx = await fixture();
+    await writePatch(ctx);
+    await writePatchMetadata(ctx);
+    const result = await applyConsumerPatches(ctx);
+    expect(result.message).toContain(
+      "applied: example.patch (see https://github.com/metasession-dev/DevAudit-Installer/issues/759)",
+    );
+    expect(result.warning ?? "").not.toContain("missing a companion");
   });
 
   it("reports a patch that is already present upstream as obsolete", async () => {
