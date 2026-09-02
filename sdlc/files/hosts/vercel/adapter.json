@@ -1,0 +1,35 @@
+{
+  "$schema": "../_schema/adapter.schema.json",
+  "name": "vercel",
+  "description": "Vercel-hosted services. Push-to-main auto-deploy via Vercel's Git integration; production URL from a repo secret; deploys verified by curling the URL until it responds 2xx/3xx.",
+  "deploy_trigger": "push_to_main",
+  "production_url_from": "secret",
+  "production_url_secret_key": "production_url_secret",
+  "wait_for_deploy": "for i in $(seq 1 30); do HTTP_CODE=$(curl -s -o /dev/null -w \"%{http_code}\" \"${PROD_URL}/\" || echo \"000\"); if [ \"$HTTP_CODE\" -ge 200 ] && [ \"$HTTP_CODE\" -lt 400 ]; then echo \"Production is up (HTTP ${HTTP_CODE})\"; break; fi; echo \"Attempt ${i}/30: HTTP ${HTTP_CODE} — waiting 10s...\"; sleep 10; done",
+  "required_secrets": [
+    "DEVAUDIT_API_KEY"
+  ],
+  "config_keys": {
+    "required": [
+      "production_url_secret",
+      "runner"
+    ],
+    "optional": [],
+    "defaults": {
+      "runner": "ubuntu-latest"
+    }
+  },
+  "runtime_contract": {
+    "preferred_web_runtime": "compiled JavaScript or framework standalone output (Vercel builds and runs the framework's own output — Next.js standalone/serverless functions, not a long-lived custom server)",
+    "forbid_typescript_runtime": true,
+    "prefer_standalone_output": true,
+    "scheduler_placement": "scheduled jobs should run as Vercel Cron Jobs or an external worker/queue — Vercel's web functions are ephemeral/serverless and cannot host a long-lived background process"
+  },
+  "notes": [
+    "Vercel's Git integration auto-deploys on push to the production branch (typically main); no explicit deploy step needed in CI.",
+    "Production URL is set as a repo secret (name configured per-project via production_url_secret in sdlc-config.json) — Vercel does generate its own *.vercel.app URL per deployment, but consumers almost always want their custom production domain, which the platform doesn't expose in a form CI can discover generically, so `secret` is the right resolution strategy rather than `api_lookup`.",
+    "If the project has Vercel Deployment Protection (password/SSO) enabled on production, the wait_for_deploy curl check will see a 401/407 instead of the app's real status — disable protection on the production environment, or this adapter's health check needs a bypass token added before it's reliable.",
+    "Vercel functions are stateless/ephemeral and don't support a persistent sidecar database container the way Railway's config_keys.optional (database_service/database_image/...) do — consumers on this host should use an external managed database (e.g. Supabase) rather than expect a docker-compose-style DB alongside the app.",
+    "Some Vercel setups gate production releases behind a manual promote or a git-tag-triggered deploy rather than auto-deploying every push to main — if that's the case for a given consumer, override deploy_trigger at the project level rather than assuming this adapter's push_to_main default."
+  ]
+}
