@@ -966,6 +966,222 @@ describe('syncProject — native TS sync against a fixture', () => {
     }
   }, 60_000);
 
+  // DevAudit-Installer#759 — same dangling-env: risk as BUILD_ENV above, on
+  // the TypeScript Check step this time.
+  it('does not emit a dangling env: key on the TypeScript Check step when typescript_check_env is empty', async () => {
+    const dir = await fs.mkdtemp(join(tmpdir(), 'cli-update-emptytscenv-'));
+    try {
+      await fs.writeFile(
+        join(dir, 'sdlc-config.json'),
+        JSON.stringify({
+          project_slug: 'fixture-app',
+          stack: 'node',
+          host: 'railway',
+          node_version: '20',
+          runner: 'ubuntu-latest',
+          working_directory: '.',
+          source_dirs: 'app/ lib/',
+          sast_baseline: 0,
+          accepted_dep_risks: '',
+          production_url_secret: 'FIXTURE_PROD_URL',
+          database_service: '',
+          database_image: '',
+          database_port: '',
+          typescript_check_env: {},
+          e2e_project: 'chromium',
+          e2e_start_command: 'npm run dev',
+        }),
+      );
+      await fs.mkdir(join(dir, '.github', 'workflows'), { recursive: true });
+      await syncProject(dir);
+
+      const ci = await fs.readFile(join(dir, '.github', 'workflows', 'ci.yml'), 'utf-8');
+      expect(ci).not.toMatch(/env:[ \t]*\n[ \t]*\n/);
+      expect(ci).not.toContain('NODE_OPTIONS');
+
+      await expectAllWorkflowsValidYaml(dir);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it('renders custom env on the TypeScript Check step when typescript_check_env is set (#759)', async () => {
+    const dir = await fs.mkdtemp(join(tmpdir(), 'cli-update-tscenv-'));
+    try {
+      await fs.writeFile(
+        join(dir, 'sdlc-config.json'),
+        JSON.stringify({
+          project_slug: 'fixture-app',
+          stack: 'node',
+          host: 'railway',
+          node_version: '20',
+          runner: 'ubuntu-latest',
+          working_directory: '.',
+          source_dirs: 'app/ lib/',
+          sast_baseline: 0,
+          accepted_dep_risks: '',
+          production_url_secret: 'FIXTURE_PROD_URL',
+          database_service: '',
+          database_image: '',
+          database_port: '',
+          typescript_check_env: { NODE_OPTIONS: '--max-old-space-size=4096' },
+          e2e_project: 'chromium',
+          e2e_start_command: 'npm run dev',
+        }),
+      );
+      await fs.mkdir(join(dir, '.github', 'workflows'), { recursive: true });
+      await syncProject(dir);
+
+      const ci = await fs.readFile(join(dir, '.github', 'workflows', 'ci.yml'), 'utf-8');
+      const tscBlock = ci.slice(ci.indexOf('name: TypeScript Check'), ci.indexOf('name: TypeScript Check') + 200);
+      expect(tscBlock).toContain('env:');
+      expect(tscBlock).toContain('NODE_OPTIONS: --max-old-space-size=4096');
+
+      await expectAllWorkflowsValidYaml(dir);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it('renders plain npm ci when install_flags is unset, and appends the flag when set (#759)', async () => {
+    const base = {
+      project_slug: 'fixture-app',
+      stack: 'node',
+      host: 'railway',
+      node_version: '20',
+      runner: 'ubuntu-latest',
+      working_directory: '.',
+      source_dirs: 'app/ lib/',
+      sast_baseline: 0,
+      accepted_dep_risks: '',
+      production_url_secret: 'FIXTURE_PROD_URL',
+      database_service: '',
+      database_image: '',
+      database_port: '',
+      e2e_project: 'chromium',
+      e2e_start_command: 'npm run dev',
+    };
+
+    const dirUnset = await fs.mkdtemp(join(tmpdir(), 'cli-update-npmci-unset-'));
+    const dirSet = await fs.mkdtemp(join(tmpdir(), 'cli-update-npmci-set-'));
+    try {
+      await fs.writeFile(join(dirUnset, 'sdlc-config.json'), JSON.stringify(base));
+      await fs.mkdir(join(dirUnset, '.github', 'workflows'), { recursive: true });
+      await syncProject(dirUnset);
+      const ciUnset = await fs.readFile(join(dirUnset, '.github', 'workflows', 'ci.yml'), 'utf-8');
+      expect(ciUnset).toContain('npm ci\n');
+      expect(ciUnset).not.toContain('--legacy-peer-deps');
+
+      await fs.writeFile(
+        join(dirSet, 'sdlc-config.json'),
+        JSON.stringify({ ...base, install_flags: '--legacy-peer-deps' }),
+      );
+      await fs.mkdir(join(dirSet, '.github', 'workflows'), { recursive: true });
+      await syncProject(dirSet);
+      const ciSet = await fs.readFile(join(dirSet, '.github', 'workflows', 'ci.yml'), 'utf-8');
+      expect(ciSet).toContain('npm ci --legacy-peer-deps\n');
+
+      await expectAllWorkflowsValidYaml(dirUnset);
+      await expectAllWorkflowsValidYaml(dirSet);
+    } finally {
+      await fs.rm(dirUnset, { recursive: true, force: true });
+      await fs.rm(dirSet, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  // DevAudit-Installer#758 — a generated file with local modifications not
+  // covered by any patch is about to be silently overwritten; the sync
+  // must surface that instead of proceeding invisibly.
+  it('warns when a sync is about to overwrite unpatched drift on a generated file (#758)', async () => {
+    const dir = await fs.mkdtemp(join(tmpdir(), 'cli-update-drift-'));
+    try {
+      const cfg = {
+        project_slug: 'fixture-app',
+        stack: 'node',
+        host: 'railway',
+        node_version: '20',
+        runner: 'ubuntu-latest',
+        working_directory: '.',
+        source_dirs: 'app/ lib/',
+        sast_baseline: 0,
+        accepted_dep_risks: '',
+        production_url_secret: 'FIXTURE_PROD_URL',
+        database_service: '',
+        database_image: '',
+        database_port: '',
+        e2e_project: 'chromium',
+        e2e_start_command: 'npm run dev',
+      };
+      await fs.writeFile(join(dir, 'sdlc-config.json'), JSON.stringify(cfg));
+      await fs.mkdir(join(dir, '.github', 'workflows'), { recursive: true });
+      await syncProject(dir);
+
+      // Simulate a hand-patch made directly to the generated file, with no
+      // .devaudit-patches/ capturing it — exactly the scenario that
+      // silently dropped a real fix twice in metasession-dev/META-JOBS.
+      const ciPath = join(dir, '.github', 'workflows', 'ci.yml');
+      const original = await fs.readFile(ciPath, 'utf-8');
+      await fs.writeFile(ciPath, `${original}\n# hand-added customization, no patch file\n`);
+
+      const report = await syncProject(dir);
+      expect(report.warnings.some((w) => w.includes('ci.yml'))).toBe(true);
+      expect(report.warnings.some((w) => w.includes('.devaudit-patches'))).toBe(true);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it('does not warn when the drift is covered by a .devaudit-patches/*.patch (#758)', async () => {
+    const dir = await fs.mkdtemp(join(tmpdir(), 'cli-update-drift-covered-'));
+    try {
+      await execa('git', ['init', '-q'], { cwd: dir });
+      const cfg = {
+        project_slug: 'fixture-app',
+        stack: 'node',
+        host: 'railway',
+        node_version: '20',
+        runner: 'ubuntu-latest',
+        working_directory: '.',
+        source_dirs: 'app/ lib/',
+        sast_baseline: 0,
+        accepted_dep_risks: '',
+        production_url_secret: 'FIXTURE_PROD_URL',
+        database_service: '',
+        database_image: '',
+        database_port: '',
+        e2e_project: 'chromium',
+        e2e_start_command: 'npm run dev',
+      };
+      await fs.writeFile(join(dir, 'sdlc-config.json'), JSON.stringify(cfg));
+      await fs.mkdir(join(dir, '.github', 'workflows'), { recursive: true });
+      await syncProject(dir);
+
+      // Stage the canonical output, then hand-edit and derive a real,
+      // applicable patch the same way docs/consuming-projects.md
+      // documents (`git diff -- <file> > .devaudit-patches/<file>.patch`)
+      // — a fake/unparseable patch would make applyConsumerPatches itself
+      // throw a conflict error, a different failure mode than this test.
+      // `git diff` against the index alone (no commit, no identity config
+      // needed) is enough here.
+      await execa('git', ['add', '-A'], { cwd: dir });
+      const ciPath = join(dir, '.github', 'workflows', 'ci.yml');
+      const original = await fs.readFile(ciPath, 'utf-8');
+      await fs.writeFile(ciPath, `${original}# hand-added customization\n`);
+      await fs.mkdir(join(dir, '.devaudit-patches'), { recursive: true });
+      const { stdout: diff } = await execa('git', ['diff', '--', '.github/workflows/ci.yml'], { cwd: dir });
+      await fs.writeFile(join(dir, '.devaudit-patches', 'ci.yml.patch'), `${diff}\n`);
+
+      const report = await syncProject(dir);
+      expect(report.warnings.some((w) => w.includes('ci.yml') && w.includes('not covered'))).toBe(false);
+
+      // The patch actually reapplied, not just "no warning" by accident.
+      const finalContent = await fs.readFile(ciPath, 'utf-8');
+      expect(finalContent).toContain('# hand-added customization');
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
   it('threads a local-DB E2E setup step + e2e_env into the blocking gate when configured', async () => {
     const dir = await fs.mkdtemp(join(tmpdir(), 'cli-update-e2elocal-'));
     try {
