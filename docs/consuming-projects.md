@@ -181,6 +181,42 @@ outside the consumer repository. They are an auditable escape hatch, not a
 permanent fork: every patch needs an upstream issue and should be deleted once
 that fix reaches the consumer.
 
+#### Deciding: config key vs. patch
+
+A generated file needing project-specific customization is not automatically
+a patch situation. Several CI-template steps already render from
+`sdlc-config.json` fields the CLI is guaranteed never to touch on sync —
+`e2e_setup_command` / `e2e_env` (arbitrary setup shell + env for the E2E
+step) and `runner` (the `{{RUNNER}}` → `vars.CI_RUNNER_LABEL` indirection)
+are the two that exist today. A customization expressed through one of these
+survives every future sync automatically — no patch, nothing to reapply,
+nothing that can be silently reverted.
+
+Before reaching for `.devaudit-patches/`, work through this in order:
+
+1. **Check for an existing config key.** Read the `SdlcConfig` interface in
+   `cli/src/update/ci-templates.ts` (or `sdlc/files/sdlc-config.example.json`)
+   for a field that already covers the need. If one exists, set it in the
+   consumer's `sdlc-config.json` — done, no patch needed, ever.
+2. **If none exists, patch — and file the upstream issue in the same PR.**
+   The patch is explicitly temporary scaffolding, not a resting state: write
+   it, and in the same PR that adds it, open (or link) a DevAudit-Installer
+   issue proposing the config key that would make the patch unnecessary.
+   Reference that issue's number in the patch's commit message. A patch
+   without a linked upstream issue is the thing this whole mechanism exists
+   to avoid — it has no path to ever being deleted.
+3. **When the upstream key ships, migrate and delete the patch.** Move the
+   customization into the new `sdlc-config.json` field (same shape as step 1
+   for any future consumer), re-sync, confirm the generated file is correct
+   with zero patch applied, then delete the `.patch` file in that PR.
+
+Two real examples from one onboarding session motivated this: a
+`NODE_OPTIONS` heap-size fix on the TypeScript Check step, and
+`--legacy-peer-deps` on an `npm ci` step — neither had a config key, both
+were patched, and DevAudit-Installer#759 was filed proposing
+`typescript_check_env` and `install_flags` to close the gap generally rather
+than leaving those two patches as the permanent way to solve it.
+
 ### One-time migration: `META_COMPLY_*` → `DEVAUDIT_*` rename
 
 During the META-COMPLY ↔ DevAudit-Installer repo split, four identifiers were renamed for brand alignment:
