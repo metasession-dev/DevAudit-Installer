@@ -33,6 +33,12 @@
     "MONGODB_DB_NAME": "placeholder"
   },
 
+  "_comment_typescript_check_env": "Optional env applied only to the TypeScript Check step — e.g. { \"NODE_OPTIONS\": \"--max-old-space-size=4096\" } for a project where `tsc --noEmit` OOMs at V8's default heap. Leave empty/absent for no env: block (default).",
+  "typescript_check_env": {},
+
+  "_comment_install_flags": "Optional flags appended to `npm ci` in \"Install dependencies\" — e.g. \"--legacy-peer-deps\" for a project whose lockfile has a peer-dep mismatch npm can't resolve strictly. Leave empty for plain `npm ci` (default).",
+  "install_flags": "",
+
   "e2e_project": "chromium",
   "e2e_start_command": "npm run dev",
 

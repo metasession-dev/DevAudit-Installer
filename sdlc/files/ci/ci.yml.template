@@ -122,7 +122,7 @@ jobs:
           if [ -f node_modules/.lock-hash ] && [ "$(cat node_modules/.lock-hash)" = "$LOCK_HASH" ]; then
             echo "node_modules up to date — skipping npm ci"
           else
-            npm ci
+            npm ci{{NPM_CI_FLAGS}}
             echo "$LOCK_HASH" > node_modules/.lock-hash
           fi
 
@@ -145,6 +145,7 @@ jobs:
       - name: TypeScript Check
         id: typescript
         run: npx tsc --noEmit
+{{TYPESCRIPT_CHECK_ENV}}
 
       # ── Gate 2: SAST (Semgrep) ──
 

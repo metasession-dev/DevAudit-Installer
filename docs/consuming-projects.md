@@ -158,20 +158,32 @@ Either path syncs: `_common/` stage docs, AI agent pointer files, SDLC rules int
 
 Use `.devaudit-patches/` only when a consuming project needs a reviewed,
 temporary correction before the corresponding Installer fix is released and
-adopted. Keep each standard unified diff in a separate `*.patch` file and commit
-it with the issue that justifies the exception:
+adopted. Keep each standard unified diff in a separate `*.patch` file, and
+give it a companion `<name>.patch.json` naming the upstream issue it's
+waiting on — `devaudit update` warns at every sync on any patch missing one
+(DevAudit-Installer#761), since a patch nobody can trace back to a reason is
+the "permanent fork" this mechanism exists to avoid. Commit both files
+together:
 
 ```bash
 mkdir -p .devaudit-patches
 git diff -- .github/workflows/ci.yml > .devaudit-patches/ci.yml.patch
+cat > .devaudit-patches/ci.yml.patch.json <<'EOF'
+{
+  "upstream_issue": "https://github.com/metasession-dev/DevAudit-Installer/issues/759",
+  "reason": "NODE_OPTIONS on the TypeScript Check step — no config key yet"
+}
+EOF
 ```
 
 `devaudit update` writes the canonical templates first, then processes patch
 files in lexical order:
 
-- **applied:** the consumer override was reapplied to the freshly synced tree;
+- **applied:** the consumer override was reapplied to the freshly synced tree
+  — the sync's summary output names the patch alongside its linked issue
+  (`applied: ci.yml.patch (see https://.../759)`) when it has one;
 - **obsolete/already upstream:** the reverse patch matches, so review and
-  remove the patch in the same adoption PR;
+  remove the patch (and its `.patch.json`) in the same adoption PR;
 - **conflict:** neither direction applies cleanly; update stops nonzero before
   applying the patch set. Re-roll the patch against the new upstream template
   or remove it if the upstream fix supersedes it.
@@ -180,6 +192,46 @@ Patch files must use repository-relative paths and must never modify files
 outside the consumer repository. They are an auditable escape hatch, not a
 permanent fork: every patch needs an upstream issue and should be deleted once
 that fix reaches the consumer.
+
+#### Deciding: config key vs. patch
+
+A generated file needing project-specific customization is not automatically
+a patch situation. Several CI-template steps already render from
+`sdlc-config.json` fields the CLI is guaranteed never to touch on sync —
+`e2e_setup_command` / `e2e_env` (arbitrary setup shell + env for the E2E
+step), `runner` (the `{{RUNNER}}` → `vars.CI_RUNNER_LABEL` indirection),
+`typescript_check_env` (env on the TypeScript Check step), and
+`install_flags` (flags on `npm ci`) are the ones that exist today. A
+customization expressed through one of these survives every future sync
+automatically — no patch, nothing to reapply, nothing that can be silently
+reverted.
+
+Before reaching for `.devaudit-patches/`, work through this in order:
+
+1. **Check for an existing config key.** Read the `SdlcConfig` interface in
+   `cli/src/update/ci-templates.ts` (or `sdlc/files/sdlc-config.example.json`)
+   for a field that already covers the need. If one exists, set it in the
+   consumer's `sdlc-config.json` — done, no patch needed, ever.
+2. **If none exists, patch — with its `.patch.json` — and file the upstream
+   issue in the same PR.** The patch is explicitly temporary scaffolding,
+   not a resting state: write it and its companion `.patch.json` (see
+   above), and in the same PR open (or link) a DevAudit-Installer issue
+   proposing the config key that would make the patch unnecessary —
+   `upstream_issue` in the `.patch.json` points at it, and `devaudit update`
+   warns every sync until that file exists. A patch nobody can trace back to
+   a reason is the thing this whole mechanism exists to avoid — it has no
+   path to ever being deleted.
+3. **When the upstream key ships, migrate and delete the patch.** Move the
+   customization into the new `sdlc-config.json` field (same shape as step 1
+   for any future consumer), re-sync, confirm the generated file is correct
+   with zero patch applied, then delete the `.patch` file in that PR.
+
+Two real examples from one onboarding session motivated this: a
+`NODE_OPTIONS` heap-size fix on the TypeScript Check step, and
+`--legacy-peer-deps` on an `npm ci` step — neither had a config key, both
+were patched, and DevAudit-Installer#759 was filed proposing
+`typescript_check_env` and `install_flags` to close the gap generally rather
+than leaving those two patches as the permanent way to solve it.
 
 ### One-time migration: `META_COMPLY_*` → `DEVAUDIT_*` rename
 
