@@ -1068,7 +1068,9 @@ describe('syncProject — native TS sync against a fixture', () => {
       await fs.writeFile(join(dirUnset, 'sdlc-config.json'), JSON.stringify(base));
       await fs.mkdir(join(dirUnset, '.github', 'workflows'), { recursive: true });
       await syncProject(dirUnset);
-      const ciUnset = await fs.readFile(join(dirUnset, '.github', 'workflows', 'ci.yml'), 'utf-8');
+      const ciUnset = normalizeNewlines(
+        await fs.readFile(join(dirUnset, '.github', 'workflows', 'ci.yml'), 'utf-8'),
+      );
       expect(ciUnset).toContain('npm ci\n');
       expect(ciUnset).not.toContain('--legacy-peer-deps');
 
@@ -1078,7 +1080,9 @@ describe('syncProject — native TS sync against a fixture', () => {
       );
       await fs.mkdir(join(dirSet, '.github', 'workflows'), { recursive: true });
       await syncProject(dirSet);
-      const ciSet = await fs.readFile(join(dirSet, '.github', 'workflows', 'ci.yml'), 'utf-8');
+      const ciSet = normalizeNewlines(
+        await fs.readFile(join(dirSet, '.github', 'workflows', 'ci.yml'), 'utf-8'),
+      );
       expect(ciSet).toContain('npm ci --legacy-peer-deps\n');
 
       await expectAllWorkflowsValidYaml(dirUnset);
