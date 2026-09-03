@@ -125,6 +125,39 @@ while IFS= read -r sha; do
         fi
       fi
       ;;
+
+    docs|chore|ci|build|test|revert|compliance)
+      # Diff-shape heuristic (devaudit-installer#768): an exempt commit
+      # type is a self-declared label with no check against the actual
+      # diff -- nothing stops real feature/bug/refactor work labeled as
+      # housekeeping from bypassing REQ tracking and sdlc-implementer
+      # entirely, silently, on every layer including this one. Can't
+      # safely hard-block here (a real housekeeping change can
+      # legitimately touch a large diff, or a source_dirs path for a
+      # config constant), so this warns rather than fails -- the goal is
+      # making a label/diff mismatch visible, not making the exemption
+      # unusable.
+      if [ -f sdlc-config.json ]; then
+        SOURCE_DIRS=$(jq -r '.source_dirs // empty' sdlc-config.json 2>/dev/null || true)
+        if [ -n "$SOURCE_DIRS" ]; then
+          CHANGED_FILES=$(git diff-tree --no-commit-id --name-only -r "$sha" 2>/dev/null || true)
+          FLAGGED=""
+          for dir in $SOURCE_DIRS; do
+            MATCHES=$(echo "$CHANGED_FILES" | grep -E "^${dir}" || true)
+            if [ -n "$MATCHES" ]; then
+              FLAGGED="${FLAGGED}${MATCHES}"$'\n'
+            fi
+          done
+          if [ -n "$FLAGGED" ]; then
+            echo "WARNING [$SHORT]: '$TYPE' (exempt from REQ tracking) touches configured source_dirs (application code):"
+            echo "$FLAGGED" | sed 's/^/       /'
+            echo "       If this is real feature/bug/refactor work, use a tracked commit type and"
+            echo "       invoke sdlc-implementer instead of an exempt type (devaudit-installer#768)."
+            WARN_COUNT=$((WARN_COUNT + 1))
+          fi
+        fi
+      fi
+      ;;
   esac
 
   # Check Co-Authored-By on commits that touch code files

@@ -7,6 +7,10 @@
 #    .sdlc-implementer-invoked sentinel. If missing, blocks the commit —
 #    the sdlc-implementer skill was not invoked (devaudit-installer#199/#226).
 #    Housekeeping types (docs/chore/ci/build/test/revert) are exempt.
+# 3. If the commit is an exempt type but its staged files fall under
+#    sdlc-config.json's source_dirs (application code), warns — does not
+#    block — since an exempt type is a self-declared label with no check
+#    against the actual diff otherwise (devaudit-installer#768).
 #
 # Bypass with --no-verify (last resort — pre-push hook and CI also check).
 #
@@ -36,5 +40,40 @@ if echo "$COMMIT_SUBJECT" | grep -qE "$TRACKED_TYPES"; then
     echo "       Invoke sdlc-implementer to drive the process, or use --no-verify"
     echo "       to bypass (not recommended — pre-push hook and CI will also check)."
     exit 1
+  fi
+fi
+
+# ── 3. Diff-shape heuristic for exempt-typed commits (devaudit-installer#768) ──
+# An exempt type (docs/chore/ci/build/test/revert/compliance) is a
+# self-declared label with no check against the staged diff — nothing
+# stops real feature/bug/refactor work labeled this way from bypassing
+# the sentinel check above entirely. Warns (doesn't block) when an
+# exempt-typed commit's staged files fall under sdlc-config.json's
+# source_dirs (application code, not tooling/docs/config) — a real
+# housekeeping change can legitimately touch source_dirs (a config
+# constant, say), so this is visibility, not a gate.
+EXEMPT_TYPES='^(docs|chore|ci|build|test|revert|compliance)(\(.+\))?!?:'
+if echo "$COMMIT_SUBJECT" | grep -qE "$EXEMPT_TYPES" && [ -f sdlc-config.json ]; then
+  SOURCE_DIRS=$(jq -r '.source_dirs // empty' sdlc-config.json 2>/dev/null || true)
+  if [ -n "$SOURCE_DIRS" ]; then
+    STAGED_FILES=$(git diff --cached --name-only 2>/dev/null || true)
+    FLAGGED=""
+    for dir in $SOURCE_DIRS; do
+      MATCHES=$(echo "$STAGED_FILES" | grep -E "^${dir}" || true)
+      if [ -n "$MATCHES" ]; then
+        FLAGGED="${FLAGGED}${MATCHES}"$'\n'
+      fi
+    done
+    if [ -n "$FLAGGED" ]; then
+      echo ""
+      echo "WARNING: commit typed as exempt ($COMMIT_SUBJECT) touches configured"
+      echo "         source_dirs (application code), not just tooling/docs/config:"
+      echo "$FLAGGED" | sed 's/^/           /'
+      echo ""
+      echo "         If this is real feature/bug/refactor work, use a tracked commit"
+      echo "         type and invoke sdlc-implementer instead (devaudit-installer#768)."
+      echo "         Proceeding — this is a warning, not a block."
+      echo ""
+    fi
   fi
 fi

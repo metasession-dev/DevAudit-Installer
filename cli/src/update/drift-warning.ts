@@ -3,12 +3,40 @@ import { join, relative } from 'node:path';
 import { exists } from '../lib/fs-utils.js';
 
 /**
- * DevAudit-Installer#758 — before a generated file is overwritten, detect
- * whether its current (pre-sync) content differs from what's about to
- * replace it AND isn't covered by any `.devaudit-patches/*.patch`. If so,
- * the sync is about to silently discard content that may have been
- * committed intentionally (a customization with no config-key equivalent
- * yet) with no signal to the operator that anything happened.
+ * DevAudit-Installer#758 — before a generated file is overwritten, capture
+ * its current (pre-sync) content so the drift check (below) can later
+ * decide whether the sync is about to silently discard content that may
+ * have been committed intentionally (a customization with no config-key
+ * equivalent yet), with no signal to the operator that anything happened.
+ *
+ * Split from the actual comparison (DevAudit-Installer#766): capturing
+ * happens at write time (this function), but the comparison must happen
+ * *after* the formatter-normalization step has run over the newly written
+ * files — see `evaluateDrift` below for why. Returns undefined when the
+ * file doesn't exist yet (first sync, nothing to drift from).
+ */
+export async function captureBeforeOverwrite(outputPath: string): Promise<string | undefined> {
+  if (!(await exists(outputPath))) return undefined;
+  return fs.readFile(outputPath, 'utf-8');
+}
+
+/**
+ * DevAudit-Installer#758 / #766 — decide whether a file's pre-sync content
+ * (captured by `captureBeforeOverwrite` before the overwrite) represents
+ * real, currently-unprotected drift from what's now on disk, AND isn't
+ * covered by any `.devaudit-patches/*.patch`.
+ *
+ * Must be called *after* the formatter-normalization step (DevAudit-
+ * Installer#663) has run, not right after the write. A previously-
+ * committed generated file is normally already formatted — by the
+ * consumer's own commit-time lint-staged/husky hook, or by a prior sync's
+ * own formatter pass — while the content a section writes during its own
+ * run is not yet formatted. Comparing pre-sync (formatted) content against
+ * that not-yet-formatted content flags formatting-only differences (quote
+ * style, trailing whitespace, etc.) as drift even when the two would be
+ * byte-identical once the formatter runs (#766). Reading the *current*
+ * on-disk content here — after formatSyncedFiles has already normalized
+ * it — compares like with like.
  *
  * This is a best-effort textual check, not a real patch-target parser: a
  * patch is treated as "covering" a file if any `.patch` file's content
@@ -18,19 +46,18 @@ import { exists } from '../lib/fs-utils.js';
  * for authoring these patches. Good enough to catch the common case (one
  * patch per file) without needing a full diff parser.
  *
- * Returns false (no warning) when the file doesn't exist yet (first sync,
- * nothing to drift from), when the content is actually unchanged, or when
- * a covering patch was found. Returns true only when there's real,
- * currently-unprotected drift.
+ * Returns false (no warning) when the (now-current, post-format) content
+ * matches the captured pre-sync content, or when a covering patch was
+ * found. Returns true only when there's real, currently-unprotected drift.
  */
-export async function isDriftUnpatched(
+export async function evaluateDrift(
   repoRoot: string,
   outputPath: string,
-  newContent: string,
+  oldContent: string,
 ): Promise<boolean> {
   if (!(await exists(outputPath))) return false;
   const current = await fs.readFile(outputPath, 'utf-8');
-  if (current === newContent) return false;
+  if (current === oldContent) return false;
 
   const relPath = relative(repoRoot, outputPath).split('\\').join('/');
   const patchDir = join(repoRoot, '.devaudit-patches');

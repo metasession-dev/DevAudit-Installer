@@ -69,6 +69,12 @@ jobs:
           # base — Playwright's evidenceShot helper reads that env var to
           # tag each captured screenshot as feature vs regression.
           fetch-depth: 0
+          # Default clean:true runs `git clean -ffdx` before checkout,
+          # wiping node_modules (and the npm-ci skip-install lock-hash
+          # marker inside it) on every run — a no-op on ephemeral
+          # GitHub-hosted runners, but it defeats the self-hosted npm
+          # cache entirely (devaudit-installer#676).
+          clean: {{CHECKOUT_CLEAN}}
 
       - name: Validate self-hosted runner prerequisites
         env:
@@ -302,6 +308,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          clean: {{CHECKOUT_CLEAN}}
 
       - name: Resolve DevAudit base URL
         run: |
@@ -520,6 +527,8 @@ jobs:
       DEVAUDIT_API_KEY: ${{ secrets.{{API_KEY_SECRET}} }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          clean: {{CHECKOUT_CLEAN}}
 
       - name: Resolve DevAudit base URL
         run: |
