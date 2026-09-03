@@ -260,6 +260,14 @@ There are two ways to control which machine `ci.yml` runs on, and they're owned 
 
 DevAudit-Installer owns the workflow structure and this stable resolution interface; it never hard-codes an organization's specific runner label into a template.
 
+### The cache-persistence assumption on self-hosted runners
+
+Setting `"runner": "self-hosted"` implicitly opts into a second assumption: that the runner's workspace persists between jobs. The "Install dependencies (skip if lockfile unchanged)" step relies on this — it hashes `package-lock.json`, compares against a `.lock-hash` marker left inside `node_modules/` by the previous run, and skips `npm ci` entirely on a hit. On an ephemeral GitHub-hosted runner there's never a previous run's `node_modules/` to find, so the optimization is a correct no-op there; on a persistent self-hosted runner it's the entire point.
+
+`actions/checkout`'s default `clean: true` runs `git clean -ffdx` before checkout — wiping every untracked/gitignored path, `node_modules/` included, on every single run. Generated `ci.yml` sets `clean: false` (via the same `CI_RUNNER_LABEL`-driven expression `runs-on:` uses, since whether the runner is *actually* self-hosted at run time isn't known until the workflow executes) whenever `runner` is `"self-hosted"`, and leaves the default `true` otherwise (DevAudit-Installer#676).
+
+The corollary: a self-hosted runner's workspace accumulates state indefinitely unless something wipes it. `node_modules/` staying warm is the point, but stray build artifacts, old branches' leftover files, and generally-growing disk usage are not — a periodic (weekly, say) manual or scheduled `git clean -ffdx` on the runner host itself is recommended for self-hosted consumers, outside of any CI run.
+
 ### What never to do
 
 - Don't edit `.github/workflows/ci.yml` directly — it will be overwritten

@@ -309,6 +309,27 @@ function resolveRunner(cfg: SdlcConfig): string {
 }
 
 /**
+ * actions/checkout's default `clean: true` runs `git clean -ffdx` before
+ * checkout, wiping untracked/gitignored files — including node_modules and
+ * the "Install dependencies (skip if lockfile unchanged)" step's
+ * .lock-hash marker inside it. On a GitHub-hosted runner that's a no-op
+ * (nothing persists between runs anyway); on a persistent self-hosted
+ * runner it defeats the whole point of that skip-install optimization,
+ * paying npm ci's full cost on every run (devaudit-installer#676).
+ *
+ * Mirrors resolveRunner's own runtime fallback exactly (same
+ * inputs.runner_label / vars.CI_RUNNER_LABEL / 'github-ci' resolution),
+ * since RUNNER's self-hosted branch only resolves to an actual
+ * self-hosted label at workflow *runtime* — a sync-time boolean here
+ * would be wrong whenever CI_RUNNER_LABEL falls back to 'github-ci'.
+ */
+function resolveCheckoutClean(cfg: SdlcConfig): string {
+  if (cfg.runner !== 'self-hosted') return 'true';
+  const label = "(inputs.runner_label || vars.CI_RUNNER_LABEL || 'github-ci')";
+  return `\${{ ${label} == 'github-ci' && 'true' || 'false' }}`;
+}
+
+/**
  * Section 2f: Generate CI workflows from templates + sdlc-config.json.
  *
  * Skipped if the consumer has no sdlc-config.json or no .github/workflows/.
@@ -408,6 +429,7 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
       WORKING_DIRECTORY: workingDirectory || '.',
       WORKING_DIR_PREFIX: workingDirPrefix,
       RUNNER: resolveRunner(cfg),
+      CHECKOUT_CLEAN: resolveCheckoutClean(cfg),
       SOURCE_DIRS: sourceDirs,
       SAST_BASELINE: String(cfg.sast_baseline),
       ACCEPTED_DEP_RISKS: cfg.accepted_dep_risks,
