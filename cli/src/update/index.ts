@@ -1,4 +1,4 @@
-import { basename, resolve } from "node:path";
+import { basename, relative, resolve } from "node:path";
 import { isDir } from "../lib/fs-utils.js";
 import { resolveInstallerRoot } from "../lib/installer-root.js";
 import { resolveRepoRoot } from "../lib/git-root.js";
@@ -20,6 +20,7 @@ import { verifyBranchProtection } from "./branch-protection.js";
 import { runValidation } from "./validation.js";
 import { applyConsumerPatches } from "./consumer-patches.js";
 import { formatSyncedFiles } from "./format-sync.js";
+import { evaluateDrift, formatDriftWarning } from "./drift-warning.js";
 import { stampVersion } from "./stamp-version.js";
 import { logger } from "../lib/logger.js";
 import type { SyncContext, SectionResult, SyncReport } from "./types.js";
@@ -114,6 +115,27 @@ export async function syncProject(projectPath: string): Promise<SyncReport> {
   if (formatResult.warning) {
     sectionWarnings.push(formatResult.warning);
     log.warn(`  [2l] ${formatResult.warning}`);
+  }
+  // Drift-warning evaluation (DevAudit-Installer#758), deliberately run
+  // here — after formatSyncedFiles has normalized the files sections just
+  // wrote — rather than inline within each section at write time. A
+  // section captures pre-overwrite content via `driftCandidates`; deciding
+  // "is this real drift" before the formatter runs compared not-yet-
+  // formatted new content against already-formatted old content and
+  // flagged pure formatting differences as drift (DevAudit-Installer#766).
+  const driftCandidates = sections.flatMap((s) => s.driftCandidates ?? []);
+  if (driftCandidates.length > 0) {
+    const driftedRelPaths: string[] = [];
+    for (const { outputPath, oldContent } of driftCandidates) {
+      if (await evaluateDrift(repoRoot, outputPath, oldContent)) {
+        driftedRelPaths.push(relative(repoRoot, outputPath).split("\\").join("/"));
+      }
+    }
+    if (driftedRelPaths.length > 0) {
+      const driftWarning = formatDriftWarning(driftedRelPaths);
+      sectionWarnings.push(driftWarning);
+      log.warn(`  [2f] ${driftWarning}`);
+    }
   }
   // Stamp last, deliberately after every other section: it should only
   // reflect a sync that actually ran to completion.

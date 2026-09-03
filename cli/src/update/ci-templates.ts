@@ -1,9 +1,9 @@
 import { promises as fs } from 'node:fs';
-import { join, relative } from 'node:path';
+import { join } from 'node:path';
 import { exists, isDir, ensureDir } from '../lib/fs-utils.js';
 import { substituteTokens, substituteBlocks, stripServicesBlock } from '../lib/templates.js';
 import { resolveTargets, type Target } from '../lib/sdlc-config.js';
-import { isDriftUnpatched, formatDriftWarning } from './drift-warning.js';
+import { captureBeforeOverwrite } from './drift-warning.js';
 import type { SyncContext, SectionResult } from './types.js';
 
 const CI_TEMPLATES = [
@@ -359,11 +359,10 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
   const multiTarget = targets.length > 1;
   let count = 0;
   const filePaths: string[] = [];
-  // DevAudit-Installer#758 — repo-relative paths (for the warning message)
-  // of any generated file this sync is about to overwrite where the
-  // current content differs from canonical and isn't covered by a
-  // .devaudit-patches/*.patch.
-  const driftedRelPaths: string[] = [];
+  // DevAudit-Installer#758 — pre-overwrite content of any generated file
+  // this sync is about to overwrite, captured for the caller to evaluate
+  // for drift *after* the formatter-normalization step has run (#766).
+  const driftCandidates: Array<{ outputPath: string; oldContent: string }> = [];
 
   // A repo that just gained its second target leaves behind the unsuffixed
   // workflow files a single-target sync wrote previously (ci.yml,
@@ -511,8 +510,9 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
       const baseOutputName = tmpl.replace(/\.template$/, '');
       const namespaced = namespaceForTarget(baseOutputName, content, target, multiTarget);
       const outputPath = join(workflowsDir, namespaced.outputName);
-      if (await isDriftUnpatched(ctx.repoRoot, outputPath, namespaced.content)) {
-        driftedRelPaths.push(relative(ctx.repoRoot, outputPath).split('\\').join('/'));
+      const oldContent = await captureBeforeOverwrite(outputPath);
+      if (oldContent !== undefined) {
+        driftCandidates.push({ outputPath, oldContent });
       }
       await fs.writeFile(outputPath, namespaced.content);
       filePaths.push(outputPath);
@@ -524,6 +524,6 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
     filesSynced: count,
     message: `${count} generated`,
     filePaths,
-    ...(driftedRelPaths.length > 0 ? { warning: formatDriftWarning(driftedRelPaths) } : {}),
+    ...(driftCandidates.length > 0 ? { driftCandidates } : {}),
   };
 }
