@@ -153,6 +153,48 @@ run_validator
 assert_exit "malformed leading REQ prefix exits 1" 1
 assert_grep "malformed prefix is not treated as conventional" "Not Conventional Commits format" 1
 
+# Case 7: an exempt-typed commit touching configured source_dirs gets a
+# visible warning (not a hard error) — devaudit-installer#768.
+echo "Case 7: exempt type touching source_dirs is warned, not blocked"
+rm -rf "$WORKDIR/case7"
+mkdir -p "$WORKDIR/case7"
+cd "$WORKDIR/case7"
+git init -q --initial-branch=main
+git config user.email "test@example.com"
+git config user.name "test"
+echo '{"source_dirs": "app/ lib/"}' > sdlc-config.json
+git add sdlc-config.json
+git commit -q -m "chore: base"
+git checkout -q -b feature
+mkdir -p app
+echo "real feature code" > app/feature.ts
+git add app/feature.ts
+git commit -q -m "chore: sneak in a feature" -m "Co-Authored-By: Test <test@example.com>"
+run_validator
+assert_exit "exempt type touching source_dirs still exits 0" 0
+assert_grep "warning emitted for exempt type touching source_dirs" "WARNING .*'chore' \(exempt from REQ tracking\) touches configured source_dirs" 1
+assert_grep "flagged file path appears in the warning" "app/feature.ts" 1
+
+# Case 8: an exempt-typed commit that stays outside source_dirs gets no
+# warning at all.
+echo "Case 8: exempt type outside source_dirs is silent"
+rm -rf "$WORKDIR/case8"
+mkdir -p "$WORKDIR/case8"
+cd "$WORKDIR/case8"
+git init -q --initial-branch=main
+git config user.email "test@example.com"
+git config user.name "test"
+echo '{"source_dirs": "app/ lib/"}' > sdlc-config.json
+git add sdlc-config.json
+git commit -q -m "chore: base"
+git checkout -q -b feature
+echo "workflow tweak" > .github-workflow-note.txt
+git add .github-workflow-note.txt
+git commit -q -m "ci: tweak workflow" -m "Co-Authored-By: Test <test@example.com>"
+run_validator
+assert_exit "exempt type outside source_dirs exits 0" 0
+assert_grep "no warning for exempt type outside source_dirs" "exempt from REQ tracking" 0
+
 echo
 echo "Result: $PASS passed, $FAIL failed"
 [ "$FAIL" = "0" ]
