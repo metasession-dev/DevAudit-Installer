@@ -351,6 +351,53 @@ mkdir -p compliance
 echo "# Requirements Traceability Matrix" > compliance/RTM.md
 assert_eq "empty RTM.md -> bare date $TODAY" "$TODAY" "$(run_helper)"
 
+# Case 28 (#581): step 3-bis merge-range scan. HEAD is a two-parent merge
+# commit whose own subject/body carry no tag, but the commit it merged in
+# (second parent) does.
+make_fixture "$WORK/c28" "chore: base commit"
+git checkout -q -b feature-branch
+echo "y" > g.txt
+git add g.txt
+git commit -q -m "[REQ-095] feat: tagged commit on feature branch"
+git checkout -q main
+git merge -q --no-ff -m "Merge pull request #7 from feature-branch" feature-branch
+assert_eq "merge-range scan finds REQ-095 on second parent -> REQ-095" "REQ-095" "$(run_helper)"
+
+# Case 29 (#772): a close-out reconciliation commit's own body carries both
+# a Release-Closeout suppression marker and a Ref: trailer. When that
+# commit is merged in via a two-parent merge, the range scan must not let
+# its own Ref: trailer resolve a version — the marker must suppress it
+# just as step 4-ter would on a single-parent HEAD.
+make_fixture "$WORK/c29" "chore: base commit"
+git checkout -q -b closeout-branch
+echo "y" > g.txt
+git add g.txt
+git commit -q -m "docs(compliance): close out REQ-101 release — sync main + reconcile (RELEASED)
+
+Release-Closeout: REQ-101
+Ref: REQ-101"
+git checkout -q main
+git merge -q --no-ff -m "Merge pull request #694 from closeout-branch" closeout-branch
+assert_eq "merge-range scan skips own Release-Closeout marker -> empty" "" "$(run_helper)"
+
+# Case 30 (#772): same as Case 29, but the range also contains an
+# unrelated, un-suppressed REQ-tagged commit. The close-out commit is
+# still excluded from the scan, so only the unrelated REQ resolves.
+make_fixture "$WORK/c30" "chore: base commit"
+git checkout -q -b mixed-branch
+echo "y" > g.txt
+git add g.txt
+git commit -q -m "[REQ-200] feat: unrelated in-flight work"
+echo "z" > h.txt
+git add h.txt
+git commit -q -m "docs(compliance): close out REQ-101 release — sync main + reconcile (RELEASED)
+
+Release-Closeout: REQ-101
+Ref: REQ-101"
+git checkout -q main
+git merge -q --no-ff -m "Merge pull request #695 from mixed-branch" mixed-branch
+assert_eq "merge-range scan excludes close-out commit, keeps unrelated REQ -> REQ-200" "REQ-200" "$(run_helper)"
+
 echo ""
 echo "=== Summary: $PASS pass / $FAIL fail ==="
 

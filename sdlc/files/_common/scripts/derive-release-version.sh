@@ -137,12 +137,29 @@ fi
 # [REQ-XXX] tag or a Ref: REQ-XXX line, same bracketed-only/Ref-line
 # discipline as steps 1-3. A single-parent HEAD (no merge, e.g. a squash or
 # fast-forward push) has nothing to scan here and falls through unchanged.
+#
+# Per-commit, not range-wide (devaudit#772): a close-out reconciliation
+# commit's own body carries both a `Release-Closeout: REQ-XXX` suppression
+# marker AND a `Ref: REQ-XXX` trailer (the trailer is the traceability
+# convention every commit gets; the marker is what step 4-ter uses to
+# suppress it). Scanning the range's bodies concatenated together let that
+# commit's own Ref: win here before step 4-ter ever ran on it, defeating
+# its own suppression. Any commit in the range that carries a
+# Release-Closeout marker is excluded from this scan entirely, so its
+# Ref:/[REQ-XXX] mentions can't resolve a version 4-ter would have
+# suppressed.
 PARENTS=$(git log -1 --format='%P' 2>/dev/null || echo '')
 if [ "$(echo "$PARENTS" | wc -w)" = "2" ]; then
   FIRST_PARENT=$(echo "$PARENTS" | awk '{print $1}')
   SECOND_PARENT=$(echo "$PARENTS" | awk '{print $2}')
-  RANGE_REQS=$(git log "${FIRST_PARENT}..${SECOND_PARENT}" --pretty=%B 2>/dev/null \
-    | grep -ioE '(\[REQ-[0-9]+\]|Ref:[[:space:]]*REQ-[0-9]+)' \
+  RANGE_REQS=$(git log "${FIRST_PARENT}..${SECOND_PARENT}" --format='%H' 2>/dev/null \
+    | while IFS= read -r RANGE_SHA; do
+        RANGE_BODY=$(git log -1 --format='%B' "$RANGE_SHA" 2>/dev/null || echo '')
+        if echo "$RANGE_BODY" | grep -qE '^Release-Closeout:[[:space:]]*REQ-[0-9]{3,}'; then
+          continue
+        fi
+        echo "$RANGE_BODY" | grep -ioE '(\[REQ-[0-9]+\]|Ref:[[:space:]]*REQ-[0-9]+)'
+      done \
     | grep -oiE 'REQ-[0-9]+' | tr '[:lower:]' '[:upper:]' | sort -u || true)
   RANGE_REQ_COUNT=$(echo "$RANGE_REQS" | grep -c . || true)
   if [ "$RANGE_REQ_COUNT" = "1" ]; then
@@ -151,6 +168,22 @@ if [ "$(echo "$PARENTS" | wc -w)" = "2" ]; then
   fi
   if [ "$RANGE_REQ_COUNT" -gt 1 ] 2>/dev/null; then
     echo "::warning::Merge range ${FIRST_PARENT:0:7}..${SECOND_PARENT:0:7} carries multiple distinct REQ tags ($(echo "$RANGE_REQS" | tr '\n' ' ')); refusing to guess which owns this release, falling through to disk/date fallback." >&2
+  fi
+  # No REQ resolved from the range once close-out commits are excluded
+  # (devaudit#772): if the range contains a Release-Closeout marker at
+  # all, this merge is entirely accounted for by an already-closed-out
+  # REQ (a "sync main + reconcile" merge whose only introduced commit is
+  # the reconciliation commit itself) — suppress here rather than
+  # falling through to steps 4/4-bis/5, which know nothing of this range
+  # and would derive a spurious housekeeping stub. Step 4-ter below only
+  # ever sees HEAD's own body, which a standard "Merge pull request"
+  # commit doesn't carry the marker on — this is the range-scan
+  # equivalent of that suppression.
+  if [ "$RANGE_REQ_COUNT" = "0" ]; then
+    if git log "${FIRST_PARENT}..${SECOND_PARENT}" --pretty=%B 2>/dev/null \
+      | grep -qE '^Release-Closeout:[[:space:]]*REQ-[0-9]{3,}'; then
+      exit 0
+    fi
   fi
 fi
 
