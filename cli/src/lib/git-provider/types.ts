@@ -41,6 +41,15 @@ export interface GitProvider {
    */
   hasSecret(cwd: string, name: string): Promise<boolean>;
   /**
+   * devaudit-installer#778 — delete a repo secret written by `install`
+   * (e.g. when `uninstall` disconnects a repo from a project). Must not
+   * throw if the secret doesn't exist — that's a no-op, matching
+   * `hasSecret`'s "false means not present" contract.
+   */
+  deleteSecret(cwd: string, name: string): Promise<void>;
+  /** devaudit-installer#778 — delete a repo variable (e.g. DEVAUDIT_BASE_URL). Same no-throw-if-absent contract as `deleteSecret`. */
+  deleteVariable(cwd: string, name: string): Promise<void>;
+  /**
    * Set the repo's GitHub-reported default branch to `branch` (idempotent —
    * reads the current value via getRepoMeta() first; a no-op if it already
    * matches returns `{ changed: false }`). GitHub creates every repo with

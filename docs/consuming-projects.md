@@ -44,6 +44,27 @@ Most consumers are one repo = one stack = one `sdlc-config.json` (the flat top-l
 
 CI workflow filenames, job/check names, trigger paths, `api_key_secret` names, and branch-protection required checks are all namespaced per target once `targets` has more than one entry — a single-target consumer sees none of this. See [onboarding.md's "Polyglot monorepos" section](onboarding.md#polyglot-monorepos-multiple-targets-in-one-repo) for the full mechanics and a worked `targets` example.
 
+## Offboarding a project
+
+Run `devaudit uninstall` (mirrors `install`) to disconnect a repo from a DevAudit project:
+
+```bash
+devaudit uninstall ../path/to/consumer
+# Polyglot monorepo with more than one target:
+devaudit uninstall ../path/to/consumer --target <target-name>
+```
+
+This revokes the project's active API key(s) on the portal, deletes the GitHub secrets/variables `install` wrote (`DEVAUDIT_API_KEY` or the per-target derived name, `DEVAUDIT_USER_TOKEN`, the production-URL secret if set, and the `DEVAUDIT_BASE_URL` variable), and removes the target from `sdlc-config.json` — deleting the file entirely if it was the only target.
+
+If the project was deleted **from the Portal side** (Project > Settings > Danger zone), its API key(s) are already revoked automatically (cascade) — `devaudit uninstall`'s key-revoke step detects the project no longer exists on the portal and treats that as success, not an error. Run it anyway to clean up the now-dead repo secrets and `sdlc-config.json` entry.
+
+Deliberately **not** touched, since reverting them automatically risks clobbering changes made since install by someone else:
+
+- Branch protection rules on `main`/`develop`
+- Synced CI workflow files (`.github/workflows/`), `SDLC/*.md`, `AGENTS.md`, and the other single-source-of-truth files described below
+
+These are left in place but inert — CI steps that reference the disconnected project will fail until you either remove them by hand or run `devaudit install` again to onboard a fresh project. If the consumer is listed in the "Active consumers" table above, remove its row once offboarding is complete.
+
 ## AI Agent Configuration (Single Source of Truth)
 
 All Metasession projects adopting DevAudit use the **single source of truth** model for AI coding agent configuration. This ensures every AI tool (Claude Code, Cursor, Windsurf, Gemini, Codex) enforces the same SDLC rules from the same canonical file.

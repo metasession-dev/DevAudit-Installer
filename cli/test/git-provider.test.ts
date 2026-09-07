@@ -14,6 +14,7 @@ const execaCalls: ExecaCall[] = [];
 let ghAvailable = true;
 let ghRepoViewStdout = JSON.stringify({ owner: 'foo', name: 'bar', defaultBranch: 'main' });
 let ghSecretListStdout = '[]';
+let ghSecretDeleteExitCode = 0;
 let ghExistingRequiredChecks: string[] = [];
 let ghRepoEditExitCode = 0;
 let ghRepoEditStderr = '';
@@ -33,6 +34,12 @@ vi.mock('execa', () => ({
     }
     if (file === 'gh' && args[0] === 'secret' && args[1] === 'list') {
       return { exitCode: 0, stdout: ghSecretListStdout, stderr: '' };
+    }
+    if (file === 'gh' && args[0] === 'secret' && args[1] === 'delete') {
+      return { exitCode: ghSecretDeleteExitCode, stdout: '', stderr: '' };
+    }
+    if (file === 'gh' && args[0] === 'variable' && args[1] === 'delete') {
+      return { exitCode: 0, stdout: '', stderr: '' };
     }
     if (file === 'gh' && args[0] === 'variable' && args[1] === 'set') {
       return { exitCode: 0, stdout: '', stderr: '' };
@@ -76,6 +83,7 @@ afterEach(async () => {
   execaCalls.length = 0;
   ghAvailable = true;
   ghRepoViewStdout = JSON.stringify({ owner: 'foo', name: 'bar', defaultBranch: 'main' });
+  ghSecretDeleteExitCode = 0;
   ghExistingRequiredChecks = [];
   ghRepoEditExitCode = 0;
   ghRepoEditStderr = '';
@@ -198,6 +206,26 @@ describe('GitHubProvider (gh-CLI-preferred path)', () => {
     const p = new GitHubProvider();
     expect(await p.hasSecret('/tmp/x', 'DEVAUDIT_USER_TOKEN')).toBe(false);
   });
+  it('deleteSecret: runs gh secret delete', async () => {
+    const { GitHubProvider } = await import('../src/lib/git-provider/github.js');
+    const p = new GitHubProvider();
+    await p.deleteSecret('/tmp/x', 'DEVAUDIT_API_KEY');
+    const call = execaCalls.find((c) => c.file === 'gh' && c.args[0] === 'secret' && c.args[1] === 'delete');
+    expect(call?.args).toEqual(['secret', 'delete', 'DEVAUDIT_API_KEY']);
+  });
+  it('deleteSecret: does not throw when the secret is already gone (gh exits non-zero)', async () => {
+    ghSecretDeleteExitCode = 1;
+    const { GitHubProvider } = await import('../src/lib/git-provider/github.js');
+    const p = new GitHubProvider();
+    await expect(p.deleteSecret('/tmp/x', 'ALREADY_GONE')).resolves.toBeUndefined();
+  });
+  it('deleteVariable: runs gh variable delete', async () => {
+    const { GitHubProvider } = await import('../src/lib/git-provider/github.js');
+    const p = new GitHubProvider();
+    await p.deleteVariable('/tmp/x', 'DEVAUDIT_BASE_URL');
+    const call = execaCalls.find((c) => c.file === 'gh' && c.args[0] === 'variable' && c.args[1] === 'delete');
+    expect(call?.args).toEqual(['variable', 'delete', 'DEVAUDIT_BASE_URL']);
+  });
 });
 
 describe('GitHubProvider (REST fallback when gh is missing)', () => {
@@ -213,6 +241,51 @@ describe('GitHubProvider (REST fallback when gh is missing)', () => {
     const { GitHubProvider } = await import('../src/lib/git-provider/github.js');
     const p = new GitHubProvider({ token: 'gho_test' });
     await expect(p.setSecret('/tmp/x', 'X', 'y')).rejects.toThrow(/sodium encryption/);
+  });
+  it('deleteSecret: REST fallback DELETEs the secret', async () => {
+    ghAvailable = false;
+    restServer.use(
+      http.delete('https://api.github.com/repos/foo/bar/actions/secrets/DEVAUDIT_API_KEY', () =>
+        new HttpResponse(null, { status: 204 }),
+      ),
+    );
+    const { GitHubProvider } = await import('../src/lib/git-provider/github.js');
+    const p = new GitHubProvider({ token: 'gho_test' });
+    await expect(p.deleteSecret('/tmp/x', 'DEVAUDIT_API_KEY')).resolves.toBeUndefined();
+  });
+  it('deleteSecret: REST fallback treats 404 as already-deleted, not an error', async () => {
+    ghAvailable = false;
+    restServer.use(
+      http.delete('https://api.github.com/repos/foo/bar/actions/secrets/GONE', () =>
+        new HttpResponse(null, { status: 404 }),
+      ),
+    );
+    const { GitHubProvider } = await import('../src/lib/git-provider/github.js');
+    const p = new GitHubProvider({ token: 'gho_test' });
+    await expect(p.deleteSecret('/tmp/x', 'GONE')).resolves.toBeUndefined();
+  });
+  it('deleteSecret fails clearly without gh CLI or token', async () => {
+    ghAvailable = false;
+    const { GitHubProvider } = await import('../src/lib/git-provider/github.js');
+    const p = new GitHubProvider();
+    await expect(p.deleteSecret('/tmp/x', 'X')).rejects.toThrow(/GH_TOKEN/);
+  });
+  it('deleteVariable: REST fallback DELETEs the variable', async () => {
+    ghAvailable = false;
+    restServer.use(
+      http.delete('https://api.github.com/repos/foo/bar/actions/variables/DEVAUDIT_BASE_URL', () =>
+        new HttpResponse(null, { status: 204 }),
+      ),
+    );
+    const { GitHubProvider } = await import('../src/lib/git-provider/github.js');
+    const p = new GitHubProvider({ token: 'gho_test' });
+    await expect(p.deleteVariable('/tmp/x', 'DEVAUDIT_BASE_URL')).resolves.toBeUndefined();
+  });
+  it('deleteVariable fails clearly without gh CLI or token', async () => {
+    ghAvailable = false;
+    const { GitHubProvider } = await import('../src/lib/git-provider/github.js');
+    const p = new GitHubProvider();
+    await expect(p.deleteVariable('/tmp/x', 'X')).rejects.toThrow(/GH_TOKEN/);
   });
   it('setDefaultBranch falls back to REST PATCH when default differs', async () => {
     ghAvailable = false;
