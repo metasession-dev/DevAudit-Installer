@@ -151,3 +151,61 @@ export async function writeSdlcConfig(ctx: InstallContext, plan: InstallPlan): P
   await fs.writeFile(outPath, JSON.stringify(config, null, 2) + '\n', 'utf-8');
   return { step: '4/12 Write sdlc-config.json', status: 'ok', message: `wrote ${outPath}` };
 }
+
+export interface RemoveTargetResult {
+  /** False when no target matching `targetIdentifier` was found (already gone). */
+  readonly removed: boolean;
+  /** True when the removed target was the only one, so the whole file was deleted. */
+  readonly deletedFile: boolean;
+  readonly remainingTargetNames: readonly string[];
+}
+
+/**
+ * devaudit-installer#778 — the write-side counterpart to `writeSdlcConfig`,
+ * used by `devaudit uninstall`. Removes one target (matched by `name` or by
+ * its `devaudit.project_slug`) from `sdlc-config.json`:
+ *   - the only target left → delete the file entirely
+ *   - exactly one target remains → collapse back to the legacy flat
+ *     single-target shape (drops `targets`), matching how a fresh
+ *     single-target `devaudit install` writes the file
+ *   - more than one remains → keep the `targets` array, just drop the entry
+ */
+export async function removeSdlcConfigTarget(
+  repoRoot: string,
+  targetIdentifier: string,
+): Promise<RemoveTargetResult> {
+  const configPath = join(repoRoot, 'sdlc-config.json');
+  const existing = await readSdlcConfig(repoRoot);
+  if (!existing) {
+    return { removed: false, deletedFile: false, remainingTargetNames: [] };
+  }
+  const targets = resolveTargets(existing);
+  const matchIndex = targets.findIndex(
+    (t) => t.name === targetIdentifier || t.devaudit?.project_slug === targetIdentifier,
+  );
+  if (matchIndex === -1) {
+    return { removed: false, deletedFile: false, remainingTargetNames: targets.map((t) => t.name) };
+  }
+  const remaining = targets.filter((_, i) => i !== matchIndex);
+  if (remaining.length === 0) {
+    await fs.unlink(configPath);
+    return { removed: true, deletedFile: true, remainingTargetNames: [] };
+  }
+  const raw = existing as unknown as Record<string, unknown>;
+  const nextConfig: Record<string, unknown> = { ...raw };
+  if (remaining.length === 1) {
+    const only = remaining[0] as Target;
+    nextConfig['stack'] = only.stack;
+    nextConfig['working_directory'] = only.working_directory;
+    nextConfig['source_dirs'] = only.source_dirs;
+    nextConfig['production_url_secret'] = only.production_url_secret;
+    nextConfig['project_slug'] = only.devaudit?.project_slug;
+    nextConfig['e2e_port'] = only.e2e_port;
+    nextConfig['devaudit'] = only.devaudit;
+    delete nextConfig['targets'];
+  } else {
+    nextConfig['targets'] = remaining;
+  }
+  await fs.writeFile(configPath, JSON.stringify(nextConfig, null, 2) + '\n', 'utf-8');
+  return { removed: true, deletedFile: false, remainingTargetNames: remaining.map((t) => t.name) };
+}

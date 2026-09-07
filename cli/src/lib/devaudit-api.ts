@@ -73,6 +73,23 @@ export class DevAuditClient {
     return (await res.json()) as ApiKeyIssued;
   }
 
+  /**
+   * devaudit-installer#778 — revoke a project-scoped API key, used by
+   * `devaudit uninstall` to disconnect a repo from a project. A 404 (the
+   * project or key is already gone — e.g. the portal project itself was
+   * hard-deleted, which cascades the key already) is treated as success,
+   * not an error: the goal state — "this key can no longer authenticate" —
+   * already holds.
+   */
+  async revokeApiKey(projectId: string, keyId: string): Promise<void> {
+    try {
+      await this.request('DELETE', `/api/projects/${projectId}/api-keys/${keyId}`);
+    } catch (err) {
+      if (err instanceof DevAuditApiError && err.status === 404) return;
+      throw err;
+    }
+  }
+
   private async request(method: string, path: string, body?: unknown): Promise<Response> {
     const url = `${this.baseUrl}${path}`;
     const headers: Record<string, string> = { 'x-devaudit-token': this.token };

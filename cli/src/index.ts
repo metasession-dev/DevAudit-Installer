@@ -8,6 +8,7 @@ import { runAuthStatus } from './commands/auth/status.js';
 import { runStatus } from './commands/status.js';
 import { runPush } from './commands/push.js';
 import { runInstallCommand } from './commands/install.js';
+import { runUninstallCommand } from './commands/uninstall.js';
 import { runJoinCommand } from './commands/join.js';
 import { runUpdate } from './commands/update.js';
 import { runBootstrapGovernance } from './commands/bootstrap-governance.js';
@@ -72,6 +73,40 @@ export async function main(argv: readonly string[]): Promise<void> {
             ? { forceTeamConfig: Boolean(cmdOpts.forceTeamConfig) }
             : {}),
           ...(cmdOpts.addTarget !== undefined ? { addTarget: Boolean(cmdOpts.addTarget) } : {}),
+          ...(globals.dryRun !== undefined ? { dryRun: Boolean(globals.dryRun) } : {}),
+          ...(globals.yes !== undefined ? { yes: Boolean(globals.yes) } : {}),
+        });
+      },
+    );
+  program
+    .command('uninstall [path]')
+    .description(
+      "Disconnect a repo from a DevAudit project: revokes its API key(s), deletes the GitHub secrets/variables `install` wrote, and removes it from sdlc-config.json. Leaves branch protection and synced CI/SDLC files in place (now inert) — clean those up manually or re-run `devaudit install` to onboard a fresh project.",
+    )
+    .option(
+      '--token <token>',
+      'PAT to use (otherwise reads DEVAUDIT_USER_TOKEN env or ~/.config/devaudit/auth.json)',
+    )
+    .option(
+      '--base-url <url>',
+      "override portal URL (defaults to the target's stored devaudit.base_url, then production)",
+    )
+    .option(
+      '--target <name>',
+      'which target to disconnect, when sdlc-config.json configures more than one (polyglot monorepo, #689)',
+    )
+    .action(
+      async (
+        path: string | undefined,
+        cmdOpts: { token?: string; baseUrl?: string; target?: string },
+        cmd,
+      ) => {
+        const globals = cmd.optsWithGlobals();
+        await runUninstallCommand({
+          ...(path !== undefined ? { path } : {}),
+          ...(cmdOpts.token !== undefined ? { token: cmdOpts.token } : {}),
+          ...(cmdOpts.baseUrl !== undefined ? { baseUrl: cmdOpts.baseUrl } : {}),
+          ...(cmdOpts.target !== undefined ? { target: cmdOpts.target } : {}),
           ...(globals.dryRun !== undefined ? { dryRun: Boolean(globals.dryRun) } : {}),
           ...(globals.yes !== undefined ? { yes: Boolean(globals.yes) } : {}),
         });
