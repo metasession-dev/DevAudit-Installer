@@ -373,6 +373,8 @@ Generated workflows use two distinct auth domains:
 
 `DEVAUDIT_USER_TOKEN` is not the default GitHub auth token for workflow repo mutations. If a workflow is mutating GitHub state, the expected auth path is the workflow token plus explicit `permissions:` on the job.
 
+`DEVAUDIT_API_KEY` (or its per-target derived name), `DEVAUDIT_USER_TOKEN`, and the `DEVAUDIT_BASE_URL` variable are removable via `devaudit uninstall` — see [Offboarding a project](#offboarding-a-project) above.
+
 #### Optional: `INSTALLER_DISPATCH_TOKEN` (devaudit-installer#613, #795)
 
 A PR authored by the default `github.token` (actor `github-actions[bot]`) is subject to GitHub's own `action_required` gate on any `pull_request`-triggered workflow run *it* causes — required checks on that PR (e.g. `Quality Gates`) sit stuck until a maintainer manually clicks "Approve and run," once per PR. This is a GitHub platform behavior, not something `permissions:` can opt out of.
