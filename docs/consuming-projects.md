@@ -4,12 +4,15 @@ DevAudit serves as the central compliance hub for all Metasession projects. Each
 
 ## Active consumers
 
-| Project       | Slug                | Stack | Host    | Status     |
-| ------------- | ------------------- | ----- | ------- | ---------- |
-| wawagardenbar | `wawagardenbar-app` | node  | railway | Integrated |
-| META-JOBS     | `meta-jobs`         | node  | railway | Integrated |
+| Project             | Slug                   | Stack  | Host    | Status     |
+| ------------------- | ---------------------- | ------ | ------- | ---------- |
+| wawagardenbar       | `wawagardenbar-app`    | node   | railway | Integrated |
+| META-JOBS           | `meta-jobs`             | node   | railway | Integrated |
+| mission-control     | `mission-control`      | node   | railway | Integrated |
+| mission-control-api | `mission-control-api`  | python | railway | Integrated |
+| ThorStack site      | `thorstack-site`       | node   | railway | Integrated |
 
-The table above should reflect the current active consumers known to this repo. For the product-side authoritative cross-check, see the portal repo documentation referenced from this repo's README. Previous onboarding attempts for **META-AGENT** and **META-ATS** were started but stopped or reverted; if either returns as a live consumer it should re-onboard from scratch via `devaudit install` and then be added here.
+The table above should reflect the current active consumers known to this repo. For the product-side authoritative cross-check, see the portal repo documentation referenced from this repo's README. `mission-control` and `mission-control-api` (the META-AGENT repos) were re-onboarded from scratch via `devaudit install --force-team-config` after their original onboarding attempt was stopped/reverted. `fleet-control` (also part of META-AGENT) is deliberately **not** onboarded — leave it out of this table. **META-ATS** onboarding was likewise stopped/reverted and remains unonboarded; if it returns as a live consumer, re-onboard from scratch via `devaudit install` and add it here.
 
 The DevAudit portal itself does **not** consume the SDLC framework — it would otherwise gate its own releases through itself. See `CLAUDE.md` in DevAudit's repo root for its lightweight development process.
 
