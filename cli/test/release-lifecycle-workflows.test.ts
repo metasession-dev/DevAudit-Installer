@@ -331,6 +331,32 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     expect(source).toContain("steps.standalone.outputs.standalone != 'true'");
   });
 
+  // devaudit-installer#788 — the re-dispatch on release-approved posted a
+  // brand-new "DevAudit Release Approval" check-run instead of updating the
+  // original, leaving the pre-approval failed/pending one dangling forever
+  // — a likely contributor to devaudit#825's duplicate-check-run confusion.
+  it('concludes the stale pre-approval check run as superseded instead of abandoning it', () => {
+    const source = template('check-release-approval.yml.template');
+    expect(source).toContain("--jq '.id')");
+    expect(source).toContain('/commits/${TARGET_SHA}/check-runs"');
+    expect(source).toContain('.conclusion != "success"');
+    expect(source).toContain('-f conclusion=neutral');
+    expect(source).toContain('Superseded by a later approval check');
+    // Best-effort: a failure to conclude the stale run must not fail the
+    // refresh itself, which already succeeded by this point.
+    expect(source).toContain('::warning::Could not conclude stale');
+  });
+
+  it('makes the incomplete-client_payload PR-resolution fallback loud instead of silent', () => {
+    const source = template('check-release-approval.yml.template');
+    expect(source).toContain(
+      "::error::client_payload incomplete (approved_sha and release_pr both missing or unresolvable)",
+    );
+    expect(source.indexOf('::error::client_payload incomplete')).toBeLessThan(
+      source.indexOf("gh pr list --base main --json number,headRefOid,updatedAt --limit 20"),
+    );
+  });
+
   it('uploads a standalone declaration as common evidence owned by its bare-date release (#540)', () => {
     const source = template('ci.yml.template');
     expect(source).toContain('Upload standalone housekeeping declaration');
