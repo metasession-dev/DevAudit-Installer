@@ -480,4 +480,47 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     expect(source).not.toContain('housekeeping (bare-date) releases don\'t bundle other housekeeping.');
     expect(source).not.toContain("is housekeeping — skipping bundled changes");
   });
+
+  // devaudit-installer#786 — a missed release-closed dispatch (portal side)
+  // previously had no consumer-side safety net: a release ticket could sit
+  // un-reconciled in compliance/pending-releases/ forever even though its
+  // code was already live on main. close-out-reconcile.yml is the scheduled
+  // fallback; it detects staleness (via close-out-reconcile.sh) and
+  // triggers the *existing* close-out-release.yml reconciliation rather
+  // than duplicating that logic.
+  describe('close-out reconciliation safety net (devaudit-installer#786)', () => {
+    it('runs on a daily schedule as well as manual dispatch, and only triggers reconciliation when something is actually stale', () => {
+      const source = template('close-out-reconcile.yml.template');
+      expect(source).toContain('schedule:');
+      expect(source).toContain("cron: '17 6 * * *'");
+      expect(source).toContain('workflow_dispatch:');
+      expect(source).toContain('bash scripts/close-out-reconcile.sh compliance/pending-releases');
+      expect(source).toContain("if [ -z \"$STALE\" ]");
+      expect(source).toContain('echo "found=false" >> "$GITHUB_OUTPUT"');
+    });
+
+    it('triggers the existing close-out-release.yml workflow_dispatch instead of duplicating its reconciliation logic', () => {
+      const source = template('close-out-reconcile.yml.template');
+      expect(source).toContain("gh workflow run close-out-release.yml -f \"release=${REQ}\"");
+      expect(source).toContain("steps.scan.outputs.found == 'true'");
+    });
+
+    it('opens a tracking issue for auditability, best-effort, without failing the job', () => {
+      const source = template('close-out-reconcile.yml.template');
+      expect(source).toContain('gh issue create');
+      expect(source).toContain('Release close-out reconciliation: stale pending release(s) detected');
+      expect(source).toContain('|| echo "::warning::Could not open the reconciliation tracking issue."');
+    });
+
+    it('is registered in the CI template sync list', () => {
+      const source = readFileSync(resolve(root, 'cli/src/update/ci-templates.ts'), 'utf8');
+      expect(source).toContain("'close-out-reconcile.yml.template'");
+    });
+
+    it('close-out-reconcile.sh detects a pending ticket whose REQ already shipped to origin/main', () => {
+      const source = commonScript('close-out-reconcile.sh');
+      expect(source).toContain('RELEASE-TICKET-REQ-*.md');
+      expect(source).toContain('git log origin/main -E --grep="\\[${REQ}\\]" --grep="Ref: ${REQ}\\$"');
+    });
+  });
 });
