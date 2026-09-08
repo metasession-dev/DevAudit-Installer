@@ -16,6 +16,8 @@ DevAudit distinguishes between fast blocking E2E coverage and broader regression
 - Critical is a pre-merge expansion of smoke for teams that need a stronger PR gate.
 - Regression is the wide net. It is allowed to be slower because it does not have to run on every `develop` push.
 
+**Critical and regression carry distinct portal check labels** — `E2E Critical (pre-merge)` and `E2E Regression (post-deploy production)` respectively (devaudit-installer#787). Before this, both tiers reported under the identical `E2E Regression` label/workflow/job name everywhere a human looked, so a reviewer looking at a develop→main PR — where a regression-tier check is structurally guaranteed absent because production doesn't exist yet — had no way to tell "this is fine, that tier just hasn't run yet" from "something is actually wrong." The workflow's own `name:` field and job name are unchanged (renaming those risks breaking a consumer's existing branch-protection required-check-name reference) — only the portal-facing check label built in `compliance-evidence.yml.template` is tier-aware. A consumer running an `e2e-regression.yml` copied before this fix needs to re-sync `compliance-evidence.yml` (`devaudit update`) to pick up the distinct labels.
+
 ## What DevAudit ships today
 
 The generated framework requires the blocking E2E gate in `ci.yml`.

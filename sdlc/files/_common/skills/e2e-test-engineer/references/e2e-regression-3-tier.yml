@@ -14,6 +14,13 @@
 #   - critical — Playwright project that selects e2e/smoke/ + e2e/critical/
 #   - regression — Playwright project that selects all e2e/**/*.spec.ts
 #
+# devaudit-installer#787 — this workflow's own `name:`/job name stay
+# "E2E Regression" for both tiers (renaming risks breaking a consumer's
+# existing branch-protection required-check-name reference), but the
+# portal-facing check label compliance-evidence.yml.template builds IS
+# tier-aware: "E2E Critical (pre-merge)" vs "E2E Regression (post-deploy
+# production)". See docs/e2e-test-tiers.md.
+#
 # playwright.config.ts must define the `critical` project for this to
 # fire; if it doesn't, the gate falls back to the existing `smoke`
 # project so PR-to-main stays green during migration.
