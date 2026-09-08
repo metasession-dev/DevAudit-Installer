@@ -216,6 +216,28 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     expect(source).toContain('${STAGE:-2}:${E2E_ENVIRONMENT}:${DERIVED_RELEASE}');
   });
 
+  // devaudit-installer#787 — critical (pre-merge) and regression
+  // (post-deploy) E2E tiers were previously indistinguishable everywhere a
+  // human looks: same workflow name, same job name, and the identical
+  // portal check label "E2E Regression (${REQ})" regardless of tier.
+  it('gives the critical and regression E2E tiers distinct portal check labels', () => {
+    const source = template('compliance-evidence.yml.template');
+    expect(source).toContain('critical)   TIER_LABEL="E2E Critical (pre-merge)" ;;');
+    expect(source).toContain(
+      'regression) TIER_LABEL="E2E Regression (post-deploy production)" ;;',
+    );
+    expect(source).toContain('--label "${TIER_LABEL} (${REQ})"');
+    expect(source).not.toContain('--label "E2E Regression (${REQ})"');
+  });
+
+  // The shipped e2e-regression.yml reference template has no `push`
+  // trigger (only pull_request, deployment_status, workflow_dispatch) —
+  // this branch could never execute.
+  it('does not carry the dead push-triggered tier-derivation branch', () => {
+    const source = template('compliance-evidence.yml.template');
+    expect(source).not.toContain('push)               TIER=regression; STAGE=5 ;;');
+  });
+
   it('records deployment and smoke as distinct always-finalized production executions', () => {
     const source = template('post-deploy-prod.yml.template');
     expect(source.indexOf('Start production deployment executions')).toBeLessThan(
