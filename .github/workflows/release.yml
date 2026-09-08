@@ -38,7 +38,20 @@ jobs:
         run: |
           npm install --legacy-peer-deps
           npm run build
-          npm publish --provenance --access public
+          # Idempotency (resumable release): a prior run of this workflow may
+          # have already published this exact version before failing on a
+          # LATER package (e.g. the public-installability verify step timing
+          # out on registry propagation lag, not an actual publish failure).
+          # Re-running the whole job would otherwise hard-fail here on
+          # "cannot publish over the previously published version" before
+          # ever reaching the packages that still genuinely need publishing.
+          NAME=$(jq -r .name package.json)
+          VER=$(jq -r .version package.json)
+          if npm view "${NAME}@${VER}" version >/dev/null 2>&1; then
+            echo "${NAME}@${VER} is already published — skipping (resumable release)."
+          else
+            npm publish --provenance --access public
+          fi
 
       - name: Verify plugin-sdk is publicly installable
         run: bash scripts/verify-npm-publication.sh @metasession.co/devaudit-plugin-sdk "$(jq -r .version plugin-sdk/package.json)"
@@ -67,7 +80,13 @@ jobs:
         run: |
           npm install --legacy-peer-deps
           npm run build
-          npm publish --provenance --access public
+          NAME=$(jq -r .name package.json)
+          VER=$(jq -r .version package.json)
+          if npm view "${NAME}@${VER}" version >/dev/null 2>&1; then
+            echo "${NAME}@${VER} is already published — skipping (resumable release)."
+          else
+            npm publish --provenance --access public
+          fi
 
       - name: Verify CLI is publicly installable
         run: bash scripts/verify-npm-publication.sh @metasession.co/devaudit-cli "$(jq -r .version cli/package.json)"
@@ -78,7 +97,13 @@ jobs:
         run: |
           npm install --legacy-peer-deps
           npm run build
-          npm publish --provenance --access public
+          NAME=$(jq -r .name package.json)
+          VER=$(jq -r .version package.json)
+          if npm view "${NAME}@${VER}" version >/dev/null 2>&1; then
+            echo "${NAME}@${VER} is already published — skipping (resumable release)."
+          else
+            npm publish --provenance --access public
+          fi
 
       - name: Verify Prisma plugin is publicly installable
         run: bash scripts/verify-npm-publication.sh @metasession.co/devaudit-plugin-prisma "$(jq -r .version plugins/devaudit-plugin-prisma/package.json)"
@@ -88,7 +113,13 @@ jobs:
         run: |
           npm install --legacy-peer-deps
           npm run build
-          npm publish --provenance --access public
+          NAME=$(jq -r .name package.json)
+          VER=$(jq -r .version package.json)
+          if npm view "${NAME}@${VER}" version >/dev/null 2>&1; then
+            echo "${NAME}@${VER} is already published — skipping (resumable release)."
+          else
+            npm publish --provenance --access public
+          fi
 
       - name: Verify evidence-export plugin is publicly installable
         run: bash scripts/verify-npm-publication.sh @metasession.co/devaudit-plugin-evidence-export "$(jq -r .version plugins/devaudit-plugin-evidence-export/package.json)"
@@ -97,7 +128,13 @@ jobs:
       - name: devaudit-sdlc — publish
         working-directory: sdlc
         run: |
-          npm publish --provenance --access public
+          NAME=$(jq -r .name package.json)
+          VER=$(jq -r .version package.json)
+          if npm view "${NAME}@${VER}" version >/dev/null 2>&1; then
+            echo "${NAME}@${VER} is already published — skipping (resumable release)."
+          else
+            npm publish --provenance --access public
+          fi
 
       - name: Verify SDLC engine is publicly installable
         run: bash scripts/verify-npm-publication.sh @metasession.co/devaudit-sdlc "$(jq -r .version sdlc/package.json)"
@@ -117,5 +154,9 @@ jobs:
           else
             TAG="${GITHUB_REF_NAME}"
           fi
-          echo "Creating GitHub Release $TAG"
-          gh release create "$TAG" --generate-notes --title "$TAG"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "GitHub Release $TAG already exists — skipping (resumable release)."
+          else
+            echo "Creating GitHub Release $TAG"
+            gh release create "$TAG" --generate-notes --title "$TAG"
+          fi
