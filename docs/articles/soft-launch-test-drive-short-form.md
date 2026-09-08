@@ -50,6 +50,8 @@ If you want to test an AI-assisted SDLC that tries to make compliance a byproduc
 
 ---
 
+*Long form article → [devaudit.ai/Soft Launch](https://devaudit.ai/blog/devaudit-is-entering-soft-launch)*
+
 *Take the test drive → [devaudit.ai/onboarding](https://devaudit.ai/onboarding)*
 
 *Open an issue or PR → https://github.com/metasession-dev/DevAudit-Installer*
