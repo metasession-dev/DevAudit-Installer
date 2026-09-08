@@ -301,6 +301,16 @@ jobs:
           fi
 
           if [ -z "$TARGET_SHA" ]; then
+            # devaudit-installer#788 Finding 2 — repository_dispatch has no
+            # native pull-request context; when the portal's client_payload
+            # is incomplete (missing/unresolvable approved_sha AND
+            # release_pr), this "most recently updated open PR against
+            # main" heuristic could silently attach the refreshed approval
+            # check to the WRONG PR if two release PRs are open against
+            # main concurrently. Make that loud and visible instead of
+            # letting it pass unremarked — this is best-effort recovery,
+            # not a reliable resolution.
+            echo "::error::client_payload incomplete (approved_sha and release_pr both missing or unresolvable) — falling back to the 'most recently updated open PR against main' heuristic to refresh the approval check. This can target the wrong PR if multiple release PRs are open concurrently. Investigate why the portal's release-approved dispatch payload was incomplete."
             PR_DATA=$(gh pr list --base main --json number,headRefOid,updatedAt --limit 20 2>/dev/null || echo '[]')
             TARGET_SHA=$(echo "$PR_DATA" | jq -r 'sort_by(.updatedAt) | reverse | .[0].headRefOid // empty' 2>/dev/null || true)
           fi
@@ -319,7 +329,7 @@ jobs:
           # from a workflow_dispatch / repository_dispatch flow. The refresh
           # path therefore creates a fresh success check run on the approved
           # SHA instead of PATCHing the original failed PR check.
-          gh api "/repos/${{ github.repository }}/check-runs" \
+          NEW_CHECK_RUN_ID=$(gh api "/repos/${{ github.repository }}/check-runs" \
             -X POST \
             -f name="$CHECK_NAME" \
             -f head_sha="$TARGET_SHA" \
@@ -329,5 +339,35 @@ jobs:
             -f details_url="$DETAILS_URL" \
             -f external_id="${{ github.run_id }}" \
             -f "output[title]=DevAudit release approval confirmed" \
-            -f "output[summary]=Release ${{ steps.release.outputs.version }} is approved in DevAudit."
-          echo "Created refreshed ${CHECK_NAME} check run on ${TARGET_SHA}."
+            -f "output[summary]=Release ${{ steps.release.outputs.version }} is approved in DevAudit." \
+            --jq '.id')
+          echo "Created refreshed ${CHECK_NAME} check run (id ${NEW_CHECK_RUN_ID}) on ${TARGET_SHA}."
+
+          # devaudit-installer#788 Finding 1 — the pre-approval pull_request
+          # run's own failed/pending "DevAudit Release Approval" check-run
+          # on this same SHA was otherwise left dangling forever: still
+          # visible, still reading failure, even though the fresh one above
+          # is now the current truth. Explicitly conclude every OTHER
+          # check-run under this name on this SHA as superseded instead of
+          # abandoning it — a likely contributor to devaudit#825's
+          # duplicate/stale check-run confusion. Best-effort: if the GitHub
+          # API restriction noted above (DevAudit-Installer#351) also blocks
+          # this PATCH in some contexts, a warning is logged and the
+          # (already-successful) refresh above is unaffected either way.
+          STALE_IDS=$(gh api "/repos/${{ github.repository }}/commits/${TARGET_SHA}/check-runs" \
+            --jq --arg name "$CHECK_NAME" --arg newId "$NEW_CHECK_RUN_ID" \
+            '[.check_runs[] | select(.name == $name and (.id | tostring) != $newId and .conclusion != "success") | .id] | .[]' \
+            2>/dev/null || true)
+          for STALE_ID in $STALE_IDS; do
+            if gh api "/repos/${{ github.repository }}/check-runs/${STALE_ID}" \
+              -X PATCH \
+              -f status=completed \
+              -f conclusion=neutral \
+              -f "output[title]=Superseded" \
+              -f "output[summary]=Superseded by a later approval check (run ${{ github.run_id }}, check-run ${NEW_CHECK_RUN_ID})." \
+              >/dev/null 2>&1; then
+              echo "Concluded stale ${CHECK_NAME} check run ${STALE_ID} as superseded."
+            else
+              echo "::warning::Could not conclude stale ${CHECK_NAME} check run ${STALE_ID} as superseded (non-fatal — the refreshed check run above is still authoritative)."
+            fi
+          done

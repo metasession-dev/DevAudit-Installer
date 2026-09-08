@@ -70,6 +70,7 @@ REQ-093 demonstrates the result. The chronological numbering logic can correctly
 | Stage execution number | The chronological ordinal within a source release, iteration, and stage, such as Iteration 2, UAT Execution 2 of 3.                        |
 | Timeline event         | A release, workflow, approval, supersession, deployment, or incident event shown in global chronology.                                     |
 | Inherited evidence     | Evidence owned by a constituent release or execution and included in the successor's approval scope by reference.                          |
+| Released vs. closed out | Two **independently observable** states, not one (devaudit-installer#786): `released` is the portal's own status field, reached when an admin (or CI's Option B auto-release) advances the release. "Closed out" is the *consumer repo's* state — its release ticket moved to `approved-releases/`, RTM flipped, main merged back to develop — driven by the portal's `release-closed` dispatch reaching `close-out-release.yml`. A release can be `released` on the portal while its consumer-repo ticket is still stuck in `pending-releases/`, if that one-shot dispatch was ever missed. `close-out-reconcile.yml`'s daily scheduled pass is what actually guarantees the two converge, independent of any single dispatch's fate — see `docs/issues/pending-releases-not-closed-out.md`. |
 
 ## Reviewer and auditor experience
 

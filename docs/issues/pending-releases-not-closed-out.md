@@ -1,5 +1,9 @@
 # Stale pending release tickets + cross-REQ commit scoping cause portal to show out-of-scope REQs
 
+## Update (devaudit-installer#786) — Option 1A had a single point of failure
+
+Option 1A below (automated close-out, implemented as the portal's `release-closed` `repository_dispatch` → `close-out-release.yml`) shipped and worked reliably for months. But it is a **single one-shot webhook with no consumer-visible retry** — and on project `wgb`, it silently failed to fire for two consecutive real releases (REQ-102, REQ-030-tracked), reproducing this doc's original failure mode (a pending ticket sitting stale in `compliance/pending-releases/` despite its code being live on `main`) through a **different path**: a missed/failed dispatch, not "the manual step was never performed." See `docs/release-lineage-and-test-execution-audit-model.md` for how the portal-side dispatch reliability gap was addressed, and `close-out-reconcile.yml` (this repo) for the consumer-side fix: a daily scheduled job that cross-checks `compliance/pending-releases/` against `origin/main` and triggers `close-out-release.yml` for anything demonstrably stale, independent of whether any individual dispatch fired. Event-driven automation and periodic reconciliation are complementary — the event-driven path stays fast for the common case; the reconciliation pass is what actually guarantees eventual consistency regardless of why any single dispatch was missed.
+
 ## Summary
 
 Two distinct issues cause the DevAudit portal to display out-of-scope REQs (REQ-083, REQ-084) alongside the current REQ (REQ-085) under "Evidence by requirement" for the REQ-085 release:

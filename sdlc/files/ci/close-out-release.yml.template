@@ -10,6 +10,16 @@
 #     release_pr }.
 #   - workflow_dispatch — manual catch-up for an already-released requirement.
 #
+# Neither trigger above is a scheduled reconciliation — the repository_dispatch
+# is a single one-shot webhook with no consumer-visible retry, and
+# workflow_dispatch requires a human to notice something's stale and run it.
+# devaudit-installer#786 — close-out-reconcile.yml is the scheduled fallback:
+# it runs daily, detects any release ticket whose REQ is demonstrably already
+# on origin/main but still sitting in compliance/pending-releases/ (i.e. this
+# workflow's dispatch was missed), and triggers this workflow's own
+# workflow_dispatch for it — see close-out-reconcile.yml.template and
+# docs/issues/pending-releases-not-closed-out.md.
+#
 # It merges origin/main into a branch from develop (devaudit#281), runs
 # scripts/close-out-release.sh for the requirement (flip the governing ticket +
 # RTM, move the governing ticket to approved-releases/, and move any absorbed

@@ -44,6 +44,7 @@ sdlc/
 │   │   ├── compliance-evidence.yml.template
 │   │   ├── post-deploy-prod.yml.template
 │   │   ├── close-out-release.yml.template    # Auto-close ticket on release (#60)
+│   │   ├── close-out-reconcile.yml.template  # Daily scheduled catch-up for a missed dispatch (#786)
 │   │   └── ci-status-fallback.yml.template
 │   ├── stacks/                               # Per-language adapter directories
 │   │   ├── _schema/adapter.schema.json       # JSON Schema for stack adapter manifests
