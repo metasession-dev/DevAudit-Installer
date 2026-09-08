@@ -94,6 +94,51 @@ export class GitHubProvider implements GitProvider {
     );
   }
 
+  async deleteSecret(cwd: string, name: string): Promise<void> {
+    if (this.preferGhCli && (await ghAvailable())) {
+      // `reject: false` — `gh secret delete` exits non-zero when the secret
+      // is already gone; that's a success state for a delete, not a failure.
+      await execa('gh', ['secret', 'delete', name], { cwd, reject: false });
+      return;
+    }
+    if (!this.token) {
+      throw new Error(
+        'Deleting a GitHub repo secret without `gh` CLI requires a GH_TOKEN/GITHUB_TOKEN env var. Install `gh` CLI to use this command.',
+      );
+    }
+    const meta = await this.getRepoMeta(cwd);
+    const res = await fetch(
+      `https://api.github.com/repos/${meta.owner}/${meta.name}/actions/secrets/${name}`,
+      { method: 'DELETE', headers: this.authHeaders() },
+    );
+    // 404 means the secret is already gone — that's the goal state, not an error.
+    if (!res.ok && res.status !== 404) {
+      throw new Error(`GitHub REST secret delete failed: HTTP ${res.status}`);
+    }
+  }
+
+  async deleteVariable(cwd: string, name: string): Promise<void> {
+    if (this.preferGhCli && (await ghAvailable())) {
+      // `reject: false` — same "already gone is a success" contract as
+      // `deleteSecret`.
+      await execa('gh', ['variable', 'delete', name], { cwd, reject: false });
+      return;
+    }
+    if (!this.token) {
+      throw new Error(
+        'Deleting a GitHub repo variable without `gh` CLI requires a GH_TOKEN/GITHUB_TOKEN env var. Install `gh` CLI to use this command.',
+      );
+    }
+    const meta = await this.getRepoMeta(cwd);
+    const res = await fetch(
+      `https://api.github.com/repos/${meta.owner}/${meta.name}/actions/variables/${name}`,
+      { method: 'DELETE', headers: this.authHeaders() },
+    );
+    if (!res.ok && res.status !== 404) {
+      throw new Error(`GitHub REST variable delete failed: HTTP ${res.status}`);
+    }
+  }
+
   async hasSecret(cwd: string, name: string): Promise<boolean> {
     // Best-effort probe used by install's dev-mode detection (#NN). Returns
     // false on any read failure — the safe default routes to operator mode,

@@ -41,6 +41,12 @@ function makeFakeProvider() {
       providerCalls.push({ method: 'hasSecret', args: [name] });
       return false;
     },
+    async deleteSecret(_cwd: string, name: string) {
+      providerCalls.push({ method: 'deleteSecret', args: [name] });
+    },
+    async deleteVariable(_cwd: string, name: string) {
+      providerCalls.push({ method: 'deleteVariable', args: [name] });
+    },
     async setDefaultBranch(_cwd: string, branch: string) {
       providerCalls.push({ method: 'setDefaultBranch', args: [branch] });
       return { changed: true };

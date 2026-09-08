@@ -265,3 +265,4 @@ The command starts immediately, but the full operator onboarding flow usually ta
 - [`docs/skills.md`](./skills.md) — the `requirements-aligner` skill that maintains `docs/SRS.md` after Step 3b's bootstrap.
 - [adding-a-stack.md](./adding-a-stack.md) / [adding-a-host.md](./adding-a-host.md) — adding new stacks or hosts.
 - [consuming-projects.md](./consuming-projects.md) — which consumers are polyglot-monorepo (`targets`) vs single-target.
+- [consuming-projects.md#offboarding-a-project](./consuming-projects.md#offboarding-a-project) — removing a project: `devaudit uninstall` reverses the steps this doc walks through.

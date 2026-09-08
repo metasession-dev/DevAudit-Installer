@@ -282,8 +282,9 @@ branches.
 
 **Git provider — also faked at the object level.** `install.test.ts`/`join.test.ts`
 inject `provider: makeFakeProvider()` (a hand-rolled object implementing
-`getRepoMeta/setSecret/setVariable/hasSecret/applyBranchProtection/createPullRequest`)
-that records `providerCalls[]`. This is the cleanest seam for asserting _which_ secrets
+`getRepoMeta/setSecret/setVariable/hasSecret/deleteSecret/deleteVariable/applyBranchProtection/createPullRequest`)
+that records `providerCalls[]`. `uninstall.test.ts` uses the same pattern, asserting on
+`deleteSecret`/`deleteVariable` calls specifically (devaudit-installer#778). This is the cleanest seam for asserting _which_ secrets
 and branch-protection calls were made without touching `gh` at all. Dev-mode tests use a
 `makeOnboardedProvider()` variant whose `hasSecret` returns `true`.
 
@@ -495,6 +496,10 @@ dependencies (tier 3) — which is exactly the coverage the current unit-only su
 | REQ-CLI-JOIN-002             | join pre-flight: refuses when sdlc-config.json is absent (exit 7)                                                                                           | Must     | `cli/src/commands/join.ts`                                                                                                    |
 | REQ-CLI-JOIN-003             | join runs developer-mode flow: skips 4/6/7/9, runs 8/10, prints developer done report                                                                       | Must     | `cli/src/install/index.ts`                                                                                                    |
 | REQ-CLI-JOIN-004             | join --dry-run and join -y propagation                                                                                                                      | Should   | `cli/src/index.ts`                                                                                                            |
+| REQ-CLI-UNINSTALL-001        | uninstall revokes the project's active API key(s), no-ops cleanly if the portal project is already gone                                                    | Must     | `cli/src/uninstall/index.ts`                                                                                                  |
+| REQ-CLI-UNINSTALL-002        | uninstall deletes the GitHub secrets/variables `install` wrote                                                                                              | Must     | `cli/src/lib/git-provider/github.ts`                                                                                          |
+| REQ-CLI-UNINSTALL-003        | uninstall removes the target from sdlc-config.json (delete file / collapse to flat / drop from targets[])                                                  | Must     | `cli/src/install/write-config.ts`                                                                                             |
+| REQ-CLI-UNINSTALL-004        | uninstall --target selection and multi-target ambiguity error                                                                                               | Should   | `cli/src/uninstall/index.ts`                                                                                                  |
 | REQ-CLI-UPDATE-001           | Sync framework templates into one consumer and report a summary, leaving the tree dirty                                                                     | Must     | `cli/src/commands/update.ts`                                                                                                  |
 | REQ-CLI-UPDATE-002           | Idempotency: re-running yields the same synced-file count and no errors                                                                                     | Must     | `cli/src/update/index.ts`                                                                                                     |
 | REQ-CLI-UPDATE-003           | Stage docs (\_common/\*.md) sync into SDLC/                                                                                                                 | Must     | `cli/src/update/stage-docs.ts`                                                                                                |
@@ -1006,6 +1011,42 @@ Black-box SRS for `devaudit install [path]` (the full interactive onboarding flo
 - **Given** `devaudit join --dry-run` on an onboarded repo **When** it runs **Then** the pre-flight `sdlc-config.json` check still applies (exit 7 if absent), the banner shows `DRY RUN`, and the developer-mode flow reports `planned`/`skipped` steps with no mutations. **Given** `devaudit join -y` **Then** `nonInteractive=true` is forwarded so step 3 reads config without prompting.
 - **Error paths:** Same exit-7 pre-flight as REQ-CLI-JOIN-002.
 - **Fixtures/env:** Onboarded fixture; assert no disk/network mutation under `--dry-run` and no prompt under `-y`.
+
+#### REQ-CLI-UNINSTALL-001 — `uninstall` revokes the project's active API key(s), no-ops cleanly if the portal project is already gone
+
+- **Priority:** Must — the counterpart to install's key issuance (REQ-CLI-INSTALL step 6); devaudit-installer#778.
+- **Source:** `cli/src/uninstall/index.ts` (`revokeApiKeyStep`), `cli/src/lib/devaudit-api.ts` (`DevAuditClient.revokeApiKey`, `getProjectBySlug`, `listApiKeys`)
+- **Preconditions / inputs:** A resolved target with a `devaudit.project_slug`; a valid user token.
+- **Given** `devaudit uninstall` on a repo whose project still exists on the portal **When** it runs **Then** every API key with `revoked_at: null` for that project is revoked via `DELETE /api/projects/{id}/api-keys/{keyId}`, and the step reports `ok` with the count revoked. **Given** the project no longer exists on the portal (e.g. deleted via the Portal's Danger Zone, metasession-dev/devaudit#827, which cascades its keys) **Then** `getProjectBySlug` returns `null` and the step reports `ok` with a "already revoked" message — not an error.
+- **Error paths:** A portal error other than "not found" (e.g. 401/403/5xx) surfaces as `warn`, not a hard failure — the remaining uninstall steps (secret/variable deletion, config removal) still run.
+- **Fixtures/env:** MSW mock of `/api/projects` and `/api/projects/:id/api-keys`; scenarios both with and without the project present.
+
+#### REQ-CLI-UNINSTALL-002 — `uninstall` deletes the GitHub secrets/variables `install` wrote
+
+- **Priority:** Must — leaves no dangling credentials in the disconnected repo.
+- **Source:** `cli/src/uninstall/index.ts` (`deleteSecretsStep`), `cli/src/lib/git-provider/github.ts` (`deleteSecret`, `deleteVariable`), `cli/src/lib/git-provider/types.ts`
+- **Preconditions / inputs:** A resolved `GitProvider` (or none, in which case the step is `skipped`).
+- **Given** a resolvable git provider **When** the step runs **Then** it deletes the target's `devaudit.api_key_secret` (or `DEVAUDIT_API_KEY` if unset), `DEVAUDIT_USER_TOKEN`, the `production_url_secret` if the target has one, and the `DEVAUDIT_BASE_URL` variable — via `gh secret delete`/`gh variable delete` when the `gh` CLI is available, else a REST `DELETE` against `/actions/secrets/{name}`/`/actions/variables/{name}`. Deleting an already-absent secret/variable is a success, not an error (gh's non-zero exit and REST's `404` are both treated as the goal state already holding).
+- **Error paths:** No `gh` CLI and no `GH_TOKEN`/`GITHUB_TOKEN` → throws (surfaces as the step failing) rather than silently skipping, since that's a real capability gap, not "already deleted." No git provider resolvable at all (e.g. no `origin` remote) → the whole step is `skipped`, matching install's own provider-unavailable handling.
+- **Fixtures/env:** `git-provider.test.ts` covers `deleteSecret`/`deleteVariable` for both the gh-CLI and REST-fallback paths, including the already-gone case; `uninstall.test.ts` asserts the fake provider receives the expected secret/variable names.
+
+#### REQ-CLI-UNINSTALL-003 — `uninstall` removes the target from sdlc-config.json
+
+- **Priority:** Must — the write-side counterpart to `writeSdlcConfig` (REQ-CLI-INSTALL step 4).
+- **Source:** `cli/src/install/write-config.ts` (`removeSdlcConfigTarget`), `cli/src/uninstall/index.ts` (`removeConfigStep`)
+- **Preconditions / inputs:** A resolved target name matching an entry in `resolveTargets(config)`.
+- **Given** the target being removed is the only one **When** the step runs **Then** `sdlc-config.json` is deleted entirely. **Given** exactly one target remains after removal **Then** the file is rewritten collapsed back to the legacy flat single-target shape (`targets` dropped, top-level `stack`/`working_directory`/`source_dirs`/`production_url_secret`/`e2e_port`/`devaudit`/`project_slug` set from the remaining target). **Given** more than one target remains **Then** the `targets` array is rewritten with just that entry dropped, all other fields untouched.
+- **Error paths:** No `sdlc-config.json` at the repo root → `runUninstall` throws before reaching this step ("nothing to uninstall"). Target name not found in the config (already removed) → step reports `warn`, not a hard failure.
+- **Fixtures/env:** `write-config.test.ts` covers all three shapes (delete file / collapse to flat / drop from `targets[]`) plus the no-match and no-file no-ops.
+
+#### REQ-CLI-UNINSTALL-004 — `uninstall --target` selection and multi-target ambiguity error
+
+- **Priority:** Should — polyglot-monorepo (#689) disambiguation, mirroring install's `--add-target`.
+- **Source:** `cli/src/uninstall/index.ts` (`selectTarget`), `cli/src/index.ts` (`uninstall` command's `--target` option)
+- **Preconditions / inputs:** `sdlc-config.json` with either an implicit single target or an explicit `targets` array.
+- **Given** a single-target config **When** `uninstall` runs with no `--target` **Then** that one target is selected automatically. **Given** a multi-target config **When** `uninstall --target <name>` is passed, matching either a target's `name` or its `devaudit.project_slug` **Then** that target is selected and the others are left untouched in `sdlc-config.json`.
+- **Error paths:** Multi-target config with no `--target` passed → throws listing the available target names, asking the operator to pick one; never guesses. `--target <name>` matching nothing → throws listing what IS available.
+- **Fixtures/env:** `uninstall.test.ts` "--target selects among multiple configured targets" and "errors asking for --target when multiple targets exist and none is specified".
 
 #### Assumptions — Install/Join
 
