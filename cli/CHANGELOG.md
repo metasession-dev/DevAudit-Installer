@@ -4,6 +4,8 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+## [1.3.0] — 2026-09-08
+
 ### Added
 
 - **#778** — new `devaudit uninstall [path] [--target <name>]` command, the counterpart to `devaudit install`: revokes the project's active API key(s) on the portal (`DevAuditClient.revokeApiKey`, no-ops cleanly if the portal project was already deleted), deletes the GitHub secrets/variables `install` wrote (new `GitProvider.deleteSecret`/`deleteVariable`, gh CLI + REST fallback), and removes the target from `sdlc-config.json` (`removeSdlcConfigTarget`, new) — deleting the file entirely if it was the only target, or collapsing back to the flat single-target shape when one remains. Deliberately leaves branch protection and synced CI/SDLC files in place. Companion to the portal-side project hard-delete feature, metasession-dev/devaudit#827.
