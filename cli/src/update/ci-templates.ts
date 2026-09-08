@@ -20,6 +20,10 @@ const CI_TEMPLATES = [
   'feature-e2e.yml.template',
   'close-out-release.yml.template',
   'close-out-completion.yml.template',
+  // devaudit-installer#786: scheduled safety net — catches a release
+  // whose one-shot release-closed dispatch was ever missed, by
+  // periodically cross-checking pending release tickets against origin/main.
+  'close-out-reconcile.yml.template',
   // DevAudit-Installer#98 WS3: quarterly cron → auto-PR with the
   // periodic-review.md regenerated from local stats.
   'periodic-review.yml.template',
