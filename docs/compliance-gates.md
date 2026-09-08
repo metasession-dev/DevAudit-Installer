@@ -38,6 +38,12 @@ Tracked releases and housekeeping releases both rely on the same core verificati
 - `DevAudit Release Approval` should stay red until the portal release is approved for UAT
 - once UAT approval is granted, rerunning the approval workflow should turn the gate green
 
+#### `DevAudit Release Approval` re-dispatch/check-run lifecycle (devaudit-installer#788)
+
+The portal's `release-approved` `repository_dispatch` re-triggers `check-release-approval.yml`, but `repository_dispatch` events carry no native pull-request context. GitHub's Feb-2025 check-run API changes (DevAudit-Installer#351) also forbid this re-trigger from PATCHing the *original* `pull_request`-triggered failed check run directly — so the workflow instead **posts a fresh `success` check run** on the approved SHA, then explicitly **concludes every other `DevAudit Release Approval` check run on that same SHA as `conclusion: neutral`** ("Superseded by a later approval check…") rather than leaving the pre-approval failed/pending one dangling. Concluding the stale run is best-effort — if it can't be patched for some reason, a `::warning::` annotation is logged and the fresh check run (already posted) remains authoritative regardless.
+
+**PR resolution when `client_payload` is incomplete:** the workflow resolves which PR/SHA to refresh from `client_payload.approved_sha`/`client_payload.release_pr` when present. If both are missing or unresolvable, it falls back to "the most-recently-updated open PR against `main`" — a heuristic that could target the wrong PR if two release PRs are open against `main` concurrently. This fallback now emits a visible `::error::` annotation on the workflow run when it's used, rather than guessing silently.
+
 ### After merge to `main`
 
 - the post-deploy workflow should upload production smoke evidence
