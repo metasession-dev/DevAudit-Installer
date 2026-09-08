@@ -4,6 +4,17 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+## [1.4.0] — 2026-09-08
+
+### Added
+
+- **#786** — new scheduled `close-out-reconcile.yml` workflow (daily + manual `workflow_dispatch`): catches a release whose one-shot portal `release-closed` dispatch was ever missed by cross-checking `compliance/pending-releases/` against `origin/main`, triggering `close-out-release.yml`'s existing reconciliation for anything demonstrably stale and opening a tracking issue for auditability. Complementary defense-in-depth to metasession-dev/devaudit#833's dispatch-reliability fix, not a substitute for it.
+
+### Fixed
+
+- **#787** — the pre-merge "critical" and post-deploy "regression" E2E tiers now carry distinct portal check labels (`E2E Critical (pre-merge)` vs `E2E Regression (post-deploy production)`) instead of the identical `E2E Regression` label regardless of tier — a real incident contributor, since a regression-tier check is structurally guaranteed absent on a develop→main PR (production doesn't exist yet) with no way to distinguish "fine, hasn't run" from "something's wrong." Also removed a dead `push`-triggered tier-derivation branch that could never execute under the shipped `e2e-regression.yml` reference template.
+- **#788** — `check-release-approval.yml`'s `release-approved` re-dispatch now explicitly concludes the stale pre-approval check-run as `conclusion: neutral` ("superseded") instead of leaving it dangling forever alongside the fresh success check-run — a likely direct contributor to metasession-dev/devaudit#825's duplicate/stale check-run confusion. The PR-resolution fallback (used when the portal's `client_payload` is incomplete) now emits a visible `::error::` annotation instead of silently guessing which PR to target.
+
 ## [1.3.0] — 2026-09-08
 
 ### Added
