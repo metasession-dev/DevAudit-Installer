@@ -121,5 +121,10 @@ jobs:
           chmod +x sdlc/files/_common/scripts/extract-release-metadata.sh
           bash sdlc/files/_common/scripts/extract-release-metadata.test.sh
 
+      - name: Run close-out-reconcile tests
+        run: |
+          chmod +x sdlc/files/_common/scripts/close-out-reconcile.sh
+          bash sdlc/files/_common/scripts/close-out-reconcile.test.sh
+
       - name: Run release pipeline E2E fixture
         run: bash tests/release-pipeline-e2e/run.sh
