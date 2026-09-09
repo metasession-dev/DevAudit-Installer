@@ -1043,6 +1043,94 @@ describe('syncProject — native TS sync against a fixture', () => {
     }
   }, 60_000);
 
+  // DevAudit-Installer#800 — same dangling-env: risk as BUILD_ENV/
+  // TYPESCRIPT_CHECK_ENV above, but on the Python stack's Quality Gates job
+  // itself this time: unlike the generic/node ci.yml and feature-e2e.yml
+  // templates' job-level env: blocks (both followed by hardcoded
+  // DEVAUDIT_BASE_URL_VAR/DEVAUDIT_API_KEY lines, so an empty
+  // database_env/app_env is harmless there), the Python template's Quality
+  // Gates job had no such fallback content — database_env: {} and
+  // app_env: {} (the default on every fresh install) rendered a bare
+  // `env:` with nothing after it. js-yaml parses that fine, but GitHub
+  // Actions' own schema validator rejects it outright ("Unexpected value
+  // ''"), scheduling zero jobs — confirmed via a real `gh workflow run`
+  // dispatch against the onboarded mission-control-api repo, the same class
+  // of break `expectAllWorkflowsValidYaml` alone can't catch.
+  it('does not emit a dangling env: key on the Python Quality Gates job when database_env/app_env are empty', async () => {
+    const dir = await fs.mkdtemp(join(tmpdir(), 'cli-update-emptypyenv-'));
+    try {
+      await fs.writeFile(
+        join(dir, 'sdlc-config.json'),
+        JSON.stringify({
+          project_slug: 'fixture-api',
+          stack: 'python',
+          host: 'railway',
+          python_version: '3.11',
+          runner: 'ubuntu-latest',
+          working_directory: '.',
+          source_dirs: 'src/ tests/',
+          sast_baseline: 0,
+          accepted_dep_risks: '',
+          production_url_secret: 'FIXTURE_API_PROD_URL',
+          database_service: '',
+          database_image: '',
+          database_port: '',
+          database_env: {},
+          app_env: {},
+        }),
+      );
+      await fs.mkdir(join(dir, '.github', 'workflows'), { recursive: true });
+      await syncProject(dir);
+
+      const ci = await fs.readFile(join(dir, '.github', 'workflows', 'ci.yml'), 'utf-8');
+      expect(ci).not.toMatch(/env:[ \t]*\n[ \t]*\n/);
+      const qgBlock = ci.slice(ci.indexOf('name: Quality Gates'), ci.indexOf('steps:'));
+      expect(qgBlock).not.toMatch(/^\s*env:\s*$/m);
+
+      await expectAllWorkflowsValidYaml(dir);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it('renders custom env on the Python Quality Gates job when database_env/app_env are set (#800)', async () => {
+    const dir = await fs.mkdtemp(join(tmpdir(), 'cli-update-pyenv-'));
+    try {
+      await fs.writeFile(
+        join(dir, 'sdlc-config.json'),
+        JSON.stringify({
+          project_slug: 'fixture-api',
+          stack: 'python',
+          host: 'railway',
+          python_version: '3.11',
+          runner: 'ubuntu-latest',
+          working_directory: '.',
+          source_dirs: 'src/ tests/',
+          sast_baseline: 0,
+          accepted_dep_risks: '',
+          production_url_secret: 'FIXTURE_API_PROD_URL',
+          database_service: 'postgres',
+          database_image: 'postgres:16',
+          database_port: '5432:5432',
+          database_env: { DATABASE_URL: 'postgresql://localhost/test' },
+          app_env: { FEATURE_FLAG_X: 'true' },
+        }),
+      );
+      await fs.mkdir(join(dir, '.github', 'workflows'), { recursive: true });
+      await syncProject(dir);
+
+      const ci = await fs.readFile(join(dir, '.github', 'workflows', 'ci.yml'), 'utf-8');
+      const qgBlock = ci.slice(ci.indexOf('name: Quality Gates'), ci.indexOf('steps:'));
+      expect(qgBlock).toContain('env:');
+      expect(qgBlock).toContain('DATABASE_URL: postgresql://localhost/test');
+      expect(qgBlock).toContain('FEATURE_FLAG_X: true');
+
+      await expectAllWorkflowsValidYaml(dir);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
   it('renders plain npm ci when install_flags is unset, and appends the flag when set (#759)', async () => {
     const base = {
       project_slug: 'fixture-app',

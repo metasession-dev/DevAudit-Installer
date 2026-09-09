@@ -469,6 +469,23 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
       PR_PATHS_IGNORE: prPathsIgnoreBlock,
       DATABASE_ENV: cfg.database_env ? indentEnvBlock({ ...cfg.database_env }, 6) : '',
       APP_ENV: cfg.app_env ? indentEnvBlock({ ...cfg.app_env }, 6) : '',
+      // Same shape as BUILD_ENV/TYPESCRIPT_CHECK_ENV below: the Python
+      // Quality Gates job's env: block (unlike the generic/node ci.yml and
+      // feature-e2e.yml templates' job-level env: blocks) has no hardcoded
+      // lines after DATABASE_ENV/APP_ENV to keep it non-empty, so a config
+      // with both database_env and app_env unset rendered a bare `env:`
+      // with nothing under it — invalid YAML that failed to parse at all
+      // (DevAudit-Installer#800). Supplies its own header, only when there's
+      // something to put under it.
+      QUALITY_GATES_ENV: (() => {
+        const combined = [
+          cfg.database_env ? indentEnvBlock({ ...cfg.database_env }, 6) : '',
+          cfg.app_env ? indentEnvBlock({ ...cfg.app_env }, 6) : '',
+        ]
+          .filter(Boolean)
+          .join('\n');
+        return combined ? `    env:\n${combined}` : '';
+      })(),
       // Unlike DATABASE_ENV/APP_ENV (both followed by more hardcoded env
       // lines in the job-level `env:` block, so an empty result there is
       // harmless), the Build Check step's `env:` key has ONLY this block as

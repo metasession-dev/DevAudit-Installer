@@ -49,9 +49,7 @@ jobs:
         ports:
           - {{DATABASE_PORT}}
 
-    env:
-{{DATABASE_ENV}}
-{{APP_ENV}}
+{{QUALITY_GATES_ENV}}
 
     steps:
       - uses: actions/checkout@v6
