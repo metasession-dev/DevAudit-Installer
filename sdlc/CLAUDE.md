@@ -93,4 +93,4 @@ devaudit update v1.x.0 ../wawagardenbar-app
 
 This tags DevAudit, copies all templates (workflow files, AI rules, hooks, scripts, CI templates), and updates tag references in the consuming project's CI workflows. Review the diff in each project before committing.
 
-META-AGENT / META-ATS / META-JOBS onboarding attempts were reverted (see [docs/consuming-projects.md](../docs/consuming-projects.md)); pass their paths to the same command if and when they return as live consumers.
+`mission-control` and `mission-control-api` (the META-AGENT repos) were re-onboarded from scratch after a prior stopped/reverted attempt; `fleet-control` (also part of META-AGENT) is deliberately not onboarded. META-ATS's onboarding attempt was likewise stopped/reverted and remains unonboarded — see [docs/consuming-projects.md](../docs/consuming-projects.md) for the current active-consumer list; pass its path to the same command if and when it returns as a live consumer.
