@@ -1131,6 +1131,82 @@ describe('syncProject — native TS sync against a fixture', () => {
     }
   }, 60_000);
 
+  // DevAudit-Installer#801 — mypy_scoped_diff opt-in.
+  it('renders the plain whole-tree mypy check when mypy_scoped_diff is absent (#801)', async () => {
+    const dir = await fs.mkdtemp(join(tmpdir(), 'cli-update-mypyplain-'));
+    try {
+      await fs.writeFile(
+        join(dir, 'sdlc-config.json'),
+        JSON.stringify({
+          project_slug: 'fixture-api',
+          stack: 'python',
+          host: 'railway',
+          python_version: '3.11',
+          runner: 'ubuntu-latest',
+          working_directory: '.',
+          source_dirs: 'src/ tests/',
+          sast_baseline: 0,
+          accepted_dep_risks: '',
+          production_url_secret: 'FIXTURE_API_PROD_URL',
+          database_service: '',
+          database_image: '',
+          database_port: '',
+        }),
+      );
+      await fs.mkdir(join(dir, '.github', 'workflows'), { recursive: true });
+      await syncProject(dir);
+
+      const ci = await fs.readFile(join(dir, '.github', 'workflows', 'ci.yml'), 'utf-8');
+      expect(ci).toContain('        run: mypy src/ tests/');
+      expect(ci).not.toContain('scoped type check');
+      expect(ci).not.toContain('git worktree add');
+
+      await expectAllWorkflowsValidYaml(dir);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it('renders the scoped-diff mypy check when mypy_scoped_diff is true (#801)', async () => {
+    const dir = await fs.mkdtemp(join(tmpdir(), 'cli-update-mypyscoped-'));
+    try {
+      await fs.writeFile(
+        join(dir, 'sdlc-config.json'),
+        JSON.stringify({
+          project_slug: 'fixture-api',
+          stack: 'python',
+          host: 'railway',
+          python_version: '3.11',
+          runner: 'ubuntu-latest',
+          working_directory: '.',
+          source_dirs: 'src/ tests/',
+          sast_baseline: 0,
+          accepted_dep_risks: '',
+          production_url_secret: 'FIXTURE_API_PROD_URL',
+          database_service: '',
+          database_image: '',
+          database_port: '',
+          mypy_scoped_diff: true,
+        }),
+      );
+      await fs.mkdir(join(dir, '.github', 'workflows'), { recursive: true });
+      await syncProject(dir);
+
+      const ci = await fs.readFile(join(dir, '.github', 'workflows', 'ci.yml'), 'utf-8');
+      const mypyBlock = ci.slice(ci.indexOf('name: Type Check (mypy)'), ci.indexOf('name: SAST Scan'));
+      expect(mypyBlock).toContain('run: |');
+      expect(mypyBlock).toContain('BASE="${{ github.event.pull_request.base.sha || github.event.before }}"');
+      expect(mypyBlock).toContain('git diff --name-only --diff-filter=ACMR "$BASE"...HEAD -- src/ tests/');
+      expect(mypyBlock).toContain('git worktree add --detach --quiet "$BASE_TREE" "$BASE"');
+      expect(mypyBlock).toContain('Type errors introduced by this change');
+      expect(mypyBlock).not.toContain('run: mypy src/ tests/');
+
+      await expectAllWorkflowsValidYaml(dir);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
   it('renders plain npm ci when install_flags is unset, and appends the flag when set (#759)', async () => {
     const base = {
       project_slug: 'fixture-app',

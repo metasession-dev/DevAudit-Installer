@@ -30,7 +30,8 @@
       "python_version": "3.11",
       "source_dirs": "src/",
       "sast_baseline": 0,
-      "accepted_dep_risks": ""
+      "accepted_dep_risks": "",
+      "mypy_scoped_diff": false
     }
   }
 }

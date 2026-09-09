@@ -79,7 +79,7 @@ jobs:
 
       - name: Type Check (mypy)
         id: mypy
-        run: mypy {{SOURCE_DIRS}}
+{{TYPE_CHECK_RUN}}
 
       # ── Gate 3: SAST (Semgrep) ──
 
