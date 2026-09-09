@@ -49,9 +49,7 @@ jobs:
         ports:
           - {{DATABASE_PORT}}
 
-    env:
-{{DATABASE_ENV}}
-{{APP_ENV}}
+{{QUALITY_GATES_ENV}}
 
     steps:
       - uses: actions/checkout@v6
@@ -81,7 +79,7 @@ jobs:
 
       - name: Type Check (mypy)
         id: mypy
-        run: mypy {{SOURCE_DIRS}}
+{{TYPE_CHECK_RUN}}
 
       # ── Gate 3: SAST (Semgrep) ──
 

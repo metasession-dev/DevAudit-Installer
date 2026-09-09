@@ -41,6 +41,9 @@ on:
       specs:
         description: 'Optional: space-separated spec paths or --grep pattern for a scoped run. Empty = full regression.'
         required: false
+      runner_label:
+        description: 'Optional one-run runner label override. Blank uses repository CI_RUNNER_LABEL.'
+        required: false
 
 permissions:
   contents: read
@@ -60,7 +63,11 @@ jobs:
         github.event.deployment.environment == 'prod' ||
         endsWith(github.event.deployment.environment, '/ production') ||
         endsWith(github.event.deployment.environment, '/production')))
-    runs-on: ubuntu-latest # adapt to your runner; e.g. self-hosted, ubuntu-24.04
+    # Honors the same CI_RUNNER_LABEL repository variable every devaudit-
+    # generated workflow reads (ci.yml, feature-e2e.yml, ...) — falls back to
+    # 'github-ci' -> 'ubuntu-latest' when unset, so this is a no-op for a
+    # consumer with no self-hosted runner configured.
+    runs-on: ${{ (inputs.runner_label || vars.CI_RUNNER_LABEL || 'github-ci') == 'github-ci' && 'ubuntu-latest' || (inputs.runner_label || vars.CI_RUNNER_LABEL || 'github-ci') }}
     # The full regression target is about 35 minutes. Leave time to archive
     # partial output before GitHub terminates the job.
     timeout-minutes: 55
