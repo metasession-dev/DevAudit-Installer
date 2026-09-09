@@ -76,6 +76,14 @@ interface SdlcConfig {
   // Optional; absent → no env: block rendered (byte-identical to before
   // this field existed). DevAudit-Installer#759.
   readonly typescript_check_env?: Readonly<Record<string, string>>;
+  // Python stack only. When true, "Type Check (mypy)" fails only on new
+  // mypy findings a change introduces (diffed against the same files at
+  // the PR/push's merge base), instead of a whole-tree `mypy {{SOURCE_DIRS}}`
+  // that is permanently red once a codebase accumulates a legacy findings
+  // backlog and tells a change nothing about itself. Optional; absent/false
+  // → the plain whole-tree check, byte-identical to before this field
+  // existed. DevAudit-Installer#801.
+  readonly mypy_scoped_diff?: boolean;
   // Flags appended to `npm ci` in "Install dependencies (skip if lockfile
   // unchanged)" — e.g. `--legacy-peer-deps` for a project whose lockfile
   // has a peer-dep mismatch npm can't resolve strictly. Optional; absent →
@@ -269,6 +277,84 @@ function buildFeatureE2eTestStep(cfg: SdlcConfig): string {
   lines.push('          REQ_ID="${{ needs.detect-req.outputs.req_id }}"');
   lines.push('          npx playwright test --grep "$REQ_ID" --reporter=json,html');
   return lines.join('\n');
+}
+
+/**
+ * The "Type Check (mypy)" step's `run:` content — DevAudit-Installer#801.
+ *
+ * Default: a plain `run: mypy {{SOURCE_DIRS}}`, byte-identical to before
+ * `mypy_scoped_diff` existed.
+ *
+ * When `mypy_scoped_diff: true`: diffs mypy's output on changed Python
+ * files against the same files at the merge base, failing only on findings
+ * the change introduces — a whole-tree run is permanently red once a
+ * codebase accumulates a legacy findings backlog and tells a change
+ * nothing about itself. Originated as a hand-written, unpatched local
+ * customization in a consumer repo that a `devaudit install
+ * --force-team-config` resync silently reverted (never having been
+ * captured via `.devaudit-patches/`); promoted here so it's no longer a
+ * fork any resync can wipe out.
+ */
+function buildTypeCheckRun(scoped: boolean, sourceDirs: string): string {
+  if (!scoped) return `        run: mypy ${sourceDirs}`;
+  return [
+    '        run: |',
+    '          # mypy --strict carries pre-existing findings across many files,',
+    '          # so a whole-tree run can only ever be red and tells a change',
+    '          # nothing about itself. This gate enforces types on what the',
+    '          # change actually touches, which keeps new code honest while the',
+    '          # backlog is worked down separately.',
+    '          #',
+    '          # --follow-imports=silent still analyses imported modules, so a',
+    '          # real cross-module type error surfaces; it just does not report',
+    "          # those modules' own pre-existing findings.",
+    '          set -euo pipefail',
+    "          BASE=\"${{ github.event.pull_request.base.sha || github.event.before }}\"",
+    '          if [ -z "$BASE" ] || ! git cat-file -e "${BASE}^{commit}" 2>/dev/null; then',
+    '            echo "No usable base commit to diff against — skipping scoped type check."',
+    '            exit 0',
+    '          fi',
+    '          mapfile -t FILES < <(',
+    `            git diff --name-only --diff-filter=ACMR "$BASE"...HEAD -- ${sourceDirs} \\`,
+    "              | grep -E '\\.py$' || true",
+    '          )',
+    '          if [ "${#FILES[@]}" -eq 0 ]; then',
+    `            echo "No Python files changed under ${sourceDirs}."`,
+    '            exit 0',
+    '          fi',
+    '          echo "Type-checking ${#FILES[@]} changed file(s)."',
+    '',
+    '          # Compare against the same files at the merge base and fail only',
+    '          # on findings this change introduces. Scoping to changed files',
+    '          # alone is not enough: a formatting sweep touches hundreds of',
+    '          # files it does not otherwise alter, and every pre-existing error',
+    '          # in them would land on whoever ran the formatter.',
+    '          #',
+    '          # Line numbers move when code is reformatted, so they are',
+    '          # stripped before comparing — a finding is identified by file,',
+    '          # rule and text. Strip positions from both the location prefix',
+    '          # and the message body: mypy writes things like "already defined',
+    '          # on line 130", and a reformat shifts that number without',
+    '          # changing the finding.',
+    '          norm() {',
+    "            sed -E 's/:[0-9]+:[0-9]+:/:/; s/:[0-9]+:/:/; s/line [0-9]+/line N/g' | sort -u",
+    '          }',
+    '',
+    '          mypy --follow-imports=silent "${FILES[@]}" 2>&1 | tee mypy-head.raw | norm > mypy-head.txt || true',
+    '',
+    '          BASE_TREE="$(mktemp -d)"',
+    '          git worktree add --detach --quiet "$BASE_TREE" "$BASE"',
+    '          ( cd "$BASE_TREE" && mypy --follow-imports=silent $(for f in "${FILES[@]}"; do [ -f "$f" ] && printf \'%s \' "$f"; done) 2>&1 || true ) | norm > mypy-base.txt',
+    '          git worktree remove --force "$BASE_TREE"',
+    '',
+    "          NEW=\"$(comm -13 mypy-base.txt mypy-head.txt | grep -E 'error:' || true)\"",
+    '          if [ -n "$NEW" ]; then',
+    '            echo "::error::Type errors introduced by this change:"',
+    '            echo "$NEW"',
+    '            exit 1',
+    '          fi',
+    '          echo "No new type errors. ($(grep -c \'error:\' mypy-head.raw || echo 0) pre-existing in the touched files.)"',
+  ].join('\n');
 }
 
 function buildDbUriStep(dbService: string, dbPort: string): string {
@@ -469,6 +555,24 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
       PR_PATHS_IGNORE: prPathsIgnoreBlock,
       DATABASE_ENV: cfg.database_env ? indentEnvBlock({ ...cfg.database_env }, 6) : '',
       APP_ENV: cfg.app_env ? indentEnvBlock({ ...cfg.app_env }, 6) : '',
+      // Same shape as BUILD_ENV/TYPESCRIPT_CHECK_ENV below: the Python
+      // Quality Gates job's env: block (unlike the generic/node ci.yml and
+      // feature-e2e.yml templates' job-level env: blocks) has no hardcoded
+      // lines after DATABASE_ENV/APP_ENV to keep it non-empty, so a config
+      // with both database_env and app_env unset rendered a bare `env:`
+      // with nothing under it — invalid YAML that failed to parse at all
+      // (DevAudit-Installer#800). Supplies its own header, only when there's
+      // something to put under it.
+      QUALITY_GATES_ENV: (() => {
+        const combined = [
+          cfg.database_env ? indentEnvBlock({ ...cfg.database_env }, 6) : '',
+          cfg.app_env ? indentEnvBlock({ ...cfg.app_env }, 6) : '',
+        ]
+          .filter(Boolean)
+          .join('\n');
+        return combined ? `    env:\n${combined}` : '';
+      })(),
+      TYPE_CHECK_RUN: buildTypeCheckRun(Boolean(cfg.mypy_scoped_diff), cfg.source_dirs),
       // Unlike DATABASE_ENV/APP_ENV (both followed by more hardcoded env
       // lines in the job-level `env:` block, so an empty result there is
       // harmless), the Build Check step's `env:` key has ONLY this block as
