@@ -285,6 +285,77 @@ EOF
   rm -rf "$(dirname "$dir")"
 }
 
+# ── Case 5: reused REQ ID — ticket lives in superseded-releases/ with an
+#    addendum for a distinct, later, already-shipped release (devaudit-
+#    installer#783) ──────────────────────────────────────────────────────────
+{
+  dir="$(mktemp -d)/cli-close-out-fixture-5"
+  mkdir -p "$dir/compliance/pending-releases" "$dir/compliance/approved-releases" "$dir/compliance/superseded-releases"
+  cd "$dir"
+  git init -q --initial-branch=main >/dev/null
+  git config user.email "test@example.com"
+  git config user.name "test"
+  cat > compliance/RTM.md <<'EOF'
+# Requirements Traceability Matrix
+
+| REQ-ID  | Source | Risk   | Evidence                       | Status                   | Owner   | Date       |
+| ------- | ------ | ------ | ------------------------------- | ------------------------ | ------- | ---------- |
+| REQ-030 | #100   | MEDIUM | compliance/evidence/REQ-030/    | SUPERSEDED (by REQ-031)  | thomp@. | 2026-04-25 |
+EOF
+  cat > compliance/superseded-releases/RELEASE-TICKET-REQ-030.md <<'EOF'
+# Release Ticket: REQ-030
+
+**Status:** SUPERSEDED
+**Superseded by:** REQ-031
+**DevAudit Release:** REQ-030
+
+> **2026-09-07 addendum:** an unrelated E2E selector-collision fix touching
+> this REQ's spec file was authored and released separately.
+- **Absorbed predecessor releases:** none
+EOF
+  git add -A
+  git commit -q -m "fixture: reused REQ-030 with superseded original scope"
+  unset DEVAUDIT_API_KEY DEVAUDIT_BASE_URL || true
+
+  bash "$HELPER" REQ-030 --release-pr 710 >/dev/null 2>&1 || true
+
+  # Original scope's Status/location must be untouched.
+  [ -f compliance/superseded-releases/RELEASE-TICKET-REQ-030.md ] \
+    && assert_eq "ticket stays in superseded-releases/" "yes" "yes" \
+    || assert_eq "ticket stays in superseded-releases/" "yes" "no"
+  grep -qF '**Status:** SUPERSEDED' compliance/superseded-releases/RELEASE-TICKET-REQ-030.md \
+    && assert_eq "original top-level Status untouched" "yes" "yes" \
+    || assert_eq "original top-level Status untouched" "yes" "no"
+  [ -f compliance/approved-releases/RELEASE-TICKET-REQ-030.md ] \
+    && assert_eq "ticket NOT duplicated into approved-releases/" "no" "yes" \
+    || assert_eq "ticket NOT duplicated into approved-releases/" "no" "no"
+
+  # Addendum status recorded distinctly.
+  grep -qF '**Addendum release status:** RELEASED' compliance/superseded-releases/RELEASE-TICKET-REQ-030.md \
+    && assert_eq "addendum release status recorded" "yes" "yes" \
+    || assert_eq "addendum release status recorded" "yes" "no"
+  grep -qF '**Addendum release PR:** #710' compliance/superseded-releases/RELEASE-TICKET-REQ-030.md \
+    && assert_eq "addendum release PR recorded" "yes" "yes" \
+    || assert_eq "addendum release PR recorded" "yes" "no"
+
+  # RTM row: original SUPERSEDED status preserved, addendum note appended.
+  row=$(grep -m1 -E "^\| REQ-030 " compliance/RTM.md || true)
+  col5=$(echo "$row" | awk -F '|' '{gsub(/^[[:space:]]+|[[:space:]]+$/,"",$6); print $6}')
+  case "$col5" in
+    SUPERSEDED*) assert_eq "RTM row keeps SUPERSEDED status" "SUPERSEDED" "SUPERSEDED" ;;
+    *) assert_eq "RTM row keeps SUPERSEDED status" "SUPERSEDED" "$col5" ;;
+  esac
+  echo "$col5" | grep -qF 'Addendum: RELEASED' \
+    && assert_eq "RTM row carries addendum note" "yes" "yes" \
+    || assert_eq "RTM row carries addendum note" "yes" "no"
+
+  # Idempotency: running again is a no-op, no duplicate addendum block.
+  bash "$HELPER" REQ-030 --release-pr 710 >/dev/null 2>&1 || true
+  count=$(grep -cF '**Addendum release status:** RELEASED' compliance/superseded-releases/RELEASE-TICKET-REQ-030.md || true)
+  assert_eq "addendum close-out is idempotent (no duplicate line)" "1" "$count"
+  rm -rf "$(dirname "$dir")"
+}
+
 echo
 echo "Result: $PASS passed, $FAIL failed"
 [ "$FAIL" = "0" ]

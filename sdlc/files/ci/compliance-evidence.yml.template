@@ -387,6 +387,22 @@ jobs:
             *)          TIER_LABEL="E2E Regression" ;;
           esac
 
+          # devaudit-installer#798 — the post-deploy regression tier is
+          # structurally incapable of completing before a release's UAT
+          # approval (it can't run until *after* a production deployment,
+          # which can't happen until UAT is approved) but was reported as a
+          # blocking required check anyway (report-release-check.sh's
+          # REQUIRED default is "true" and this call never overrode it) —
+          # deadlocking every release's UAT approval on a check that is, by
+          # this project's own 3-tier E2E gating model, explicitly the
+          # non-blocking Should/Could tier. Only the pre-merge critical tier
+          # blocks; the post-deploy regression tier is evidence, not a gate.
+          case "$TIER" in
+            critical)   CHECK_REQUIRED=true ;;
+            regression) CHECK_REQUIRED=false ;;
+            *)          CHECK_REQUIRED=true ;;
+          esac
+
           # Common flags for upload-evidence.sh. Branch + SHA come from
           # the triggering run, not from this workflow_run dispatch.
           FLAGS="--create-release-if-missing --environment ${E2E_ENVIRONMENT} \
@@ -465,7 +481,40 @@ jobs:
               exit 0
             fi
             if [ "$PRIOR_EVENT" = "deployment_status" ]; then
-              echo "::error::Deployment-origin E2E evidence requires tagged or in-scope REQ attribution; refusing _compliance-docs fallback."
+              # devaudit-installer#807 — neither an in-scope pending ticket
+              # nor a completed regression-run artifact answered "which
+              # REQ" (e.g. the deploy is the close-out commit itself, which
+              # moved the ticket out of pending-releases/ before this ran).
+              # Before giving up, ask git: which REQ's commit does this
+              # deployed SHA most recently descend from? This is provable
+              # ancestry, not a guess — `git log -1 --grep` bounded at the
+              # deployed SHA finds the *nearest* tagged commit, so it can't
+              # reach across an unrelated REQ's history. Mirrors the same
+              # [REQ-XXX] / Ref: REQ-XXX convention validate-commits.sh
+              # already enforces on every tracked commit — this is the same
+              # source of truth the rest of the framework already trusts
+              # for REQ attribution, not a new heuristic.
+              NEAREST_REQ=$(git log -1 --format=%s --grep='\[REQ-[0-9]{3,}\]' -E \
+                "${{ github.event.workflow_run.head_sha }}" 2>/dev/null \
+                | grep -oE '\[REQ-[0-9]+\]' | tr -d '[]' || true)
+              if [ -z "$NEAREST_REQ" ]; then
+                # Fall back to the Ref: trailer form for commits (e.g.
+                # compliance close-out commits) that cite the REQ in a
+                # trailer, not the subject.
+                NEAREST_REQ=$(git log -1 --format=%B --grep='^Ref: REQ-[0-9]{3,}' -E \
+                  "${{ github.event.workflow_run.head_sha }}" 2>/dev/null \
+                  | grep -oE 'REQ-[0-9]+' | head -1 || true)
+              fi
+              if [ -n "$NEAREST_REQ" ]; then
+                echo "No in-scope pending ticket or regression-artifact tag found; resolved ${NEAREST_REQ} via nearest-ancestor commit search (git log --grep, bounded at ${{ github.event.workflow_run.head_sha }})."
+                REQS+=("$NEAREST_REQ")
+              fi
+            fi
+          fi
+
+          if [ "${#REQS[@]}" -eq 0 ]; then
+            if [ "$PRIOR_EVENT" = "deployment_status" ]; then
+              echo "::error::Deployment-origin E2E evidence requires tagged, in-scope, or nearest-ancestor REQ attribution; refusing _compliance-docs fallback."
               exit 1
             fi
             REQS=(_compliance-docs)
@@ -620,6 +669,7 @@ jobs:
               --project-slug {{PROJECT_SLUG}} --release "${DERIVED_RELEASE}" \
               --check-key "e2e-regression:${{ github.event.workflow_run.id }}:${{ github.event.workflow_run.run_attempt }}:${REQ}" \
               --label "${TIER_LABEL} (${REQ})" --provider github_actions --status "$CHECK_STATUS" \
+              --required "$CHECK_REQUIRED" \
               --external-run-id "${{ github.event.workflow_run.id }}" \
               --external-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}" \
               --commit-sha "${{ github.event.workflow_run.head_sha }}" --branch "${PRIOR_BRANCH}" \

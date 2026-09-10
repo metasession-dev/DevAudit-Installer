@@ -7,7 +7,7 @@ NODE_CI="$ROOT/sdlc/files/ci/ci.yml.template"
 PYTHON_CI="$ROOT/sdlc/files/ci/python/ci.yml.template"
 
 housekeeping_line="$(grep -n 'No tracked REQ was executed for standalone/integration housekeeping' "$EVIDENCE" | cut -d: -f1)"
-deployment_failure_line="$(grep -n 'Deployment-origin E2E evidence requires tagged or in-scope REQ attribution' "$EVIDENCE" | cut -d: -f1)"
+deployment_failure_line="$(grep -n 'Deployment-origin E2E evidence requires tagged, in-scope, or nearest-ancestor REQ attribution' "$EVIDENCE" | cut -d: -f1)"
 if [ "$housekeeping_line" -ge "$deployment_failure_line" ]; then
   echo "Bare-date housekeeping must exit before the tracked deployment attribution failure." >&2
   exit 1
