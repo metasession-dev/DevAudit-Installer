@@ -31,6 +31,20 @@
 #
 # Idempotent: if the ticket is already in approved-releases/ with Status
 # RELEASED (and the RTM row already RELEASED), it exits 0 as a no-op.
+#
+# devaudit-installer#783 — a reused REQ ID (the e2e-test-engineer skill's own
+# convention: tie evidence to the REQ a spec file already carries in its
+# @requirement annotation, even if that REQ was already superseded) leaves
+# its ticket in compliance/superseded-releases/ with a top-level
+# **Status:** SUPERSEDED for its *original* scope, plus a later addendum
+# block documenting an unrelated, already-shipped release under the same
+# REQ ID (validate-compliance-artifacts.sh forbids a second ticket file for
+# the same REQ). The $REQ_ID lookup below is superseded-releases/-aware for
+# exactly this case: it does NOT flip the top-level Status (that would erase
+# the true fact that the original scope was superseded) or move the file —
+# it adds a distinct **Addendum release status:** RELEASED line under the
+# addendum block and an RTM note appended alongside the existing
+# SUPERSEDED status, not overwriting it.
 
 set -euo pipefail
 
@@ -57,6 +71,7 @@ PENDING="compliance/pending-releases/RELEASE-TICKET-${REQ_ID}.md"
 APPROVED_DIR="compliance/approved-releases"
 SUPERSEDED_DIR="compliance/superseded-releases"
 APPROVED="${APPROVED_DIR}/RELEASE-TICKET-${REQ_ID}.md"
+SUPERSEDED="${SUPERSEDED_DIR}/RELEASE-TICKET-${REQ_ID}.md"
 RTM="compliance/RTM.md"
 TODAY="$(date +%Y-%m-%d)"
 
@@ -123,6 +138,44 @@ update_rtm_status() {
     # no RTM update, no visible signal.
     if grep -qE "^\| ${req_id} " "$RTM" 2>/dev/null; then
       echo "::warning::RTM row for ${req_id} exists in ${RTM} but its Status column could not be resolved — RTM flip skipped. Check for malformed rows (wrong cell count, stray blank lines) elsewhere in the table."
+    fi
+  fi
+}
+
+# devaudit-installer#783 — append-only counterpart to update_rtm_status: for
+# a reused REQ ID whose RTM row already carries its original SUPERSEDED
+# status, this appends an addendum note to the existing cell instead of
+# replacing the status word — update_rtm_status's own note-preserving logic
+# only preserves a parenthetical "(...)" suffix, not an arbitrary earlier
+# status, so it can't be reused here without erasing the SUPERSEDED fact.
+append_rtm_note() {
+  local req_id="$1"
+  local note="$2"
+  local tmp_file status_col
+  tmp_file="$(mktemp)"
+  status_col="$(markdown_table_column_index_for_row \
+    "$RTM" "$req_id" Status REQ-ID/ID Status 2>/dev/null || true)"
+  if [ -n "$status_col" ]; then
+    awk -v req="$req_id" -v note="$note" -v statuscol="$status_col" '
+      BEGIN { FS="|"; OFS="|" }
+      /\\\|/ { gsub(/\\\|/, "\001", $0) }
+      $0 ~ ("^\\| " req " ") && statuscol>0 {
+        cell=$statuscol
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", cell)
+        if (index(cell, note) == 0) {
+          $statuscol = " " cell " \xc2\xb7 " note " "
+        }
+        gsub(/\001/, "\\|", $0)
+        print; next
+      }
+      { gsub(/\001/, "\\|", $0); print }
+    ' "$RTM" > "$tmp_file" && mv "$tmp_file" "$RTM"
+    git add "$RTM" 2>/dev/null || true
+    echo "RTM row ${req_id} -> addendum note appended."
+  else
+    rm -f "$tmp_file"
+    if grep -qE "^\| ${req_id} " "$RTM" 2>/dev/null; then
+      echo "::warning::RTM row for ${req_id} exists in ${RTM} but its Status column could not be resolved — addendum note skipped."
     fi
   fi
 }
@@ -220,8 +273,50 @@ if [ ! -f "$PENDING" ] && [ -f "$APPROVED" ]; then
     exit 0
   fi
 fi
+
+# devaudit-installer#783 — a reused REQ ID whose ticket lives in
+# superseded-releases/ (correctly, for its original scope) but which also
+# carries a later addendum documenting a distinct, already-shipped release
+# under the same REQ ID. Handled entirely here, separately from the
+# pending->approved flow below: the top-level Status/file location for the
+# *original* scope is left untouched.
+if [ ! -f "$PENDING" ] && [ ! -f "$APPROVED" ] && [ -f "$SUPERSEDED" ]; then
+  if ! grep -qE '^\*\*Status:\*\*[[:space:]]*SUPERSEDED' "$SUPERSEDED"; then
+    echo "::error::${SUPERSEDED} exists but its top-level Status is not SUPERSEDED — refusing to guess how to close it out. Reused-REQ-ID addendum close-out only handles a ticket whose original scope was superseded." >&2
+    exit 1
+  fi
+  if grep -qE '^\*\*Addendum release status:\*\*[[:space:]]*RELEASED' "$SUPERSEDED"; then
+    echo "${REQ_ID} addendum already closed out (${SUPERSEDED}, Addendum release status RELEASED) — no-op."
+    exit 0
+  fi
+
+  ADDENDUM_SIGN_OFF="**Sign-off (dual-actor):** UAT approved + Production approved on the DevAudit portal (\`released\`); post-deploy production smoke evidence captured. Addendum closed out ${TODAY}."
+  ADDENDUM_PR_LINE=""
+  if [ -n "$RELEASE_PR" ]; then
+    case "$RELEASE_PR" in
+      http*) ADDENDUM_PR_LINE="**Addendum release PR:** ${RELEASE_PR}" ;;
+      *)     ADDENDUM_PR_LINE="**Addendum release PR:** #${RELEASE_PR}" ;;
+    esac
+  fi
+  {
+    echo ""
+    echo "**Addendum release status:** RELEASED"
+    [ -n "$ADDENDUM_PR_LINE" ] && echo "$ADDENDUM_PR_LINE"
+    echo "$ADDENDUM_SIGN_OFF"
+  } >> "$SUPERSEDED"
+  git add "$SUPERSEDED" 2>/dev/null || true
+  echo "Addendum release status -> RELEASED (${SUPERSEDED}, original scope's SUPERSEDED status untouched)."
+
+  append_rtm_note "$REQ_ID" "Addendum: RELEASED${RELEASE_PR:+ (PR ${RELEASE_PR})}"
+  if ! grep -qE "^\| ${REQ_ID} " "$RTM" 2>/dev/null; then
+    echo "::warning::No RTM row for ${REQ_ID} in ${RTM} — skipped addendum RTM note."
+  fi
+
+  exit 0
+fi
+
 if [ ! -f "$PENDING" ] && [ ! -f "$APPROVED" ]; then
-  echo "::error::No RELEASE-TICKET-${REQ_ID}.md in pending-releases/ or approved-releases/." >&2
+  echo "::error::No RELEASE-TICKET-${REQ_ID}.md in pending-releases/, approved-releases/, or superseded-releases/." >&2
   exit 1
 fi
 
