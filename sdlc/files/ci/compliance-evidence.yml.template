@@ -387,6 +387,22 @@ jobs:
             *)          TIER_LABEL="E2E Regression" ;;
           esac
 
+          # devaudit-installer#798 — the post-deploy regression tier is
+          # structurally incapable of completing before a release's UAT
+          # approval (it can't run until *after* a production deployment,
+          # which can't happen until UAT is approved) but was reported as a
+          # blocking required check anyway (report-release-check.sh's
+          # REQUIRED default is "true" and this call never overrode it) —
+          # deadlocking every release's UAT approval on a check that is, by
+          # this project's own 3-tier E2E gating model, explicitly the
+          # non-blocking Should/Could tier. Only the pre-merge critical tier
+          # blocks; the post-deploy regression tier is evidence, not a gate.
+          case "$TIER" in
+            critical)   CHECK_REQUIRED=true ;;
+            regression) CHECK_REQUIRED=false ;;
+            *)          CHECK_REQUIRED=true ;;
+          esac
+
           # Common flags for upload-evidence.sh. Branch + SHA come from
           # the triggering run, not from this workflow_run dispatch.
           FLAGS="--create-release-if-missing --environment ${E2E_ENVIRONMENT} \
@@ -620,6 +636,7 @@ jobs:
               --project-slug {{PROJECT_SLUG}} --release "${DERIVED_RELEASE}" \
               --check-key "e2e-regression:${{ github.event.workflow_run.id }}:${{ github.event.workflow_run.run_attempt }}:${REQ}" \
               --label "${TIER_LABEL} (${REQ})" --provider github_actions --status "$CHECK_STATUS" \
+              --required "$CHECK_REQUIRED" \
               --external-run-id "${{ github.event.workflow_run.id }}" \
               --external-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}" \
               --commit-sha "${{ github.event.workflow_run.head_sha }}" --branch "${PRIOR_BRANCH}" \

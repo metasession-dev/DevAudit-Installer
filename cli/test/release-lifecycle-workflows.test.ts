@@ -238,6 +238,20 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     expect(source).not.toContain('push)               TIER=regression; STAGE=5 ;;');
   });
 
+  it('reports the post-deploy regression tier as not required, so it cannot deadlock UAT approval (devaudit-installer#798)', () => {
+    const source = template('compliance-evidence.yml.template');
+    expect(source).toContain('critical)   CHECK_REQUIRED=true ;;');
+    expect(source).toContain('regression) CHECK_REQUIRED=false ;;');
+    expect(source).toContain('--required "$CHECK_REQUIRED"');
+    // report-release-check.sh defaults REQUIRED=true when the flag is
+    // omitted — the bug this REQ fixes was exactly that omission.
+    const call = source.slice(
+      source.indexOf('bash scripts/report-release-check.sh'),
+      source.indexOf('done', source.indexOf('bash scripts/report-release-check.sh')),
+    );
+    expect(call).toContain('--required');
+  });
+
   it('records deployment and smoke as distinct always-finalized production executions', () => {
     const source = template('post-deploy-prod.yml.template');
     expect(source.indexOf('Start production deployment executions')).toBeLessThan(
