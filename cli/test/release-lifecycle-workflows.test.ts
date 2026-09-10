@@ -1,5 +1,8 @@
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const root = resolve(import.meta.dirname, '../..');
@@ -209,7 +212,9 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     expect(source).toContain('deployment_status)  TIER=regression; STAGE=5; E2E_ENVIRONMENT=production ;;');
     expect(source).toContain('--environment "${E2E_ENVIRONMENT}"');
     expect(source).toContain('--sdlc-stage "${STAGE:-2}"');
-    expect(source).toContain('Deployment-origin E2E evidence requires tagged or in-scope REQ attribution');
+    expect(source).toContain(
+      'Deployment-origin E2E evidence requires tagged, in-scope, or nearest-ancestor REQ attribution',
+    );
     expect(source).toContain('refusing _compliance-docs fallback');
     expect(source).toContain('--meta-key source_event=${PRIOR_EVENT}');
     expect(source).toContain('--meta-key source_workflow=E2E_Regression');
@@ -250,6 +255,118 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
       source.indexOf('done', source.indexOf('bash scripts/report-release-check.sh')),
     );
     expect(call).toContain('--required');
+  });
+
+  it('resolves deployment-origin E2E REQ attribution via nearest-ancestor commit search before hard-failing (devaudit-installer#807)', () => {
+    const source = template('compliance-evidence.yml.template');
+    expect(source).toContain(
+      "NEAREST_REQ=$(git log -1 --format=%s --grep='\\[REQ-[0-9]{3,}\\]' -E \\",
+    );
+    expect(source).toContain(
+      "NEAREST_REQ=$(git log -1 --format=%B --grep='^Ref: REQ-[0-9]{3,}' -E \\",
+    );
+    expect(source).toContain(
+      '::error::Deployment-origin E2E evidence requires tagged, in-scope, or nearest-ancestor REQ attribution; refusing _compliance-docs fallback.',
+    );
+    // The ancestry search must run strictly before the hard-fail, not after.
+    expect(source.indexOf('NEAREST_REQ=')).toBeLessThan(
+      source.indexOf(
+        '::error::Deployment-origin E2E evidence requires tagged, in-scope, or nearest-ancestor',
+      ),
+    );
+  });
+
+  describe('nearest-ancestor REQ resolution git mechanism (devaudit-installer#807)', () => {
+    // Exercises the exact `git log -1 --grep=...` commands the template
+    // step runs, against a real git repo — proving the mechanism (not just
+    // the source text) resolves correctly: nearest tagged ancestor wins,
+    // an unrelated older tag further back is never reached, and a
+    // trailer-only commit (e.g. a close-out commit, which cites its REQ
+    // via `Ref:` rather than a `[REQ-XXX]` subject prefix) falls through
+    // to the second search.
+    function git(dir: string, ...args: string[]): string {
+      return execFileSync('git', args, { cwd: dir, encoding: 'utf8' });
+    }
+
+    function commit(dir: string, message: string): void {
+      writeFileSync(join(dir, `f-${Date.now()}-${Math.random()}`), 'x');
+      git(dir, 'add', '-A');
+      git(dir, 'commit', '-q', '-m', message);
+    }
+
+    function resolveNearestReq(dir: string, sha: string): string {
+      let subjectMatch = '';
+      try {
+        subjectMatch = execFileSync(
+          'git',
+          ['log', '-1', '--format=%s', '--grep=\\[REQ-[0-9]{3,}\\]', '-E', sha],
+          { cwd: dir, encoding: 'utf8' },
+        );
+      } catch {
+        subjectMatch = '';
+      }
+      const subjectHit = subjectMatch.match(/\[REQ-\d+\]/)?.[0]?.replace(/[[\]]/g, '');
+      if (subjectHit) return subjectHit;
+
+      let bodyMatch = '';
+      try {
+        bodyMatch = execFileSync(
+          'git',
+          ['log', '-1', '--format=%B', '--grep=^Ref: REQ-[0-9]{3,}', '-E', sha],
+          { cwd: dir, encoding: 'utf8' },
+        );
+      } catch {
+        bodyMatch = '';
+      }
+      return bodyMatch.match(/REQ-\d+/)?.[0] ?? '';
+    }
+
+    function withRepo(fn: (dir: string) => void): void {
+      const dir = mkdtempSync(join(tmpdir(), 'devaudit-nearest-req-'));
+      try {
+        git(dir, 'init', '-q', '--initial-branch=main');
+        git(dir, 'config', 'user.email', 'test@example.com');
+        git(dir, 'config', 'user.name', 'test');
+        fn(dir);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    }
+
+    it('resolves the nearest [REQ-XXX]-tagged ancestor commit', () => {
+      withRepo((dir) => {
+        commit(dir, '[REQ-103] feat: add menu pricing window');
+        commit(dir, 'chore: unrelated housekeeping commit');
+        const sha = git(dir, 'rev-parse', 'HEAD').trim();
+        expect(resolveNearestReq(dir, sha)).toBe('REQ-103');
+      });
+    });
+
+    it('does not reach past a nearer tagged commit to an older, unrelated REQ', () => {
+      withRepo((dir) => {
+        commit(dir, '[REQ-050] feat: old unrelated feature');
+        commit(dir, '[REQ-103] feat: add menu pricing window');
+        commit(dir, 'chore: close-out housekeeping');
+        const sha = git(dir, 'rev-parse', 'HEAD').trim();
+        expect(resolveNearestReq(dir, sha)).toBe('REQ-103');
+      });
+    });
+
+    it('falls back to a Ref: REQ-XXX trailer when no [REQ-XXX] subject exists', () => {
+      withRepo((dir) => {
+        commit(dir, 'compliance: close out REQ-103\n\nRef: REQ-103');
+        const sha = git(dir, 'rev-parse', 'HEAD').trim();
+        expect(resolveNearestReq(dir, sha)).toBe('REQ-103');
+      });
+    });
+
+    it('resolves nothing when no ancestor commit is tagged at all', () => {
+      withRepo((dir) => {
+        commit(dir, 'chore: untracked housekeeping only');
+        const sha = git(dir, 'rev-parse', 'HEAD').trim();
+        expect(resolveNearestReq(dir, sha)).toBe('');
+      });
+    });
   });
 
   it('records deployment and smoke as distinct always-finalized production executions', () => {

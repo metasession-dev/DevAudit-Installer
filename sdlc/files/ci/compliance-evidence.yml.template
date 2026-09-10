@@ -481,7 +481,40 @@ jobs:
               exit 0
             fi
             if [ "$PRIOR_EVENT" = "deployment_status" ]; then
-              echo "::error::Deployment-origin E2E evidence requires tagged or in-scope REQ attribution; refusing _compliance-docs fallback."
+              # devaudit-installer#807 — neither an in-scope pending ticket
+              # nor a completed regression-run artifact answered "which
+              # REQ" (e.g. the deploy is the close-out commit itself, which
+              # moved the ticket out of pending-releases/ before this ran).
+              # Before giving up, ask git: which REQ's commit does this
+              # deployed SHA most recently descend from? This is provable
+              # ancestry, not a guess — `git log -1 --grep` bounded at the
+              # deployed SHA finds the *nearest* tagged commit, so it can't
+              # reach across an unrelated REQ's history. Mirrors the same
+              # [REQ-XXX] / Ref: REQ-XXX convention validate-commits.sh
+              # already enforces on every tracked commit — this is the same
+              # source of truth the rest of the framework already trusts
+              # for REQ attribution, not a new heuristic.
+              NEAREST_REQ=$(git log -1 --format=%s --grep='\[REQ-[0-9]{3,}\]' -E \
+                "${{ github.event.workflow_run.head_sha }}" 2>/dev/null \
+                | grep -oE '\[REQ-[0-9]+\]' | tr -d '[]' || true)
+              if [ -z "$NEAREST_REQ" ]; then
+                # Fall back to the Ref: trailer form for commits (e.g.
+                # compliance close-out commits) that cite the REQ in a
+                # trailer, not the subject.
+                NEAREST_REQ=$(git log -1 --format=%B --grep='^Ref: REQ-[0-9]{3,}' -E \
+                  "${{ github.event.workflow_run.head_sha }}" 2>/dev/null \
+                  | grep -oE 'REQ-[0-9]+' | head -1 || true)
+              fi
+              if [ -n "$NEAREST_REQ" ]; then
+                echo "No in-scope pending ticket or regression-artifact tag found; resolved ${NEAREST_REQ} via nearest-ancestor commit search (git log --grep, bounded at ${{ github.event.workflow_run.head_sha }})."
+                REQS+=("$NEAREST_REQ")
+              fi
+            fi
+          fi
+
+          if [ "${#REQS[@]}" -eq 0 ]; then
+            if [ "$PRIOR_EVENT" = "deployment_status" ]; then
+              echo "::error::Deployment-origin E2E evidence requires tagged, in-scope, or nearest-ancestor REQ attribution; refusing _compliance-docs fallback."
               exit 1
             fi
             REQS=(_compliance-docs)
