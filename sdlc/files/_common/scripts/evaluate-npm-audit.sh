@@ -166,7 +166,22 @@ vulnerabilities = audit["vulnerabilities"]
 
 def concrete_advisories(finding_name, trail=()):
     if finding_name in trail:
-        fail(f"audit vulnerability graph contains a cycle: {' -> '.join((*trail, finding_name))}")
+        # devaudit-installer#799 — a cyclic back-edge doesn't need to fail
+        # the gate: the driver loop below calls concrete_advisories once
+        # per top-level finding name, so `finding_name` gets its own
+        # independent top-level resolution regardless of this edge —
+        # short-circuiting here doesn't drop any advisory the driver loop
+        # wouldn't already see. Two mutually-referencing findings (e.g.
+        # vitest <-> @vitest/coverage-v8) is a legitimate npm audit shape
+        # for tightly-coupled sibling packages, not malformed/untrustworthy
+        # data on its own — only genuinely malformed structure (missing
+        # findings, wrong types, missing via entries) stays fatal below.
+        print(
+            f"::warning::audit vulnerability graph has a cycle back-edge into {finding_name} "
+            f"(trail: {' -> '.join(trail)}) — short-circuiting, not failing",
+            file=sys.stderr,
+        )
+        return []
     finding = vulnerabilities.get(finding_name)
     if not isinstance(finding, dict):
         fail(f"audit vulnerability {finding_name} is missing or is not an object")
