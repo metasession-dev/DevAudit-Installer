@@ -278,4 +278,67 @@ jq '.vulnerabilities["brace-expansion"].via = []' \
 mv "$WORK/changed.json" "$WORK/dependency-audit.json"
 expect_failure
 
+# devaudit-installer#799 — a cyclic back-edge between two mutually-
+# referencing findings (each carrying its own real severity-high advisory,
+# mirroring the real-world vitest <-> @vitest/coverage-v8 shape) must not
+# fail the whole gate: each node still gets its own independent top-level
+# DFS from the driver loop, so both advisories remain reachable and are
+# reported as unresolved, not silently dropped.
+cat > "$WORK/dependency-audit.json" <<'JSON'
+{
+  "vulnerabilities": {
+    "vitest": {
+      "name": "vitest",
+      "severity": "high",
+      "via": [
+        "@vitest/coverage-v8",
+        {
+          "name": "vitest",
+          "dependency": "vitest",
+          "url": "https://github.com/advisories/GHSA-vitest-cycle",
+          "severity": "high",
+          "range": "<=4.0.0"
+        }
+      ],
+      "nodes": ["node_modules/vitest"]
+    },
+    "@vitest/coverage-v8": {
+      "name": "@vitest/coverage-v8",
+      "severity": "high",
+      "via": [
+        "vitest",
+        {
+          "name": "@vitest/coverage-v8",
+          "dependency": "@vitest/coverage-v8",
+          "url": "https://github.com/advisories/GHSA-coverage-cycle",
+          "severity": "high",
+          "range": "<=4.0.0"
+        }
+      ],
+      "nodes": ["node_modules/@vitest/coverage-v8"]
+    }
+  }
+}
+JSON
+cat > "$WORK/package-lock.json" <<'JSON'
+{
+  "lockfileVersion": 3,
+  "packages": {
+    "": {"name": "fixture"},
+    "node_modules/vitest": {"version": "3.9.9"},
+    "node_modules/@vitest/coverage-v8": {"version": "3.9.9"}
+  }
+}
+JSON
+rm -f "$WORK/compliance/security/accepted-vulnerabilities.json"
+# Both advisories are genuinely unresolved (no accepted exception), so the
+# gate correctly fails — the point of this fixture is that it fails via the
+# normal "unresolved high-severity findings" path (both fully evaluated and
+# reported below) rather than aborting early on the cycle itself.
+expect_failure
+jq -e '
+  .summary.unresolved == 2 and
+  (.unresolved | map(.advisoryId) | sort) == ["GHSA-coverage-cycle", "GHSA-vitest-cycle"]
+' "$WORK/dependency-risk-evaluation.json" >/dev/null
+
 echo "evaluate-npm-audit: PASS"
