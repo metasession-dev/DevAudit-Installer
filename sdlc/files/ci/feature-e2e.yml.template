@@ -168,7 +168,16 @@ jobs:
 {{DATABASE_URI_STEP}}
 {{E2E_SETUP_STEP}}
       - name: Kill stale dev server
-        run: lsof -ti:{{E2E_PORT}} | xargs kill -9 2>/dev/null || true
+        # See ci.yml.template's "Kill stale dev server" step for why (devaudit-installer#820).
+        run: |
+          if lsof -ti:{{E2E_PORT}} >/dev/null 2>&1; then
+            lsof -ti:{{E2E_PORT}} | xargs kill -9 2>/dev/null || true
+            sleep 1
+            if lsof -ti:{{E2E_PORT}} >/dev/null 2>&1; then
+              echo "::error::Port {{E2E_PORT}} is still held by another process after a kill attempt (owned by a different user? self-hosted runners are not isolated between jobs). Manual cleanup needed on the runner host before this job can proceed."
+              exit 1
+            fi
+          fi
 
 {{E2E_DEV_SERVER_STEP}}
 

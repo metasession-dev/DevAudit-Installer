@@ -198,7 +198,25 @@ jobs:
 {{DATABASE_URI_STEP}}
 {{E2E_SETUP_STEP}}
       - name: Kill stale dev server
-        run: lsof -ti:{{E2E_PORT}} | xargs kill -9 2>/dev/null || true
+        # devaudit-installer#820 — the old `|| true` silently swallowed a
+        # cross-user EPERM on a persistent self-hosted runner (the runner's
+        # system user can't kill a process an engineer's own session
+        # started), leaving CI's own dev server unable to bind the port and
+        # the immediately-following wait-on step passing against the STALE
+        # process instead — the E2E suite then ran against unrelated old
+        # code with no indication anything was wrong. Unconditional and
+        # safe on the ephemeral github-ci path: nothing is ever listening
+        # on {{E2E_PORT}} there, so lsof finds nothing and this is a no-op,
+        # identical to today's behavior.
+        run: |
+          if lsof -ti:{{E2E_PORT}} >/dev/null 2>&1; then
+            lsof -ti:{{E2E_PORT}} | xargs kill -9 2>/dev/null || true
+            sleep 1
+            if lsof -ti:{{E2E_PORT}} >/dev/null 2>&1; then
+              echo "::error::Port {{E2E_PORT}} is still held by another process after a kill attempt (owned by a different user? self-hosted runners are not isolated between jobs). Manual cleanup needed on the runner host before this job can proceed."
+              exit 1
+            fi
+          fi
 
 {{E2E_DEV_SERVER_STEP}}
 

@@ -435,6 +435,26 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     );
   });
 
+  it.each(['ci.yml.template', 'feature-e2e.yml.template'])(
+    'fails loudly instead of silently swallowing a stale E2E dev server on %s (#820)',
+    (name) => {
+      const source = template(name);
+      // The old `|| true` swallowed a cross-user EPERM on a persistent
+      // self-hosted runner, letting CI's own dev server fail to bind while
+      // the very next wait-on step passed against the stale process
+      // instead. Re-check after the kill attempt and fail the job instead
+      // of limping forward against the wrong server.
+      expect(source).toContain('if lsof -ti:{{E2E_PORT}} >/dev/null 2>&1; then');
+      expect(source).toContain('lsof -ti:{{E2E_PORT}} | xargs kill -9 2>/dev/null || true');
+      expect(source).toContain('is still held by another process after a kill attempt');
+      expect(source).toContain('exit 1');
+      // Unconditional, not self-hosted-only: nothing is ever listening on
+      // {{E2E_PORT}} on the ephemeral github-ci path, so this is a no-op
+      // there — no runner-label branching needed.
+      expect(source).not.toContain("== 'github-ci'");
+    },
+  );
+
   it('does not fan out generic gate outcomes to pending REQs', () => {
     const source = template('ci.yml.template');
     expect(source).toContain('Not fanning out gate-outcomes.json to pending REQs');
