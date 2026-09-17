@@ -5,7 +5,7 @@
  * - Conventional Commits format (feat, fix, docs, test, refactor, chore, …).
  * - Requirement traceability: **implementation** commits (feat / fix /
  *   refactor / perf) MUST cite a requirement via `[REQ-XXX]` in the subject
- *   or a `Ref: REQ-XXX` trailer (ERROR). Housekeeping types (docs, chore, ci,
+ *   or a `Ref: REQ-XXX` trailer (ERROR). Housekeeping types (docs, style, chore, ci,
  *   build, test, compliance, revert) are exempt. This is the local half of
  *   the "no implementation without a requirement" rule; `validate-commits.sh`
  *   enforces the same at PR CI (which `--no-verify` can't skip). Work starts
@@ -31,6 +31,7 @@ export default {
         'feat',
         'fix',
         'docs',
+        'style',
         'test',
         'refactor',
         'chore',
@@ -63,7 +64,7 @@ export default {
               `add [REQ-XXX] to the subject or a "Ref: REQ-XXX" trailer. Work must ` +
               `start from a requirement (which starts from an issue) — run the ` +
               `sdlc-implementer skill to assign one. Housekeeping types ` +
-              `(docs/chore/ci/build/test/compliance/revert) are exempt.`,
+              `(docs/style/chore/ci/build/test/compliance/revert) are exempt.`,
           ];
         },
         'trailer-co-authored-by': ({ raw }) => {

@@ -195,6 +195,15 @@ run_validator
 assert_exit "exempt type outside source_dirs exits 0" 0
 assert_grep "no warning for exempt type outside source_dirs" "exempt from REQ tracking" 0
 
+# Case 9: `style:` is a standard Conventional Commits type and must be
+# accepted + treated as exempt from REQ tracking — devaudit-installer#813.
+echo "Case 9: style: commit is accepted and exempt from REQ tracking"
+make_fixture "$WORKDIR/case9" "style: reformat kitchen workflow" "Co-Authored-By: Test <test@example.com>"
+run_validator
+assert_exit "style: commit exits 0" 0
+assert_grep "no conventional-commit error for style:" "Not Conventional Commits format" 0
+assert_grep "no missing-requirement error for style:" "implementation commit but cites no requirement" 0
+
 echo
 echo "Result: $PASS passed, $FAIL failed"
 [ "$FAIL" = "0" ]
