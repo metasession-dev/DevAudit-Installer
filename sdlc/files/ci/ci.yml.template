@@ -668,6 +668,59 @@ jobs:
               --category security_scan --gate-status "$STATUS_DEPAUDIT" ${FLAGS} "${PRIMARY_LINEAGE_FLAGS[@]}"
           fi
 
+          # Fan out SAST + Dependency Audit evidence to declared-bundle
+          # sibling REQs (devaudit-installer#819, implementing #438's own
+          # item-3 exception that was never built). #438 restricted generic
+          # gate evidence to the single commit-derived release; without this,
+          # every non-primary member of a declared bundle permanently shows
+          # these two gates as missing, since every push resolves to the
+          # bundle's primary REQ via derive-release-version.sh step 0.
+          #
+          # Unlike E2E's fan-out below (which only attaches when a REQ-tagged
+          # test actually executed), SAST/dependency-audit scanned the whole
+          # bundle's shared diff uniformly -- there's no per-REQ tagging
+          # concept for a security scan -- so every declared co-tracked
+          # member gets the same result. The manifest file is committed to
+          # git by sdlc-implementer at bundle-declaration time (Phase 1 step
+          # 4), so it's present on this job's own checkout; this is a
+          # different, git-committed file from the ephemeral
+          # retroactive-predecessor-absorption manifest the
+          # "Generate and upload bundled changes" step (a different job)
+          # generates on the fly -- same filename shape, distinguished by
+          # the "Co-Tracked Bundle Members" section only a declared bundle's
+          # .md carries (mirrors derive-release-version.sh step 0's own
+          # guard).
+          BUNDLE_DECLARATION="compliance/pending-releases/BUNDLED-CHANGES-${{ needs.register-release.outputs.version }}.md"
+          BUNDLE_MANIFEST="compliance/pending-releases/BUNDLED-CHANGES-${{ needs.register-release.outputs.version }}.json"
+          if [ -f "$BUNDLE_DECLARATION" ] && [ -f "$BUNDLE_MANIFEST" ] \
+             && grep -q 'Co-Tracked Bundle Members' "$BUNDLE_DECLARATION"; then
+            BUNDLE_MEMBERS=$(jq -r '(.members // [])[] | select(.role == "co-tracked") | .version' "$BUNDLE_MANIFEST" 2>/dev/null || true)
+            if [ -n "$BUNDLE_MEMBERS" ]; then
+              echo "Fanning out SAST/Dependency Audit evidence to declared-bundle members: $(echo "$BUNDLE_MEMBERS" | tr '\n' ' ')"
+            fi
+            while IFS= read -r MEMBER_REQ; do
+              [ -n "$MEMBER_REQ" ] || continue
+              # #192 — skip a member already in a terminal release directory.
+              if compgen -G "compliance/approved-releases/RELEASE-TICKET-${MEMBER_REQ}.md" > /dev/null 2>&1 \
+                 || compgen -G "compliance/superseded-releases/RELEASE-TICKET-${MEMBER_REQ}.md" > /dev/null 2>&1; then
+                continue
+              fi
+              MEMBER_FLAGS="--git-sha ${{ github.sha }} --ci-run-id ${{ github.run_id }} --branch ${{ github.ref_name }}"
+              MEMBER_FLAGS="${MEMBER_FLAGS} --release ${MEMBER_REQ} --create-release-if-missing"
+              MEMBER_FLAGS="${MEMBER_FLAGS} --environment uat --sdlc-stage 2"
+              if [ -f ci-evidence/sast-results.json ]; then
+                upload "sast-results.json -> ${MEMBER_REQ}" \
+                  {{PROJECT_SLUG}} "${MEMBER_REQ}" sast_report ci-evidence/sast-results.json \
+                  --category security_scan --gate-status "$STATUS_SAST" ${MEMBER_FLAGS} "${PRIMARY_LINEAGE_FLAGS[@]}"
+              fi
+              if [ -f ci-evidence/dependency-audit.json ]; then
+                upload "dependency-audit.json -> ${MEMBER_REQ}" \
+                  {{PROJECT_SLUG}} "${MEMBER_REQ}" dependency_audit ci-evidence/dependency-audit.json \
+                  --category security_scan --gate-status "$STATUS_DEPAUDIT" ${MEMBER_FLAGS} "${PRIMARY_LINEAGE_FLAGS[@]}"
+              fi
+            done <<< "$BUNDLE_MEMBERS"
+          fi
+
           # Upload E2E test results (e2e_result category)
           if [ -f ci-evidence/e2e-results.json ]; then
             upload e2e-results.json \

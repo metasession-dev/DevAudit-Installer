@@ -170,7 +170,11 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     const checkoutTokenIdx = source.indexOf(`token: ${expectedTokenExpr}`);
     expect(checkoutIdx).toBeGreaterThan(-1);
     expect(checkoutTokenIdx).toBeGreaterThan(checkoutIdx);
-    expect(checkoutTokenIdx - checkoutIdx).toBeLessThan(200);
+    // devaudit-installer#815 added a clean: {{CHECKOUT_CLEAN}} line (+
+    // comment) to this same `with:` block, pushing the distance past the
+    // original 200-char heuristic without changing which step `token:`
+    // belongs to — widened with margin for future same-block additions.
+    expect(checkoutTokenIdx - checkoutIdx).toBeLessThan(400);
   });
 
   it('delegates advisory-scoped dependency-risk evaluation to the synced fail-closed helper', () => {
@@ -399,6 +403,36 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     expect(source).toContain('Not attaching generic E2E JSON to ${REQ_ID}');
     expect(source).toContain('Run-level evidence remains on _compliance-docs');
     expect(source).toContain("result.get('status') not in {'skipped', 'interrupted'}");
+  });
+
+  it('fans out SAST/Dependency Audit evidence to declared-bundle co-tracked members (#819)', () => {
+    const source = template('ci.yml.template');
+    // Keys off the committed declared-bundle manifest, distinguished from
+    // the ephemeral retroactive-absorption manifest by the same
+    // "Co-Tracked Bundle Members" guard derive-release-version.sh step 0
+    // uses, and filters to role == "co-tracked" only.
+    expect(source).toContain("grep -q 'Co-Tracked Bundle Members' \"$BUNDLE_DECLARATION\"");
+    expect(source).toContain('select(.role == "co-tracked") | .version');
+    // Fans out both evidence types, unlike E2E's per-spec-tag gating --
+    // SAST/dependency-audit apply uniformly to the whole bundle's shared diff.
+    expect(source).toContain('sast-results.json -> ${MEMBER_REQ}');
+    expect(source).toContain('dependency-audit.json -> ${MEMBER_REQ}');
+    expect(source).toContain('{{PROJECT_SLUG}} "${MEMBER_REQ}" sast_report');
+    expect(source).toContain('{{PROJECT_SLUG}} "${MEMBER_REQ}" dependency_audit');
+    // #192 terminal-release skip, mirroring the existing E2E fan-out.
+    expect(source).toContain('compliance/approved-releases/RELEASE-TICKET-${MEMBER_REQ}.md');
+    expect(source).toContain('compliance/superseded-releases/RELEASE-TICKET-${MEMBER_REQ}.md');
+    // Each member gets its own release, not the primary's.
+    expect(source).toContain('--release ${MEMBER_REQ} --create-release-if-missing');
+    // This block must appear before the SAST/dependency-audit primary
+    // uploads' section ends and the (unrelated) E2E fan-out begins, so a
+    // reader sees both fan-outs are analogous, adjacent mechanisms.
+    expect(source.indexOf('BUNDLE_DECLARATION=')).toBeGreaterThan(
+      source.indexOf('_compliance-docs dependency_audit ci-evidence/dependency-risk-evaluation.json'),
+    );
+    expect(source.indexOf('BUNDLE_DECLARATION=')).toBeLessThan(
+      source.indexOf('has_req_tagged_e2e_result()'),
+    );
   });
 
   it('does not fan out generic gate outcomes to pending REQs', () => {
