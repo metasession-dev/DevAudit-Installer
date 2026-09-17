@@ -63,6 +63,8 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0   # full history so merged commits' REQ tags are readable
+          # See ci.yml.template's checkout step for why (devaudit-installer#676/#815).
+          clean: {{CHECKOUT_CLEAN}}
 
       - name: Resolve DevAudit base URL and post-deploy terminal status
         run: |

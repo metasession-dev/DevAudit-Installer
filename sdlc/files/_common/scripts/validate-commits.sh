@@ -26,7 +26,11 @@ echo ""
 # Scope accepts anything except `)` so multi-scope subjects like
 # `feat(auth,profile):` and `fix(rewards/expiry):` validate. The closing-paren
 # guard prevents pathological inputs. DevAudit-Installer#93/#440.
-CC_REGEX='^(\[REQ-[0-9]{3,}\][[:space:]]+)?(feat|fix|docs|test|refactor|chore|compliance|security|perf|ci|build|revert)(\([^)]+\))?!?: .+'
+CC_REGEX='^(\[REQ-[0-9]{3,}\][[:space:]]+)?(feat|fix|docs|style|test|refactor|chore|compliance|security|perf|ci|build|revert)(\([^)]+\))?!?: .+'
+# style added: devaudit-installer#813 — standard Conventional Commits type
+# (formatting/whitespace, no behaviour change), was passing local hooks and
+# PR-to-integration CI but failing this same regex on the release PR since
+# it wasn't in the list here.
 
 COMMITS=$(git log "$BASE_BRANCH"..HEAD --format='%H' || true)
 
@@ -75,7 +79,7 @@ while IFS= read -r sha; do
 
   # Requirement traceability: implementation commits (feat/fix/refactor/perf)
   # MUST cite a requirement — [REQ-XXX] in the subject or a Ref: REQ-XXX
-  # trailer. Housekeeping types (docs/chore/ci/build/test/compliance/revert)
+  # trailer. Housekeeping types (docs/style/chore/ci/build/test/compliance/revert)
   # are exempt. Mirrors the commitlint rule; this is the PR-CI half that
   # `--no-verify` can't skip. Work starts from a requirement (which starts
   # from an issue) — use the sdlc-implementer skill to assign one.
@@ -126,7 +130,7 @@ while IFS= read -r sha; do
       fi
       ;;
 
-    docs|chore|ci|build|test|revert|compliance)
+    docs|style|chore|ci|build|test|revert|compliance)
       # Diff-shape heuristic (devaudit-installer#768): an exempt commit
       # type is a self-declared label with no check against the actual
       # diff -- nothing stops real feature/bug/refactor work labeled as

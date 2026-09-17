@@ -1670,14 +1670,23 @@ describe('syncProject — native TS sync against a fixture', () => {
 
       const cleanExpr =
         "${{ (inputs.runner_label || vars.CI_RUNNER_LABEL || 'github-ci') == 'github-ci' && 'true' || 'false' }}";
-      const ciYml = normalizeNewlines(
-        await fs.readFile(join(dir, '.github', 'workflows', 'ci.yml'), 'utf8'),
-      );
-      const cleanLines = ciYml.split('\n').filter((line) => /^\s*clean:/.test(line));
-      expect(cleanLines.length).toBeGreaterThan(0);
-      for (const line of cleanLines) {
-        expect(line.trim()).toBe(`clean: ${cleanExpr}`);
+      // devaudit-installer#815 — the clean:false fix must reach every
+      // self-hosted-runner-capable generated workflow, not just ci.yml.
+      const workflowDir = join(dir, '.github', 'workflows');
+      const workflowFiles = await fs.readdir(workflowDir);
+      let totalCleanLines = 0;
+      for (const wf of workflowFiles) {
+        if (!wf.endsWith('.yml') && !wf.endsWith('.yaml')) continue;
+        const content = normalizeNewlines(
+          await fs.readFile(join(workflowDir, wf), 'utf8'),
+        );
+        const cleanLines = content.split('\n').filter((line) => /^\s*clean:/.test(line));
+        totalCleanLines += cleanLines.length;
+        for (const line of cleanLines) {
+          expect(line.trim(), `${wf} clean: expression`).toBe(`clean: ${cleanExpr}`);
+        }
       }
+      expect(totalCleanLines).toBeGreaterThanOrEqual(13);
 
       await expectAllWorkflowsValidYaml(dir);
     } finally {
@@ -1699,14 +1708,23 @@ describe('syncProject — native TS sync against a fixture', () => {
 
       await syncProject(dir);
 
-      const ciYml = normalizeNewlines(
-        await fs.readFile(join(dir, '.github', 'workflows', 'ci.yml'), 'utf8'),
-      );
-      const cleanLines = ciYml.split('\n').filter((line) => /^\s*clean:/.test(line));
-      expect(cleanLines.length).toBeGreaterThan(0);
-      for (const line of cleanLines) {
-        expect(line.trim()).toBe('clean: true');
+      // devaudit-installer#815 — same coverage as the self-hosted case above,
+      // across every self-hosted-runner-capable generated workflow.
+      const workflowDir = join(dir, '.github', 'workflows');
+      const workflowFiles = await fs.readdir(workflowDir);
+      let totalCleanLines = 0;
+      for (const wf of workflowFiles) {
+        if (!wf.endsWith('.yml') && !wf.endsWith('.yaml')) continue;
+        const content = normalizeNewlines(
+          await fs.readFile(join(workflowDir, wf), 'utf8'),
+        );
+        const cleanLines = content.split('\n').filter((line) => /^\s*clean:/.test(line));
+        totalCleanLines += cleanLines.length;
+        for (const line of cleanLines) {
+          expect(line.trim(), `${wf} clean: expression`).toBe('clean: true');
+        }
       }
+      expect(totalCleanLines).toBeGreaterThanOrEqual(13);
     } finally {
       await fs.rm(dir, { recursive: true, force: true });
     }
