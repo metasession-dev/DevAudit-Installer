@@ -101,6 +101,138 @@ async function checkReleaseCloseoutDrift(): Promise<CheckResult> {
   return { name, ok: true, detail: `${reqs.length} pending ticket(s); none released on the portal` };
 }
 
+/**
+ * devaudit-installer#826 — read sdlc-config.json from the repo root, same
+ * "not a consumer project" skip shape checkReleaseCloseoutDrift already
+ * uses. Shared by the onboarding-invariant checks below.
+ */
+async function readConsumerConfig(): Promise<{
+  repoRoot: string;
+  cfg: Record<string, unknown>;
+} | null> {
+  try {
+    const repoRoot = await resolveRepoRoot(process.cwd());
+    const cfg = JSON.parse(await fs.readFile(`${repoRoot}/sdlc-config.json`, 'utf-8')) as Record<
+      string,
+      unknown
+    >;
+    return { repoRoot, cfg };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * devaudit-installer#826 — docs/SRS.md is explicitly the one manual
+ * bootstrap step nothing in the framework authors on a consumer's behalf
+ * (requirements-aligner refuses to write one from scratch by design). Its
+ * absence previously surfaced only deep into real work, when
+ * requirements-aligner runs at Stage 1 of the first tracked requirement and
+ * refuses to proceed — this catches it at `devaudit doctor` time instead,
+ * for the cost of one existence check.
+ */
+async function checkSrsBootstrapped(): Promise<CheckResult> {
+  const name = 'srs';
+  const consumer = await readConsumerConfig();
+  if (!consumer) return { name, ok: true, detail: 'skipped (not a consumer project)' };
+  try {
+    await fs.access(`${consumer.repoRoot}/docs/SRS.md`);
+    return { name, ok: true, detail: 'docs/SRS.md present' };
+  } catch {
+    return {
+      name,
+      ok: false,
+      detail: 'docs/SRS.md missing — bootstrap from SRS_TEMPLATE.md before your first tracked requirement (requirements-aligner will refuse to proceed without it)',
+    };
+  }
+}
+
+/**
+ * devaudit-installer#826 — template sync writes an RTM skeleton (header row
+ * only); this checks it was actually filled in with at least one real
+ * requirement row, not just left as the generated skeleton.
+ */
+async function checkRtmInitialized(): Promise<CheckResult> {
+  const name = 'rtm';
+  const consumer = await readConsumerConfig();
+  if (!consumer) return { name, ok: true, detail: 'skipped (not a consumer project)' };
+  let content: string;
+  try {
+    content = await fs.readFile(`${consumer.repoRoot}/compliance/RTM.md`, 'utf-8');
+  } catch {
+    return { name, ok: false, detail: 'compliance/RTM.md missing — expected from template sync' };
+  }
+  const hasReqRow = /\|\s*REQ-\d/.test(content);
+  return hasReqRow
+    ? { name, ok: true, detail: 'compliance/RTM.md has at least one requirement row' }
+    : { name, ok: false, detail: 'compliance/RTM.md has no REQ-XXX rows yet — still the generated skeleton' };
+}
+
+/**
+ * devaudit-installer#826 — informational only, not a hard gate: unlike
+ * git/gh/jq/curl, no local hook depends on semgrep today (CI installs its
+ * own venv-based copy independently), so its local absence doesn't block
+ * anything a consumer would actually try to do. Reported alongside the
+ * release-close-out-drift warning rather than in the gating `checks` array.
+ */
+async function checkSemgrepAvailable(): Promise<CheckResult> {
+  const result = await checkCommand('semgrep', ['--version']);
+  return result.ok
+    ? result
+    : {
+        ...result,
+        detail: 'not found locally (CI installs its own copy; only affects local pre-commit SAST runs)',
+      };
+}
+
+/**
+ * devaudit-installer#826 — e2e_regression_enabled and playwright.config.ts's
+ * critical/regression projects are two independent places to declare the
+ * same intent; nothing previously cross-checked them. Mirrors
+ * e2e-regression.yml.template's own detection regex for the `critical`
+ * project so this check agrees with what the generated workflow would
+ * actually do.
+ */
+async function checkE2eRegressionConsistency(): Promise<CheckResult> {
+  const name = 'e2e-regression';
+  const consumer = await readConsumerConfig();
+  if (!consumer) return { name, ok: true, detail: 'skipped (not a consumer project)' };
+  const enabled = consumer.cfg['e2e_regression_enabled'] === true;
+  let playwrightConfig = '';
+  try {
+    playwrightConfig = await fs.readFile(`${consumer.repoRoot}/playwright.config.ts`, 'utf-8');
+  } catch {
+    if (enabled) {
+      return {
+        name,
+        ok: false,
+        detail: 'e2e_regression_enabled is true but playwright.config.ts was not found',
+      };
+    }
+    return { name, ok: true, detail: 'skipped (no playwright.config.ts)' };
+  }
+  const hasCritical = /name:\s*['"]critical['"]/.test(playwrightConfig);
+  const hasRegression = /name:\s*['"]regression['"]/.test(playwrightConfig);
+  if (enabled && (!hasCritical || !hasRegression)) {
+    const missing = [!hasCritical && 'critical', !hasRegression && 'regression']
+      .filter(Boolean)
+      .join(', ');
+    return {
+      name,
+      ok: false,
+      detail: `e2e_regression_enabled is true but playwright.config.ts is missing the ${missing} project(s) — e2e-regression.yml falls back to smoke on PR-to-main until this is fixed`,
+    };
+  }
+  if (!enabled && hasCritical && hasRegression) {
+    return {
+      name,
+      ok: false,
+      detail: 'playwright.config.ts defines critical/regression projects but e2e_regression_enabled is not set — the full-regression safety-net workflow is not being generated despite the specs existing',
+    };
+  }
+  return { name, ok: true, detail: enabled ? 'projects present, workflow enabled' : 'not opted in' };
+}
+
 export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
   const log = logger();
   log.info('Running devaudit doctor — checking required tools...\n');
@@ -121,9 +253,26 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
   const closeout = await checkReleaseCloseoutDrift();
   const closeoutMarker = closeout.ok ? '✓' : '⚠';
   log.log(`  ${closeoutMarker} ${closeout.name.padEnd(8)} ${closeout.detail}`);
-  log.log('');
   if (!closeout.ok) {
     log.warn('Release close-out drift detected — see above. (Does not affect the tool check.)');
+  }
+  // Onboarding-checklist invariants — same non-gating shape as the
+  // close-out check above (devaudit-installer#826).
+  const onboardingChecks: readonly CheckResult[] = [
+    await checkSrsBootstrapped(),
+    await checkRtmInitialized(),
+    await checkSemgrepAvailable(),
+    await checkE2eRegressionConsistency(),
+  ];
+  let onboardingIssues = false;
+  for (const check of onboardingChecks) {
+    const marker = check.ok ? '✓' : '⚠';
+    if (!check.ok) onboardingIssues = true;
+    log.log(`  ${marker} ${check.name.padEnd(14)} ${check.detail}`);
+  }
+  log.log('');
+  if (onboardingIssues) {
+    log.warn('Onboarding checklist gaps detected — see above. (Does not affect the tool check.)');
   }
   const plugins = options.plugins ?? (await discoverPlugins()).loaded;
   if (plugins.length > 0) {
