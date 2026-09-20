@@ -52,6 +52,9 @@
   "_comment_e2e_env": "Env applied to the E2E setup, (blocking) dev-server, and E2E test steps. To run E2E against a local stack, override EVERY remote/prod key here so production is fully severed — e.g. { \"E2E_LOCAL\": \"1\", \"NEXT_PUBLIC_SUPABASE_URL\": \"http://127.0.0.1:54321\", \"SUPABASE_SERVICE_ROLE_KEY\": \"<local-service-key>\", \"RESEND_API_KEY\": \"re_e2e_local_dummy_key\" }. Step-level env wins over the job-level secrets. Values may reference repo secrets, e.g. \"${{ secrets.E2E_ADMIN_USERNAME }}\".",
   "e2e_env": {},
 
+  "_comment_e2e_regression": "Opt-in: generates e2e-regression.yml, a three-tier smoke/critical/regression E2E gating workflow distinct from the blocking smoke gate above — PR-to-main runs the `critical` Playwright project, a successful production deployment runs the full `regression` project as a post-merge safety net (auto-files a bug/priority:high issue on failure), and workflow_dispatch supports scoped fix-and-verify iterations. Requires playwright.config.ts to define `smoke`/`critical`/`regression` projects (falls back to `smoke` on PR-to-main if `critical` isn't defined yet). Reuses e2e_env/e2e_setup_command/e2e_port above — no separate config surface. Leave false/absent unless you want the ~55-minute full-regression job (most projects don't).",
+  "e2e_regression_enabled": false,
+
   "paths_ignore": [
     ".github/workflows/**",
     "SDLC/**",
