@@ -1730,6 +1730,77 @@ describe('syncProject — native TS sync against a fixture', () => {
     }
   }, 60_000);
 
+  it('does not generate e2e-regression.yml unless e2e_regression_enabled is set (#821)', async () => {
+    const dir = await buildFixture();
+    try {
+      process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
+      await syncProject(dir);
+      const workflowFiles = await fs.readdir(join(dir, '.github', 'workflows'));
+      expect(workflowFiles).not.toContain('e2e-regression.yml');
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it('generates a valid e2e-regression.yml when opted in, and removes it when opted back out (#821)', async () => {
+    const dir = await buildFixture();
+    try {
+      const configPath = join(dir, 'sdlc-config.json');
+      const config = JSON.parse(await fs.readFile(configPath, 'utf8')) as Record<string, unknown>;
+      config['e2e_regression_enabled'] = true;
+      config['e2e_env'] = { E2E_LOCAL: '1' };
+      config['database_service'] = 'mongodb';
+      config['database_image'] = 'mongo:7';
+      config['database_port'] = '27017:27017';
+      await fs.writeFile(configPath, JSON.stringify(config));
+      process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
+
+      await syncProject(dir);
+      const workflowDir = join(dir, '.github', 'workflows');
+      const workflowFiles = await fs.readdir(workflowDir);
+      expect(workflowFiles).toContain('e2e-regression.yml');
+
+      const content = normalizeNewlines(
+        await fs.readFile(join(workflowDir, 'e2e-regression.yml'), 'utf8'),
+      );
+      // Reused tokens/config keys render correctly, not left as literal
+      // placeholders (checked individually, not a blanket "{{" absence —
+      // `${{ github.workflow }}`-style GitHub Actions expressions legitimately
+      // contain literal "{{" in the rendered output).
+      for (const literalToken of [
+        '{{RELEASE_BRANCH}}',
+        '{{RUNNER}}',
+        '{{DATABASE_SERVICE}}',
+        '{{DATABASE_IMAGE}}',
+        '{{DATABASE_PORT}}',
+        '{{E2E_REGRESSION_JOB_ENV}}',
+        '{{CHECKOUT_CLEAN}}',
+        '{{NODE_VERSION}}',
+        '{{E2E_SETUP_STEP}}',
+        '{{E2E_REGRESSION_SERVER_STEP}}',
+        '{{E2E_PORT}}',
+      ]) {
+        expect(content, `unsubstituted token: ${literalToken}`).not.toContain(literalToken);
+      }
+      expect(content).toContain('mongodb:');
+      expect(content).toContain('image: mongo:7');
+      expect(content).toContain('E2E_LOCAL: 1');
+      expect(content).toContain('npm run dev > e2e-server.log 2>&1 &');
+      expect(content).toContain('branches: [main]');
+      await expectAllWorkflowsValidYaml(dir);
+
+      // Opting back out removes the previously-generated file rather than
+      // leaving it to silently go stale.
+      config['e2e_regression_enabled'] = false;
+      await fs.writeFile(configPath, JSON.stringify(config));
+      await syncProject(dir);
+      const workflowFilesAfter = await fs.readdir(workflowDir);
+      expect(workflowFilesAfter).not.toContain('e2e-regression.yml');
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
   it('rejects an unknown stack', async () => {
     const badDir = await fs.mkdtemp(join(tmpdir(), 'cli-update-bad-'));
     try {

@@ -455,6 +455,28 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     },
   );
 
+  it('e2e-regression.yml.template warms up routes on npm-run-dev, not build+start (#821)', () => {
+    // #821 correction: `npm run build && npm run start` was tried on the
+    // motivating consumer and reverted — it silently enables Next.js's
+    // production-only Link prefetching, which broke every
+    // waitForLoadState('networkidle') call with reproducible timeouts. The
+    // template must encode the corrected fix, not the "obviously correct"
+    // one that was already disproven, so nobody re-templates the wrong fix.
+    const source = template('e2e-regression.yml.template');
+    expect(source).not.toContain('npm run build');
+    expect(source).toContain('Warm up dev-compiled routes');
+    expect(source).toContain('page\\.goto');
+    expect(source).toContain('networkidle');
+  });
+
+  it('e2e-regression.yml.template is conditionally generated, unlike every other CI_TEMPLATES entry', () => {
+    const source = readFileSync(resolve(root, 'cli/src/update/ci-templates.ts'), 'utf8');
+    expect(source).toContain(
+      "if (tmpl === 'e2e-regression.yml.template' && !cfg.e2e_regression_enabled) continue;",
+    );
+    expect(source).toContain('e2e_regression_enabled');
+  });
+
   it('does not fan out generic gate outcomes to pending REQs', () => {
     const source = template('ci.yml.template');
     expect(source).toContain('Not fanning out gate-outcomes.json to pending REQs');
