@@ -18,6 +18,10 @@ const CI_TEMPLATES = [
   'reconcile-deployment.yml.template',
   'compliance-evidence.yml.template',
   'feature-e2e.yml.template',
+  // DevAudit-Installer#821: three-tier smoke/critical/regression E2E
+  // gating. Conditionally generated only when e2e_regression_enabled —
+  // see the syncCiTemplates loop below.
+  'e2e-regression.yml.template',
   'close-out-release.yml.template',
   'close-out-completion.yml.template',
   // devaudit-installer#786: scheduled safety net — catches a release
@@ -90,6 +94,18 @@ interface SdlcConfig {
   // plain `npm ci`, byte-identical to before this field existed.
   // DevAudit-Installer#759.
   readonly install_flags?: string;
+  // Opt-in: generate e2e-regression.yml (the three-tier smoke/critical/
+  // regression E2E gating workflow — PR-to-main runs `critical`, a
+  // successful production deployment runs the full `regression` safety
+  // net, workflow_dispatch supports scoped fix-and-verify iterations).
+  // Absent/false → the file is not generated (and any previously-generated
+  // copy is removed on the next sync). Requires playwright.config.ts to
+  // define `smoke`/`critical`/`regression` projects per the convention in
+  // Test_Strategy.md § "E2E gating model — three tiers". Not every
+  // consumer wants a ~55-minute full-regression job, so unlike every other
+  // CI_TEMPLATES entry this one is conditionally generated.
+  // DevAudit-Installer#821.
+  readonly e2e_regression_enabled?: boolean;
   readonly paths_ignore?: readonly string[];
   /** See #689/#690 — when present, sync runs once per target instead of once for the flat config. */
   readonly targets?: readonly Target[];
@@ -255,6 +271,49 @@ function buildAuthenticatedE2eStep(cfg: SdlcConfig): string {
     lines.push(`        run: npx playwright test ${flags} --reporter=json,html`);
   }
   return lines.join('\n');
+}
+
+/**
+ * Build e2e-regression.yml's "Start dev server" step (devaudit-installer#821).
+ * Unlike buildE2eDevServerStep (ci.yml.template's blocking foreground start,
+ * which relies on the job simply ending to stop it), this workflow needs an
+ * explicit background start + pid capture so a later "Stop dev server" step
+ * can shut it down cleanly regardless of test outcome. Same empty-command
+ * fallback as buildE2eDevServerStep (e2e_start_command is '' on every fresh
+ * install — falling back to a harmless no-op keeps the workflow valid YAML
+ * instead of a bare `&`, which YAML parses as an anchor name and rejects).
+ * e2e_env is applied job-wide via E2E_REGRESSION_JOB_ENV, so no per-step env
+ * threading is needed here (unlike ci.yml.template's multi-purpose job).
+ */
+function buildE2eRegressionServerStep(cfg: SdlcConfig): string {
+  const startCommand = (cfg.e2e_start_command ?? '').trim() || 'true';
+  return [
+    '      - name: Start dev server',
+    '        run: |',
+    '          set -euo pipefail',
+    `          ${startCommand} > e2e-server.log 2>&1 &`,
+    '          echo "$!" > .e2e-server.pid',
+    '          echo "Started E2E server pid $(cat .e2e-server.pid)"',
+  ].join('\n');
+}
+
+/**
+ * Build e2e-regression.yml's job-level `env:` block (devaudit-installer#821).
+ * Unlike ci.yml.template's E2E section (a multi-purpose job where e2e_env is
+ * threaded onto individual steps to override job-level remote secrets only
+ * for E2E-related steps), e2e-regression.yml's entire job is E2E-focused, so
+ * database_env + e2e_env apply job-wide — same combine-with-own-header shape
+ * as QUALITY_GATES_ENV, so an all-absent config still renders valid YAML
+ * (DevAudit-Installer#800).
+ */
+function buildE2eRegressionJobEnv(cfg: SdlcConfig): string {
+  const combined = [
+    cfg.database_env ? indentEnvBlock({ ...cfg.database_env }, 6) : '',
+    cfg.e2e_env ? indentEnvBlock({ ...cfg.e2e_env }, 6) : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+  return combined ? `    env:\n${combined}` : '';
 }
 
 /**
@@ -445,6 +504,19 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
     if (await exists(oldPath)) await fs.rm(oldPath);
   }
 
+  // DevAudit-Installer#821 — e2e-regression.yml.template is the one
+  // CI_TEMPLATES entry that's conditionally generated (opt-in via
+  // e2e_regression_enabled). When disabled, remove any previously-generated
+  // copy (including a multi-target-namespaced e2e-regression-<target>.yml)
+  // instead of leaving it to silently go stale.
+  if (!cfg.e2e_regression_enabled) {
+    for (const existing of await fs.readdir(workflowsDir).catch(() => [] as string[])) {
+      if (/^e2e-regression(-.+)?\.yml$/.test(existing)) {
+        await fs.rm(join(workflowsDir, existing));
+      }
+    }
+  }
+
   const targets = resolveTargets(cfg);
   const multiTarget = targets.length > 1;
   let count = 0;
@@ -596,9 +668,12 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
       E2E_TEST_STEP: buildE2eTestStep(cfg),
       E2E_FEATURE_TEST_STEP: buildFeatureE2eTestStep(cfg),
       E2E_AUTHENTICATED_STEP: buildAuthenticatedE2eStep(cfg),
+      E2E_REGRESSION_JOB_ENV: buildE2eRegressionJobEnv(cfg),
+      E2E_REGRESSION_SERVER_STEP: buildE2eRegressionServerStep(cfg),
     };
 
     for (const tmpl of CI_TEMPLATES) {
+      if (tmpl === 'e2e-regression.yml.template' && !cfg.e2e_regression_enabled) continue;
       const stackTmpl = join(ctx.installerRoot, 'sdlc', 'files', 'ci', stack, tmpl);
       const defaultTmpl = join(ctx.installerRoot, 'sdlc', 'files', 'ci', tmpl);
       let tmplPath: string;
