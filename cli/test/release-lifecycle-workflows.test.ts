@@ -477,6 +477,18 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     expect(source).toContain('e2e_regression_enabled');
   });
 
+  it('e2e_regression_enabled is discoverable in sdlc-config.example.json, like other wizard-unprompted keys', () => {
+    // Advanced keys the install wizard never prompts for (install_flags,
+    // mypy_scoped_diff, e2e_regression_enabled) are only discoverable if
+    // documented in the example config — this one was missed when #821
+    // shipped (caught during an onboarding-process audit, not at review
+    // time), so guard it from silently regressing again.
+    const example = readFileSync(resolve(root, 'sdlc/files/sdlc-config.example.json'), 'utf8');
+    expect(example).toContain('"_comment_e2e_regression"');
+    expect(example).toContain('"e2e_regression_enabled": false');
+    expect(() => JSON.parse(example)).not.toThrow();
+  });
+
   it('does not fan out generic gate outcomes to pending REQs', () => {
     const source = template('ci.yml.template');
     expect(source).toContain('Not fanning out gate-outcomes.json to pending REQs');
