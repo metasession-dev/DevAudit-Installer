@@ -71,6 +71,52 @@ describe('generate-bundled-changes.sh — declared co-tracked bundle members (#7
   });
 });
 
+describe('ci.yml.template — preserves declared co-tracked bundle members (#817)', () => {
+  const template = readFileSync(resolve(root, 'sdlc/files/ci/ci.yml.template'), 'utf8').replace(
+    /\r\n/g,
+    '\n',
+  );
+
+  it('re-derives --declared-bundle from the already-committed manifest before regenerating', () => {
+    // #817 — without this, the unconditional retroactive-scan regeneration
+    // below silently overwrote a declared bundle's committed
+    // BUNDLED-CHANGES-${VERSION}.json/.md with an absorption-only rescan on
+    // every push. Verified manually against generate-bundled-changes.sh
+    // directly: a committed manifest with role=="co-tracked" members drops
+    // to zero members after one unguarded regeneration; re-passing
+    // --declared-bundle (re-derived from the same file before it's
+    // overwritten) preserves them, while still picking up newly-landed
+    // housekeeping/predecessor absorption in the same run — a release can
+    // need both kinds of bundling at once and neither may clobber the
+    // other (the existing housekeeping-ride-along mechanism is a real,
+    // separately-used feature and must not regress).
+    expect(template).toContain("grep -q 'Co-Tracked Bundle Members' \"$BUNDLED_FILE\"");
+    expect(template).toContain('select(.role == "co-tracked") | .version');
+    expect(template).toContain('DECLARED_BUNDLE_ARGS=(--declared-bundle "$DECLARED_MEMBERS")');
+    expect(template).toContain('"${DECLARED_BUNDLE_ARGS[@]}" > "$BUNDLED_FILE"');
+  });
+
+  it('filters co-tracked members out of the portal submission until devaudit#857 ships', () => {
+    // The portal's MEMBER_ROLES/MEMBER_RELATIONSHIPS enum doesn't accept
+    // role="co-tracked" yet, and submit-bundle-manifest.sh hard-fails
+    // (set -euo pipefail, unguarded exit 1) on any non-201 response with
+    // no error suppression at the call site — submitting co-tracked
+    // members today would break this step on every push for every
+    // declared bundle, not just silently drop them as before.
+    expect(template).toContain('.members |= map(select(.role != "co-tracked"))');
+    const filterIdx = template.indexOf('.members |= map(select(.role != "co-tracked"))');
+    const submitIdx = template.indexOf('bash scripts/submit-bundle-manifest.sh {{PROJECT_SLUG}} "$VERSION" "$SUBMIT_MANIFEST"');
+    expect(filterIdx).toBeGreaterThan(-1);
+    expect(submitIdx).toBeGreaterThan(filterIdx);
+  });
+
+  it('still uploads the full (unfiltered) manifest as bundled_changes evidence for local/PR visibility', () => {
+    const uploadIdx = template.indexOf('_compliance-docs bundled_changes "$BUNDLED_FILE"');
+    const submitIdx = template.indexOf('bash scripts/submit-bundle-manifest.sh {{PROJECT_SLUG}} "$VERSION" "$SUBMIT_MANIFEST"');
+    expect(uploadIdx).toBeGreaterThan(submitIdx);
+  });
+});
+
 describe('derive-release-version.sh — declared-bundle manifest priority tier (#736)', () => {
   const script = readCommon('scripts/derive-release-version.sh');
 

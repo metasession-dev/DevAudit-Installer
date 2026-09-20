@@ -461,8 +461,33 @@ jobs:
           BUNDLED_MANIFEST="compliance/pending-releases/BUNDLED-CHANGES-${VERSION}.json"
           mkdir -p compliance/pending-releases
           chmod +x scripts/submit-bundle-manifest.sh 2>/dev/null || true
+
+          # devaudit-installer#817 — a declared bundle (sdlc-implementer
+          # Phase 1 step 4, `Bundles: #A, #B`) commits its own
+          # BUNDLED-CHANGES-${VERSION}.{md,json} at this exact path, with a
+          # "Co-Tracked Bundle Members" section generate-bundled-changes.sh's
+          # --declared-bundle mode writes. Without this, the unconditional
+          # regeneration below overwrote that file with an absorption-only
+          # rescan on every push, silently discarding the declared bundle's
+          # membership data before it could ever reach the portal. Re-derive
+          # the same --declared-bundle argument from what's already
+          # committed so this run's regeneration reproduces it via the same
+          # generator path instead of clobbering it — verified this also
+          # still picks up newly-landed housekeeping/predecessor absorption
+          # alongside the preserved co-tracked members, not one or the
+          # other; a release can legitimately need both at once.
+          DECLARED_BUNDLE_ARGS=()
+          if [ -f "$BUNDLED_FILE" ] && grep -q 'Co-Tracked Bundle Members' "$BUNDLED_FILE" 2>/dev/null \
+             && [ -f "$BUNDLED_MANIFEST" ]; then
+            DECLARED_MEMBERS=$(jq -r '(.members // [])[] | select(.role == "co-tracked") | .version' "$BUNDLED_MANIFEST" 2>/dev/null | paste -sd, - || true)
+            if [ -n "$DECLARED_MEMBERS" ]; then
+              echo "Preserving declared co-tracked bundle members: ${DECLARED_MEMBERS}"
+              DECLARED_BUNDLE_ARGS=(--declared-bundle "$DECLARED_MEMBERS")
+            fi
+          fi
+
           bash scripts/generate-bundled-changes.sh \
-            "$SINCE_REF" "$VERSION" --json-out "$BUNDLED_MANIFEST" > "$BUNDLED_FILE"
+            "$SINCE_REF" "$VERSION" --json-out "$BUNDLED_MANIFEST" "${DECLARED_BUNDLE_ARGS[@]}" > "$BUNDLED_FILE"
           MEMBER_COUNT=$(jq -r '(.members // []) | length' "$BUNDLED_MANIFEST" 2>/dev/null || echo 0)
           WORK_ITEM_COUNT=$(jq -r '(.nonReleaseWorkItems // []) | length' "$BUNDLED_MANIFEST" 2>/dev/null || echo 0)
           if [ "$MEMBER_COUNT" = "0" ] && [ "$WORK_ITEM_COUNT" = "0" ]; then
@@ -470,7 +495,23 @@ jobs:
             rm -f "$BUNDLED_FILE" "$BUNDLED_MANIFEST"
             exit 0
           fi
-          bash scripts/submit-bundle-manifest.sh {{PROJECT_SLUG}} "$VERSION" "$BUNDLED_MANIFEST"
+
+          # devaudit-installer#817 — the portal doesn't accept
+          # role="co-tracked"/relationship="bundled" yet (devaudit#857), and
+          # submit-bundle-manifest.sh hard-fails this step on any non-201
+          # response with no error suppression at the call site — submitting
+          # co-tracked members today would break this step on every push for
+          # every declared bundle. Submit a filtered copy that excludes
+          # them; they stay in $BUNDLED_MANIFEST / $BUNDLED_FILE for the
+          # evidence upload below (a generic document upload, not
+          # schema-validated) and for local/PR visibility. Relies on
+          # submit-bundle-manifest.sh's own existing "no members or work
+          # items" no-op guard for the case where filtering leaves nothing
+          # submittable. Drop this filter once devaudit#857 ships.
+          SUBMIT_MANIFEST="$(mktemp)"
+          jq '.members |= map(select(.role != "co-tracked"))' "$BUNDLED_MANIFEST" > "$SUBMIT_MANIFEST"
+          bash scripts/submit-bundle-manifest.sh {{PROJECT_SLUG}} "$VERSION" "$SUBMIT_MANIFEST"
+          rm -f "$SUBMIT_MANIFEST"
           # Upload as bundled_changes evidence against this release (REQ-tracked
           # or bare-date housekeeping — devaudit-installer#622).
           bash scripts/upload-evidence.sh \
