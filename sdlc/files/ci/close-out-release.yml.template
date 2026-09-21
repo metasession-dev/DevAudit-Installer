@@ -71,6 +71,8 @@ jobs:
         with:
           ref: develop
           fetch-depth: 0
+          # See ci.yml.template's checkout step for why (devaudit-installer#676/#815).
+          clean: {{CHECKOUT_CLEAN}}
           token: ${{ secrets.INSTALLER_DISPATCH_TOKEN || github.token }}
 
       - name: Resolve inputs

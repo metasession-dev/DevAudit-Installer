@@ -170,7 +170,11 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     const checkoutTokenIdx = source.indexOf(`token: ${expectedTokenExpr}`);
     expect(checkoutIdx).toBeGreaterThan(-1);
     expect(checkoutTokenIdx).toBeGreaterThan(checkoutIdx);
-    expect(checkoutTokenIdx - checkoutIdx).toBeLessThan(200);
+    // devaudit-installer#815 added a clean: {{CHECKOUT_CLEAN}} line (+
+    // comment) to this same `with:` block, pushing the distance past the
+    // original 200-char heuristic without changing which step `token:`
+    // belongs to — widened with margin for future same-block additions.
+    expect(checkoutTokenIdx - checkoutIdx).toBeLessThan(400);
   });
 
   it('delegates advisory-scoped dependency-risk evaluation to the synced fail-closed helper', () => {
@@ -399,6 +403,90 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     expect(source).toContain('Not attaching generic E2E JSON to ${REQ_ID}');
     expect(source).toContain('Run-level evidence remains on _compliance-docs');
     expect(source).toContain("result.get('status') not in {'skipped', 'interrupted'}");
+  });
+
+  it('fans out SAST/Dependency Audit evidence to declared-bundle co-tracked members (#819)', () => {
+    const source = template('ci.yml.template');
+    // Keys off the committed declared-bundle manifest, distinguished from
+    // the ephemeral retroactive-absorption manifest by the same
+    // "Co-Tracked Bundle Members" guard derive-release-version.sh step 0
+    // uses, and filters to role == "co-tracked" only.
+    expect(source).toContain("grep -q 'Co-Tracked Bundle Members' \"$BUNDLE_DECLARATION\"");
+    expect(source).toContain('select(.role == "co-tracked") | .version');
+    // Fans out both evidence types, unlike E2E's per-spec-tag gating --
+    // SAST/dependency-audit apply uniformly to the whole bundle's shared diff.
+    expect(source).toContain('sast-results.json -> ${MEMBER_REQ}');
+    expect(source).toContain('dependency-audit.json -> ${MEMBER_REQ}');
+    expect(source).toContain('{{PROJECT_SLUG}} "${MEMBER_REQ}" sast_report');
+    expect(source).toContain('{{PROJECT_SLUG}} "${MEMBER_REQ}" dependency_audit');
+    // #192 terminal-release skip, mirroring the existing E2E fan-out.
+    expect(source).toContain('compliance/approved-releases/RELEASE-TICKET-${MEMBER_REQ}.md');
+    expect(source).toContain('compliance/superseded-releases/RELEASE-TICKET-${MEMBER_REQ}.md');
+    // Each member gets its own release, not the primary's.
+    expect(source).toContain('--release ${MEMBER_REQ} --create-release-if-missing');
+    // This block must appear before the SAST/dependency-audit primary
+    // uploads' section ends and the (unrelated) E2E fan-out begins, so a
+    // reader sees both fan-outs are analogous, adjacent mechanisms.
+    expect(source.indexOf('BUNDLE_DECLARATION=')).toBeGreaterThan(
+      source.indexOf('_compliance-docs dependency_audit ci-evidence/dependency-risk-evaluation.json'),
+    );
+    expect(source.indexOf('BUNDLE_DECLARATION=')).toBeLessThan(
+      source.indexOf('has_req_tagged_e2e_result()'),
+    );
+  });
+
+  it.each(['ci.yml.template', 'feature-e2e.yml.template'])(
+    'fails loudly instead of silently swallowing a stale E2E dev server on %s (#820)',
+    (name) => {
+      const source = template(name);
+      // The old `|| true` swallowed a cross-user EPERM on a persistent
+      // self-hosted runner, letting CI's own dev server fail to bind while
+      // the very next wait-on step passed against the stale process
+      // instead. Re-check after the kill attempt and fail the job instead
+      // of limping forward against the wrong server.
+      expect(source).toContain('if lsof -ti:{{E2E_PORT}} >/dev/null 2>&1; then');
+      expect(source).toContain('lsof -ti:{{E2E_PORT}} | xargs kill -9 2>/dev/null || true');
+      expect(source).toContain('is still held by another process after a kill attempt');
+      expect(source).toContain('exit 1');
+      // Unconditional, not self-hosted-only: nothing is ever listening on
+      // {{E2E_PORT}} on the ephemeral github-ci path, so this is a no-op
+      // there — no runner-label branching needed.
+      expect(source).not.toContain("== 'github-ci'");
+    },
+  );
+
+  it('e2e-regression.yml.template warms up routes on npm-run-dev, not build+start (#821)', () => {
+    // #821 correction: `npm run build && npm run start` was tried on the
+    // motivating consumer and reverted — it silently enables Next.js's
+    // production-only Link prefetching, which broke every
+    // waitForLoadState('networkidle') call with reproducible timeouts. The
+    // template must encode the corrected fix, not the "obviously correct"
+    // one that was already disproven, so nobody re-templates the wrong fix.
+    const source = template('e2e-regression.yml.template');
+    expect(source).not.toContain('npm run build');
+    expect(source).toContain('Warm up dev-compiled routes');
+    expect(source).toContain('page\\.goto');
+    expect(source).toContain('networkidle');
+  });
+
+  it('e2e-regression.yml.template is conditionally generated, unlike every other CI_TEMPLATES entry', () => {
+    const source = readFileSync(resolve(root, 'cli/src/update/ci-templates.ts'), 'utf8');
+    expect(source).toContain(
+      "if (tmpl === 'e2e-regression.yml.template' && !cfg.e2e_regression_enabled) continue;",
+    );
+    expect(source).toContain('e2e_regression_enabled');
+  });
+
+  it('e2e_regression_enabled is discoverable in sdlc-config.example.json, like other wizard-unprompted keys', () => {
+    // Advanced keys the install wizard never prompts for (install_flags,
+    // mypy_scoped_diff, e2e_regression_enabled) are only discoverable if
+    // documented in the example config — this one was missed when #821
+    // shipped (caught during an onboarding-process audit, not at review
+    // time), so guard it from silently regressing again.
+    const example = readFileSync(resolve(root, 'sdlc/files/sdlc-config.example.json'), 'utf8');
+    expect(example).toContain('"_comment_e2e_regression"');
+    expect(example).toContain('"e2e_regression_enabled": false');
+    expect(() => JSON.parse(example)).not.toThrow();
   });
 
   it('does not fan out generic gate outcomes to pending REQs', () => {

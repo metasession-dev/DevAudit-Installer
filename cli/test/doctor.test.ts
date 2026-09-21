@@ -57,6 +57,103 @@ describe('devaudit doctor', () => {
   }, 30_000);
 });
 
+describe('devaudit doctor — onboarding-checklist invariants (#826)', () => {
+  it('reports docs/SRS.md and compliance/RTM.md missing on a fresh consumer project', async () => {
+    const { mkdtemp, writeFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const dir = await mkdtemp(join(tmpdir(), 'devaudit-doctor-srs-'));
+    await writeFile(join(dir, 'sdlc-config.json'), JSON.stringify({ project_slug: 'fixture' }));
+    const result = await execa('node', [BIN, 'doctor'], { cwd: dir, reject: false });
+    const output = result.stdout + result.stderr;
+    expect(output).toContain('docs/SRS.md missing');
+    expect(output).toContain('compliance/RTM.md missing');
+  }, 30_000);
+
+  it('reports docs/SRS.md present and RTM initialized once both exist', async () => {
+    const { mkdtemp, mkdir, writeFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const dir = await mkdtemp(join(tmpdir(), 'devaudit-doctor-srs-ok-'));
+    await writeFile(join(dir, 'sdlc-config.json'), JSON.stringify({ project_slug: 'fixture' }));
+    await mkdir(join(dir, 'docs'), { recursive: true });
+    await writeFile(join(dir, 'docs', 'SRS.md'), '# SRS\n');
+    await mkdir(join(dir, 'compliance'), { recursive: true });
+    await writeFile(
+      join(dir, 'compliance', 'RTM.md'),
+      '# RTM\n| REQ-ID | Title |\n| --- | --- |\n| REQ-001 | Example |\n',
+    );
+    const result = await execa('node', [BIN, 'doctor'], { cwd: dir, reject: false });
+    const output = result.stdout + result.stderr;
+    expect(output).toContain('docs/SRS.md present');
+    expect(output).toContain('at least one requirement row');
+  }, 30_000);
+
+  it('warns when a skeleton RTM.md has no REQ rows yet', async () => {
+    const { mkdtemp, mkdir, writeFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const dir = await mkdtemp(join(tmpdir(), 'devaudit-doctor-rtm-skeleton-'));
+    await writeFile(join(dir, 'sdlc-config.json'), JSON.stringify({ project_slug: 'fixture' }));
+    await mkdir(join(dir, 'compliance'), { recursive: true });
+    await writeFile(join(dir, 'compliance', 'RTM.md'), '# RTM\n| REQ-ID | Title |\n| --- | --- |\n');
+    const result = await execa('node', [BIN, 'doctor'], { cwd: dir, reject: false });
+    const output = result.stdout + result.stderr;
+    expect(output).toContain('still the generated skeleton');
+  }, 30_000);
+
+  it('warns when e2e_regression_enabled is true but playwright.config.ts lacks the critical/regression projects', async () => {
+    const { mkdtemp, writeFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const dir = await mkdtemp(join(tmpdir(), 'devaudit-doctor-e2e-mismatch-'));
+    await writeFile(
+      join(dir, 'sdlc-config.json'),
+      JSON.stringify({ project_slug: 'fixture', e2e_regression_enabled: true }),
+    );
+    await writeFile(
+      join(dir, 'playwright.config.ts'),
+      "export default { projects: [{ name: 'smoke' }] };\n",
+    );
+    const result = await execa('node', [BIN, 'doctor'], { cwd: dir, reject: false });
+    const output = result.stdout + result.stderr;
+    expect(output).toContain('missing the critical, regression project(s)');
+  }, 30_000);
+
+  it('warns when playwright.config.ts defines critical/regression but e2e_regression_enabled is unset', async () => {
+    const { mkdtemp, writeFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const dir = await mkdtemp(join(tmpdir(), 'devaudit-doctor-e2e-unset-'));
+    await writeFile(join(dir, 'sdlc-config.json'), JSON.stringify({ project_slug: 'fixture' }));
+    await writeFile(
+      join(dir, 'playwright.config.ts'),
+      "export default { projects: [{ name: 'critical' }, { name: 'regression' }] };\n",
+    );
+    const result = await execa('node', [BIN, 'doctor'], { cwd: dir, reject: false });
+    const output = result.stdout + result.stderr;
+    expect(output).toContain('e2e_regression_enabled is not set');
+  }, 30_000);
+
+  it('reports clean when e2e_regression_enabled matches the playwright projects present', async () => {
+    const { mkdtemp, writeFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const dir = await mkdtemp(join(tmpdir(), 'devaudit-doctor-e2e-ok-'));
+    await writeFile(
+      join(dir, 'sdlc-config.json'),
+      JSON.stringify({ project_slug: 'fixture', e2e_regression_enabled: true }),
+    );
+    await writeFile(
+      join(dir, 'playwright.config.ts'),
+      "export default { projects: [{ name: 'critical' }, { name: 'regression' }] };\n",
+    );
+    const result = await execa('node', [BIN, 'doctor'], { cwd: dir, reject: false });
+    const output = result.stdout + result.stderr;
+    expect(output).toContain('projects present, workflow enabled');
+  }, 30_000);
+});
+
 describe('stubbed commands (workstream B / D prereqs)', () => {
   it('org list exits non-zero with a "not implemented yet" message', async () => {
     const result = await execa('node', [BIN, 'org', 'list'], { reject: false });
