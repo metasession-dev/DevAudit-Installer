@@ -154,6 +154,69 @@ describe('devaudit doctor — onboarding-checklist invariants (#826)', () => {
   }, 30_000);
 });
 
+describe('devaudit doctor — onboarding-checklist invariants (#867)', () => {
+  it('reports the pre-push hook missing on a fresh consumer project with no hooks bootstrapped', async () => {
+    const { mkdtemp, writeFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const dir = await mkdtemp(join(tmpdir(), 'devaudit-doctor-prepush-'));
+    await writeFile(join(dir, 'sdlc-config.json'), JSON.stringify({ project_slug: 'fixture' }));
+    const result = await execa('node', [BIN, 'doctor'], { cwd: dir, reject: false });
+    const output = result.stdout + result.stderr;
+    expect(output).toContain('no pre-push hook found');
+  }, 30_000);
+
+  it('reports the pre-push hook present once .husky/pre-push exists', async () => {
+    const { mkdtemp, mkdir, writeFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const dir = await mkdtemp(join(tmpdir(), 'devaudit-doctor-prepush-ok-'));
+    await writeFile(join(dir, 'sdlc-config.json'), JSON.stringify({ project_slug: 'fixture' }));
+    await mkdir(join(dir, '.husky'), { recursive: true });
+    await writeFile(join(dir, '.husky', 'pre-push'), '#!/usr/bin/env sh\n');
+    const result = await execa('node', [BIN, 'doctor'], { cwd: dir, reject: false });
+    const output = result.stdout + result.stderr;
+    expect(output).toMatch(/pre-push-hook\s+present/);
+  }, 30_000);
+
+  it('skips the required-secrets check gracefully outside a GitHub repo', async () => {
+    const { mkdtemp, writeFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const dir = await mkdtemp(join(tmpdir(), 'devaudit-doctor-secrets-'));
+    await writeFile(join(dir, 'sdlc-config.json'), JSON.stringify({ project_slug: 'fixture' }));
+    const result = await execa('node', [BIN, 'doctor'], { cwd: dir, reject: false });
+    expect([0, 6]).toContain(result.exitCode);
+    // Non-fatal either way -- either it skips (no gh repo context) or reports
+    // missing secrets; both are 'ok: true'-shaped for the onboarding summary
+    // and must not crash the process.
+  }, 30_000);
+
+  it('--json emits a structured report including the new checks, tagged with a suspectedOrigin', async () => {
+    const { mkdtemp, mkdir, writeFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const dir = await mkdtemp(join(tmpdir(), 'devaudit-doctor-json-'));
+    await writeFile(join(dir, 'sdlc-config.json'), JSON.stringify({ project_slug: 'fixture' }));
+    await mkdir(join(dir, 'docs'), { recursive: true });
+    await writeFile(join(dir, 'docs', 'SRS.md'), '# SRS\n');
+    const result = await execa('node', [BIN, '--json', 'doctor'], { cwd: dir, reject: false });
+    expect([0, 6]).toContain(result.exitCode);
+    const report = JSON.parse(result.stdout) as {
+      ok: boolean;
+      tools: Array<{ name: string; ok: boolean }>;
+      onboarding: Array<{ name: string; ok: boolean; suspectedOrigin?: string }>;
+    };
+    expect(Array.isArray(report.tools)).toBe(true);
+    expect(report.tools.some((t) => t.name === 'node')).toBe(true);
+    const srsCheck = report.onboarding.find((c) => c.name === 'srs');
+    expect(srsCheck?.ok).toBe(true);
+    expect(srsCheck?.suspectedOrigin).toBe('consumer-drift');
+    const prePushCheck = report.onboarding.find((c) => c.name === 'pre-push-hook');
+    expect(prePushCheck?.suspectedOrigin).toBe('consumer-drift');
+  }, 30_000);
+});
+
 describe('stubbed commands (workstream B / D prereqs)', () => {
   it('org list exits non-zero with a "not implemented yet" message', async () => {
     const result = await execa('node', [BIN, 'org', 'list'], { reject: false });

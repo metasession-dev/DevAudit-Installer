@@ -275,7 +275,7 @@ export async function main(argv: readonly string[]): Promise<void> {
     });
   program
     .command('doctor')
-    .description('Verify the local install: required tools on PATH (node>=22, git, gh, jq, curl) + a release close-out drift check')
+    .description('Verify the local install: required tools on PATH (node>=22, git, gh, jq, curl), a release close-out drift check, and onboarding-checklist invariants (SRS/RTM/secrets/pre-push hook). Use --json for machine-readable output (consumed by the fleet-doctor skill).')
     .action(runDoctor);
   program
     .command('status [path]')
