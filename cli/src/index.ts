@@ -58,10 +58,20 @@ export async function main(argv: readonly string[]): Promise<void> {
       '--add-target',
       'Append this install as a new target in an already-configured (polyglot monorepo) repo instead of refusing. See #689.',
     )
+    .option(
+      '--with-viewer-key',
+      'Also issue a read-only viewer-role API key (DEVAUDIT_VIEWER_API_KEY) for agent/CI read-back queries against release/check/cycle state. Never grants upload or approval rights. See #867.',
+    )
     .action(
       async (
         path: string | undefined,
-        cmdOpts: { token?: string; baseUrl?: string; forceTeamConfig?: boolean; addTarget?: boolean },
+        cmdOpts: {
+          token?: string;
+          baseUrl?: string;
+          forceTeamConfig?: boolean;
+          addTarget?: boolean;
+          withViewerKey?: boolean;
+        },
         cmd,
       ) => {
         const globals = cmd.optsWithGlobals();
@@ -73,6 +83,9 @@ export async function main(argv: readonly string[]): Promise<void> {
             ? { forceTeamConfig: Boolean(cmdOpts.forceTeamConfig) }
             : {}),
           ...(cmdOpts.addTarget !== undefined ? { addTarget: Boolean(cmdOpts.addTarget) } : {}),
+          ...(cmdOpts.withViewerKey !== undefined
+            ? { withViewerKey: Boolean(cmdOpts.withViewerKey) }
+            : {}),
           ...(globals.dryRun !== undefined ? { dryRun: Boolean(globals.dryRun) } : {}),
           ...(globals.yes !== undefined ? { yes: Boolean(globals.yes) } : {}),
         });

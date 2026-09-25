@@ -19,6 +19,12 @@ export interface InstallOptions {
    * target. See #689 / #691.
    */
   readonly addTarget?: boolean;
+  /**
+   * Also issue a read-only, viewer-role API key (`DEVAUDIT_VIEWER_API_KEY`)
+   * for agent/CI read-back queries against release/check/cycle state.
+   * Never grants upload or approval rights. See devaudit-installer#867.
+   */
+  readonly withViewerKey?: boolean;
 }
 
 export async function runInstallCommand(options: InstallOptions): Promise<void> {
@@ -34,6 +40,7 @@ export async function runInstallCommand(options: InstallOptions): Promise<void> 
         ? { forceTeamConfig: options.forceTeamConfig }
         : {}),
       ...(options.addTarget !== undefined ? { addTarget: options.addTarget } : {}),
+      ...(options.withViewerKey !== undefined ? { withViewerKey: options.withViewerKey } : {}),
     });
   } catch (err) {
     log.error((err as Error).message);

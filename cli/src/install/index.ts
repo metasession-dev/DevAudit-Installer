@@ -17,7 +17,7 @@ import { detectStack } from './detect-stack.js';
 import { collectPlan } from './prompts.js';
 import { writeSdlcConfig } from './write-config.js';
 import { findOrCreateProject } from './project.js';
-import { issueApiKey } from './api-key.js';
+import { issueApiKey, issueViewerApiKey } from './api-key.js';
 import { setGithubSecrets } from './github.js';
 import { bootstrapHooks } from './hooks-bootstrap.js';
 import { configureBranchProtection } from './branch-protection.js';
@@ -55,6 +55,12 @@ export interface RunInstallOptions {
    * target. See #689 / #691.
    */
   readonly addTarget?: boolean;
+  /**
+   * Also issue a read-only, viewer-role API key (`DEVAUDIT_VIEWER_API_KEY`)
+   * alongside the default uploader key, for read-back queries (e.g. from
+   * `sdlc-implementer` or a CI status check). See devaudit-installer#867.
+   */
+  readonly withViewerKey?: boolean;
 }
 
 export interface InstallReport {
@@ -89,6 +95,7 @@ export async function runInstall(options: RunInstallOptions): Promise<InstallRep
     nonInteractive: Boolean(options.nonInteractive),
     installMode: 'operator',
     addTarget: Boolean(options.addTarget),
+    withViewerKey: Boolean(options.withViewerKey),
   };
   banner(tentativeCtx);
   const steps: StepResult[] = [];
@@ -115,6 +122,7 @@ export async function runInstall(options: RunInstallOptions): Promise<InstallRep
   steps.push(await record(log, writeSdlcConfig(ctx, plan)));
   steps.push(await record(log, findOrCreateProject(ctx, plan)));
   steps.push(await record(log, issueApiKey(ctx, plan)));
+  steps.push(await record(log, issueViewerApiKey(ctx, plan)));
   if (providerResolution.provider) {
     steps.push(await record(log, setGithubSecrets(ctx, plan, providerResolution.provider)));
   } else {

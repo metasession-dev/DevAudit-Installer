@@ -65,10 +65,14 @@ export class DevAuditClient {
     return json.keys ?? [];
   }
 
-  async issueApiKey(projectId: string, name: string): Promise<ApiKeyIssued> {
+  async issueApiKey(
+    projectId: string,
+    name: string,
+    role: 'uploader' | 'viewer' = 'uploader',
+  ): Promise<ApiKeyIssued> {
     const res = await this.request('POST', `/api/projects/${projectId}/api-keys`, {
       name,
-      role: 'uploader',
+      role,
     });
     return (await res.json()) as ApiKeyIssued;
   }
