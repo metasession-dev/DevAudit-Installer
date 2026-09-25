@@ -50,6 +50,15 @@ export interface InstallContext {
    */
   readonly addTarget: boolean;
   /**
+   * Also issue a second, read-only, project-scoped `viewer`-role API key
+   * alongside the default `uploader` one (devaudit-installer#867). Off by
+   * default — the uploader key remains the only credential `install` issues
+   * unless this is set. Safe to hand to an agent/CI process for read-back
+   * queries (release/check/cycle status) because a viewer key can never
+   * reach a mutating endpoint.
+   */
+  readonly withViewerKey: boolean;
+  /**
    * Set to `'developer'` only AFTER the orchestrator's mode-detection runs
    * (between step 6 and step 7); the steps that run before that point (1–6)
    * see `'operator'` and proceed as usual. The destructive steps (7, 9) and
@@ -80,6 +89,15 @@ export interface InstallPlan {
   apiKeySecretName: string;
   projectId?: string;
   apiKey?: string;
+  /**
+   * Name of the GitHub repo secret a viewer-role key is (or would be) stored
+   * under. Set whenever `withViewerKey` is on for this run, or when an
+   * earlier run already configured one — same collision-avoidance rule as
+   * `apiKeySecretName` for polyglot-monorepo targets. Undefined means no
+   * viewer key is configured for this target.
+   */
+  viewerApiKeySecretName?: string;
+  viewerApiKey?: string;
 }
 
 export interface DetectedStack {

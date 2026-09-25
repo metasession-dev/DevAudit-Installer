@@ -32,6 +32,12 @@ export interface SdlcConfig {
     readonly base_url?: string;
     readonly project_slug?: string;
     readonly api_key_secret?: string;
+    /**
+     * Repo secret holding a read-only, viewer-role API key, if one was
+     * issued via `devaudit install --with-viewer-key` (devaudit-installer#867).
+     * Absent means no viewer key has been issued for this target.
+     */
+    readonly viewer_api_key_secret?: string;
   };
   readonly uat?: { readonly enabled?: boolean };
   readonly approval?: { readonly mode?: string };
@@ -59,6 +65,7 @@ export interface Target {
     readonly base_url?: string;
     readonly project_slug?: string;
     readonly api_key_secret?: string;
+    readonly viewer_api_key_secret?: string;
   };
 }
 

@@ -54,6 +54,8 @@ The constraints are enforced in `SKILL.md` and in the smoke pass. Where applicab
 | **Enforcement** | Skill-side. All portal interaction goes through `devaudit push` or `curl`/`gh api` against the documented REST endpoints. |
 | **Failure mode if violated** | Compliance-affecting actions land on the portal with no audit-log trail. Auditor's "who did this?" question is unanswerable. |
 
+> **Compatible with the optional read-only viewer key (devaudit-installer#867).** If the operator issued `DEVAUDIT_VIEWER_API_KEY` via `devaudit install --with-viewer-key`, this skill may use it to query release/check/cycle status (`GET .../checks`, `GET .../cycles`) directly — reads aren't "portal mutations," so this constraint is unaffected. The key can only reach read-back endpoints; every state-changing call (evidence upload, release approval, check/cycle resolution) still goes through `devaudit push` under the operator's own `DEVAUDIT_USER_TOKEN`-attributed identity, exactly as constraint #6 requires. Adding this read path did not require a re-audit of this constraint.
+
 ## The one process risk
 
 ### 7. Rubber-stamping at UAT

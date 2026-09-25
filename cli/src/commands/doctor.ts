@@ -1,7 +1,7 @@
 import { execa } from 'execa';
 import { resolve } from 'node:path';
 import { promises as fs } from 'node:fs';
-import { logger } from '../lib/logger.js';
+import { logger, isJsonMode, emitJsonResult } from '../lib/logger.js';
 import { resolveRepoRoot } from '../lib/git-root.js';
 import { discoverPlugins, buildPluginContext, runHook, type LoadedPlugin } from '../lib/plugin/index.js';
 
@@ -9,10 +9,23 @@ export interface DoctorOptions {
   readonly plugins?: readonly LoadedPlugin[];
 }
 
+/**
+ * First-pass signal for `fleet-doctor` (devaudit-installer#867): whether a
+ * failing check most likely points at this one consumer having drifted from
+ * what onboarding/template-sync should have produced (`consumer-drift`), or
+ * at the framework/portal itself (`framework`) -- e.g. every consumer would
+ * fail the same way regardless of local state. `fleet-doctor` re-evaluates
+ * this with cross-consumer evidence; it isn't taken as final here. Tool
+ * preflight checks (node/git/gh/jq/curl) describe the operator's own
+ * machine, not either repo, so they're tagged `unknown`.
+ */
+type SuspectedOrigin = 'framework' | 'consumer-drift' | 'unknown';
+
 interface CheckResult {
   readonly name: string;
   readonly ok: boolean;
   readonly detail: string;
+  readonly suspectedOrigin?: SuspectedOrigin;
 }
 
 async function checkCommand(name: string, args: readonly string[]): Promise<CheckResult> {
@@ -137,12 +150,13 @@ async function checkSrsBootstrapped(): Promise<CheckResult> {
   if (!consumer) return { name, ok: true, detail: 'skipped (not a consumer project)' };
   try {
     await fs.access(`${consumer.repoRoot}/docs/SRS.md`);
-    return { name, ok: true, detail: 'docs/SRS.md present' };
+    return { name, ok: true, detail: 'docs/SRS.md present', suspectedOrigin: 'consumer-drift' };
   } catch {
     return {
       name,
       ok: false,
       detail: 'docs/SRS.md missing — bootstrap from SRS_TEMPLATE.md before your first tracked requirement (requirements-aligner will refuse to proceed without it)',
+      suspectedOrigin: 'consumer-drift',
     };
   }
 }
@@ -164,8 +178,90 @@ async function checkRtmInitialized(): Promise<CheckResult> {
   }
   const hasReqRow = /\|\s*REQ-\d/.test(content);
   return hasReqRow
-    ? { name, ok: true, detail: 'compliance/RTM.md has at least one requirement row' }
-    : { name, ok: false, detail: 'compliance/RTM.md has no REQ-XXX rows yet — still the generated skeleton' };
+    ? { name, ok: true, detail: 'compliance/RTM.md has at least one requirement row', suspectedOrigin: 'consumer-drift' }
+    : {
+        name,
+        ok: false,
+        detail: 'compliance/RTM.md has no REQ-XXX rows yet — still the generated skeleton',
+        suspectedOrigin: 'consumer-drift',
+      };
+}
+
+/**
+ * devaudit-installer#867 — required GitHub repo secrets/variables present,
+ * per what `install` step 7 (and, if opted in, the viewer-key step) should
+ * have configured. `gh secret list --json name` only names secrets, never
+ * values, so this can only confirm presence, not correctness. Skips
+ * gracefully (not a failure) when `gh` lacks repo access or isn't
+ * authenticated — same non-fatal shape as the other onboarding checks.
+ */
+async function checkRequiredSecretsPresent(): Promise<CheckResult> {
+  const name = 'secrets';
+  const consumer = await readConsumerConfig();
+  if (!consumer) return { name, ok: true, detail: 'skipped (not a consumer project)', suspectedOrigin: 'unknown' };
+  const devaudit = (consumer.cfg['devaudit'] ?? {}) as {
+    api_key_secret?: string;
+    viewer_api_key_secret?: string;
+  };
+  const required = [devaudit.api_key_secret ?? 'DEVAUDIT_API_KEY', 'DEVAUDIT_USER_TOKEN'];
+  if (devaudit.viewer_api_key_secret) required.push(devaudit.viewer_api_key_secret);
+
+  let secretNames: string[];
+  try {
+    const result = await execa('gh', ['secret', 'list', '--json', 'name'], {
+      cwd: consumer.repoRoot,
+      reject: false,
+    });
+    if (result.exitCode !== 0) {
+      return {
+        name,
+        ok: true,
+        detail: 'skipped (gh secret list failed — not authenticated, or no repo access)',
+        suspectedOrigin: 'unknown',
+      };
+    }
+    secretNames = (JSON.parse(result.stdout) as Array<{ name: string }>).map((s) => s.name);
+  } catch {
+    return { name, ok: true, detail: 'skipped (gh secret list unavailable)', suspectedOrigin: 'unknown' };
+  }
+
+  const missing = required.filter((r) => !secretNames.includes(r));
+  return missing.length === 0
+    ? { name, ok: true, detail: `all required secrets present (${required.join(', ')})`, suspectedOrigin: 'consumer-drift' }
+    : {
+        name,
+        ok: false,
+        detail: `missing repo secret(s): ${missing.join(', ')} — expected from \`devaudit install\``,
+        suspectedOrigin: 'consumer-drift',
+      };
+}
+
+/**
+ * devaudit-installer#867 — the pre-push hook is what enforces the
+ * sdlc-implementer sentinel (`.sdlc-implementer-invoked`); its absence on an
+ * onboarded project means either the hook framework bootstrap never ran or
+ * it was hand-removed since. Either way it's this consumer's own state, not
+ * a framework defect.
+ */
+async function checkPrePushHookPresent(): Promise<CheckResult> {
+  const name = 'pre-push-hook';
+  const consumer = await readConsumerConfig();
+  if (!consumer) return { name, ok: true, detail: 'skipped (not a consumer project)', suspectedOrigin: 'unknown' };
+  const candidates = [`${consumer.repoRoot}/.husky/pre-push`, `${consumer.repoRoot}/.git/hooks/pre-push`];
+  for (const candidate of candidates) {
+    try {
+      await fs.access(candidate);
+      return { name, ok: true, detail: `present (${candidate})`, suspectedOrigin: 'consumer-drift' };
+    } catch {
+      // try next candidate
+    }
+  }
+  return {
+    name,
+    ok: false,
+    detail: 'no pre-push hook found under .husky/ or .git/hooks/ — bootstrap via `devaudit install`/`devaudit join`',
+    suspectedOrigin: 'consumer-drift',
+  };
 }
 
 /**
@@ -235,7 +331,8 @@ async function checkE2eRegressionConsistency(): Promise<CheckResult> {
 
 export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
   const log = logger();
-  log.info('Running devaudit doctor — checking required tools...\n');
+  const jsonMode = isJsonMode();
+  if (!jsonMode) log.info('Running devaudit doctor — checking required tools...\n');
   const checks: readonly CheckResult[] = [
     await checkNodeVersion(),
     await checkCommand('git', ['--version']),
@@ -245,45 +342,65 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
   ];
   let allOk = true;
   for (const check of checks) {
-    const marker = check.ok ? '✓' : '✗';
     if (!check.ok) allOk = false;
-    log.log(`  ${marker} ${check.name.padEnd(8)} ${check.detail}`);
+    if (!jsonMode) {
+      const marker = check.ok ? '✓' : '✗';
+      log.log(`  ${marker} ${check.name.padEnd(8)} ${check.detail}`);
+    }
   }
   // Reconciliation safety-net — reported but does not gate the tool check (#60).
   const closeout = await checkReleaseCloseoutDrift();
-  const closeoutMarker = closeout.ok ? '✓' : '⚠';
-  log.log(`  ${closeoutMarker} ${closeout.name.padEnd(8)} ${closeout.detail}`);
-  if (!closeout.ok) {
-    log.warn('Release close-out drift detected — see above. (Does not affect the tool check.)');
+  if (!jsonMode) {
+    const closeoutMarker = closeout.ok ? '✓' : '⚠';
+    log.log(`  ${closeoutMarker} ${closeout.name.padEnd(8)} ${closeout.detail}`);
+    if (!closeout.ok) {
+      log.warn('Release close-out drift detected — see above. (Does not affect the tool check.)');
+    }
   }
   // Onboarding-checklist invariants — same non-gating shape as the
-  // close-out check above (devaudit-installer#826).
+  // close-out check above (devaudit-installer#826, extended #867).
   const onboardingChecks: readonly CheckResult[] = [
     await checkSrsBootstrapped(),
     await checkRtmInitialized(),
     await checkSemgrepAvailable(),
     await checkE2eRegressionConsistency(),
+    await checkRequiredSecretsPresent(),
+    await checkPrePushHookPresent(),
   ];
   let onboardingIssues = false;
   for (const check of onboardingChecks) {
-    const marker = check.ok ? '✓' : '⚠';
     if (!check.ok) onboardingIssues = true;
-    log.log(`  ${marker} ${check.name.padEnd(14)} ${check.detail}`);
+    if (!jsonMode) {
+      const marker = check.ok ? '✓' : '⚠';
+      log.log(`  ${marker} ${check.name.padEnd(14)} ${check.detail}`);
+    }
   }
-  log.log('');
-  if (onboardingIssues) {
-    log.warn('Onboarding checklist gaps detected — see above. (Does not affect the tool check.)');
+  if (!jsonMode) {
+    log.log('');
+    if (onboardingIssues) {
+      log.warn('Onboarding checklist gaps detected — see above. (Does not affect the tool check.)');
+    }
   }
   const plugins = options.plugins ?? (await discoverPlugins()).loaded;
   if (plugins.length > 0) {
     const ctx = await buildPluginContext({ projectPath: resolve(process.cwd()) });
     await runHook(plugins, 'onDoctor', ctx);
   }
+  if (jsonMode) {
+    emitJsonResult({
+      ok: allOk,
+      tools: checks,
+      releaseCloseoutDrift: closeout,
+      onboarding: onboardingChecks,
+    });
+  }
   if (allOk) {
-    log.success('All required tools present.');
+    if (!jsonMode) log.success('All required tools present.');
     process.exit(0);
   } else {
-    log.error('One or more required tools are missing. Install them and re-run `devaudit doctor`.');
+    if (!jsonMode) {
+      log.error('One or more required tools are missing. Install them and re-run `devaudit doctor`.');
+    }
     process.exit(6);
   }
 }
