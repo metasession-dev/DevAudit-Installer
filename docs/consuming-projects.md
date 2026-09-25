@@ -16,6 +16,8 @@ The table above should reflect the current active consumers known to this repo. 
 
 The DevAudit portal itself does **not** consume the SDLC framework — it would otherwise gate its own releases through itself. See `CLAUDE.md` in DevAudit's repo root for its lightweight development process.
 
+This is also the table [`fleet-doctor`](./fleet-doctor.md) reads to find every consumer to audit — see that doc for the operator-only, fleet-wide drift sweep across this list.
+
 ## Integrating a new project
 
 **One-shot via `install`.** Two operator actions:
