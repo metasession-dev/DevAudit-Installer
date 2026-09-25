@@ -1,10 +1,10 @@
 # Skills Overview
 
-DevAudit ships six AI skills with the SDLC framework. One skill orchestrates the lifecycle; the other five specialize within particular stages.
+DevAudit ships six AI skills with the SDLC framework, synced into every consumer, plus one operator-only skill that lives in this repo and never syncs anywhere. One synced skill orchestrates the lifecycle; the other five specialize within particular stages.
 
 This page is the short reader-facing overview. The full contract for skill structure, sync behavior, triggers, and evolution lives in [`sdlc/SKILLS.md`](../sdlc/SKILLS.md).
 
-## The shipped skills
+## The shipped skills (synced into every consumer)
 
 | Skill | Role | Primary stage(s) | What it produces |
 | --- | --- | --- | --- |
@@ -14,6 +14,14 @@ This page is the short reader-facing overview. The full contract for skill struc
 | `requirements-aligner` | SRS alignment specialist | 1, 3 | Maintains `docs/SRS.md` and drops per-REQ `srs-alignment.md` traceability evidence |
 | `adr-author` | Architecture-decision specialist | 1, 3 | Maintains `docs/ADR/` and drops per-REQ `architecture-decision.md` evidence |
 | `risk-register-keeper` | Risk-assessment specialist | 1, 3 | Maintains `compliance/risk-register.md` and drops per-REQ `risk-assessment.md` evidence |
+
+## Fleet operator (this repo only, never synced)
+
+| Skill | Role | Runs from | What it produces |
+| --- | --- | --- | --- |
+| `fleet-doctor` | Fleet drift auditor | `DevAudit-Installer` (operator's own checkout, with sibling consumer repos on disk) | Sweeps every active consumer via `devaudit doctor --json`, classifies each finding as framework-origin (raised as an issue in `devaudit`/`DevAudit-Installer`) or consumer-drift (fixed in place — hotfix, Lightweight-path housekeeping, or deferred into the consumer's next tracked REQ bundle) |
+
+`fleet-doctor` lives at `.claude/skills/fleet-doctor/` in this repo, not under `sdlc/files/_common/skills/` (the synced-template pool) — that's what keeps `devaudit update` from ever copying it into a consumer, where it would have no siblings to audit. See [`docs/fleet-doctor.md`](./fleet-doctor.md) for the full walkthrough.
 
 ## How the model works
 
@@ -45,3 +53,4 @@ There are three practical groups:
 - [`sdlc/SKILLS.md`](../sdlc/SKILLS.md) for the canonical skill contract and current trigger catalog
 - [`docs/adding-a-skill.md`](./adding-a-skill.md) for skill authoring
 - [`docs/change-workflows.md`](./change-workflows.md) for when the orchestrator is used and when the lightweight path applies
+- [`docs/fleet-doctor.md`](./fleet-doctor.md) for the operator-only fleet-wide drift audit

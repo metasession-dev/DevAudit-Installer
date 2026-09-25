@@ -3,14 +3,22 @@
 #
 # Usage:
 #   ./scripts/report-test-execution.sh start|complete [flags...]
+#   ./scripts/report-test-execution.sh resolve --test-cycle-id <uuid> --resolution-type <type> --reason <text> [flags...]
 #
-# Required flags:
+# Required flags (start|complete):
 #   --project-slug <slug>
 #   --release <version>
 #   --sdlc-stage <1-5>
 #   --environment <ci|uat|production>
 #   --suite-kind <kind>
 #   --idempotency-key <key>
+#
+# Required flags (resolve):
+#   --project-slug <slug>
+#   --release <version>
+#   --test-cycle-id <uuid>
+#   --resolution-type <retry_passed|superseded|accepted_exception|incident_remediated>
+#   --reason <text>
 #
 # Optional flags:
 #   --iteration-key <key>
@@ -27,24 +35,40 @@
 #   --completed-at <iso8601>       Defaults to current UTC on `complete`
 #   --outcome <value>              Terminal outcome for `complete`
 #   --outcome-reason <text>
-#   --incident-reference <text>
-#   --remediation-reference <text>
+#   --incident-reference <text>    Attached to the cycle row on start|complete
+#   --remediation-reference <text> Attached to the cycle row on start|complete; or on `resolve`, threaded into the resolution record
+#   --resolved-by-cycle-id <uuid>  `resolve` only -- the passing cycle that supersedes this one, if any
 #   --output-file <path>           Writes key=value outputs for callers
+#
+# `resolve` is the self-service path for a failed cycle on an immutable,
+# already-shipped commit that can never honestly produce a passing rerun
+# (devaudit#866/#867) -- e.g. a post-deploy regression suite failing on an
+# already-tracked, unrelated defect. It calls the existing
+# POST /api/ci/releases/{id}/cycles/{cycleId}/resolve endpoint directly,
+# which `--incident-reference`/`--remediation-reference` on `complete` never
+# reached on their own. Example:
+#
+#   report-test-execution.sh resolve \
+#     --project-slug wgb --release REQ-108 \
+#     --test-cycle-id 77eb11a9-428d-4aaa-8bd7-d3d0550c6f06 \
+#     --resolution-type accepted_exception \
+#     --reason "unrelated pre-existing defect wawagardenbar-app#852" \
+#     --remediation-reference wawagardenbar-app#852
 #
 # Output keys:
 #   execution_supported=true
 #   execution_release_id=<uuid>
 #   execution_release_version=<exact-version>
 #   execution_record_id=<uuid-if-created-or-updated>
-#   execution_idempotency_key=<input-key>
+#   execution_idempotency_key=<input-key-if-applicable>
 #   execution_started_at=<iso8601-if-known>
 #   execution_completed_at=<iso8601-if-known>
-#   execution_endpoint=<start|complete|reconcile-if-used>
+#   execution_endpoint=<start|complete|reconcile-if-used|resolve>
 
 set -euo pipefail
 
 usage() {
-  echo "Usage: $0 start|complete [flags...]"
+  echo "Usage: $0 start|complete|resolve [flags...]"
   exit 1
 }
 
@@ -53,7 +77,7 @@ MODE="$1"
 shift
 
 case "$MODE" in
-  start|complete) ;;
+  start|complete|resolve) ;;
   *) usage ;;
 esac
 
@@ -80,6 +104,10 @@ OUTCOME_REASON=""
 INCIDENT_REFERENCE=""
 REMEDIATION_REFERENCE=""
 OUTPUT_FILE=""
+TEST_CYCLE_ID=""
+RESOLUTION_TYPE=""
+RESOLVED_BY_CYCLE_ID=""
+REASON=""
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -105,6 +133,10 @@ while [ "$#" -gt 0 ]; do
     --outcome-reason) OUTCOME_REASON="$2"; shift 2 ;;
     --incident-reference) INCIDENT_REFERENCE="$2"; shift 2 ;;
     --remediation-reference) REMEDIATION_REFERENCE="$2"; shift 2 ;;
+    --test-cycle-id) TEST_CYCLE_ID="$2"; shift 2 ;;
+    --resolution-type) RESOLUTION_TYPE="$2"; shift 2 ;;
+    --resolved-by-cycle-id) RESOLVED_BY_CYCLE_ID="$2"; shift 2 ;;
+    --reason) REASON="$2"; shift 2 ;;
     --output-file) OUTPUT_FILE="$2"; shift 2 ;;
     *) echo "Unknown option: $1"; exit 1 ;;
   esac
@@ -120,10 +152,55 @@ require_arg() {
 
 require_arg "$PROJECT_SLUG" "--project-slug"
 require_arg "$RELEASE_VERSION" "--release"
-require_arg "$SDLC_STAGE" "--sdlc-stage"
-require_arg "$ENVIRONMENT" "--environment"
-require_arg "$SUITE_KIND" "--suite-kind"
-require_arg "$IDEMPOTENCY_KEY" "--idempotency-key"
+
+if [ "$MODE" = "resolve" ]; then
+  require_arg "$TEST_CYCLE_ID" "--test-cycle-id"
+  require_arg "$RESOLUTION_TYPE" "--resolution-type"
+  require_arg "$REASON" "--reason"
+  case "$RESOLUTION_TYPE" in
+    retry_passed|superseded|accepted_exception|incident_remediated) ;;
+    *)
+      echo "Error: --resolution-type must be one of retry_passed, superseded, accepted_exception, incident_remediated" >&2
+      exit 1
+      ;;
+  esac
+else
+  require_arg "$SDLC_STAGE" "--sdlc-stage"
+  require_arg "$ENVIRONMENT" "--environment"
+  require_arg "$SUITE_KIND" "--suite-kind"
+  require_arg "$IDEMPOTENCY_KEY" "--idempotency-key"
+
+  if ! [[ "$SDLC_STAGE" =~ ^[1-5]$ ]]; then
+    echo "Error: --sdlc-stage must be an integer 1-5 (got: $SDLC_STAGE)" >&2
+    exit 1
+  fi
+
+  case "$ENVIRONMENT" in
+    ci|uat|production) ;;
+    *)
+      echo "Error: --environment must be one of ci, uat, production" >&2
+      exit 1
+      ;;
+  esac
+
+  if [ "$MODE" = "complete" ] && [ -z "$OUTCOME" ]; then
+    echo "Error: --outcome is required for complete" >&2
+    exit 1
+  fi
+
+  case "$OUTCOME" in
+    ""|passed|failed|cancelled|skipped|timed_out|action_required|unknown) ;;
+    *)
+      echo "Error: --outcome must be a terminal test execution outcome" >&2
+      exit 1
+      ;;
+  esac
+
+  if [ -n "$ITERATION_ORDINAL" ] && ! [[ "$ITERATION_ORDINAL" =~ ^[0-9]+$ ]]; then
+    echo "Error: --iteration-ordinal must be a positive integer" >&2
+    exit 1
+  fi
+fi
 
 if [ -z "${DEVAUDIT_BASE_URL:-}" ]; then
   echo "Error: DEVAUDIT_BASE_URL environment variable is required" >&2
@@ -131,37 +208,6 @@ if [ -z "${DEVAUDIT_BASE_URL:-}" ]; then
 fi
 if [ -z "${DEVAUDIT_API_KEY:-}" ]; then
   echo "Error: DEVAUDIT_API_KEY environment variable is required" >&2
-  exit 1
-fi
-
-if ! [[ "$SDLC_STAGE" =~ ^[1-5]$ ]]; then
-  echo "Error: --sdlc-stage must be an integer 1-5 (got: $SDLC_STAGE)" >&2
-  exit 1
-fi
-
-case "$ENVIRONMENT" in
-  ci|uat|production) ;;
-  *)
-    echo "Error: --environment must be one of ci, uat, production" >&2
-    exit 1
-    ;;
-esac
-
-if [ "$MODE" = "complete" ] && [ -z "$OUTCOME" ]; then
-  echo "Error: --outcome is required for complete" >&2
-  exit 1
-fi
-
-case "$OUTCOME" in
-  ""|passed|failed|cancelled|skipped|timed_out|action_required|unknown) ;;
-  *)
-    echo "Error: --outcome must be a terminal test execution outcome" >&2
-    exit 1
-    ;;
-esac
-
-if [ -n "$ITERATION_ORDINAL" ] && ! [[ "$ITERATION_ORDINAL" =~ ^[0-9]+$ ]]; then
-  echo "Error: --iteration-ordinal must be a positive integer" >&2
   exit 1
 fi
 
@@ -282,6 +328,22 @@ build_payload() {
     '
 }
 
+build_resolution_payload() {
+  jq -n \
+    --arg resolutionType "$RESOLUTION_TYPE" \
+    --arg resolvedByCycleId "$RESOLVED_BY_CYCLE_ID" \
+    --arg reason "$REASON" \
+    --arg remediationReference "$REMEDIATION_REFERENCE" \
+    '
+      {
+        resolutionType: $resolutionType,
+        resolvedByCycleId: ($resolvedByCycleId | if . == "" then null else . end),
+        reason: $reason,
+        remediationReference: ($remediationReference | if . == "" then null else . end)
+      }
+    '
+}
+
 post_execution_event() {
   local endpoint="$1" payload="$2" body code
   body=$(mktemp)
@@ -297,18 +359,39 @@ post_execution_event() {
   EXECUTION_RESPONSE_BODY_FILE="$body"
 }
 
+post_resolution_event() {
+  local payload="$1" body code
+  body=$(mktemp)
+  code=$(curl -sS -o "$body" -w "%{http_code}" \
+    -X POST \
+    -H "Authorization: Bearer ${DEVAUDIT_API_KEY}" \
+    -H "Content-Type: application/json" \
+    --connect-timeout "$CONNECT_TIMEOUT_SECONDS" \
+    --max-time "$MAX_TIME_SECONDS" \
+    "${DEVAUDIT_BASE_URL}/api/ci/releases/${RELEASE_ID}/cycles/${TEST_CYCLE_ID}/resolve" \
+    -d "$payload")
+  EXECUTION_HTTP_CODE="$code"
+  EXECUTION_RESPONSE_BODY_FILE="$body"
+}
+
 if ! resolve_release_exact; then
   exit 1
 fi
 
-PAYLOAD="$(build_payload "$MODE")"
-ENDPOINT="$MODE"
-post_execution_event "$ENDPOINT" "$PAYLOAD"
+if [ "$MODE" = "resolve" ]; then
+  PAYLOAD="$(build_resolution_payload)"
+  ENDPOINT="resolve"
+  post_resolution_event "$PAYLOAD"
+else
+  PAYLOAD="$(build_payload "$MODE")"
+  ENDPOINT="$MODE"
+  post_execution_event "$ENDPOINT" "$PAYLOAD"
 
-if [ "$MODE" = "complete" ] && [ "$EXECUTION_HTTP_CODE" -eq 400 ]; then
-  if grep -q 'different terminal outcome' "$EXECUTION_RESPONSE_BODY_FILE" 2>/dev/null; then
-    ENDPOINT="reconcile"
-    post_execution_event "$ENDPOINT" "$PAYLOAD"
+  if [ "$MODE" = "complete" ] && [ "$EXECUTION_HTTP_CODE" -eq 400 ]; then
+    if grep -q 'different terminal outcome' "$EXECUTION_RESPONSE_BODY_FILE" 2>/dev/null; then
+      ENDPOINT="reconcile"
+      post_execution_event "$ENDPOINT" "$PAYLOAD"
+    fi
   fi
 fi
 
@@ -328,9 +411,9 @@ fi
 
 write_output execution_supported true
 write_output execution_record_id "$EXECUTION_RECORD_ID"
-write_output execution_idempotency_key "$IDEMPOTENCY_KEY"
-write_output execution_started_at "$STARTED_AT"
-write_output execution_completed_at "$COMPLETED_AT"
+[ -z "$IDEMPOTENCY_KEY" ] || write_output execution_idempotency_key "$IDEMPOTENCY_KEY"
+[ -z "$STARTED_AT" ] || write_output execution_started_at "$STARTED_AT"
+[ -z "$COMPLETED_AT" ] || write_output execution_completed_at "$COMPLETED_AT"
 write_output execution_endpoint "$ENDPOINT"
 
 echo "Test execution ${ENDPOINT} recorded for ${RELEASE_VERSION}: ${EXECUTION_RECORD_ID}"

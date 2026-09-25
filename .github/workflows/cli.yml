@@ -18,7 +18,13 @@ permissions:
 jobs:
   test:
     name: Test (${{ matrix.os }} / node ${{ matrix.node }})
-    runs-on: ${{ matrix.os }}
+    # Only the ubuntu-latest leg is switchable via CI_RUNNER_LABEL (repo
+    # Actions variable) — macos-latest/windows-latest always stay on
+    # GitHub-hosted runners, since this host has no macOS/Windows self-hosted
+    # capability. See ostendo-workhorse-platform/docs/self-hosted-runner-ci.md
+    # "The devaudit-installer cross-platform CLI matrix is an explicit
+    # exception to single-runner selection."
+    runs-on: ${{ matrix.os != 'ubuntu-latest' && matrix.os || (vars.CI_RUNNER_LABEL == 'github-ci' && 'ubuntu-latest' || vars.CI_RUNNER_LABEL || 'ubuntu-latest') }}
     strategy:
       fail-fast: false
       matrix:
@@ -58,7 +64,7 @@ jobs:
             echo "run_tests=false" >> "$GITHUB_OUTPUT"
             echo "reason=docs-or-unrelated-pr" >> "$GITHUB_OUTPUT"
           fi
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         if: steps.changes.outputs.run_tests == 'true'
         with:
           node-version: ${{ matrix.node }}

@@ -112,6 +112,9 @@ export async function writeSdlcConfig(ctx: InstallContext, plan: InstallPlan): P
       base_url: ctx.baseUrl,
       project_slug: plan.projectSlug,
       api_key_secret: plan.apiKeySecretName,
+      ...(plan.viewerApiKeySecretName
+        ? { viewer_api_key_secret: plan.viewerApiKeySecretName }
+        : {}),
     },
   };
   // Existing values override the "defaultedIfNew" defaults (preserves customizations

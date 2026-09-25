@@ -32,13 +32,13 @@
     "start": "node ./bin/devaudit.js"
   },
   "dependencies": {
-    "@clack/prompts": "^0.8.2",
+    "@clack/prompts": "^1.8.1",
     "@metasession.co/devaudit-plugin-sdk": "file:../plugin-sdk",
     "ajv": "^8.20.0",
     "commander": "^12.1.0",
     "consola": "^3.2.3",
     "env-paths": "^3.0.0",
-    "execa": "^9.5.1"
+    "execa": "^9.6.1"
   },
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",

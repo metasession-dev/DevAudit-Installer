@@ -270,6 +270,89 @@ describe('runInstall — native TS install against a node fixture', () => {
     }
   }, 60_000);
 
+  // devaudit-installer#867: --with-viewer-key mints a second, read-only key
+  // alongside the default uploader key, stored under its own secret name.
+  it('--with-viewer-key issues a viewer-role key and stores it under its own secret', async () => {
+    const { runInstall } = await import('../src/install/index.js');
+    const dir = await buildNodeFixture();
+    await fs.writeFile(
+      join(dir, 'sdlc-config.json'),
+      JSON.stringify({ project_slug: 'fixture-app', stack: 'node', host: 'railway', node_version: '20' }),
+    );
+    try {
+      const report = await runInstall({
+        path: dir,
+        dryRun: false,
+        nonInteractive: true,
+        provider: makeFakeProvider(),
+        withViewerKey: true,
+      });
+      const stepByStart = (s: string) => report.steps.find((x) => x.step.startsWith(s));
+      expect(stepByStart('6b/')?.status).toBe('ok');
+      const written = JSON.parse(await fs.readFile(join(dir, 'sdlc-config.json'), 'utf-8'));
+      expect(written.devaudit?.viewer_api_key_secret).toBe('DEVAUDIT_VIEWER_API_KEY');
+      const secretCalls = providerCalls.filter((c) => c.method === 'setSecret');
+      const secretNames = secretCalls.map((c) => c.args[0]);
+      expect(secretNames).toContain('DEVAUDIT_VIEWER_API_KEY');
+      expect(secretNames).toContain('DEVAUDIT_API_KEY');
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it('without --with-viewer-key, no viewer key is issued or configured', async () => {
+    const { runInstall } = await import('../src/install/index.js');
+    const dir = await buildNodeFixture();
+    await fs.writeFile(
+      join(dir, 'sdlc-config.json'),
+      JSON.stringify({ project_slug: 'fixture-app', stack: 'node', host: 'railway', node_version: '20' }),
+    );
+    try {
+      const report = await runInstall({
+        path: dir,
+        dryRun: false,
+        nonInteractive: true,
+        provider: makeFakeProvider(),
+      });
+      const stepByStart = (s: string) => report.steps.find((x) => x.step.startsWith(s));
+      expect(stepByStart('6b/')?.status).toBe('skipped');
+      const written = JSON.parse(await fs.readFile(join(dir, 'sdlc-config.json'), 'utf-8'));
+      expect(written.devaudit?.viewer_api_key_secret).toBeUndefined();
+      const secretCalls = providerCalls.filter((c) => c.method === 'setSecret');
+      const secretNames = secretCalls.map((c) => c.args[0]);
+      expect(secretNames).not.toContain('DEVAUDIT_VIEWER_API_KEY');
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it('--with-viewer-key warns and skips if a viewer key already exists', async () => {
+    server.use(
+      http.get(`${BASE_URL}/api/projects/:id/api-keys`, () =>
+        HttpResponse.json([{ id: 'key-viewer', name: 'Onboarding-issued (viewer)', revoked_at: null }]),
+      ),
+    );
+    const { runInstall } = await import('../src/install/index.js');
+    const dir = await buildNodeFixture();
+    await fs.writeFile(
+      join(dir, 'sdlc-config.json'),
+      JSON.stringify({ project_slug: 'fixture-app', stack: 'node', host: 'railway', node_version: '20' }),
+    );
+    try {
+      const report = await runInstall({
+        path: dir,
+        dryRun: false,
+        nonInteractive: true,
+        provider: makeFakeProvider(),
+        withViewerKey: true,
+      });
+      const stepByStart = (s: string) => report.steps.find((x) => x.step.startsWith(s));
+      expect(stepByStart('6b/')?.status).toBe('warn');
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
   // devaudit#731 regression: branch protection must key off the config's own
   // release_branch, not the GitHub-reported default branch. Before this fix,
   // once a repo's actual default branch was 'develop' (as it now can be,

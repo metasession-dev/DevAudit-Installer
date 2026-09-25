@@ -348,6 +348,21 @@ The workflow must create/update the execution independently of evidence upload. 
 
 Only execution artifacts receive the returned test execution record identifier. Release-level and stage-level documents must omit an execution identifier.
 
+### Cycle resolution contract (devaudit#866/#867)
+
+A failed cycle on an immutable, already-shipped commit sometimes can never honestly produce a passing rerun — e.g. a post-deploy regression suite failing on an already-tracked, unrelated defect. `--incident-reference`/`--remediation-reference` on `complete`/`reconcile` only ever attach metadata to the cycle row; they do not resolve it. Resolution is a separate, explicit call: `report-test-execution.sh resolve`, which hits `POST /api/ci/releases/{id}/cycles/{cycleId}/resolve` directly.
+
+```bash
+scripts/report-test-execution.sh resolve \
+  --project-slug wgb --release REQ-108 \
+  --test-cycle-id 77eb11a9-428d-4aaa-8bd7-d3d0550c6f06 \
+  --resolution-type accepted_exception \
+  --reason "unrelated pre-existing defect wawagardenbar-app#852" \
+  --remediation-reference wawagardenbar-app#852
+```
+
+`--resolution-type` is one of `retry_passed | superseded | accepted_exception | incident_remediated` — the same enum the portal's release-readiness gate already treats as resolving an otherwise-blocking cycle (any non-null `resolution_type` clears it; only `outcome` itself is otherwise interpreted as pending/failed). This is the self-service path for exactly the scenario `devaudit#866`'s investigation converged on: the mechanism already existed portal-side, nothing in CI tooling could reach it.
+
 ### Bundle manifest contract
 
 `BUNDLED-CHANGES-REQ-XXX.md` remains the human-readable artifact. The installer must also generate a versioned, machine-readable manifest, for example `BUNDLED-CHANGES-REQ-XXX.json`, containing:

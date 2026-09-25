@@ -56,9 +56,11 @@ If `sdlc-config.json` already exists in the target, `install` runs non-interacti
 3. **Configure** — interactive prompts for the remaining values (project slug, runtime version, source dirs, working directory, production URL secret name + value).
 4. **Write `sdlc-config.json`** in the consumer's directory.
 5. **Create the DevAudit project** (idempotent — skips if a project with this slug already belongs to the operator).
-6. **Issue a project-scoped API key** named `Onboarding-issued` (idempotent — won't re-issue if one already exists; will warn).
+6. **Issue a project-scoped API key** named `Onboarding-issued` (idempotent — won't re-issue if one already exists; will warn). This key carries the `uploader` role — write access to evidence upload and release status for this one project — and is consumed **only by CI**; never export it locally, never hand it to an agent (see [`permissions-and-tokens-reference.md`](./articles/permissions-and-tokens-reference.md) for why).
+   - **Optional:** pass `--with-viewer-key` to also issue a second, read-only `viewer`-role key (`Onboarding-issued (viewer)`), stored as `DEVAUDIT_VIEWER_API_KEY`. A viewer key can only reach the portal's read-back endpoints (`GET .../checks`, `GET .../cycles`) — never upload evidence or approve a release — so, unlike the uploader key, it's safe to export locally for an agent (e.g. `sdlc-implementer`) to query release/check/cycle status. Off by default; existing installs are unaffected. See devaudit#867.
 7. **Set GitHub secrets** via `gh secret set`:
-   - `DEVAUDIT_API_KEY` (the just-issued key)
+   - `DEVAUDIT_API_KEY` (the just-issued uploader key)
+   - `DEVAUDIT_VIEWER_API_KEY` (only if `--with-viewer-key` was passed)
    - `DEVAUDIT_USER_TOKEN` (the PAT)
    - The production URL secret (e.g. `META_AGENT_PROD_URL`)
 8. **Set the GitHub variable** `DEVAUDIT_BASE_URL`.
@@ -266,3 +268,5 @@ The command starts immediately, but the full operator onboarding flow usually ta
 - [adding-a-stack.md](./adding-a-stack.md) / [adding-a-host.md](./adding-a-host.md) — adding new stacks or hosts.
 - [consuming-projects.md](./consuming-projects.md) — which consumers are polyglot-monorepo (`targets`) vs single-target.
 - [consuming-projects.md#offboarding-a-project](./consuming-projects.md#offboarding-a-project) — removing a project: `devaudit uninstall` reverses the steps this doc walks through.
+- [`articles/permissions-and-tokens-reference.md`](./articles/permissions-and-tokens-reference.md) — every credential this flow issues, including the optional viewer key, and what's at risk if each leaks.
+- [devaudit#867](https://github.com/metasession-dev/devaudit/issues/867) — the umbrella issue for the viewer-key + read-back API + fleet-doctor work referenced above.

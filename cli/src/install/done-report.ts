@@ -33,9 +33,19 @@ export function doneReport(ctx: InstallContext, plan: InstallPlan): StepResult {
     };
   }
   const branch = 'feat/sdlc-onboarding';
+  const viewerKeyLines = plan.viewerApiKey
+    ? [
+        '',
+        `  Read-only viewer API key issued (repo secret ${plan.viewerApiKeySecretName}).`,
+        '    Safe to export locally for an agent (e.g. sdlc-implementer) to query release/',
+        '    check/cycle status -- it can only reach the read-back endpoints, never upload',
+        '    evidence or approve a release.',
+      ]
+    : [];
   const lines = [
     '',
     `  ${ctx.projectName} is onboarded.`,
+    ...viewerKeyLines,
     '',
     '  Next steps:',
     `    cd ${ctx.projectPath}`,

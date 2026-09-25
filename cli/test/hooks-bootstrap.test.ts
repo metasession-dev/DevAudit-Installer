@@ -38,6 +38,7 @@ function baseCtx(projectPath: string, repoRoot: string = projectPath) {
     dryRun: false,
     nonInteractive: true,
     addTarget: false,
+    withViewerKey: false,
     installMode: 'operator' as const,
   };
 }
