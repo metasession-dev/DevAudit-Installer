@@ -59,6 +59,10 @@ case "$URL" in
     status="${RECONCILE_STATUS:-200}"
     payload="${RECONCILE_BODY:-{}}"
     ;;
+  *"/resolve")
+    status="${RESOLVE_CYCLE_STATUS:-200}"
+    payload="${RESOLVE_CYCLE_BODY:-{}}"
+    ;;
 esac
 
 if [ -n "$OUT_FILE" ]; then
@@ -166,9 +170,74 @@ case_missing_release_fails() {
   rm -rf "$dir"
 }
 
+case_resolve_success() {
+  echo "case: resolve calls the cycle-resolution endpoint with the excusing payload"
+  local dir out exit_code
+  dir=$(mktemp -d)
+  make_fixture "$dir"
+  out="$dir/out.env"
+  RESOLVE_STATUS=200 \
+  RESOLVE_BODY='{"latest":{"id":"release-1","version":"REQ-108"}}' \
+  RESOLVE_CYCLE_STATUS=200 \
+  RESOLVE_CYCLE_BODY='{"id":"cycle-1","resolution_type":"accepted_exception"}' \
+  run_helper "$dir" resolve \
+    --project-slug wgb \
+    --release REQ-108 \
+    --test-cycle-id cycle-1 \
+    --resolution-type accepted_exception \
+    --reason "unrelated pre-existing defect wawagardenbar-app#852" \
+    --remediation-reference wawagardenbar-app#852 \
+    --output-file "$out" >"$dir/stdout.log" 2>"$dir/stderr.log" && exit_code=0 || exit_code=$?
+  if [ "$exit_code" -eq 0 ]; then ok "exit code 0"; else no "expected exit 0"; fi
+  assert_contains "called resolve endpoint" "/cycles/cycle-1/resolve" "$dir/curl.log"
+  assert_contains "payload has resolutionType" '"resolutionType": "accepted_exception"' "$dir/curl.log"
+  assert_contains "payload has reason" '"reason": "unrelated pre-existing defect wawagardenbar-app#852"' "$dir/curl.log"
+  assert_contains "payload has remediationReference" '"remediationReference": "wawagardenbar-app#852"' "$dir/curl.log"
+  assert_contains "outputs resolve endpoint" "execution_endpoint=resolve" "$out"
+  rm -rf "$dir"
+}
+
+case_resolve_requires_reason() {
+  echo "case: resolve without --reason fails before any network call"
+  local dir exit_code
+  dir=$(mktemp -d)
+  make_fixture "$dir"
+  RESOLVE_STATUS=200 \
+  RESOLVE_BODY='{"latest":{"id":"release-1","version":"REQ-108"}}' \
+  run_helper "$dir" resolve \
+    --project-slug wgb \
+    --release REQ-108 \
+    --test-cycle-id cycle-1 \
+    --resolution-type accepted_exception \
+    >"$dir/stdout.log" 2>"$dir/stderr.log" && exit_code=0 || exit_code=$?
+  if [ "$exit_code" -ne 0 ]; then ok "exit code non-zero"; else no "expected non-zero"; fi
+  assert_contains "error names --reason" "--reason is required" "$dir/stderr.log"
+  rm -rf "$dir"
+}
+
+case_resolve_rejects_invalid_resolution_type() {
+  echo "case: resolve rejects an unknown --resolution-type"
+  local dir exit_code
+  dir=$(mktemp -d)
+  make_fixture "$dir"
+  run_helper "$dir" resolve \
+    --project-slug wgb \
+    --release REQ-108 \
+    --test-cycle-id cycle-1 \
+    --resolution-type bogus \
+    --reason "irrelevant" \
+    >"$dir/stdout.log" 2>"$dir/stderr.log" && exit_code=0 || exit_code=$?
+  if [ "$exit_code" -ne 0 ]; then ok "exit code non-zero"; else no "expected non-zero"; fi
+  assert_contains "error names --resolution-type" "--resolution-type must be one of" "$dir/stderr.log"
+  rm -rf "$dir"
+}
+
 case_start_success
 case_complete_reconciles_terminal_conflict
 case_missing_release_fails
+case_resolve_success
+case_resolve_requires_reason
+case_resolve_rejects_invalid_resolution_type
 
 echo ""
 echo "=== report-test-execution.test.sh: $PASS passed, $FAIL failed ==="
