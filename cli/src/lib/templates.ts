@@ -75,3 +75,42 @@ export function stripServicesBlock(content: string): string {
   }
   return out.join('\n');
 }
+
+/**
+ * devaudit-installer#869 — compliance-evidence.yml.template's `workflow_run`
+ * trigger and its `upload-e2e-regression-evidence` job only ever fire in
+ * response to a consumer's own `E2E Regression` workflow completing, but
+ * that workflow is itself conditionally generated (opt-in via
+ * `e2e_regression_enabled`, devaudit-installer#821) — without this strip, a
+ * consumer that never opted in gets a permanently-dead trigger + job
+ * referencing a workflow that will never exist in their repo.
+ *
+ * Specific to this one template's current structure, not a generic
+ * multi-purpose stripper: the `upload-e2e-regression-evidence` job is
+ * assumed to be the last job in the file (drops everything from its
+ * comment header through EOF), and the `workflow_run:` trigger is assumed
+ * to be the last entry under `on:` before the blank line separating it
+ * from `concurrency:`. Revisit this function if the template's job order
+ * or trigger placement ever changes.
+ */
+export function stripE2eRegressionListener(content: string): string {
+  const lines = content.split('\n');
+  const out: string[] = [];
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i] ?? '';
+    if (/^ {2}workflow_run:\s*$/.test(line)) {
+      while (out.length > 0 && /^ {2}#/.test(out[out.length - 1] ?? '')) out.pop();
+      i += 1;
+      while (i < lines.length && /^ {4}\S/.test(lines[i] ?? '')) i += 1;
+      continue;
+    }
+    if (/^ {2}upload-e2e-regression-evidence:\s*$/.test(line)) {
+      while (out.length > 0 && /^ {2}#/.test(out[out.length - 1] ?? '')) out.pop();
+      break;
+    }
+    out.push(line);
+    i += 1;
+  }
+  return out.join('\n');
+}

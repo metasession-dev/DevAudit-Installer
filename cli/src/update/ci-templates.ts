@@ -1,7 +1,7 @@
 import { promises as fs } from 'node:fs';
 import { join } from 'node:path';
 import { exists, isDir, ensureDir } from '../lib/fs-utils.js';
-import { substituteTokens, substituteBlocks, stripServicesBlock } from '../lib/templates.js';
+import { substituteTokens, substituteBlocks, stripServicesBlock, stripE2eRegressionListener } from '../lib/templates.js';
 import { resolveTargets, type Target } from '../lib/sdlc-config.js';
 import { captureBeforeOverwrite } from './drift-warning.js';
 import type { SyncContext, SectionResult } from './types.js';
@@ -689,6 +689,14 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
       content = substituteBlocks(content, blocks);
       if (!cfg.database_service) {
         content = stripServicesBlock(content);
+      }
+      // devaudit-installer#869 — compliance-evidence.yml's workflow_run
+      // listener + upload job only make sense when the consumer has also
+      // opted into e2e-regression.yml.template (devaudit-installer#821);
+      // otherwise they're dead code referencing a workflow that will
+      // never exist in this repo.
+      if (tmpl === 'compliance-evidence.yml.template' && !cfg.e2e_regression_enabled) {
+        content = stripE2eRegressionListener(content);
       }
       const baseOutputName = tmpl.replace(/\.template$/, '');
       const namespaced = namespaceForTarget(baseOutputName, content, target, multiTarget);

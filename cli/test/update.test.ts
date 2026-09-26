@@ -289,12 +289,19 @@ describe('syncProject — native TS sync against a fixture', () => {
     expect(complianceEvidenceYml).toContain('Legacy housekeeping gate dispatch (disabled)');
     expect(complianceEvidenceYml).toContain('contents: read');
     expect(complianceEvidenceYml).not.toContain('actions: write       # gh workflow run ci.yml --ref develop');
-    expect(complianceEvidenceYml).toContain("printf '%s\\n' 'import json'");
-    expect(complianceEvidenceYml).toContain('python3 /tmp/devaudit-extract-e2e-reqs.py');
+    // devaudit-installer#869 — this fixture never sets e2e_regression_enabled,
+    // so the upload-e2e-regression-evidence job (and everything in it: the
+    // REQ-extraction script, the incident-filing heredoc) must not be
+    // present at all. See the dedicated #869 tests below for the
+    // e2e_regression_enabled: true case, which asserts this content IS
+    // present when the consumer has opted in.
+    expect(complianceEvidenceYml).not.toContain('upload-e2e-regression-evidence:');
+    expect(complianceEvidenceYml).not.toContain("printf '%s\\n' 'import json'");
+    expect(complianceEvidenceYml).not.toContain('python3 /tmp/devaudit-extract-e2e-reqs.py');
     expect(complianceEvidenceYml).not.toContain("done < <(python3 - <<'PY'");
-    expect(complianceEvidenceYml).toContain('Walk suites/specs/tests/results recursively');
-    expect(complianceEvidenceYml).toContain('**Spec file:** ${SPEC_FILE}');
-    expect(complianceEvidenceYml).toContain('--title "[REGRESSION] ${SPEC_FILE} :: ${TEST_NAME}"');
+    expect(complianceEvidenceYml).not.toContain('Walk suites/specs/tests/results recursively');
+    expect(complianceEvidenceYml).not.toContain('**Spec file:** ${SPEC_FILE}');
+    expect(complianceEvidenceYml).not.toContain('--title "[REGRESSION] ${SPEC_FILE} :: ${TEST_NAME}"');
     const ciStatusFallbackYml = await fs.readFile(
       join(fixtureDir, '.github', 'workflows', 'ci-status-fallback.yml'),
       'utf-8',
@@ -1672,6 +1679,11 @@ describe('syncProject — native TS sync against a fixture', () => {
         "${{ (inputs.runner_label || vars.CI_RUNNER_LABEL || 'github-ci') == 'github-ci' && 'true' || 'false' }}";
       // devaudit-installer#815 — the clean:false fix must reach every
       // self-hosted-runner-capable generated workflow, not just ci.yml.
+      // Floor is 12, not 13: compliance-evidence.yml's own clean: line in
+      // its upload-e2e-regression-evidence job's checkout step is stripped
+      // by default (e2e_regression_enabled unset in this fixture) per
+      // devaudit-installer#869 — that job doesn't exist in the output at
+      // all when the consumer hasn't opted into the regression tier.
       const workflowDir = join(dir, '.github', 'workflows');
       const workflowFiles = await fs.readdir(workflowDir);
       let totalCleanLines = 0;
@@ -1686,7 +1698,7 @@ describe('syncProject — native TS sync against a fixture', () => {
           expect(line.trim(), `${wf} clean: expression`).toBe(`clean: ${cleanExpr}`);
         }
       }
-      expect(totalCleanLines).toBeGreaterThanOrEqual(13);
+      expect(totalCleanLines).toBeGreaterThanOrEqual(12);
 
       await expectAllWorkflowsValidYaml(dir);
     } finally {
@@ -1709,7 +1721,8 @@ describe('syncProject — native TS sync against a fixture', () => {
       await syncProject(dir);
 
       // devaudit-installer#815 — same coverage as the self-hosted case above,
-      // across every self-hosted-runner-capable generated workflow.
+      // across every self-hosted-runner-capable generated workflow. Floor
+      // is 12, not 13 — see the sibling test above (devaudit-installer#869).
       const workflowDir = join(dir, '.github', 'workflows');
       const workflowFiles = await fs.readdir(workflowDir);
       let totalCleanLines = 0;
@@ -1724,7 +1737,7 @@ describe('syncProject — native TS sync against a fixture', () => {
           expect(line.trim(), `${wf} clean: expression`).toBe('clean: true');
         }
       }
-      expect(totalCleanLines).toBeGreaterThanOrEqual(13);
+      expect(totalCleanLines).toBeGreaterThanOrEqual(12);
     } finally {
       await fs.rm(dir, { recursive: true, force: true });
     }
@@ -1796,6 +1809,55 @@ describe('syncProject — native TS sync against a fixture', () => {
       await syncProject(dir);
       const workflowFilesAfter = await fs.readdir(workflowDir);
       expect(workflowFilesAfter).not.toContain('e2e-regression.yml');
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it('strips compliance-evidence.yml\'s dead E2E Regression workflow_run listener + job unless e2e_regression_enabled is set (#869)', async () => {
+    const dir = await buildFixture();
+    try {
+      process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
+      await syncProject(dir);
+      const content = normalizeNewlines(
+        await fs.readFile(join(dir, '.github', 'workflows', 'compliance-evidence.yml'), 'utf8'),
+      );
+      expect(content).not.toContain('workflow_run:');
+      expect(content).not.toContain('upload-e2e-regression-evidence:');
+      expect(content).not.toContain("workflows: ['E2E Regression']");
+      await expectAllWorkflowsValidYaml(dir);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it('keeps compliance-evidence.yml\'s E2E Regression workflow_run listener + job when e2e_regression_enabled is true (#869)', async () => {
+    const dir = await buildFixture();
+    try {
+      const configPath = join(dir, 'sdlc-config.json');
+      const config = JSON.parse(await fs.readFile(configPath, 'utf8')) as Record<string, unknown>;
+      config['e2e_regression_enabled'] = true;
+      config['e2e_env'] = { E2E_LOCAL: '1' };
+      await fs.writeFile(configPath, JSON.stringify(config));
+      process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
+
+      await syncProject(dir);
+      const content = normalizeNewlines(
+        await fs.readFile(join(dir, '.github', 'workflows', 'compliance-evidence.yml'), 'utf8'),
+      );
+      expect(content).toContain('workflow_run:');
+      expect(content).toContain('upload-e2e-regression-evidence:');
+      expect(content).toContain("workflows: ['E2E Regression']");
+      // Moved from the general end-to-end test (which doesn't set
+      // e2e_regression_enabled): the job's own content is only present
+      // when opted in.
+      expect(content).toContain("printf '%s\\n' 'import json'");
+      expect(content).toContain('python3 /tmp/devaudit-extract-e2e-reqs.py');
+      expect(content).not.toContain("done < <(python3 - <<'PY'");
+      expect(content).toContain('Walk suites/specs/tests/results recursively');
+      expect(content).toContain('**Spec file:** ${SPEC_FILE}');
+      expect(content).toContain('--title "[REGRESSION] ${SPEC_FILE} :: ${TEST_NAME}"');
+      await expectAllWorkflowsValidYaml(dir);
     } finally {
       await fs.rm(dir, { recursive: true, force: true });
     }
