@@ -68,6 +68,22 @@ export async function writeSdlcConfig(ctx: InstallContext, plan: InstallPlan): P
         message: `sdlc-config.json already configures target(s) [${existingTargets.map((t) => t.name).join(', ')}] for a different working directory/project slug. Re-run with --add-target to add "${plan.projectSlug}" as a new target instead of overwriting.`,
       };
     }
+    // Deprecation guard: the polyglot-monorepo `targets` mechanic is
+    // deprecated and scheduled for removal (see docs/onboarding.md's
+    // "Polyglot monorepos" section). Block first-time adoption — converting
+    // an existing flat, single-target config into a `targets` array — but
+    // don't break the one already-multi-target consumer (fleet-control)
+    // still using it: only a config that lacks a real `targets` array today
+    // (`existing.targets` unset/empty, as opposed to resolveTargets()'s
+    // synthesized single-entry view) counts as first-time adoption here.
+    if (isNewTarget && ctx.addTarget && !(existing.targets && existing.targets.length > 0)) {
+      return {
+        step: '4/12 Write sdlc-config.json',
+        status: 'fail',
+        message:
+          'The polyglot-monorepo `targets` mechanic (--add-target) is deprecated and scheduled for removal — new consumers of this shape cannot be onboarded. Onboard each independently-gated stack as its own separate repo instead. See docs/onboarding.md#polyglot-monorepos-multiple-targets-in-one-repo--deprecated.',
+      };
+    }
     if (isNewTarget && ctx.addTarget && existingTargets.some((t) => t.name === plan.projectSlug)) {
       return {
         step: '4/12 Write sdlc-config.json',

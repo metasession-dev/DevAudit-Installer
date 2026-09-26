@@ -47,6 +47,12 @@ export interface InstallContext {
    * than clobbering it. Passing `--add-target` appends the new target
    * instead. Re-running install against the *same* target (rotation) is
    * unaffected either way.
+   *
+   * DEPRECATED (see docs/onboarding.md's "Polyglot monorepos" section):
+   * `writeSdlcConfig` now also refuses `--add-target` outright when the
+   * existing config doesn't already have a real `targets` array — no new
+   * adoption of this mechanic, only continued use by the one consumer
+   * (`fleet-control`) still on it.
    */
   readonly addTarget: boolean;
   /**

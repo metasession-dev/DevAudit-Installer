@@ -56,7 +56,7 @@ export async function main(argv: readonly string[]): Promise<void> {
     .option('--force-team-config', 'Re-run the destructive steps (write sdlc-config, issue API key, set GH secrets, apply branch protection) even when dev-mode detection would have skipped them. The operator-only rotation lane.')
     .option(
       '--add-target',
-      'Append this install as a new target in an already-configured (polyglot monorepo) repo instead of refusing. See #689.',
+      'DEPRECATED, scheduled for removal: append this install as a new target in an already-configured (polyglot monorepo) repo. Refuses for any repo that does not already have a `targets` array — no new adoption. See docs/onboarding.md#polyglot-monorepos-multiple-targets-in-one-repo--deprecated.',
     )
     .option(
       '--with-viewer-key',
