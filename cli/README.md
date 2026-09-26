@@ -40,7 +40,7 @@ npm install -g @metasession.co/devaudit-cli@latest   # upgrade
 ### Working
 
 - `devaudit --help` / `--version`
-- `devaudit doctor` — checks `node` (>=22), `git`, `gh`, `jq`, `curl` are on PATH
+- `devaudit doctor` — tool preflight (`node` >=22, `git`, `gh`, `jq`, `curl`), plus non-gating onboarding-checklist and release-closeout-drift checks; see [`docs/doctor.md`](../docs/doctor.md) for the full contract
 - `devaudit status [path]` — reads `sdlc-config.json` from a consumer project, prints stack/host/slug/source-dirs, and reports which framework files are present
 - `devaudit install [path]` — **native TS, 11-step interactive onboarding** under `src/install/` (auth-probe → detect-stack → prompts → write-config → project → api-key → github → hooks-bootstrap → branch-protection → sync-templates → done-report). Replaces the former `scripts/sdlc-onboard.sh` (removed); no shell-out.
 - `devaudit uninstall [path] [--target <name>]` — the counterpart to `install`: disconnects a repo from a DevAudit project. Revokes the project's active API key(s) on the portal, deletes the GitHub secrets/variables `install` wrote, and removes the target from `sdlc-config.json` (deleting the file entirely if it was the only target). Leaves branch protection and synced CI/SDLC files in place. See `docs/consuming-projects.md#offboarding-a-project`.

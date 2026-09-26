@@ -34,6 +34,11 @@ For every non-clean finding, whether it's most likely a **framework/portal defec
 - Never edits framework code in `devaudit` or `DevAudit-Installer` directly.
 - Never merges a fix through anything other than an existing, already-guarded path.
 - Never invents a second bundling mechanism alongside the one `sdlc-implementer` Phase 1 step 4 already has.
+- Never takes a write action (filing an issue, opening a hotfix branch, invoking `sdlc-implementer`) against a repo whose owner doesn't match the expected org — see the org-boundary check below.
+
+## Org boundary
+
+Every consumer in the Active consumers table today happens to be owned by `metasession-dev`, but the table is just a markdown file — nothing before this made that structural. Before any write action in Phase 4 or Phase 5, `fleet-doctor` verifies the target repo's owner (`gh repo view <owner>/<repo> --json owner`) matches the expected org (`metasession-dev`) and hard-stops — reports the mismatch, takes no action — if it doesn't. `devaudit doctor --json` itself is always read-only, so this gate only needs to cover the skill's own write phases, consistent with the "dry-run first" posture recommended below.
 
 ## Full contract
 
@@ -43,4 +48,4 @@ See [`.claude/skills/fleet-doctor/SKILL.md`](../.claude/skills/fleet-doctor/SKIL
 
 - [`docs/skills.md`](./skills.md) — the six per-consumer skills this one is deliberately not part of
 - [`docs/consuming-projects.md`](./consuming-projects.md) — the Active consumers table this skill reads
-- [`cli/src/commands/doctor.ts`](../cli/src/commands/doctor.ts) — the `devaudit doctor --json` output this skill consumes
+- [`docs/doctor.md`](./doctor.md) — the full `devaudit doctor` contract, including `suspectedOrigin` and the `--json` shape this skill consumes
