@@ -161,6 +161,12 @@ This ADR captures the v1.23.0 design plus the v1.24 onboarding-automation follow
 - **`gh sdlc` extension (rather than `scripts/sdlc-onboard.sh`).** The bash script does the job today; promoting it to a proper `gh` extension would give it auto-update via `gh extension upgrade` and a per-repo invocation idiom. Pure operator ergonomics — the underlying workflow is unchanged.
 - **OAuth device flow for first-PAT issuance.** Eliminates the one remaining manual portal click before running `sdlc-onboard.sh`. Larger scope (DevAudit-side auth surface), so not blocking.
 
+## Amendment (2026-09): `targets` (multi-target monorepo support, #689) deprecated
+
+The polyglot-monorepo `targets` array — one repo, multiple independently-gated stacks (#689, described in STACK_ADAPTER.md) — is deprecated and scheduled for removal. It is not properly supported and no new consumers should adopt it (`install --add-target` now refuses for any repo without an existing `targets` array). `fleet-control` is the one remaining consumer using it; removal is blocked on it migrating off (e.g. splitting into separate repos).
+
+**This amendment does not affect the rest of this ADR.** The polyglot *adapter* architecture this ADR describes — the process/stack/host layering that lets DevAudit support multiple languages at all (Node, Python, ...) — is unrelated to the `targets` mechanic and is not being deprecated. Only the "multiple stacks in one repo via one `sdlc-config.json`'s `targets` array" use case is affected. See [docs/onboarding.md's "Polyglot monorepos" section](../onboarding.md#polyglot-monorepos-multiple-targets-in-one-repo--deprecated) and [docs/consuming-projects.md](../consuming-projects.md) for current status.
+
 ## References
 
 - Portal repo issue #287 — SDLC v1.23.0 umbrella issue (internal tracker).

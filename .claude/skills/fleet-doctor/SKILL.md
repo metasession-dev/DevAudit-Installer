@@ -22,6 +22,7 @@ Not "called by" `sdlc-implementer` in the direction that might be assumed — th
 - Never edits framework code in `devaudit` or `DevAudit-Installer` directly — a framework-origin finding is raised as an issue, not patched here.
 - Never merges a fix without going through an existing, already-guarded path (hotfix/back-merge, or `sdlc-implementer`'s Lightweight path) — no new merge mechanism.
 - Never invents a second bundling mechanism — a deferred fix rides the existing `Bundles: #A, #B` declaration.
+- Never takes a write action against a repo whose owner doesn't match the expected org — see Phase 3.5.
 
 ## Phases
 
@@ -46,6 +47,16 @@ For each finding, confirm or override `suspectedOrigin` using judgment, not just
 - **The same anomaly on every (or most) consumers** → almost certainly `framework` — a template, skill, CLI, or portal defect, not something any one operator did.
 - **One consumer diverging from what every sibling has** (a file present everywhere else, a secret every sibling has that this one lacks, a stale `devaudit_synced_version` while siblings are current) → `consumer-drift`.
 - Before filing anything upstream, search open issues in `devaudit` and `DevAudit-Installer` (`gh issue list --search ...`) to avoid re-filing a duplicate — dedupe onto the existing issue with a comment instead.
+
+### 3.5 Org boundary — required before any write action
+
+Before filing an issue, opening a hotfix branch, or invoking `sdlc-implementer` against any consumer (steps 4-5 below), verify that consumer's repo owner matches the expected org:
+
+```bash
+gh repo view <owner>/<repo> --json owner --jq .owner.login
+```
+
+Expected org: `metasession-dev`. If the owner doesn't match, **stop for that consumer** — report the mismatch in the run summary (step 6) and take no write action against it. This applies even though every entry in `docs/consuming-projects.md`'s Active consumers table happens to be `metasession-dev`-owned today: the table is a markdown file anyone could edit or mis-populate, and this check is what makes "only ever acts on our own org's repos" a structural guarantee rather than an assumption about the table's contents. `devaudit doctor --json` (step 2) is always read-only and doesn't need this gate — it only guards steps 4 and 5.
 
 ### 4. Framework findings → raise, never patch here
 

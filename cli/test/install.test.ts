@@ -669,7 +669,33 @@ describe('runInstall — native TS install against a node fixture', () => {
   // api/. detectStack finds the nested pyproject.toml before the root
   // package.json, so pointing install at the repo root without any extra flag
   // naturally resolves to the *other* target.
+  // The `targets` mechanic is deprecated (see docs/onboarding.md) and
+  // `install --add-target` now refuses first-time adoption — a config
+  // that doesn't already have a real `targets` array. These fixtures
+  // therefore seed one, mirroring the one remaining real-world consumer
+  // (fleet-control) that already uses it, rather than a flat config
+  // converting to `targets` for the first time.
   async function buildPolyglotFixture(): Promise<string> {
+    const dir = await buildNodeFixture();
+    await fs.writeFile(
+      join(dir, 'sdlc-config.json'),
+      JSON.stringify({
+        project_slug: 'fixture-app',
+        stack: 'node',
+        host: 'railway',
+        node_version: '20',
+        working_directory: '.',
+        targets: [{ name: 'default', stack: 'node', working_directory: '.', devaudit: { project_slug: 'fixture-app' } }],
+      }),
+    );
+    await fs.mkdir(join(dir, 'api'), { recursive: true });
+    await fs.writeFile(join(dir, 'api', 'pyproject.toml'), '[project]\nname = "fixture-api"\n');
+    return dir;
+  }
+
+  // First-time adoption case: a genuinely flat, single-target config with no
+  // `targets` array at all.
+  async function buildFlatFixtureForAddTarget(): Promise<string> {
     const dir = await buildNodeFixture();
     await fs.writeFile(
       join(dir, 'sdlc-config.json'),
@@ -679,6 +705,26 @@ describe('runInstall — native TS install against a node fixture', () => {
     await fs.writeFile(join(dir, 'api', 'pyproject.toml'), '[project]\nname = "fixture-api"\n');
     return dir;
   }
+
+  it('--add-target refuses first-time adoption of the deprecated targets mechanic', async () => {
+    const { runInstall } = await import('../src/install/index.js');
+    const dir = await buildFlatFixtureForAddTarget();
+    try {
+      const report = await runInstall({
+        path: dir,
+        nonInteractive: true,
+        addTarget: true,
+        provider: makeFakeProvider(),
+      });
+      const step4 = report.steps.find((s) => s.step.startsWith('4/'));
+      expect(step4?.status).toBe('fail');
+      expect(step4?.message).toMatch(/deprecated/);
+      const after = JSON.parse(await fs.readFile(join(dir, 'sdlc-config.json'), 'utf-8'));
+      expect(after.targets).toBeUndefined();
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
 
   it('refuses to overwrite when the repo already configures a different target and --add-target is not passed', async () => {
     const { runInstall } = await import('../src/install/index.js');
@@ -692,10 +738,12 @@ describe('runInstall — native TS install against a node fixture', () => {
       const step4 = report.steps.find((s) => s.step.startsWith('4/'));
       expect(step4?.status).toBe('fail');
       expect(step4?.message).toMatch(/--add-target/);
-      // The original single-target config is untouched.
+      // The original config (including its existing `targets` array) is untouched.
       const after = JSON.parse(await fs.readFile(join(dir, 'sdlc-config.json'), 'utf-8'));
       expect(after.project_slug).toBe('fixture-app');
-      expect(after.targets).toBeUndefined();
+      expect(after.targets).toEqual([
+        { name: 'default', stack: 'node', working_directory: '.', devaudit: { project_slug: 'fixture-app' } },
+      ]);
     } finally {
       await fs.rm(dir, { recursive: true, force: true });
     }
@@ -716,8 +764,8 @@ describe('runInstall — native TS install against a node fixture', () => {
       const after = JSON.parse(await fs.readFile(join(dir, 'sdlc-config.json'), 'utf-8'));
       expect(Array.isArray(after.targets)).toBe(true);
       const names = (after.targets as Array<{ name: string }>).map((t) => t.name);
-      // The legacy flat config synthesizes as the 'default' target (per
-      // resolveTargets, #690); the newly-appended one is the auto-derived 'api'.
+      // The fixture's pre-existing target is named 'default'; the
+      // newly-appended one is the auto-derived 'api'.
       expect(names).toContain('default');
       expect(names).toContain('api');
       const apiTarget = (after.targets as Array<{ name: string; stack?: string; working_directory?: string }>).find(
@@ -895,7 +943,10 @@ describe('runInstall — native TS install against a node fixture', () => {
       // from, even for the very first target — seed it at the repo root,
       // matching the working_directory detectStack will resolve for
       // service-a so writeSdlcConfig treats this as the *same* target
-      // (a rotation) rather than a second, unconfigured one.
+      // (a rotation) rather than a second, unconfigured one. Also seed a
+      // `targets` array up front (mirroring the one remaining real-world
+      // polyglot consumer, fleet-control) since --add-target now refuses
+      // first-time adoption of the deprecated `targets` mechanic.
       await fs.writeFile(
         join(repoDir, 'sdlc-config.json'),
         JSON.stringify({
@@ -904,6 +955,9 @@ describe('runInstall — native TS install against a node fixture', () => {
           host: 'railway',
           node_version: '20',
           working_directory: 'service-a',
+          targets: [
+            { name: 'default', stack: 'node', working_directory: 'service-a', devaudit: { project_slug: 'service-a' } },
+          ],
         }),
       );
 
@@ -936,8 +990,7 @@ describe('runInstall — native TS install against a node fixture', () => {
       const names = (rootConfigAfterSecond.targets as Array<{ name: string; working_directory?: string }>).map(
         (t) => t.name,
       );
-      // The legacy flat config (service-a, seeded with no `targets` array)
-      // synthesizes as the 'default' target per resolveTargets (#690).
+      // The seeded config's existing target is named 'default'.
       expect(names).toContain('default');
       expect(names).toContain('service-b');
       const serviceBTarget = (

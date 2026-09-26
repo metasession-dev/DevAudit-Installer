@@ -115,33 +115,37 @@ See [`governance-templates.md`](./governance-templates.md) for the per-framework
 
 From the next requirement onward, use the **Requirement** issue template instead of SRS Bootstrap again — `requirements-aligner` takes over incremental maintenance automatically (advisory at Stage 1, blocking at Stage 3, per `sdlc-config.json`'s `requirements_aligner` defaults).
 
-## Polyglot monorepos (multiple targets in one repo)
+## Polyglot monorepos (multiple targets in one repo) — deprecated
 
-By default, `install` describes one repo as one stack: `sdlc-config.json`'s flat top-level fields (`stack`, `working_directory`, `devaudit.project_slug`, etc.) are sugar for a single implicit target. Some consumers are polyglot monorepos — e.g. ThorStack (`metasession-dev/META-AGENT`) has a Next.js frontend (`mission-control/`) and a FastAPI backend (`mission-control-api/`) that each want independent DevAudit compliance gating (two portal projects, `thorstack-web` + `thorstack-api`, inside one GitHub repo). `sdlc-config.json` supports this via an optional `targets` array:
+> **Deprecated, scheduled for removal.** The `targets`/`--add-target` mechanic described below is not properly supported and will be removed in a future release. **Do not onboard new polyglot-monorepo projects.** `fleet-control` is currently the one known consumer still using it (see [`consuming-projects.md`](./consuming-projects.md)); everyone else should onboard each independently-gated stack as its own separate repo/consumer instead. `install --add-target` now refuses for any repo that doesn't already have an existing `targets` array — see below.
+
+By default, `install` describes one repo as one stack: `sdlc-config.json`'s flat top-level fields (`stack`, `working_directory`, `devaudit.project_slug`, etc.) are sugar for a single implicit target. The `targets` array below let a polyglot monorepo — one GitHub repo with more than one independently-gated stack — onboard each stack as its own target instead of separate repos:
 
 ```jsonc
 {
   // present only once there's more than one target — a single-target repo
   // never has this key, and its flat fields keep meaning what they always did
   "targets": [
-    { "name": "web", "stack": "node", "working_directory": "mission-control", "devaudit": { "project_slug": "thorstack-web", "api_key_secret": "WEB_API_KEY" } },
-    { "name": "api", "stack": "python", "working_directory": "mission-control-api", "devaudit": { "project_slug": "thorstack-api", "api_key_secret": "API_API_KEY" } }
+    { "name": "fleet-control-api", "stack": "python", "working_directory": "fleet-control-api", "devaudit": { "project_slug": "fleet-control-api", "api_key_secret": "FLEET_CONTROL_API_API_KEY" } },
+    { "name": "fleet-control-ui", "stack": "node", "working_directory": "fleet-control-ui", "devaudit": { "project_slug": "fleet-control-ui", "api_key_secret": "FLEET_CONTROL_UI_API_KEY" } }
   ]
 }
 ```
 
+(a real excerpt from `fleet-control`'s current `sdlc-config.json` — the one consumer still using this mechanic; see the deprecation notice above.)
+
 **Onboarding a second target.** Run `install` again, pointed at the new target's subdirectory, with `--add-target`:
 
 ```bash
-devaudit install ../monorepo/mission-control-api --add-target
+devaudit install ../monorepo/fleet-control-ui --add-target
 ```
 
-Without `--add-target`, `install` refuses (rather than clobbering) when it detects the target directory/slug doesn't match what's already configured. `--add-target` reads the existing config, migrates a legacy flat config to the `targets` array shape if needed, and appends the new target — the first target's fields are preserved untouched.
+Without `--add-target`, `install` refuses (rather than clobbering) when it detects the target directory/slug doesn't match what's already configured. Given the deprecation above, `--add-target` now also refuses outright for any repo that doesn't already have an existing `targets` array — it no longer accepts first-time adoption. For a repo that already has `targets`, it still reads the existing config, migrates a legacy flat config to the `targets` array shape if needed, and appends the new target — the first target's fields are preserved untouched.
 
 **What becomes target-aware once `targets` has more than one entry:**
 
-- **CI workflow files** are namespaced per target: `ci.yml` → `ci-web.yml` / `ci-api.yml`, and the job/check names inside them get a `(web)` / `(api)` suffix (e.g. `Quality Gates (web)`) so two targets' pipelines don't collide on the same filename or check name.
-- **Trigger paths** are scoped to each target's `working_directory`, so a commit touching only `mission-control-api/` doesn't fire `mission-control`'s pipeline and vice versa (a target at the repo root can't be scoped this way and keeps unscoped triggers).
+- **CI workflow files** are namespaced per target: `ci.yml` → `ci-fleet-control-api.yml` / `ci-fleet-control-ui.yml`, and the job/check names inside them get a `(fleet-control-api)` / `(fleet-control-ui)` suffix so two targets' pipelines don't collide on the same filename or check name.
+- **Trigger paths** are scoped to each target's `working_directory`, so a commit touching only `fleet-control-ui/` doesn't fire `fleet-control-api`'s pipeline and vice versa (a target at the repo root can't be scoped this way and keeps unscoped triggers).
 - **`api_key_secret` names** are derived per target (not the single `DEVAUDIT_API_KEY` every single-target repo uses) — GitHub repo secrets are repo-scoped, not per-directory, so reusing that name across targets would have the second target's install silently overwrite the first target's key.
 - **Branch protection** required checks are applied per target (`Quality Gates (web)`, `Quality Gates (api)`, …) via a read-merge-write against GitHub's API — a second target's `install`/`--add-target` run unions its check into whatever's already required rather than replacing the list, so it can't silently drop another target's requirement.
 - **`devaudit update`** resyncs every target's namespaced CI files and re-verifies branch protection for all of them in one run, not just the most-recently-installed target.
@@ -249,6 +253,44 @@ A trace of an early `devaudit install ../META-AGENT` run (the bash installer it 
 
 The command starts immediately, but the full operator onboarding flow usually takes about 5-10 minutes depending on prompts, GitHub API latency, and how much project-specific information you need to confirm.
 
+## Verify the install
+
+`install`'s own step-by-step output (as in the trace above) is optimistic — it reports what it *did*, not whether everything it wrote is actually in a healthy state (a secret write can silently fail, a hook bootstrap can be skipped on an unusual git layout, etc.). Run `devaudit doctor` right after onboarding finishes to confirm independently:
+
+```bash
+cd .../your-project
+devaudit doctor
+```
+
+A clean run looks like:
+
+```
+Running devaudit doctor — checking required tools...
+
+  ✓ node     v22.4.0 (require >=22)
+  ✓ git      git version 2.45.0
+  ✓ gh       gh version 2.55.0
+  ✓ jq       jq-1.7.1
+  ✓ curl     curl 8.5.0
+  ✓ releases no pending release tickets
+  ✓ srs             docs/SRS.md present
+  ✓ rtm             compliance/RTM.md has at least one requirement row
+  ✓ semgrep         1.78.0
+  ✓ e2e-regression  not opted in
+  ✓ secrets         all required secrets present (DEVAUDIT_API_KEY, DEVAUDIT_USER_TOKEN)
+  ✓ pre-push-hook   present (.husky/pre-push)
+
+All required tools present.
+```
+
+A realistic failure right after onboarding — a secret write that didn't take:
+
+```
+  ⚠ secrets         missing repo secret(s): DEVAUDIT_USER_TOKEN — expected from `devaudit install`
+```
+
+That's a warning, not a tool-gate failure (exit code stays `0` unless a *required tool* is missing) — but it means something `install` was supposed to configure didn't land, and it's worth fixing before your first tracked requirement rather than discovering it when `requirements-aligner` or CI trips over it later. See [`docs/doctor.md`](./doctor.md) for the full check contract.
+
 ## Troubleshooting
 
 | Symptom                                         | Cause                                       | Fix                                                                     |
@@ -261,12 +303,13 @@ The command starts immediately, but the full operator onboarding flow usually ta
 
 ## See also
 
+- [`docs/doctor.md`](./doctor.md) — the full `devaudit doctor` contract used in "Verify the install" above.
 - [STACK_ADAPTER.md](../sdlc/STACK_ADAPTER.md) — the stack-adapter contract.
 - [HOST_ADAPTER.md](../sdlc/HOST_ADAPTER.md) — the host-adapter contract.
 - [ADR-001](./ADR/ADR-001-polyglot-sdlc-architecture.md) — why the framework is layered this way.
 - [`docs/skills.md`](./skills.md) — the `requirements-aligner` skill that maintains `docs/SRS.md` after Step 3b's bootstrap.
 - [adding-a-stack.md](./adding-a-stack.md) / [adding-a-host.md](./adding-a-host.md) — adding new stacks or hosts.
-- [consuming-projects.md](./consuming-projects.md) — which consumers are polyglot-monorepo (`targets`) vs single-target.
+- [consuming-projects.md](./consuming-projects.md) — which consumers are polyglot-monorepo (`targets`, deprecated) vs single-target.
 - [consuming-projects.md#offboarding-a-project](./consuming-projects.md#offboarding-a-project) — removing a project: `devaudit uninstall` reverses the steps this doc walks through.
 - [`articles/permissions-and-tokens-reference.md`](./articles/permissions-and-tokens-reference.md) — every credential this flow issues, including the optional viewer key, and what's at risk if each leaks.
 - [devaudit#867](https://github.com/metasession-dev/devaudit/issues/867) — the umbrella issue for the viewer-key + read-back API + fleet-doctor work referenced above.
