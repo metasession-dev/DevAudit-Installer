@@ -2,6 +2,7 @@ import { Command, Option } from 'commander';
 import { configureLogger } from './lib/logger.js';
 import { CLI_VERSION } from './lib/version.js';
 import { runDoctor } from './commands/doctor.js';
+import { runFleetDoctor } from './commands/fleet.js';
 import { runAuthLogin } from './commands/auth/login.js';
 import { runAuthLogout } from './commands/auth/logout.js';
 import { runAuthStatus } from './commands/auth/status.js';
@@ -276,7 +277,17 @@ export async function main(argv: readonly string[]): Promise<void> {
   program
     .command('doctor')
     .description('Verify the local install: required tools on PATH (node>=22, git, gh, jq, curl), a release close-out drift check, and onboarding-checklist invariants (SRS/RTM/secrets/pre-push hook). Use --json for machine-readable output (consumed by the fleet-doctor skill).')
-    .action(runDoctor);
+    .option(
+      '--fleet',
+      'Sweep every project your DEVAUDIT_USER_TOKEN can see on the portal, checked out locally as siblings of the current directory, running doctor against each. Read-only — never files issues or changes anything. See docs/doctor.md.',
+    )
+    .action(async (cmdOpts: { fleet?: boolean }) => {
+      if (cmdOpts.fleet) {
+        await runFleetDoctor();
+        return;
+      }
+      await runDoctor();
+    });
   program
     .command('status [path]')
     .description("Show the consumer project's framework state")

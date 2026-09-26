@@ -1,13 +1,14 @@
 # `devaudit doctor`
 
-The single-repo health check for a DevAudit consumer. Run it locally, in CI, or as the per-consumer building block that [`fleet-doctor`](./fleet-doctor.md) sweeps across every onboarded project.
+The single-repo health check for a DevAudit consumer. Run it locally, in CI, or swept across every project your account can see with `--fleet`.
 
 ```bash
 devaudit doctor          # human-readable
-devaudit doctor --json   # machine-readable — consumed by fleet-doctor and suitable for CI
+devaudit doctor --json   # machine-readable — suitable for CI
+devaudit doctor --fleet  # sweep every project you have access to, checked out locally as siblings
 ```
 
-Implementation: [`cli/src/commands/doctor.ts`](../cli/src/commands/doctor.ts).
+Implementation: [`cli/src/commands/doctor.ts`](../cli/src/commands/doctor.ts) (single-repo), [`cli/src/commands/fleet.ts`](../cli/src/commands/fleet.ts) (`--fleet`).
 
 ## Exit codes
 
@@ -58,8 +59,19 @@ Plugins can extend `doctor` via the `onDoctor` lifecycle hook (`plugin-sdk/src/l
 
 See `sdlc/CLAUDE.md` / the plugin-sdk docs for the general plugin-authoring contract; `onDoctor` follows the same `LoadedPlugin`/context shape as the other lifecycle hooks (`beforeSync`, `afterSync`, etc.).
 
+## `--fleet`: sweeping every project you can see
+
+`devaudit doctor --fleet` (devaudit-installer#861) is a self-service, multi-tenant fleet sweep — any DevAudit account can run it, not just Metasession's own operator tooling:
+
+1. Calls `GET /api/projects` on the portal with your `DEVAUDIT_USER_TOKEN` to list every project your account can see (org membership or an explicit access grant — enforced portal-side by the same authz every other API call goes through). This is the actual tenant-isolation boundary: it is structurally impossible to see, let alone sweep, a project outside your own access, because the portal never returns it.
+2. For each project with a `repo_url`, looks for a local checkout as a sibling of the current directory (`../<repo-name>`, matching the naming convention `fleet-doctor`'s Discover phase already used) — not found locally is a skip, not a failure.
+3. As defense-in-depth (`repo_url` is an unverified string on the portal, not a proven ownership link — see devaudit-installer#861's design notes), confirms the local checkout's own `git remote get-url origin` actually matches `repo_url` before running anything against it; a mismatch is skipped.
+4. Runs `devaudit doctor --json` against each matched local checkout and reports the aggregate — `--json` for machine consumption, human-readable otherwise.
+
+**`--fleet` is read-only.** It never files issues, opens branches, or otherwise acts on your behalf — it only reports. Automated write actions (filing upstream issues, driving hotfixes, invoking `sdlc-implementer`) are a separate, deliberate choice layered on top — see [`docs/fleet-doctor.md`](./fleet-doctor.md) for how Metasession's own operator automation does this for its own fleet using `--fleet` as its discovery+collection step.
+
 ## See also
 
-- [`docs/fleet-doctor.md`](./fleet-doctor.md) — the operator-only, fleet-wide sweep that runs `devaudit doctor --json` across every onboarded consumer.
+- [`docs/fleet-doctor.md`](./fleet-doctor.md) — Metasession's own automated fleet sweep, built on top of `devaudit doctor --fleet`, adding org-boundary enforcement and automated write actions for its own consumers.
 - [`docs/onboarding.md`](./onboarding.md) — run `devaudit doctor` after `devaudit install` to confirm onboarding actually landed.
 - [`docs/sdlc-framework.md`](./sdlc-framework.md) — how `doctor` fits into verifying the SDLC process is implemented and healthy, not just described.

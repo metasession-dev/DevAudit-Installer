@@ -1,6 +1,10 @@
 # Fleet doctor
 
-An operator-only, fleet-wide drift audit across every onboarded DevAudit consumer. Not part of the six skills `devaudit update` syncs into a consumer (see [`docs/skills.md`](./skills.md)) — `fleet-doctor` runs from this repo (`DevAudit-Installer`) and needs visibility across every consumer plus the two framework repos it might file issues against, which is the opposite shape from a per-consumer skill.
+**Metasession's own automated fleet-wide drift audit**, built on top of [`devaudit doctor --fleet`](./doctor.md#--fleet-sweeping-every-project-you-can-see) (devaudit-installer#861), which does the underlying discovery+collection sweep for *any* DevAudit account, not just Metasession's. This skill adds two things on top that are specific to Metasession operating its own fleet: an org-boundary gate before any write action, and automated write actions themselves (filing upstream issues, driving hotfixes, invoking `sdlc-implementer`).
+
+If you just want to see the health of every project *your own* account can see, with no automated write actions, use `devaudit doctor --fleet` directly — it works for any org, requires no Claude Code checkout, and is documented in full in [`docs/doctor.md`](./doctor.md#--fleet-sweeping-every-project-you-can-see). This skill exists for Metasession's own operator workflow, which needs the write-action layer on top.
+
+Not part of the six skills `devaudit update` syncs into a consumer (see [`docs/skills.md`](./skills.md)) — `fleet-doctor` runs from this repo (`DevAudit-Installer`) and needs visibility across every consumer plus the two framework repos it might file issues against, which is the opposite shape from a per-consumer skill.
 
 ## Trigger phrases
 
@@ -12,9 +16,8 @@ An operator-only, fleet-wide drift audit across every onboarded DevAudit consume
 
 ## What it reads
 
-- [`docs/consuming-projects.md`](./consuming-projects.md)'s **Active consumers** table, to find every currently-onboarded project.
-- Each consumer's local sibling checkout (skipped, not failed, if not present on disk).
-- `devaudit doctor --json` run inside each consumer — the same command an individual consumer's operator would run, extended (devaudit-installer#867) to tag every check with a first-pass `suspectedOrigin: 'framework' | 'consumer-drift' | 'unknown'`.
+- `devaudit doctor --fleet --json`, run from this repo with Metasession's own operator `DEVAUDIT_USER_TOKEN` — does discovery (every project the token's account can see on the portal) and collection (`devaudit doctor --json` against each one found checked out locally) in one command. Each check carries a first-pass `suspectedOrigin: 'framework' | 'consumer-drift' | 'unknown'` (devaudit-installer#867).
+- [`docs/consuming-projects.md`](./consuming-projects.md)'s **Active consumers** table remains the human-readable reference for which consumers exist and their polyglot-monorepo status, but is no longer what this skill parses to decide what to sweep — that's now `--fleet`'s own portal-backed discovery.
 
 ## What it decides
 
@@ -38,7 +41,7 @@ For every non-clean finding, whether it's most likely a **framework/portal defec
 
 ## Org boundary
 
-Every consumer in the Active consumers table today happens to be owned by `metasession-dev`, but the table is just a markdown file — nothing before this made that structural. Before any write action in Phase 4 or Phase 5, `fleet-doctor` verifies the target repo's owner (`gh repo view <owner>/<repo> --json owner`) matches the expected org (`metasession-dev`) and hard-stops — reports the mismatch, takes no action — if it doesn't. `devaudit doctor --json` itself is always read-only, so this gate only needs to cover the skill's own write phases, consistent with the "dry-run first" posture recommended below.
+`devaudit doctor --fleet` (the discovery+collection step this skill now delegates to) is already tenant-isolated at the source: it only ever sees projects the calling `DEVAUDIT_USER_TOKEN`'s account can access on the portal, enforced by the portal's own authz. But a portal project's `repo_url` is an unverified string, not a proven GitHub-ownership link (see `docs/doctor.md`'s `--fleet` section) — so before any *write* action in Phase 4 or Phase 5, `fleet-doctor` separately verifies the target repo's actual GitHub owner (`gh repo view <owner>/<repo> --json owner`) matches the expected org (`metasession-dev`) and hard-stops — reports the mismatch, takes no action — if it doesn't. This is defense-in-depth on top of the portal-side scoping, specifically because write actions have a higher cost of being wrong than a read-only sweep does.
 
 ## Full contract
 

@@ -7,6 +7,16 @@ export interface DevAuditProject {
   readonly id: string;
   readonly slug: string;
   readonly name: string;
+  /**
+   * devaudit-installer#861 — used by `devaudit doctor --fleet` to resolve a
+   * project to a local checkout. Stored as a plain string on the portal
+   * (`compliance_projects.repo_url`), never verified against actual GitHub
+   * ownership — treat it as a hint, not an authorization boundary. The
+   * authorization boundary is `/api/projects` itself only ever returning
+   * projects this token's user can access (org membership or an explicit
+   * access grant), enforced portal-side.
+   */
+  readonly repo_url?: string | null;
 }
 
 export interface ApiKeyIssued {
