@@ -4,15 +4,22 @@ DevAudit serves as the central compliance hub for all Metasession projects. Each
 
 ## Active consumers
 
-| Project             | Slug                   | Stack  | Host    | Status     |
-| ------------------- | ---------------------- | ------ | ------- | ---------- |
-| wawagardenbar       | `wawagardenbar-app`    | node   | railway | Integrated |
-| META-JOBS           | `meta-jobs`             | node   | railway | Integrated |
-| mission-control     | `mission-control`      | node   | railway | Integrated |
-| mission-control-api | `mission-control-api`  | python | railway | Integrated |
-| ThorStack site      | `thorstack-site`       | node   | railway | Integrated |
+| Project             | Slug                   | Stack       | Host    | Status     |
+| ------------------- | ---------------------- | ----------- | ------- | ---------- |
+| wawagardenbar       | `wawagardenbar-app`    | node        | railway | Integrated |
+| META-JOBS           | `meta-jobs`             | node        | railway | Integrated |
+| ThorStack-Frontend  | `mission-control`      | node        | railway | Integrated |
+| ThorStack-Backend   | `mission-control-api`  | python      | railway | Integrated |
+| ThorStack site      | `thorstack-site`       | node        | railway | Integrated |
+| fleet-control       | `fleet-control-api` / `fleet-control-ui` | python + node (polyglot, deprecated) | railway | Integrated |
 
-The table above should reflect the current active consumers known to this repo. For the product-side authoritative cross-check, see the portal repo documentation referenced from this repo's README. `mission-control` and `mission-control-api` (the META-AGENT repos) were re-onboarded from scratch via `devaudit install --force-team-config` after their original onboarding attempt was stopped/reverted. `fleet-control` (also part of META-AGENT) is deliberately **not** onboarded — leave it out of this table. **META-ATS** onboarding was likewise stopped/reverted and remains unonboarded; if it returns as a live consumer, re-onboard from scratch via `devaudit install` and add it here.
+The table above should reflect the current active consumers known to this repo. For the product-side authoritative cross-check, see the portal repo documentation referenced from this repo's README.
+
+`mission-control`/`mission-control-api` were originally onboarded as two subdirectories of one `META-AGENT` repo; the frontend and backend have since been split into their own standalone repos, now named `ThorStack-Frontend` and `ThorStack-Backend` on GitHub (their DevAudit project slugs, `mission-control`/`mission-control-api`, weren't renamed to match). `META-AGENT` itself remains a separate, active repo but is not itself an onboarded consumer.
+
+`fleet-control` **is** an active, onboarded consumer, using the polyglot-monorepo `targets` mechanic (`fleet-control-api` + `fleet-control-ui` in one repo) — despite previously being listed here as deliberately not onboarded. That mechanic is deprecated and scheduled for removal (see [onboarding.md's "Polyglot monorepos" section](onboarding.md#polyglot-monorepos-multiple-targets-in-one-repo--deprecated)); `fleet-control` is the one consumer that needs to migrate off it (e.g. by splitting into separate repos, mirroring how the ThorStack frontend/backend split) before the `targets` code can be removed.
+
+**META-ATS** onboarding was stopped/reverted and remains unonboarded; if it returns as a live consumer, re-onboard from scratch via `devaudit install` and add it here.
 
 The DevAudit portal itself does **not** consume the SDLC framework — it would otherwise gate its own releases through itself. See `CLAUDE.md` in DevAudit's repo root for its lightweight development process.
 
@@ -43,11 +50,13 @@ The original bash installer (`scripts/sdlc-onboard.sh`) has been removed — `de
 
 For projects using new languages/hosts not yet supported by an adapter, see [docs/adding-a-stack.md](adding-a-stack.md) or [docs/adding-a-host.md](adding-a-host.md) — author the adapter first, then onboard the consumer against it.
 
-### Polyglot monorepo consumers (multiple targets)
+### Polyglot monorepo consumers (multiple targets) — deprecated
 
-Most consumers are one repo = one stack = one `sdlc-config.json` (the flat top-level fields describe a single implicit target). A polyglot monorepo — one GitHub repo with independently-gated stacks in different subdirectories, e.g. a Next.js frontend + FastAPI backend each wanting their own compliance project — instead uses `sdlc-config.json`'s `targets` array. Onboard the first target normally (`devaudit install <repo>/<subdir>`), then each additional target with `devaudit install <repo>/<other-subdir> --add-target`.
+> **Deprecated, scheduled for removal.** Not properly supported; do not onboard new consumers of this shape. `fleet-control` is the one remaining consumer using it (see the Active consumers table above).
 
-CI workflow filenames, job/check names, trigger paths, `api_key_secret` names, and branch-protection required checks are all namespaced per target once `targets` has more than one entry — a single-target consumer sees none of this. See [onboarding.md's "Polyglot monorepos" section](onboarding.md#polyglot-monorepos-multiple-targets-in-one-repo) for the full mechanics and a worked `targets` example.
+Most consumers are one repo = one stack = one `sdlc-config.json` (the flat top-level fields describe a single implicit target). A polyglot monorepo — one GitHub repo with independently-gated stacks in different subdirectories — instead used `sdlc-config.json`'s `targets` array. `devaudit install ... --add-target` now refuses for any repo that doesn't already have an existing `targets` array, so this path is closed to new consumers; onboard each independently-gated stack as its own separate repo instead.
+
+CI workflow filenames, job/check names, trigger paths, `api_key_secret` names, and branch-protection required checks are all namespaced per target once `targets` has more than one entry — a single-target consumer sees none of this. See [onboarding.md's "Polyglot monorepos" section](onboarding.md#polyglot-monorepos-multiple-targets-in-one-repo--deprecated) for the full mechanics, the deprecation notice, and a worked `targets` example from `fleet-control`'s actual config.
 
 ## Offboarding a project
 

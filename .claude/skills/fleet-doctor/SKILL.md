@@ -1,6 +1,6 @@
 ---
 name: fleet-doctor
-description: Operator-only. Sweep every active DevAudit consumer, classify each finding as a framework/portal defect (raise upstream) or consumer-specific drift (fix in place -- hotfix if release-blocking, Lightweight-path housekeeping otherwise, or deferred into the consumer's next tracked REQ bundle). Never synced to consumers -- lives only in DevAudit-Installer's own .claude/skills/. Trigger phrases -- "run fleet doctor", "audit all consumers", "check onboarded projects for drift".
+description: Operator-only. Metasession's own automated fleet audit, built on `devaudit doctor --fleet` (any DevAudit account's self-service read-only sweep) plus write actions specific to Metasession's fleet -- classify each finding as a framework/portal defect (raise upstream) or consumer-specific drift (fix in place -- hotfix if release-blocking, Lightweight-path housekeeping otherwise, or deferred into the consumer's next tracked REQ bundle). Never synced to consumers -- lives only in DevAudit-Installer's own .claude/skills/. Trigger phrases -- "run fleet doctor", "audit all consumers", "check onboarded projects for drift".
 tags: [operator, fleet, audit, devaudit-installer]
 ---
 
@@ -22,22 +22,19 @@ Not "called by" `sdlc-implementer` in the direction that might be assumed — th
 - Never edits framework code in `devaudit` or `DevAudit-Installer` directly — a framework-origin finding is raised as an issue, not patched here.
 - Never merges a fix without going through an existing, already-guarded path (hotfix/back-merge, or `sdlc-implementer`'s Lightweight path) — no new merge mechanism.
 - Never invents a second bundling mechanism — a deferred fix rides the existing `Bundles: #A, #B` declaration.
+- Never takes a write action against a repo whose owner doesn't match the expected org — see Phase 3.5.
 
 ## Phases
 
-### 1. Discover
+### 1. Discover + 2. Per-consumer check
 
-Parse [`docs/consuming-projects.md`](../../../docs/consuming-projects.md)'s **Active consumers** table for the current consumer list. Resolve each project's local sibling path the same way `sdlc/CLAUDE.md`'s own fan-out convention already does (e.g. `../wawagardenbar-app` alongside this checkout). Skip and note any consumer not locally checked out — don't fail the whole run over one missing sibling.
-
-### 2. Per-consumer check
-
-For each locally-available consumer, `cd` into it and run:
+Both steps are now one command (devaudit-installer#861) — run from this repo with Metasession's own operator `DEVAUDIT_USER_TOKEN` set:
 
 ```bash
-devaudit doctor --json
+devaudit doctor --fleet --json
 ```
 
-(or `npx @metasession.co/devaudit-cli@latest doctor --json` if not globally installed). This returns the structured report — tool preflight, release close-out drift, and the onboarding-checklist checks (SRS/RTM/e2e-regression-consistency/secrets-presence/pre-push-hook), each tagged with a first-pass `suspectedOrigin: 'framework' | 'consumer-drift' | 'unknown'` (devaudit-installer#867). Collect every non-`unknown`, non-`ok` finding across all consumers before moving to classification — don't act consumer-by-consumer, since cross-consumer comparison is exactly what step 3 needs.
+(or `npx @metasession.co/devaudit-cli@latest doctor --fleet --json` if not globally installed). This discovers every project the operator token's account can see on the portal (org membership / access grants — enforced portal-side, not by this command), resolves each to a local sibling checkout (`../<repo-name>`, skipped and noted — not failed — if not present on disk), and runs `devaudit doctor --json` against each one found. The result is the same structured per-consumer report as before — tool preflight, release close-out drift, onboarding-checklist checks — each still tagged with a first-pass `suspectedOrigin: 'framework' | 'consumer-drift' | 'unknown'` (devaudit-installer#867), aggregated across every consumer. `docs/consuming-projects.md`'s Active consumers table is no longer what this step reads — it's a human-readable reference now, not the discovery source. Collect every non-`unknown`, non-`ok` finding across all consumers before moving to classification — don't act consumer-by-consumer, since cross-consumer comparison is exactly what step 3 needs.
 
 ### 3. Classify
 
@@ -46,6 +43,16 @@ For each finding, confirm or override `suspectedOrigin` using judgment, not just
 - **The same anomaly on every (or most) consumers** → almost certainly `framework` — a template, skill, CLI, or portal defect, not something any one operator did.
 - **One consumer diverging from what every sibling has** (a file present everywhere else, a secret every sibling has that this one lacks, a stale `devaudit_synced_version` while siblings are current) → `consumer-drift`.
 - Before filing anything upstream, search open issues in `devaudit` and `DevAudit-Installer` (`gh issue list --search ...`) to avoid re-filing a duplicate — dedupe onto the existing issue with a comment instead.
+
+### 3.5 Org boundary — required before any write action
+
+Before filing an issue, opening a hotfix branch, or invoking `sdlc-implementer` against any consumer (steps 4-5 below), verify that consumer's repo owner matches the expected org:
+
+```bash
+gh repo view <owner>/<repo> --json owner --jq .owner.login
+```
+
+Expected org: `metasession-dev`. If the owner doesn't match, **stop for that consumer** — report the mismatch in the run summary (step 6) and take no write action against it. `devaudit doctor --fleet` (step 1+2) is already tenant-isolated at the portal level and is always read-only — this gate only needs to cover steps 4 and 5's write actions, as defense-in-depth against `repo_url` being an unverified string (see `docs/doctor.md`'s `--fleet` section).
 
 ### 4. Framework findings → raise, never patch here
 
@@ -71,4 +78,4 @@ One run summary, in the same LAST/NEXT sticky-comment style `sdlc-implementer` a
 
 ## Verification before trusting this skill's output
 
-Run it once in a read-only/dry-run posture first — report findings, file nothing, merge nothing — to sanity-check the classification before letting it act for real. `devaudit doctor --json` itself is always read-only; the risk is entirely in steps 4–5's write actions, so gating those first is enough.
+Run it once in a read-only/dry-run posture first — report findings, file nothing, merge nothing — to sanity-check the classification before letting it act for real. `devaudit doctor --fleet` itself is always read-only; the risk is entirely in steps 4–5's write actions, so gating those first is enough.

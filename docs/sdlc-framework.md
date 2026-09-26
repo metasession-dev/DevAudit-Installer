@@ -88,6 +88,20 @@ Metasession projects follow a **single owner-developer partnered with AI coding 
 - **Tier 2 (project-specific):** Workflows `0-project-setup.md` through `5-deploy-main.md`, `Test_Plan_TEMPLATE.md`, `README_TEMPLATE.md` -- copied and customised per project
 - **Tier 3 (governance starters, install-only):** the five files under `sdlc/files/_common/governance/`. **Copied once** into `compliance/governance/` by `devaudit install` (step 11/12) and **never re-synced by `devaudit update`** — once you edit a stub, your content is preserved. Each starter ships with a prominent **STARTER TEMPLATE — REPLACE BEFORE GOING TO PRODUCTION** banner that's intentionally visible both on disk and in the portal's evidence renderer. See [`governance-templates.md`](./governance-templates.md) for the per-framework mapping (which clause each starter closes) and external references for replacing the stub content.
 
+## Verifying the setup: `devaudit doctor` and `fleet-doctor`
+
+Everything above describes the process. Two commands verify it's actually implemented and healthy in a given repo, rather than just followed on faith:
+
+- **`devaudit doctor`** — run inside a single consumer to check tool preflight, onboarding-checklist invariants (SRS/RTM bootstrapped, e2e-regression config consistency, required secrets present, pre-push hook installed), and release-closeout drift:
+
+  ```bash
+  devaudit doctor          # human-readable
+  devaudit doctor --json   # machine-readable, e.g. for CI or fleet-doctor
+  ```
+
+  A clean run reports every check `✓`; a gap (e.g. a missing secret, or `compliance/RTM.md` still at the generated skeleton) is reported as `⚠` without failing the process — it's a signal that Stage 0's scaffolding didn't fully land, not a CI gate. See [`docs/doctor.md`](./doctor.md) for the full contract.
+- **[`fleet-doctor`](./fleet-doctor.md)** — the operator-only, fleet-wide version: sweeps `devaudit doctor --json` across every onboarded consumer to check the SDLC process is being followed correctly fleet-wide, not just in the one repo you happen to be looking at.
+
 ## Workflow Pipeline
 
 The framework has one tracked path and two housekeeping outcomes: _tracked_ (`REQ-XXX`) for user-visible changes, normal _integration housekeeping_ (bare-date history) for lightweight work, and the explicit _standalone housekeeping_ exception. Normal housekeeping follows branch → gates → PR review → merge, has no tracked-release ceremony, and is absorbed into the next tracked release through bundled-change lineage. Standalone housekeeping requires the declaration and promotion process in the release playbook.
@@ -355,6 +369,12 @@ Pick up #15 — the client wants the share link expiry default changed to 30 day
 
 ```
 What open issues do we have?
+```
+
+**Checking the SDLC setup itself is healthy (routes to `devaudit doctor`):**
+
+```
+Check that this repo's SDLC setup is complete and healthy
 ```
 
 In each case the AI will fetch (or create) the GitHub Issue, assign the next `REQ-XXX`, classify risk using issue labels, add the RTM entry with the issue reference, and scaffold the evidence directory -- all before any code is written.

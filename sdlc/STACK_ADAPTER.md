@@ -99,25 +99,27 @@ Default: `"."` (repo root). Omitting the field is equivalent to setting `"."` �
 
 Currently honoured by: **Python `ci.yml` template** (Phase 4 onwards). The Node `ci.yml` template doesn't substitute these tokens yet — Node consumers don't typically need it. Symmetric Node support can be added when a Node monorepo first needs it.
 
-## Polyglot monorepos: multiple targets, multiple stacks (#689)
+## Polyglot monorepos: multiple targets, multiple stacks (#689) — deprecated
 
-`working_directory` above scopes a *single* stack adapter within a repo. A polyglot monorepo goes one step further — two (or more) independently-gated stacks in the same repo, e.g. a Node frontend and a Python backend each with their own `sdlc-config.json` target. `sdlc-config.json` supports this via a `targets` array; each entry carries its own `stack`, `working_directory`, `source_dirs`, and `devaudit.project_slug`/`devaudit.api_key_secret`, in the same shape as the flat top-level fields:
+> **Deprecated, scheduled for removal.** Not properly supported; `install --add-target` now refuses for any repo without an existing `targets` array, so no new consumer can adopt this. `fleet-control` is the one remaining consumer using it. An adapter author does not need to build or maintain anything new against this mechanic going forward.
+
+`working_directory` above scopes a *single* stack adapter within a repo. A polyglot monorepo goes one step further — two (or more) independently-gated stacks in the same repo, e.g. a Node frontend and a Python backend each with their own `sdlc-config.json` target. `sdlc-config.json` supported this via a `targets` array; each entry carries its own `stack`, `working_directory`, `source_dirs`, and `devaudit.project_slug`/`devaudit.api_key_secret`, in the same shape as the flat top-level fields — a real excerpt from `fleet-control`'s current config:
 
 ```jsonc
 {
   "targets": [
-    { "name": "web", "stack": "node", "working_directory": "mission-control", "devaudit": { "project_slug": "thorstack-web", "api_key_secret": "WEB_API_KEY" } },
-    { "name": "api", "stack": "python", "working_directory": "mission-control-api", "devaudit": { "project_slug": "thorstack-api", "api_key_secret": "API_API_KEY" } }
+    { "name": "fleet-control-api", "stack": "python", "working_directory": "fleet-control-api", "devaudit": { "project_slug": "fleet-control-api", "api_key_secret": "FLEET_CONTROL_API_API_KEY" } },
+    { "name": "fleet-control-ui", "stack": "node", "working_directory": "fleet-control-ui", "devaudit": { "project_slug": "fleet-control-ui", "api_key_secret": "FLEET_CONTROL_UI_API_KEY" } }
   ]
 }
 ```
 
-Two adapter-level details that only matter once a repo has more than one target:
+Two adapter-level details that only matter for this one remaining consumer:
 
-- **CI output namespacing.** `devaudit update` renders each target's `ci.yml` etc. once per `targets[]` entry, with the output filename and internal job/check names suffixed with the target's `name` (`ci-web.yml`, `Quality Gates (web)`) so two adapters' generated workflows in one repo don't collide. A single-target repo (no `targets` array) sees none of this — output is byte-identical to before #689.
-- **`hook_install_dir` coexistence.** Git resolves exactly one hook file per hook type for the whole repo (`core.hooksPath` is repo-wide, not per-directory) — so a Node target's `husky` (`hook_install_dir: .husky`) and a Python target's `pre-commit` (`hook_install_dir: .git/hooks`, via `core.hooksPath`) can't both own the same physical hook file. `devaudit install`'s hook-bootstrap step handles this: whichever framework bootstraps second delegates into the first's hook file (a `pre-commit run --hook-stage commit "$@"` line appended to `.husky/pre-commit`) rather than silently dropping the other framework's checks. An adapter author doesn't need to do anything extra for this — it's handled generically from `hook_framework`, not per-adapter.
+- **CI output namespacing.** `devaudit update` renders each target's `ci.yml` etc. once per `targets[]` entry, with the output filename and internal job/check names suffixed with the target's `name` (e.g. `ci-fleet-control-api.yml`, `Quality Gates (fleet-control-api)`) so two adapters' generated workflows in one repo don't collide. A single-target repo (no `targets` array) sees none of this — output is byte-identical to before #689.
+- **`hook_install_dir` coexistence.** Git resolves exactly one hook file per hook type for the whole repo (`core.hooksPath` is repo-wide, not per-directory) — so a Node target's `husky` (`hook_install_dir: .husky`) and a Python target's `pre-commit` (`hook_install_dir: .git/hooks`, via `core.hooksPath`) can't both own the same physical hook file. `devaudit install`'s hook-bootstrap step handles this: whichever framework bootstraps second delegates into the first's hook file (a `pre-commit run --hook-stage commit "$@"` line appended to `.husky/pre-commit`) rather than silently dropping the other framework's checks.
 
-See [docs/onboarding.md's "Polyglot monorepos" section](../docs/onboarding.md#polyglot-monorepos-multiple-targets-in-one-repo) for the full onboarding flow (`--add-target`) and branch-protection/secret-naming details.
+See [docs/onboarding.md's "Polyglot monorepos" section](../docs/onboarding.md#polyglot-monorepos-multiple-targets-in-one-repo--deprecated) for the deprecation notice and full mechanics, and [docs/consuming-projects.md](../docs/consuming-projects.md) for `fleet-control`'s status as the one remaining consumer.
 
 ## Adding a new stack
 
