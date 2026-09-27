@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { promises as fs } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { load as yamlLoad } from 'js-yaml';
 import { execa } from 'execa';
 import { syncProject } from '../src/update/index.js';
+import { runUpdate } from '../src/commands/update.js';
 import { CLI_VERSION } from '../src/lib/version.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -2078,6 +2079,99 @@ describe('syncProject — native TS sync against a fixture', () => {
       await expect(syncProject(badDir)).rejects.toThrow(/stack adapter not found/);
     } finally {
       await fs.rm(badDir, { recursive: true, force: true });
+    }
+  }, 30_000);
+});
+
+describe('runUpdate — --enable/--disable-e2e-regression (#876)', () => {
+  it('flips e2e_regression_enabled: true and generates e2e-regression.yml', async () => {
+    const dir = await buildFixture();
+    try {
+      process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
+      await runUpdate({ paths: [dir], enableE2eRegression: true });
+      const config = JSON.parse(await fs.readFile(join(dir, 'sdlc-config.json'), 'utf8')) as Record<
+        string,
+        unknown
+      >;
+      expect(config['e2e_regression_enabled']).toBe(true);
+      // Every other field survives the flip untouched.
+      expect(config['project_slug']).toBe('fixture-app');
+      const workflowFiles = await fs.readdir(join(dir, '.github', 'workflows'));
+      expect(workflowFiles).toContain('e2e-regression.yml');
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it('flips e2e_regression_enabled: false and removes a previously-generated e2e-regression.yml', async () => {
+    const dir = await buildFixture();
+    try {
+      process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
+      await runUpdate({ paths: [dir], enableE2eRegression: true });
+      expect(await fs.readdir(join(dir, '.github', 'workflows'))).toContain('e2e-regression.yml');
+
+      await runUpdate({ paths: [dir], disableE2eRegression: true });
+      const config = JSON.parse(await fs.readFile(join(dir, 'sdlc-config.json'), 'utf8')) as Record<
+        string,
+        unknown
+      >;
+      expect(config['e2e_regression_enabled']).toBe(false);
+      const workflowFiles = await fs.readdir(join(dir, '.github', 'workflows'));
+      expect(workflowFiles).not.toContain('e2e-regression.yml');
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it('rejects passing both flags together, without touching sdlc-config.json', async () => {
+    const dir = await buildFixture();
+    const before = await fs.readFile(join(dir, 'sdlc-config.json'), 'utf8');
+    const exit = vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
+      throw new Error(`exit:${code}`);
+    }) as never);
+    try {
+      process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
+      await expect(
+        runUpdate({ paths: [dir], enableE2eRegression: true, disableE2eRegression: true }),
+      ).rejects.toThrow('exit:2');
+      const after = await fs.readFile(join(dir, 'sdlc-config.json'), 'utf8');
+      expect(after).toBe(before);
+    } finally {
+      exit.mockRestore();
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it('leaves an existing e2e_regression_enabled value untouched when neither flag is passed', async () => {
+    const dir = await buildFixture();
+    try {
+      const configPath = join(dir, 'sdlc-config.json');
+      const config = JSON.parse(await fs.readFile(configPath, 'utf8')) as Record<string, unknown>;
+      config['e2e_regression_enabled'] = true;
+      await fs.writeFile(configPath, JSON.stringify(config));
+      process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
+
+      // A plain sync — neither flag — must never silently toggle the field
+      // (it interacts with #869's compliance-evidence.yml listener gating).
+      await runUpdate({ paths: [dir] });
+      const after = JSON.parse(await fs.readFile(configPath, 'utf8')) as Record<string, unknown>;
+      expect(after['e2e_regression_enabled']).toBe(true);
+      expect(await fs.readdir(join(dir, '.github', 'workflows'))).toContain('e2e-regression.yml');
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it('errors clearly per-path when sdlc-config.json is absent (not an onboarded consumer)', async () => {
+    const dir = await fs.mkdtemp(join(tmpdir(), 'cli-update-unonboarded-'));
+    const exit = vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
+      throw new Error(`exit:${code}`);
+    }) as never);
+    try {
+      await expect(runUpdate({ paths: [dir], enableE2eRegression: true })).rejects.toThrow('exit:1');
+    } finally {
+      exit.mockRestore();
+      await fs.rm(dir, { recursive: true, force: true });
     }
   }, 30_000);
 });
