@@ -57,7 +57,10 @@ describe('generate-bundled-changes.sh — declared co-tracked bundle members (#7
 
   it('accepts --declared-bundle as an additive mode alongside predecessor absorption', () => {
     expect(script).toContain('--declared-bundle');
-    expect(script).toContain('role: "co-tracked"');
+    // devaudit-installer#817 — must be the portal's underscore spelling
+    // (co_tracked); the portal validates this exact enum value and does
+    // not normalise a hyphenated variant, hard-rejecting it with HTTP 400.
+    expect(script).toContain('role: "co_tracked"');
     expect(script).toContain('relationship: "bundled"');
   });
 
@@ -91,28 +94,28 @@ describe('ci.yml.template — preserves declared co-tracked bundle members (#817
     // other (the existing housekeeping-ride-along mechanism is a real,
     // separately-used feature and must not regress).
     expect(template).toContain("grep -q 'Co-Tracked Bundle Members' \"$BUNDLED_FILE\"");
-    expect(template).toContain('select(.role == "co-tracked") | .version');
+    expect(template).toContain('select(.role == "co_tracked") | .version');
     expect(template).toContain('DECLARED_BUNDLE_ARGS=(--declared-bundle "$DECLARED_MEMBERS")');
     expect(template).toContain('"${DECLARED_BUNDLE_ARGS[@]}" > "$BUNDLED_FILE"');
   });
 
-  it('filters co-tracked members out of the portal submission until devaudit#857 ships', () => {
-    // The portal's MEMBER_ROLES/MEMBER_RELATIONSHIPS enum doesn't accept
-    // role="co-tracked" yet, and submit-bundle-manifest.sh hard-fails
-    // (set -euo pipefail, unguarded exit 1) on any non-201 response with
-    // no error suppression at the call site — submitting co-tracked
-    // members today would break this step on every push for every
-    // declared bundle, not just silently drop them as before.
-    expect(template).toContain('.members |= map(select(.role != "co-tracked"))');
-    const filterIdx = template.indexOf('.members |= map(select(.role != "co-tracked"))');
-    const submitIdx = template.indexOf('bash scripts/submit-bundle-manifest.sh {{PROJECT_SLUG}} "$VERSION" "$SUBMIT_MANIFEST"');
-    expect(filterIdx).toBeGreaterThan(-1);
-    expect(submitIdx).toBeGreaterThan(filterIdx);
+  it('submits co_tracked members to the portal now that devaudit#857 has shipped (#817)', () => {
+    // devaudit#857 shipped 2026-09-25 and added role="co_tracked" to the
+    // portal's accepted vocabulary, gating UAT approval atomically across
+    // every co_tracked member. The earlier filtered-submission workaround
+    // (dropping co_tracked members from the payload to avoid an HTTP 400)
+    // is no longer needed and must not regress back in.
+    expect(template).not.toContain('.members |= map(select(.role != "co-tracked"))');
+    expect(template).not.toContain('.members |= map(select(.role != "co_tracked"))');
+    expect(template).not.toContain('SUBMIT_MANIFEST');
+    const submitIdx = template.indexOf('bash scripts/submit-bundle-manifest.sh {{PROJECT_SLUG}} "$VERSION" "$BUNDLED_MANIFEST"');
+    expect(submitIdx).toBeGreaterThan(-1);
   });
 
-  it('still uploads the full (unfiltered) manifest as bundled_changes evidence for local/PR visibility', () => {
+  it('uploads the manifest as bundled_changes evidence after submitting it to the portal', () => {
     const uploadIdx = template.indexOf('_compliance-docs bundled_changes "$BUNDLED_FILE"');
-    const submitIdx = template.indexOf('bash scripts/submit-bundle-manifest.sh {{PROJECT_SLUG}} "$VERSION" "$SUBMIT_MANIFEST"');
+    const submitIdx = template.indexOf('bash scripts/submit-bundle-manifest.sh {{PROJECT_SLUG}} "$VERSION" "$BUNDLED_MANIFEST"');
+    expect(submitIdx).toBeGreaterThan(-1);
     expect(uploadIdx).toBeGreaterThan(submitIdx);
   });
 });
