@@ -1743,6 +1743,92 @@ describe('syncProject — native TS sync against a fixture', () => {
     }
   }, 60_000);
 
+  it('only requests playwright install --with-deps on the runtime-resolved github-ci path for a self-hosted runner (#868)', async () => {
+    const dir = await buildFixture();
+    try {
+      const configPath = join(dir, 'sdlc-config.json');
+      const config = JSON.parse(await fs.readFile(configPath, 'utf8')) as Record<
+        string,
+        unknown
+      >;
+      config.runner = 'self-hosted';
+      await fs.writeFile(configPath, JSON.stringify(config));
+      process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
+
+      await syncProject(dir);
+
+      const withDepsExpr =
+        "${{ (inputs.runner_label || vars.CI_RUNNER_LABEL || 'github-ci') == 'github-ci' && ' --with-deps' || '' }}";
+      // devaudit-installer#868 — --with-deps needs root to apt-get system
+      // libs and always fails on a non-root self-hosted runner; every
+      // generated workflow with a Playwright install step must gate it.
+      // Floor is 2 (ci.yml + feature-e2e.yml): e2e-regression.yml isn't
+      // generated at all with e2e_regression_enabled unset (see the
+      // sibling #821 tests below).
+      const workflowDir = join(dir, '.github', 'workflows');
+      const workflowFiles = await fs.readdir(workflowDir);
+      let totalInstallLines = 0;
+      for (const wf of workflowFiles) {
+        if (!wf.endsWith('.yml') && !wf.endsWith('.yaml')) continue;
+        const content = normalizeNewlines(
+          await fs.readFile(join(workflowDir, wf), 'utf8'),
+        );
+        const installLines = content
+          .split('\n')
+          .filter((line) => /npx playwright install\b/.test(line));
+        totalInstallLines += installLines.length;
+        for (const line of installLines) {
+          expect(line.trim(), `${wf} playwright install line`).toBe(
+            `run: npx playwright install${withDepsExpr} chromium`,
+          );
+        }
+      }
+      expect(totalInstallLines).toBeGreaterThanOrEqual(2);
+
+      await expectAllWorkflowsValidYaml(dir);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it('leaves playwright install --with-deps unconditional for a non-self-hosted runner (#868)', async () => {
+    const dir = await buildFixture();
+    try {
+      const configPath = join(dir, 'sdlc-config.json');
+      const config = JSON.parse(await fs.readFile(configPath, 'utf8')) as Record<
+        string,
+        unknown
+      >;
+      config.runner = 'ubuntu-latest';
+      await fs.writeFile(configPath, JSON.stringify(config));
+      process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
+
+      await syncProject(dir);
+
+      const workflowDir = join(dir, '.github', 'workflows');
+      const workflowFiles = await fs.readdir(workflowDir);
+      let totalInstallLines = 0;
+      for (const wf of workflowFiles) {
+        if (!wf.endsWith('.yml') && !wf.endsWith('.yaml')) continue;
+        const content = normalizeNewlines(
+          await fs.readFile(join(workflowDir, wf), 'utf8'),
+        );
+        const installLines = content
+          .split('\n')
+          .filter((line) => /npx playwright install\b/.test(line));
+        totalInstallLines += installLines.length;
+        for (const line of installLines) {
+          expect(line.trim(), `${wf} playwright install line`).toBe(
+            'run: npx playwright install --with-deps chromium',
+          );
+        }
+      }
+      expect(totalInstallLines).toBeGreaterThanOrEqual(2);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
   it('does not generate e2e-regression.yml unless e2e_regression_enabled is set (#821)', async () => {
     const dir = await buildFixture();
     try {

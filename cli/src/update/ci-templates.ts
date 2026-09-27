@@ -479,6 +479,29 @@ function resolveCheckoutClean(cfg: SdlcConfig): string {
 }
 
 /**
+ * `npx playwright install --with-deps` needs root to `apt-get` system
+ * libraries (libnss3 etc.). On a GitHub-hosted runner that's always true
+ * (ubuntu-latest runs as root), but a non-root self-hosted runner always
+ * fails the apt-get step — a masking `|| npx playwright install chromium`
+ * fallback used to hide the failure, but that means `--with-deps` never
+ * did anything useful there and just wasted a failed install attempt on
+ * every self-hosted run (devaudit-installer#868).
+ *
+ * Mirrors resolveCheckoutClean's own runtime fallback exactly: the actual
+ * runner is only known at workflow *runtime* (a one-run `runner_label`
+ * override can still land on an ephemeral github-ci box even when
+ * cfg.runner is 'self-hosted'), so a sync-time boolean would be wrong
+ * whenever CI_RUNNER_LABEL falls back to 'github-ci'. Renders as a leading
+ * -space flag so `npx playwright install{{PLAYWRIGHT_WITH_DEPS_FLAG}} chromium`
+ * collapses to plain `npx playwright install chromium` when empty.
+ */
+function resolvePlaywrightWithDeps(cfg: SdlcConfig): string {
+  if (cfg.runner !== 'self-hosted') return ' --with-deps';
+  const label = "(inputs.runner_label || vars.CI_RUNNER_LABEL || 'github-ci')";
+  return `\${{ ${label} == 'github-ci' && ' --with-deps' || '' }}`;
+}
+
+/**
  * Section 2f: Generate CI workflows from templates + sdlc-config.json.
  *
  * Skipped if the consumer has no sdlc-config.json or no .github/workflows/.
@@ -591,6 +614,7 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
       WORKING_DIR_PREFIX: workingDirPrefix,
       RUNNER: resolveRunner(cfg),
       CHECKOUT_CLEAN: resolveCheckoutClean(cfg),
+      PLAYWRIGHT_WITH_DEPS_FLAG: resolvePlaywrightWithDeps(cfg),
       SOURCE_DIRS: sourceDirs,
       SAST_BASELINE: String(cfg.sast_baseline),
       ACCEPTED_DEP_RISKS: cfg.accepted_dep_risks,
