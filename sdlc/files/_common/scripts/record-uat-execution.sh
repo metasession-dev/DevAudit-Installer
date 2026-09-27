@@ -95,7 +95,15 @@ if [ -z "${DEVAUDIT_BASE_URL:-}" ]; then
   exit 1
 fi
 if [ -z "${DEVAUDIT_API_KEY:-}" ]; then
-  echo "Error: DEVAUDIT_API_KEY environment variable is required" >&2
+  echo "Error: DEVAUDIT_API_KEY environment variable is required (issue an" >&2
+  echo "       uploader-role key from Project Settings → API Keys in" >&2
+  echo "       META-COMPLY)." >&2
+  echo "       Consequence: this UAT execution record cannot be created" >&2
+  echo "       without it — a read-only DEVAUDIT_VIEWER_API_KEY cannot" >&2
+  echo "       substitute, since this call writes. Fallback" >&2
+  echo "       (devaudit-installer#845): this stays operator-only by design;" >&2
+  echo "       have the reviewer (or an operator with the uploader key) run" >&2
+  echo "       this command directly." >&2
   exit 1
 fi
 if [ ! -x "$REPORT_TEST_EXECUTION" ]; then
