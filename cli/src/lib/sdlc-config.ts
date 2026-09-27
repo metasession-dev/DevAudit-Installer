@@ -28,6 +28,16 @@ export interface SdlcConfig {
   // target's dev script binds elsewhere, e.g. to avoid colliding with a
   // sibling target in the same polyglot-monorepo repo.
   readonly e2e_port?: string | number;
+  /**
+   * Opt-in: generate the three-tier smoke/critical/regression E2E gating
+   * workflow (`e2e-regression.yml`, #821) plus its `compliance-evidence.yml`
+   * listener (gated per #869). Absent/false → not generated, and any
+   * previously-generated copy is removed on the next sync. Flip it via
+   * `devaudit update --enable-e2e-regression`/`--disable-e2e-regression`
+   * (devaudit-installer#876) rather than hand-editing this field — a plain
+   * `devaudit update` with neither flag must leave it untouched.
+   */
+  readonly e2e_regression_enabled?: boolean;
   readonly devaudit?: {
     readonly base_url?: string;
     readonly project_slug?: string;

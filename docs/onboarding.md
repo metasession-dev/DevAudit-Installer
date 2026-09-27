@@ -69,6 +69,8 @@ If `sdlc-config.json` already exists in the target, `install` runs non-interacti
 11. **Configure branch protection** on both `main` (the release branch) and `develop` (the integration branch) — required status checks: `Compliance Validation`, `DevAudit Release Approval`, `Quality Gates`. Keep third-party hosting checks such as Vercel / Railway / Cloudflare informational unless you intentionally want them to gate merges. (Required-approving-reviews set to 0 by default; raise to 1+ once your team has more than one admin.)
 12. **Sync framework templates** — populates all framework files in the consumer from the templates bundled in the CLI. Includes: SDLC/ stage docs, the canonical `INSTRUCTIONS.md`, the per-agent rule files (`AGENTS.md` for Codex/AGENTS-compatible agents, `CLAUDE.md` for Claude Code, `.cursorrules` for Cursor, `.windsurfrules` for Windsurf, `GEMINI.md` for Gemini CLI), the `.claude/skills/` orchestrator + sibling skills (Claude Code only — the other agents read `INSTRUCTIONS.md` on demand instead of auto-firing), git hooks, scripts, and CI workflows. Equivalent to a `devaudit update` run. **Any LLM-driven agent works** — Copilot, Aider, Continue, etc. read `INSTRUCTIONS.md` directly; the listed agents get a more ergonomic rule-file mechanism on top.
 
+Want a stronger E2E safety net than the default blocking smoke gate? See [`e2e-test-tiers.md`](./e2e-test-tiers.md#opting-into-the-3-tier-regression-gate) for the opt-in 3-tier (`smoke`/`critical`/`regression`) model and its `devaudit update --enable-e2e-regression` flag — most projects don't need it.
+
 The consumer's working tree is left dirty so the operator can review the diff before committing.
 
 ## Step 3 — Review and ship the onboarding PR
@@ -114,6 +116,28 @@ See [`governance-templates.md`](./governance-templates.md) for the per-framework
 3. Commit the result as `docs/SRS.md` on `develop`.
 
 From the next requirement onward, use the **Requirement** issue template instead of SRS Bootstrap again — `requirements-aligner` takes over incremental maintenance automatically (advisory at Stage 1, blocking at Stage 3, per `sdlc-config.json`'s `requirements_aligner` defaults).
+
+## Opting into the read-only viewer key
+
+`DEVAUDIT_API_KEY` — the key `install` issues by default (Step 2, item 6) — carries the `uploader` role: it can upload evidence and mutate release state for this one project. It's meant for **CI only**, set as a repo secret and never exported to a local shell or handed to an AI coding agent — a leaked uploader key can forge evidence or approve a release on your behalf.
+
+`DEVAUDIT_VIEWER_API_KEY` (devaudit#867) is the safe alternative: a second, project-scoped key with the `viewer` role, which can only reach the portal's read-back endpoints (`GET .../checks`, `GET .../cycles`, release lookup) — it can never upload evidence or approve anything. That's what makes it the one credential in this system safe to export locally or hand to an agent. `sdlc-implementer` (devaudit-installer#876) now prefers it automatically for Phase 5's portal-state read whenever `sdlc-config.json` has one configured, falling back to the uploader key otherwise — see [`permissions-and-tokens-reference.md`](./articles/permissions-and-tokens-reference.md) for the full credential model.
+
+**What it covers.** Phase 5's "read portal state" lookup, and any other read-only status check you point it at — nothing more. **What it doesn't cover:** creating a release, recording a UAT execution, or reconciling a deployment all still write, so they still need either the uploader key (in CI) or an operator acting manually. Filling that write-side gap for unattended operation is tracked separately — see #845.
+
+**At fresh install**, pass the flag to issue both keys in one step:
+
+```bash
+devaudit install ../path/to/new-consumer --with-viewer-key
+```
+
+**Retrofitting onto an already-onboarded consumer** — the actual gap this section exists for — needs `--force-team-config` too, since issuing a new repo secret is one of the operator-mode-only steps that plain `install` skips once a project is fully onboarded (see Step 2's mode-detection notice):
+
+```bash
+devaudit install --force-team-config --with-viewer-key
+```
+
+This is idempotent — it warns and leaves the existing key alone if one was already issued, rather than reissuing it. `--force-team-config` on its own also re-affirms every other team-shared config (repo secrets, branch protection) beyond just the viewer key, so only reach for it here when retrofitting the viewer key is actually what you want — not as a routine re-run.
 
 ## Polyglot monorepos (multiple targets in one repo) — deprecated
 
