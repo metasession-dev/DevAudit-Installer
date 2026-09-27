@@ -507,6 +507,40 @@ function resolvePlaywrightWithDeps(cfg: SdlcConfig): string {
 }
 
 /**
+ * Gate for the "Clean stale .next build output" step: true only when the
+ * runtime-resolved runner is actually self-hosted. A dev-server-writing job
+ * killed mid-write (timeout, OOM, cancellation) can leave `.next` torn on a
+ * persistent runner, corrupting every later run's TypeScript/Build gates on
+ * unrelated PRs; on the ephemeral github-ci path nothing persists between
+ * runs anyway, so the cleanup would be a harmless no-op there but is skipped
+ * outright to keep the step's `if:` legible (devaudit-installer#816).
+ *
+ * Mirrors resolveCheckoutClean/resolvePlaywrightWithDeps's own runtime
+ * fallback exactly: only meaningful for cfg.runner === 'self-hosted' (the
+ * dynamic CI_RUNNER_LABEL-resolving mode) — a static runner override never
+ * gets this self-hosted-only behavior, same as CHECKOUT_CLEAN.
+ */
+function resolveStaleNextCleanupCondition(cfg: SdlcConfig): string {
+  if (cfg.runner !== 'self-hosted') return 'false';
+  const label = "(inputs.runner_label || vars.CI_RUNNER_LABEL || 'github-ci')";
+  return `\${{ ${label} != 'github-ci' }}`;
+}
+
+/**
+ * npm audit's Dependency Audit gate has no retry today, so a transient
+ * registry blip (ECONNRESET, 5xx) hard-fails CI outright. Bounded at 5
+ * attempts on a self-hosted runner (where this was actually observed);
+ * left at 1 (i.e. no retry — today's exact behavior) everywhere else, same
+ * self-hosted-only scoping as resolveStaleNextCleanupCondition above
+ * (devaudit-installer#816).
+ */
+function resolveNpmAuditMaxAttempts(cfg: SdlcConfig): string {
+  if (cfg.runner !== 'self-hosted') return '1';
+  const label = "(inputs.runner_label || vars.CI_RUNNER_LABEL || 'github-ci')";
+  return `\${{ ${label} == 'github-ci' && '1' || '5' }}`;
+}
+
+/**
  * Section 2f: Generate CI workflows from templates + sdlc-config.json.
  *
  * Skipped if the consumer has no sdlc-config.json or no .github/workflows/.
@@ -634,6 +668,8 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
       RUNNER: resolveRunner(cfg),
       CHECKOUT_CLEAN: resolveCheckoutClean(cfg),
       PLAYWRIGHT_WITH_DEPS_FLAG: resolvePlaywrightWithDeps(cfg),
+      STALE_NEXT_CLEANUP_IF: resolveStaleNextCleanupCondition(cfg),
+      NPM_AUDIT_MAX_ATTEMPTS: resolveNpmAuditMaxAttempts(cfg),
       SOURCE_DIRS: sourceDirs,
       SAST_BASELINE: String(cfg.sast_baseline),
       ACCEPTED_DEP_RISKS: cfg.accepted_dep_risks,
