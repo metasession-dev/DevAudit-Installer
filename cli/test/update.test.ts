@@ -1829,6 +1829,79 @@ describe('syncProject — native TS sync against a fixture', () => {
     }
   }, 60_000);
 
+  it('only cleans stale .next output and retries npm audit on the runtime-resolved self-hosted path (#816)', async () => {
+    const dir = await buildFixture();
+    try {
+      const configPath = join(dir, 'sdlc-config.json');
+      const config = JSON.parse(await fs.readFile(configPath, 'utf8')) as Record<
+        string,
+        unknown
+      >;
+      config.runner = 'self-hosted';
+      await fs.writeFile(configPath, JSON.stringify(config));
+      process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
+
+      await syncProject(dir);
+
+      const ciYml = normalizeNewlines(
+        await fs.readFile(join(dir, '.github', 'workflows', 'ci.yml'), 'utf8'),
+      );
+
+      const cleanupIfExpr = "${{ (inputs.runner_label || vars.CI_RUNNER_LABEL || 'github-ci') != 'github-ci' }}";
+      const cleanupIfLines = ciYml.split('\n').filter((line) => /^\s*if: \$\{\{ \(inputs\.runner_label/.test(line));
+      expect(cleanupIfLines.length).toBe(1);
+      expect(cleanupIfLines[0]?.trim()).toBe(`if: ${cleanupIfExpr}`);
+      expect(ciYml).toContain('rm -rf .next');
+
+      const maxAttemptsExpr =
+        "${{ (inputs.runner_label || vars.CI_RUNNER_LABEL || 'github-ci') == 'github-ci' && '1' || '5' }}";
+      const maxAttemptsLines = ciYml.split('\n').filter((line) => /^\s*MAX_ATTEMPTS=/.test(line));
+      expect(maxAttemptsLines.length).toBe(1);
+      expect(maxAttemptsLines[0]?.trim()).toBe(`MAX_ATTEMPTS=${maxAttemptsExpr}`);
+
+      expect(ciYml).toContain('npm install -g npm@^10.9.8');
+
+      await expectAllWorkflowsValidYaml(dir);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it('leaves the stale .next cleanup disabled and npm audit retry at 1 attempt for a non-self-hosted runner (#816)', async () => {
+    const dir = await buildFixture();
+    try {
+      const configPath = join(dir, 'sdlc-config.json');
+      const config = JSON.parse(await fs.readFile(configPath, 'utf8')) as Record<
+        string,
+        unknown
+      >;
+      config.runner = 'ubuntu-latest';
+      await fs.writeFile(configPath, JSON.stringify(config));
+      process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
+
+      await syncProject(dir);
+
+      const ciYml = normalizeNewlines(
+        await fs.readFile(join(dir, '.github', 'workflows', 'ci.yml'), 'utf8'),
+      );
+
+      // The cleanup step's own `if:` line is the only bare `if: false` in ci.yml.
+      const bareIfFalse = ciYml.split('\n').filter((line) => line.trim() === 'if: false');
+      expect(bareIfFalse.length).toBe(1);
+      expect(ciYml).toContain('rm -rf .next');
+
+      const maxAttemptsLines = ciYml.split('\n').filter((line) => /^\s*MAX_ATTEMPTS=/.test(line));
+      expect(maxAttemptsLines.length).toBe(1);
+      expect(maxAttemptsLines[0]?.trim()).toBe('MAX_ATTEMPTS=1');
+
+      expect(ciYml).toContain('npm install -g npm@^10.9.8');
+
+      await expectAllWorkflowsValidYaml(dir);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
   it('does not generate e2e-regression.yml unless e2e_regression_enabled is set (#821)', async () => {
     const dir = await buildFixture();
     try {
