@@ -217,6 +217,77 @@ describe('devaudit doctor — onboarding-checklist invariants (#867)', () => {
   }, 30_000);
 });
 
+describe('devaudit doctor — host-adapter prerequisites (#843)', () => {
+  async function fakeGhOnPath(dir: string, secretNames: readonly string[]): Promise<Record<string, string>> {
+    const { mkdir, writeFile, chmod } = await import('node:fs/promises');
+    const { join } = await import('node:path');
+    const binDir = join(dir, 'fake-bin');
+    await mkdir(binDir, { recursive: true });
+    const ghPath = join(binDir, 'gh');
+    await writeFile(
+      ghPath,
+      `#!/usr/bin/env bash\nif [ "$1" = "secret" ] && [ "$2" = "list" ]; then\n  echo '${JSON.stringify(
+        secretNames.map((name) => ({ name })),
+      )}'\n  exit 0\nfi\necho "gh version 2.55.0"\nexit 0\n`,
+    );
+    await chmod(ghPath, 0o755);
+    return { ...process.env, PATH: `${binDir}:${process.env['PATH'] ?? ''}` };
+  }
+
+  it('folds the railway host adapter\'s RAILWAY_TOKEN into the missing-secrets report (default host)', async () => {
+    const { mkdtemp, writeFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const dir = await mkdtemp(join(tmpdir(), 'devaudit-doctor-railway-secrets-'));
+    // No `host` key — resolveAdapters defaults to 'railway'.
+    await writeFile(join(dir, 'sdlc-config.json'), JSON.stringify({ project_slug: 'fixture' }));
+    const env = await fakeGhOnPath(dir, ['DEVAUDIT_API_KEY', 'DEVAUDIT_USER_TOKEN']);
+    const result = await execa('node', [BIN, 'doctor'], { cwd: dir, env, reject: false });
+    const output = result.stdout + result.stderr;
+    expect(output).toContain('missing repo secret(s): RAILWAY_TOKEN');
+  }, 30_000);
+
+  it('does not require RAILWAY_TOKEN for a vercel host consumer', async () => {
+    const { mkdtemp, writeFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const dir = await mkdtemp(join(tmpdir(), 'devaudit-doctor-vercel-secrets-'));
+    await writeFile(
+      join(dir, 'sdlc-config.json'),
+      JSON.stringify({ project_slug: 'fixture', host: 'vercel' }),
+    );
+    const env = await fakeGhOnPath(dir, ['DEVAUDIT_API_KEY', 'DEVAUDIT_USER_TOKEN']);
+    const result = await execa('node', [BIN, 'doctor'], { cwd: dir, env, reject: false });
+    const output = result.stdout + result.stderr;
+    expect(output).toContain('all required secrets present');
+    expect(output).not.toContain('RAILWAY_TOKEN');
+  }, 30_000);
+
+  it('skips the railway-cli check when reconcile-deployment.yml is not present', async () => {
+    const { mkdtemp, writeFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const dir = await mkdtemp(join(tmpdir(), 'devaudit-doctor-railway-cli-skip-'));
+    await writeFile(join(dir, 'sdlc-config.json'), JSON.stringify({ project_slug: 'fixture' }));
+    const result = await execa('node', [BIN, 'doctor'], { cwd: dir, reject: false });
+    const output = result.stdout + result.stderr;
+    expect(output).toMatch(/railway-cli\s+skipped \(reconcile-deployment\.yml not present\)/);
+  }, 30_000);
+
+  it('reports the railway CLI missing when reconcile-deployment.yml is present but railway is not on PATH', async () => {
+    const { mkdtemp, mkdir, writeFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const dir = await mkdtemp(join(tmpdir(), 'devaudit-doctor-railway-cli-missing-'));
+    await writeFile(join(dir, 'sdlc-config.json'), JSON.stringify({ project_slug: 'fixture' }));
+    await mkdir(join(dir, '.github', 'workflows'), { recursive: true });
+    await writeFile(join(dir, '.github', 'workflows', 'reconcile-deployment.yml'), 'name: reconcile\n');
+    const result = await execa('node', [BIN, 'doctor'], { cwd: dir, reject: false });
+    const output = result.stdout + result.stderr;
+    expect(output).toContain('railway CLI not found on PATH');
+  }, 30_000);
+});
+
 describe('stubbed commands (workstream B / D prereqs)', () => {
   it('org list exits non-zero with a "not implemented yet" message', async () => {
     const result = await execa('node', [BIN, 'org', 'list'], { reject: false });

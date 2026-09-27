@@ -70,6 +70,7 @@ export interface StackAdapter {
 
 export interface HostAdapter {
   readonly name: string;
+  readonly required_secrets?: readonly string[];
   readonly runtime_contract?: {
     readonly preferred_web_runtime: string;
     readonly forbid_typescript_runtime: boolean;

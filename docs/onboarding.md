@@ -73,6 +73,17 @@ Want a stronger E2E safety net than the default blocking smoke gate? See [`e2e-t
 
 The consumer's working tree is left dirty so the operator can review the diff before committing.
 
+### Host-adapter prerequisites
+
+Beyond the secrets `install` sets automatically (step 7 above), your chosen host adapter (`host` in `sdlc-config.json`; each declares its own `required_secrets` and quirks in `sdlc/files/hosts/<host>/adapter.json` — see [`HOST_ADAPTER.md`](../sdlc/HOST_ADAPTER.md)) may need a bit more:
+
+| Host | Extra repo secret(s) | Local/runner tool | Why |
+| --- | --- | --- | --- |
+| `railway` | `RAILWAY_TOKEN` (advisory — only needed if the recovery path is ever used) | `railway` CLI on `PATH` for whoever runs self-hosted-runner jobs | Consumed only by `reconcile-deployment.yml`, the manual recovery workflow for when Railway's `deployment_status` webhook fails to reach GitHub (devaudit-installer#841). Not needed for normal push-to-main CI. |
+| `vercel` | none | none | Vercel's own Git integration handles deploy + status; no reconciliation workflow is generated for this host. |
+
+`devaudit doctor`'s `secrets` and `railway-cli` checks (devaudit-installer#843) read the same `adapter.json` data, so they never drift from this table — a `railway`-host consumer missing `RAILWAY_TOKEN` or the CLI sees an advisory warning, and a `vercel` (or any non-Railway) consumer never sees either check fire.
+
 ## Step 3 — Review and ship the onboarding PR
 
 ```bash
@@ -314,6 +325,7 @@ Running devaudit doctor — checking required tools...
   ✓ e2e-regression  not opted in
   ✓ secrets         all required secrets present (DEVAUDIT_API_KEY, DEVAUDIT_USER_TOKEN)
   ✓ pre-push-hook   present (.husky/pre-push)
+  ✓ railway-cli     skipped (reconcile-deployment.yml not present)
 
 All required tools present.
 ```
