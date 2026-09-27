@@ -92,7 +92,9 @@ set -euo pipefail
 # only bundle with no such section), its filename's REQ-XXX is the
 # authoritative bundle version. Zero or more than one such file is
 # ambiguous and falls through to steps 1-5 unchanged, same guard discipline
-# as steps 4/4-bis.
+# as steps 4/4-bis. A manifest whose own RELEASE-TICKET-REQ-XXX.md is
+# already archived (approved-releases/ or superseded-releases/) is stale —
+# it is orphaned, not live — and also falls through (devaudit-installer#838).
 if [ -d compliance/pending-releases ]; then
   DECLARED_BUNDLE_FILES=()
   while IFS= read -r -d '' f; do
@@ -100,8 +102,22 @@ if [ -d compliance/pending-releases ]; then
   done < <(find compliance/pending-releases -maxdepth 1 -name 'BUNDLED-CHANGES-REQ-*.md' -print0 2>/dev/null)
   if [ "${#DECLARED_BUNDLE_FILES[@]}" -eq 1 ] && grep -q 'Co-Tracked Bundle Members' "${DECLARED_BUNDLE_FILES[0]}" 2>/dev/null; then
     basename_no_ext="$(basename "${DECLARED_BUNDLE_FILES[0]}" .md)"
-    echo "${basename_no_ext#BUNDLED-CHANGES-}"
-    exit 0
+    BUNDLE_REQ_ID="${basename_no_ext#BUNDLED-CHANGES-}"
+    # devaudit-installer#838 — staleness guard: a bundle manifest left
+    # behind in pending-releases/ after its own release ticket was already
+    # archived (closed out) is orphaned, not live. close-out-release.sh
+    # now archives the manifest alongside the ticket on close-out, but an
+    # already-orphaned manifest (from before that fix shipped, or a manual
+    # slip) must not keep hijacking every later, unrelated merge's version
+    # derivation. Skip it here and fall through to steps 1-5, same as an
+    # already-archived plain release ticket falls through at step 4.
+    if [ -f "compliance/approved-releases/RELEASE-TICKET-${BUNDLE_REQ_ID}.md" ] \
+      || [ -f "compliance/superseded-releases/RELEASE-TICKET-${BUNDLE_REQ_ID}.md" ]; then
+      : # stale — ticket already archived, fall through
+    else
+      echo "$BUNDLE_REQ_ID"
+      exit 0
+    fi
   fi
 fi
 
