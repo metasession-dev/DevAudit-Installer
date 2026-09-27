@@ -293,6 +293,14 @@ done
 # devaudit-installer#736 — declared co-tracked bundle members (Phase-1
 # planning-time opt-in, not retroactive absorption). Additive to the
 # predecessor-absorption members above.
+#
+# devaudit-installer#817 — the `role` value is "co_tracked" (underscore),
+# matching the portal's validation (metasession-dev/devaudit
+# lib/api/release-lineage-contract.ts MEMBER_ROLES, which the portal does
+# not normalise). An earlier version of this script emitted "co-tracked"
+# (hyphen), which the portal hard-rejects with HTTP 400 the moment it's
+# submitted unfiltered — keep this exact spelling if the filter in
+# ci.yml.template is ever touched again.
 CO_TRACKED_LINES=()
 if [ -n "$DECLARED_BUNDLE" ]; then
   declare -A CO_TRACKED_SET=()
@@ -332,7 +340,7 @@ if [ -n "$DECLARED_BUNDLE" ]; then
         --arg originalTitle "${title:-Bundled REQ $version}" \
         '. + [{
           version: $version,
-          role: "co-tracked",
+          role: "co_tracked",
           relationship: "bundled",
           reason: $reason,
           scopeSummary: (if $scopeSummary == "" then null else $scopeSummary end),

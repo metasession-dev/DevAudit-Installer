@@ -318,7 +318,8 @@ write_release_ticket "REQ-042" "REQ-042 - Current tracked release" "Current rele
 JSON_OUT8="$DIR8/bundle.json"
 OUTPUT=$(bash "$HELPER" "$(git rev-list --max-parents=0 HEAD)" "REQ-042" --json-out "$JSON_OUT8" --declared-bundle "REQ-043, REQ-044" 2>&1)
 assert_contains "markdown shows co-tracked bundle members section" "Co-Tracked Bundle Members" "$OUTPUT"
-assert_eq "manifest has two co-tracked members" "2" "$(jq -r '[.members[] | select(.role == "co-tracked")] | length' "$JSON_OUT8")"
+assert_eq "manifest has two co-tracked members" "2" "$(jq -r '[.members[] | select(.role == "co_tracked")] | length' "$JSON_OUT8")"
+assert_eq "co-tracked role uses portal's underscore spelling (devaudit-installer#817)" "co_tracked" "$(jq -r '.members[0].role' "$JSON_OUT8")"
 assert_eq "first co-tracked member version" "REQ-043" "$(jq -r '.members[0].version' "$JSON_OUT8")"
 assert_eq "first co-tracked member relationship" "bundled" "$(jq -r '.members[0].relationship' "$JSON_OUT8")"
 assert_eq "co-tracked member does not inherit evidence" "none" "$(jq -r '.members[0].evidenceInheritancePolicy.mode' "$JSON_OUT8")"
