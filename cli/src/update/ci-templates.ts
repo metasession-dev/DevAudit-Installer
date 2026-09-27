@@ -15,6 +15,11 @@ const CI_TEMPLATES = [
   'compliance-validation.yml.template',
   'check-release-approval.yml.template',
   'post-deploy-prod.yml.template',
+  // devaudit-installer#841: Railway-specific (hardcoded railway CLI +
+  // RAILWAY_TOKEN); only generated for the railway host adapter — see the
+  // ctx.host !== 'railway' skip in the syncCiTemplates loop below. Every
+  // other host adapter used to receive this as dead workflow content with
+  // no reconciliation path of its own.
   'reconcile-deployment.yml.template',
   'compliance-evidence.yml.template',
   'feature-e2e.yml.template',
@@ -540,6 +545,20 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
     }
   }
 
+  // devaudit-installer#841 — reconcile-deployment.yml.template is Railway-
+  // specific (hardcoded railway CLI invocation + RAILWAY_TOKEN); consumers
+  // on any other host adapter got a dead workflow file with no equivalent
+  // reconciliation path of their own. Same remove-on-disable shape as the
+  // e2e-regression block above, keyed on the host adapter instead of a
+  // config flag.
+  if (ctx.host !== 'railway') {
+    for (const existing of await fs.readdir(workflowsDir).catch(() => [] as string[])) {
+      if (/^reconcile-deployment(-.+)?\.yml$/.test(existing)) {
+        await fs.rm(join(workflowsDir, existing));
+      }
+    }
+  }
+
   const targets = resolveTargets(cfg);
   const multiTarget = targets.length > 1;
   let count = 0;
@@ -698,6 +717,7 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
 
     for (const tmpl of CI_TEMPLATES) {
       if (tmpl === 'e2e-regression.yml.template' && !cfg.e2e_regression_enabled) continue;
+      if (tmpl === 'reconcile-deployment.yml.template' && ctx.host !== 'railway') continue;
       const stackTmpl = join(ctx.installerRoot, 'sdlc', 'files', 'ci', stack, tmpl);
       const defaultTmpl = join(ctx.installerRoot, 'sdlc', 'files', 'ci', tmpl);
       let tmplPath: string;
