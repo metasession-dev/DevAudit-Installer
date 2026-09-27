@@ -86,7 +86,11 @@ jobs:
         run: npm ci --legacy-peer-deps
 
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
+        # --with-deps needs root to apt-get system libraries (libnss3 etc.)
+        # and always fails on a non-root self-hosted runner — only request
+        # it on the ephemeral github-ci path, mirroring runs-on above
+        # (devaudit-installer#868).
+        run: npx playwright install${{ (inputs.runner_label || vars.CI_RUNNER_LABEL || 'github-ci') == 'github-ci' && ' --with-deps' || '' }} chromium
 
       # Decide which Playwright project to run based on the trigger.
       # PR-to-main uses critical with smoke fall-back; a consumer-enabled

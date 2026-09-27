@@ -90,7 +90,7 @@ jobs:
         run: npm ci
 
       - name: Install Playwright browser
-        run: npx playwright install --with-deps chromium 2>/dev/null || npx playwright install chromium
+        run: npx playwright install{{PLAYWRIGHT_WITH_DEPS_FLAG}} chromium
 
 {{E2E_SETUP_STEP}}
 {{E2E_REGRESSION_SERVER_STEP}}

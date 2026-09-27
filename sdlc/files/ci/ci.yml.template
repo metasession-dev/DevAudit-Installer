@@ -144,7 +144,7 @@ jobs:
           echo "$VENV/bin" >> "$GITHUB_PATH"
 
       - name: Install Playwright (skip if already cached)
-        run: npx playwright install --with-deps chromium 2>/dev/null || npx playwright install chromium
+        run: npx playwright install{{PLAYWRIGHT_WITH_DEPS_FLAG}} chromium
 
       # ── Gate 1: TypeScript ──
 
