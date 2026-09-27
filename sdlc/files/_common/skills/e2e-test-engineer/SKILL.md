@@ -300,7 +300,7 @@ Triage every failure into one of these buckets *before* taking any action:
 
 Then bucket each failure:
 
-- **Flake** — non-deterministic; passes on rerun. Rerun once. If it passes, note it. If it keeps flaking, flag it but don't file a noisy bug.
+- **Flake** — non-deterministic; passes on rerun. Rerun once. If it passes, note it. If it keeps flaking, flag it but don't file a noisy bug. **If a full-regression run shows a different, seemingly-unrelated spec failing each time** (not the same spec every run), that signature is suite-reliability territory, not N independent flaky tests — invoke `Skill(name: "e2e-ci-reliability", args: "<summary of the shifting-failure pattern across recent runs>")` before filing anything. It runs the isolation-test-first check and classifies accumulated process/connection degradation vs. dev-server cold-compile latency vs. a host resource ceiling, and reports back whether the failure is environmental (its territory) or a genuine application defect (yours to file).
 - **Test bug** — your test is wrong (bad selector, wrong assertion, timing). Fix the test; don't file anything.
 - **Application defect** — the app does the wrong thing. File it.
 - **Seed-data gap** — the page works, the test's assertion is correct, but the seeded fixture doesn't satisfy the assertion (empty table, no transactions for the day, missing user role). Fix the seed script (or the test's own setup), not the test logic or the product.
