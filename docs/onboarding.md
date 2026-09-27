@@ -123,7 +123,18 @@ From the next requirement onward, use the **Requirement** issue template instead
 
 `DEVAUDIT_VIEWER_API_KEY` (devaudit#867) is the safe alternative: a second, project-scoped key with the `viewer` role, which can only reach the portal's read-back endpoints (`GET .../checks`, `GET .../cycles`, release lookup) — it can never upload evidence or approve anything. That's what makes it the one credential in this system safe to export locally or hand to an agent. `sdlc-implementer` (devaudit-installer#876) now prefers it automatically for Phase 5's portal-state read whenever `sdlc-config.json` has one configured, falling back to the uploader key otherwise — see [`permissions-and-tokens-reference.md`](./articles/permissions-and-tokens-reference.md) for the full credential model.
 
-**What it covers.** Phase 5's "read portal state" lookup, and any other read-only status check you point it at — nothing more. **What it doesn't cover:** creating a release, recording a UAT execution, or reconciling a deployment all still write, so they still need either the uploader key (in CI) or an operator acting manually. Filling that write-side gap for unattended operation is tracked separately — see #845.
+**What it covers.** Phase 5's "read portal state" lookup, and any other read-only status check you point it at — nothing more.
+
+**What it doesn't cover — the write-side gap.** Every `sdlc-implementer` step below still writes, and no key (viewer or uploader) currently ships with a "hand this to an agent safely" story for writes — the viewer key structurally can't do them, and the uploader key is the same one CI uses, never meant to leave CI secrets:
+
+| Step | Script | Needs |
+| --- | --- | --- |
+| Phase 1 step 3 — create the portal release | `scripts/upload-evidence.sh` | Uploader key (write) |
+| Phase 4/5 — record a UAT execution | `scripts/record-uat-execution.sh` | Uploader key (write) |
+| Post-deploy — report test execution | `scripts/report-test-execution.sh` | Uploader key (write) |
+| Deployment reconciliation | `scripts/reconcile-railway-deployment.sh` (or the equivalent for your host adapter) | Uploader key (write) |
+
+**The design decision (devaudit-installer#845):** these stay operator/CI-only by design — a session running `sdlc-implementer` locally without the uploader key should expect to hand these specific steps to CI's own automatic runs or to the operator, not treat it as a missing-credential bug to work around. A narrower third key (e.g. a "record-only" role that can create releases and record UAT/test executions but never approve one) was considered and rejected for now — it would be new portal-side scope with its own blast-radius analysis, not something to build speculatively ahead of a concrete operator-experience problem it solves. If that changes, revisit here.
 
 **At fresh install**, pass the flag to issue both keys in one step:
 

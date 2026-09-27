@@ -207,7 +207,14 @@ if [ -z "${DEVAUDIT_BASE_URL:-}" ]; then
   exit 1
 fi
 if [ -z "${DEVAUDIT_API_KEY:-}" ]; then
-  echo "Error: DEVAUDIT_API_KEY environment variable is required" >&2
+  echo "Error: DEVAUDIT_API_KEY environment variable is required (CI already" >&2
+  echo "       has one as a repo secret)." >&2
+  echo "       Consequence: this test-execution record cannot be reported" >&2
+  echo "       without it. Fallback (devaudit-installer#845): this is CI/" >&2
+  echo "       operator-only work by design — a session running locally" >&2
+  echo "       without the key should let the CI-driven quality-gates run" >&2
+  echo "       report it instead, or have an operator record it manually on" >&2
+  echo "       the portal." >&2
   exit 1
 fi
 
