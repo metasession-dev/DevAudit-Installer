@@ -71,7 +71,11 @@ Input: the REQ's `compliance/plans/REQ-XXX/implementation-plan.md` plus the work
 | **No match** — AC introduces behaviour the SRS doesn't yet describe | Propose new `REQ-AREA-NNN` (next free ID per area — see Step 4) with a Given/When/Then stub the operator edits |
 | **Reverse drift** — an SRS item points at code that's been removed in this REQ | Propose deprecation: the SRS item is now obsolete |
 
-**Step 4 — Allocate new SRS-IDs.** Scan `docs/SRS.md` for the max-existing ID per `REQ-AREA` prefix (`REQ-ORDER`, `REQ-INV`, `REQ-OPS`, etc.) and propose `+1` for each new item. The skill does NOT support cross-branch ID coordination — if two parallel branches both consume the same next-free ID, git merge on `docs/SRS.md` is the canonical conflict signal. Re-run the skill post-merge to re-allocate.
+**Step 4 — Allocate new SRS-IDs.** Scan `docs/SRS.md` for the max-existing ID per `REQ-AREA` prefix (`REQ-ORDER`, `REQ-INV`, `REQ-OPS`, etc.) across **both** representations the file can carry — the summary/index table's ID column, and the `#### REQ-AREA-NNN — <title>` heading blocks — and propose `+1` on top of the higher of the two per-prefix maxima. Never trust the table (or the headings) alone: the table is a derived index that can lag the headings (or vice versa) when an earlier REQ's Stage-1 commit added one representation but not the other, and allocating off the stale one risks proposing an ID that collides with an item that already exists in the other. See Step 4a for the drift this same scan should also surface.
+
+The skill does NOT support cross-branch ID coordination — if two parallel branches both consume the same next-free ID, git merge on `docs/SRS.md` is the canonical conflict signal. Re-run the skill post-merge to re-allocate.
+
+**Step 4a — Flag table/heading drift.** While computing Step 4's per-prefix maxima, record every ID that appears in only one representation — a heading block with no matching summary-table row, or a table row with no matching heading block — as an independent finding, regardless of whether it also caused an ID collision this cycle. Surface it in the Phase 1 injected table (or the Phase 3/4 report) as its own line, e.g. `SRS drift: REQ-ORDMGT-015 present in headings but missing from summary table`, so the earlier authoring gap gets fixed even when no collision has happened yet.
 
 **Step 5 — Inject into the implementation plan.** The plan's "SRS items proposed/touched" section (added to `Implementation_Plan_TEMPLATE.md` alongside this skill's introduction) carries a table:
 
@@ -149,9 +153,11 @@ For each REQ that has commits on the current branch (or in a specified range), r
 
 ### Phase 5 — Report
 
-- For Phase 1 — the plan's injected table + the block/allow decision.
+- For Phase 1 — the plan's injected table + the block/allow decision, plus any Step 4a drift findings.
 - For Phase 2 — the artefact path + summary line.
-- For Phase 3 / 4 — markdown report (one per REQ, or aggregated for branch audit).
+- For Phase 3 / 4 — markdown report (one per REQ, or aggregated for branch audit), plus any Step 4a drift findings.
+
+Step 4a drift findings are advisory in every phase — they never block Stage 1 or Stage 3 on their own (only the Step 6 AC-traceability gate blocks), but they should be called out clearly since an unresolved drift is what lets a future, unrelated REQ collide silently.
 
 ## Configuration (sdlc-config.json)
 
