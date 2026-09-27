@@ -479,7 +479,7 @@ jobs:
           DECLARED_BUNDLE_ARGS=()
           if [ -f "$BUNDLED_FILE" ] && grep -q 'Co-Tracked Bundle Members' "$BUNDLED_FILE" 2>/dev/null \
              && [ -f "$BUNDLED_MANIFEST" ]; then
-            DECLARED_MEMBERS=$(jq -r '(.members // [])[] | select(.role == "co-tracked") | .version' "$BUNDLED_MANIFEST" 2>/dev/null | paste -sd, - || true)
+            DECLARED_MEMBERS=$(jq -r '(.members // [])[] | select(.role == "co_tracked") | .version' "$BUNDLED_MANIFEST" 2>/dev/null | paste -sd, - || true)
             if [ -n "$DECLARED_MEMBERS" ]; then
               echo "Preserving declared co-tracked bundle members: ${DECLARED_MEMBERS}"
               DECLARED_BUNDLE_ARGS=(--declared-bundle "$DECLARED_MEMBERS")
@@ -496,22 +496,16 @@ jobs:
             exit 0
           fi
 
-          # devaudit-installer#817 — the portal doesn't accept
-          # role="co-tracked"/relationship="bundled" yet (devaudit#857), and
-          # submit-bundle-manifest.sh hard-fails this step on any non-201
-          # response with no error suppression at the call site — submitting
-          # co-tracked members today would break this step on every push for
-          # every declared bundle. Submit a filtered copy that excludes
-          # them; they stay in $BUNDLED_MANIFEST / $BUNDLED_FILE for the
-          # evidence upload below (a generic document upload, not
-          # schema-validated) and for local/PR visibility. Relies on
-          # submit-bundle-manifest.sh's own existing "no members or work
-          # items" no-op guard for the case where filtering leaves nothing
-          # submittable. Drop this filter once devaudit#857 ships.
-          SUBMIT_MANIFEST="$(mktemp)"
-          jq '.members |= map(select(.role != "co-tracked"))' "$BUNDLED_MANIFEST" > "$SUBMIT_MANIFEST"
-          bash scripts/submit-bundle-manifest.sh {{PROJECT_SLUG}} "$VERSION" "$SUBMIT_MANIFEST"
-          rm -f "$SUBMIT_MANIFEST"
+          # devaudit-installer#817 — devaudit#857 (shipped 2026-09-25) added
+          # role="co_tracked"/relationship="bundled" to the portal's
+          # accepted vocabulary and gates UAT approval atomically across
+          # every co_tracked member of a release. Submit the full manifest,
+          # co_tracked members included — an earlier version of this step
+          # filtered them out because the portal 400'd on them and
+          # submit-bundle-manifest.sh hard-fails on any non-201 response
+          # with no error suppression at the call site; that filter is no
+          # longer needed now that the portal accepts the role.
+          bash scripts/submit-bundle-manifest.sh {{PROJECT_SLUG}} "$VERSION" "$BUNDLED_MANIFEST"
           # Upload as bundled_changes evidence against this release (REQ-tracked
           # or bare-date housekeeping — devaudit-installer#622).
           bash scripts/upload-evidence.sh \
@@ -753,7 +747,7 @@ jobs:
           BUNDLE_MANIFEST="compliance/pending-releases/BUNDLED-CHANGES-${{ needs.register-release.outputs.version }}.json"
           if [ -f "$BUNDLE_DECLARATION" ] && [ -f "$BUNDLE_MANIFEST" ] \
              && grep -q 'Co-Tracked Bundle Members' "$BUNDLE_DECLARATION"; then
-            BUNDLE_MEMBERS=$(jq -r '(.members // [])[] | select(.role == "co-tracked") | .version' "$BUNDLE_MANIFEST" 2>/dev/null || true)
+            BUNDLE_MEMBERS=$(jq -r '(.members // [])[] | select(.role == "co_tracked") | .version' "$BUNDLE_MANIFEST" 2>/dev/null || true)
             if [ -n "$BUNDLE_MEMBERS" ]; then
               echo "Fanning out SAST/Dependency Audit evidence to declared-bundle members: $(echo "$BUNDLE_MEMBERS" | tr '\n' ' ')"
             fi
