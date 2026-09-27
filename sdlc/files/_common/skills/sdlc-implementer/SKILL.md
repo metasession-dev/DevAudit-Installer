@@ -54,6 +54,7 @@ The literal phrasing _"Returns to the running `sdlc-implementer` context"_ at th
 The only pauses in the whole workflow are the explicitly-named checkpoints:
 
 - **Phase 1 step 11** — pause for human approval **iff** risk class is HIGH or CRITICAL (or `--require-plan-approval` is set).
+- **Phase 2 step 8** — conditional pause, **iff** the environment/harness blocks the integration-PR merge (branch protection requiring human approval, or a harness guardrail refusing the merge action outright). This is an environment-capability gate, not a risk-based one — independent of the Phase 1 HIGH/CRITICAL checkpoint above, it can fire on LOW through CRITICAL alike. When the environment can merge unattended, there is no pause here; auto-continue to Phase 3 as before (devaudit-installer#194).
 - **Phase 4 step 5** — hard stop, release PR opened, awaiting UAT review on the portal.
 - **Phase 5** — invoked separately by the user (`resume REQ-XXX`).
 
@@ -198,6 +199,11 @@ NEXT: Phase 2 — sdlc-implementer auto-continuing
 ```
 LAST: Phase 4 — release PR #455 opened against develop, CI running
 NEXT: Operator action — review PR #455 + merge when CI green; sdlc-implementer halts here until you ping resume REQ-074
+```
+
+```
+LAST: Phase 2 — integration PR #482 green but this environment cannot merge it unattended (harness auto-mode guardrail)
+NEXT: Operator action — merge PR #482 yourself, then ping resume REQ-074 or continue; sdlc-implementer halts here
 ```
 
 ```
@@ -492,6 +498,21 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
 6. **On gate failure**, iterate up to N=3 attempts. Each iteration: read the failure output, propose a fix, apply, re-run. On exhausted attempts, halt with the full failure output and explicit resume instructions: "Gate <name> failed after N=3 attempts. Last failure: <output>. Operator action — fix the failure, commit to the feature branch, push, then ping `resume REQ-XXX`. The skill will re-run the gate from where it left off." Update the sticky with the same. Never use `--no-verify`, `eslint-disable`, `@ts-expect-error`, `xfail`, or any other bypass.
 7. **Commit** using Conventional Commits with `Ref: REQ-XXX` trailer and `Co-Authored-By: Claude` trailer. One commit per logical step; never amend a commit that's already been pushed. **Also include the sentinel git trailer (devaudit#775).** `node SDLC/bin/devaudit-sdlc.js --phase=<N>` prints a `Sdlc-Implementer-Sentinel: <json>` line after appending the phase record — copy it verbatim into every commit message trailer for the rest of this tracked session. The `.sdlc-implementer-invoked` file it also writes is gitignored and never reaches a CI checkout, so CI-uploaded evidence (`upload-evidence.sh` running inside `ci.yml`) has no way to prove sdlc-implementer provenance without this trailer — without it, every CI-sourced evidence item reads as "MANUAL BYPASS ATTEMPT" on the portal even though the skill genuinely drove the work.
 8. **Land the work on `$INTEGRATION_BRANCH`.** Push the feature branch, then open a PR `feat/REQ-XXX-<slug> → $INTEGRATION_BRANCH` and merge it once CI is green. **Bundle mode:** once every bundled REQ has completed steps 2–7 on the shared branch, open **one** PR `feat/bundle-<slug> → $INTEGRATION_BRANCH` referencing every bundled REQ-XXX in its title/body, instead of one PR per REQ. This is the **integration hop** — there is no UAT four-eyes gate here (that's the release PR in Phase 4); for MEDIUM+ risk get a peer review on this PR per the project's norms. The push to `$INTEGRATION_BRANCH` is what triggers `ci.yml` to register the release and upload gate evidence. **Merge conflict resolution:** if the PR has merge conflicts (another feature branch merged first), pull the latest `$INTEGRATION_BRANCH` into the feature branch (`git merge "$INTEGRATION_BRANCH" --no-edit`), resolve conflicts (preferring the feature branch's changes for files this REQ touches), push, wait for CI. If conflicts are in files this REQ doesn't touch, halt — "Merge conflict in <files> from another feature. Operator action — review the conflict, these files are outside REQ-XXX's scope."
+
+   **Merge refused by the environment (devaudit-installer#837).** If CI is green but the merge itself cannot be performed — branch protection requires a human approval this session cannot supply, or the harness's own guardrails refuse the merge action outright (e.g. an auto-mode guardrail declining "Merge Without Review", regardless of REQ-XXX's risk class) — this is not a gate failure; do not loop retrying the merge. Halt:
+
+   - Comment on the issue: "Integration PR #<N> is ready (CI green) but this environment cannot merge it unattended (<reason>). Operator action — merge PR #<N> yourself (`gh pr merge <N> --merge` or via the GitHub UI), then say `resume REQ-XXX` or `continue`."
+   - Update the sticky: `bash scripts/update-sdlc-status.sh "$ISSUE_NUM" "Phase 2 — integration PR #<N> green, merge blocked by environment (<reason>)" "Operator action — merge PR #<N> yourself, then ping resume REQ-XXX or continue; sdlc-implementer halts here"`.
+   - This halt is orthogonal to the Phase 1 HIGH/CRITICAL checkpoint (step 11) and can fire on any risk class.
+   - This does not change behavior in environments that *can* merge unattended — attempt the merge and auto-continue exactly as before when it succeeds.
+
+8a. **Resume-detection after a merge-refused halt (devaudit-installer#837).** On `resume REQ-XXX` or `continue` after the halt above, do not assume the operator has merged — check first, mirroring Phase 4's admin-merge resume pattern ("When the cancel-and-admin-merge conditions are NOT met", below):
+
+    - Run `gh pr view <N> --json state,mergedAt,statusCheckRollup`.
+    - **Not merged** — re-state the halt: "PR #<N> is still open. Operator action — merge it, then say `resume REQ-XXX`." Do not proceed.
+    - **Merged, CI on `$INTEGRATION_BRANCH` still pending** — wait/poll before proceeding, as step 11 already does for the post-merge CI trigger.
+    - **Merged, CI on `$INTEGRATION_BRANCH` green** — proceed to step 9 (E2E delegation self-audit) and Phase 3, exactly as the unblocked path would have.
+    - **Merged, CI on `$INTEGRATION_BRANCH` red** — follow step 11's "CI failure on `$INTEGRATION_BRANCH` post-merge" fix-forward path.
 
 9. **E2E delegation self-audit — mandatory before Phase 3 (devaudit#132).** Run `git diff "$INTEGRATION_BRANCH"...HEAD --name-only` and walk the file list. For **every** entry matching `e2e/**/*.spec.ts`, state out loud one of:
 
