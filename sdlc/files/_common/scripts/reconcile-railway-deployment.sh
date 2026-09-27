@@ -31,7 +31,18 @@ HTTP=$(curl -sS -o /dev/null -w '%{http_code}' --connect-timeout 5 --max-time 15
 DESCRIPTION="manual_reconciliation; railway_deployment=${RAILWAY_DEPLOYMENT_ID}; sha=${SHA}; health_http=${HTTP}; verified_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 EXISTING=$(gh api "/repos/${REPO}/deployments/${GITHUB_DEPLOYMENT_ID}/statuses?per_page=20" --jq '[.[] | select(.state == "success" and (.description // "" | contains("railway_deployment='"$RAILWAY_DEPLOYMENT_ID"'")))] | length')
 if [ "$EXISTING" = "0" ]; then
-  gh api --method POST "/repos/${REPO}/deployments/${GITHUB_DEPLOYMENT_ID}/statuses" -f state=success -f environment=production -f description="$DESCRIPTION" -f environment_url="$HEALTH_URL" >/dev/null
+  # #842: gh api's default error surface truncates to "Validation Failed (HTTP nnn)" and
+  # drops the errors[] body needed to root-cause the 422 seen in production. Capture the
+  # full --verbose request/response trace and print it on failure instead of discarding it.
+  set +e
+  STATUS_OUTPUT=$(gh api --method POST "/repos/${REPO}/deployments/${GITHUB_DEPLOYMENT_ID}/statuses" -f state=success -f environment=production -f description="$DESCRIPTION" -f environment_url="$HEALTH_URL" --verbose 2>&1)
+  STATUS_RC=$?
+  set -e
+  if [ "$STATUS_RC" -ne 0 ]; then
+    echo "::error::Deployment status POST failed (exit ${STATUS_RC}). Full request/response detail follows for root-cause diagnosis (see #842):"
+    echo "$STATUS_OUTPUT"
+    exit "$STATUS_RC"
+  fi
 fi
 jq -n --arg provenance manual_reconciliation --arg provider railway --arg providerDeploymentId "$RAILWAY_DEPLOYMENT_ID" --arg sha "$SHA" --arg healthUrl "$HEALTH_URL" --arg healthHttp "$HTTP" --arg actor "${GITHUB_ACTOR:-operator}" --arg verifiedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '{provenance:$provenance,provider:$provider,providerDeploymentId:$providerDeploymentId,sha:$sha,healthUrl:$healthUrl,healthHttp:($healthHttp|tonumber),actor:$actor,verifiedAt:$verifiedAt}' > deployment-reconciliation.json
 echo "Verified Railway deployment ${RAILWAY_DEPLOYMENT_ID}; GitHub deployment ${GITHUB_DEPLOYMENT_ID} reconciled."
