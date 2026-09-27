@@ -398,6 +398,57 @@ git checkout -q main
 git merge -q --no-ff -m "Merge pull request #695 from mixed-branch" mixed-branch
 assert_eq "merge-range scan excludes close-out commit, keeps unrelated REQ -> REQ-200" "REQ-200" "$(run_helper)"
 
+# Case 31 (#838): staleness guard. A declared-bundle manifest is present,
+# but its own release ticket is already archived in approved-releases/ —
+# it's an orphaned leftover from a closed-out release, not a live bundle.
+# Step 0 must skip it and fall through (here, to the bare date).
+make_fixture "$WORK/c31" "chore: unrelated later merge"
+mkdir -p compliance/pending-releases compliance/approved-releases
+cat > compliance/pending-releases/BUNDLED-CHANGES-REQ-037.md <<'EOF'
+## Bundled Changes
+
+### Co-Tracked Bundle Members
+
+- `REQ-038` (co-tracked/bundled) — Second bundled REQ
+EOF
+cat > compliance/approved-releases/RELEASE-TICKET-REQ-037.md <<'EOF'
+# Release Ticket: REQ-037
+
+**Status:** RELEASED
+EOF
+assert_eq "stale bundle manifest (ticket archived) -> falls through to bare date $TODAY" "$TODAY" "$(run_helper)"
+
+# Case 32 (#838): same staleness guard, ticket archived as SUPERSEDED
+# instead of RELEASED.
+make_fixture "$WORK/c32" "chore: unrelated later merge"
+mkdir -p compliance/pending-releases compliance/superseded-releases
+cat > compliance/pending-releases/BUNDLED-CHANGES-REQ-037.md <<'EOF'
+## Bundled Changes
+
+### Co-Tracked Bundle Members
+
+- `REQ-038` (co-tracked/bundled) — Second bundled REQ
+EOF
+cat > compliance/superseded-releases/RELEASE-TICKET-REQ-037.md <<'EOF'
+# Release Ticket: REQ-037
+
+**Status:** SUPERSEDED
+EOF
+assert_eq "stale bundle manifest (ticket superseded) -> falls through to bare date $TODAY" "$TODAY" "$(run_helper)"
+
+# Case 33 (#838): the manifest is still live (its ticket has NOT been
+# archived yet) — step 0 must still win, same as case 4b.
+make_fixture "$WORK/c33" "[REQ-038] feat: bundled work, tip commit tags REQ-038"
+mkdir -p compliance/pending-releases
+cat > compliance/pending-releases/BUNDLED-CHANGES-REQ-037.md <<'EOF'
+## Bundled Changes
+
+### Co-Tracked Bundle Members
+
+- `REQ-038` (co-tracked/bundled) — Second bundled REQ
+EOF
+assert_eq "live bundle manifest (ticket not archived) still wins -> REQ-037" "REQ-037" "$(run_helper)"
+
 echo ""
 echo "=== Summary: $PASS pass / $FAIL fail ==="
 

@@ -326,6 +326,27 @@ mkdir -p "$SUPERSEDED_DIR"
 if [ -f "$PENDING" ]; then
   git mv "$PENDING" "$APPROVED" 2>/dev/null || mv "$PENDING" "$APPROVED"
   echo "Moved ticket -> ${APPROVED}"
+
+  # devaudit-installer#838 — archive the sibling declared-bundle manifest
+  # alongside the ticket. Left behind in pending-releases/, it keeps
+  # matching derive-release-version.sh step 0's "exactly one declared-bundle
+  # manifest" rule on every later, unrelated merge, permanently misattributing
+  # that merge's release version. Only relevant when $REQ_ID is the bundle's
+  # own primary/declared key, since the manifest filename is keyed to it — a
+  # predecessor/member REQ absorbed via mark_ticket_superseded below has no
+  # bundle manifest of its own to move.
+  PENDING_BUNDLE_MD="compliance/pending-releases/BUNDLED-CHANGES-${REQ_ID}.md"
+  PENDING_BUNDLE_JSON="compliance/pending-releases/BUNDLED-CHANGES-${REQ_ID}.json"
+  if [ -f "$PENDING_BUNDLE_MD" ]; then
+    git mv "$PENDING_BUNDLE_MD" "${APPROVED_DIR}/BUNDLED-CHANGES-${REQ_ID}.md" 2>/dev/null \
+      || mv "$PENDING_BUNDLE_MD" "${APPROVED_DIR}/BUNDLED-CHANGES-${REQ_ID}.md"
+    echo "Moved bundle manifest -> ${APPROVED_DIR}/BUNDLED-CHANGES-${REQ_ID}.md"
+  fi
+  if [ -f "$PENDING_BUNDLE_JSON" ]; then
+    git mv "$PENDING_BUNDLE_JSON" "${APPROVED_DIR}/BUNDLED-CHANGES-${REQ_ID}.json" 2>/dev/null \
+      || mv "$PENDING_BUNDLE_JSON" "${APPROVED_DIR}/BUNDLED-CHANGES-${REQ_ID}.json"
+    echo "Moved bundle manifest -> ${APPROVED_DIR}/BUNDLED-CHANGES-${REQ_ID}.json"
+  fi
 fi
 
 # ── Flip ticket Status + backlink + sign-off (edit AFTER the move, then stage —
