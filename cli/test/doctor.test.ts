@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { execa } from 'execa';
 import { fileURLToPath } from 'node:url';
-import { dirname, resolve } from 'node:path';
+import { delimiter as pathDelimiter, dirname, resolve } from 'node:path';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const BIN = resolve(HERE, '..', 'bin', 'devaudit.js');
@@ -218,20 +218,34 @@ describe('devaudit doctor — onboarding-checklist invariants (#867)', () => {
 });
 
 describe('devaudit doctor — host-adapter prerequisites (#843)', () => {
+  // Node-scripted mock (not bash) + a .cmd shim, mirroring writeMockGh in
+  // devaudit-sdlc-engine.test.ts — a bash-shebang-only fake `gh` never runs
+  // on Windows CI (no shebang interpretation), which silently fell through
+  // to the real, unauthenticated `gh` and made these tests environment-
+  // dependent instead of deterministic.
   async function fakeGhOnPath(dir: string, secretNames: readonly string[]): Promise<Record<string, string>> {
-    const { mkdir, writeFile, chmod } = await import('node:fs/promises');
+    const { mkdir, writeFile } = await import('node:fs/promises');
     const { join } = await import('node:path');
     const binDir = join(dir, 'fake-bin');
     await mkdir(binDir, { recursive: true });
     const ghPath = join(binDir, 'gh');
+    const ghCmdPath = join(binDir, 'gh.cmd');
+    const secretsJson = JSON.stringify(secretNames.map((name) => ({ name })));
     await writeFile(
       ghPath,
-      `#!/usr/bin/env bash\nif [ "$1" = "secret" ] && [ "$2" = "list" ]; then\n  echo '${JSON.stringify(
-        secretNames.map((name) => ({ name })),
-      )}'\n  exit 0\nfi\necho "gh version 2.55.0"\nexit 0\n`,
+      `#!/usr/bin/env node\nconst args = process.argv.slice(2);\nif (args[0] === 'secret' && args[1] === 'list') {\n  process.stdout.write(${JSON.stringify(secretsJson)});\n  process.exit(0);\n}\nprocess.stdout.write('gh version 2.55.0\\n');\nprocess.exit(0);\n`,
+      { mode: 0o755 },
     );
-    await chmod(ghPath, 0o755);
-    return { ...process.env, PATH: `${binDir}:${process.env['PATH'] ?? ''}` };
+    await writeFile(ghCmdPath, `@echo off\r\nnode "%~dp0gh" %*\r\n`, { mode: 0o755 });
+    return { ...process.env, PATH: `${binDir}${pathDelimiter}${process.env['PATH'] ?? ''}` };
+  }
+
+  // Isolates PATH down to just node's own directory, so a `railway` binary
+  // that genuinely exists on the host (e.g. this repo's self-hosted CI
+  // runner, which has the real CLI installed for ops use) can't leak into
+  // the "not found" assertion below and make it environment-dependent.
+  function nodeOnlyEnv(): Record<string, string | undefined> {
+    return { ...process.env, PATH: dirname(process.execPath) };
   }
 
   it('folds the railway host adapter\'s RAILWAY_TOKEN into the missing-secrets report (default host)', async () => {
@@ -282,7 +296,7 @@ describe('devaudit doctor — host-adapter prerequisites (#843)', () => {
     await writeFile(join(dir, 'sdlc-config.json'), JSON.stringify({ project_slug: 'fixture' }));
     await mkdir(join(dir, '.github', 'workflows'), { recursive: true });
     await writeFile(join(dir, '.github', 'workflows', 'reconcile-deployment.yml'), 'name: reconcile\n');
-    const result = await execa('node', [BIN, 'doctor'], { cwd: dir, reject: false });
+    const result = await execa('node', [BIN, 'doctor'], { cwd: dir, env: nodeOnlyEnv(), reject: false });
     const output = result.stdout + result.stderr;
     expect(output).toContain('railway CLI not found on PATH');
   }, 30_000);
