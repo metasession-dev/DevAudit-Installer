@@ -117,6 +117,7 @@ The requirements gap flow is triggered by:
 - **Phase 2 step 4** — plan deviation classified as "requirements deviation" (an AC is wrong/incomplete/missing, not just the implementation approach)
 - **Phase 3 step 1** — `requirements-aligner` returns `GAPS_FOUND` (ACs that don't trace to SRS items, or unresolved drift)
 - **Phase 2** — `e2e-test-engineer` classifies an AC as "impossible to test" or "missing AC" (returns a requirements gap report instead of filing a defect)
+- **Phase 2** — `e2e-test-engineer`'s Phase 3 bidirectional cross-feature check (see `e2e-test-engineer/SKILL.md`) identifies a shared-field interaction where the reverse direction has no AC to derive a scenario from. That absence is a missing AC, not just a missing test — route it here (typically option (b) amend, or (c) file a follow-up REQ) instead of leaving `e2e-test-engineer` to add an untracked test for behaviour no AC ever described.
 - **Phase 3 step 4** — test failure classified as "requirements gap" (test is correct, implementation is correct, but the AC they both derive from is wrong)
 - **Phase 5** — change-request loop classifies feedback as "requirements gap" (reviewer identified behaviour that should have been an AC but wasn't)
 

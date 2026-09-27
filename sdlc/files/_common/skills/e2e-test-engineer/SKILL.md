@@ -125,7 +125,13 @@ Derive scenarios from these sources, in this order:
 
 4. **Adjacent regression scenarios** — pick the one or two nearby flows most likely to break because they share code with the change. Don't try to re-test the whole app from this seat.
 
-5. **Visual regression scenarios** (only if the project does visual regression): each visually-changed component or page state gets a snapshot at the breakpoints the project already covers. Add one or two adjacent surfaces that share styling.
+5. **Bidirectional cross-feature scenarios** — a distinct check from item 4, not folded into it. When the diff modifies a document/model field that another already-shipped feature also reads or writes, derive a scenario in **both** directions:
+   - Does this change corrupt the other feature's data?
+   - Does the other feature's existing behaviour corrupt this change's new field/logic (if not already covered elsewhere)?
+
+   Identifying "an adjacent flow shares code" (item 4) is not the same as checking both directions of a shared-field interaction — a feature pair can be adjacent and still only get tested in one direction. See `references/bidirectional-cross-feature-example.md` for a worked example.
+
+6. **Visual regression scenarios** (only if the project does visual regression): each visually-changed component or page state gets a snapshot at the breakpoints the project already covers. Add one or two adjacent surfaces that share styling.
 
 Resist padding. A new endpoint doesn't need a test that re-verifies login if login is already covered. Match the project's existing depth — if it covers one happy path per feature, don't add six.
 
@@ -166,8 +172,10 @@ For the area touched by the change, look at what's already there.
 
 3. **Needs updating** — existing tests where the scenario is still valid but selectors, routes, or assertions have shifted.
 
+4. **Missing reverse-direction coverage** — for each feature pair flagged by Phase 3's bidirectional check, check whether an existing test already covers one direction (A→B) of the pair. If it does, and this diff touches the other direction (B→A) of the *same* pair, that's not overlap — it's a gap. Flag the missing reverse-direction scenario and add it to the "To add" list below, even though the pair already has a test on file.
+
 Present three lists to the user:
-- **To add** — new scenarios not already covered.
+- **To add** — new scenarios not already covered, including any missing reverse-direction scenarios found in item 4 above.
 - **To update** — existing tests needing adjustment.
 - **To delete** — genuinely obsolete tests, each with a one-line rationale.
 
