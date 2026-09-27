@@ -7,7 +7,8 @@
   "production_url_secret_key": "production_url_secret",
   "wait_for_deploy": "for i in $(seq 1 30); do HTTP_CODE=$(curl -s -o /dev/null -w \"%{http_code}\" \"${PROD_URL}/\" || echo \"000\"); if [ \"$HTTP_CODE\" -ge 200 ] && [ \"$HTTP_CODE\" -lt 400 ]; then echo \"Production is up (HTTP ${HTTP_CODE})\"; break; fi; echo \"Attempt ${i}/30: HTTP ${HTTP_CODE} — waiting 10s...\"; sleep 10; done",
   "required_secrets": [
-    "DEVAUDIT_API_KEY"
+    "DEVAUDIT_API_KEY",
+    "RAILWAY_TOKEN"
   ],
   "config_keys": {
     "required": [
@@ -34,6 +35,8 @@
     "Railway auto-deploys on push to main; no explicit deploy step needed in CI.",
     "Production URL is set as a repo secret (name configured per-project via production_url_secret in sdlc-config.json).",
     "Test-time database services are declared per-project (database_service, database_image, database_port, database_env) so CI can spin up a matching container alongside the app container.",
-    "For long-lived production web services on Railway, do not run tsx/ts-node in production; use compiled JS or a framework's standalone runtime output."
+    "For long-lived production web services on Railway, do not run tsx/ts-node in production; use compiled JS or a framework's standalone runtime output.",
+    "RAILWAY_TOKEN is advisory, not needed for normal CI: it's only consumed by reconcile-deployment.yml (the manual recovery workflow for when Railway's deployment_status webhook fails to reach GitHub). Set it before that recovery path is ever needed, not after (devaudit-installer#841).",
+    "reconcile-deployment.yml also requires the `railway` CLI to be on PATH for whatever user runs self-hosted-runner jobs — confirm this at onboarding time, since a runner where only an interactive human user has `railway` installed (not the runner service's own account/PATH) will fail the recovery workflow the first time it's actually invoked (devaudit-installer#841)."
   ]
 }

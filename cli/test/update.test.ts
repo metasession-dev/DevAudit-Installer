@@ -1814,6 +1814,52 @@ describe('syncProject — native TS sync against a fixture', () => {
     }
   }, 60_000);
 
+  it('does not generate reconcile-deployment.yml for a non-railway host adapter (#841)', async () => {
+    const dir = await buildFixture();
+    try {
+      const configPath = join(dir, 'sdlc-config.json');
+      const config = JSON.parse(await fs.readFile(configPath, 'utf8')) as Record<string, unknown>;
+      config['host'] = 'vercel';
+      await fs.writeFile(configPath, JSON.stringify(config));
+      process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
+
+      await syncProject(dir);
+      const workflowFiles = await fs.readdir(join(dir, '.github', 'workflows'));
+      // reconcile-deployment.yml.template hardcodes the railway CLI +
+      // RAILWAY_TOKEN — a vercel (or any non-railway) consumer has no use
+      // for it and shouldn't receive dead workflow content.
+      expect(workflowFiles).not.toContain('reconcile-deployment.yml');
+      await expectAllWorkflowsValidYaml(dir);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it('generates reconcile-deployment.yml for the railway host adapter, and removes it if the host changes away from railway (#841)', async () => {
+    const dir = await buildFixture();
+    try {
+      process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
+      await syncProject(dir);
+      const workflowDir = join(dir, '.github', 'workflows');
+      const workflowFiles = await fs.readdir(workflowDir);
+      expect(workflowFiles).toContain('reconcile-deployment.yml');
+      const content = await fs.readFile(join(workflowDir, 'reconcile-deployment.yml'), 'utf8');
+      expect(content).toContain('RAILWAY_TOKEN');
+
+      // Switching a previously-railway consumer to another host removes the
+      // now-stale reconcile-deployment.yml instead of leaving it behind.
+      const configPath = join(dir, 'sdlc-config.json');
+      const config = JSON.parse(await fs.readFile(configPath, 'utf8')) as Record<string, unknown>;
+      config['host'] = 'vercel';
+      await fs.writeFile(configPath, JSON.stringify(config));
+      await syncProject(dir);
+      const workflowFilesAfter = await fs.readdir(workflowDir);
+      expect(workflowFilesAfter).not.toContain('reconcile-deployment.yml');
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
   it('strips compliance-evidence.yml\'s dead E2E Regression workflow_run listener + job unless e2e_regression_enabled is set (#869)', async () => {
     const dir = await buildFixture();
     try {
