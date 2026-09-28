@@ -438,12 +438,14 @@ Classify the defect against this table when filing — the canonical version liv
 | Defect characteristic | Frameworks/clauses attributed |
 | --- | --- |
 | **Any test failure / defect** (baseline — always) | `ISO29119.3.5.4` Test incident report |
-| **Ops impact** (downtime, persistent errors, perf regression, data corruption) | + `SOC2.CC7.2` System monitoring and incident response |
+| **Ops impact — an actual observed production/live-system event** (real downtime, a genuine monitoring alert, a live incident-response event, real data corruption already in production) | + `SOC2.CC7.2` System monitoring and incident response |
 | **Security vulnerability** (auth bypass, injection, data exposure) | + `SOC2.CC7.2` + relevant ISO 27001 controls |
 | **Personal data exposed / lost / mishandled** | + `GDPR.Art-33` (always — 72h supervisory notification) + `GDPR.Art-34` (when data subjects need notification) |
 | **AI/ML failure** (model hallucination, biased output, oversight bypass) | + relevant EU AI Act articles (`Art-9` risk, `Art-14` human oversight, `Art-15` accuracy/robustness) |
 
 **Baseline rule:** the first row is **mandatory**. Even a defect with no specific framework impact STILL produces a valid incident_report attributed to `ISO29119.3.5.4`. Never silently drop the artefact because "it's just a bug".
+
+**Ops impact is about what actually happened, not what code the bug touches** (devaudit-installer#899). A regression caught here — in a pre-merge e2e run — is by definition contained: it never reached production, never triggered real monitoring, never caused a live incident, however severe it would have been if it had shipped. "Runs against production-adjacent code" or "would matter if it shipped" is not ops impact; tick `SOC2.CC7.2` only when you can point to a real, already-occurred production/live-system event. Ticking it for an ordinary CI-caught regression routes the defect through the incident-export workflow's stricter GDPR-review path for no reason — see Example 1 below.
 
 **Apply the `incident` label at filing time** for defects that warrant incident_report evidence — don't wait for the operator to add it later. Confirm with the operator first (per the **Confirm before destructive or public actions** principle).
 
