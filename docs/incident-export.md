@@ -20,6 +20,16 @@ The issue body must contain a `### Framework attribution` section — a checklis
 
 `ISO29119.3.5.4` (test incident report) is mandatory and always ticked — even a defect with no other framework impact still produces a valid incident record. The other four ticks reflect what actually happened, not what the bug touches or could theoretically have caused.
 
+## Two different situations lead here — they're not the same "triage"
+
+It's easy to assume every defect goes through one uniform "found it, filed it, fixed it, closed it" flow. In practice there are two genuinely different situations, and only one of them has anyone actively driving a fix at the moment the defect is found.
+
+**In-flight, during active implementation.** While a REQ is being implemented, `e2e-test-engineer`'s own test-execution phase (Phase 6) runs the suite and triages every failure. An **application defect** found here — the app doing the wrong thing, still mid-implementation — gets filed *and* fixed in the same loop: "fix → focused run → fix → focused run," inside the same session and the same PR as the feature it belongs to. The GitHub issue still exists (ISO 29119-3 wants a documented incident per defect, regardless of how fast it closed), but it's typically opened and closed within minutes, by the same person/agent, as a side effect of finishing the feature. Since it only ever carries the baseline `ISO29119.3.5.4` tag, closing it takes **Path A** — a silent direct commit, not a separate PR. If you're implementing a REQ and a test fails, you fix it; the incident-export machinery is just quietly keeping the receipt, not adding a step to your workflow.
+
+**Caught by the post-deploy regression sweep, with no one "in the room."** `e2e-regression.yml`'s full-regression job runs on `deployment_status` (a successful **production** deploy) or manual dispatch — well after the code that caused the regression already shipped, and by definition with nobody actively implementing anything at that moment. There's no live session to fix it inline, so the only option is to file the issue and let it become its own separate, later fix cycle — possibly picked up by a different person entirely. This is the case `compliance-evidence.yml.template`'s auto-filing step handles, and it's the case [devaudit-installer#899](https://github.com/metasession-dev/DevAudit-Installer/issues/899) was about: because these issues have no active session driving them to closure, they can sit open, and the old (now-fixed) `SOC2.CC7.2` over-tagging compounded that by also forcing a separate compliance PR requiring GDPR sign-off on top of the regular fix.
+
+The rest of this doc — Path A vs. Path B, what to do when a Path B PR appears — applies once an issue exists and gets closed, regardless of which of these two situations produced it. But if you're wondering "why didn't this just get fixed as part of the normal process," the answer is: it depends entirely on whether anyone was actively implementing something when the defect was found.
+
 ## Path A vs. Path B
 
 Routing depends entirely on which boxes are ticked when the issue closes:
