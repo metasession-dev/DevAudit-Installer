@@ -2,7 +2,7 @@
 
 Walkthrough for adding a new language / package-manager combination — Go, Rust, Ruby, Java, etc. — to the DevAudit SDLC framework. Read this with [STACK_ADAPTER.md](../sdlc/STACK_ADAPTER.md) (the contract) and [ADR-001](./ADR/ADR-001-polyglot-sdlc-architecture.md) (the architectural rationale) open in adjacent tabs.
 
-The Python adapter (added in #287 Phase 4, validated against META-AGENT in Phase 5) is the worked example throughout — it's the second adapter, so the lessons of "what the contract should require" are baked in.
+The Python adapter (added in #287 Phase 4, validated against EXAMPLE-PYTHON-SERVICE in Phase 5) is the worked example throughout — it's the second adapter, so the lessons of "what the contract should require" are baked in.
 
 ## When to add a new stack
 
@@ -18,9 +18,9 @@ Then do the work in the order below.
 
 Before writing a single line of adapter, answer these questions for the target consumer:
 
-| Question                                | Example (META-AGENT)                        |
+| Question                                | Example (EXAMPLE-PYTHON-SERVICE)                        |
 | --------------------------------------- | ------------------------------------------- |
-| What's the dependency manifest?         | `mission-control-api/pyproject.toml`        |
+| What's the dependency manifest?         | `example-python-service/pyproject.toml`        |
 | How do you install dev dependencies?    | `pip install -e ".[dev]"`                   |
 | Type checker + invocation?              | `mypy src/` (strict via pyproject)          |
 | SAST scanner?                           | `semgrep scan --config auto`                |
@@ -29,7 +29,7 @@ Before writing a single line of adapter, answer these questions for the target c
 | Build / package command?                | `python -m build --sdist --wheel`           |
 | Git-hook framework?                     | `pre-commit` (not husky)                    |
 | GitHub Actions runtime-setup action?    | `actions/setup-python@v5` with `cache: pip` |
-| Dependency manifest at repo root?       | **No** — at `mission-control-api/`          |
+| Dependency manifest at repo root?       | **No** — at `example-python-service/`          |
 
 If the project's pyproject.toml / package.json / go.mod isn't at the repo root, you'll need `working_directory` in `sdlc-config.json` (currently supported by the Python ci.yml template; see [STACK_ADAPTER.md § Consumer config](../sdlc/STACK_ADAPTER.md#consumer-config-working_directory)).
 
@@ -185,7 +185,7 @@ PR body should answer: which consumer is this for, what was decided about the ga
 
 ## Step 10 — Open the consumer PR
 
-After the DevAudit PR merges, re-sync the consumer to pick up the new templates, and open the consumer-side onboarding PR. See [META-AGENT#19](https://github.com/metasession-dev/META-AGENT/pull/19) for the worked example — it's the consumer-side of adding Python.
+After the DevAudit PR merges, re-sync the consumer to pick up the new templates, and open the consumer-side onboarding PR — the consumer-side half of adding a new stack.
 
 ## Common decisions and trade-offs
 

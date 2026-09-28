@@ -163,7 +163,7 @@ This is idempotent — it warns and leaves the existing key alone if one was alr
 
 ## Polyglot monorepos (multiple targets in one repo) — deprecated
 
-> **Deprecated, scheduled for removal.** The `targets`/`--add-target` mechanic described below is not properly supported and will be removed in a future release. **Do not onboard new polyglot-monorepo projects.** `fleet-control` is currently the one known consumer still using it (see [`consuming-projects.md`](./consuming-projects.md)); everyone else should onboard each independently-gated stack as its own separate repo/consumer instead. `install --add-target` now refuses for any repo that doesn't already have an existing `targets` array — see below.
+> **Deprecated, scheduled for removal.** The `targets`/`--add-target` mechanic described below is not properly supported and will be removed in a future release. **Do not onboard new polyglot-monorepo projects.** `example-polyglot-app` is currently the one known consumer still using it (see [`consuming-projects.md`](./consuming-projects.md)); everyone else should onboard each independently-gated stack as its own separate repo/consumer instead. `install --add-target` now refuses for any repo that doesn't already have an existing `targets` array — see below.
 
 By default, `install` describes one repo as one stack: `sdlc-config.json`'s flat top-level fields (`stack`, `working_directory`, `devaudit.project_slug`, etc.) are sugar for a single implicit target. The `targets` array below let a polyglot monorepo — one GitHub repo with more than one independently-gated stack — onboard each stack as its own target instead of separate repos:
 
@@ -172,26 +172,26 @@ By default, `install` describes one repo as one stack: `sdlc-config.json`'s flat
   // present only once there's more than one target — a single-target repo
   // never has this key, and its flat fields keep meaning what they always did
   "targets": [
-    { "name": "fleet-control-api", "stack": "python", "working_directory": "fleet-control-api", "devaudit": { "project_slug": "fleet-control-api", "api_key_secret": "FLEET_CONTROL_API_API_KEY" } },
-    { "name": "fleet-control-ui", "stack": "node", "working_directory": "fleet-control-ui", "devaudit": { "project_slug": "fleet-control-ui", "api_key_secret": "FLEET_CONTROL_UI_API_KEY" } }
+    { "name": "example-polyglot-api", "stack": "python", "working_directory": "example-polyglot-api", "devaudit": { "project_slug": "example-polyglot-api", "api_key_secret": "EXAMPLE_POLYGLOT_API_API_KEY" } },
+    { "name": "example-polyglot-ui", "stack": "node", "working_directory": "example-polyglot-ui", "devaudit": { "project_slug": "example-polyglot-ui", "api_key_secret": "EXAMPLE_POLYGLOT_UI_API_KEY" } }
   ]
 }
 ```
 
-(a real excerpt from `fleet-control`'s current `sdlc-config.json` — the one consumer still using this mechanic; see the deprecation notice above.)
+(a real excerpt from `example-polyglot-app`'s current `sdlc-config.json` — the one consumer still using this mechanic; see the deprecation notice above.)
 
 **Onboarding a second target.** Run `install` again, pointed at the new target's subdirectory, with `--add-target`:
 
 ```bash
-devaudit install ../monorepo/fleet-control-ui --add-target
+devaudit install ../monorepo/example-polyglot-ui --add-target
 ```
 
 Without `--add-target`, `install` refuses (rather than clobbering) when it detects the target directory/slug doesn't match what's already configured. Given the deprecation above, `--add-target` now also refuses outright for any repo that doesn't already have an existing `targets` array — it no longer accepts first-time adoption. For a repo that already has `targets`, it still reads the existing config, migrates a legacy flat config to the `targets` array shape if needed, and appends the new target — the first target's fields are preserved untouched.
 
 **What becomes target-aware once `targets` has more than one entry:**
 
-- **CI workflow files** are namespaced per target: `ci.yml` → `ci-fleet-control-api.yml` / `ci-fleet-control-ui.yml`, and the job/check names inside them get a `(fleet-control-api)` / `(fleet-control-ui)` suffix so two targets' pipelines don't collide on the same filename or check name.
-- **Trigger paths** are scoped to each target's `working_directory`, so a commit touching only `fleet-control-ui/` doesn't fire `fleet-control-api`'s pipeline and vice versa (a target at the repo root can't be scoped this way and keeps unscoped triggers).
+- **CI workflow files** are namespaced per target: `ci.yml` → `ci-example-polyglot-api.yml` / `ci-example-polyglot-ui.yml`, and the job/check names inside them get a `(example-polyglot-api)` / `(example-polyglot-ui)` suffix so two targets' pipelines don't collide on the same filename or check name.
+- **Trigger paths** are scoped to each target's `working_directory`, so a commit touching only `example-polyglot-ui/` doesn't fire `example-polyglot-api`'s pipeline and vice versa (a target at the repo root can't be scoped this way and keeps unscoped triggers).
 - **`api_key_secret` names** are derived per target (not the single `DEVAUDIT_API_KEY` every single-target repo uses) — GitHub repo secrets are repo-scoped, not per-directory, so reusing that name across targets would have the second target's install silently overwrite the first target's key.
 - **Branch protection** required checks are applied per target (`Quality Gates (web)`, `Quality Gates (api)`, …) via a read-merge-write against GitHub's API — a second target's `install`/`--add-target` run unions its check into whatever's already required rather than replacing the list, so it can't silently drop another target's requirement.
 - **`devaudit update`** resyncs every target's namespaced CI files and re-verifies branch protection for all of them in one run, not just the most-recently-installed target.
@@ -225,15 +225,15 @@ Re-running the script on the same consumer is safe:
 - Branch protection re-applies via PUT (idempotent at the GH API).
 - Template sync is idempotent (same inputs → same outputs).
 
-## Worked example: onboarding META-AGENT (historical trace)
+## Worked example: onboarding EXAMPLE-PYTHON-SERVICE (historical trace)
 
-A trace of an early `devaudit install ../META-AGENT` run (the bash installer it replaced produced the same 11-step flow). The META-AGENT onboarding has since been reverted (META-AGENT is no longer an active consumer — see [consuming-projects.md](./consuming-projects.md)), but the trace is preserved here as a concrete demonstration of what onboarding does. The example below uses the historical `devaudit.ai` host from that period; current public entry points use `https://devaudit.ai`.
+A trace of an early `devaudit install ../EXAMPLE-PYTHON-SERVICE` run (the bash installer it replaced produced the same 11-step flow). The EXAMPLE-PYTHON-SERVICE onboarding has since been reverted (EXAMPLE-PYTHON-SERVICE is no longer an active consumer — see [consuming-projects.md](./consuming-projects.md)), but the trace is preserved here as a concrete demonstration of what onboarding does. The example below uses the historical `devaudit.ai` host from that period; current public entry points use `https://devaudit.ai`.
 
 ```text
 ══════════════════════════════════════════════════════════════
   Metasession SDLC Onboarding
-  Consumer:  META-AGENT
-  Path:      /home/william/Documents/SoftwareProjects/Metasession/META-AGENT
+  Consumer:  EXAMPLE-PYTHON-SERVICE
+  Path:      /home/william/Documents/SoftwareProjects/Metasession/EXAMPLE-PYTHON-SERVICE
   DevAudit:  https://devaudit.ai
 ══════════════════════════════════════════════════════════════
 
@@ -242,19 +242,19 @@ A trace of an early `devaudit install ../META-AGENT` run (the bash installer it 
 
 == 2/12 · Detect stack and host ==
   ✓ Stack:                python
-  ✓ Working directory:    mission-control-api
+  ✓ Working directory:    example-python-service
   ✓ Host (default):       railway
 
 == 3/12 · Configure ==
   Project slug [meta-agent]:
   Python version [3.11]:
   Source dirs (space-sep) [src/ tests/]:
-  Working directory [mission-control-api]:
+  Working directory [example-python-service]:
   Production URL secret name [META_AGENT_PROD_URL]:
   Production URL (https://...): https://meta-agent.metasession.co
 
 == 4/12 · Write sdlc-config.json ==
-  ✓ Written to .../META-AGENT/sdlc-config.json
+  ✓ Written to .../EXAMPLE-PYTHON-SERVICE/sdlc-config.json
 
 == 5/12 · Create / find DevAudit project ==
   ✓ Project 'meta-agent' created (id 4f3a2b1c…)
@@ -285,10 +285,10 @@ A trace of an early `devaudit install ../META-AGENT` run (the bash installer it 
 
 == 12/12 · Done ==
 
-  META-AGENT is onboarded.
+  EXAMPLE-PYTHON-SERVICE is onboarded.
 
   Next steps:
-    cd .../META-AGENT
+    cd .../EXAMPLE-PYTHON-SERVICE
     git status
     git checkout -b feat/sdlc-onboarding
     git add -A
