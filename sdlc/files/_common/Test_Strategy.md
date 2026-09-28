@@ -56,6 +56,8 @@ The mapping to MoSCoW: **Must-priority SRS items live in `e2e/smoke/` (fast feed
 
 **Reference workflow.** A copy-pasteable `e2e-regression.yml` shape lives at `skills/e2e-test-engineer/references/e2e-regression-3-tier.yml`. Adoption is opt-in per consumer (the framework doesn't currently sync this workflow; consumers own their own `e2e-regression.yml`).
 
+**Release-closure triage gate (devaudit-installer#844) — a separate, later gate this table doesn't cover.** The table above is about merge/deploy-time gating; it stops being the whole picture once a release reaches production. The portal enforces its own rule at release-**closure** time, independent of `CHECK_REQUIRED`: every failed test execution tied to a release needs documented incident/non-incident triage before "Mark as Released" succeeds — including regression-tier failures that were correctly non-blocking earlier in the pipeline. See `skills/sdlc-implementer/SKILL.md` Phase 5's "Post-deploy full-regression triage gate" for the procedure.
+
 ### Acceptance Testing
 
 Validates that requirements and acceptance criteria are met from a business perspective. Conducted in staging environments mirroring production. Requires sign-off from Product Managers. May include formal UAT with stakeholders for regulated features.
