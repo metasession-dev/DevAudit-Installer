@@ -28,6 +28,16 @@ The `sdlc-implementer` skill is an orchestrator. It calls into other shipped ski
 - Committing.
 - Pushing.
 
+### `e2e-ci-reliability` — Phase 4 (external gate hangs or fails for unrelated reasons), and any general CI reliability review
+
+**When**: A required gate's E2E check fails on retry with a *different* spec each time (not the same spec every time) — that shifting-failure signature is suite-reliability territory, not a per-gate flake to individually wave off. Also invoked directly, independent of any specific gate failure, for a general CI-health/reliability review — e.g. deciding whether a regression tier has grown large enough to need sharding.
+
+**Invocation**: `Skill(name: "e2e-ci-reliability", input: { context: "<gate name + which specs failed across which retries, or 'general reliability review'>" })`.
+
+**What it returns**: a classification (accumulated process/connection degradation, dev-server cold-compile latency, or a host resource ceiling) and, if a fix was applied, a summary of what changed (sharding config, warm-up step, capacity note). The orchestrator uses the classification to decide whether the cancel-and-admin-merge conditions in Phase 4 are actually met, or whether the underlying suite instability disqualifies that path.
+
+**What `sdlc-implementer` retains responsibility for**: deciding whether cancel-and-admin-merge is warranted once `e2e-ci-reliability` reports its classification; this skill only classifies and fixes the suite, it doesn't make the merge-bypass call.
+
 ## Skills `sdlc-implementer` does NOT invoke
 
 These were previously planned as atomic skills but were deprioritised. The orchestrator handles their slice directly, without calling out:
