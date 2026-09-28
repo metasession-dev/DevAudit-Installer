@@ -912,7 +912,7 @@ jobs:
               This defect, once closed with the \`incident\` label, will be auto-exported as \`incident_report\` evidence and attribute to:
 
               - [x] \`ISO29119.3.5.4\` (baseline — every incident_report)
-              - [x] \`SOC2.CC7.2\` — ops impact: a regression in production-adjacent code is an ops concern
+              - [ ] \`SOC2.CC7.2\` — ops impact: <!-- devaudit-installer#899: this is a CI-caught, pre-merge regression — contained by definition, not a live incident. Tick only if you confirm this actually reached production or caused a real monitoring/incident-response event; touching production-adjacent code is not itself ops impact. -->
               - [ ] \`GDPR.Art-33\` — personal data scope: <REPLACE — yes/no>
               - [ ] \`GDPR.Art-34\` — data-subject notification required: <REPLACE — yes/no>
               - [ ] \`EUAIA.Art-9 / Art-14 / Art-15\` — AI failure: <REPLACE — yes/no, which article(s)>
