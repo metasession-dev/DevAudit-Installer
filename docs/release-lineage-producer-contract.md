@@ -172,7 +172,7 @@ Current contract regex:
 
 Example:
 
-`github:metasession-dev/wawagardenbar-app:Quality-Gates:12345:attempt:2:stage:2:REQ-093`
+`github:metasession-dev/example-app:Quality-Gates:12345:attempt:2:stage:2:REQ-093`
 
 The key must be stable across retries for the same logical test execution record.
 

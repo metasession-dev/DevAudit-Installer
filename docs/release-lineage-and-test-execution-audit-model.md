@@ -354,11 +354,11 @@ A failed cycle on an immutable, already-shipped commit sometimes can never hones
 
 ```bash
 scripts/report-test-execution.sh resolve \
-  --project-slug wgb --release REQ-108 \
+  --project-slug example-app --release REQ-108 \
   --test-cycle-id 77eb11a9-428d-4aaa-8bd7-d3d0550c6f06 \
   --resolution-type accepted_exception \
-  --reason "unrelated pre-existing defect wawagardenbar-app#852" \
-  --remediation-reference wawagardenbar-app#852
+  --reason "unrelated pre-existing defect example-app#852" \
+  --remediation-reference example-app#852
 ```
 
 `--resolution-type` is one of `retry_passed | superseded | accepted_exception | incident_remediated` — the same enum the portal's release-readiness gate already treats as resolving an otherwise-blocking cycle (any non-null `resolution_type` clears it; only `outcome` itself is otherwise interpreted as pending/failed). This is the self-service path for exactly the scenario `devaudit#866`'s investigation converged on: the mechanism already existed portal-side, nothing in CI tooling could reach it.

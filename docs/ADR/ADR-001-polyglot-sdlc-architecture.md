@@ -12,13 +12,13 @@
 
 DevAudit ships an SDLC framework — a set of stage docs, CI templates, hooks, and validation scripts — that consuming projects sync into their repos via `scripts/sync-sdlc.sh`. Up to v1.22.x, every consumer was Node + Railway:
 
-- `wawagardenbar-app` (Next.js food-ordering app, Railway-hosted)
+- `example-app` (Next.js food-ordering app, Railway-hosted)
 - DevAudit itself (Next.js portal, Railway-hosted)
-- META-ATS (paused, but Next.js + Railway when it resumes)
+- EXAMPLE-PAUSED-APP (paused, but Next.js + Railway when it resumes)
 
 Each template hardcoded Node-isms (`npm ci`, `npx tsc --noEmit`, `npx playwright test`) and Railway-isms (`push to main → auto-deploy`, smoke-test by curling the production URL). The framework worked, but it implicitly assumed every consumer was Node-on-Railway.
 
-[META-AGENT](https://github.com/metasession-dev/META-AGENT) (FastAPI / pytest / mypy / ruff on Railway) was the first non-Node consumer. Adopting v1.22.x for META-AGENT meant either:
+EXAMPLE-PYTHON-SERVICE (FastAPI / pytest / mypy / ruff on Railway) was the first non-Node consumer. Adopting v1.22.x for EXAMPLE-PYTHON-SERVICE meant either:
 
 1. **Fork the templates.** Copy `sdlc/files/ci/ci.yml.template`, Python-ify the gate commands, maintain in parallel. Tractable for one Python project. Breaks down at project #3 if it's Go, and is intractable by project #5 if it's Ruby-on-Fly.
 
@@ -92,14 +92,14 @@ Sync refuses with a helpful error if either references an adapter that doesn't e
 
 Additional optional config (when applicable):
 
-- `working_directory` — for monorepo / subdir projects where the dependency manifest lives in a subdirectory (e.g. META-AGENT's `mission-control-api/pyproject.toml`). Honoured by the Python ci.yml template.
+- `working_directory` — for monorepo / subdir projects where the dependency manifest lives in a subdirectory (e.g. EXAMPLE-PYTHON-SERVICE's `example-python-service/pyproject.toml`). Honoured by the Python ci.yml template.
 - `python_version` / `node_version` — stack-specific runtime versions.
 
 ## Consequences
 
 ### Positive
 
-- **Polyglot onboarding is now a configuration exercise**, not a fork. Adding META-AGENT took two PRs (one to author the Python adapter, one to update its sdlc-config.json). Adding a Go consumer would be ~1 day of work to author the Go adapter + Go ci.yml template, plus the consumer's sync.
+- **Polyglot onboarding is now a configuration exercise**, not a fork. Adding EXAMPLE-PYTHON-SERVICE took two PRs (one to author the Python adapter, one to update its sdlc-config.json). Adding a Go consumer would be ~1 day of work to author the Go adapter + Go ci.yml template, plus the consumer's sync.
 
 - **The contract is explicit and validated**. A future contributor adding a stack reads STACK_ADAPTER.md, copies an existing adapter, runs `validate-adapter.cjs --all`, and gets actionable errors if they got the shape wrong. No reverse-engineering of templates.
 
@@ -107,7 +107,7 @@ Additional optional config (when applicable):
 
 - **Stack-agnostic workflows stay shared**. compliance-validation, check-release-approval, post-deploy-prod, compliance-evidence, ci-status-fallback are written once. Changes propagate to every consumer regardless of stack.
 
-- **Backwards compatible**. Phase 1 verified bit-for-bit equivalent output for the existing Node consumer (wawagardenbar-app). v1.22.x → v1.23.x is a deprecation-warning rename, not a breaking change.
+- **Backwards compatible**. Phase 1 verified bit-for-bit equivalent output for the existing Node consumer (example-app). v1.22.x → v1.23.x is a deprecation-warning rename, not a breaking change.
 
 - **Onboarding is fully automated within compliance limits**. Post-Phase 6, `scripts/sdlc-onboard.sh` collapses the previously-manual 9-step onboarding (wizard config, project create, API key issue, secrets/variables set, hook framework install, branch protection config, first sync) into 2 operator actions: issue a PAT once, run the script. PAT auth is now wired on `/api/projects` and `/api/projects/[id]/api-keys` (extending the #141 pattern). See [docs/onboarding.md](../onboarding.md). The remaining manual steps (release approval clicks, PR reviews, requirement authoring) are compliance controls by design, not gaps.
 
@@ -121,7 +121,7 @@ Additional optional config (when applicable):
 
 ### Neutral
 
-- **Phase 1 was invisible to existing consumers.** The restructure produced bit-for-bit equivalent output for Node-on-Railway. The value only materialised in Phase 4 (Python adapter) and Phase 5 (META-AGENT onboarding). This is the right shape for foundational refactors, but worth noting that "the PR with the biggest scope produces no behaviour change today" is a hard sell without the follow-on phases in flight.
+- **Phase 1 was invisible to existing consumers.** The restructure produced bit-for-bit equivalent output for Node-on-Railway. The value only materialised in Phase 4 (Python adapter) and Phase 5 (EXAMPLE-PYTHON-SERVICE onboarding). This is the right shape for foundational refactors, but worth noting that "the PR with the biggest scope produces no behaviour change today" is a hard sell without the follow-on phases in flight.
 
 ## Considered alternatives
 
@@ -157,20 +157,20 @@ Treat the SDLC framework as a templated module rendered by an external tool (Hel
 This ADR captures the v1.23.0 design plus the v1.24 onboarding-automation follow-up (`sdlc-onboard.sh`, shipped post-Phase 6). Future work:
 
 - **v1.24 — deprecation tightening.** Convert the legacy-defaults deprecation warning (legacy configs missing `stack` / `host` keys default to `node + railway`) into a hard refusal. Backend enum rename `uat_approved → release_approved` (portal repo issue #284, internal tracker).
-- **First non-Railway host adapter** — Fly.io most likely (a sketched example already lives in HOST_ADAPTER.md). Validates the host-adapter contract against a real consumer the same way Phase 4 validated the stack contract against META-AGENT.
+- **First non-Railway host adapter** — Fly.io most likely (a sketched example already lives in HOST_ADAPTER.md). Validates the host-adapter contract against a real consumer the same way Phase 4 validated the stack contract against EXAMPLE-PYTHON-SERVICE.
 - **`gh sdlc` extension (rather than `scripts/sdlc-onboard.sh`).** The bash script does the job today; promoting it to a proper `gh` extension would give it auto-update via `gh extension upgrade` and a per-repo invocation idiom. Pure operator ergonomics — the underlying workflow is unchanged.
 - **OAuth device flow for first-PAT issuance.** Eliminates the one remaining manual portal click before running `sdlc-onboard.sh`. Larger scope (DevAudit-side auth surface), so not blocking.
 
 ## Amendment (2026-09): `targets` (multi-target monorepo support, #689) deprecated
 
-The polyglot-monorepo `targets` array — one repo, multiple independently-gated stacks (#689, described in STACK_ADAPTER.md) — is deprecated and scheduled for removal. It is not properly supported and no new consumers should adopt it (`install --add-target` now refuses for any repo without an existing `targets` array). `fleet-control` is the one remaining consumer using it; removal is blocked on it migrating off (e.g. splitting into separate repos).
+The polyglot-monorepo `targets` array — one repo, multiple independently-gated stacks (#689, described in STACK_ADAPTER.md) — is deprecated and scheduled for removal. It is not properly supported and no new consumers should adopt it (`install --add-target` now refuses for any repo without an existing `targets` array). `example-polyglot-app` is the one remaining consumer using it; removal is blocked on it migrating off (e.g. splitting into separate repos).
 
 **This amendment does not affect the rest of this ADR.** The polyglot *adapter* architecture this ADR describes — the process/stack/host layering that lets DevAudit support multiple languages at all (Node, Python, ...) — is unrelated to the `targets` mechanic and is not being deprecated. Only the "multiple stacks in one repo via one `sdlc-config.json`'s `targets` array" use case is affected. See [docs/onboarding.md's "Polyglot monorepos" section](../onboarding.md#polyglot-monorepos-multiple-targets-in-one-repo--deprecated) and [docs/consuming-projects.md](../consuming-projects.md) for current status.
 
 ## References
 
 - Portal repo issue #287 — SDLC v1.23.0 umbrella issue (internal tracker).
-- Portal repo issue #252 — META-AGENT onboarding, closed by [META-AGENT#19](https://github.com/metasession-dev/META-AGENT/pull/19) (internal tracker).
+- Portal repo issue #252 — EXAMPLE-PYTHON-SERVICE onboarding, closed by the consumer-side onboarding PR (internal tracker).
 - [STACK_ADAPTER.md](../../sdlc/STACK_ADAPTER.md) and [HOST_ADAPTER.md](../../sdlc/HOST_ADAPTER.md) — the contracts.
 - [docs/adding-a-stack.md](../adding-a-stack.md) — walkthrough for the next stack.
 - [docs/adding-a-host.md](../adding-a-host.md) — walkthrough for the next host.

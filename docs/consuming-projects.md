@@ -4,26 +4,16 @@ DevAudit serves as the central compliance hub for all Metasession projects. Each
 
 ## Active consumers
 
-| Project             | Slug                   | Stack       | Host    | Status     |
-| ------------------- | ---------------------- | ----------- | ------- | ---------- |
-| wawagardenbar       | `wawagardenbar-app`    | node        | railway | Integrated |
-| META-JOBS           | `meta-jobs`             | node        | railway | Integrated |
-| ThorStack-Frontend  | `mission-control`      | node        | railway | Integrated |
-| ThorStack-Backend   | `mission-control-api`  | python      | railway | Integrated |
-| ThorStack site      | `thorstack-site`       | node        | railway | Integrated |
-| fleet-control       | `fleet-control-api` / `fleet-control-ui` | python + node (polyglot, deprecated) | railway | Integrated |
+The portal is the source of truth for which projects are currently onboarded — not a table in this repo. A list checked into git goes stale the moment a consumer onboards, offboards, gets renamed, or migrates hosts, and a hand-maintained table here has drifted from live portal state before (see [DevAudit-Installer#897](https://github.com/metasession-dev/DevAudit-Installer/issues/897) for a worked example).
 
-The table above should reflect the current active consumers known to this repo. For the product-side authoritative cross-check, see the portal repo documentation referenced from this repo's README.
+To see the current list:
 
-`mission-control`/`mission-control-api` were originally onboarded as two subdirectories of one `META-AGENT` repo; the frontend and backend have since been split into their own standalone repos, now named `ThorStack-Frontend` and `ThorStack-Backend` on GitHub (their DevAudit project slugs, `mission-control`/`mission-control-api`, weren't renamed to match). `META-AGENT` itself remains a separate, active repo but is not itself an onboarded consumer.
+- **From any onboarded consumer's checkout:** `devaudit doctor --fleet` — sweeps every project your account can see, checked out locally as siblings. See [`fleet-doctor.md`](./fleet-doctor.md) for the operator-only, fleet-wide drift-audit skill built on this.
+- **From the portal directly:** the project list in the DevAudit UI, or `GET /api/projects` (same endpoint `--fleet` uses).
 
-`fleet-control` **is** an active, onboarded consumer, using the polyglot-monorepo `targets` mechanic (`fleet-control-api` + `fleet-control-ui` in one repo) — despite previously being listed here as deliberately not onboarded. That mechanic is deprecated and scheduled for removal (see [onboarding.md's "Polyglot monorepos" section](onboarding.md#polyglot-monorepos-multiple-targets-in-one-repo--deprecated)); `fleet-control` is the one consumer that needs to migrate off it (e.g. by splitting into separate repos, mirroring how the ThorStack frontend/backend split) before the `targets` code can be removed.
-
-**META-ATS** onboarding was stopped/reverted and remains unonboarded; if it returns as a live consumer, re-onboard from scratch via `devaudit install` and add it here.
+A repo may be onboarded using the **polyglot-monorepo `targets` mechanic** (multiple independently-gated stacks in one repo) — this is deprecated and scheduled for removal; see [onboarding.md's "Polyglot monorepos" section](onboarding.md#polyglot-monorepos-multiple-targets-in-one-repo--deprecated). Don't onboard a new consumer this way.
 
 The DevAudit portal itself does **not** consume the SDLC framework — it would otherwise gate its own releases through itself. See `CLAUDE.md` in DevAudit's repo root for its lightweight development process.
-
-This is also the table [`fleet-doctor`](./fleet-doctor.md) reads to find every consumer to audit — see that doc for the operator-only, fleet-wide drift sweep across this list.
 
 ## Integrating a new project
 
@@ -52,11 +42,11 @@ For projects using new languages/hosts not yet supported by an adapter, see [doc
 
 ### Polyglot monorepo consumers (multiple targets) — deprecated
 
-> **Deprecated, scheduled for removal.** Not properly supported; do not onboard new consumers of this shape. `fleet-control` is the one remaining consumer using it (see the Active consumers table above).
+> **Deprecated, scheduled for removal.** Not properly supported; do not onboard new consumers of this shape. Check `devaudit doctor --fleet` for whether any current consumer still uses it before removing the underlying `targets` code.
 
 Most consumers are one repo = one stack = one `sdlc-config.json` (the flat top-level fields describe a single implicit target). A polyglot monorepo — one GitHub repo with independently-gated stacks in different subdirectories — instead used `sdlc-config.json`'s `targets` array. `devaudit install ... --add-target` now refuses for any repo that doesn't already have an existing `targets` array, so this path is closed to new consumers; onboard each independently-gated stack as its own separate repo instead.
 
-CI workflow filenames, job/check names, trigger paths, `api_key_secret` names, and branch-protection required checks are all namespaced per target once `targets` has more than one entry — a single-target consumer sees none of this. See [onboarding.md's "Polyglot monorepos" section](onboarding.md#polyglot-monorepos-multiple-targets-in-one-repo--deprecated) for the full mechanics, the deprecation notice, and a worked `targets` example from `fleet-control`'s actual config.
+CI workflow filenames, job/check names, trigger paths, `api_key_secret` names, and branch-protection required checks are all namespaced per target once `targets` has more than one entry — a single-target consumer sees none of this. See [onboarding.md's "Polyglot monorepos" section](onboarding.md#polyglot-monorepos-multiple-targets-in-one-repo--deprecated) for the full mechanics, the deprecation notice, and a worked `targets` example.
 
 ## Offboarding a project
 
@@ -77,7 +67,7 @@ Deliberately **not** touched, since reverting them automatically risks clobberin
 - Branch protection rules on `main`/`develop`
 - Synced CI workflow files (`.github/workflows/`), `SDLC/*.md`, `AGENTS.md`, and the other single-source-of-truth files described below
 
-These are left in place but inert — CI steps that reference the disconnected project will fail until you either remove them by hand or run `devaudit install` again to onboard a fresh project. If the consumer is listed in the "Active consumers" table above, remove its row once offboarding is complete.
+These are left in place but inert — CI steps that reference the disconnected project will fail until you either remove them by hand or run `devaudit install` again to onboard a fresh project.
 
 ## AI Agent Configuration (Single Source of Truth)
 
@@ -163,7 +153,7 @@ After framework changes land in DevAudit's `main`:
 
 ```bash
 # The common case — run from inside the consumer's repo:
-cd "../wawagardenbar app"
+cd ../your-consumer-project
 git checkout develop && git pull
 git checkout -b chore/devaudit-update-to-vX.Y.Z
 
@@ -184,7 +174,7 @@ gh pr create --base develop
 Syncing several projects at once from anywhere:
 
 ```bash
-npx @metasession.co/devaudit-cli@latest update ../wawagardenbar-app ../META-JOBS
+npx @metasession.co/devaudit-cli@latest update ../consumer-1 ../consumer-2
 ```
 
 Either path syncs: `_common/` stage docs, AI agent pointer files, SDLC rules into `INSTRUCTIONS.md`, stack-specific hooks and scripts (`stacks/<name>/`), host-specific config (`hosts/<name>/`), and CI workflow templates (`ci/`). The CLI additionally fires `beforeSync` / `afterSync` plugin lifecycle hooks and then applies any reviewed consumer overrides from `.devaudit-patches/`. **What it does not touch:** the portal project, your API keys, GitHub secrets, branch protection, `sdlc-config.json`, anything under `compliance/`, or the patch files themselves.
@@ -430,7 +420,7 @@ After making changes to the SDLC framework in DevAudit:
   - [ ] Re-apply any project-specific customizations if overwritten.
   - [ ] Commit and push on a sync branch; open a chore PR.
   - [ ] Verify the chore PR's `Compliance Validation` + `Quality Gates` checks pass before merging.
-- [ ] Update the "Active consumers" table above with the new sync date and version.
+- [ ] Confirm the fleet is current: `devaudit doctor --fleet` (from any onboarded consumer's checkout).
 
 ## See also
 
