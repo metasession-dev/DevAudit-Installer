@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { execa } from 'execa';
 import { fileURLToPath } from 'node:url';
-import { dirname, resolve } from 'node:path';
+import { delimiter as pathDelimiter, dirname, resolve } from 'node:path';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const BIN = resolve(HERE, '..', 'bin', 'devaudit.js');
@@ -214,6 +214,91 @@ describe('devaudit doctor — onboarding-checklist invariants (#867)', () => {
     expect(srsCheck?.suspectedOrigin).toBe('consumer-drift');
     const prePushCheck = report.onboarding.find((c) => c.name === 'pre-push-hook');
     expect(prePushCheck?.suspectedOrigin).toBe('consumer-drift');
+  }, 30_000);
+});
+
+describe('devaudit doctor — host-adapter prerequisites (#843)', () => {
+  // Node-scripted mock (not bash) + a .cmd shim, mirroring writeMockGh in
+  // devaudit-sdlc-engine.test.ts — a bash-shebang-only fake `gh` never runs
+  // on Windows CI (no shebang interpretation), which silently fell through
+  // to the real, unauthenticated `gh` and made these tests environment-
+  // dependent instead of deterministic.
+  async function fakeGhOnPath(dir: string, secretNames: readonly string[]): Promise<Record<string, string>> {
+    const { mkdir, writeFile } = await import('node:fs/promises');
+    const { join } = await import('node:path');
+    const binDir = join(dir, 'fake-bin');
+    await mkdir(binDir, { recursive: true });
+    const ghPath = join(binDir, 'gh');
+    const ghCmdPath = join(binDir, 'gh.cmd');
+    const secretsJson = JSON.stringify(secretNames.map((name) => ({ name })));
+    await writeFile(
+      ghPath,
+      `#!/usr/bin/env node\nconst args = process.argv.slice(2);\nif (args[0] === 'secret' && args[1] === 'list') {\n  process.stdout.write(${JSON.stringify(secretsJson)});\n  process.exit(0);\n}\nprocess.stdout.write('gh version 2.55.0\\n');\nprocess.exit(0);\n`,
+      { mode: 0o755 },
+    );
+    await writeFile(ghCmdPath, `@echo off\r\nnode "%~dp0gh" %*\r\n`, { mode: 0o755 });
+    return { ...process.env, PATH: `${binDir}${pathDelimiter}${process.env['PATH'] ?? ''}` };
+  }
+
+  // Isolates PATH down to just node's own directory, so a `railway` binary
+  // that genuinely exists on the host (e.g. this repo's self-hosted CI
+  // runner, which has the real CLI installed for ops use) can't leak into
+  // the "not found" assertion below and make it environment-dependent.
+  function nodeOnlyEnv(): Record<string, string | undefined> {
+    return { ...process.env, PATH: dirname(process.execPath) };
+  }
+
+  it('folds the railway host adapter\'s RAILWAY_TOKEN into the missing-secrets report (default host)', async () => {
+    const { mkdtemp, writeFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const dir = await mkdtemp(join(tmpdir(), 'devaudit-doctor-railway-secrets-'));
+    // No `host` key — resolveAdapters defaults to 'railway'.
+    await writeFile(join(dir, 'sdlc-config.json'), JSON.stringify({ project_slug: 'fixture' }));
+    const env = await fakeGhOnPath(dir, ['DEVAUDIT_API_KEY', 'DEVAUDIT_USER_TOKEN']);
+    const result = await execa('node', [BIN, 'doctor'], { cwd: dir, env, reject: false });
+    const output = result.stdout + result.stderr;
+    expect(output).toContain('missing repo secret(s): RAILWAY_TOKEN');
+  }, 30_000);
+
+  it('does not require RAILWAY_TOKEN for a vercel host consumer', async () => {
+    const { mkdtemp, writeFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const dir = await mkdtemp(join(tmpdir(), 'devaudit-doctor-vercel-secrets-'));
+    await writeFile(
+      join(dir, 'sdlc-config.json'),
+      JSON.stringify({ project_slug: 'fixture', host: 'vercel' }),
+    );
+    const env = await fakeGhOnPath(dir, ['DEVAUDIT_API_KEY', 'DEVAUDIT_USER_TOKEN']);
+    const result = await execa('node', [BIN, 'doctor'], { cwd: dir, env, reject: false });
+    const output = result.stdout + result.stderr;
+    expect(output).toContain('all required secrets present');
+    expect(output).not.toContain('RAILWAY_TOKEN');
+  }, 30_000);
+
+  it('skips the railway-cli check when reconcile-deployment.yml is not present', async () => {
+    const { mkdtemp, writeFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const dir = await mkdtemp(join(tmpdir(), 'devaudit-doctor-railway-cli-skip-'));
+    await writeFile(join(dir, 'sdlc-config.json'), JSON.stringify({ project_slug: 'fixture' }));
+    const result = await execa('node', [BIN, 'doctor'], { cwd: dir, reject: false });
+    const output = result.stdout + result.stderr;
+    expect(output).toMatch(/railway-cli\s+skipped \(reconcile-deployment\.yml not present\)/);
+  }, 30_000);
+
+  it('reports the railway CLI missing when reconcile-deployment.yml is present but railway is not on PATH', async () => {
+    const { mkdtemp, mkdir, writeFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const dir = await mkdtemp(join(tmpdir(), 'devaudit-doctor-railway-cli-missing-'));
+    await writeFile(join(dir, 'sdlc-config.json'), JSON.stringify({ project_slug: 'fixture' }));
+    await mkdir(join(dir, '.github', 'workflows'), { recursive: true });
+    await writeFile(join(dir, '.github', 'workflows', 'reconcile-deployment.yml'), 'name: reconcile\n');
+    const result = await execa('node', [BIN, 'doctor'], { cwd: dir, env: nodeOnlyEnv(), reject: false });
+    const output = result.stdout + result.stderr;
+    expect(output).toContain('railway CLI not found on PATH');
   }, 30_000);
 });
 

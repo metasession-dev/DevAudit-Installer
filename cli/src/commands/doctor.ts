@@ -4,6 +4,9 @@ import { promises as fs } from 'node:fs';
 import { logger, isJsonMode, emitJsonResult } from '../lib/logger.js';
 import { resolveRepoRoot } from '../lib/git-root.js';
 import { discoverPlugins, buildPluginContext, runHook, type LoadedPlugin } from '../lib/plugin/index.js';
+import { resolveInstallerRoot } from '../lib/installer-root.js';
+import { loadHostAdapter } from '../lib/adapter.js';
+import { resolveAdapters } from '../update/resolve-adapters.js';
 
 export interface DoctorOptions {
   readonly plugins?: readonly LoadedPlugin[];
@@ -206,6 +209,23 @@ async function checkRequiredSecretsPresent(): Promise<CheckResult> {
   const required = [devaudit.api_key_secret ?? 'DEVAUDIT_API_KEY', 'DEVAUDIT_USER_TOKEN'];
   if (devaudit.viewer_api_key_secret) required.push(devaudit.viewer_api_key_secret);
 
+  // devaudit-installer#843 — fold in the resolved host adapter's own
+  // required_secrets (e.g. RAILWAY_TOKEN) instead of a second, separate
+  // secrets check. DEVAUDIT_API_KEY is skipped here since it's already
+  // covered above under its (possibly renamed via api_key_secret) name; a
+  // missing/unresolvable adapter degrades to the pre-#843 behaviour rather
+  // than failing the whole check.
+  try {
+    const installerRoot = await resolveInstallerRoot();
+    const { host } = await resolveAdapters(consumer.repoRoot, installerRoot);
+    const hostAdapter = await loadHostAdapter(installerRoot, host);
+    for (const secret of hostAdapter.required_secrets ?? []) {
+      if (secret !== 'DEVAUDIT_API_KEY' && !required.includes(secret)) required.push(secret);
+    }
+  } catch {
+    // best-effort — don't let an adapter-resolution failure block this check
+  }
+
   let secretNames: string[];
   try {
     const result = await execa('gh', ['secret', 'list', '--json', 'name'], {
@@ -329,6 +349,36 @@ async function checkE2eRegressionConsistency(): Promise<CheckResult> {
   return { name, ok: true, detail: enabled ? 'projects present, workflow enabled' : 'not opted in' };
 }
 
+/**
+ * devaudit-installer#843 — `reconcile-deployment.yml`'s recovery path shells
+ * out to the `railway` CLI (#841), but that workflow is only synced for the
+ * `railway` host adapter. Gate this check on the workflow file actually
+ * being present in this consumer's synced file set, so a Vercel (or any
+ * non-Railway) consumer never sees a false positive for a tool it will never
+ * need.
+ */
+async function checkRailwayCliPresent(): Promise<CheckResult> {
+  const name = 'railway-cli';
+  const consumer = await readConsumerConfig();
+  if (!consumer) return { name, ok: true, detail: 'skipped (not a consumer project)', suspectedOrigin: 'unknown' };
+  try {
+    await fs.access(`${consumer.repoRoot}/.github/workflows/reconcile-deployment.yml`);
+  } catch {
+    return { name, ok: true, detail: 'skipped (reconcile-deployment.yml not present)', suspectedOrigin: 'unknown' };
+  }
+  const result = await checkCommand('railway', ['--version']);
+  return result.ok
+    ? { name, ok: true, detail: result.detail, suspectedOrigin: 'consumer-drift' }
+    : {
+        name,
+        ok: false,
+        detail:
+          "railway CLI not found on PATH — required by reconcile-deployment.yml's recovery workflow " +
+          '(devaudit-installer#841); install it for whichever user/account runs self-hosted-runner jobs',
+        suspectedOrigin: 'consumer-drift',
+      };
+}
+
 export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
   const log = logger();
   const jsonMode = isJsonMode();
@@ -366,6 +416,7 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
     await checkE2eRegressionConsistency(),
     await checkRequiredSecretsPresent(),
     await checkPrePushHookPresent(),
+    await checkRailwayCliPresent(),
   ];
   let onboardingIssues = false;
   for (const check of onboardingChecks) {
