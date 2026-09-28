@@ -15,6 +15,11 @@ const CI_TEMPLATES = [
   'compliance-validation.yml.template',
   'check-release-approval.yml.template',
   'post-deploy-prod.yml.template',
+  // devaudit-installer#841: Railway-specific (hardcoded railway CLI +
+  // RAILWAY_TOKEN); only generated for the railway host adapter — see the
+  // ctx.host !== 'railway' skip in the syncCiTemplates loop below. Every
+  // other host adapter used to receive this as dead workflow content with
+  // no reconciliation path of its own.
   'reconcile-deployment.yml.template',
   'compliance-evidence.yml.template',
   'feature-e2e.yml.template',
@@ -479,6 +484,63 @@ function resolveCheckoutClean(cfg: SdlcConfig): string {
 }
 
 /**
+ * `npx playwright install --with-deps` needs root to `apt-get` system
+ * libraries (libnss3 etc.). On a GitHub-hosted runner that's always true
+ * (ubuntu-latest runs as root), but a non-root self-hosted runner always
+ * fails the apt-get step — a masking `|| npx playwright install chromium`
+ * fallback used to hide the failure, but that means `--with-deps` never
+ * did anything useful there and just wasted a failed install attempt on
+ * every self-hosted run (devaudit-installer#868).
+ *
+ * Mirrors resolveCheckoutClean's own runtime fallback exactly: the actual
+ * runner is only known at workflow *runtime* (a one-run `runner_label`
+ * override can still land on an ephemeral github-ci box even when
+ * cfg.runner is 'self-hosted'), so a sync-time boolean would be wrong
+ * whenever CI_RUNNER_LABEL falls back to 'github-ci'. Renders as a leading
+ * -space flag so `npx playwright install{{PLAYWRIGHT_WITH_DEPS_FLAG}} chromium`
+ * collapses to plain `npx playwright install chromium` when empty.
+ */
+function resolvePlaywrightWithDeps(cfg: SdlcConfig): string {
+  if (cfg.runner !== 'self-hosted') return ' --with-deps';
+  const label = "(inputs.runner_label || vars.CI_RUNNER_LABEL || 'github-ci')";
+  return `\${{ ${label} == 'github-ci' && ' --with-deps' || '' }}`;
+}
+
+/**
+ * Gate for the "Clean stale .next build output" step: true only when the
+ * runtime-resolved runner is actually self-hosted. A dev-server-writing job
+ * killed mid-write (timeout, OOM, cancellation) can leave `.next` torn on a
+ * persistent runner, corrupting every later run's TypeScript/Build gates on
+ * unrelated PRs; on the ephemeral github-ci path nothing persists between
+ * runs anyway, so the cleanup would be a harmless no-op there but is skipped
+ * outright to keep the step's `if:` legible (devaudit-installer#816).
+ *
+ * Mirrors resolveCheckoutClean/resolvePlaywrightWithDeps's own runtime
+ * fallback exactly: only meaningful for cfg.runner === 'self-hosted' (the
+ * dynamic CI_RUNNER_LABEL-resolving mode) — a static runner override never
+ * gets this self-hosted-only behavior, same as CHECKOUT_CLEAN.
+ */
+function resolveStaleNextCleanupCondition(cfg: SdlcConfig): string {
+  if (cfg.runner !== 'self-hosted') return 'false';
+  const label = "(inputs.runner_label || vars.CI_RUNNER_LABEL || 'github-ci')";
+  return `\${{ ${label} != 'github-ci' }}`;
+}
+
+/**
+ * npm audit's Dependency Audit gate has no retry today, so a transient
+ * registry blip (ECONNRESET, 5xx) hard-fails CI outright. Bounded at 5
+ * attempts on a self-hosted runner (where this was actually observed);
+ * left at 1 (i.e. no retry — today's exact behavior) everywhere else, same
+ * self-hosted-only scoping as resolveStaleNextCleanupCondition above
+ * (devaudit-installer#816).
+ */
+function resolveNpmAuditMaxAttempts(cfg: SdlcConfig): string {
+  if (cfg.runner !== 'self-hosted') return '1';
+  const label = "(inputs.runner_label || vars.CI_RUNNER_LABEL || 'github-ci')";
+  return `\${{ ${label} == 'github-ci' && '1' || '5' }}`;
+}
+
+/**
  * Section 2f: Generate CI workflows from templates + sdlc-config.json.
  *
  * Skipped if the consumer has no sdlc-config.json or no .github/workflows/.
@@ -512,6 +574,20 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
   if (!cfg.e2e_regression_enabled) {
     for (const existing of await fs.readdir(workflowsDir).catch(() => [] as string[])) {
       if (/^e2e-regression(-.+)?\.yml$/.test(existing)) {
+        await fs.rm(join(workflowsDir, existing));
+      }
+    }
+  }
+
+  // devaudit-installer#841 — reconcile-deployment.yml.template is Railway-
+  // specific (hardcoded railway CLI invocation + RAILWAY_TOKEN); consumers
+  // on any other host adapter got a dead workflow file with no equivalent
+  // reconciliation path of their own. Same remove-on-disable shape as the
+  // e2e-regression block above, keyed on the host adapter instead of a
+  // config flag.
+  if (ctx.host !== 'railway') {
+    for (const existing of await fs.readdir(workflowsDir).catch(() => [] as string[])) {
+      if (/^reconcile-deployment(-.+)?\.yml$/.test(existing)) {
         await fs.rm(join(workflowsDir, existing));
       }
     }
@@ -591,6 +667,9 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
       WORKING_DIR_PREFIX: workingDirPrefix,
       RUNNER: resolveRunner(cfg),
       CHECKOUT_CLEAN: resolveCheckoutClean(cfg),
+      PLAYWRIGHT_WITH_DEPS_FLAG: resolvePlaywrightWithDeps(cfg),
+      STALE_NEXT_CLEANUP_IF: resolveStaleNextCleanupCondition(cfg),
+      NPM_AUDIT_MAX_ATTEMPTS: resolveNpmAuditMaxAttempts(cfg),
       SOURCE_DIRS: sourceDirs,
       SAST_BASELINE: String(cfg.sast_baseline),
       ACCEPTED_DEP_RISKS: cfg.accepted_dep_risks,
@@ -674,6 +753,7 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
 
     for (const tmpl of CI_TEMPLATES) {
       if (tmpl === 'e2e-regression.yml.template' && !cfg.e2e_regression_enabled) continue;
+      if (tmpl === 'reconcile-deployment.yml.template' && ctx.host !== 'railway') continue;
       const stackTmpl = join(ctx.installerRoot, 'sdlc', 'files', 'ci', stack, tmpl);
       const defaultTmpl = join(ctx.installerRoot, 'sdlc', 'files', 'ci', tmpl);
       let tmplPath: string;

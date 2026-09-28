@@ -269,6 +269,16 @@ EOF
     && assert_eq "housekeeping predecessor moved to superseded-releases" "yes" "yes" \
     || assert_eq "housekeeping predecessor moved to superseded-releases" "yes" "no"
 
+  # devaudit-installer#838 — the bundle manifest itself must be archived
+  # alongside the primary ticket, so a later derive-release-version.sh run
+  # doesn't keep finding it in pending-releases/.
+  [ -f compliance/approved-releases/BUNDLED-CHANGES-REQ-090.json ] \
+    && assert_eq "bundle manifest archived alongside ticket" "yes" "yes" \
+    || assert_eq "bundle manifest archived alongside ticket" "yes" "no"
+  [ ! -f compliance/pending-releases/BUNDLED-CHANGES-REQ-090.json ] \
+    && assert_eq "bundle manifest no longer in pending-releases" "yes" "yes" \
+    || assert_eq "bundle manifest no longer in pending-releases" "yes" "no"
+
   grep -qF '**Status:** SUPERSEDED' compliance/superseded-releases/RELEASE-TICKET-REQ-089.md \
     && assert_eq "predecessor status flipped" "yes" "yes" \
     || assert_eq "predecessor status flipped" "yes" "no"
@@ -353,6 +363,52 @@ EOF
   bash "$HELPER" REQ-030 --release-pr 710 >/dev/null 2>&1 || true
   count=$(grep -cF '**Addendum release status:** RELEASED' compliance/superseded-releases/RELEASE-TICKET-REQ-030.md || true)
   assert_eq "addendum close-out is idempotent (no duplicate line)" "1" "$count"
+  rm -rf "$(dirname "$dir")"
+}
+
+# ── Case 6 (#838): declared-bundle .md manifest is archived alongside the
+#    ticket on close-out, and a predecessor REQ with no manifest of its own
+#    is unaffected ─────────────────────────────────────────────────────────
+{
+  dir="$(mktemp -d)/cli-close-out-fixture-6"
+  mkdir -p "$dir/compliance/pending-releases" \
+           "$dir/compliance/approved-releases" \
+           "$dir/compliance/superseded-releases"
+  cd "$dir"
+  git init -q --initial-branch=main >/dev/null
+  git config user.email "test@example.com"
+  git config user.name "test"
+  cat > compliance/RTM.md <<'EOF'
+# Requirements Traceability Matrix
+
+| REQ-ID  | Source | Risk | Evidence | Status | Owner | Date |
+| ------- | ------ | ---- | -------- | ------ | ----- | ---- |
+| REQ-104 | #500   | HIGH | compliance/evidence/REQ-104/ | TESTED - PENDING SIGN-OFF | test | 2026-09-01 |
+EOF
+  cat > compliance/pending-releases/RELEASE-TICKET-REQ-104.md <<'EOF'
+# Release Ticket: REQ-104
+
+**Status:** TESTED - PENDING SIGN-OFF
+**DevAudit Release:** REQ-104
+EOF
+  cat > compliance/pending-releases/BUNDLED-CHANGES-REQ-104.md <<'EOF'
+## Bundled Changes
+
+### Co-Tracked Bundle Members
+
+- `REQ-105` (co-tracked/bundled) — Second bundled REQ
+EOF
+  git add -A
+  git commit -q -m "fixture: declared-bundle .md manifest close-out"
+  unset DEVAUDIT_API_KEY DEVAUDIT_BASE_URL || true
+  bash "$HELPER" REQ-104 >/dev/null 2>&1 || true
+
+  [ -f compliance/approved-releases/BUNDLED-CHANGES-REQ-104.md ] \
+    && assert_eq ".md bundle manifest archived alongside ticket" "yes" "yes" \
+    || assert_eq ".md bundle manifest archived alongside ticket" "yes" "no"
+  [ ! -f compliance/pending-releases/BUNDLED-CHANGES-REQ-104.md ] \
+    && assert_eq ".md bundle manifest no longer in pending-releases" "yes" "yes" \
+    || assert_eq ".md bundle manifest no longer in pending-releases" "yes" "no"
   rm -rf "$(dirname "$dir")"
 }
 

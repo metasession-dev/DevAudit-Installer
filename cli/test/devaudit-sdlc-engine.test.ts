@@ -404,6 +404,43 @@ describe('devaudit-sdlc CLI engine', () => {
     });
   });
 
+  describe('--freshness-checked flag (devaudit-installer#839)', () => {
+    it('--freshness-checked=<version> writes a sentinel record with the version', async () => {
+      const res = await runEngine(['--freshness-checked=1.6.1'], sandbox);
+      expect(res.exitCode).toBe(0);
+      expect(res.stdout).toContain('Freshness check recorded');
+
+      const sentinel = await readSentinel(sandbox) as Array<Record<string, unknown>>;
+      expect(sentinel).toHaveLength(1);
+      expect(sentinel[0]!.freshnessCheckedVersion).toBe('1.6.1');
+      expect(() => new Date(sentinel[0]!.freshnessCheckedAt as string).toISOString()).not.toThrow();
+    });
+
+    it('bare --freshness-checked (no version) records a null version', async () => {
+      const res = await runEngine(['--freshness-checked'], sandbox);
+      expect(res.exitCode).toBe(0);
+
+      const sentinel = await readSentinel(sandbox) as Array<Record<string, unknown>>;
+      expect(sentinel[0]!.freshnessCheckedVersion).toBe(null);
+    });
+
+    it('appends to, rather than replaces, existing phase records', async () => {
+      await runEngine(['--phase=issue'], sandbox);
+      await runEngine(['--freshness-checked=1.6.1'], sandbox);
+
+      const sentinel = await readSentinel(sandbox) as Array<Record<string, unknown>>;
+      expect(sentinel).toHaveLength(2);
+      expect(sentinel[0]!.currentPhase).toBe('issue');
+      expect(sentinel[1]!.freshnessCheckedVersion).toBe('1.6.1');
+    });
+
+    it('--req=XXX passes reqId into the freshness record', async () => {
+      await runEngine(['--freshness-checked=1.6.1', '--req=042'], sandbox);
+      const sentinel = await readSentinel(sandbox) as Array<Record<string, unknown>>;
+      expect(sentinel[0]!.reqId).toBe('042');
+    });
+  });
+
   describe('PR watch loop (devaudit-installer#304)', () => {
     it('--watch-pr --once marks an approved green PR as ready and writes watch state', async () => {
       const mockBin = await writeMockGh(sandbox);

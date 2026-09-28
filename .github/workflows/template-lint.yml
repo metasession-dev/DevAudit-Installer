@@ -126,5 +126,10 @@ jobs:
           chmod +x sdlc/files/_common/scripts/close-out-reconcile.sh
           bash sdlc/files/_common/scripts/close-out-reconcile.test.sh
 
+      - name: Run reconcile-railway-deployment tests
+        run: |
+          chmod +x sdlc/files/_common/scripts/reconcile-railway-deployment.sh
+          bash sdlc/files/_common/scripts/reconcile-railway-deployment.test.sh
+
       - name: Run release pipeline E2E fixture
         run: bash tests/release-pipeline-e2e/run.sh

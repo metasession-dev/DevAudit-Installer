@@ -184,8 +184,14 @@ if [ -z "${DEVAUDIT_BASE_URL:-}" ]; then
   exit 1
 fi
 if [ -z "${DEVAUDIT_API_KEY:-}" ]; then
-  echo "Error: DEVAUDIT_API_KEY environment variable is required (issue from"
-  echo "       Project Settings → API Keys in META-COMPLY)"
+  echo "Error: DEVAUDIT_API_KEY environment variable is required (issue an"
+  echo "       uploader-role key from Project Settings → API Keys in META-COMPLY;"
+  echo "       CI already has one as a repo secret)."
+  echo "       Consequence: this evidence upload / release pre-creation cannot"
+  echo "       run without it. Fallback (devaudit-installer#845): CI's own"
+  echo "       register-release job re-uploads the same evidence on push and"
+  echo "       creates the release as a safety net if this call was skipped —"
+  echo "       or an operator can upload the file manually via the portal UI."
   exit 1
 fi
 

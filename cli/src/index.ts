@@ -157,6 +157,14 @@ export async function main(argv: readonly string[]): Promise<void> {
         '(defaults to the running CLI version). So a bare `devaudit update` syncs ' +
         'the current project.',
     )
+    .option(
+      '--enable-e2e-regression',
+      'set e2e_regression_enabled: true in sdlc-config.json before syncing (devaudit-installer#876)',
+    )
+    .option(
+      '--disable-e2e-regression',
+      'set e2e_regression_enabled: false in sdlc-config.json before syncing (devaudit-installer#876)',
+    )
     // commander passes (…declared-args, optionsObject, command). `update` has
     // two declared args, so the Command is the FOURTH parameter — the options
     // object sits third. Binding `cmd` to the third param made
@@ -173,10 +181,19 @@ export async function main(argv: readonly string[]): Promise<void> {
       }
       if (resolvedPaths.length === 0) resolvedPaths = ['.'];
       const globals = cmd.optsWithGlobals();
+      // Mutual-exclusion + config-flip validation lives in runUpdate itself
+      // (mirrors runPush's own validation style), not here — so it's
+      // exercised the same way whether invoked via commander or directly.
       await runUpdate({
         version: resolvedVersion ?? CLI_VERSION,
         paths: resolvedPaths,
         ...(globals.dryRun !== undefined ? { dryRun: Boolean(globals.dryRun) } : {}),
+        ...(globals.enableE2eRegression !== undefined
+          ? { enableE2eRegression: Boolean(globals.enableE2eRegression) }
+          : {}),
+        ...(globals.disableE2eRegression !== undefined
+          ? { disableE2eRegression: Boolean(globals.disableE2eRegression) }
+          : {}),
       });
     });
   program

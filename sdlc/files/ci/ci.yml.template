@@ -76,6 +76,18 @@ jobs:
           # cache entirely (devaudit-installer#676).
           clean: {{CHECKOUT_CLEAN}}
 
+      - name: Clean stale .next build output (self-hosted only)
+        # A dev-server-writing job killed mid-write (timeout, OOM,
+        # cancellation) on a persistent self-hosted runner can leave `.next`
+        # torn/corrupted for every subsequent run's TypeScript Check / Build
+        # Check, on unrelated PRs. Companion to the `clean: {{CHECKOUT_CLEAN}}`
+        # optimization above (devaudit-installer#676/#815), which
+        # intentionally preserves node_modules but shouldn't preserve live
+        # scratch state (devaudit-installer#816). No-op on the ephemeral
+        # github-ci path, where nothing persists between runs anyway.
+        if: {{STALE_NEXT_CLEANUP_IF}}
+        run: rm -rf .next
+
       - name: Validate self-hosted runner prerequisites
         env:
           DEVAUDIT_RUNNER_ENVIRONMENT: ${{ runner.environment }}
@@ -144,7 +156,7 @@ jobs:
           echo "$VENV/bin" >> "$GITHUB_PATH"
 
       - name: Install Playwright (skip if already cached)
-        run: npx playwright install --with-deps chromium 2>/dev/null || npx playwright install chromium
+        run: npx playwright install{{PLAYWRIGHT_WITH_DEPS_FLAG}} chromium
 
       # ── Gate 1: TypeScript ──
 
@@ -181,11 +193,42 @@ jobs:
 
       # ── Gate 3: Dependency Audit ──
 
+      - name: Ensure npm supports the current audit API endpoint
+        # Node's bundled npm (10.8.2) calls the now-retired
+        # /v1/security/audits/quick endpoint, which 400s ("Invalid package
+        # tree") regardless of lockfile validity. npm 10.9.x+ calls the
+        # replacement /v1/security/advisories/bulk endpoint. Not
+        # runner-specific — every runner ships whatever npm version its Node
+        # install bundled (devaudit-installer#816).
+        run: npm install -g npm@^10.9.8
+
       - name: Dependency Audit
         id: dep-audit
         run: |
           # stderr → /dev/null so warnings can't corrupt the JSON (DevAudit #48)
-          npm audit --json > dependency-audit.json 2>/dev/null || true
+          # npm audit's own exit code is not a useful retry signal — it's
+          # nonzero whenever vulnerabilities are found, which is a
+          # *successful* audit, not a failure. Retry only when the call
+          # produced no parseable JSON at all (npm's own signal that the
+          # call itself didn't complete, e.g. a transient ECONNRESET/5xx
+          # registry blip), bounded so a persistent outage still fails fast
+          # rather than hanging (devaudit-installer#816).
+          MAX_ATTEMPTS={{NPM_AUDIT_MAX_ATTEMPTS}}
+          ATTEMPT=1
+          while true; do
+            npm audit --json > dependency-audit.json 2>/dev/null || true
+            if jq empty dependency-audit.json 2>/dev/null; then
+              break
+            fi
+            if [ "$ATTEMPT" -ge "$MAX_ATTEMPTS" ]; then
+              echo "::warning::npm audit produced no parseable JSON after ${ATTEMPT} attempt(s); continuing with an empty result."
+              echo '{"vulnerabilities":{}}' > dependency-audit.json
+              break
+            fi
+            echo "npm audit attempt ${ATTEMPT}/${MAX_ATTEMPTS} produced no parseable JSON — retrying..."
+            ATTEMPT=$((ATTEMPT + 1))
+            sleep $((ATTEMPT * 2))
+          done
           # The helper evaluates each high/critical advisory independently
           # against the installed package-lock path and writes an auditable
           # decision record. It is intentionally fail-closed: malformed audit
@@ -479,7 +522,7 @@ jobs:
           DECLARED_BUNDLE_ARGS=()
           if [ -f "$BUNDLED_FILE" ] && grep -q 'Co-Tracked Bundle Members' "$BUNDLED_FILE" 2>/dev/null \
              && [ -f "$BUNDLED_MANIFEST" ]; then
-            DECLARED_MEMBERS=$(jq -r '(.members // [])[] | select(.role == "co-tracked") | .version' "$BUNDLED_MANIFEST" 2>/dev/null | paste -sd, - || true)
+            DECLARED_MEMBERS=$(jq -r '(.members // [])[] | select(.role == "co_tracked") | .version' "$BUNDLED_MANIFEST" 2>/dev/null | paste -sd, - || true)
             if [ -n "$DECLARED_MEMBERS" ]; then
               echo "Preserving declared co-tracked bundle members: ${DECLARED_MEMBERS}"
               DECLARED_BUNDLE_ARGS=(--declared-bundle "$DECLARED_MEMBERS")
@@ -496,22 +539,16 @@ jobs:
             exit 0
           fi
 
-          # devaudit-installer#817 — the portal doesn't accept
-          # role="co-tracked"/relationship="bundled" yet (devaudit#857), and
-          # submit-bundle-manifest.sh hard-fails this step on any non-201
-          # response with no error suppression at the call site — submitting
-          # co-tracked members today would break this step on every push for
-          # every declared bundle. Submit a filtered copy that excludes
-          # them; they stay in $BUNDLED_MANIFEST / $BUNDLED_FILE for the
-          # evidence upload below (a generic document upload, not
-          # schema-validated) and for local/PR visibility. Relies on
-          # submit-bundle-manifest.sh's own existing "no members or work
-          # items" no-op guard for the case where filtering leaves nothing
-          # submittable. Drop this filter once devaudit#857 ships.
-          SUBMIT_MANIFEST="$(mktemp)"
-          jq '.members |= map(select(.role != "co-tracked"))' "$BUNDLED_MANIFEST" > "$SUBMIT_MANIFEST"
-          bash scripts/submit-bundle-manifest.sh {{PROJECT_SLUG}} "$VERSION" "$SUBMIT_MANIFEST"
-          rm -f "$SUBMIT_MANIFEST"
+          # devaudit-installer#817 — devaudit#857 (shipped 2026-09-25) added
+          # role="co_tracked"/relationship="bundled" to the portal's
+          # accepted vocabulary and gates UAT approval atomically across
+          # every co_tracked member of a release. Submit the full manifest,
+          # co_tracked members included — an earlier version of this step
+          # filtered them out because the portal 400'd on them and
+          # submit-bundle-manifest.sh hard-fails on any non-201 response
+          # with no error suppression at the call site; that filter is no
+          # longer needed now that the portal accepts the role.
+          bash scripts/submit-bundle-manifest.sh {{PROJECT_SLUG}} "$VERSION" "$BUNDLED_MANIFEST"
           # Upload as bundled_changes evidence against this release (REQ-tracked
           # or bare-date housekeeping — devaudit-installer#622).
           bash scripts/upload-evidence.sh \
@@ -753,7 +790,7 @@ jobs:
           BUNDLE_MANIFEST="compliance/pending-releases/BUNDLED-CHANGES-${{ needs.register-release.outputs.version }}.json"
           if [ -f "$BUNDLE_DECLARATION" ] && [ -f "$BUNDLE_MANIFEST" ] \
              && grep -q 'Co-Tracked Bundle Members' "$BUNDLE_DECLARATION"; then
-            BUNDLE_MEMBERS=$(jq -r '(.members // [])[] | select(.role == "co-tracked") | .version' "$BUNDLE_MANIFEST" 2>/dev/null || true)
+            BUNDLE_MEMBERS=$(jq -r '(.members // [])[] | select(.role == "co_tracked") | .version' "$BUNDLE_MANIFEST" 2>/dev/null || true)
             if [ -n "$BUNDLE_MEMBERS" ]; then
               echo "Fanning out SAST/Dependency Audit evidence to declared-bundle members: $(echo "$BUNDLE_MEMBERS" | tr '\n' ' ')"
             fi

@@ -27,6 +27,17 @@ The broader three-tier pattern is documented and available as a reference workfl
 - [`docs/e2e-local-db-ci.md`](./e2e-local-db-ci.md) for safe local/disposable backends in CI
 - [`sdlc/files/_common/skills/e2e-test-engineer/references/e2e-regression-3-tier.yml`](../sdlc/files/_common/skills/e2e-test-engineer/references/e2e-regression-3-tier.yml) for the optional smoke/critical/regression split
 
+## Opting into the 3-tier regression gate
+
+Most projects don't need this — the blocking smoke gate above is mandatory and on by default. This is an opt-in stronger safety net (a full pack that runs at ~55 minutes), for projects that want pre-merge `critical` protection and/or a post-deploy `regression` sweep on top of smoke.
+
+1. **Flip the config and regenerate CI in one step** (devaudit-installer#876): `devaudit update --enable-e2e-regression <path>`. This sets `e2e_regression_enabled: true` in `sdlc-config.json` and syncs, which generates `e2e-regression.yml` plus the matching `compliance-evidence.yml` listener (gated per #869) — no manual JSON edit needed.
+2. **Add `critical`/`regression` named projects to your own `playwright.config.ts`.** The CLI step above only flips the config and regenerates CI — it does not, and cannot generically, scaffold the actual test projects; that's real test authorship, left to the operator/agent. Without this, the generated workflow has nothing to run.
+3. **Run `devaudit doctor` to self-verify.** Its existing `e2e-regression` check (`checkE2eRegressionConsistency`) catches drift between the flag and the Playwright config in either direction — flag on with no matching Playwright projects, or Playwright projects present with the flag still off.
+4. **Turn it back off** with `devaudit update --disable-e2e-regression <path>` — sets the flag back to `false` and removes the generated workflow cleanly (it does not linger as dead CI content).
+
+A plain `devaudit update` with neither flag never touches `e2e_regression_enabled` — it's pure opt-in, not something a routine sync can silently flip.
+
 ## Screenshot density across tiers
 
 DevAudit also distinguishes between feature-proof captures and regression-proof captures:

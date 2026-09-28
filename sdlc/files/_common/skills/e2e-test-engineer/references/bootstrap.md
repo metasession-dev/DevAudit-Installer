@@ -223,6 +223,11 @@ jobs:
           retention-days: 14
 ```
 
+`--with-deps` needs root to `apt-get` system libraries — fine on
+`ubuntu-latest` above, but drop it (or gate it on the runner type, see
+`references/e2e-regression-3-tier.yml`) if the consumer points this at a
+non-root self-hosted runner instead (devaudit-installer#868).
+
 ### GitHub Actions — Cypress
 
 Use the official `cypress-io/github-action` — handles caching and parallelisation. Equivalent shape; see Cypress docs for current syntax (it changes more often than other CI integrations).

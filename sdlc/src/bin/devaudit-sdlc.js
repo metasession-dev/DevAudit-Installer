@@ -57,8 +57,12 @@ function hasFlag(name) {
 }
 
 function printUsageAndExit() {
-    console.error("❌ ERROR: Missing required configuration property. Execution syntax: devaudit-sdlc --phase=<1-5|issue> | --watch-pr=<number>");
+    console.error("❌ ERROR: Missing required configuration property. Execution syntax: devaudit-sdlc --phase=<1-5|issue> | --watch-pr=<number> | --freshness-checked[=<version>]");
     process.exit(1);
+}
+
+function hasFreshnessFlag() {
+    return args.some(arg => arg === '--freshness-checked' || arg.startsWith('--freshness-checked='));
 }
 
 function sleep(ms) {
@@ -199,6 +203,50 @@ function appendPhaseRecord(phase) {
         const content = fs.readFileSync(blueprintPath, 'utf8');
         console.log(content);
     }
+}
+
+function appendFreshnessRecord(version) {
+    const context = detectInvocationContext();
+    const reqId = resolveReqId();
+
+    const newRecord = {
+        freshnessCheckedAt: new Date().toISOString(),
+        freshnessCheckedVersion: version || null,
+        initializedBy: context.initializedBy,
+        reqId: reqId,
+        agentType: context.agentType,
+    };
+
+    let phaseHistory = [];
+    if (fs.existsSync(sentinelPath)) {
+        try {
+            const existingContent = fs.readFileSync(sentinelPath, 'utf8');
+            const parsed = JSON.parse(existingContent);
+            if (Array.isArray(parsed)) {
+                phaseHistory = parsed;
+            } else {
+                console.warn('⚠️ WARNING: Sentinel file contained a legacy single-object format. Migrating to array format.');
+                phaseHistory = [parsed];
+            }
+        } catch (_parseError) {
+            console.warn('⚠️ WARNING: Sentinel file was corrupt or in legacy plain-text format. Overwriting with fresh phase history.');
+            phaseHistory = [];
+        }
+    }
+
+    phaseHistory.push(newRecord);
+    saveJsonFile(sentinelPath, phaseHistory);
+
+    console.log(`\n✅ Freshness check recorded: appended entry to sentinel at ${sentinelPath}`);
+    console.log(`📦 Synced version confirmed: ${version || 'unknown (registry unreachable)'}`);
+    console.log(`👤 Initialized by: ${context.initializedBy}${reqId ? ` (REQ-${reqId})` : ''}`);
+
+    // Same CI-provenance rationale as appendPhaseRecord (devaudit#775): the
+    // sentinel file is gitignored and local-only, so print the trailer for
+    // the skill to copy into commits this session in case a CI-run upload
+    // needs to prove the freshness check happened too.
+    console.log(`\n--- GIT COMMIT TRAILER (copy verbatim into every commit this session) ---`);
+    console.log(`Sdlc-Implementer-Sentinel: ${JSON.stringify(phaseHistory)}`);
 }
 
 function runBlueprintView(phase) {
@@ -575,9 +623,20 @@ async function main() {
     const phase = getOption('phase');
     const viewOnly = hasFlag('view');
     const watchPr = getOption('watch-pr');
+    const freshnessChecked = hasFreshnessFlag();
 
-    if (!phase && !watchPr) {
+    if (!phase && !watchPr && !freshnessChecked) {
         printUsageAndExit();
+    }
+
+    if (freshnessChecked) {
+        try {
+            appendFreshnessRecord(getOption('freshness-checked'));
+        } catch (error) {
+            console.error("❌ SYSTEM ERROR: Failed to instantiate workspace sentinel tracking state:", error.message);
+            process.exit(1);
+        }
+        return;
     }
 
     if (watchPr) {

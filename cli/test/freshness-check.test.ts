@@ -36,6 +36,12 @@ describe('sdlc-implementer skill — Phase 0 freshness check', () => {
   it('degrades to a non-blocking warning when the registry is unreachable', () => {
     expect(skill).toContain('log a warning and proceed to step 1 without blocking');
   });
+
+  it('records the check in the sentinel, once per REQ (devaudit-installer#839)', () => {
+    expect(skill).toContain('node SDLC/bin/devaudit-sdlc.js --freshness-checked=<confirmed-version>');
+    expect(skill).toContain('freshnessCheckedAt');
+    expect(skill).toContain('never re-run the freshness check');
+  });
 });
 
 describe('SdlcConfig schema — devaudit_synced_version field', () => {

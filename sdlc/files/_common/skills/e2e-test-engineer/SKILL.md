@@ -125,7 +125,13 @@ Derive scenarios from these sources, in this order:
 
 4. **Adjacent regression scenarios** — pick the one or two nearby flows most likely to break because they share code with the change. Don't try to re-test the whole app from this seat.
 
-5. **Visual regression scenarios** (only if the project does visual regression): each visually-changed component or page state gets a snapshot at the breakpoints the project already covers. Add one or two adjacent surfaces that share styling.
+5. **Bidirectional cross-feature scenarios** — a distinct check from item 4, not folded into it. When the diff modifies a document/model field that another already-shipped feature also reads or writes, derive a scenario in **both** directions:
+   - Does this change corrupt the other feature's data?
+   - Does the other feature's existing behaviour corrupt this change's new field/logic (if not already covered elsewhere)?
+
+   Identifying "an adjacent flow shares code" (item 4) is not the same as checking both directions of a shared-field interaction — a feature pair can be adjacent and still only get tested in one direction. See `references/bidirectional-cross-feature-example.md` for a worked example.
+
+6. **Visual regression scenarios** (only if the project does visual regression): each visually-changed component or page state gets a snapshot at the breakpoints the project already covers. Add one or two adjacent surfaces that share styling.
 
 Resist padding. A new endpoint doesn't need a test that re-verifies login if login is already covered. Match the project's existing depth — if it covers one happy path per feature, don't add six.
 
@@ -166,8 +172,10 @@ For the area touched by the change, look at what's already there.
 
 3. **Needs updating** — existing tests where the scenario is still valid but selectors, routes, or assertions have shifted.
 
+4. **Missing reverse-direction coverage** — for each feature pair flagged by Phase 3's bidirectional check, check whether an existing test already covers one direction (A→B) of the pair. If it does, and this diff touches the other direction (B→A) of the *same* pair, that's not overlap — it's a gap. Flag the missing reverse-direction scenario and add it to the "To add" list below, even though the pair already has a test on file.
+
 Present three lists to the user:
-- **To add** — new scenarios not already covered.
+- **To add** — new scenarios not already covered, including any missing reverse-direction scenarios found in item 4 above.
 - **To update** — existing tests needing adjustment.
 - **To delete** — genuinely obsolete tests, each with a one-line rationale.
 
@@ -271,6 +279,8 @@ npx playwright install --dry-run 2>&1 | grep -q "is already installed" || npx pl
 
 If the install fails (e.g. missing system dependencies on Linux), run `npx playwright install --with-deps` (requires sudo on some systems — ask the operator). Do not defer E2E execution to CI because browsers are not installed. Installing browsers takes ~30 seconds; deferring breaks the evidence trail.
 
+The generated CI templates (`ci.yml`, `feature-e2e.yml`, `e2e-regression.yml`) already gate `--with-deps` on the runner type — it's only requested on the ephemeral `github-ci` path, since a non-root self-hosted runner can't `apt-get` and always fails it (devaudit-installer#868). That gating is CI-only; it doesn't change this local pre-flight step.
+
 **Do not defer E2E to CI (devaudit-installer#238).** If browsers are not installed, install them. If the dev server will not start, debug it. If the database is not running, start it. CI is a safety net, not a replacement for local E2E execution. The `.e2e-gate-passed` sentinel must be written by a local run — skipping it by deferring to CI breaks the evidence-completeness chain and causes the evidence-completeness gate (#237) to fire with false negatives.
 
 **Gate state vocabulary (devaudit-installer#240).** In `test-execution-summary.md`, E2E gate results must be one of: `PASS`, `FAIL`, `NOT_NEEDED` (with reason), or `SKIPPED` (with operator-approved rationale). The word "deferred" must never appear in `test-execution-summary.md` — not as a gate state, not in prose, not in final assessment. The CI validator (`validate-test-summary.sh`) rejects any file containing "deferred" anywhere. If E2E was not run locally, record it as `SKIPPED` with the reason and flag it as a gate failure for the reviewer. Do not write "E2E deferred to CI" or "Playwright browsers not installed locally" — these are environment issues, not gate states.
@@ -290,7 +300,7 @@ Triage every failure into one of these buckets *before* taking any action:
 
 Then bucket each failure:
 
-- **Flake** — non-deterministic; passes on rerun. Rerun once. If it passes, note it. If it keeps flaking, flag it but don't file a noisy bug.
+- **Flake** — non-deterministic; passes on rerun. Rerun once. If it passes, note it. If it keeps flaking, flag it but don't file a noisy bug. **If a full-regression run shows a different, seemingly-unrelated spec failing each time** (not the same spec every run), that signature is suite-reliability territory, not N independent flaky tests — invoke `Skill(name: "e2e-ci-reliability", args: "<summary of the shifting-failure pattern across recent runs>")` before filing anything. It runs the isolation-test-first check and classifies accumulated process/connection degradation vs. dev-server cold-compile latency vs. a host resource ceiling, and reports back whether the failure is environmental (its territory) or a genuine application defect (yours to file).
 - **Test bug** — your test is wrong (bad selector, wrong assertion, timing). Fix the test; don't file anything.
 - **Application defect** — the app does the wrong thing. File it.
 - **Seed-data gap** — the page works, the test's assertion is correct, but the seeded fixture doesn't satisfy the assertion (empty table, no transactions for the day, missing user role). Fix the seed script (or the test's own setup), not the test logic or the product.

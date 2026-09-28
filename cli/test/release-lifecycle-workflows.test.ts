@@ -410,9 +410,10 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     // Keys off the committed declared-bundle manifest, distinguished from
     // the ephemeral retroactive-absorption manifest by the same
     // "Co-Tracked Bundle Members" guard derive-release-version.sh step 0
-    // uses, and filters to role == "co-tracked" only.
+    // uses, and filters to role == "co_tracked" only (devaudit-installer#817
+    // — underscore, matching the portal's validation).
     expect(source).toContain("grep -q 'Co-Tracked Bundle Members' \"$BUNDLE_DECLARATION\"");
-    expect(source).toContain('select(.role == "co-tracked") | .version');
+    expect(source).toContain('select(.role == "co_tracked") | .version');
     // Fans out both evidence types, unlike E2E's per-spec-tag gating --
     // SAST/dependency-audit apply uniformly to the whole bundle's shared diff.
     expect(source).toContain('sast-results.json -> ${MEMBER_REQ}');

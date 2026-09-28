@@ -163,7 +163,7 @@ jobs:
             echo "$LOCK_HASH" > node_modules/.lock-hash
           fi
       - name: Install Playwright (skip if already cached)
-        run: npx playwright install --with-deps chromium 2>/dev/null || npx playwright install chromium
+        run: npx playwright install{{PLAYWRIGHT_WITH_DEPS_FLAG}} chromium
 
 {{DATABASE_URI_STEP}}
 {{E2E_SETUP_STEP}}

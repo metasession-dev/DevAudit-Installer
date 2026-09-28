@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { promises as fs } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { load as yamlLoad } from 'js-yaml';
 import { execa } from 'execa';
 import { syncProject } from '../src/update/index.js';
+import { runUpdate } from '../src/commands/update.js';
 import { CLI_VERSION } from '../src/lib/version.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -1743,6 +1744,165 @@ describe('syncProject — native TS sync against a fixture', () => {
     }
   }, 60_000);
 
+  it('only requests playwright install --with-deps on the runtime-resolved github-ci path for a self-hosted runner (#868)', async () => {
+    const dir = await buildFixture();
+    try {
+      const configPath = join(dir, 'sdlc-config.json');
+      const config = JSON.parse(await fs.readFile(configPath, 'utf8')) as Record<
+        string,
+        unknown
+      >;
+      config.runner = 'self-hosted';
+      await fs.writeFile(configPath, JSON.stringify(config));
+      process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
+
+      await syncProject(dir);
+
+      const withDepsExpr =
+        "${{ (inputs.runner_label || vars.CI_RUNNER_LABEL || 'github-ci') == 'github-ci' && ' --with-deps' || '' }}";
+      // devaudit-installer#868 — --with-deps needs root to apt-get system
+      // libs and always fails on a non-root self-hosted runner; every
+      // generated workflow with a Playwright install step must gate it.
+      // Floor is 2 (ci.yml + feature-e2e.yml): e2e-regression.yml isn't
+      // generated at all with e2e_regression_enabled unset (see the
+      // sibling #821 tests below).
+      const workflowDir = join(dir, '.github', 'workflows');
+      const workflowFiles = await fs.readdir(workflowDir);
+      let totalInstallLines = 0;
+      for (const wf of workflowFiles) {
+        if (!wf.endsWith('.yml') && !wf.endsWith('.yaml')) continue;
+        const content = normalizeNewlines(
+          await fs.readFile(join(workflowDir, wf), 'utf8'),
+        );
+        const installLines = content
+          .split('\n')
+          .filter((line) => /npx playwright install\b/.test(line));
+        totalInstallLines += installLines.length;
+        for (const line of installLines) {
+          expect(line.trim(), `${wf} playwright install line`).toBe(
+            `run: npx playwright install${withDepsExpr} chromium`,
+          );
+        }
+      }
+      expect(totalInstallLines).toBeGreaterThanOrEqual(2);
+
+      await expectAllWorkflowsValidYaml(dir);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it('leaves playwright install --with-deps unconditional for a non-self-hosted runner (#868)', async () => {
+    const dir = await buildFixture();
+    try {
+      const configPath = join(dir, 'sdlc-config.json');
+      const config = JSON.parse(await fs.readFile(configPath, 'utf8')) as Record<
+        string,
+        unknown
+      >;
+      config.runner = 'ubuntu-latest';
+      await fs.writeFile(configPath, JSON.stringify(config));
+      process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
+
+      await syncProject(dir);
+
+      const workflowDir = join(dir, '.github', 'workflows');
+      const workflowFiles = await fs.readdir(workflowDir);
+      let totalInstallLines = 0;
+      for (const wf of workflowFiles) {
+        if (!wf.endsWith('.yml') && !wf.endsWith('.yaml')) continue;
+        const content = normalizeNewlines(
+          await fs.readFile(join(workflowDir, wf), 'utf8'),
+        );
+        const installLines = content
+          .split('\n')
+          .filter((line) => /npx playwright install\b/.test(line));
+        totalInstallLines += installLines.length;
+        for (const line of installLines) {
+          expect(line.trim(), `${wf} playwright install line`).toBe(
+            'run: npx playwright install --with-deps chromium',
+          );
+        }
+      }
+      expect(totalInstallLines).toBeGreaterThanOrEqual(2);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it('only cleans stale .next output and retries npm audit on the runtime-resolved self-hosted path (#816)', async () => {
+    const dir = await buildFixture();
+    try {
+      const configPath = join(dir, 'sdlc-config.json');
+      const config = JSON.parse(await fs.readFile(configPath, 'utf8')) as Record<
+        string,
+        unknown
+      >;
+      config.runner = 'self-hosted';
+      await fs.writeFile(configPath, JSON.stringify(config));
+      process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
+
+      await syncProject(dir);
+
+      const ciYml = normalizeNewlines(
+        await fs.readFile(join(dir, '.github', 'workflows', 'ci.yml'), 'utf8'),
+      );
+
+      const cleanupIfExpr = "${{ (inputs.runner_label || vars.CI_RUNNER_LABEL || 'github-ci') != 'github-ci' }}";
+      const cleanupIfLines = ciYml.split('\n').filter((line) => /^\s*if: \$\{\{ \(inputs\.runner_label/.test(line));
+      expect(cleanupIfLines.length).toBe(1);
+      expect(cleanupIfLines[0]?.trim()).toBe(`if: ${cleanupIfExpr}`);
+      expect(ciYml).toContain('rm -rf .next');
+
+      const maxAttemptsExpr =
+        "${{ (inputs.runner_label || vars.CI_RUNNER_LABEL || 'github-ci') == 'github-ci' && '1' || '5' }}";
+      const maxAttemptsLines = ciYml.split('\n').filter((line) => /^\s*MAX_ATTEMPTS=/.test(line));
+      expect(maxAttemptsLines.length).toBe(1);
+      expect(maxAttemptsLines[0]?.trim()).toBe(`MAX_ATTEMPTS=${maxAttemptsExpr}`);
+
+      expect(ciYml).toContain('npm install -g npm@^10.9.8');
+
+      await expectAllWorkflowsValidYaml(dir);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it('leaves the stale .next cleanup disabled and npm audit retry at 1 attempt for a non-self-hosted runner (#816)', async () => {
+    const dir = await buildFixture();
+    try {
+      const configPath = join(dir, 'sdlc-config.json');
+      const config = JSON.parse(await fs.readFile(configPath, 'utf8')) as Record<
+        string,
+        unknown
+      >;
+      config.runner = 'ubuntu-latest';
+      await fs.writeFile(configPath, JSON.stringify(config));
+      process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
+
+      await syncProject(dir);
+
+      const ciYml = normalizeNewlines(
+        await fs.readFile(join(dir, '.github', 'workflows', 'ci.yml'), 'utf8'),
+      );
+
+      // The cleanup step's own `if:` line is the only bare `if: false` in ci.yml.
+      const bareIfFalse = ciYml.split('\n').filter((line) => line.trim() === 'if: false');
+      expect(bareIfFalse.length).toBe(1);
+      expect(ciYml).toContain('rm -rf .next');
+
+      const maxAttemptsLines = ciYml.split('\n').filter((line) => /^\s*MAX_ATTEMPTS=/.test(line));
+      expect(maxAttemptsLines.length).toBe(1);
+      expect(maxAttemptsLines[0]?.trim()).toBe('MAX_ATTEMPTS=1');
+
+      expect(ciYml).toContain('npm install -g npm@^10.9.8');
+
+      await expectAllWorkflowsValidYaml(dir);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
   it('does not generate e2e-regression.yml unless e2e_regression_enabled is set (#821)', async () => {
     const dir = await buildFixture();
     try {
@@ -1814,6 +1974,52 @@ describe('syncProject — native TS sync against a fixture', () => {
     }
   }, 60_000);
 
+  it('does not generate reconcile-deployment.yml for a non-railway host adapter (#841)', async () => {
+    const dir = await buildFixture();
+    try {
+      const configPath = join(dir, 'sdlc-config.json');
+      const config = JSON.parse(await fs.readFile(configPath, 'utf8')) as Record<string, unknown>;
+      config['host'] = 'vercel';
+      await fs.writeFile(configPath, JSON.stringify(config));
+      process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
+
+      await syncProject(dir);
+      const workflowFiles = await fs.readdir(join(dir, '.github', 'workflows'));
+      // reconcile-deployment.yml.template hardcodes the railway CLI +
+      // RAILWAY_TOKEN — a vercel (or any non-railway) consumer has no use
+      // for it and shouldn't receive dead workflow content.
+      expect(workflowFiles).not.toContain('reconcile-deployment.yml');
+      await expectAllWorkflowsValidYaml(dir);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it('generates reconcile-deployment.yml for the railway host adapter, and removes it if the host changes away from railway (#841)', async () => {
+    const dir = await buildFixture();
+    try {
+      process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
+      await syncProject(dir);
+      const workflowDir = join(dir, '.github', 'workflows');
+      const workflowFiles = await fs.readdir(workflowDir);
+      expect(workflowFiles).toContain('reconcile-deployment.yml');
+      const content = await fs.readFile(join(workflowDir, 'reconcile-deployment.yml'), 'utf8');
+      expect(content).toContain('RAILWAY_TOKEN');
+
+      // Switching a previously-railway consumer to another host removes the
+      // now-stale reconcile-deployment.yml instead of leaving it behind.
+      const configPath = join(dir, 'sdlc-config.json');
+      const config = JSON.parse(await fs.readFile(configPath, 'utf8')) as Record<string, unknown>;
+      config['host'] = 'vercel';
+      await fs.writeFile(configPath, JSON.stringify(config));
+      await syncProject(dir);
+      const workflowFilesAfter = await fs.readdir(workflowDir);
+      expect(workflowFilesAfter).not.toContain('reconcile-deployment.yml');
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
   it('strips compliance-evidence.yml\'s dead E2E Regression workflow_run listener + job unless e2e_regression_enabled is set (#869)', async () => {
     const dir = await buildFixture();
     try {
@@ -1873,6 +2079,99 @@ describe('syncProject — native TS sync against a fixture', () => {
       await expect(syncProject(badDir)).rejects.toThrow(/stack adapter not found/);
     } finally {
       await fs.rm(badDir, { recursive: true, force: true });
+    }
+  }, 30_000);
+});
+
+describe('runUpdate — --enable/--disable-e2e-regression (#876)', () => {
+  it('flips e2e_regression_enabled: true and generates e2e-regression.yml', async () => {
+    const dir = await buildFixture();
+    try {
+      process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
+      await runUpdate({ paths: [dir], enableE2eRegression: true });
+      const config = JSON.parse(await fs.readFile(join(dir, 'sdlc-config.json'), 'utf8')) as Record<
+        string,
+        unknown
+      >;
+      expect(config['e2e_regression_enabled']).toBe(true);
+      // Every other field survives the flip untouched.
+      expect(config['project_slug']).toBe('fixture-app');
+      const workflowFiles = await fs.readdir(join(dir, '.github', 'workflows'));
+      expect(workflowFiles).toContain('e2e-regression.yml');
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it('flips e2e_regression_enabled: false and removes a previously-generated e2e-regression.yml', async () => {
+    const dir = await buildFixture();
+    try {
+      process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
+      await runUpdate({ paths: [dir], enableE2eRegression: true });
+      expect(await fs.readdir(join(dir, '.github', 'workflows'))).toContain('e2e-regression.yml');
+
+      await runUpdate({ paths: [dir], disableE2eRegression: true });
+      const config = JSON.parse(await fs.readFile(join(dir, 'sdlc-config.json'), 'utf8')) as Record<
+        string,
+        unknown
+      >;
+      expect(config['e2e_regression_enabled']).toBe(false);
+      const workflowFiles = await fs.readdir(join(dir, '.github', 'workflows'));
+      expect(workflowFiles).not.toContain('e2e-regression.yml');
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it('rejects passing both flags together, without touching sdlc-config.json', async () => {
+    const dir = await buildFixture();
+    const before = await fs.readFile(join(dir, 'sdlc-config.json'), 'utf8');
+    const exit = vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
+      throw new Error(`exit:${code}`);
+    }) as never);
+    try {
+      process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
+      await expect(
+        runUpdate({ paths: [dir], enableE2eRegression: true, disableE2eRegression: true }),
+      ).rejects.toThrow('exit:2');
+      const after = await fs.readFile(join(dir, 'sdlc-config.json'), 'utf8');
+      expect(after).toBe(before);
+    } finally {
+      exit.mockRestore();
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it('leaves an existing e2e_regression_enabled value untouched when neither flag is passed', async () => {
+    const dir = await buildFixture();
+    try {
+      const configPath = join(dir, 'sdlc-config.json');
+      const config = JSON.parse(await fs.readFile(configPath, 'utf8')) as Record<string, unknown>;
+      config['e2e_regression_enabled'] = true;
+      await fs.writeFile(configPath, JSON.stringify(config));
+      process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
+
+      // A plain sync — neither flag — must never silently toggle the field
+      // (it interacts with #869's compliance-evidence.yml listener gating).
+      await runUpdate({ paths: [dir] });
+      const after = JSON.parse(await fs.readFile(configPath, 'utf8')) as Record<string, unknown>;
+      expect(after['e2e_regression_enabled']).toBe(true);
+      expect(await fs.readdir(join(dir, '.github', 'workflows'))).toContain('e2e-regression.yml');
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it('errors clearly per-path when sdlc-config.json is absent (not an onboarded consumer)', async () => {
+    const dir = await fs.mkdtemp(join(tmpdir(), 'cli-update-unonboarded-'));
+    const exit = vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
+      throw new Error(`exit:${code}`);
+    }) as never);
+    try {
+      await expect(runUpdate({ paths: [dir], enableE2eRegression: true })).rejects.toThrow('exit:1');
+    } finally {
+      exit.mockRestore();
+      await fs.rm(dir, { recursive: true, force: true });
     }
   }, 30_000);
 });
