@@ -221,13 +221,24 @@ that fix reaches the consumer.
 #### Deciding: config key vs. patch
 
 A generated file needing project-specific customization is not automatically
-a patch situation. Several CI-template steps already render from
-`sdlc-config.json` fields the CLI is guaranteed never to touch on sync —
-`e2e_setup_command` / `e2e_env` (arbitrary setup shell + env for the E2E
-step), `runner` (the `{{RUNNER}}` → `vars.CI_RUNNER_LABEL` indirection),
-`typescript_check_env` (env on the TypeScript Check step), and
-`install_flags` (flags on `npm ci`) are the ones that exist today. A
-customization expressed through one of these survives every future sync
+a patch situation. Every field on the `SdlcConfig` interface
+(`cli/src/update/ci-templates.ts`) is sync-safe by construction — the CLI is
+guaranteed never to touch a config-driven value when it regenerates a
+template. **Read that interface directly rather than trusting a hand-copied
+list here** (a prior version of this section listed only 4 keys and had
+already drifted from the ~20+ the interface actually supports before this
+rewrite — the interface is the only copy that can't go stale). Some
+representative examples, beyond the E2E-specific ones covered in
+[`e2e-local-db-ci.md`](e2e-local-db-ci.md) and [`e2e-test-tiers.md`](e2e-test-tiers.md):
+
+- `runner` — the `{{RUNNER}}` → `vars.CI_RUNNER_LABEL` indirection.
+- `typescript_check_env` — env on the TypeScript Check step.
+- `install_flags` — flags on `npm ci`.
+- `paths_ignore` — file-path globs that don't trigger `ci.yml`'s push event (and are correspondingly included in `ci-status-fallback.yml`'s satisfy-branch-protection-on-docs-only-commits filter). Ships with a sensible default list in `sdlc-config.example.json`; extend it if your repo has its own docs-only or generated-file paths that shouldn't trigger a full CI run.
+- `release_branch` / `integration_branch` — override the assumed `main`/`develop` naming (see [`onboarding.md`](onboarding.md)).
+- `database_service` / `database_image` / `database_port` / `database_env` — a container-service database for CI (see [`e2e-local-db-ci.md`](e2e-local-db-ci.md)).
+
+A customization expressed through any of these survives every future sync
 automatically — no patch, nothing to reapply, nothing that can be silently
 reverted.
 

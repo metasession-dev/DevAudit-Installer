@@ -50,6 +50,15 @@ There are three practical groups:
 - Use `governance-doc-author` when a project needs or refreshes governance evidence rather than code.
 - Use the SoT-alignment family when the requirement changes product requirements, architecture decisions, or risk posture and the persistent documents must stay truthful.
 
+## `sdlc-implementer` sub-flows worth knowing before they fire
+
+These aren't separate skills — they're named, independently-triggerable mechanisms inside `sdlc-implementer` that an operator can otherwise be surprised by mid-REQ:
+
+- **Requirements gap flow** (devaudit-installer#212) — when `sdlc-implementer` (or a delegated skill) discovers an acceptance criterion is untestable, ambiguous, or missing entirely (not just "buggy"), it doesn't file a defect — it returns a 3-option resolution to the operator: accept the gap, amend the ACs, or file a follow-up REQ.
+- **Scope-expansion halt gate** (devaudit-installer#171) — fires on *any* out-of-scope request while a REQ is active, in any phase. If you ask for something unrelated mid-implementation, the skill halts and asks how you want to reconcile it with the in-flight work, rather than silently expanding scope.
+- **Tracking a long-running REQ across sessions** — the skill maintains a "LAST STEP / NEXT STEP" sticky comment on the issue plus a driver tag (`[Skill driving]` / `[Native agent driving]` / `[Operator driving]` / `[Blocked]`) on every status update. This is the primary way to tell what state a REQ is in without re-reading the whole thread — check the sticky first.
+- **`Bundles: #A, #B`** — the structural trigger phrase for opting multiple REQs into one shared branch/PR/release. See [`docs/change-workflows.md`](./change-workflows.md) for the behavioral contract (lineage, atomic approval); this is just the syntax that turns it on.
+
 ## See also
 
 - [`sdlc/SKILLS.md`](../sdlc/SKILLS.md) for the canonical skill contract and current trigger catalog

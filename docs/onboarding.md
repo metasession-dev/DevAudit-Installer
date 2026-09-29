@@ -49,6 +49,8 @@ npx @metasession.co/devaudit-cli@latest install ../path/to/new-consumer
 devaudit install ../path/to/new-consumer
 ```
 
+`install`/`join`/`uninstall` also each accept `--token <token>` (skips the env var / cached-login lookup for this one invocation) and `--base-url <url>` (points at a non-production portal — defaults to `DEVAUDIT_BASE_URL` env or `https://devaudit.ai`). Useful for a one-off run against a different account or a staging portal without touching your ambient environment. The global `--org <slug>` flag (any command) overrides which org context the invocation runs under, for an operator with access to more than one.
+
 If `sdlc-config.json` already exists in the target, `install` runs non-interactively from it (and preserves customisations like `app_env` / `build_env` / `e2e_*`); otherwise it prompts for the remaining values. The CLI will:
 
 1. **Authenticate** — validates the PAT against DevAudit; aborts if invalid.
@@ -65,7 +67,7 @@ If `sdlc-config.json` already exists in the target, `install` runs non-interacti
    - The production URL secret (e.g. `META_AGENT_PROD_URL`)
 8. **Set the GitHub variable** `DEVAUDIT_BASE_URL`.
 9. **Bootstrap the hook framework** — `pre-commit install` for Python, `npx husky init` for Node.
-10. **Set the default branch** to `integration_branch` (`develop` unless overridden in `sdlc-config.json`) — idempotent, no-op if already correct. GitHub creates every repo with `main` as default; without this, a contributor using GitHub's own UI (new-branch dropdown, "Compare & pull request") lands on `main` instead of `develop`, silently skipping the real Quality Gates workflow (which only triggers on PRs to the integration branch). See devaudit#731.
+10. **Set the default branch** to `integration_branch` (`develop` unless overridden in `sdlc-config.json`) — idempotent, no-op if already correct. GitHub creates every repo with `main` as default; without this, a contributor using GitHub's own UI (new-branch dropdown, "Compare & pull request") lands on `main` instead of `develop`, silently skipping the real Quality Gates workflow (which only triggers on PRs to the integration branch). See devaudit#731. Its sibling key, `release_branch` (`main` unless overridden), is where the tracked-release promotion PR (Step 3's follow-up) targets — override either if your repo uses different branch names.
 11. **Configure branch protection** on both `main` (the release branch) and `develop` (the integration branch) — required status checks: `Compliance Validation`, `DevAudit Release Approval`, `Quality Gates`. Keep third-party hosting checks such as Vercel / Railway / Cloudflare informational unless you intentionally want them to gate merges. (Required-approving-reviews set to 0 by default; raise to 1+ once your team has more than one admin.)
 12. **Sync framework templates** — populates all framework files in the consumer from the templates bundled in the CLI. Includes: SDLC/ stage docs, the canonical `INSTRUCTIONS.md`, the per-agent rule files (`AGENTS.md` for Codex/AGENTS-compatible agents, `CLAUDE.md` for Claude Code, `.cursorrules` for Cursor, `.windsurfrules` for Windsurf, `GEMINI.md` for Gemini CLI), the `.claude/skills/` orchestrator + sibling skills (Claude Code only — the other agents read `INSTRUCTIONS.md` on demand instead of auto-firing), git hooks, scripts, and CI workflows. Equivalent to a `devaudit update` run. **Any LLM-driven agent works** — Copilot, Aider, Continue, etc. read `INSTRUCTIONS.md` directly; the listed agents get a more ergonomic rule-file mechanism on top.
 

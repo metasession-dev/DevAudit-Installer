@@ -58,7 +58,7 @@ Plugins can extend `doctor` via the `onDoctor` lifecycle hook (`plugin-sdk/src/l
 - [`plugins/devaudit-plugin-prisma/src/hooks/on-doctor.ts`](../plugins/devaudit-plugin-prisma/src/hooks/on-doctor.ts) — checks Prisma schema/migrations layout.
 - [`plugins/devaudit-plugin-evidence-export/src/hooks/on-doctor.ts`](../plugins/devaudit-plugin-evidence-export/src/hooks/on-doctor.ts).
 
-See `sdlc/CLAUDE.md` / the plugin-sdk docs for the general plugin-authoring contract; `onDoctor` follows the same `LoadedPlugin`/context shape as the other lifecycle hooks (`beforeSync`, `afterSync`, etc.).
+See [`plugin-sdk/README.md`](../plugin-sdk/README.md) for the general plugin-authoring contract and the full lifecycle-hook list; `onDoctor` follows the same `LoadedPlugin`/context shape as the other lifecycle hooks (`beforeSync`, `afterSync`, etc.).
 
 ## `--fleet`: sweeping every project you can see
 
