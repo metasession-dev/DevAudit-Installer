@@ -115,7 +115,7 @@ export async function runInstall(options: RunInstallOptions): Promise<InstallRep
   const providerResolution = await resolveProvider(options, tentativeCtx);
   // Resolve install mode now that we have plan.projectSlug + (maybe) a
   // provider — see detectInstallMode for the four-bit decision rule.
-  const detection = await detectInstallMode(tentativeCtx, plan, providerResolution.provider, options);
+  const detection = await detectInstallMode(tentativeCtx, plan, options);
   if (detection.notice) log.info(detection.notice);
   const ctx: InstallContext = { ...tentativeCtx, installMode: detection.mode };
 
@@ -178,7 +178,7 @@ export async function runInstall(options: RunInstallOptions): Promise<InstallRep
 interface ModeDetection {
   readonly mode: InstallMode;
   readonly notice?: string;
-  /** True iff all four detection bits resolved to "developer-mode". */
+  /** True iff all three detection bits resolved to "developer-mode". */
   readonly allBitsMatched: boolean;
 }
 
@@ -186,7 +186,7 @@ interface ModeDetection {
  * Decide whether this install is the operator setting up / rotating a project
  * (`'operator'`) or a developer joining an already-onboarded one (`'developer'`).
  *
- * Developer mode requires **all four** bits to hold (any failure → operator,
+ * Developer mode requires **all three** bits to hold (any failure → operator,
  * the safe default that matches today's behaviour); `RunInstallOptions.mode`
  * overrides the auto-detection (used by `devaudit join`); `forceTeamConfig`
  * pins back to operator (the operator's rotation lane).
@@ -194,12 +194,16 @@ interface ModeDetection {
  *   1. `sdlc-config.json` exists at projectPath        — already-onboarded marker
  *   2. portal returns a project for `plan.projectSlug`  — project lives on the portal
  *   3. an `'Onboarding-issued'` API key already exists  — first install already ran
- *   4. the repo has a `DEVAUDIT_USER_TOKEN` secret      — CI is already wired up
+ *
+ * (devaudit-installer#912) A fourth bit — "the repo has a `DEVAUDIT_USER_TOKEN`
+ * secret" — was dropped: `install` no longer writes that secret (nothing in CI
+ * ever consumed it; see #912), so its presence stopped being a meaningful signal
+ * of anything. The three remaining bits are sufficient on their own — a project
+ * with a live portal project and API key was, by construction, already installed.
  */
 async function detectInstallMode(
   ctx: InstallContext,
   plan: InstallPlan,
-  provider: GitProvider | null,
   options: RunInstallOptions,
 ): Promise<ModeDetection> {
   if (options.forceTeamConfig) {
@@ -244,20 +248,11 @@ async function detectInstallMode(
     return { mode: 'operator', allBitsMatched: false };
   }
   if (!projectExists || !keyExists) return { mode: 'operator', allBitsMatched: false };
-  let hasUserTokenSecret = false;
-  if (provider) {
-    try {
-      hasUserTokenSecret = await provider.hasSecret(ctx.projectPath, 'DEVAUDIT_USER_TOKEN');
-    } catch {
-      hasUserTokenSecret = false;
-    }
-  }
-  if (!hasUserTokenSecret) return { mode: 'operator', allBitsMatched: false };
   return {
     mode: 'developer',
     allBitsMatched: true,
     notice:
-      'developer mode auto-detected (project + Onboarding-issued key + DEVAUDIT_USER_TOKEN secret all present): destructive steps (4, 6, 7, 9, 10) will skip. Use --force-team-config to rotate team secrets.',
+      'developer mode auto-detected (project + Onboarding-issued key present): destructive steps (4, 6, 7, 9, 10) will skip. Use --force-team-config to rotate team secrets.',
   };
 }
 

@@ -150,12 +150,11 @@ Two distinct credentials exist; conflating them is what causes the silent-CI-tok
 
 | Credential | Format | Where it lives | Who it identifies | Used by |
 | --- | --- | --- | --- | --- |
-| **Personal PAT** | `mctok_…` | `~/.config/devaudit/auth.json` (per developer) | You (the user) | Your local CLI commands |
+| **Personal PAT** | `mctok_…` | `~/.config/devaudit/auth.json` (per developer) | You (the user) | Your local CLI commands, and — for whoever holds the operator's PAT specifically — UAT-submission attribution via `scripts/submit-for-uat-review.sh` |
 | **Project API key** | `dak_…` | Repo secret `DEVAUDIT_API_KEY` | The project | CI's `devaudit push` calls |
-| **Operator's PAT** | `mctok_…` | Repo secret `DEVAUDIT_USER_TOKEN` | The operator (singular) | CI's DevAudit portal calls that need human attribution (release submit / approval flows) |
 | **GitHub workflow token** | `${{ github.token }}` | Issued automatically per workflow run | The GitHub Actions workflow | CI's GitHub repo mutations (checkout, branch push, PR, issue, comment, label, check-run updates) |
 
-**Never paste your personal PAT into a repo secret.** Repo `DEVAUDIT_USER_TOKEN` is operator-owned and is not the default GitHub auth path for workflow repo mutations. CI portal mutations are attributed to whoever's PAT is there — if it's yours, your name shows up against every release the team ships, and the moment your PAT expires CI portal actions break. Rotation belongs to the operator: `devaudit install --force-team-config` on their machine.
+**`DEVAUDIT_USER_TOKEN` is never a repo secret** (devaudit-installer#912 — `install` stopped writing it as one; nothing in generated CI ever consumed it that way). It's a personal credential that stays on each developer's own machine (`~/.config/devaudit/auth.json` via `devaudit auth login`, or an exported env var) — the same "Personal PAT" row above. The one place it matters whose PAT it is: submitting a release for UAT review is attributed to whichever developer's PAT ran that command locally, so **use your own PAT for that action, not a shared or copied one** — the same principle the old "never paste your personal PAT into a repo secret" warning was protecting, just enforced by there being no repo secret to paste it into at all anymore.
 
 If `devaudit auth status` shows the wrong user, run `devaudit auth logout && devaudit auth login` and paste the right PAT.
 
@@ -167,10 +166,10 @@ If `devaudit auth status` shows the wrong user, run `devaudit auth logout && dev
 - writing `sdlc-config.json`,
 - creating the portal project (if absent),
 - issuing a new project API key (if absent),
-- writing four repo secrets (including `DEVAUDIT_USER_TOKEN` to whoever ran the command),
+- writing repo secrets (`DEVAUDIT_API_KEY`, optionally a viewer key, the production-URL secret) and the `DEVAUDIT_BASE_URL` variable,
 - applying branch protection rules.
 
-A second dev running it silently rotates the team's `DEVAUDIT_USER_TOKEN` repo secret to their personal PAT — which (a) breaks CI attribution and (b) ties CI's expiry to your PAT lifetime.
+A second dev running it — if the developer-mode safety net below doesn't engage — re-runs all of that as if onboarding the project fresh: it can re-issue and overwrite the team's `DEVAUDIT_API_KEY`, breaking every other developer's and CI's existing credential, and it rewrites branch protection rules.
 
 **As of 0.1.23 the CLI detects this scenario and routes to developer mode automatically** (skipping the destructive steps), but `devaudit join` is the explicit, intent-correct command. If you ran `install` and want to verify the safety net engaged, look at the report's "11/11 Done" line — `Done (developer mode)` means it did; `Done` (no suffix) means you were in operator mode (either a fresh project, the safety net didn't engage, or `--force-team-config` was passed).
 
@@ -182,7 +181,7 @@ The synced CI gates expect a specific environment. Here's what you need locally 
 
 | Surface | CI | Local (your machine) |
 | --- | --- | --- |
-| Personal identity | `secrets.DEVAUDIT_USER_TOKEN` (operator's, portal-only) | `~/.config/devaudit/auth.json` (yours) — `devaudit auth login` |
+| Personal identity | not a CI secret — CI never authenticates as a human (devaudit-installer#912) | `~/.config/devaudit/auth.json` (yours) — `devaudit auth login`; needed locally only to submit a release for UAT review under your own identity |
 | Project API key | `secrets.DEVAUDIT_API_KEY` | Usually unset locally — only needed if you're testing `devaudit push` against the live portal; ask the operator if you need to debug it |
 | Portal URL | `vars.DEVAUDIT_BASE_URL` | `~/.config/devaudit/auth.json` (set by `auth login`) or `$DEVAUDIT_BASE_URL` env |
 | GitHub auth | `${{ github.token }}` (auto, repo mutations) | `gh auth login` |

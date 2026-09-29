@@ -255,10 +255,14 @@ describe('devaudit doctor — host-adapter prerequisites (#843)', () => {
     const dir = await mkdtemp(join(tmpdir(), 'devaudit-doctor-railway-secrets-'));
     // No `host` key — resolveAdapters defaults to 'railway'.
     await writeFile(join(dir, 'sdlc-config.json'), JSON.stringify({ project_slug: 'fixture' }));
-    const env = await fakeGhOnPath(dir, ['DEVAUDIT_API_KEY', 'DEVAUDIT_USER_TOKEN']);
+    // devaudit-installer#912: no DEVAUDIT_USER_TOKEN here — if it were still
+    // required, the missing list would read "DEVAUDIT_USER_TOKEN, RAILWAY_TOKEN"
+    // and this exact-prefix assertion would fail.
+    const env = await fakeGhOnPath(dir, ['DEVAUDIT_API_KEY']);
     const result = await execa('node', [BIN, 'doctor'], { cwd: dir, env, reject: false });
     const output = result.stdout + result.stderr;
     expect(output).toContain('missing repo secret(s): RAILWAY_TOKEN');
+    expect(output).not.toContain('DEVAUDIT_USER_TOKEN');
   }, 30_000);
 
   it('does not require RAILWAY_TOKEN for a vercel host consumer', async () => {
@@ -270,11 +274,14 @@ describe('devaudit doctor — host-adapter prerequisites (#843)', () => {
       join(dir, 'sdlc-config.json'),
       JSON.stringify({ project_slug: 'fixture', host: 'vercel' }),
     );
-    const env = await fakeGhOnPath(dir, ['DEVAUDIT_API_KEY', 'DEVAUDIT_USER_TOKEN']);
+    // devaudit-installer#912: DEVAUDIT_API_KEY alone is now the complete
+    // required set for a vercel consumer — DEVAUDIT_USER_TOKEN isn't a repo secret.
+    const env = await fakeGhOnPath(dir, ['DEVAUDIT_API_KEY']);
     const result = await execa('node', [BIN, 'doctor'], { cwd: dir, env, reject: false });
     const output = result.stdout + result.stderr;
     expect(output).toContain('all required secrets present');
     expect(output).not.toContain('RAILWAY_TOKEN');
+    expect(output).not.toContain('DEVAUDIT_USER_TOKEN');
   }, 30_000);
 
   it('skips the railway-cli check when reconcile-deployment.yml is not present', async () => {

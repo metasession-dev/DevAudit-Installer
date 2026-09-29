@@ -32,7 +32,7 @@ The DevAudit portal itself does **not** consume the SDLC framework — it would 
    devaudit install ../path/to/new-consumer
    ```
 
-The CLI handles every previously-manual step: DevAudit project creation, API key issuance, GitHub repo secrets/variables (`DEVAUDIT_API_KEY`, `DEVAUDIT_USER_TOKEN`, the production-URL secret, `DEVAUDIT_BASE_URL`), hook framework install (`pre-commit` for Python / `husky` for Node), branch protection on `main`, and the first template sync. The command starts immediately; the full operator onboarding flow usually takes about 5-10 minutes.
+The CLI handles every previously-manual step: DevAudit project creation, API key issuance, GitHub repo secrets/variables (`DEVAUDIT_API_KEY`, the production-URL secret, `DEVAUDIT_BASE_URL`), hook framework install (`pre-commit` for Python / `husky` for Node), branch protection on `main`, and the first template sync. The command starts immediately; the full operator onboarding flow usually takes about 5-10 minutes.
 
 The original bash installer (`scripts/sdlc-onboard.sh`) has been removed — `devaudit install` is the only onboarding path. The CLI bundles the framework templates, so no DevAudit-Installer checkout is needed.
 
@@ -58,7 +58,7 @@ devaudit uninstall ../path/to/consumer
 devaudit uninstall ../path/to/consumer --target <target-name>
 ```
 
-This revokes the project's active API key(s) on the portal, deletes the GitHub secrets/variables `install` wrote (`DEVAUDIT_API_KEY` or the per-target derived name, `DEVAUDIT_USER_TOKEN`, the production-URL secret if set, and the `DEVAUDIT_BASE_URL` variable), and removes the target from `sdlc-config.json` — deleting the file entirely if it was the only target.
+This revokes the project's active API key(s) on the portal, deletes the GitHub secrets/variables `install` wrote (`DEVAUDIT_API_KEY` or the per-target derived name, the production-URL secret if set, and the `DEVAUDIT_BASE_URL` variable), and removes the target from `sdlc-config.json` — deleting the file entirely if it was the only target. It also deletes a `DEVAUDIT_USER_TOKEN` repo secret if one is present — a harmless no-op on any project onboarded after devaudit-installer#912, since `install` no longer writes that secret; this only cleans up the residual secret on a project onboarded before that change.
 
 If the project was deleted **from the Portal side** (Project > Settings > Danger zone), its API key(s) are already revoked automatically (cascade) — `devaudit uninstall`'s key-revoke step detects the project no longer exists on the portal and treats that as success, not an error. Run it anyway to clean up the now-dead repo secrets and `sdlc-config.json` entry.
 
@@ -351,7 +351,7 @@ npm view @metasession.co/devaudit-cli version
 | **`upload-evidence.sh`**     | `scripts/upload-evidence.sh` in DevAudit                                                          | Synced into consumer's `scripts/` by `devaudit update`                                            | Re-sync on every framework version                                                   |
 | **CI job + status names**    | `Quality Gates`, `Compliance Validation`, `DevAudit Release Approval`                             | GitHub branch protection references exact names                                                   | Must match — renaming requires updating consumer branch protection rules             |
 | **Project slug**             | `sdlc-config.json` `project_slug`                                                                 | Used to create releases, upload evidence, check approval                                          | Must match `compliance_projects.slug` in DevAudit                                    |
-| **GitHub vars/secrets**      | `DEVAUDIT_BASE_URL` (variable), `DEVAUDIT_API_KEY` (secret), `DEVAUDIT_USER_TOKEN` (secret)       | Consuming projects' CI workflows authenticate against DevAudit                                    | Set by `devaudit install`; refresh manually when API keys rotate                     |
+| **GitHub vars/secrets**      | `DEVAUDIT_BASE_URL` (variable), `DEVAUDIT_API_KEY` (secret), optionally `DEVAUDIT_VIEWER_API_KEY` (secret) | Consuming projects' CI workflows authenticate against DevAudit via `DEVAUDIT_API_KEY` — see [Token contract](#token-contract) below; `DEVAUDIT_USER_TOKEN` is *not* a repo secret (devaudit-installer#912) | Set by `devaudit install`; refresh manually when API keys rotate                     |
 | **Compliance doc filenames** | `RTM.md`, `test-plan.md`, `test-cases.md`, `test-summary-report.md`                               | CI upload step looks for these exact filenames                                                    | Renaming requires updating all consumer CI workflows                                 |
 | **Release status values**    | `draft`, `uat_review`, `uat_approved`, `uat_rejected`, `prod_review`, `prod_approved`, `released` | `check-release-approval.yml` checks for specific statuses                                         | Changing status names requires updating all consumer release-approval gate workflows |
 | **Risk tier column**         | `compliance_projects.risk_tier` (`low`, `medium`, `high`)                                         | Controls self-approval rules: LOW allows self-approval, MEDIUM/HIGH requires independent reviewer | Default `medium`; set per project in DevAudit portal                                 |
@@ -377,18 +377,18 @@ These are hard dependencies across all consumers:
 
 ### Token contract
 
-Generated workflows use two distinct auth domains:
+Generated workflows use two distinct auth domains — **`DEVAUDIT_USER_TOKEN` is not one of them** (devaudit-installer#912: it's never a repo secret consumed by CI):
 
-- **DevAudit portal auth**
-  - `DEVAUDIT_USER_TOKEN` and `DEVAUDIT_API_KEY`
-  - used for portal-facing release/evidence/approval calls
+- **DevAudit portal auth (CI-side)**
+  - `DEVAUDIT_API_KEY` (project-scoped; project-scoped `DEVAUDIT_VIEWER_API_KEY` for read-only lookups if configured)
+  - used for portal-facing evidence-upload/status-check calls — every generated CI workflow's actual credential
 - **GitHub repo auth**
   - `${{ github.token }}`
   - used for GitHub Actions repo mutations such as checkout, branch push, PR creation, issue/comment/label edits, and check-run updates
 
-`DEVAUDIT_USER_TOKEN` is not the default GitHub auth token for workflow repo mutations. If a workflow is mutating GitHub state, the expected auth path is the workflow token plus explicit `permissions:` on the job.
+`DEVAUDIT_USER_TOKEN` (the operator's personal PAT) is a *third*, separate credential: it authenticates the one action that genuinely needs a verified human identity — submitting a release for UAT review (`sdlc/files/_common/scripts/submit-for-uat-review.sh`) — and it's read from the operator's local shell (`devaudit auth login` cache or an exported env var), never from a GitHub Actions secret. It is not the default GitHub auth token for workflow repo mutations either; if a workflow is mutating GitHub state, the expected auth path is the workflow token plus explicit `permissions:` on the job.
 
-`DEVAUDIT_API_KEY` (or its per-target derived name), `DEVAUDIT_USER_TOKEN`, and the `DEVAUDIT_BASE_URL` variable are removable via `devaudit uninstall` — see [Offboarding a project](#offboarding-a-project) above.
+`DEVAUDIT_API_KEY` (or its per-target derived name) and the `DEVAUDIT_BASE_URL` variable are removable via `devaudit uninstall` — see [Offboarding a project](#offboarding-a-project) above. `devaudit uninstall` also deletes any `DEVAUDIT_USER_TOKEN` repo secret if present, which is a no-op on any project onboarded after #912.
 
 #### Optional: `INSTALLER_DISPATCH_TOKEN` (devaudit-installer#613, #795)
 

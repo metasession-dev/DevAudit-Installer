@@ -797,7 +797,7 @@ Required environment variables for the scripted path:
 
 | Var | What it is | Where to set |
 | --- | --- | --- |
-| `DEVAUDIT_USER_TOKEN` | Personal Access Token (`mctok_…`) attributed to the running user | Issue at `/settings/tokens`; store as a repo secret for CI or `.env` for local |
+| `DEVAUDIT_USER_TOKEN` | Personal Access Token (`mctok_…`) attributed to the running user | Issue at `/settings/tokens`; export locally or cache via `devaudit auth login` — **never a repo secret** (devaudit-installer#912: this script runs locally, never from CI, so there's nothing for a repo secret to serve here) |
 | `DEVAUDIT_API_KEY` | Project-scoped API key (existing) | Already set for evidence uploads |
 | `DEVAUDIT_BASE_URL` | DevAudit URL | Resolved by CI templates; locally read from `sdlc-config.json devaudit.base_url` |
 
