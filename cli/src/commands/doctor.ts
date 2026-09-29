@@ -197,6 +197,14 @@ async function checkRtmInitialized(): Promise<CheckResult> {
  * values, so this can only confirm presence, not correctness. Skips
  * gracefully (not a failure) when `gh` lacks repo access or isn't
  * authenticated — same non-fatal shape as the other onboarding checks.
+ *
+ * `DEVAUDIT_USER_TOKEN` is deliberately NOT in this list (devaudit-installer#912)
+ * — `install` no longer writes it as a repo secret, since nothing in any
+ * generated CI workflow ever consumed it (the only reference was inside a
+ * permanently-disabled step, deprecated per #122). It remains a real
+ * credential — the operator's local `DEVAUDIT_USER_TOKEN` env var / cached
+ * login still attributes UAT-submission actions — it's just never expected
+ * to exist as a repo secret, so its absence is no longer a "gap" here.
  */
 async function checkRequiredSecretsPresent(): Promise<CheckResult> {
   const name = 'secrets';
@@ -206,7 +214,7 @@ async function checkRequiredSecretsPresent(): Promise<CheckResult> {
     api_key_secret?: string;
     viewer_api_key_secret?: string;
   };
-  const required = [devaudit.api_key_secret ?? 'DEVAUDIT_API_KEY', 'DEVAUDIT_USER_TOKEN'];
+  const required = [devaudit.api_key_secret ?? 'DEVAUDIT_API_KEY'];
   if (devaudit.viewer_api_key_secret) required.push(devaudit.viewer_api_key_secret);
 
   // devaudit-installer#843 — fold in the resolved host adapter's own

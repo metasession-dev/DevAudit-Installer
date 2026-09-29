@@ -13,7 +13,6 @@ function buildOperations(ctx: InstallContext, plan: InstallPlan): SecretOperatio
   if (plan.viewerApiKey && plan.viewerApiKeySecretName) {
     operations.push({ kind: 'secret', name: plan.viewerApiKeySecretName, value: plan.viewerApiKey });
   }
-  operations.push({ kind: 'secret', name: 'DEVAUDIT_USER_TOKEN', value: ctx.token });
   if (plan.prodUrlValue) {
     operations.push({ kind: 'secret', name: plan.prodUrlSecretName, value: plan.prodUrlValue });
   }
@@ -41,7 +40,7 @@ export async function setGithubSecrets(
       step: '7/12 Set GitHub secrets and variables',
       status: 'skipped',
       message:
-        'developer mode — leaving DEVAUDIT_USER_TOKEN, DEVAUDIT_API_KEY, DEVAUDIT_BASE_URL, and the production-URL secret unchanged. Use --force-team-config to rotate them as the project operator.',
+        'developer mode — leaving DEVAUDIT_API_KEY, DEVAUDIT_BASE_URL, and the production-URL secret unchanged. Use --force-team-config to rotate them as the project operator.',
     };
   }
   const operations = buildOperations(ctx, plan);
