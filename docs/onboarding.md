@@ -63,8 +63,9 @@ If `sdlc-config.json` already exists in the target, `install` runs non-interacti
 7. **Set GitHub secrets** via `gh secret set`:
    - `DEVAUDIT_API_KEY` (the just-issued uploader key)
    - `DEVAUDIT_VIEWER_API_KEY` (only if `--with-viewer-key` was passed)
-   - `DEVAUDIT_USER_TOKEN` (the PAT)
    - The production URL secret (e.g. `META_AGENT_PROD_URL`)
+
+   (`DEVAUDIT_USER_TOKEN` — the PAT itself — is **not** written as a repo secret; devaudit-installer#912 removed that, since nothing in generated CI ever consumed it. It stays exactly where Step 2 put it: your local `devaudit auth login` cache or exported env var.)
 8. **Set the GitHub variable** `DEVAUDIT_BASE_URL`.
 9. **Bootstrap the hook framework** — `pre-commit install` for Python, `npx husky init` for Node.
 10. **Set the default branch** to `integration_branch` (`develop` unless overridden in `sdlc-config.json`) — idempotent, no-op if already correct. GitHub creates every repo with `main` as default; without this, a contributor using GitHub's own UI (new-branch dropdown, "Compare & pull request") lands on `main` instead of `develop`, silently skipping the real Quality Gates workflow (which only triggers on PRs to the integration branch). See devaudit#731. Its sibling key, `release_branch` (`main` unless overridden), is where the tracked-release promotion PR (Step 3's follow-up) targets — override either if your repo uses different branch names.
@@ -266,7 +267,6 @@ A trace of an early `devaudit install ../EXAMPLE-PYTHON-SERVICE` run (the bash i
 
 == 7/12 · Set GitHub repo secrets and variables ==
   ✓ DEVAUDIT_API_KEY (secret)
-  ✓ DEVAUDIT_USER_TOKEN (secret)
   ✓ META_AGENT_PROD_URL (secret)
   ✓ DEVAUDIT_BASE_URL (variable) = https://devaudit.ai
 
@@ -325,7 +325,7 @@ Running devaudit doctor — checking required tools...
   ✓ rtm             compliance/RTM.md has at least one requirement row
   ✓ semgrep         1.78.0
   ✓ e2e-regression  not opted in
-  ✓ secrets         all required secrets present (DEVAUDIT_API_KEY, DEVAUDIT_USER_TOKEN)
+  ✓ secrets         all required secrets present (DEVAUDIT_API_KEY)
   ✓ pre-push-hook   present (.husky/pre-push)
   ✓ railway-cli     skipped (reconcile-deployment.yml not present)
 
@@ -335,7 +335,7 @@ All required tools present.
 A realistic failure right after onboarding — a secret write that didn't take:
 
 ```
-  ⚠ secrets         missing repo secret(s): DEVAUDIT_USER_TOKEN — expected from `devaudit install`
+  ⚠ secrets         missing repo secret(s): DEVAUDIT_API_KEY — expected from `devaudit install`
 ```
 
 That's a warning, not a tool-gate failure (exit code stays `0` unless a *required tool* is missing) — but it means something `install` was supposed to configure didn't land, and it's worth fixing before your first tracked requirement rather than discovering it when `requirements-aligner` or CI trips over it later. See [`docs/doctor.md`](./doctor.md) for the full check contract.

@@ -240,7 +240,9 @@ describe('runInstall — native TS install against a node fixture', () => {
       const secretCalls = providerCalls.filter((c) => c.method === 'setSecret');
       const secretNames = secretCalls.map((c) => c.args[0]);
       expect(secretNames).toContain('DEVAUDIT_API_KEY');
-      expect(secretNames).toContain('DEVAUDIT_USER_TOKEN');
+      // devaudit-installer#912 — DEVAUDIT_USER_TOKEN is no longer written as a
+      // repo secret; nothing in generated CI ever consumed it.
+      expect(secretNames).not.toContain('DEVAUDIT_USER_TOKEN');
       const variableCall = providerCalls.find((c) => c.method === 'setVariable');
       expect(variableCall?.args[0]).toBe('DEVAUDIT_BASE_URL');
       // default branch set via provider (devaudit#731), before branch
@@ -513,7 +515,7 @@ describe('runInstall — native TS install against a node fixture', () => {
     );
   }
 
-  it('developer mode: skips steps 4, 6, 7, 9, 10 when all four detection bits are true', async () => {
+  it('developer mode: skips steps 4, 6, 7, 9, 10 when all three detection bits are true', async () => {
     seedOnboardedPortal();
     const { runInstall } = await import('../src/install/index.js');
     const dir = await buildNodeFixture();
@@ -555,33 +557,6 @@ describe('runInstall — native TS install against a node fixture', () => {
     }
   }, 60_000);
 
-  it('developer mode falls back to operator when DEVAUDIT_USER_TOKEN secret is missing on the repo', async () => {
-    seedOnboardedPortal();
-    const { runInstall } = await import('../src/install/index.js');
-    const dir = await buildNodeFixture();
-    await fs.writeFile(
-      join(dir, 'sdlc-config.json'),
-      JSON.stringify({ project_slug: 'fixture-app', stack: 'node', host: 'railway', node_version: '20' }),
-    );
-    try {
-      // hasSecret returns false by default in makeFakeProvider — proves bit-4
-      // is required to trip dev-mode (the safe default that matches today's
-      // behaviour when the repo isn't fully wired up yet).
-      const report = await runInstall({
-        path: dir,
-        nonInteractive: true,
-        provider: makeFakeProvider(),
-      });
-      // Operator path: secrets + branch protection actually called.
-      expect(providerCalls.find((c) => c.method === 'setSecret')).toBeDefined();
-      expect(providerCalls.find((c) => c.method === 'applyBranchProtection')).toBeDefined();
-      const step7 = report.steps.find((s) => s.step.startsWith('7/'));
-      expect(step7?.status).toBe('ok');
-    } finally {
-      await fs.rm(dir, { recursive: true, force: true });
-    }
-  }, 60_000);
-
   it('--force-team-config: pins back to operator mode even when all dev-mode bits are true', async () => {
     seedOnboardedPortal();
     const { runInstall } = await import('../src/install/index.js');
@@ -597,8 +572,13 @@ describe('runInstall — native TS install against a node fixture', () => {
         provider: makeOnboardedProvider(),
         forceTeamConfig: true,
       });
-      // Destructive steps did run.
-      expect(providerCalls.find((c) => c.method === 'setSecret')).toBeDefined();
+      // Destructive steps did run (step 7 actually executes rather than being
+      // skipped for developer mode). setSecret itself may legitimately be
+      // empty here — the seeded 'Onboarding-issued' key already exists, so
+      // step 6 warns rather than issuing a new key, and there's no viewer key
+      // or prod-URL value to write either — so setVariable (DEVAUDIT_BASE_URL,
+      // always written in the operator path) is the reliable "did not skip" signal.
+      expect(providerCalls.find((c) => c.method === 'setVariable')).toBeDefined();
       expect(providerCalls.find((c) => c.method === 'applyBranchProtection')).toBeDefined();
       const step7 = report.steps.find((s) => s.step.startsWith('7/'));
       expect(step7?.status).toBe('ok');
@@ -651,10 +631,17 @@ describe('runInstall — native TS install against a node fixture', () => {
       JSON.stringify({ project_slug: 'fixture-app', stack: 'node', host: 'railway', node_version: '20' }),
     );
     try {
+      // devaudit-installer#912 — pin operator mode explicitly. With
+      // DEVAUDIT_USER_TOKEN dropped from dev-mode auto-detection, the portal
+      // state this test seeds (project + live 'Onboarding-issued' key) now
+      // satisfies all 3 remaining bits on its own, which would otherwise trip
+      // developer mode and skip step 6 entirely rather than exercising the
+      // operator-path "already exists" warning this test is about.
       const report = await runInstall({
         path: dir,
         nonInteractive: true,
         provider: makeFakeProvider(),
+        mode: 'operator',
       });
       const step6 = report.steps.find((s) => s.step.startsWith('6/'));
       expect(step6?.status).toBe('warn');
