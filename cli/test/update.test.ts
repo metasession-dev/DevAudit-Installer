@@ -1922,6 +1922,10 @@ describe('syncProject — native TS sync against a fixture', () => {
       const config = JSON.parse(await fs.readFile(configPath, 'utf8')) as Record<string, unknown>;
       config['e2e_regression_enabled'] = true;
       config['e2e_env'] = { E2E_LOCAL: '1' };
+      // devaudit-installer#921: app_env must reach this job too (the dev
+      // server it starts needs its own runtime config, same as ci.yml's and
+      // feature-e2e.yml's dev-server steps already get) — not just e2e_env.
+      config['app_env'] = { NEXT_PUBLIC_APP_URL: 'http://localhost:3000' };
       config['database_service'] = 'mongodb';
       config['database_image'] = 'mongo:7';
       config['database_port'] = '27017:27017';
@@ -1958,6 +1962,7 @@ describe('syncProject — native TS sync against a fixture', () => {
       expect(content).toContain('mongodb:');
       expect(content).toContain('image: mongo:7');
       expect(content).toContain('E2E_LOCAL: 1');
+      expect(content).toContain('NEXT_PUBLIC_APP_URL: http://localhost:3000');
       expect(content).toContain('npm run dev > e2e-server.log 2>&1 &');
       expect(content).toContain('branches: [main]');
       await expectAllWorkflowsValidYaml(dir);
