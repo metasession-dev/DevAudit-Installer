@@ -307,13 +307,27 @@ function buildE2eRegressionServerStep(cfg: SdlcConfig): string {
  * Unlike ci.yml.template's E2E section (a multi-purpose job where e2e_env is
  * threaded onto individual steps to override job-level remote secrets only
  * for E2E-related steps), e2e-regression.yml's entire job is E2E-focused, so
- * database_env + e2e_env apply job-wide — same combine-with-own-header shape
- * as QUALITY_GATES_ENV, so an all-absent config still renders valid YAML
+ * database_env + app_env + e2e_env apply job-wide — same combine-with-own-header
+ * shape as QUALITY_GATES_ENV, so an all-absent config still renders valid YAML
  * (DevAudit-Installer#800).
+ *
+ * `app_env` was missing here from #821 through #912 (devaudit-installer#921):
+ * ci.yml.template and feature-e2e.yml.template both thread `app_env` job-wide
+ * because the dev server they start needs its own runtime config (e.g. a
+ * Next.js app's `NEXT_PUBLIC_*` vars and session secret) to boot at all, not
+ * just the E2E-test-specific credentials/flags `e2e_env` is for — this
+ * workflow starts the same dev server (`buildE2eRegressionServerStep`) but
+ * never gave it `app_env`, so any project whose dev server needs config
+ * beyond `e2e_env` failed to boot under this workflow specifically (first
+ * diagnosed as "iron-session: Bad usage. Missing password" on a consumer
+ * whose `app_env` already carried the required vars for ci.yml/feature-e2e.yml
+ * — the fix is generic: read the same job-wide `app_env` those two templates
+ * already use, not a project-specific env list).
  */
 function buildE2eRegressionJobEnv(cfg: SdlcConfig): string {
   const combined = [
     cfg.database_env ? indentEnvBlock({ ...cfg.database_env }, 6) : '',
+    cfg.app_env ? indentEnvBlock({ ...cfg.app_env }, 6) : '',
     cfg.e2e_env ? indentEnvBlock({ ...cfg.e2e_env }, 6) : '',
   ]
     .filter(Boolean)
