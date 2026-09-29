@@ -4,7 +4,7 @@
 
 This repo — `DevAudit-Installer` — is the **framework + client** side of DevAudit: the SDLC you run and the tooling that gets installed into your project. It holds two of DevAudit's three pillars:
 
-1. **The SDLC framework** (`sdlc/`) — stage docs, templates, per-stack/host adapters, and six AI skills (`sdlc-implementer` orchestrator + `e2e-test-engineer`, `governance-doc-author`, and the SoT-alignment family of `requirements-aligner` / `adr-author` / `risk-register-keeper`).
+1. **The SDLC framework** (`sdlc/`) — stage docs, templates, per-stack/host adapters, and seven AI skills (`sdlc-implementer` orchestrator + `e2e-test-engineer`, `e2e-ci-reliability`, `governance-doc-author`, and the SoT-alignment family of `requirements-aligner` / `adr-author` / `risk-register-keeper`).
 2. **The CLI + compliance gates** (`cli/`, `plugin-sdk/`, `plugins/*`, and the CI workflow templates under `sdlc/files/ci/`) — what onboards your project and what runs on every push/PR to feed the portal.
 
 The third pillar — the **evidence portal** (the product/server side: what you see, the source of truth for releases, evidence, and approvals) — lives at [`metasession-dev/devaudit`](https://github.com/metasession-dev/devaudit) (running at <https://devaudit.ai>). **Topics are split, not duplicated:** the product story, standards coverage, the portal UI, release lifecycle/approvals, and the API are documented there; the CLI, onboarding, the SDLC process, the skills, and the workflows that upload evidence are documented here. Each side cross-references the other.
@@ -14,6 +14,19 @@ Start at the portal for the big picture:
 - [What is DevAudit](https://github.com/metasession-dev/devaudit/blob/main/docs/what-is-devaudit.md) — the three pillars in depth
 - [Standards coverage](https://github.com/metasession-dev/devaudit/blob/main/docs/standards-coverage.md) — clause-by-clause mapping for ISO 29119 / ISO 27001 / SOC 2 / GDPR / EU AI Act
 
+## Contents
+
+- [The CLI: `install`, `update`, `join`](#the-cli-install-update-join)
+- [Other CLI commands](#other-cli-commands)
+- [Quick start — onboard a new project (`install`)](#quick-start--onboard-a-new-project-install)
+- [Quick start — keep a consumer in sync (`update`)](#quick-start--keep-a-consumer-in-sync-update)
+- [Quick start — teammate joining an existing project (`join`)](#quick-start--teammate-joining-an-existing-project-join)
+- [The SDLC at a glance](#the-sdlc-at-a-glance)
+- [Architecture](#architecture)
+- [Documentation](#documentation)
+- [Related repositories](#related-repositories)
+- [Contributing](#contributing)
+
 ## The CLI: `install`, `update`, `join`
 
 `npx` is the canonical invocation — zero install, always-latest. Requires Node ≥ 22. Prefer a permanent install? `npm install -g @metasession.co/devaudit-cli` once, then the short forms `devaudit install` / `devaudit update` / `devaudit join` work everywhere.
@@ -21,7 +34,7 @@ Start at the portal for the big picture:
 | Package                                                                                                                            | Purpose                                          |
 | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
 | [`@metasession.co/devaudit-cli`](https://www.npmjs.com/package/@metasession.co/devaudit-cli)                                       | The `devaudit` binary                            |
-| [`@metasession.co/devaudit-plugin-sdk`](https://www.npmjs.com/package/@metasession.co/devaudit-plugin-sdk)                         | Plugin contract types                            |
+| [`@metasession.co/devaudit-plugin-sdk`](https://www.npmjs.com/package/@metasession.co/devaudit-plugin-sdk)                         | Plugin contract types — see [`plugin-sdk/README.md`](./plugin-sdk/README.md) for authoring a plugin |
 | [`@metasession.co/devaudit-plugin-prisma`](https://www.npmjs.com/package/@metasession.co/devaudit-plugin-prisma)                   | First-party plugin — Prisma migration hooks      |
 | [`@metasession.co/devaudit-plugin-evidence-export`](https://www.npmjs.com/package/@metasession.co/devaudit-plugin-evidence-export) | First-party plugin — bulk evidence bundle export |
 
@@ -38,6 +51,22 @@ Native binaries (no Node runtime) via brew / scoop / `curl | sh` are on the road
 | `sdlc-config.json` | Created                                                                                                                      | Read                                                                                                                                                | Read                                                                                                              |
 
 > `install` against an already-onboarded repo auto-detects the situation and flips to **developer mode** internally (same as running `join` explicitly). The four detection bits: `sdlc-config.json` exists · portal returns a project for the slug · an `Onboarding-issued` API key already exists · the repo has a `DEVAUDIT_USER_TOKEN` secret. Any one missing → operator mode (safe default).
+
+## Other CLI commands
+
+Beyond `install`/`update`/`join`, the CLI ships:
+
+| Command | Purpose |
+| --- | --- |
+| `devaudit doctor` (`--fleet`) | Local health check of a consumer project; `--fleet` sweeps every project your account can see. See [`docs/doctor.md`](./docs/doctor.md). |
+| `devaudit push` | Upload an evidence file to a project/release (the CLI port of `scripts/upload-evidence.sh`) — what CI and `sdlc-implementer` call under the hood to record test executions, gate results, and other evidence. Full flag reference: [`docs/push.md`](./docs/push.md). |
+| `devaudit status` | Show a consumer project's current framework state (synced version, onboarding checklist, pending releases). |
+| `devaudit uninstall` | Disconnect a repo from DevAudit: revokes its API key(s), removes the GitHub secrets/variables `install` wrote, and drops it from `sdlc-config.json`. Leaves branch protection and synced files in place. |
+| `devaudit bootstrap-governance` | Copy the governance starter templates into `compliance/governance/` (opt-in since v0.1.36 — see the note below). |
+| `devaudit plugin list \| install \| remove \| update` | Manage first-party/third-party CLI plugins (see [`@metasession.co/devaudit-plugin-prisma`](https://www.npmjs.com/package/@metasession.co/devaudit-plugin-prisma) and [`@metasession.co/devaudit-plugin-evidence-export`](https://www.npmjs.com/package/@metasession.co/devaudit-plugin-evidence-export) as examples). |
+| `devaudit upgrade`, `devaudit config`, `devaudit org` | Reserved — currently unimplemented stubs, tracked for a future release. Running them prints a "not implemented yet" notice rather than doing anything. |
+
+Full flag reference for any command: `devaudit <command> --help`. Natural-language prompt equivalents for AI agents: [`docs/prompts-faq.md`](./docs/prompts-faq.md).
 
 ## Quick start — onboard a new project (`install`)
 
@@ -138,7 +167,7 @@ Use a **standalone housekeeping release** only when the change cannot reasonably
 
 → Which workflow applies to which change type, and what release each produces: [**`docs/change-workflows.md`**](./docs/change-workflows.md).
 → Full stage-3 walkthrough including the housekeeping path: [**`3-compile-evidence.md`**](./sdlc/files/_common/3-compile-evidence.md).
-→ The stage-by-stage operational walkthrough (synced into every consumer): [**`implementing-an-sdlc-issue.md`**](./sdlc/files/_common/implementing-an-sdlc-issue.md).
+→ The stage-by-stage operational walkthrough: [**`implementing-an-sdlc-issue.raw.md`**](./sdlc/src/blueprints/implementing-an-sdlc-issue.raw.md) — the file synced into every consumer at `implementing-an-sdlc-issue.md` is a short step-gate stub that redirects an agent to the orchestration engine (`devaudit-sdlc.js --phase=issue`) rather than the walkthrough content itself; view the same content locally with `devaudit-sdlc.js --phase=issue --view`.
 
 ## Architecture
 
@@ -160,14 +189,25 @@ Adding a new stack or host means dropping a new `adapter.json` + supporting file
 | [`docs/consuming-projects.md`](./docs/consuming-projects.md)                                                                       | Operator manual for consumer maintainers                                                                                                                                     |
 | [`docs/sdlc-framework.md`](./docs/sdlc-framework.md)                                                                               | Framework structure, tiers, adapter layering, schematic                                                                                                                      |
 | [`docs/governance-templates.md`](./docs/governance-templates.md)                                                                   | Five starter templates (ROPA, DPIA, AI disclosure, incident report, periodic review) installed once into `compliance/governance/`. **Replace before going to production.**   |
+| [`docs/incident-export.md`](./docs/incident-export.md)                                                                             | Path A vs. Path B incident-export routing, what each `### Framework attribution` tick means, and what to do when a Path B PR appears                                        |
 | [`docs/change-workflows.md`](./docs/change-workflows.md)                                                                           | Change types → workflow → release type, and what to expect                                                                                                                   |
 | [`docs/compliance-gates.md`](./docs/compliance-gates.md)                                                                           | Which GitHub Actions workflow owns which approval/evidence gate                                                                                                              |
 | [`docs/evidence-tiers.md`](./docs/evidence-tiers.md)                                                                               | Tier 1/2/3 evidence model and the CI-vs-git storage split                                                                                                                    |
 | [`docs/release-lineage-and-test-execution-audit-model.md`](./docs/release-lineage-and-test-execution-audit-model.md)               | Reviewer/auditor model for bundled lineage, controlled iterations, and first-class test executions                                                                           |
+| [`docs/release-lineage-producer-contract.md`](./docs/release-lineage-producer-contract.md)                                         | Producer-side contract for the release-lineage/test-execution model                                                                                                          |
 | [`docs/e2e-test-tiers.md`](./docs/e2e-test-tiers.md)                                                                               | Smoke / critical / regression E2E model and how it fits the SDLC                                                                                                             |
-| [`docs/release-playbooks/`](./docs/release-playbooks/)                                                                             | Step-by-step playbooks for a **high-risk**, **low-risk**, or **housekeeping** release — each written twice: driving it with an AI agent, and by hand                         |
-| [`sdlc/files/_common/implementing-an-sdlc-issue.md`](./sdlc/files/_common/implementing-an-sdlc-issue.md)                           | Operational stage-by-stage walkthrough (synced to consumers)                                                                                                                 |
-| [`docs/skills.md`](./docs/skills.md) · [`sdlc/SKILLS.md`](./sdlc/SKILLS.md) · [`docs/adding-a-skill.md`](./docs/adding-a-skill.md) | The six shipped skills (`sdlc-implementer`, `e2e-test-engineer`, `governance-doc-author`, `requirements-aligner`, `adr-author`, `risk-register-keeper`) + authoring new ones |
+| [`docs/e2e-local-db-ci.md`](./docs/e2e-local-db-ci.md)                                                                             | Running the generated E2E gate against a disposable local DB instead of prod                                                                                                 |
+| [`docs/doctor.md`](./docs/doctor.md) · [`docs/fleet-doctor.md`](./docs/fleet-doctor.md)                                           | `devaudit doctor` health check, and the operator-only fleet-wide drift audit built on it                                                                                    |
+| [`docs/housekeeping-release-runbook.md`](./docs/housekeeping-release-runbook.md)                                                   | Pre-flight sync + health-check runbook to run before starting the next tracked REQ                                                                                          |
+| [`docs/prompts-faq.md`](./docs/prompts-faq.md)                                                                                     | Quick reference of natural-language prompts and CLI commands, per skill/feature                                                                                             |
+| [`docs/push.md`](./docs/push.md)                                                                                                   | Full flag reference for `devaudit push` — the evidence-upload command CI and the SDLC skills call under the hood                                                            |
+| [`docs/branch-protection-setup.md`](./docs/branch-protection-setup.md)                                                             | Required GitHub branch-protection rules for `main`/`develop`                                                                                                                  |
+| [`docs/self-hosted-runner-ci.md`](./docs/self-hosted-runner-ci.md)                                                                 | Host-level bootstrap requirements for self-hosted CI runners                                                                                                                 |
+| [`docs/SRS.md`](./docs/SRS.md)                                                                                                     | Living Software Requirements Specification for the CLI + framework                                                                                                           |
+| [`docs/release-playbooks/`](./docs/release-playbooks/) — [high-risk](./docs/release-playbooks/high-risk-release.md), [low-risk](./docs/release-playbooks/low-risk-release.md), [housekeeping](./docs/release-playbooks/housekeeping-release.md) | Step-by-step playbooks for a **high-risk**, **low-risk**, or **housekeeping** release — each written twice: driving it with an AI agent, and by hand |
+| [`docs/issues/`](./docs/issues/)                                                                                                    | Internal proposal / incident write-ups — historical design decisions and known gaps, not operator-facing guidance                                                           |
+| [`sdlc/src/blueprints/implementing-an-sdlc-issue.raw.md`](./sdlc/src/blueprints/implementing-an-sdlc-issue.raw.md)                 | Operational stage-by-stage walkthrough. The file synced to consumers at `implementing-an-sdlc-issue.md` is a step-gate stub pointing back to this content, not the walkthrough itself — see `devaudit-sdlc.js --phase=issue --view`. |
+| [`docs/skills.md`](./docs/skills.md) · [`sdlc/SKILLS.md`](./sdlc/SKILLS.md) · [`docs/adding-a-skill.md`](./docs/adding-a-skill.md) | The seven shipped skills (`sdlc-implementer`, `e2e-test-engineer`, `e2e-ci-reliability`, `governance-doc-author`, `requirements-aligner`, `adr-author`, `risk-register-keeper`) + authoring new ones |
 | [`docs/adding-a-stack.md`](./docs/adding-a-stack.md) · [`docs/adding-a-host.md`](./docs/adding-a-host.md)                          | Adapter contracts                                                                                                                                                            |
 | [`INSTRUCTIONS.md`](./INSTRUCTIONS.md)                                                                                             | Working conventions for this repo                                                                                                                                            |
 
@@ -183,11 +223,11 @@ Adding a new stack or host means dropping a new `adapter.json` + supporting file
 
 ## Related repositories
 
-| Repo                                                                                        | Role                                                                                                                                           |
-| ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`metasession-dev/devaudit`](https://github.com/metasession-dev/devaudit)                   | DevAudit evidence portal (Next.js, `devaudit.ai`). Product/standards/portal-UI/release docs live there; the authoritative consumers table too. |
-| [`metasession-dev/wawagardenbar-app`](https://github.com/metasession-dev/wawagardenbar-app) | Active consumer — Node/Next.js on Railway.                                                                                                     |
-| [`metasession-dev/META-JOBS`](https://github.com/metasession-dev/META-JOBS)                 | Active consumer — Node.                                                                                                                        |
+| Repo                                                                        | Role                                                                                                                                             |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [`metasession-dev/devaudit`](https://github.com/metasession-dev/devaudit)   | DevAudit evidence portal (Next.js, `devaudit.ai`). Product/standards/portal-UI/release docs live there; the authoritative consumers list too.  |
+
+For the current list of onboarded consumer projects, ask the portal directly (`devaudit doctor --fleet`, or the portal's own project list) rather than a hardcoded table here — a project list checked into git goes stale the moment a consumer onboards, offboards, or gets renamed on the portal side.
 
 ## Contributing
 

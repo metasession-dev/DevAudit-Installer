@@ -95,6 +95,30 @@ failure warns, never blocks the gate) and only runs when a release ticket define
 in-scope REQ(s), so ordinary dev pushes don't spam evidence. Capture at the proving
 moment, not the end of the test.
 
+## Alternative: a real container-service database
+
+`e2e_setup_command` above starts the database yourself (a CLI tool, a binary). If your backend just needs an ordinary containerized database, `sdlc-config.json` has a separate, simpler pair of knobs that render a GitHub Actions `services:` block instead:
+
+| Field | Type | What it does |
+| --- | --- | --- |
+| `database_service` | string | The service name in the generated `services:` block (e.g. `mongodb`, `postgres`). Empty (the default) strips the block entirely — no service container at all. |
+| `database_image` | string | The container image for that service (e.g. `mongo:7`). |
+| `database_port` | string | The container port to expose; combined with `database_service: mongodb` this also renders a dynamic-port `DATABASE_URI_STEP` so the app connects to whatever port the runner actually assigned. |
+| `database_env` | map | Env applied to the database service container itself (distinct from `e2e_env`, which applies to the app/test steps). |
+
+Use this when a stock database image is enough; use `e2e_setup_command`/`e2e_env` above when you need a CLI-managed local instance (schema loading, a specific startup sequence) that a plain service container can't do alone.
+
+## Authenticated E2E: a report-only tier for logged-in flows
+
+Two more knobs add a **non-blocking**, report-only step after the main blocking smoke gate — for specs that need a real authenticated session and shouldn't hold up every push if they're still flaky:
+
+| Field | Type | What it does |
+| --- | --- | --- |
+| `e2e_seed_command` | string | A foreground step, run before the authenticated E2E step, that seeds whatever an authenticated session needs (a test user, a session token). |
+| `e2e_projects` | string | The Playwright project name(s) to run in this report-only pass (e.g. an `authenticated` project defined in `playwright.config.ts`). |
+
+When either is set, `ci.yml` gains a `continue-on-error: true` seed + authenticated-E2E step pair after the blocking smoke gate, writing `e2e-auth-results.json` — failures here are visible but never block the push. Leaving both unset renders `ci.yml` exactly as if they didn't exist (this is additive and opt-in, same as `e2e_setup_command`/`e2e_env`).
+
 ## What stays the same
 
 With **no** `e2e_setup_command` and **no** `e2e_env`, the generated Gate 4 is unchanged —
