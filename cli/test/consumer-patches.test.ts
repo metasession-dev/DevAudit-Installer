@@ -123,14 +123,36 @@ describe("consumer patch layer (#84)", () => {
     );
   });
 
-  it("fails loudly without mutating a conflicting target", async () => {
+  it("skips a conflicting patch with a loud warning instead of aborting the sync (#921)", async () => {
     const ctx = await fixture("different upstream content\n");
     await writePatch(ctx);
-    await expect(applyConsumerPatches(ctx)).rejects.toThrow(
-      /consumer patch conflict: example\.patch/,
-    );
+    const result = await applyConsumerPatches(ctx);
+    // The conflicting patch is not applied — the file keeps the fresh
+    // upstream/template content the rest of the sync just wrote, not the
+    // stale patched content. This lets every other section (formatting,
+    // version stamp, etc.) run normally instead of the whole command
+    // throwing before they ever execute.
+    expect(result.filesSynced).toBe(0);
     await expect(readFixtureFile(ctx)).resolves.toBe(
       "different upstream content\n",
+    );
+    expect(result.message).toContain(
+      "SKIPPED (conflict, template regenerated without it): example.patch",
+    );
+    expect(result.warning).toContain("no longer apply cleanly and were skipped");
+    expect(result.warning).toContain("example.patch");
+    expect(result.warning).toContain(
+      "docs/consuming-projects.md#re-rolling-a-conflicting-patch",
+    );
+  });
+
+  it("names the conflicting patch's linked upstream issue in the warning, same as applied/obsolete patches (#921)", async () => {
+    const ctx = await fixture("different upstream content\n");
+    await writePatch(ctx);
+    await writePatchMetadata(ctx);
+    const result = await applyConsumerPatches(ctx);
+    expect(result.warning).toContain(
+      "example.patch (see https://github.com/metasession-dev/DevAudit-Installer/issues/759)",
     );
   });
 

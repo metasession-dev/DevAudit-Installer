@@ -209,14 +209,47 @@ files in lexical order:
   (`applied: ci.yml.patch (see https://.../759)`) when it has one;
 - **obsolete/already upstream:** the reverse patch matches, so review and
   remove the patch (and its `.patch.json`) in the same adoption PR;
-- **conflict:** neither direction applies cleanly; update stops nonzero before
-  applying the patch set. Re-roll the patch against the new upstream template
-  or remove it if the upstream fix supersedes it.
+- **conflict:** neither direction applies cleanly. **The sync does not abort**
+  (devaudit-installer#921) — every other file syncs normally, the conflicting
+  patch is skipped, and the affected file is left with the fresh, unpatched
+  upstream template content. The sync's warning output names the patch and
+  its linked issue, e.g. `1 consumer patch(es) no longer apply cleanly and
+  were skipped this sync ... example.patch (see https://.../759)`. Re-roll
+  the patch against the new upstream template (see below) or remove it if the
+  upstream fix supersedes it — until you do, that one file stays unpatched on
+  every subsequent sync, not silently reverted back once and forgotten.
 
 Patch files must use repository-relative paths and must never modify files
 outside the consumer repository. They are an auditable escape hatch, not a
 permanent fork: every patch needs an upstream issue and should be deleted once
 that fix reaches the consumer.
+
+#### Re-rolling a conflicting patch
+
+A patch conflict means the upstream template's context lines (the surrounding
+content `git apply` anchors on) changed since the patch was written — not
+necessarily that your fix is obsolete. Work out which case you're in before
+touching anything:
+
+1. **Read the freshly synced file first.** Since the conflicting patch was
+   skipped, the file on disk right now *is* the new upstream template,
+   unpatched — diff it against your patch's intent (the `reason` field in the
+   `.patch.json` sidecar) rather than guessing from the patch content alone.
+2. **Check whether upstream already fixed it.** If the new template content
+   already does what your patch was trying to do, delete the `.patch` and
+   `.patch.json` files — you're done, no re-roll needed.
+3. **If your fix is still needed, regenerate the patch against the current
+   file** rather than hand-editing the old `.patch`'s context lines (which is
+   what silently drops a consumer's fix — editing a patch by hand without
+   re-diffing against the real current file risks the patch "applying
+   cleanly" against content it was never actually tested against):
+   ```bash
+   # Re-apply your original intent by hand to the current (unpatched) file,
+   # then regenerate the patch from the real diff:
+   git diff -- .github/workflows/<file> > .devaudit-patches/<file>.patch
+   ```
+4. **Re-run `devaudit update`** and confirm the sync's output now shows
+   `applied: <file>.patch`, not the conflict warning.
 
 #### Deciding: config key vs. patch
 
