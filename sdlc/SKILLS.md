@@ -135,6 +135,13 @@ or, without `--once`, a bounded poll loop that persists retry state in `.sdlc-pr
 
 Each skill is **configurable per project** via `sdlc-config.json` (`requirements_aligner`, `adr_author`, `risk_register_keeper` blocks) — `block_on_stage_1: false` is the default in v1 so the skill advises but doesn't block plan APPROVAL; flip to `true` once calibrated.
 
+## Skill-to-skill signaling conventions
+
+Two patterns recur across the shipped skills and are worth following deliberately rather than reinventing per-skill:
+
+- **Structured `CLEAN`/`GAPS_FOUND` return values.** When a sub-skill reports back to its calling orchestrator (used by all three SoT-alignment skills reporting to `sdlc-implementer`), it returns one of these two literal tokens rather than free prose, so the orchestrator can branch on the result programmatically instead of re-parsing a summary. `CLEAN` means the SoT document already covers the change; `GAPS_FOUND` means the skill authored or updated the document and the orchestrator should surface that as part of its own status update.
+- **Gitignored local sentinel files** as the cross-skill/cross-tool signaling mechanism for state that must survive across an invocation but never gets committed — e.g. `.e2e-gate-passed`, `.e2e-evidence-wired`, `.sdlc-implementer-invoked`. These live at the consumer repo root, are added to the consumer's `.gitignore` by the sync step that introduces them, and are checked for existence (not parsed) by whichever skill or hook needs to know "has this already happened in this working tree." Prefer this over an env var (doesn't survive across separate tool invocations in the same session) or a committed file (would pollute history with process-only state).
+
 ## Skills on the roadmap
 
 No concrete candidates are queued. A `unit-test-engineer` counterpart to `e2e-test-engineer` is the most likely next skill, but it lands only when day-to-day work repeatedly surfaces the pain and the orchestrator demonstrably needs it as a separable component. Tracking: [`metasession-dev/DevAudit-Installer#29`](https://github.com/metasession-dev/DevAudit-Installer/issues/29).

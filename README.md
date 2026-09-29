@@ -34,7 +34,7 @@ Start at the portal for the big picture:
 | Package                                                                                                                            | Purpose                                          |
 | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
 | [`@metasession.co/devaudit-cli`](https://www.npmjs.com/package/@metasession.co/devaudit-cli)                                       | The `devaudit` binary                            |
-| [`@metasession.co/devaudit-plugin-sdk`](https://www.npmjs.com/package/@metasession.co/devaudit-plugin-sdk)                         | Plugin contract types                            |
+| [`@metasession.co/devaudit-plugin-sdk`](https://www.npmjs.com/package/@metasession.co/devaudit-plugin-sdk)                         | Plugin contract types — see [`plugin-sdk/README.md`](./plugin-sdk/README.md) for authoring a plugin |
 | [`@metasession.co/devaudit-plugin-prisma`](https://www.npmjs.com/package/@metasession.co/devaudit-plugin-prisma)                   | First-party plugin — Prisma migration hooks      |
 | [`@metasession.co/devaudit-plugin-evidence-export`](https://www.npmjs.com/package/@metasession.co/devaudit-plugin-evidence-export) | First-party plugin — bulk evidence bundle export |
 
@@ -59,7 +59,7 @@ Beyond `install`/`update`/`join`, the CLI ships:
 | Command | Purpose |
 | --- | --- |
 | `devaudit doctor` (`--fleet`) | Local health check of a consumer project; `--fleet` sweeps every project your account can see. See [`docs/doctor.md`](./docs/doctor.md). |
-| `devaudit push` | Upload an evidence file to a project/release (the CLI port of `scripts/upload-evidence.sh`) — what CI and `sdlc-implementer` call under the hood to record test executions, gate results, and other evidence. |
+| `devaudit push` | Upload an evidence file to a project/release (the CLI port of `scripts/upload-evidence.sh`) — what CI and `sdlc-implementer` call under the hood to record test executions, gate results, and other evidence. Full flag reference: [`docs/push.md`](./docs/push.md). |
 | `devaudit status` | Show a consumer project's current framework state (synced version, onboarding checklist, pending releases). |
 | `devaudit uninstall` | Disconnect a repo from DevAudit: revokes its API key(s), removes the GitHub secrets/variables `install` wrote, and drops it from `sdlc-config.json`. Leaves branch protection and synced files in place. |
 | `devaudit bootstrap-governance` | Copy the governance starter templates into `compliance/governance/` (opt-in since v0.1.36 — see the note below). |
@@ -200,6 +200,7 @@ Adding a new stack or host means dropping a new `adapter.json` + supporting file
 | [`docs/doctor.md`](./docs/doctor.md) · [`docs/fleet-doctor.md`](./docs/fleet-doctor.md)                                           | `devaudit doctor` health check, and the operator-only fleet-wide drift audit built on it                                                                                    |
 | [`docs/housekeeping-release-runbook.md`](./docs/housekeeping-release-runbook.md)                                                   | Pre-flight sync + health-check runbook to run before starting the next tracked REQ                                                                                          |
 | [`docs/prompts-faq.md`](./docs/prompts-faq.md)                                                                                     | Quick reference of natural-language prompts and CLI commands, per skill/feature                                                                                             |
+| [`docs/push.md`](./docs/push.md)                                                                                                   | Full flag reference for `devaudit push` — the evidence-upload command CI and the SDLC skills call under the hood                                                            |
 | [`docs/branch-protection-setup.md`](./docs/branch-protection-setup.md)                                                             | Required GitHub branch-protection rules for `main`/`develop`                                                                                                                  |
 | [`docs/self-hosted-runner-ci.md`](./docs/self-hosted-runner-ci.md)                                                                 | Host-level bootstrap requirements for self-hosted CI runners                                                                                                                 |
 | [`docs/SRS.md`](./docs/SRS.md)                                                                                                     | Living Software Requirements Specification for the CLI + framework                                                                                                           |

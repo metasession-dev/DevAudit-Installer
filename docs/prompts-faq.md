@@ -31,6 +31,7 @@ Takes a GitHub issue end-to-end through the SDLC: triage → plan → implement 
 
 - **Start:** "implement issue #N", "fix issue #N", "do issue #N", "implement #N", "implement issue #N under the SDLC", "run the SDLC for issue #N", "automate REQ-XXX from issue to release", "do the SDLC stages for [issue]"
 - **Resume after UAT/portal action:** "resume REQ-XXX"
+- **Bundle multiple issues into one branch/PR/release:** "Bundles: #A, #B" — see [`change-workflows.md`](change-workflows.md) for the behavioral contract (lineage, atomic approval); this is just the syntax that turns it on.
 
 Don't use it for stage-1 planning only (run the manual walkthrough instead), or for test authorship alone (invoke `e2e-test-engineer` directly — `sdlc-implementer` delegates to it automatically in Phase 2 anyway).
 
@@ -46,6 +47,8 @@ Don't use it for stage-1 planning only (run the manual walkthrough instead), or 
 - "bootstrap an e2e suite"
 
 Framework- and tracker-agnostic. Not for unit/component/API-only or performance tests.
+
+An incident found outside a tracked run doesn't have to go through the issue-filing path first — `e2e-test-engineer` can file the incident report directly ("this regression isn't tied to an open issue, file it as an incident") and skip straight to the incident-export flow described in [`incident-export.md`](incident-export.md).
 
 ## E2E suite flakiness and CI reliability — `e2e-ci-reliability`
 
@@ -66,6 +69,8 @@ Not for authoring test content (that's `e2e-test-engineer`) and not for a single
 - "set up the periodic review schedule"
 - "I need to make our [governance doc] audit-ready"
 - Also fires when the portal's framework-coverage matrix shows `GDPR.Art-30` / `GDPR.Art-35` / `EUAIA.Art-13` / `SOC2.CC4.1` / `ISO27001.A.12.1` as MISSING and you ask how to close them.
+
+For periodic review specifically, the skill only authors the review *schedule and template* — it deliberately doesn't touch the auto-generated execution half (the actual scheduled review run and its findings), which is a separate, already-automated mechanism.
 
 ## Source-of-truth alignment family
 
