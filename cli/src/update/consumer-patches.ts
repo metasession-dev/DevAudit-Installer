@@ -103,12 +103,19 @@ export async function applyConsumerPatches(
     }
   }
 
-  if (conflicts.length > 0) {
-    const names = conflicts.map((path) => relative(patchRoot, path)).join(", ");
-    throw new Error(
-      `consumer patch conflict: ${names}. Upstream templates changed; re-roll or remove the patch before updating.`,
-    );
-  }
+  // DevAudit-Installer#921 — a patch that no longer applies cleanly against
+  // the freshly synced upstream template used to abort the ENTIRE sync
+  // (throwing here, before formatSyncedFiles/stampVersion ever ran), even
+  // though every other section had already written its files successfully.
+  // That meant one stale patch could silently leave a consumer's
+  // devaudit_synced_version un-bumped and dozens of unrelated fixes
+  // unformatted, with no way to tell short of reading the crash. A
+  // conflicting patch is now skipped (that file keeps the fresh upstream
+  // template content, not the stale patched content) and reported as a
+  // loud warning instead — the rest of the sync completes normally. See
+  // docs/consuming-projects.md#re-rolling-a-conflicting-patch for the
+  // recovery procedure this warning points at.
+  const conflictNames = conflicts.map((path) => relative(patchRoot, path));
 
   if (applicable.length > 0) {
     const check = await execa(
@@ -167,14 +174,25 @@ export async function applyConsumerPatches(
   };
   const appliedNames = applicable.map(withIssue);
   const obsoleteNames = obsolete.map(withIssue);
+  const conflictDisplayNames = conflictNames.map((name) => {
+    const path = join(patchRoot, name);
+    const meta = metadataByPath.get(path);
+    return meta ? `${name} (see ${meta.upstream_issue})` : name;
+  });
   const details = [
     appliedNames.length > 0 ? `applied: ${appliedNames.join(", ")}` : "",
     obsoleteNames.length > 0
       ? `obsolete/already upstream: ${obsoleteNames.join(", ")} (remove after review)`
       : "",
+    conflictDisplayNames.length > 0
+      ? `SKIPPED (conflict, template regenerated without it): ${conflictDisplayNames.join(", ")}`
+      : "",
   ].filter(Boolean);
 
   const warnings = [
+    conflictDisplayNames.length > 0
+      ? `${conflictDisplayNames.length} consumer patch(es) no longer apply cleanly and were skipped this sync — the affected file(s) now carry the fresh upstream template UNPATCHED: ${conflictDisplayNames.join(", ")}. Re-roll or remove the patch: see docs/consuming-projects.md#re-rolling-a-conflicting-patch.`
+      : "",
     obsoleteNames.length > 0 ? `${obsoleteNames.length} obsolete consumer patch(es)` : "",
     missingMetadata.length > 0
       ? `${missingMetadata.length} patch(es) missing a companion <name>.patch.json with an upstream_issue link: ${missingMetadata
