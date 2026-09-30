@@ -238,6 +238,11 @@ describe('adapter schema validation (#158)', () => {
 // #154 — `update --dry-run` must not write anything into the consumer.
 describe('update --dry-run (#154)', () => {
   it('writes no files when dryRun is set', async () => {
+    // devaudit-installer#930 — dry-run now runs the real sync pipeline
+    // (classification only, every write suppressed) instead of a static
+    // stub, so it needs DEVAUDIT_INSTALLER_ROOT resolved the same as every
+    // other test in this suite that calls syncProject/syncAll.
+    process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
     const dir = await mktmp('update-dry-');
     await fs.writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'x', version: '0.0.0' }));
     const before = await fs.readdir(dir);
