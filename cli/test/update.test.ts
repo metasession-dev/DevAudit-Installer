@@ -421,9 +421,29 @@ describe('syncProject — native TS sync against a fixture', () => {
       // resolves a plain .js file's module system from the nearest
       // package.json — which, once copied into the consumer's tree, is the
       // consumer's own, not sdlc/package.json.
+      // devDependencies pre-populated so syncStackDeps reports "all present"
+      // instead of running a real `npm install` — matching buildFixture()'s
+      // fixture above. Without this, this test hung past its timeout on the
+      // Windows CI runner (a real npm install of 8 packages is slow there),
+      // which is why the CJS-vs-ESM assertions below never even ran.
       await fs.writeFile(
         join(dir, 'package.json'),
-        JSON.stringify({ name: 'esm-fixture-app', private: true, version: '0.0.0', type: 'module' }),
+        JSON.stringify({
+          name: 'esm-fixture-app',
+          private: true,
+          version: '0.0.0',
+          type: 'module',
+          devDependencies: {
+            husky: '*',
+            '@commitlint/cli': '*',
+            '@commitlint/config-conventional': '*',
+            'lint-staged': '*',
+            prettier: '*',
+            eslint: '*',
+            typescript: '*',
+            '@playwright/test': '*',
+          },
+        }),
       );
       // Simulate a repo synced before #929: a stale devaudit-sdlc.js sitting
       // where the new .cjs will land.
