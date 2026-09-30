@@ -14,6 +14,7 @@ This workflow detects whether your project needs a fresh DevAudit install or jus
 - You are in the consuming project's root directory
 - For a fresh install: you need a DevAudit portal token (`DEVAUDIT_USER_TOKEN`) and know your project slug, stack, and host
 - For an update: the project was previously onboarded (has `sdlc-config.json`)
+- The repository's **"Allow auto-merge"** setting (repo Settings → General) should be enabled. `close-out-release.yml` arms auto-merge on the reconciliation PR it opens (devaudit#620) — with this off, `gh pr merge --auto` fails outright and the PR is left needing a manual merge. Neither `devaudit install` nor `devaudit update` sets this automatically today; check/enable it once per repo.
 
 ## Steps
 
@@ -93,7 +94,7 @@ Skip to step 4.
 
 ### 3. Update — run `devaudit update`
 
-This syncs the latest SDLC templates, binary, blueprints, hooks, scripts, and skills from the published CLI package into your repo. It does NOT touch `sdlc-config.json`, portal registration, or secrets.
+This syncs the latest SDLC templates, binary, blueprints, hooks, scripts, and skills from the published CLI package into your repo, re-applies branch protection, and stamps `devaudit_synced_version` into `sdlc-config.json`. It does not touch portal registration or secrets.
 
 ```bash
 npx @metasession.co/devaudit-cli update .
@@ -177,13 +178,16 @@ The skill will:
 6. Adds sentinel entries to `.gitignore` if missing
 7. Adds `postinstall` script (`playwright install chromium`) to `package.json` if `@playwright/test` is a required dep and no postinstall exists — ensures browsers auto-install after `npm ci`
 8. Syncs Windsurf workflow files to `.devin/workflows/` — overwrites with latest
-9. Does NOT touch: `sdlc-config.json`, portal registration, API keys, secrets, branch protection
+9. Re-applies branch protection to the release + integration branches (unions required checks; does not weaken any manual tightening)
+10. Stamps `devaudit_synced_version` (and `e2e_regression_enabled` if `--enable-/--disable-e2e-regression` was passed) into `sdlc-config.json` — no other `sdlc-config.json` key is touched
+11. Does NOT touch: portal registration, API keys, secrets
 
 ## Common issues
 
 - **`npx` prompts to install the package** — this is normal on first run. Answer `y` to proceed. The package is `@metasession.co/devaudit-cli`.
 - **Install fails with 401/403** — `DEVAUDIT_USER_TOKEN` is missing, expired, or wrong. Get a new token from the DevAudit portal `/settings/api-keys`.
-- **Update overwrites custom CI config** — `devaudit update` regenerates `ci.yml` from the template. If you have project-specific customizations, keep them in a separate workflow file (e.g. `.github/workflows/project-specific.yml`) rather than editing `ci.yml` directly.
+- **Update overwrites custom CI config** — `devaudit update` regenerates `ci.yml` (and every other regenerated template) from source on every run. A hand-edit is preserved only if it's tracked as a reviewed patch in `.devaudit-patches/` (re-applied after every regenerating section) or expressed as an `sdlc-config.json` key the template already reads — editing the generated file directly does not survive the next sync.
 - **`SDLC/bin/devaudit-sdlc.cjs` missing after update** — the sync section 2h failed. Check that the CLI version you're using is >= 0.3.2 (the version that added the engine sync).
 - **Postinstall script not added** — ensure you're using CLI >= 0.3.3. If a `postinstall` script already exists (and doesn't mention `playwright install`), it won't be overwritten — a warning is logged instead. Add `playwright install chromium` manually if needed.
 - **Pre-push hook blocks pushes** — the hook checks for `.sdlc-implementer-invoked`. Run `node SDLC/bin/devaudit-sdlc.cjs --phase=issue` before committing to write the sentinel.
+- **Close-out reconciliation PR never merges itself** — `gh api repos/{owner}/{repo} -q '.allow_auto_merge'` should print `true`. If it's `false`, enable "Allow auto-merge" in repo Settings → General (or `gh api -X PATCH repos/{owner}/{repo} -f allow_auto_merge=true` with admin access) and re-run the close-out workflow, or manually merge the pending PR this once.

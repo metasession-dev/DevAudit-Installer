@@ -8,6 +8,126 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 - **#929** — `SDLC/bin/devaudit-sdlc.js` was genuine CommonJS but was synced with a `.js` extension and no isolating `package.json`, so any consumer whose own `package.json` declares `"type": "module"` (a common modern default) had it misinterpreted as ESM and crashed on every phase-transition/freshness-check sentinel invocation with `require is not defined`. Renamed to `devaudit-sdlc.cjs` (forces CommonJS regardless of the consumer's `package.json`) and updated `syncSdlcEngine` to sync the new name and remove a stale pre-#929 `.js` copy if one is present. **Operator action after updating:** invoke the binary as `node SDLC/bin/devaudit-sdlc.cjs`, not `.js`; any consumer-local scripts or docs that hard-code the old `.js` path need updating too.
 
+## [1.7.3] — 2026-09-29
+
+### Fixed
+
+- **#921** — a conflicting `.devaudit-patches/*.patch` (one that no longer applies cleanly) now skips just that file with a warning instead of throwing out of the section loop and silently aborting every later sync step, including the version stamp.
+- **#921** — `e2e-regression.yml`'s job-wide env now also threads `app_env`, matching `ci.yml.template`/`feature-e2e.yml.template`'s existing behavior — the dev server this workflow starts needs its own runtime config, distinct from `e2e_env`'s test-only credentials.
+
+## [1.7.2] — 2026-09-29
+
+### Fixed
+
+- **#912** — `DEVAUDIT_USER_TOKEN` is no longer written as a repo secret (it's an operator-local credential, not something CI needs); corrected attribution docs and SRS drift found during the same audit.
+
+## [1.7.1] — 2026-09-29
+
+### Fixed
+
+- **#899** — stopped auto-attributing `SOC2.CC7.2` to a defect that CI itself caught pre-merge — that clause is specifically about production incidents; a CI-caught regression never reached production.
+
+### Changed
+
+- Documentation pass: filled deep-coverage gaps in undocumented flags, hooks, config keys, and skill sub-flows; explained in-flight vs. post-deploy defect handling in `incident-export.md`; fixed README/docs organization gaps and added a table of contents; added a housekeeping-release runbook and a prompts FAQ.
+
+## [1.7.0] — 2026-09-28
+
+### Added
+
+- **#890** — new `e2e-ci-reliability` skill: diagnoses long-run E2E suite flakiness (sharding, warm-up, timeout tuning) as a per-project, skill-owned concern rather than a framework default.
+- **#886** — CLI opt-in for the E2E regression tier (`--enable-e2e-regression`/`--disable-e2e-regression`), plus viewer-key docs and wiring.
+- **#889** — `doctor`/onboarding now surface host-adapter secrets and CLI prerequisites the operator still needs to configure.
+
+### Fixed
+
+- **#893** — enforced `sdlc-implementer`'s Phase 0 freshness check (a stale-framework consumer is now caught before Phase 0 proceeds).
+- **#892** — Phase 5's post-deploy triage gate is now wired to the portal's resolve endpoint.
+- **#887** — capture the `gh api` error body on a deployment-status POST failure instead of a generic message.
+- **#885** — self-hosted-runner robustness fixes for `ci.yml.template`.
+- **#884** — a declared REQ bundle now shares one portal release instead of creating a separate one per bundled REQ.
+- **#883** — declared Railway adapter prerequisites explicitly; gated the reconcile-deployment workflow to Railway hosts only (devaudit-installer#841).
+- **#882** — gated `playwright install --with-deps` on runner type (self-hosted runners already have system deps).
+- **#881** — added a halt/resume path for a Phase 2 merge refused by the environment.
+- **#880** — derive bidirectional cross-feature regression scenarios.
+- **#879** — scan both the SRS table and heading blocks for REQ-ID allocation (previously missed IDs that existed only as a heading).
+- **#878** — archive the bundle manifest on close-out; guard against a stale step-0 derivation.
+
+## [1.6.1] — 2026-09-26
+
+### Fixed
+
+- Gated `compliance-evidence.yml`'s E2E Regression listener by `e2e_regression_enabled` — a consumer who never opted in no longer gets a listener waiting on a check that will never run.
+
+## [1.6.0] — 2026-09-26
+
+### Added
+
+- Generalized `fleet-doctor` into a multi-tenant `devaudit doctor --fleet`.
+- Enforced an org-boundary check before any `fleet-doctor` write action.
+
+### Changed
+
+- Deprecated polyglot-monorepo `targets` support; fixed stale naming in the docs. Documented `doctor`/`fleet-doctor` as the SDLC health-check layer and added a canonical `devaudit doctor` reference.
+
+## [1.5.1] — 2026-09-25
+
+### Added
+
+- `devaudit install --with-viewer-key` issues a read-only API key.
+- New `fleet-doctor` skill: an operator-only fleet-wide drift audit.
+- `devaudit doctor --json` mode plus fleet-doctor-consumable checks.
+- `resolve` mode for `report-test-execution.sh`, for self-service cycle-excuse handling.
+
+### Fixed
+
+- Reverted the execa 9→10 bump — it broke Windows local-bin shebang execution.
+- Decoupled `plugin-sdk`'s DTS emission from `tsup` so the TypeScript 7 build no longer crashes.
+- Added `vite` as an explicit devDependency for `vitest` 5.
+- **#831** — onboarded the `ostendo-workhorse-ci` self-hosted runner for the Linux CLI CI leg.
+
+## [1.5.0] — 2026-09-21
+
+### Added
+
+- `devaudit doctor` now verifies onboarding-checklist invariants.
+- New opt-in `e2e-regression.yml.template` — three-tier E2E gating.
+- SAST/dependency-audit evidence now fans out to declared-bundle sibling REQs.
+
+### Fixed
+
+- Preserved declared-bundle co-tracked members across CI's automatic bundled-changes regeneration.
+- Failed loudly instead of silently swallowing a stale E2E dev server kill.
+- Propagated the checkout `clean:false` fix (from an earlier release) to the remaining 8 self-hosted-capable workflow templates.
+- `commitlint` no longer rejects the `Sdlc-Implementer-Sentinel` commit trailer on a long phase history.
+- `validate-commits.sh`'s `CC_REGEX` no longer rejects the standard `style:` commit type.
+- Corrected `INSTALLER_DISPATCH_TOKEN` guidance (fine-grained, scoped, resource-owner).
+
+## [1.4.2] — 2026-09-10
+
+### Fixed
+
+- **#799** — a cyclic advisory back-edge is now treated as non-fatal, not a gate failure.
+- **#807** — resolve a deployment-origin E2E REQ via its nearest-ancestor commit before hard-failing.
+- **#783** — close out a reused REQ ID whose ticket lives under `superseded-releases/`.
+- **#798** — report the post-deploy E2E Regression tier as "not required" when the consumer hasn't opted in, instead of a misleading failure.
+
+## [1.4.1] — 2026-09-09
+
+### Added
+
+- Opt-in `mypy_scoped_diff` for the Python stack.
+
+### Fixed
+
+- Stopped rendering an empty `env:` block on the Python Quality Gates job.
+- Routed the `e2e-regression-3-tier.yml` reference through `CI_RUNNER_LABEL`.
+- Made `release.yml` resumable after a partial publish.
+
+### Changed
+
+- Documented `mission-control`, `mission-control-api`, and `thorstack-site` as active consumers.
+
 ## [1.4.0] — 2026-09-08
 
 ### Added
