@@ -116,7 +116,7 @@ These delegations are hard contracts — the orchestrator's SKILL.md fails revie
 Phase 4 is now more than a one-shot handoff note. When a release PR is blocked or waiting, `sdlc-implementer` can hand execution to the bundled watcher:
 
 ```bash
-node SDLC/bin/devaudit-sdlc.js --watch-pr=<number> --repo <owner/name> --once
+node SDLC/bin/devaudit-sdlc.cjs --watch-pr=<number> --repo <owner/name> --once
 ```
 
 or, without `--once`, a bounded poll loop that persists retry state in `.sdlc-pr-watch.json`, re-runs likely flaky workflows, and re-runs the Release Approval Gate when the portal is already approved but GitHub has not yet converged. That makes "blocked PR handling" an executable part of the orchestration contract rather than a prose-only reminder.

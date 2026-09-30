@@ -385,10 +385,10 @@ describe('syncProject — native TS sync against a fixture', () => {
     expect(gitignoreContent).toContain('.sdlc-implementer-invoked');
     expect(gitignoreContent).toContain('.sdlc-pr-watch.json');
     // Section 2h — SDLC CLI engine (binary + blueprints)
-    expect(await fs.stat(join(fixtureDir, 'SDLC', 'bin', 'devaudit-sdlc.js'))).toBeTruthy();
+    expect(await fs.stat(join(fixtureDir, 'SDLC', 'bin', 'devaudit-sdlc.cjs'))).toBeTruthy();
     expect(await fs.stat(join(fixtureDir, 'SDLC', 'blueprints', '1-plan-requirement.raw.md'))).toBeTruthy();
     expect(await fs.stat(join(fixtureDir, 'SDLC', 'blueprints', 'implementing-an-sdlc-issue.raw.md'))).toBeTruthy();
-    const engineContent = await fs.readFile(join(fixtureDir, 'SDLC', 'bin', 'devaudit-sdlc.js'), 'utf-8');
+    const engineContent = await fs.readFile(join(fixtureDir, 'SDLC', 'bin', 'devaudit-sdlc.cjs'), 'utf-8');
     expect(engineContent).toContain('SDLC Gateway Initialized');
     // Section 2i — Windsurf workflow files
     expect(await fs.stat(join(fixtureDir, '.devin', 'workflows', 'devaudit-update-install.md'))).toBeTruthy();
@@ -401,6 +401,76 @@ describe('syncProject — native TS sync against a fixture', () => {
     const first = await syncProject(fixtureDir);
     const second = await syncProject(fixtureDir);
     expect(second.totalFilesSynced).toBe(first.totalFilesSynced);
+  }, 60_000);
+
+  it('syncs a runnable SDLC engine binary for a "type": "module" consumer, and removes the stale pre-#929 .js copy (#929)', async () => {
+    const dir = await fs.mkdtemp(join(tmpdir(), 'cli-update-esm-fixture-'));
+    try {
+      await fs.writeFile(
+        join(dir, 'sdlc-config.json'),
+        JSON.stringify({
+          project_slug: 'esm-fixture-app',
+          stack: 'node',
+          host: 'railway',
+          node_version: '20',
+        }),
+      );
+      // The reported crash: any consumer whose own package.json declares
+      // "type": "module" caused Node to interpret the previously-synced
+      // devaudit-sdlc.js as ESM ("require is not defined"), since Node
+      // resolves a plain .js file's module system from the nearest
+      // package.json — which, once copied into the consumer's tree, is the
+      // consumer's own, not sdlc/package.json.
+      // devDependencies pre-populated so syncStackDeps reports "all present"
+      // instead of running a real `npm install` — matching buildFixture()'s
+      // fixture above. Without this, this test hung past its timeout on the
+      // Windows CI runner (a real npm install of 8 packages is slow there),
+      // which is why the CJS-vs-ESM assertions below never even ran.
+      await fs.writeFile(
+        join(dir, 'package.json'),
+        JSON.stringify({
+          name: 'esm-fixture-app',
+          private: true,
+          version: '0.0.0',
+          type: 'module',
+          devDependencies: {
+            husky: '*',
+            '@commitlint/cli': '*',
+            '@commitlint/config-conventional': '*',
+            'lint-staged': '*',
+            prettier: '*',
+            eslint: '*',
+            typescript: '*',
+            '@playwright/test': '*',
+          },
+        }),
+      );
+      // Simulate a repo synced before #929: a stale devaudit-sdlc.js sitting
+      // where the new .cjs will land.
+      await fs.mkdir(join(dir, 'SDLC', 'bin'), { recursive: true });
+      await fs.writeFile(join(dir, 'SDLC', 'bin', 'devaudit-sdlc.js'), '// stale pre-#929 CJS copy, would crash under "type": "module"\n');
+
+      process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
+      const report = await syncProject(dir);
+      const engineSection = report.sections.find((s) => s.name === 'SDLC CLI engine');
+      expect(engineSection?.message).toContain('removed stale SDLC/bin/devaudit-sdlc.js');
+
+      // The stale .js is gone; the new .cjs is in place and actually runs
+      // under Node's ESM-triggering "type": "module" — this is the real
+      // regression test, not just a file-existence check.
+      await expect(fs.stat(join(dir, 'SDLC', 'bin', 'devaudit-sdlc.js'))).rejects.toThrow();
+      expect(await fs.stat(join(dir, 'SDLC', 'bin', 'devaudit-sdlc.cjs'))).toBeTruthy();
+
+      const result = await execa(
+        'node',
+        [join(dir, 'SDLC', 'bin', 'devaudit-sdlc.cjs'), '--phase=1', '--view'],
+        { cwd: dir, reject: false },
+      );
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).not.toContain('require is not defined');
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
   }, 60_000);
 
   it('renders a report-only authenticated e2e step when configured', async () => {

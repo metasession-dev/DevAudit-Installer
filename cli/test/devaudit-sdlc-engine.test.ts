@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { createServer } from 'node:http';
 
 /**
- * Tests for the v0.2.0 SDLC CLI engine (devaudit-sdlc.js).
+ * Tests for the v0.2.0 SDLC CLI engine (devaudit-sdlc.cjs).
  *
  * The engine is a standalone CommonJS Node script that:
  * - Parses --phase=<1-5|issue> and --view flags
@@ -22,7 +22,7 @@ import { createServer } from 'node:http';
  */
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const ENGINE_PATH = resolve(HERE, '..', '..', 'sdlc', 'src', 'bin', 'devaudit-sdlc.js');
+const ENGINE_PATH = resolve(HERE, '..', '..', 'sdlc', 'src', 'bin', 'devaudit-sdlc.cjs');
 const BLUEPRINTS_DIR = resolve(HERE, '..', '..', 'sdlc', 'src', 'blueprints');
 
 const PHASE_MAP: Record<string, string> = {
@@ -189,7 +189,7 @@ describe('devaudit-sdlc CLI engine', () => {
         await fs.rm(join(isolatedSrc, 'blueprints', '1-plan-requirement.raw.md'));
 
         const res = await runEngineAt(
-          join(isolatedSrc, 'bin', 'devaudit-sdlc.js'),
+          join(isolatedSrc, 'bin', 'devaudit-sdlc.cjs'),
           ['--phase=1', '--view'],
           sandbox,
         );

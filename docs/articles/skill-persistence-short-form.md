@@ -37,7 +37,7 @@ A belt-and-suspenders approach:
 
 1. **Resume protocol** — the skill's instructions explicitly say "after any environment detour, re-invoke me with `resume REQ-XXX — re-enter at Phase N`." The skill reconstructs state from the filesystem (git log, existing artifacts, RTM status) and continues from where it left off.
 
-2. **Executable PR watch loop** — `node SDLC/bin/devaudit-sdlc.js --watch-pr=<number>` now gives the skill a bounded orchestration loop for Phase 4. It polls PR checks, persists retry state in `.sdlc-pr-watch.json`, re-runs likely flaky workflows, and re-runs the release-approval check when the portal is already approved but GitHub is stale.
+2. **Executable PR watch loop** — `node SDLC/bin/devaudit-sdlc.cjs --watch-pr=<number>` now gives the skill a bounded orchestration loop for Phase 4. It polls PR checks, persists retry state in `.sdlc-pr-watch.json`, re-runs likely flaky workflows, and re-runs the release-approval check when the portal is already approved but GitHub is stale.
 
 3. **Pre-push hooks** — a git hook runs `validate-compliance-artifacts.sh` before allowing a push. Missing `test-scope.md`, `test-plan.md`, `implementation-plan.md`? Push blocked. The hook can't invoke the skill, but it can prevent the consequences of the skill not being invoked.
 
