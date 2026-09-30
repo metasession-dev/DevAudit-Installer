@@ -155,7 +155,7 @@ The CLI's `prepack` runs `tsup` + `bundle-templates.mjs`. Verify the bundled sna
 ```bash
 // turbo
 cd cli && npm run bundle:templates && echo "---" && \
-  echo "sdlc/bin exists:    $(test -f sdlc/src/bin/devaudit-sdlc.js && echo YES || echo NO)" && \
+  echo "sdlc/bin exists:    $(test -f sdlc/src/bin/devaudit-sdlc.cjs && echo YES || echo NO)" && \
   echo "blueprints exist:   $(test -d sdlc/src/blueprints && echo YES || echo NO)" && \
   echo "blueprint count:    $(ls sdlc/src/blueprints/*.raw.md 2>/dev/null | wc -l)" && \
   echo "upload-evidence:    $(test -f scripts/upload-evidence.sh && echo YES || echo NO)" && \
@@ -284,6 +284,6 @@ After completing this workflow:
 
 - **`@metasession.co/devaudit-sdlc` stale on npm** — check that `release.yml` step 5 ran successfully. If the step is missing from `release.yml`, add it.
 - **CLI tarball missing `sdlc/`** — `bundle-templates.mjs` didn't run. Check `prepack` hook: `npm run build && npm run bundle:templates`.
-- **Consumer gets `npx` prompt** — local `SDLC/bin/devaudit-sdlc.js` doesn't exist. Consumer needs `devaudit update` to sync section 2h.
+- **Consumer gets `npx` prompt** — local `SDLC/bin/devaudit-sdlc.cjs` doesn't exist. Consumer needs `devaudit update` to sync section 2h.
 - **Version mismatch** — one `package.json` wasn't bumped. The release workflow publishes whatever version is in each `package.json` independently.
 - **`file:../plugin-sdk` in published tarball** — `release.yml` step 2 rewrites this to `^X.Y.Z` at publish time. If the rewrite fails, the published CLI can't resolve the plugin-sdk dependency.

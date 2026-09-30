@@ -4,6 +4,10 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+### Fixed
+
+- **#929** — `SDLC/bin/devaudit-sdlc.js` was genuine CommonJS but was synced with a `.js` extension and no isolating `package.json`, so any consumer whose own `package.json` declares `"type": "module"` (a common modern default) had it misinterpreted as ESM and crashed on every phase-transition/freshness-check sentinel invocation with `require is not defined`. Renamed to `devaudit-sdlc.cjs` (forces CommonJS regardless of the consumer's `package.json`) and updated `syncSdlcEngine` to sync the new name and remove a stale pre-#929 `.js` copy if one is present. **Operator action after updating:** invoke the binary as `node SDLC/bin/devaudit-sdlc.cjs`, not `.js`; any consumer-local scripts or docs that hard-code the old `.js` path need updating too.
+
 ## [1.4.0] — 2026-09-08
 
 ### Added

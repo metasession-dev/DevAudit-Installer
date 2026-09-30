@@ -42,7 +42,7 @@ echo ".husky/ hooks:     $(test -f .husky/pre-push && echo YES || echo NO)"
 echo "scripts/ dir:      $(test -d scripts && echo YES || echo NO)"
 echo "CI workflow:       $(test -f .github/workflows/ci.yml && echo YES || echo NO)"
 echo "INSTRUCTIONS.md:   $(test -f INSTRUCTIONS.md && echo YES || echo NO)"
-echo "SDLC/bin/ binary:  $(test -f SDLC/bin/devaudit-sdlc.js && echo YES || echo NO)"
+echo "SDLC/bin/ binary:  $(test -f SDLC/bin/devaudit-sdlc.cjs && echo YES || echo NO)"
 echo "SDLC/blueprints:   $(test -d SDLC/blueprints && echo YES || echo NO)"
 ```
 
@@ -83,7 +83,7 @@ echo "SDLC/ dir:         $(test -d SDLC && echo YES || echo NO)"
 echo ".husky/ hooks:     $(test -f .husky/pre-push && echo YES || echo NO)"
 echo "CI workflow:       $(test -f .github/workflows/ci.yml && echo YES || echo NO)"
 echo "INSTRUCTIONS.md:   $(test -f INSTRUCTIONS.md && echo YES || echo NO)"
-echo "SDLC/bin/ binary:  $(test -f SDLC/bin/devaudit-sdlc.js && echo YES || echo NO)"
+echo "SDLC/bin/ binary:  $(test -f SDLC/bin/devaudit-sdlc.cjs && echo YES || echo NO)"
 echo "SDLC/blueprints:   $(test -d SDLC/blueprints && echo YES || echo NO)"
 ```
 
@@ -109,9 +109,9 @@ After update completes, verify the new binary + blueprints landed:
 
 ```bash
 // turbo
-echo "SDLC/bin/ binary:  $(test -f SDLC/bin/devaudit-sdlc.js && echo YES || echo NO)"
+echo "SDLC/bin/ binary:  $(test -f SDLC/bin/devaudit-sdlc.cjs && echo YES || echo NO)"
 echo "SDLC/blueprints:   $(ls SDLC/blueprints/*.raw.md 2>/dev/null | wc -l) file(s)"
-echo "Binary works:      $(node SDLC/bin/devaudit-sdlc.js --phase=issue --view >/dev/null 2>&1 && echo YES || echo NO)"
+echo "Binary works:      $(node SDLC/bin/devaudit-sdlc.cjs --phase=issue --view >/dev/null 2>&1 && echo YES || echo NO)"
 ```
 
 Expected: `binary: YES`, `blueprints: 6 file(s)`, `Binary works: YES`.
@@ -144,7 +144,7 @@ Invoke the sdlc-implementer skill and tell it:
 > **Housekeeping change.** The working tree has uncommitted changes from `devaudit install` (or `devaudit update`). Commit type is `chore:`, no `REQ-XXX`. Use the SDLC lightweight path: invoke the SDLC engine for the sentinel, run local gates, create a `chore/sync-devaudit-sdlc-{version}` branch, commit, push, open a PR targeting `develop`, wait for terminal-green checks on the current PR SHA, then guide merge. This is normal integration housekeeping: it has PR review only, creates no tracked approval release, and is absorbed into the next tracked REQ through bundled-change lineage. A standalone housekeeping release is allowed only when the `sdlc-implementer` standalone-exception contract is explicitly satisfied.
 
 The skill will:
-1. Invoke `node SDLC/bin/devaudit-sdlc.js --phase=issue --view` to write the `.sdlc-implementer-invoked` sentinel
+1. Invoke `node SDLC/bin/devaudit-sdlc.cjs --phase=issue --view` to write the `.sdlc-implementer-invoked` sentinel
 2. Run local gates (lint, tsc, test)
 3. Create a `chore/` branch, commit, and push
 4. Open a PR targeting `develop`
@@ -184,6 +184,6 @@ The skill will:
 - **`npx` prompts to install the package** — this is normal on first run. Answer `y` to proceed. The package is `@metasession.co/devaudit-cli`.
 - **Install fails with 401/403** — `DEVAUDIT_USER_TOKEN` is missing, expired, or wrong. Get a new token from the DevAudit portal `/settings/api-keys`.
 - **Update overwrites custom CI config** — `devaudit update` regenerates `ci.yml` from the template. If you have project-specific customizations, keep them in a separate workflow file (e.g. `.github/workflows/project-specific.yml`) rather than editing `ci.yml` directly.
-- **`SDLC/bin/devaudit-sdlc.js` missing after update** — the sync section 2h failed. Check that the CLI version you're using is >= 0.3.2 (the version that added the engine sync).
+- **`SDLC/bin/devaudit-sdlc.cjs` missing after update** — the sync section 2h failed. Check that the CLI version you're using is >= 0.3.2 (the version that added the engine sync).
 - **Postinstall script not added** — ensure you're using CLI >= 0.3.3. If a `postinstall` script already exists (and doesn't mention `playwright install`), it won't be overwritten — a warning is logged instead. Add `playwright install chromium` manually if needed.
-- **Pre-push hook blocks pushes** — the hook checks for `.sdlc-implementer-invoked`. Run `node SDLC/bin/devaudit-sdlc.js --phase=issue` before committing to write the sentinel.
+- **Pre-push hook blocks pushes** — the hook checks for `.sdlc-implementer-invoked`. Run `node SDLC/bin/devaudit-sdlc.cjs --phase=issue` before committing to write the sentinel.

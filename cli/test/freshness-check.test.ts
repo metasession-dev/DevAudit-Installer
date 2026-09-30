@@ -38,7 +38,7 @@ describe('sdlc-implementer skill — Phase 0 freshness check', () => {
   });
 
   it('records the check in the sentinel, once per REQ (devaudit-installer#839)', () => {
-    expect(skill).toContain('node SDLC/bin/devaudit-sdlc.js --freshness-checked=<confirmed-version>');
+    expect(skill).toContain('node SDLC/bin/devaudit-sdlc.cjs --freshness-checked=<confirmed-version>');
     expect(skill).toContain('freshnessCheckedAt');
     expect(skill).toContain('never re-run the freshness check');
   });
