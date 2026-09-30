@@ -387,6 +387,37 @@ async function checkRailwayCliPresent(): Promise<CheckResult> {
       };
 }
 
+/**
+ * devaudit-installer#930 — surface every unresolved sync-manifest conflict
+ * (a devaudit-managed file whose on-disk content diverged from what was
+ * last synced, so the conflict policy kept the local file and wrote the
+ * new upstream content to a sibling `.devaudit-new` instead of overwriting
+ * it). Non-gating, same shape as the onboarding checks above: an
+ * unresolved conflict is real drift worth surfacing, but never blocks
+ * `devaudit doctor`'s own exit code.
+ */
+async function checkSyncConflicts(): Promise<CheckResult> {
+  const name = 'sync-conflicts';
+  const consumer = await readConsumerConfig();
+  if (!consumer) return { name, ok: true, detail: 'skipped (not a consumer project)', suspectedOrigin: 'unknown' };
+  const { readManifest } = await import('../update/sync-manifest.js');
+  const manifest = await readManifest(consumer.repoRoot);
+  if (!manifest) {
+    return { name, ok: true, detail: 'skipped (no .devaudit/sync-manifest.json yet)', suspectedOrigin: 'unknown' };
+  }
+  const conflicts = Object.entries(manifest.files).filter(([, entry]) => entry.conflict === true);
+  if (conflicts.length === 0) {
+    return { name, ok: true, detail: 'no unresolved sync conflicts', suspectedOrigin: 'consumer-drift' };
+  }
+  const paths = conflicts.map(([path]) => path);
+  return {
+    name,
+    ok: false,
+    detail: `${conflicts.length} unresolved sync conflict(s): ${paths.join(', ')} — see the matching <path>.devaudit-new next to each, or re-run \`devaudit update\` for the current summary`,
+    suspectedOrigin: 'consumer-drift',
+  };
+}
+
 export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
   const log = logger();
   const jsonMode = isJsonMode();
@@ -425,6 +456,7 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
     await checkRequiredSecretsPresent(),
     await checkPrePushHookPresent(),
     await checkRailwayCliPresent(),
+    await checkSyncConflicts(),
   ];
   let onboardingIssues = false;
   for (const check of onboardingChecks) {

@@ -27,7 +27,7 @@ A skill is `_common/` when its body is genuinely framework-agnostic (auto-detect
 
 ## How skills reach consumers
 
-`devaudit update` (cli/src/update/skills.ts) copies every skill directory into the consumer's `.claude/skills/<skill-name>/` on every sync:
+`devaudit update` (cli/src/update/skills.ts) copies every skill directory into the consumer's `.claude/skills/<skill-name>/` on every sync. Since devaudit-installer#930 this is manifest-driven, not a blind `rm -rf` + recopy: each file syncs individually (a hand-edit inside a skill file is detected and preserved as a conflict, not overwritten), a stale file upstream no longer ships is removed only if it's unmodified, and a consumer-added file with no upstream counterpart (e.g. project-specific notes dropped into a skill directory) is never touched — devaudit has no record of ever writing it.
 
 - All `_common/skills/<name>/` directories sync to every consumer.
 - `stacks/<stack>/skills/<name>/` directories sync only when the consumer's `sdlc-config.json` selects that stack.

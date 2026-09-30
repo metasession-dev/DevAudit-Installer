@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { exists, isDir, ensureDir } from '../lib/fs-utils.js';
 import { substituteTokens, substituteBlocks, stripServicesBlock, stripE2eRegressionListener } from '../lib/templates.js';
 import { resolveTargets, type Target } from '../lib/sdlc-config.js';
-import { captureBeforeOverwrite } from './drift-warning.js';
+import { writeManaged, removeManaged } from './write-managed.js';
 import type { SyncContext, SectionResult } from './types.js';
 
 const CI_TEMPLATES = [
@@ -603,11 +603,17 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
   if (!(await isDir(workflowsDir))) {
     return { name: 'CI workflows', filesSynced: 0, skipped: true, message: '.github/workflows/ not found' };
   }
-  await ensureDir(workflowsDir);
+  if (!ctx.dryRun) await ensureDir(workflowsDir);
   const cfg = JSON.parse(await fs.readFile(configPath, 'utf-8')) as SdlcConfig;
+  let removedStaleCount = 0;
+  let keptStaleConflictCount = 0;
+  const recordRemoval = (outcome: 'removed' | 'kept-conflict' | 'not-tracked'): void => {
+    if (outcome === 'removed') removedStaleCount += 1;
+    else if (outcome === 'kept-conflict') keptStaleConflictCount += 1;
+  };
   for (const oldName of OLD_WORKFLOWS_TO_REMOVE) {
     const oldPath = join(workflowsDir, oldName);
-    if (await exists(oldPath)) await fs.rm(oldPath);
+    if (await exists(oldPath)) recordRemoval(await removeManaged(ctx.managed!, oldPath, { section: '2f' }));
   }
 
   // DevAudit-Installer#821 — e2e-regression.yml.template is the one
@@ -618,7 +624,7 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
   if (!cfg.e2e_regression_enabled) {
     for (const existing of await fs.readdir(workflowsDir).catch(() => [] as string[])) {
       if (/^e2e-regression(-.+)?\.yml$/.test(existing)) {
-        await fs.rm(join(workflowsDir, existing));
+        recordRemoval(await removeManaged(ctx.managed!, join(workflowsDir, existing), { section: '2f' }));
       }
     }
   }
@@ -632,7 +638,7 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
   if (ctx.host !== 'railway') {
     for (const existing of await fs.readdir(workflowsDir).catch(() => [] as string[])) {
       if (/^reconcile-deployment(-.+)?\.yml$/.test(existing)) {
-        await fs.rm(join(workflowsDir, existing));
+        recordRemoval(await removeManaged(ctx.managed!, join(workflowsDir, existing), { section: '2f' }));
       }
     }
   }
@@ -641,10 +647,6 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
   const multiTarget = targets.length > 1;
   let count = 0;
   const filePaths: string[] = [];
-  // DevAudit-Installer#758 — pre-overwrite content of any generated file
-  // this sync is about to overwrite, captured for the caller to evaluate
-  // for drift *after* the formatter-normalization step has run (#766).
-  const driftCandidates: Array<{ outputPath: string; oldContent: string }> = [];
 
   // A repo that just gained its second target leaves behind the unsuffixed
   // workflow files a single-target sync wrote previously (ci.yml,
@@ -656,7 +658,7 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
     for (const tmpl of CI_TEMPLATES) {
       const staleName = tmpl.replace(/\.template$/, '');
       const stalePath = join(workflowsDir, staleName);
-      if (await exists(stalePath)) await fs.rm(stalePath);
+      if (await exists(stalePath)) recordRemoval(await removeManaged(ctx.managed!, stalePath, { section: '2f' }));
     }
   }
 
@@ -823,20 +825,19 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
       const baseOutputName = tmpl.replace(/\.template$/, '');
       const namespaced = namespaceForTarget(baseOutputName, content, target, multiTarget);
       const outputPath = join(workflowsDir, namespaced.outputName);
-      const oldContent = await captureBeforeOverwrite(outputPath);
-      if (oldContent !== undefined) {
-        driftCandidates.push({ outputPath, oldContent });
-      }
-      await fs.writeFile(outputPath, namespaced.content);
+      const outcome = await writeManaged(ctx.managed!, outputPath, namespaced.content, { section: '2f' });
       filePaths.push(outputPath);
-      count += 1;
+      if (outcome !== 'conflict') count += 1;
     }
   }
+  const staleNote =
+    removedStaleCount > 0 || keptStaleConflictCount > 0
+      ? `; removed ${removedStaleCount} stale workflow(s)${keptStaleConflictCount > 0 ? `, kept ${keptStaleConflictCount} locally-modified stale workflow(s) as conflict(s)` : ''}`
+      : '';
   return {
     name: 'CI workflows',
     filesSynced: count,
-    message: `${count} generated`,
+    message: `${count} generated${staleNote}`,
     filePaths,
-    ...(driftCandidates.length > 0 ? { driftCandidates } : {}),
   };
 }

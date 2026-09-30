@@ -11,6 +11,17 @@ export interface SyncContext {
   readonly projectName: string;
   readonly stack: string;
   readonly host: string;
+  /**
+   * Sync-manifest classification state for this run (devaudit-installer#930)
+   * — every writing section routes through `writeManaged`/`removeManaged`
+   * against this instead of writing directly, so a local edit is detected
+   * and preserved rather than silently overwritten. Optional only so
+   * existing unit tests that construct a bare `SyncContext` by hand don't
+   * all need updating; `syncProject` always populates it.
+   */
+  readonly managed?: import('./write-managed.js').ManagedSyncState;
+  /** Preview mode: classify and report, write nothing (devaudit-installer#930). */
+  readonly dryRun?: boolean;
 }
 
 export interface SectionResult {
@@ -26,24 +37,6 @@ export interface SectionResult {
    * normalization step (DevAudit-Installer#663) to know what to re-format.
    */
   readonly filePaths?: readonly string[];
-  /**
-   * Files this section is about to overwrite, captured *before* the
-   * overwrite, for the drift-warning check (DevAudit-Installer#758) to
-   * re-evaluate *after* the formatter normalization step (#663) has run.
-   * The drift check can't decide "real drift vs. cosmetic" at write time:
-   * a previously-committed file is normally already prettier-formatted
-   * (from the consumer's own commit-time hook, or a prior sync's own
-   * formatter pass), while the content this section is about to write is
-   * not yet formatted — comparing them directly flags formatting-only
-   * differences as drift (DevAudit-Installer#766). Deferring the
-   * comparison until after formatSyncedFiles has normalized the newly
-   * written files fixes that false-positive class without needing the
-   * drift check itself to know how to invoke the consumer's formatter.
-   */
-  readonly driftCandidates?: ReadonlyArray<{
-    readonly outputPath: string;
-    readonly oldContent: string;
-  }>;
 }
 
 export interface SyncReport {

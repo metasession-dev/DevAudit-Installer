@@ -136,7 +136,7 @@ The PR body should explain: which stage(s) the skill supports, what triggered th
 
 ## Step 10 — Consumers pick it up on next sync
 
-No action required by individual consumers — the next `devaudit update` run distributes the skill into their `.claude/skills/`. The next AI session sees it automatically.
+No action required by individual consumers — the next `devaudit update` run distributes the skill into their `.claude/skills/`. The next AI session sees it automatically. If a consumer has hand-edited a file inside an existing skill directory, that edit is detected and preserved as a reported conflict rather than overwritten (devaudit-installer#930) — see `docs/consuming-projects.md#sync-conflicts`.
 
 ## Worked example: `e2e-test-engineer`
 

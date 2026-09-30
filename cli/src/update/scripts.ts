@@ -1,10 +1,25 @@
+import { promises as fs } from 'node:fs';
 import { join } from 'node:path';
-import { copyFile, exists, isDir, listFiles, fileBasename } from '../lib/fs-utils.js';
+import { exists, isDir, listFiles, fileBasename } from '../lib/fs-utils.js';
 import { loadStackAdapter } from '../lib/adapter.js';
+import { writeManaged } from './write-managed.js';
 import type { SyncContext, SectionResult } from './types.js';
 
 function isTestScript(name: string): boolean {
   return name.endsWith('.test.sh');
+}
+
+// The top-level scripts/upload-evidence.sh (this repo's own root, copied
+// separately below) is the canonical source and always wins — a stale
+// _common/scripts/ copy of the same filename exists too (historical
+// duplication) and would otherwise be written to the same destination
+// path twice in one sync, immediately before its own canonical overwrite.
+// That's harmless for a plain overwrite, but breaks manifest classification
+// (devaudit-installer#930): the second `writeManaged` call would see the
+// *first* call's just-written bytes as if they were a foreign local edit
+// and falsely report a conflict, every single sync.
+function isSuperseded(name: string): boolean {
+  return name === 'upload-evidence.sh';
 }
 
 /**
@@ -29,12 +44,13 @@ export async function syncScripts(ctx: SyncContext): Promise<SectionResult> {
   const filePaths: string[] = [];
   const commonScriptsSrc = join(ctx.installerRoot, 'sdlc', 'files', '_common', 'scripts');
   if (await isDir(commonScriptsSrc)) {
-    const candidates = await listFiles(commonScriptsSrc, (n) => n.endsWith('.sh') && !isTestScript(n));
+    const candidates = await listFiles(commonScriptsSrc, (n) => n.endsWith('.sh') && !isTestScript(n) && !isSuperseded(n));
     for (const src of candidates) {
       const dst = join(scriptsDst, fileBasename(src));
-      await copyFile(src, dst, 0o755);
+      const content = await fs.readFile(src);
+      const outcome = await writeManaged(ctx.managed!, dst, content, { section: '2d', mode: 0o755 });
       filePaths.push(dst);
-      count += 1;
+      if (outcome !== 'conflict') count += 1;
     }
   }
   const adapter = await loadStackAdapter(ctx.installerRoot, ctx.stack);
@@ -44,18 +60,20 @@ export async function syncScripts(ctx: SyncContext): Promise<SectionResult> {
       const src = join(stackScriptsSrc, scriptName);
       if (await exists(src)) {
         const dst = join(scriptsDst, scriptName);
-        await copyFile(src, dst, 0o755);
+        const content = await fs.readFile(src);
+        const outcome = await writeManaged(ctx.managed!, dst, content, { section: '2d', mode: 0o755 });
         filePaths.push(dst);
-        count += 1;
+        if (outcome !== 'conflict') count += 1;
       }
     }
   }
   const uploadEvidence = join(ctx.installerRoot, 'scripts', 'upload-evidence.sh');
   if (await exists(uploadEvidence)) {
     const dst = join(scriptsDst, 'upload-evidence.sh');
-    await copyFile(uploadEvidence, dst, 0o755);
+    const content = await fs.readFile(uploadEvidence);
+    const outcome = await writeManaged(ctx.managed!, dst, content, { section: '2d', mode: 0o755 });
     filePaths.push(dst);
-    count += 1;
+    if (outcome !== 'conflict') count += 1;
   }
   return { name: 'scripts', filesSynced: count, message: 'synced to scripts/', filePaths };
 }

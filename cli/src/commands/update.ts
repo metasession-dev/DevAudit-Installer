@@ -118,9 +118,16 @@ export async function runUpdate(options: UpdateOptions): Promise<void> {
     if (e2eRegression) {
       await applyE2eRegressionFlag(options.paths, e2eRegression, true);
     }
-    for (const projectPath of options.paths) {
-      log.info(`  [dry-run] would sync SDLC templates via syncProject() against ${resolve(projectPath)}`);
-    }
+    // devaudit-installer#930 — dry-run now runs the real sync pipeline
+    // (classification only: every writing section still decides new vs.
+    // unmodified vs. conflict against the sync manifest / bootstrap
+    // baseline, it just skips every actual filesystem write), instead of
+    // a static "would sync" stub, so an operator can see the full plan —
+    // including which files would conflict — before committing to a real
+    // `update`. Plugin hooks still don't fire in dry-run (unlike the real
+    // sync path below), since a plugin's `beforeSync`/`afterSync` hook may
+    // itself have side effects outside anything `syncProject` classifies.
+    await syncAll(options.paths, { dryRun: true });
     log.success('=== Dry run complete (no mutations performed) ===');
     return;
   }
