@@ -173,7 +173,7 @@ DevAudit-Installer repo and fill its placeholders from `sdlc-config.json`:
 # `devaudit` here = a clone of the DevAudit-Installer repo, not the portal app.
 cp path/to/DevAudit-Installer/sdlc/files/ci/ci.yml.template .github/workflows/ci.yml
 # Then substitute {{PLACEHOLDERS}} ({{RUNNER}}, {{NODE_VERSION}}, {{SOURCE_DIRS}},
-# {{DATABASE_*}}, {{APP_ENV}}, {{BUILD_ENV}}, {{E2E_*}}, {{PROJECT_SLUG}}, …) — the
+# {{DATABASE_*}}, {{DATABASE_AND_APP_ENV}}, {{BUILD_ENV}}, {{E2E_*}}, {{PROJECT_SLUG}}, …) — the
 # `devaudit update` command does this for you from sdlc-config.json.
 ```
 

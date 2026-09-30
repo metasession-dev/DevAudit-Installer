@@ -22,9 +22,11 @@ A tier showing the "different test fails each run" symptom is not automatically 
 
 ### Implementation mechanics (Playwright)
 
+**All of this lives in `e2e/ci-reliability/regression-run.sh`, never in the CI workflow itself.** `e2e-regression.yml` is a generated file — the "E2E Regression Tests" step runs this script if present (devaudit-installer#928); the CI template's artifact-upload globs are already widened to `e2e-regression-results*.json`/`playwright-report*/`/`test-results*/`/`e2e-server*.log` upstream, so a shard-numbered shape needs no CI-workflow edit at all.
+
 1. **Use Playwright's native `--shard=i/N`**, restarting the dev server between shards (kill the PID, relaunch, `wait-on` the port) rather than a GitHub Actions job matrix. A matrix fragments evidence upload and auto-issue-filing steps in ways that need more careful redesign than sharding-within-a-job warrants by default.
 
-2. **Merge shard JSON reports** for any downstream `jq`-based consumer:
+2. **Merge shard JSON reports** into the unsuffixed name before exiting, so `compliance-evidence.yml`'s incident-triage step (which reads exactly `e2e-regression-results.json`, not a glob) still finds it:
 
    ```bash
    jq -s '.' e2e-regression-results-shard-*.json > e2e-regression-results.json
@@ -32,11 +34,57 @@ A tier showing the "different test fails each run" symptom is not automatically 
 
    Array-wrapping is fine for a recursive-descent (`..`) consumer — there's no need to preserve the exact single-report shape.
 
-3. **Shard-numbered output directories** — `playwright-report-shard-N/` and `test-results-shard-N/` — to avoid overwrite-in-place between shards. Update artifact-upload globs in the CI workflow accordingly so both shapes are still captured (see `e2e-test-engineer/SKILL.md`'s "Upload both artefact shapes" guidance — that requirement doesn't change just because the run is sharded).
+3. **Shard-numbered output directories** — `playwright-report-shard-N/` and `test-results-shard-N/` — to avoid overwrite-in-place between shards. No CI-workflow change needed: the upload step's globs (`playwright-report*/`, `test-results*/`) already cover this shape.
 
-4. **A starting point to tune, not a hard rule:** `SHARD_COUNT=4`, roughly a 12-minute per-shard timeout, tuned against the job's existing overall timeout ceiling. Adjust per project based on actual shard wall-clock once measured.
+4. **A starting point to tune, not a hard rule:** `SHARD_COUNT=4`, roughly a 12-minute per-shard timeout, tuned against the job's existing overall timeout ceiling (`e2e_regression_timeout_minutes` in `sdlc-config.json`, default 55 — raise it if several shards' restart overhead pushes the total past the default). Adjust per project based on actual shard wall-clock once measured.
 
-5. **Skip sharding for scoped/small `workflow_dispatch` runs** — a `specs` input that scopes to a handful of tests doesn't need shard machinery.
+5. **Skip sharding for scoped/small `workflow_dispatch` runs** — a `specs` input that scopes to a handful of tests doesn't need shard machinery. The hook contract passes `SPECS` in the script's env for exactly this check.
+
+### Worked example: `e2e/ci-reliability/regression-run.sh`
+
+Generalized from a real consumer's sharding setup. Follows the hook contract (inputs `PROJECT`/`SPECS`/`E2E_PORT` plus the job-level merged env; required outputs `e2e-regression-results.json` + `playwright-report*/` + `test-results*/`; exit 0/124/other maps to pass/timeout/fail):
+
+```bash
+#!/usr/bin/env bash
+set -uo pipefail
+
+SHARD_COUNT=4
+SHARD_MINUTES=12
+
+# Only shard the full, unscoped regression run — a scoped workflow_dispatch
+# (SPECS set) or a smaller tier (e.g. PROJECT=critical) doesn't need it.
+if [ "$PROJECT" != "regression" ] || [ -n "${SPECS:-}" ]; then
+  # shellcheck disable=SC2086
+  timeout --signal=TERM --kill-after=60s "$((SHARD_MINUTES * SHARD_COUNT))m" \
+    npx playwright test --project="$PROJECT" --reporter=json,html $SPECS
+  exit $?
+fi
+
+OVERALL_STATUS=0
+for i in $(seq 1 "$SHARD_COUNT"); do
+  # Restart the dev server between shards to reset accumulated
+  # process/connection state — the mechanism this fix targets.
+  if [ -f .e2e-server.pid ] && kill -0 "$(cat .e2e-server.pid)" 2>/dev/null; then
+    kill "$(cat .e2e-server.pid)"
+    wait "$(cat .e2e-server.pid)" 2>/dev/null || true
+  fi
+  npm run dev > "e2e-server-shard-${i}.log" 2>&1 &
+  echo "$!" > .e2e-server.pid
+  npx wait-on "http://localhost:${E2E_PORT}" --timeout 60000
+
+  PLAYWRIGHT_JSON_OUTPUT_NAME="e2e-regression-results-shard-${i}.json" \
+    timeout --signal=TERM --kill-after=60s "${SHARD_MINUTES}m" \
+    npx playwright test --project=regression --shard="${i}/${SHARD_COUNT}" \
+      --reporter=json,html \
+      --output="test-results-shard-${i}" || OVERALL_STATUS=$?
+  mv playwright-report "playwright-report-shard-${i}" 2>/dev/null || true
+done
+
+jq -s '.' e2e-regression-results-shard-*.json > e2e-regression-results.json
+exit "$OVERALL_STATUS"
+```
+
+`OVERALL_STATUS` deliberately keeps the *last* non-zero shard's exit code rather than the first, so a later shard's timeout (124) isn't masked by an earlier shard's plain test failure (1) — either way the run is not clean, and the template maps any non-zero, non-124 code to `failed` the same way.
 
 ## Warm-up
 

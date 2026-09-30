@@ -62,7 +62,12 @@ jobs:
     runs-on: {{RUNNER}}
     # Keep the job budget above the Playwright budget so timeout metadata and
     # partial evidence can be retained before GitHub terminates the runner.
-    timeout-minutes: 55
+    # Configurable via sdlc-config.json's e2e_regression_timeout_minutes
+    # (default 55, devaudit-installer#928) — a hook script (see the "E2E
+    # Regression Tests" step below) manages its own per-shard budgets, but
+    # cannot raise this job-level ceiling at runtime, so a project doing its
+    # own sharding/warm-up tuning may need to raise this too.
+    timeout-minutes: {{E2E_REGRESSION_TIMEOUT_MINUTES}}
 
     services:
       {{DATABASE_SERVICE}}:
@@ -182,6 +187,16 @@ jobs:
         run: |
           set -euo pipefail
           SERVER_PID="$(cat .e2e-server.pid 2>/dev/null || true)"
+          # A hook script manages its own per-shard budgets rather than the
+          # fixed 40-minute inner timeout the default command below runs
+          # under (devaudit-installer#928) — record the job-level budget
+          # instead of a number that would no longer describe what's
+          # actually bounding this run.
+          if [ -f e2e/ci-reliability/regression-run.sh ]; then
+            TIMEOUT_MINUTES_VALUE={{E2E_REGRESSION_TIMEOUT_MINUTES}}
+          else
+            TIMEOUT_MINUTES_VALUE=40
+          fi
           jq -n \
             --arg targetUrl "http://localhost:{{E2E_PORT}}" \
             --arg project "${{ steps.select.outputs.project }}" \
@@ -189,30 +204,44 @@ jobs:
             --arg serverStart "start command (pid ${SERVER_PID:-unknown})" \
             --arg serverStop "kill ${SERVER_PID:-unknown}" \
             --arg startedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            --argjson timeoutMinutes 40 \
+            --argjson timeoutMinutes "$TIMEOUT_MINUTES_VALUE" \
             '{target_url: $targetUrl, project: $project, selected_specs: $specs, test_server_start: $serverStart, test_server_stop: $serverStop, timeout_minutes: $timeoutMinutes, started_at: $startedAt, outcome: "running"}' \
             > e2e-regression-metadata.json
 
+      # Extension point (devaudit-installer#928): if the consumer or a
+      # skill (e.g. e2e-ci-reliability) has authored
+      # e2e/ci-reliability/regression-run.sh, it owns this step entirely —
+      # sharding, warm-up, and any other per-project reliability tuning are
+      # a diagnosed, per-project decision, never a framework default. This
+      # path is fixed and undeclared in sdlc-config.json on purpose: devaudit
+      # never creates, overwrites, or deletes this file. With no hook
+      # script, behaviour is unchanged from before this REQ.
       - name: E2E Regression Tests
         env:
           PLAYWRIGHT_HTML_REPORTER_OPEN: never
           PLAYWRIGHT_JSON_OUTPUT_NAME: e2e-regression-results.json
+          PROJECT: ${{ steps.select.outputs.project }}
+          SPECS: ${{ steps.select.outputs.specs }}
+          E2E_PORT: {{E2E_PORT}}
         run: |
           set -uo pipefail
-          PROJECT="${{ steps.select.outputs.project }}"
-          SPECS="${{ steps.select.outputs.specs }}"
-          if [ -n "$SPECS" ]; then
+          if [ -f e2e/ci-reliability/regression-run.sh ]; then
+            echo "::notice::Using project hook e2e/ci-reliability/regression-run.sh (PROJECT=$PROJECT)"
+            bash e2e/ci-reliability/regression-run.sh
+            STATUS=$?
+          elif [ -n "$SPECS" ]; then
             echo "::notice::Running scoped regression — project=$PROJECT specs=$SPECS"
             # shellcheck disable=SC2086
             timeout --signal=TERM --kill-after=60s 40m npx playwright test --project="$PROJECT" --reporter=json,html $SPECS
+            STATUS=$?
           else
             echo "::notice::Running project=$PROJECT"
             timeout --signal=TERM --kill-after=60s 40m npx playwright test --project="$PROJECT" --reporter=json,html
+            STATUS=$?
           fi
-          STATUS=$?
           if [ "$STATUS" -eq 124 ]; then
             OUTCOME="timed_out"
-            echo "::error::E2E regression exceeded its 40-minute execution budget. Partial evidence will be uploaded."
+            echo "::error::E2E regression exceeded its execution budget. Partial evidence will be uploaded."
           elif [ "$STATUS" -eq 0 ]; then
             OUTCOME="passed"
           else
@@ -241,10 +270,16 @@ jobs:
         continue-on-error: true
         with:
           name: e2e-regression-report
+          # Globs, not fixed names (devaudit-installer#928): a hook script
+          # (e.g. one that shards the suite) may merge shard outputs into
+          # the unsuffixed name, or leave per-shard files like
+          # e2e-regression-results-shard-1.json / playwright-report-shard-1/
+          # alongside it. These patterns are supersets of the default path's
+          # fixed output names, so the default (no-hook) path is unaffected.
           path: |
-            e2e-regression-results.json
+            e2e-regression-results*.json
             e2e-regression-metadata.json
-            playwright-report/
+            playwright-report*/
             # Playwright writes per-test traces, videos, screenshots and
             # error-context.md to test-results/<spec>-<title>[-retry<N>]/
             # — spec-named, unlike playwright-report/data/<hash>.zip. Include
@@ -253,8 +288,8 @@ jobs:
             # test-results/<spec-test>/trace.zip` resolves the failure in one
             # step. Storage cost is a duplicate of the data already in
             # playwright-report/data/, accepted for the debuggability win.
-            test-results/
-            e2e-server.log
+            test-results*/
+            e2e-server*.log
           if-no-files-found: warn
           retention-days: 30
 

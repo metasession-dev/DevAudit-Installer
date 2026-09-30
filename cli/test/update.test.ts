@@ -1564,8 +1564,7 @@ describe('syncProject — native TS sync against a fixture', () => {
     expect(featureE2eYml).not.toContain('{{E2E_FEATURE_TEST_STEP}}');
     expect(featureE2eYml).not.toContain('{{E2E_SETUP_STEP}}');
     expect(featureE2eYml).not.toContain('{{E2E_DEV_SERVER_STEP}}');
-    expect(featureE2eYml).not.toContain('{{DATABASE_ENV}}');
-    expect(featureE2eYml).not.toContain('{{APP_ENV}}');
+    expect(featureE2eYml).not.toContain('{{DATABASE_AND_APP_ENV}}');
     expect(featureE2eYml).not.toContain('{{DATABASE_URI_STEP}}');
     // No database_service configured → services block stripped
     expect(featureE2eYml).not.toContain('services:');
@@ -2048,6 +2047,309 @@ describe('syncProject — native TS sync against a fixture', () => {
       await fs.rm(dir, { recursive: true, force: true });
     }
   }, 60_000);
+
+  it('dedupes an overlapping key across database_env/app_env/e2e_env in e2e-regression.yml with e2e_env winning (#928)', async () => {
+    const dir = await buildFixture();
+    try {
+      const configPath = join(dir, 'sdlc-config.json');
+      const config = JSON.parse(await fs.readFile(configPath, 'utf8')) as Record<string, unknown>;
+      config['e2e_regression_enabled'] = true;
+      // SHARED set in all three sources — wawagardenbar's real-world shape
+      // (MONGODB_DB_NAME needed by both app_env and e2e_env). Precedence:
+      // database_env < app_env < e2e_env.
+      config['database_env'] = { SHARED: 'from-database-env' };
+      config['app_env'] = { SHARED: 'from-app-env' };
+      config['e2e_env'] = { SHARED: 'from-e2e-env' };
+      config['database_service'] = 'mongodb';
+      config['database_image'] = 'mongo:7';
+      config['database_port'] = '27017:27017';
+      await fs.writeFile(configPath, JSON.stringify(config));
+      process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
+
+      await syncProject(dir);
+      const content = normalizeNewlines(
+        await fs.readFile(join(dir, '.github', 'workflows', 'e2e-regression.yml'), 'utf8'),
+      );
+      const sharedOccurrences = content.match(/^\s*SHARED:/gm) ?? [];
+      expect(sharedOccurrences).toHaveLength(1);
+      expect(content).toContain('SHARED: from-e2e-env');
+      expect(content).not.toContain('from-database-env');
+      expect(content).not.toContain('from-app-env');
+      await expectAllWorkflowsValidYaml(dir);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it('dedupes an overlapping key across database_env/app_env in ci.yml (node) with app_env winning (#928)', async () => {
+    const dir = await buildFixture();
+    try {
+      const configPath = join(dir, 'sdlc-config.json');
+      const config = JSON.parse(await fs.readFile(configPath, 'utf8')) as Record<string, unknown>;
+      config['database_env'] = { SHARED: 'from-database-env' };
+      config['app_env'] = { SHARED: 'from-app-env' };
+      config['database_service'] = 'mongodb';
+      config['database_image'] = 'mongo:7';
+      config['database_port'] = '27017:27017';
+      await fs.writeFile(configPath, JSON.stringify(config));
+      process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
+
+      await syncProject(dir);
+      const content = normalizeNewlines(
+        await fs.readFile(join(dir, '.github', 'workflows', 'ci.yml'), 'utf8'),
+      );
+      expect(content).not.toContain('{{DATABASE_AND_APP_ENV}}');
+      const sharedOccurrences = content.match(/^\s*SHARED:/gm) ?? [];
+      expect(sharedOccurrences).toHaveLength(1);
+      expect(content).toContain('SHARED: from-app-env');
+      expect(content).not.toContain('from-database-env');
+      await expectAllWorkflowsValidYaml(dir);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it('dedupes an overlapping key across database_env/app_env in feature-e2e.yml with app_env winning (#928)', async () => {
+    const dir = await buildFixture();
+    try {
+      const configPath = join(dir, 'sdlc-config.json');
+      const config = JSON.parse(await fs.readFile(configPath, 'utf8')) as Record<string, unknown>;
+      config['database_env'] = { SHARED: 'from-database-env' };
+      config['app_env'] = { SHARED: 'from-app-env' };
+      config['database_service'] = 'mongodb';
+      config['database_image'] = 'mongo:7';
+      config['database_port'] = '27017:27017';
+      await fs.writeFile(configPath, JSON.stringify(config));
+      process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
+
+      await syncProject(dir);
+      const content = normalizeNewlines(
+        await fs.readFile(join(dir, '.github', 'workflows', 'feature-e2e.yml'), 'utf8'),
+      );
+      expect(content).not.toContain('{{DATABASE_AND_APP_ENV}}');
+      const sharedOccurrences = content.match(/^\s*SHARED:/gm) ?? [];
+      expect(sharedOccurrences).toHaveLength(1);
+      expect(content).toContain('SHARED: from-app-env');
+      await expectAllWorkflowsValidYaml(dir);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it('dedupes an overlapping key across database_env/app_env in the Python Quality Gates job env with app_env winning (#928)', async () => {
+    const dir = await buildFixture();
+    try {
+      const configPath = join(dir, 'sdlc-config.json');
+      const config = JSON.parse(await fs.readFile(configPath, 'utf8')) as Record<string, unknown>;
+      config['stack'] = 'python';
+      config['python_version'] = '3.11';
+      config['source_dirs'] = 'src/';
+      config['database_env'] = { SHARED: 'from-database-env' };
+      config['app_env'] = { SHARED: 'from-app-env' };
+      config['database_service'] = 'mongodb';
+      config['database_image'] = 'mongo:7';
+      config['database_port'] = '27017:27017';
+      await fs.writeFile(configPath, JSON.stringify(config));
+      process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
+
+      await syncProject(dir);
+      const content = normalizeNewlines(
+        await fs.readFile(join(dir, '.github', 'workflows', 'ci.yml'), 'utf8'),
+      );
+      const sharedOccurrences = content.match(/^\s*SHARED:/gm) ?? [];
+      expect(sharedOccurrences).toHaveLength(1);
+      expect(content).toContain('SHARED: from-app-env');
+      await expectAllWorkflowsValidYaml(dir);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it('renders disjoint database_env/app_env/e2e_env keys identically to before the merge (#928)', async () => {
+    const dir = await buildFixture();
+    try {
+      const configPath = join(dir, 'sdlc-config.json');
+      const config = JSON.parse(await fs.readFile(configPath, 'utf8')) as Record<string, unknown>;
+      config['database_env'] = { DB_ONLY: 'db' };
+      config['app_env'] = { APP_ONLY: 'app' };
+      config['database_service'] = 'mongodb';
+      config['database_image'] = 'mongo:7';
+      config['database_port'] = '27017:27017';
+      await fs.writeFile(configPath, JSON.stringify(config));
+      process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
+
+      await syncProject(dir);
+      const content = normalizeNewlines(
+        await fs.readFile(join(dir, '.github', 'workflows', 'ci.yml'), 'utf8'),
+      );
+      expect(content).toContain('DB_ONLY: db');
+      expect(content).toContain('APP_ONLY: app');
+      await expectAllWorkflowsValidYaml(dir);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  describe('e2e-ci-reliability hook: e2e/ci-reliability/regression-run.sh (#928)', () => {
+    it('with no hook script, renders the default command unchanged in shape and behaviour', async () => {
+      const dir = await buildFixture();
+      try {
+        const configPath = join(dir, 'sdlc-config.json');
+        const config = JSON.parse(await fs.readFile(configPath, 'utf8')) as Record<string, unknown>;
+        config['e2e_regression_enabled'] = true;
+        await fs.writeFile(configPath, JSON.stringify(config));
+        process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
+
+        await syncProject(dir);
+        const content = normalizeNewlines(
+          await fs.readFile(join(dir, '.github', 'workflows', 'e2e-regression.yml'), 'utf8'),
+        );
+        expect(content).toContain('npx playwright test --project="$PROJECT" --reporter=json,html');
+        expect(content).toContain("if [ -f e2e/ci-reliability/regression-run.sh ]; then");
+        expect(content).toContain('timeout --signal=TERM --kill-after=60s 40m');
+        // Widened globs are always present, hook or not — a superset of the
+        // pre-#928 fixed names.
+        expect(content).toContain('e2e-regression-results*.json');
+        expect(content).toContain('playwright-report*/');
+        expect(content).toContain('test-results*/');
+        expect(content).toContain('e2e-server*.log');
+        // Default budget: no e2e_regression_timeout_minutes set.
+        expect(content).toContain('timeout-minutes: 55');
+        await expectAllWorkflowsValidYaml(dir);
+      } finally {
+        await fs.rm(dir, { recursive: true, force: true });
+      }
+    }, 60_000);
+
+    it('threads PROJECT/SPECS/E2E_PORT and the job-level merged env to the hook step (contract inputs)', async () => {
+      const dir = await buildFixture();
+      try {
+        const configPath = join(dir, 'sdlc-config.json');
+        const config = JSON.parse(await fs.readFile(configPath, 'utf8')) as Record<string, unknown>;
+        config['e2e_regression_enabled'] = true;
+        config['e2e_env'] = { E2E_LOCAL: '1' };
+        await fs.writeFile(configPath, JSON.stringify(config));
+        process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
+
+        await syncProject(dir);
+        const content = normalizeNewlines(
+          await fs.readFile(join(dir, '.github', 'workflows', 'e2e-regression.yml'), 'utf8'),
+        );
+        expect(content).toContain('PROJECT: ${{ steps.select.outputs.project }}');
+        expect(content).toContain('SPECS: ${{ steps.select.outputs.specs }}');
+        expect(content).toMatch(/E2E_PORT: \d+/);
+        expect(content).toContain('bash e2e/ci-reliability/regression-run.sh');
+        // Job-level env (E2E_REGRESSION_JOB_ENV) already carries e2e_env —
+        // a hook script inherits it as ordinary process env, no separate
+        // threading needed at the step level.
+        expect(content).toContain('E2E_LOCAL: 1');
+      } finally {
+        await fs.rm(dir, { recursive: true, force: true });
+      }
+    }, 60_000);
+
+    it('maps hook exit code to metadata outcome the same way as the default path', async () => {
+      const dir = await buildFixture();
+      try {
+        const configPath = join(dir, 'sdlc-config.json');
+        const config = JSON.parse(await fs.readFile(configPath, 'utf8')) as Record<string, unknown>;
+        config['e2e_regression_enabled'] = true;
+        await fs.writeFile(configPath, JSON.stringify(config));
+        process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
+
+        await syncProject(dir);
+        const content = normalizeNewlines(
+          await fs.readFile(join(dir, '.github', 'workflows', 'e2e-regression.yml'), 'utf8'),
+        );
+        // Single STATUS-based outcome mapping shared by both the hook and
+        // default branches (not duplicated per-branch).
+        expect(content).toContain('if [ "$STATUS" -eq 124 ]; then');
+        expect(content).toContain('OUTCOME="timed_out"');
+        expect(content).toContain('OUTCOME="passed"');
+        expect(content).toContain('OUTCOME="failed"');
+        expect(content).toContain('exit "$STATUS"');
+      } finally {
+        await fs.rm(dir, { recursive: true, force: true });
+      }
+    }, 60_000);
+
+    it('honors e2e_regression_timeout_minutes for the job-level timeout and the hook-path metadata budget', async () => {
+      const dir = await buildFixture();
+      try {
+        const configPath = join(dir, 'sdlc-config.json');
+        const config = JSON.parse(await fs.readFile(configPath, 'utf8')) as Record<string, unknown>;
+        config['e2e_regression_enabled'] = true;
+        config['e2e_regression_timeout_minutes'] = 90;
+        await fs.writeFile(configPath, JSON.stringify(config));
+        process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
+
+        await syncProject(dir);
+        const content = normalizeNewlines(
+          await fs.readFile(join(dir, '.github', 'workflows', 'e2e-regression.yml'), 'utf8'),
+        );
+        expect(content).toContain('timeout-minutes: 90');
+        expect(content).toContain('TIMEOUT_MINUTES_VALUE=90');
+        expect(content).not.toContain('{{E2E_REGRESSION_TIMEOUT_MINUTES}}');
+        await expectAllWorkflowsValidYaml(dir);
+      } finally {
+        await fs.rm(dir, { recursive: true, force: true });
+      }
+    }, 60_000);
+
+    // The three tests above check the rendered YAML's shape. This one
+    // actually executes the extracted "E2E Regression Tests" step's `run:`
+    // script in bash, with a fake hook script and a fake `npx` on PATH, to
+    // prove the control flow (not just the text) does what the contract
+    // promises: the hook is invoked when present, its exit code becomes the
+    // step's exit code, and the metadata outcome mapping applies to a
+    // hook-produced exit code the same way it does to the default path's.
+    it('actually invokes the hook script and propagates its exit code (extracted run-block execution)', async () => {
+      const dir = await buildFixture();
+      try {
+        const configPath = join(dir, 'sdlc-config.json');
+        const config = JSON.parse(await fs.readFile(configPath, 'utf8')) as Record<string, unknown>;
+        config['e2e_regression_enabled'] = true;
+        await fs.writeFile(configPath, JSON.stringify(config));
+        process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
+        await syncProject(dir);
+
+        const content = normalizeNewlines(
+          await fs.readFile(join(dir, '.github', 'workflows', 'e2e-regression.yml'), 'utf8'),
+        );
+        const lines = content.split('\n');
+        const stepStart = lines.findIndex((l) => l.includes('name: E2E Regression Tests'));
+        const runIdx = lines.findIndex((l, i) => i > stepStart && /^\s*run: \|\s*$/.test(l));
+        const scriptLines: string[] = [];
+        for (let i = runIdx + 1; i < lines.length; i++) {
+          const line = lines[i] ?? '';
+          if (/^\s{6}\S/.test(line) && !/^\s{8}/.test(line)) break;
+          scriptLines.push(line.replace(/^ {10}/, ''));
+        }
+        const script = scriptLines.join('\n');
+        expect(script).toContain('e2e/ci-reliability/regression-run.sh');
+
+        await fs.mkdir(join(dir, 'e2e', 'ci-reliability'), { recursive: true });
+        await fs.writeFile(
+          join(dir, 'e2e', 'ci-reliability', 'regression-run.sh'),
+          '#!/usr/bin/env bash\necho "hook ran: PROJECT=$PROJECT SPECS=$SPECS E2E_PORT=$E2E_PORT"\nexit 124\n',
+        );
+        await fs.writeFile(join(dir, 'e2e-regression-metadata.json'), '{}');
+
+        const result = await execa('bash', ['-c', script], {
+          cwd: dir,
+          env: { PROJECT: 'regression', SPECS: '', E2E_PORT: '3000' },
+          reject: false,
+        });
+        expect(result.exitCode).toBe(124);
+        expect(result.stdout).toContain('hook ran: PROJECT=regression SPECS= E2E_PORT=3000');
+        const metadata = JSON.parse(await fs.readFile(join(dir, 'e2e-regression-metadata.json'), 'utf8'));
+        expect(metadata.outcome).toBe('timed_out');
+        expect(metadata.exit_code).toBe(124);
+      } finally {
+        await fs.rm(dir, { recursive: true, force: true });
+      }
+    }, 60_000);
+  });
 
   it('does not generate reconcile-deployment.yml for a non-railway host adapter (#841)', async () => {
     const dir = await buildFixture();

@@ -46,7 +46,7 @@ There are three practical groups:
 
 - Use `sdlc-implementer` when the work is a tracked `REQ-XXX` change and needs the full SDLC path.
 - Use `e2e-test-engineer` when the work involves end-to-end, authenticated-flow, screenshot, or visual-regression testing.
-- Use `e2e-ci-reliability` when a full-regression run fails a different, unrelated spec each time, when isolated reruns of "failing" specs pass clean, or when the regression tier has grown large enough that sharding is worth considering — not for authoring test content.
+- Use `e2e-ci-reliability` when a full-regression run fails a different, unrelated spec each time, when isolated reruns of "failing" specs pass clean, or when the regression tier has grown large enough that sharding is worth considering — not for authoring test content. A fix it applies (sharding, warm-up) is made durable via `e2e/ci-reliability/regression-run.sh`, a fixed-path hook `e2e-regression.yml` invokes if present (devaudit-installer#928) — never as a hand-edit or `.devaudit-patches` entry against the generated workflow.
 - Use `governance-doc-author` when a project needs or refreshes governance evidence rather than code.
 - Use the SoT-alignment family when the requirement changes product requirements, architecture decisions, or risk posture and the persistent documents must stay truthful.
 

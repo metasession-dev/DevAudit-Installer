@@ -328,6 +328,27 @@ were patched, and DevAudit-Installer#759 was filed proposing
 `typescript_check_env` and `install_flags` to close the gap generally rather
 than leaving those two patches as the permanent way to solve it.
 
+**Re-roll guardrail.** A patch that has been re-rolled more than once against
+a template restructure is no longer temporary scaffolding — escalate it to a
+framework fix (a new config key, or, for skill-owned CI behavior, a hook —
+see below) on its next touch rather than re-rolling it again. `e2e-regression.yml`'s
+sharding logic was patched and re-rolled three times against template
+changes before devaudit-installer#928 gave it a proper extension point; don't
+let another patch reach that state.
+
+**A third mechanism, alongside config keys and patches: hooks.** Some CI
+behavior isn't a value to plug into a config key (it's a diagnosed,
+per-project *decision*, not project-specific *data*) and isn't a good fit for
+a patch either (it needs to survive a template being regenerated from
+scratch, not merely re-applied to one). For skill-owned CI behavior like
+`e2e-ci-reliability`'s sharding/warm-up tuning, the framework instead exposes
+a fixed, undeclared path the generated workflow invokes if present — see
+`e2e-regression.yml`'s "E2E Regression Tests" step, which runs
+`e2e/ci-reliability/regression-run.sh` if it exists, else its own default
+command. `devaudit` never creates, overwrites, or deletes a hook script; it
+is entirely consumer/skill-owned, and needs no `.devaudit-patches` entry or
+upstream-issue trail because it was never generated content to begin with.
+
 ### One-time migration: `META_COMPLY_*` → `DEVAUDIT_*` rename
 
 During the META-COMPLY ↔ DevAudit-Installer repo split, four identifiers were renamed for brand alignment:
