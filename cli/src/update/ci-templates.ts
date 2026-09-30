@@ -111,6 +111,12 @@ interface SdlcConfig {
   // CI_TEMPLATES entry this one is conditionally generated.
   // DevAudit-Installer#821.
   readonly e2e_regression_enabled?: boolean;
+  // Job-level timeout-minutes for e2e-regression.yml. Defaults to 55 when
+  // absent. Generic operational budget, not sharding-specific tuning — the
+  // GitHub Actions job timeout is evaluated before any step (including a
+  // devaudit-installer#928 hook script) runs, so a script cannot raise it
+  // at runtime.
+  readonly e2e_regression_timeout_minutes?: number;
   readonly paths_ignore?: readonly string[];
   /** See #689/#690 — when present, sync runs once per target instead of once for the flat config. */
   readonly targets?: readonly Target[];
@@ -164,6 +170,37 @@ function indentEnvBlock(env: Record<string, string>, indent: number): string {
   return Object.entries(env)
     .map(([k, v]) => `${pad}${k}: ${v}`)
     .join('\n');
+}
+
+/**
+ * Merge two or more env-key sources with later sources winning on a
+ * collision (devaudit-installer#928). Before this, every call site combined
+ * `database_env`/`app_env`/`e2e_env` by string concatenation with no dedup —
+ * a key set in more than one source (e.g. `MONGODB_DB_NAME` needed by both
+ * the app to boot and the E2E seed to reach the same database) produced a
+ * YAML env: block with a duplicate key, which is invalid YAML.
+ */
+function mergeEnvSources(
+  ...sources: ReadonlyArray<Readonly<Record<string, string>> | undefined>
+): Record<string, string> {
+  return Object.assign({}, ...sources.filter((s): s is Record<string, string> => Boolean(s)));
+}
+
+/**
+ * Render a merged env object as a job/step-level `env:` block, supplying its
+ * own header — only when there's at least one key, since `env:` with nothing
+ * under it is invalid YAML (devaudit-installer#800).
+ */
+function renderEnvHeaderBlock(env: Record<string, string>): string {
+  return Object.keys(env).length > 0 ? `    env:\n${indentEnvBlock(env, 6)}` : '';
+}
+
+/**
+ * Render a merged env object as bare entries with no header, for insertion
+ * under a template's own hardcoded `env:` key (devaudit-installer#928).
+ */
+function renderEnvBareBlock(env: Record<string, string>): string {
+  return Object.keys(env).length > 0 ? indentEnvBlock(env, 6) : '';
 }
 
 /**
@@ -325,14 +362,7 @@ function buildE2eRegressionServerStep(cfg: SdlcConfig): string {
  * already use, not a project-specific env list).
  */
 function buildE2eRegressionJobEnv(cfg: SdlcConfig): string {
-  const combined = [
-    cfg.database_env ? indentEnvBlock({ ...cfg.database_env }, 6) : '',
-    cfg.app_env ? indentEnvBlock({ ...cfg.app_env }, 6) : '',
-    cfg.e2e_env ? indentEnvBlock({ ...cfg.e2e_env }, 6) : '',
-  ]
-    .filter(Boolean)
-    .join('\n');
-  return combined ? `    env:\n${combined}` : '';
+  return renderEnvHeaderBlock(mergeEnvSources(cfg.database_env, cfg.app_env, cfg.e2e_env));
 }
 
 /**
@@ -692,6 +722,7 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
       DATABASE_PORT: cfg.database_port,
       E2E_PROJECT: cfg.e2e_project,
       E2E_START_COMMAND: cfg.e2e_start_command,
+      E2E_REGRESSION_TIMEOUT_MINUTES: String(cfg.e2e_regression_timeout_minutes ?? 55),
       // Leading space so `npm ci{{NPM_CI_FLAGS}}` renders as plain `npm ci`
       // when unset (space-then-nothing trims to nothing) and `npm ci
       // --legacy-peer-deps` when set — never a token literally substituted
@@ -718,25 +749,22 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
     const blocks: Record<string, string> = {
       PATHS_IGNORE: pathsIgnoreBlock,
       PR_PATHS_IGNORE: prPathsIgnoreBlock,
-      DATABASE_ENV: cfg.database_env ? indentEnvBlock({ ...cfg.database_env }, 6) : '',
-      APP_ENV: cfg.app_env ? indentEnvBlock({ ...cfg.app_env }, 6) : '',
+      // Collapsed into one merged token (devaudit-installer#928): previously
+      // separate DATABASE_ENV/APP_ENV block tokens combined by string
+      // concatenation with no dedup, so a key set in both sources (e.g.
+      // MONGODB_DB_NAME needed by both the app and the E2E seed) produced a
+      // YAML env: block with a duplicate key. mergeEnvSources dedupes,
+      // later-source-wins (app_env overrides database_env on a collision).
+      DATABASE_AND_APP_ENV: renderEnvBareBlock(mergeEnvSources(cfg.database_env, cfg.app_env)),
       // Same shape as BUILD_ENV/TYPESCRIPT_CHECK_ENV below: the Python
       // Quality Gates job's env: block (unlike the generic/node ci.yml and
       // feature-e2e.yml templates' job-level env: blocks) has no hardcoded
-      // lines after DATABASE_ENV/APP_ENV to keep it non-empty, so a config
+      // lines after DATABASE_AND_APP_ENV to keep it non-empty, so a config
       // with both database_env and app_env unset rendered a bare `env:`
       // with nothing under it — invalid YAML that failed to parse at all
       // (DevAudit-Installer#800). Supplies its own header, only when there's
       // something to put under it.
-      QUALITY_GATES_ENV: (() => {
-        const combined = [
-          cfg.database_env ? indentEnvBlock({ ...cfg.database_env }, 6) : '',
-          cfg.app_env ? indentEnvBlock({ ...cfg.app_env }, 6) : '',
-        ]
-          .filter(Boolean)
-          .join('\n');
-        return combined ? `    env:\n${combined}` : '';
-      })(),
+      QUALITY_GATES_ENV: renderEnvHeaderBlock(mergeEnvSources(cfg.database_env, cfg.app_env)),
       TYPE_CHECK_RUN: buildTypeCheckRun(Boolean(cfg.mypy_scoped_diff), cfg.source_dirs),
       // Unlike DATABASE_ENV/APP_ENV (both followed by more hardcoded env
       // lines in the job-level `env:` block, so an empty result there is
