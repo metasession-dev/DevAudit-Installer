@@ -25,6 +25,9 @@ export async function syncStackDeps(ctx: SyncContext): Promise<SectionResult> {
   if (ctx.stack !== 'node') {
     return { name: `${ctx.stack} deps`, filesSynced: 0, skipped: true };
   }
+  if (ctx.dryRun) {
+    return { name: `${ctx.stack} deps`, filesSynced: 0, skipped: true, message: 'skipped in --dry-run (would run npm install)' };
+  }
   const pkgPath = join(ctx.projectPath, 'package.json');
   if (!(await exists(pkgPath))) {
     return { name: `${ctx.stack} deps`, filesSynced: 0, skipped: true, message: 'no package.json' };

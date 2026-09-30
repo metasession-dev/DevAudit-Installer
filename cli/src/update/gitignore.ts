@@ -8,11 +8,18 @@ const SENTINEL_ENTRIES = [
   '.e2e-evidence-wired',
   '.sdlc-implementer-invoked',
   '.sdlc-pr-watch.json',
+  // devaudit-installer#930 — local conflict-resolution artifacts the sync
+  // manifest's conflict policy writes next to a locally-modified managed
+  // file (e.g. ci.yml.devaudit-new); never meant to be committed.
+  '*.devaudit-new',
 ];
 
 const MARKER = '# DevAudit sentinel files (devaudit-installer#226)';
 
 export async function syncGitignore(ctx: SyncContext): Promise<SectionResult> {
+  if (ctx.dryRun) {
+    return { name: 'gitignore', filesSynced: 0, skipped: true, message: 'skipped in --dry-run' };
+  }
   const gitignorePath = join(ctx.projectPath, '.gitignore');
   let content = '';
   let count = 0;

@@ -138,7 +138,7 @@ devaudit join .
 # Skips: write sdlc-config, issue API key, set GH secrets, apply branch protection.
 ```
 
-The output will tell you which steps it skipped and why (developer mode). If `git status` is clean after the join, your local state matches the team — you're done. If templates drift (occasionally on a new CLI version), commit the drift on a `chore:` branch and open a PR.
+The output will tell you which steps it skipped and why (developer mode). If `git status` is clean after the join, your local state matches the team — you're done. If templates drift (occasionally on a new CLI version), commit the drift on a `chore:` branch and open a PR. If `join` reports a sync conflict (devaudit-installer#930 — a managed file that's diverged from what the team's last sync recorded), resolve it per `docs/consuming-projects.md#sync-conflicts` before opening that PR; `join` never overwrites a locally-modified file, it leaves it in place and writes the fresh template alongside it as `<path>.devaudit-new`.
 
 You can skip this step entirely if the synced templates from `git clone` are already current — `devaudit status .` will tell you.
 

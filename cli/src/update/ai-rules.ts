@@ -1,6 +1,7 @@
 import { promises as fs } from 'node:fs';
 import { join } from 'node:path';
 import { exists } from '../lib/fs-utils.js';
+import { writeManaged } from './write-managed.js';
 import type { SyncContext, SectionResult } from './types.js';
 
 const CURSOR_POINTER = `# Cursor Rules
@@ -63,10 +64,6 @@ ${CLAUDE_POINTER_TAIL}`;
 
 const SDLC_HEADER = '## SDLC Compliance Process (MANDATORY)';
 
-async function writePointerFile(path: string, content: string): Promise<void> {
-  await fs.writeFile(path, content);
-}
-
 async function updateClaudeFile(target: string): Promise<void> {
   if (!(await exists(target))) {
     await fs.writeFile(target, CLAUDE_NEW);
@@ -125,15 +122,28 @@ export async function syncAiRules(ctx: SyncContext): Promise<SectionResult> {
   const agentsPath = join(ctx.projectPath, 'AGENTS.md');
   const claudePath = join(ctx.projectPath, 'CLAUDE.md');
   const instructionsPath = join(ctx.projectPath, 'INSTRUCTIONS.md');
-  await writePointerFile(cursorPath, CURSOR_POINTER);
-  await writePointerFile(windsurfPath, WINDSURF_POINTER);
-  await writePointerFile(geminiPath, GEMINI_POINTER);
-  await writePointerFile(agentsPath, AGENTS_POINTER);
-  await updateClaudeFile(claudePath);
-  await updateInstructionsFile(instructionsPath, sdlcContent);
+  // The four pointer files are wholesale-regenerated content — manifest-
+  // tracked like any other section 2+ output (devaudit-installer#930).
+  // CLAUDE.md/INSTRUCTIONS.md are excluded on purpose: they're already
+  // merge-managed (project content above the SDLC section is preserved by
+  // updateClaudeFile/updateInstructionsFile's own logic), so they need no
+  // conflict detection of their own.
+  let count = 0;
+  const outcomes = await Promise.all([
+    writeManaged(ctx.managed!, cursorPath, CURSOR_POINTER, { section: '2b' }),
+    writeManaged(ctx.managed!, windsurfPath, WINDSURF_POINTER, { section: '2b' }),
+    writeManaged(ctx.managed!, geminiPath, GEMINI_POINTER, { section: '2b' }),
+    writeManaged(ctx.managed!, agentsPath, AGENTS_POINTER, { section: '2b' }),
+  ]);
+  count += outcomes.filter((o) => o !== 'conflict').length;
+  if (!ctx.dryRun) {
+    await updateClaudeFile(claudePath);
+    await updateInstructionsFile(instructionsPath, sdlcContent);
+  }
+  count += 2;
   return {
     name: 'AI rule pointers + INSTRUCTIONS.md',
-    filesSynced: 6,
+    filesSynced: count,
     message: 'synced',
     filePaths: [cursorPath, windsurfPath, geminiPath, agentsPath, claudePath, instructionsPath],
   };

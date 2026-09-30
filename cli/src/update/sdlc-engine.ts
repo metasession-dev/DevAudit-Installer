@@ -1,6 +1,7 @@
 import { promises as fs } from 'node:fs';
 import { join } from 'node:path';
-import { copyFile, copyDir, exists, ensureDir, isDir } from '../lib/fs-utils.js';
+import { exists, ensureDir, isDir } from '../lib/fs-utils.js';
+import { writeManaged, syncDirManaged, removeManaged, removeStaleUnderManaged } from './write-managed.js';
 import type { SyncContext, SectionResult } from './types.js';
 
 /**
@@ -20,6 +21,15 @@ import type { SyncContext, SectionResult } from './types.js';
  * file silently misinterpreted as ESM and crashing on every invocation
  * with `require is not defined`. `.cjs` forces CommonJS regardless of any
  * `package.json`'s `"type"` field.
+ *
+ * Manifest-driven (devaudit-installer#930): the binary and every blueprint
+ * file route through `writeManaged`/`syncDirManaged`, and the stale-`.js`
+ * removal (previously a one-off unconditional `fs.rm`) now goes through
+ * `removeManaged` — deleted only if unmodified, kept and reported as a
+ * conflict otherwise, and (since the bootstrap baseline reconstruction
+ * runs the consumer's previously-recorded CLI version) this generalizes
+ * cleanly to any consumer synced before #930, not just the specific #929
+ * migration.
  */
 export async function syncSdlcEngine(ctx: SyncContext): Promise<SectionResult> {
   const binSrc = join(ctx.installerRoot, 'sdlc', 'src', 'bin', 'devaudit-sdlc.cjs');
@@ -31,29 +41,49 @@ export async function syncSdlcEngine(ctx: SyncContext): Promise<SectionResult> {
 
   const binDst = join(ctx.projectPath, 'SDLC', 'bin');
   const blueprintsDst = join(ctx.projectPath, 'SDLC', 'blueprints');
-  await ensureDir(binDst);
+  if (!ctx.dryRun) await ensureDir(binDst);
 
   let count = 0;
-  await copyFile(binSrc, join(binDst, 'devaudit-sdlc.cjs'), 0o755);
-  count += 1;
+  const binContent = await fs.readFile(binSrc);
+  const binOutcome = await writeManaged(ctx.managed!, join(binDst, 'devaudit-sdlc.cjs'), binContent, {
+    section: '2h',
+    mode: 0o755,
+  });
+  if (binOutcome !== 'conflict') count += 1;
 
   // Every consumer synced before #929 has the broken .js copy sitting next
-  // to (now) the .cjs one — remove it so a stale, crashing binary doesn't
-  // linger, and report it so the removal isn't silent.
+  // to (now) the .cjs one — remove it if unmodified so a stale, crashing
+  // binary doesn't linger; keep + report it if the consumer somehow edited it.
   const staleJsPath = join(binDst, 'devaudit-sdlc.js');
   let removedStale = false;
+  let keptStaleConflict = false;
   if (await exists(staleJsPath)) {
-    await fs.rm(staleJsPath);
-    removedStale = true;
+    const outcome = await removeManaged(ctx.managed!, staleJsPath, { section: '2h' });
+    if (outcome === 'removed') removedStale = true;
+    else if (outcome === 'kept-conflict') keptStaleConflict = true;
+    else {
+      // Untracked (no manifest/baseline entry) — devaudit can't prove this
+      // is its own stale output, so leave it alone entirely rather than
+      // guess. Surfaces as an ordinary leftover file, not a conflict.
+    }
   }
 
+  let removedStaleBlueprints = 0;
   if (await isDir(blueprintsSrc)) {
-    count += await copyDir(blueprintsSrc, blueprintsDst, true);
+    const result = await syncDirManaged(ctx.managed!, blueprintsSrc, blueprintsDst, '2h');
+    count += result.synced;
+    const keep = new Set(result.filePaths);
+    const sweep = await removeStaleUnderManaged(ctx.managed!, blueprintsDst, keep, '2h');
+    removedStaleBlueprints = sweep.removed;
   }
 
-  const message = removedStale
-    ? 'synced to SDLC/bin/ + SDLC/blueprints/; removed stale SDLC/bin/devaudit-sdlc.js'
-    : 'synced to SDLC/bin/ + SDLC/blueprints/';
+  const staleNote = removedStale
+    ? '; removed stale SDLC/bin/devaudit-sdlc.js'
+    : keptStaleConflict
+      ? '; SDLC/bin/devaudit-sdlc.js is stale but locally modified — kept, reported as a conflict'
+      : '';
+  const blueprintNote = removedStaleBlueprints > 0 ? `; removed ${removedStaleBlueprints} stale blueprint file(s)` : '';
+  const message = `synced to SDLC/bin/ + SDLC/blueprints/${staleNote}${blueprintNote}`;
 
   return { name: 'SDLC CLI engine', filesSynced: count, message };
 }

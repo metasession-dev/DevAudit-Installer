@@ -101,6 +101,12 @@ gh pr create --base develop
 
 Open the PR for review. Once merged, the project is active under the SDLC framework on `develop` — promote `develop` to `main` via a separate release PR when you're ready to go live (see devaudit#731).
 
+### Pre-existing files and conflicts
+
+`install` writes into a fixed set of paths (`.github/workflows/`, `.husky/`, `scripts/`, `.claude/skills/`, pointer files, and more — see `docs/consuming-projects.md#what-update-touches-precisely`). Since devaudit-installer#930, if your project already has a file at one of those paths — most commonly your own `.github/workflows/ci.yml`, `.prettierrc.json`, or `.husky/pre-commit` from before onboarding — `install` does **not** overwrite it. Devaudit has no record of ever writing that file, so it can't prove it's safe to replace; instead it's left exactly as it is, the framework's own version is written to `<path>.devaudit-new` next to it, and the conflict is reported at the end of the run (and any time afterward via `devaudit doctor`'s `sync-conflicts` check).
+
+For most of these paths the fix is to migrate your existing content into devaudit's equivalent (a `sdlc-config.json` key, `.devaudit-patches/`, or simply deleting your version and taking `<path>.devaudit-new` if devaudit's is a superset). **`ci.yml` is the one exception worth calling out by name**: if your project already has its own `.github/workflows/ci.yml` doing something devaudit's generated Quality Gates workflow doesn't cover, don't try to make devaudit's file absorb it — rename your existing workflow to something like `.github/workflows/project-ci.yml` first (a plain `git mv`, no functional change), then re-run `install`. That frees the `ci.yml` filename for devaudit's own gate and lets both workflows run side by side.
+
 ### Step 3a — Author the governance docs before your first production release
 
 `devaudit install` no longer auto-seeds governance docs (changed in v0.1.36 — placeholders were auto-uploading as evidence on first CI push). Two equivalent ways to produce them:
@@ -226,7 +232,7 @@ Re-running the script on the same consumer is safe:
 - GitHub secrets/variables overwrite via `gh secret set` / `gh variable set`.
 - Hook framework install is idempotent at the framework level.
 - Branch protection re-applies via PUT (idempotent at the GH API).
-- Template sync is idempotent (same inputs → same outputs).
+- Template sync is idempotent (same inputs → same outputs), and manifest-driven since devaudit-installer#930: a file left untouched since the last sync updates silently, a hand-edited one is preserved and reported as a conflict rather than overwritten — see [Pre-existing files and conflicts](#pre-existing-files-and-conflicts) above.
 
 ## Worked example: onboarding EXAMPLE-PYTHON-SERVICE (historical trace)
 

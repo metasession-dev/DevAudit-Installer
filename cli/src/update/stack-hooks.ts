@@ -1,6 +1,8 @@
+import { promises as fs } from 'node:fs';
 import { join } from 'node:path';
-import { copyFile, exists, isDir } from '../lib/fs-utils.js';
+import { exists, isDir } from '../lib/fs-utils.js';
 import { loadStackAdapter } from '../lib/adapter.js';
+import { writeManaged } from './write-managed.js';
 import type { SyncContext, SectionResult } from './types.js';
 
 /**
@@ -42,18 +44,20 @@ export async function syncStackHooks(ctx: SyncContext): Promise<SectionResult> {
     const src = join(stackHooksDir, hook);
     if (await exists(src)) {
       const dst = join(targetDir, hook);
-      await copyFile(src, dst, 0o755);
+      const content = await fs.readFile(src);
+      const outcome = await writeManaged(ctx.managed!, dst, content, { section: '2c', mode: 0o755 });
       filePaths.push(dst);
-      count += 1;
+      if (outcome !== 'conflict') count += 1;
     }
   }
   for (const cfg of adapter.hook_config_files ?? []) {
     const src = join(stackHooksDir, cfg);
     if (await exists(src)) {
       const dst = join(ctx.repoRoot, cfg);
-      await copyFile(src, dst);
+      const content = await fs.readFile(src);
+      const outcome = await writeManaged(ctx.managed!, dst, content, { section: '2c' });
       filePaths.push(dst);
-      count += 1;
+      if (outcome !== 'conflict') count += 1;
     }
   }
   return { name: `${ctx.stack} hooks`, filesSynced: count, message: `synced to ${hookInstallDir}/`, filePaths };

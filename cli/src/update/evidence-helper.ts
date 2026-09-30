@@ -1,5 +1,7 @@
 import { join } from 'node:path';
-import { copyFile, exists } from '../lib/fs-utils.js';
+import { promises as fs } from 'node:fs';
+import { exists } from '../lib/fs-utils.js';
+import { writeManaged } from './write-managed.js';
 import type { SyncContext, SectionResult } from './types.js';
 
 /**
@@ -40,11 +42,12 @@ export async function syncEvidenceHelper(ctx: SyncContext): Promise<SectionResul
       continue;
     }
     const dst = join(ctx.projectPath, 'e2e', 'helpers', fname);
-    await copyFile(src, dst);
+    const content = await fs.readFile(src);
+    const outcome = await writeManaged(ctx.managed!, dst, content, { section: '2e-iii' });
     filePaths.push(dst);
-    copied += 1;
+    if (outcome !== 'conflict') copied += 1;
   }
-  if (copied === 0) {
+  if (copied === 0 && missing.length === HELPER_FILES.length) {
     return { name: 'E2E evidence helper', filesSynced: 0, skipped: true, message: 'no sources found' };
   }
   const message =

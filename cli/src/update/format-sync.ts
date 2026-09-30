@@ -41,6 +41,9 @@ export async function formatSyncedFiles(
   if (ctx.stack !== 'node') {
     return { name: 'Formatter normalization', filesSynced: 0, skipped: true };
   }
+  if (ctx.dryRun) {
+    return { name: 'Formatter normalization', filesSynced: 0, skipped: true, message: 'skipped in --dry-run' };
+  }
   const targets = [...new Set(filePaths)].filter(hasPrettierExtension);
   if (targets.length === 0) {
     return {

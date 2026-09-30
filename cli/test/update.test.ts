@@ -9,6 +9,7 @@ import { execa } from 'execa';
 import { syncProject } from '../src/update/index.js';
 import { runUpdate } from '../src/commands/update.js';
 import { CLI_VERSION } from '../src/lib/version.js';
+import { sha256, writeManifest, type SyncManifest } from '../src/update/sync-manifest.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const INSTALLER_ROOT = resolve(HERE, '..', '..');
@@ -446,9 +447,20 @@ describe('syncProject — native TS sync against a fixture', () => {
         }),
       );
       // Simulate a repo synced before #929: a stale devaudit-sdlc.js sitting
-      // where the new .cjs will land.
+      // where the new .cjs will land. Recorded in a hand-built sync manifest
+      // as unmodified (devaudit-installer#930's own manifest-driven removal
+      // now requires proof the file is devaudit's to delete — an untracked
+      // pre-existing file at this path would instead be treated as an
+      // onboarding-style conflict and kept, not silently removed).
       await fs.mkdir(join(dir, 'SDLC', 'bin'), { recursive: true });
-      await fs.writeFile(join(dir, 'SDLC', 'bin', 'devaudit-sdlc.js'), '// stale pre-#929 CJS copy, would crash under "type": "module"\n');
+      const staleContent = '// stale pre-#929 CJS copy, would crash under "type": "module"\n';
+      await fs.writeFile(join(dir, 'SDLC', 'bin', 'devaudit-sdlc.js'), staleContent);
+      const manifest: SyncManifest = {
+        version: 1,
+        cli_version: '0.3.2',
+        files: { 'SDLC/bin/devaudit-sdlc.js': { sha256: sha256(staleContent), section: '2h' } },
+      };
+      await writeManifest(dir, manifest);
 
       process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
       const report = await syncProject(dir);
@@ -585,9 +597,22 @@ describe('syncProject — native TS sync against a fixture', () => {
       const workflowsDir = join(dir, '.github', 'workflows');
       await fs.mkdir(workflowsDir, { recursive: true });
       // Simulate leftover output from a prior single-target sync, before this
-      // config gained its `api` target.
-      await fs.writeFile(join(workflowsDir, 'ci.yml'), 'name: CI Pipeline\n');
-      await fs.writeFile(join(workflowsDir, 'feature-e2e.yml'), 'name: Feature E2E\n');
+      // config gained its `api` target. Recorded in a hand-built manifest as
+      // unmodified so manifest-driven removal (devaudit-installer#930) can
+      // prove these are devaudit's own stale output, not an untracked file
+      // it would otherwise have to keep as an onboarding-style conflict.
+      const ciYmlContent = 'name: CI Pipeline\n';
+      const featureE2eYmlContent = 'name: Feature E2E\n';
+      await fs.writeFile(join(workflowsDir, 'ci.yml'), ciYmlContent);
+      await fs.writeFile(join(workflowsDir, 'feature-e2e.yml'), featureE2eYmlContent);
+      await writeManifest(dir, {
+        version: 1,
+        cli_version: '0.3.2',
+        files: {
+          '.github/workflows/ci.yml': { sha256: sha256(ciYmlContent), section: '2f' },
+          '.github/workflows/feature-e2e.yml': { sha256: sha256(featureE2eYmlContent), section: '2f' },
+        },
+      });
 
       await syncProject(dir);
 

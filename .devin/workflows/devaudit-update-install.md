@@ -170,23 +170,24 @@ The skill will:
 
 ## What update does (existing project)
 
-1. Syncs all SDLC templates (stage docs, skills, blueprints, binary) — overwrites with latest
-2. Syncs git hooks — overwrites with latest
-3. Regenerates CI workflow from template — overwrites with latest
-4. Syncs scripts — overwrites with latest
+1. Syncs all SDLC templates (stage docs, skills, blueprints, binary) — manifest-driven (devaudit-installer#930): an unmodified file updates silently, a hand-edited one is preserved as a reported conflict instead of overwritten
+2. Syncs git hooks — manifest-driven, same conflict handling
+3. Regenerates CI workflow from template — manifest-driven, same conflict handling
+4. Syncs scripts — manifest-driven, same conflict handling
 5. Updates AI agent pointer files (`.cursorrules`, `.windsurfrules`, `CLAUDE.md`, etc.)
 6. Adds sentinel entries to `.gitignore` if missing
 7. Adds `postinstall` script (`playwright install chromium`) to `package.json` if `@playwright/test` is a required dep and no postinstall exists — ensures browsers auto-install after `npm ci`
-8. Syncs Windsurf workflow files to `.devin/workflows/` — overwrites with latest
+8. Syncs Windsurf workflow files to `.devin/workflows/` — manifest-driven, same conflict handling
 9. Re-applies branch protection to the release + integration branches (unions required checks; does not weaken any manual tightening)
 10. Stamps `devaudit_synced_version` (and `e2e_regression_enabled` if `--enable-/--disable-e2e-regression` was passed) into `sdlc-config.json` — no other `sdlc-config.json` key is touched
 11. Does NOT touch: portal registration, API keys, secrets
+12. Writes `.devaudit/sync-manifest.json` last, recording every managed file's hash for the next sync's conflict detection (devaudit-installer#930)
 
 ## Common issues
 
 - **`npx` prompts to install the package** — this is normal on first run. Answer `y` to proceed. The package is `@metasession.co/devaudit-cli`.
 - **Install fails with 401/403** — `DEVAUDIT_USER_TOKEN` is missing, expired, or wrong. Get a new token from the DevAudit portal `/settings/api-keys`.
-- **Update overwrites custom CI config** — `devaudit update` regenerates `ci.yml` (and every other regenerated template) from source on every run. A hand-edit is preserved only if it's tracked as a reviewed patch in `.devaudit-patches/` (re-applied after every regenerating section) or expressed as an `sdlc-config.json` key the template already reads — editing the generated file directly does not survive the next sync.
+- **Update reports a sync conflict** — a managed file's on-disk content no longer matches what `devaudit update` last wrote (a hand-edit, or a pre-existing file at that path). Devaudit-installer#930: the local file is left untouched, the fresh template content is written to `<path>.devaudit-new` next to it, and the conflict is listed in the sync's summary and in `devaudit doctor`'s `sync-conflicts` check. Resolve it: `mv <path>.devaudit-new <path>` to take upstream, or move your change into a `.devaudit-patches/` patch or an `sdlc-config.json` key first, then take upstream the same way.
 - **`SDLC/bin/devaudit-sdlc.cjs` missing after update** — the sync section 2h failed. Check that the CLI version you're using is >= 0.3.2 (the version that added the engine sync).
 - **Postinstall script not added** — ensure you're using CLI >= 0.3.3. If a `postinstall` script already exists (and doesn't mention `playwright install`), it won't be overwritten — a warning is logged instead. Add `playwright install chromium` manually if needed.
 - **Pre-push hook blocks pushes** — the hook checks for `.sdlc-implementer-invoked`. Run `node SDLC/bin/devaudit-sdlc.cjs --phase=issue` before committing to write the sentinel.
