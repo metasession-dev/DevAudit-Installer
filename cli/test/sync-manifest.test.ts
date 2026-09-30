@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { execa } from 'execa';
 import { syncProject } from '../src/update/index.js';
 import { readManifest, writeManifest, sha256, type SyncManifest } from '../src/update/sync-manifest.js';
-import { buildBaseline, type BaselineRunner } from '../src/update/manifest-bootstrap.js';
+import { buildBaseline, defaultBaselineRunner, type BaselineRunner } from '../src/update/manifest-bootstrap.js';
 import type { SyncContext } from '../src/update/types.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -364,4 +364,164 @@ describe('manifest bootstrap (devaudit-installer#930)', () => {
       await fs.rm(dir, { recursive: true, force: true });
     }
   }, 30_000);
+
+  // devaudit-installer#932's pre-release validation gate (cloned real
+  // consumers, not fixtures) caught this: DEVAUDIT_INSTALLER_ROOT set for
+  // the *current* CLI invocation was leaking into the `npx @metasession.co/
+  // devaudit-cli@<old-version>` child process, which resolved the CURRENT
+  // (unreleased) templates instead of its own bundled ones — silently
+  // reconstructing a baseline that matched today's output rather than what
+  // was actually synced historically, defeating reconstruction entirely. A
+  // fixture-only test suite never caught this because fixtures don't
+  // exercise a real npx subprocess against a real historical version.
+  it('never leaks DEVAUDIT_INSTALLER_ROOT into the real defaultBaselineRunner subprocess (#930 validation-gate finding)', async () => {
+    const dir = await buildFixture();
+    const binDir = await fs.mkdtemp(join(tmpdir(), 'devaudit-fake-npx-'));
+    const envDumpPath = join(dir, 'observed-env.json');
+    try {
+      // A fake `npx` on PATH ahead of the real one: dumps its own env to a
+      // file instead of actually fetching anything, so this test exercises
+      // defaultBaselineRunner's real execa call end-to-end (not a
+      // reimplementation of its env-stripping logic) without hitting the
+      // network.
+      const fakeNpx = join(binDir, 'npx');
+      await fs.writeFile(
+        fakeNpx,
+        `#!/usr/bin/env node\nrequire('fs').writeFileSync(${JSON.stringify(envDumpPath)}, JSON.stringify(process.env));\n`,
+      );
+      await fs.chmod(fakeNpx, 0o755);
+
+      process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
+      const originalPath = process.env['PATH'];
+      process.env['PATH'] = `${binDir}:${originalPath}`;
+      try {
+        await defaultBaselineRunner({ worktreeDir: dir, version: '1.0.0' });
+      } finally {
+        process.env['PATH'] = originalPath;
+      }
+
+      const observedEnv = JSON.parse(await fs.readFile(envDumpPath, 'utf-8'));
+      expect(observedEnv['DEVAUDIT_INSTALLER_ROOT']).toBeUndefined();
+      expect(process.env['DEVAUDIT_INSTALLER_ROOT']).toBe(INSTALLER_ROOT); // parent process env itself is untouched
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+      await fs.rm(binDir, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  // devaudit-installer#932's validation gate caught this too: a git worktree
+  // never has node_modules (git doesn't track it), so the consumer's own
+  // prettier at node_modules/.bin/prettier silently failed to resolve
+  // inside the baseline reconstruction, leaving anything prettier
+  // normalizes (markdown tables, YAML quote style) unformatted in the
+  // baseline while the real sync (which does have node_modules) formats
+  // correctly — a spurious mismatch for a file nobody touched.
+  it('symlinks the real repo node_modules into the baseline worktree so the consumer formatter actually normalizes baseline content', async () => {
+    const dir = await buildFixture();
+    try {
+      // A real prettier + .prettierrc so formatSyncedFiles has something to
+      // resolve and something non-default to normalize against.
+      await execa('npm', ['install', '--no-audit', '--no-fund', '--no-save', 'prettier@3'], { cwd: dir });
+      await fs.writeFile(join(dir, '.prettierrc.json'), JSON.stringify({ singleQuote: true }));
+      const cfg = JSON.parse(await fs.readFile(join(dir, 'sdlc-config.json'), 'utf-8'));
+      cfg.devaudit_synced_version = '1.0.0';
+      await fs.writeFile(join(dir, 'sdlc-config.json'), JSON.stringify(cfg));
+      await execa('git', ['init', '-q'], { cwd: dir });
+      await execa('git', ['add', '-A'], { cwd: dir });
+      await execa('git', ['-c', 'user.email=t@t.com', '-c', 'user.name=t', 'commit', '-q', '-m', 'init'], { cwd: dir });
+
+      const stubRunner: BaselineRunner = async ({ worktreeDir }) => {
+        await fs.mkdir(join(worktreeDir, 'SDLC'), { recursive: true });
+        // Double-quoted — prettier with singleQuote:true rewrites this to
+        // single-quoted JSON-in-markdown-adjacent content only if it
+        // actually runs; if node_modules didn't resolve inside the
+        // worktree, this would be hashed completely unformatted instead.
+        await fs.writeFile(join(worktreeDir, 'SDLC', 'Test_Policy.md'), '```json\n{"a": "b"}\n```\n');
+      };
+      const ctx: SyncContext = {
+        installerRoot: INSTALLER_ROOT,
+        projectPath: dir,
+        repoRoot: dir,
+        projectName: 'fixture-app',
+        stack: 'node',
+        host: 'railway',
+      };
+      const result = await buildBaseline(ctx, stubRunner);
+      expect(result.fellBack).toBe(false);
+      // Independently run the same consumer's prettier over identical raw
+      // content and compare hashes — proves the baseline's own format pass
+      // produced genuinely-formatted output, not raw passthrough (which is
+      // exactly what happened before node_modules was symlinked in: the
+      // local prettier bin didn't resolve, so the baseline stayed
+      // unformatted while the real sync — which does have node_modules —
+      // formatted correctly, producing a spurious mismatch).
+      const expectedPath = join(dir, 'expected-format-check.md');
+      await fs.writeFile(expectedPath, '```json\n{"a": "b"}\n```\n');
+      await execa(join(dir, 'node_modules', '.bin', 'prettier'), ['--write', expectedPath], { cwd: dir });
+      const expectedFormatted = await fs.readFile(expectedPath, 'utf-8');
+      const baselineHash = result.known.get('SDLC/Test_Policy.md')?.sha256;
+      expect(baselineHash).toBe(sha256(expectedFormatted));
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it('collects nested managed files (skills subdirectories, SDLC/blueprints/, SDLC/bin/) recursively for both hashing and formatting', async () => {
+    const dir = await buildFixture();
+    try {
+      const cfg = JSON.parse(await fs.readFile(join(dir, 'sdlc-config.json'), 'utf-8'));
+      cfg.devaudit_synced_version = '1.0.0';
+      await fs.writeFile(join(dir, 'sdlc-config.json'), JSON.stringify(cfg));
+      await execa('git', ['init', '-q'], { cwd: dir });
+      await execa('git', ['add', '-A'], { cwd: dir });
+      await execa('git', ['-c', 'user.email=t@t.com', '-c', 'user.name=t', 'commit', '-q', '-m', 'init'], { cwd: dir });
+
+      const stubRunner: BaselineRunner = async ({ worktreeDir }) => {
+        await fs.mkdir(join(worktreeDir, '.claude', 'skills', 'sdlc-implementer', 'references'), { recursive: true });
+        await fs.writeFile(join(worktreeDir, '.claude', 'skills', 'sdlc-implementer', 'SKILL.md'), '# nested\n');
+        await fs.writeFile(
+          join(worktreeDir, '.claude', 'skills', 'sdlc-implementer', 'references', 'call-graph.md'),
+          '# deeper\n',
+        );
+        await fs.mkdir(join(worktreeDir, 'SDLC', 'blueprints'), { recursive: true });
+        await fs.writeFile(join(worktreeDir, 'SDLC', 'blueprints', '1-plan-requirement.raw.md'), '# blueprint\n');
+      };
+      const ctx: SyncContext = {
+        installerRoot: INSTALLER_ROOT,
+        projectPath: dir,
+        repoRoot: dir,
+        projectName: 'fixture-app',
+        stack: 'node',
+        host: 'railway',
+      };
+      const result = await buildBaseline(ctx, stubRunner);
+      expect(result.fellBack).toBe(false);
+      expect(result.known.get('.claude/skills/sdlc-implementer/SKILL.md')?.sha256).toBeTruthy();
+      expect(result.known.get('.claude/skills/sdlc-implementer/references/call-graph.md')?.sha256).toBeTruthy();
+      expect(result.known.get('SDLC/blueprints/1-plan-requirement.raw.md')?.sha256).toBeTruthy();
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it('reports filePaths for synced skill files and blueprint files, so section 2l formats them (#930 validation-gate finding)', async () => {
+    process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
+    const dir = await buildFixture();
+    try {
+      const report = await syncProject(dir);
+      const skillsSection = report.sections.find((s) => s.name === 'Claude Code skills');
+      const engineSection = report.sections.find((s) => s.name === 'SDLC CLI engine');
+      // Without this, section 2l's formatter never sees these files at all,
+      // and the baseline reconstruction (which does list them, recursively)
+      // permanently disagrees with what the real sync ever formats —
+      // every skill/blueprint markdown file would read as a false-positive
+      // conflict on every subsequent sync.
+      expect(skillsSection?.filePaths?.length ?? 0).toBeGreaterThan(0);
+      expect(engineSection?.filePaths?.length ?? 0).toBeGreaterThan(0);
+      expect(skillsSection?.filePaths?.some((p) => p.endsWith('SKILL.md'))).toBe(true);
+      expect(engineSection?.filePaths?.some((p) => p.endsWith('.raw.md'))).toBe(true);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
 });
