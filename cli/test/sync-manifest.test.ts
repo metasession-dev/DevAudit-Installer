@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { execa } from 'execa';
 import { syncProject } from '../src/update/index.js';
 import { readManifest, writeManifest, sha256, type SyncManifest } from '../src/update/sync-manifest.js';
-import { buildBaseline, defaultBaselineRunner, type BaselineRunner } from '../src/update/manifest-bootstrap.js';
+import { buildBaseline, baselineRunnerEnv, type BaselineRunner } from '../src/update/manifest-bootstrap.js';
 import type { SyncContext } from '../src/update/types.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -374,40 +374,20 @@ describe('manifest bootstrap (devaudit-installer#930)', () => {
   // was actually synced historically, defeating reconstruction entirely. A
   // fixture-only test suite never caught this because fixtures don't
   // exercise a real npx subprocess against a real historical version.
-  it('never leaks DEVAUDIT_INSTALLER_ROOT into the real defaultBaselineRunner subprocess (#930 validation-gate finding)', async () => {
-    const dir = await buildFixture();
-    const binDir = await fs.mkdtemp(join(tmpdir(), 'devaudit-fake-npx-'));
-    const envDumpPath = join(dir, 'observed-env.json');
-    try {
-      // A fake `npx` on PATH ahead of the real one: dumps its own env to a
-      // file instead of actually fetching anything, so this test exercises
-      // defaultBaselineRunner's real execa call end-to-end (not a
-      // reimplementation of its env-stripping logic) without hitting the
-      // network.
-      const fakeNpx = join(binDir, 'npx');
-      await fs.writeFile(
-        fakeNpx,
-        `#!/usr/bin/env node\nrequire('fs').writeFileSync(${JSON.stringify(envDumpPath)}, JSON.stringify(process.env));\n`,
-      );
-      await fs.chmod(fakeNpx, 0o755);
-
-      process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
-      const originalPath = process.env['PATH'];
-      process.env['PATH'] = `${binDir}:${originalPath}`;
-      try {
-        await defaultBaselineRunner({ worktreeDir: dir, version: '1.0.0' });
-      } finally {
-        process.env['PATH'] = originalPath;
-      }
-
-      const observedEnv = JSON.parse(await fs.readFile(envDumpPath, 'utf-8'));
-      expect(observedEnv['DEVAUDIT_INSTALLER_ROOT']).toBeUndefined();
-      expect(process.env['DEVAUDIT_INSTALLER_ROOT']).toBe(INSTALLER_ROOT); // parent process env itself is untouched
-    } finally {
-      await fs.rm(dir, { recursive: true, force: true });
-      await fs.rm(binDir, { recursive: true, force: true });
-    }
-  }, 30_000);
+  it('never leaks DEVAUDIT_INSTALLER_ROOT into the env defaultBaselineRunner passes its child (#930 validation-gate finding)', () => {
+    // Spawning a real subprocess (fake npx on PATH) to prove this is
+    // platform-fragile — a Unix shebang script isn't executable on Windows,
+    // where PATH resolution and script execution work differently, and
+    // that fragility caused this exact test to hang/time out in Windows CI
+    // rather than fail on the real assertion. `baselineRunnerEnv` is pulled
+    // out specifically so the omission can be verified directly and
+    // deterministically, on every OS, with no subprocess involved.
+    const sourceEnv = { DEVAUDIT_INSTALLER_ROOT: INSTALLER_ROOT, PATH: process.env['PATH'] ?? '' };
+    const cleanEnv = baselineRunnerEnv(sourceEnv);
+    expect(cleanEnv['DEVAUDIT_INSTALLER_ROOT']).toBeUndefined();
+    expect(cleanEnv['PATH']).toBe(sourceEnv['PATH']); // everything else survives untouched
+    expect(sourceEnv['DEVAUDIT_INSTALLER_ROOT']).toBe(INSTALLER_ROOT); // the input itself isn't mutated
+  });
 
   // devaudit-installer#932's validation gate caught this too: a git worktree
   // never has node_modules (git doesn't track it), so the consumer's own
@@ -419,10 +399,28 @@ describe('manifest bootstrap (devaudit-installer#930)', () => {
   it('symlinks the real repo node_modules into the baseline worktree so the consumer formatter actually normalizes baseline content', async () => {
     const dir = await buildFixture();
     try {
-      // A real prettier + .prettierrc so formatSyncedFiles has something to
-      // resolve and something non-default to normalize against.
-      await execa('npm', ['install', '--no-audit', '--no-fund', '--no-save', 'prettier@3'], { cwd: dir });
-      await fs.writeFile(join(dir, '.prettierrc.json'), JSON.stringify({ singleQuote: true }));
+      // A fake "prettier" instead of a real npm install: deterministic,
+      // fast on every OS, and avoids a real install's network/CI-runner
+      // variance entirely — all this test needs is *some* observable
+      // transformation that only happens if the binary under
+      // node_modules/.bin/ actually resolves and runs inside the worktree.
+      // Mirrors the real npm bin-shim shape (a `#!/usr/bin/env node`
+      // shebang script, executable bit set) that execa/cross-spawn already
+      // knows how to invoke cross-platform for any real npm package.
+      const binDir = join(dir, 'node_modules', '.bin');
+      await fs.mkdir(binDir, { recursive: true });
+      const fakePrettier = join(binDir, 'prettier');
+      await fs.writeFile(
+        fakePrettier,
+        [
+          '#!/usr/bin/env node',
+          'const fs = require("fs");',
+          'const path = process.argv[process.argv.length - 1];',
+          'fs.writeFileSync(path, fs.readFileSync(path, "utf-8").replace(/"/g, "\'"));',
+        ].join('\n'),
+      );
+      await fs.chmod(fakePrettier, 0o755);
+
       const cfg = JSON.parse(await fs.readFile(join(dir, 'sdlc-config.json'), 'utf-8'));
       cfg.devaudit_synced_version = '1.0.0';
       await fs.writeFile(join(dir, 'sdlc-config.json'), JSON.stringify(cfg));
@@ -432,11 +430,10 @@ describe('manifest bootstrap (devaudit-installer#930)', () => {
 
       const stubRunner: BaselineRunner = async ({ worktreeDir }) => {
         await fs.mkdir(join(worktreeDir, 'SDLC'), { recursive: true });
-        // Double-quoted — prettier with singleQuote:true rewrites this to
-        // single-quoted JSON-in-markdown-adjacent content only if it
-        // actually runs; if node_modules didn't resolve inside the
-        // worktree, this would be hashed completely unformatted instead.
-        await fs.writeFile(join(worktreeDir, 'SDLC', 'Test_Policy.md'), '```json\n{"a": "b"}\n```\n');
+        // Double-quoted — the fake prettier above rewrites " to ' only if
+        // it actually runs; if node_modules didn't resolve inside the
+        // worktree, this would be hashed completely unrewritten instead.
+        await fs.writeFile(join(worktreeDir, 'SDLC', 'Test_Policy.md'), '"raw"\n');
       };
       const ctx: SyncContext = {
         installerRoot: INSTALLER_ROOT,
@@ -448,23 +445,12 @@ describe('manifest bootstrap (devaudit-installer#930)', () => {
       };
       const result = await buildBaseline(ctx, stubRunner);
       expect(result.fellBack).toBe(false);
-      // Independently run the same consumer's prettier over identical raw
-      // content and compare hashes — proves the baseline's own format pass
-      // produced genuinely-formatted output, not raw passthrough (which is
-      // exactly what happened before node_modules was symlinked in: the
-      // local prettier bin didn't resolve, so the baseline stayed
-      // unformatted while the real sync — which does have node_modules —
-      // formatted correctly, producing a spurious mismatch).
-      const expectedPath = join(dir, 'expected-format-check.md');
-      await fs.writeFile(expectedPath, '```json\n{"a": "b"}\n```\n');
-      await execa(join(dir, 'node_modules', '.bin', 'prettier'), ['--write', expectedPath], { cwd: dir });
-      const expectedFormatted = await fs.readFile(expectedPath, 'utf-8');
       const baselineHash = result.known.get('SDLC/Test_Policy.md')?.sha256;
-      expect(baselineHash).toBe(sha256(expectedFormatted));
+      expect(baselineHash).toBe(sha256("'raw'\n"));
     } finally {
       await fs.rm(dir, { recursive: true, force: true });
     }
-  }, 60_000);
+  }, 30_000);
 
   it('collects nested managed files (skills subdirectories, SDLC/blueprints/, SDLC/bin/) recursively for both hashing and formatting', async () => {
     const dir = await buildFixture();

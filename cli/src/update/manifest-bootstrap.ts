@@ -105,8 +105,19 @@ export interface BaselineRunner {
  * version. Letting the old package resolve its own bundled `sdlc/files`
  * (the normal npm-install case) is what makes this a real reconstruction.
  */
+/**
+ * The env `defaultBaselineRunner` passes to the child `npx` process —
+ * pulled out as its own pure, directly-testable function (no subprocess
+ * spawn needed to verify the key is really gone) since the omission is the
+ * entire point of the fix it exists for.
+ */
+export function baselineRunnerEnv(sourceEnv: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  const { DEVAUDIT_INSTALLER_ROOT: _unused, ...cleanEnv } = sourceEnv;
+  return cleanEnv;
+}
+
 export const defaultBaselineRunner: BaselineRunner = async ({ worktreeDir, version }) => {
-  const { DEVAUDIT_INSTALLER_ROOT: _unused, ...cleanEnv } = process.env;
+  const cleanEnv = baselineRunnerEnv();
   // execa's `env` option *extends* `process.env` by default (`extendEnv:
   // true`) — passing `env: cleanEnv` alone still lets execa merge the key
   // back in from the real `process.env`, since "extend" fills in anything
