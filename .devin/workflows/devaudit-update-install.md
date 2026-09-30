@@ -94,7 +94,7 @@ Skip to step 4.
 
 ### 3. Update — run `devaudit update`
 
-This syncs the latest SDLC templates, binary, blueprints, hooks, scripts, and skills from the published CLI package into your repo. It does NOT touch `sdlc-config.json`, portal registration, or secrets.
+This syncs the latest SDLC templates, binary, blueprints, hooks, scripts, and skills from the published CLI package into your repo, re-applies branch protection, and stamps `devaudit_synced_version` into `sdlc-config.json`. It does not touch portal registration or secrets.
 
 ```bash
 npx @metasession.co/devaudit-cli update .
@@ -138,20 +138,20 @@ Key files to expect:
 
 ### 5. Hand off to the sdlc-implementer skill
 
-The changes are staged in the working tree. The remaining steps — invoking the SDLC engine for the sentinel, running local gates, creating a feature branch, committing, pushing, opening a PR, and monitoring CI — are all owned by the **sdlc-implementer** skill that was synced into `.claude/skills/` by the install/update.
+The changes are staged in the working tree. The remaining steps — invoking the SDLC engine for the sentinel, running local gates, creating a feature branch, committing, pushing, opening a PR, monitoring CI, and recording the correct housekeeping release meaning — are all owned by the **sdlc-implementer** skill that was synced into `.claude/skills/` by the install/update.
 
 Invoke the sdlc-implementer skill and tell it:
 
-> **Housekeeping change.** The working tree has uncommitted changes from `devaudit install` (or `devaudit update`). Commit type is `chore:`, no `REQ-XXX`. Use the SDLC lightweight path: invoke the SDLC engine for the sentinel, run local gates, create a `chore/sync-devaudit-sdlc-{version}` branch, commit, push, open a PR targeting `develop`, monitor terminal CI, and guide merge. Treat any resulting bare-date portal row as integration history; it has no release-ticket, approval, or standalone-promotion ceremony.
+> **Housekeeping change.** The working tree has uncommitted changes from `devaudit install` (or `devaudit update`). Commit type is `chore:`, no `REQ-XXX`. Use the SDLC lightweight path: invoke the SDLC engine for the sentinel, run local gates, create a `chore/sync-devaudit-sdlc-{version}` branch, commit, push, open a PR targeting `develop`, wait for terminal-green checks on the current PR SHA, then guide merge. This is normal integration housekeeping: it has PR review only, creates no tracked approval release, and is absorbed into the next tracked REQ through bundled-change lineage. A standalone housekeeping release is allowed only when the `sdlc-implementer` standalone-exception contract is explicitly satisfied.
 
 The skill will:
 1. Invoke `node SDLC/bin/devaudit-sdlc.cjs --phase=issue --view` to write the `.sdlc-implementer-invoked` sentinel
 2. Run local gates (lint, tsc, test)
 3. Create a `chore/` branch, commit, and push
 4. Open a PR targeting `develop`
-5. Monitor CI checks
+5. Monitor CI checks and wait for terminal green on the current PR SHA
 6. Guide review → merge
-7. Record the merge as normal integration history; a later tracked REQ records absorbed work through bundled-change lineage
+7. Record the merge as integration history to be bundled into the next tracked REQ, unless the explicit standalone-housekeeping exception was used
 
 **Do not** manually run these steps yourself — the skill owns the SDLC ceremony and stays in sync with the framework's evolution. If the skill is not available (e.g. the AI agent doesn't support skills), fall back to the manual steps documented in `SDLC/0-project-setup.md` and the sdlc-implementer skill definition at `.claude/skills/sdlc-implementer/SKILL.md`.
 
@@ -178,13 +178,15 @@ The skill will:
 6. Adds sentinel entries to `.gitignore` if missing
 7. Adds `postinstall` script (`playwright install chromium`) to `package.json` if `@playwright/test` is a required dep and no postinstall exists — ensures browsers auto-install after `npm ci`
 8. Syncs Windsurf workflow files to `.devin/workflows/` — overwrites with latest
-9. Does NOT touch: `sdlc-config.json`, portal registration, API keys, secrets, branch protection
+9. Re-applies branch protection to the release + integration branches (unions required checks; does not weaken any manual tightening)
+10. Stamps `devaudit_synced_version` (and `e2e_regression_enabled` if `--enable-/--disable-e2e-regression` was passed) into `sdlc-config.json` — no other `sdlc-config.json` key is touched
+11. Does NOT touch: portal registration, API keys, secrets
 
 ## Common issues
 
 - **`npx` prompts to install the package** — this is normal on first run. Answer `y` to proceed. The package is `@metasession.co/devaudit-cli`.
 - **Install fails with 401/403** — `DEVAUDIT_USER_TOKEN` is missing, expired, or wrong. Get a new token from the DevAudit portal `/settings/api-keys`.
-- **Update overwrites custom CI config** — `devaudit update` regenerates `ci.yml` from the template. If you have project-specific customizations, keep them in a separate workflow file (e.g. `.github/workflows/project-specific.yml`) rather than editing `ci.yml` directly.
+- **Update overwrites custom CI config** — `devaudit update` regenerates `ci.yml` (and every other regenerated template) from source on every run. A hand-edit is preserved only if it's tracked as a reviewed patch in `.devaudit-patches/` (re-applied after every regenerating section) or expressed as an `sdlc-config.json` key the template already reads — editing the generated file directly does not survive the next sync.
 - **`SDLC/bin/devaudit-sdlc.cjs` missing after update** — the sync section 2h failed. Check that the CLI version you're using is >= 0.3.2 (the version that added the engine sync).
 - **Postinstall script not added** — ensure you're using CLI >= 0.3.3. If a `postinstall` script already exists (and doesn't mention `playwright install`), it won't be overwritten — a warning is logged instead. Add `playwright install chromium` manually if needed.
 - **Pre-push hook blocks pushes** — the hook checks for `.sdlc-implementer-invoked`. Run `node SDLC/bin/devaudit-sdlc.cjs --phase=issue` before committing to write the sentinel.

@@ -118,7 +118,7 @@ The onboarding script handles the first sync. To complete project-specific tailo
 2. **Expand `CLAUDE.md`** — repo overview, build commands, key directories (the sync script creates a minimal header).
 3. **Commit all generated files** as part of the onboarding PR.
 
-On subsequent syncs, only the SDLC section and pointer files are updated. Project-specific content above the SDLC section is preserved.
+On subsequent syncs, `INSTRUCTIONS.md`'s SDLC section and `CLAUDE.md`'s pointer section are replaced/appended as above, and project-specific content above them is preserved — but that's specific to these two merge-managed files. Every other synced surface (stage docs, `.claude/skills/`, stack hooks + hook config files, `scripts/`, CI workflow templates, `.github/ISSUE_TEMPLATE/`, the SDLC engine binary + blueprints, `.devin/workflows/`, the E2E evidence helper, the `.gitignore` sentinel block) is **fully regenerated on every sync**, not left alone until something changes — see [What update touches, precisely](#what-update-touches-precisely) below.
 
 ## Ongoing sync strategy
 
@@ -177,7 +177,33 @@ Syncing several projects at once from anywhere:
 npx @metasession.co/devaudit-cli@latest update ../consumer-1 ../consumer-2
 ```
 
-Either path syncs: `_common/` stage docs, AI agent pointer files, SDLC rules into `INSTRUCTIONS.md`, stack-specific hooks and scripts (`stacks/<name>/`), host-specific config (`hosts/<name>/`), and CI workflow templates (`ci/`). The CLI additionally fires `beforeSync` / `afterSync` plugin lifecycle hooks and then applies any reviewed consumer overrides from `.devaudit-patches/`. **What it does not touch:** the portal project, your API keys, GitHub secrets, branch protection, `sdlc-config.json`, anything under `compliance/`, or the patch files themselves.
+Either path syncs: `_common/` stage docs, AI agent pointer files, SDLC rules into `INSTRUCTIONS.md`, stack-specific hooks and scripts (`stacks/<name>/`), host-specific config (`hosts/<name>/`), and CI workflow templates (`ci/`). The CLI additionally fires `beforeSync` / `afterSync` plugin lifecycle hooks and then applies any reviewed consumer overrides from `.devaudit-patches/`.
+
+#### What `update` touches, precisely
+
+Every section below runs on **every** `update` — this is not a one-time onboarding list. Sections marked *(regenerated)* fully overwrite their target content each time; the file's job is to always match the current template/config, not to accumulate consumer edits in place.
+
+| Section | What it does |
+| --- | --- |
+| Stage docs (`SDLC/*.md`) | *(regenerated)* copied verbatim from `_common/` |
+| AI rule pointer files (`.cursorrules`, `.windsurfrules`, `GEMINI.md`, `AGENTS.md`) | *(regenerated)* overwritten with the current pointer content |
+| `CLAUDE.md` / `INSTRUCTIONS.md` | Merge-managed — only the SDLC-owned section is replaced/appended; project-specific content above it is preserved (see [After first sync](#after-first-sync) above) |
+| Stack hooks + hook config files (`.husky/*`, `commitlint.config.mjs`, `lint-staged.config.mjs`, `.prettierrc.json`) | *(regenerated)* |
+| `scripts/*.sh` | *(regenerated)* |
+| `.github/ISSUE_TEMPLATE/*.yml` | *(regenerated)* |
+| `.claude/skills/<name>/` | *(regenerated)* — the entire directory is removed and recopied, so a hand-added file inside a managed skill directory does not survive a sync |
+| E2E evidence helper (`e2e/helpers/evidence.ts`, `evidence-shot-core.ts`, `test-tags.ts`) | *(regenerated)* |
+| CI workflow templates (`.github/workflows/*.yml`) | *(regenerated)* from the current template + `sdlc-config.json`; a hand-edit not captured as a `.devaudit-patches/*.patch` is overwritten (a best-effort drift warning fires post-write — see below — but it never blocks the write) |
+| `.gitignore` | Additive only — existing lines are never removed or rewritten, only missing sentinel entries are appended |
+| SDLC CLI engine (`SDLC/bin/devaudit-sdlc.cjs`, `SDLC/blueprints/`) | *(regenerated)* — `SDLC/blueprints/` is fully removed and recopied |
+| `.devin/workflows/*.md` | *(regenerated)* |
+| `.devaudit-patches/*.patch` | Applied after every regenerating section above, so a tracked customization survives — see [Temporary consumer patches](#temporary-consumer-patches) below |
+| Default branch | Set to `integration_branch` if it isn't already, once resolvable via the git provider |
+| **Branch protection** | **Actively re-applied**, not merely verified: `verifyBranchProtection` calls the provider's `applyBranchProtection` on both the release and integration branch every sync, unioning required checks. If you've tightened branch protection manually beyond what devaudit requires, that's preserved (the provider unions rather than replaces) — but do not rely on `update` leaving branch protection alone |
+| Formatting | The consumer's own `prettier` runs over every file the sections above just wrote |
+| `sdlc-config.json`'s `devaudit_synced_version` | **Written on every sync** — this is the one config field `update` always touches. `--enable-/--disable-e2e-regression` additionally rewrite `e2e_regression_enabled` when passed. No other `sdlc-config.json` key is touched by a plain `update` |
+
+**Never touched by `update`:** the portal project, your API keys, GitHub secrets, anything under `compliance/`, or the patch files themselves. (`install`/`join`'s own onboarding-time writes — creating the portal project, issuing keys, setting GitHub secrets — are a separate, one-time path; see [The CLI: install, update, join](#the-cli-install-update-join) in the main README.)
 
 ### Temporary consumer patches
 
@@ -427,7 +453,7 @@ Generated workflows use two distinct auth domains — **`DEVAUDIT_USER_TOKEN` is
 
 A PR authored by the default `github.token` (actor `github-actions[bot]`) is subject to GitHub's own `action_required` gate on any `pull_request`-triggered workflow run *it* causes — required checks on that PR (e.g. `Quality Gates`) sit stuck until a maintainer manually clicks "Approve and run," once per PR. This is a GitHub platform behavior, not something `permissions:` can opt out of.
 
-`close-out-release.yml` is the one generated workflow that both mutates GitHub state *and* opens a PR expected to pass its own required checks unattended (so its pre-armed `--auto --merge` can actually complete). It authenticates as `${{ secrets.INSTALLER_DISPATCH_TOKEN || github.token }}` — set that repo secret to skip the manual-approval click entirely. Unset, close-out still completes correctly, it just needs that one click per release. This is a repo secret, not something `devaudit install`/`devaudit update` sets — GitHub secrets are outside what the CLI touches (see "What it does not touch" above). Same secret name/pattern `DevAudit-Installer`'s own `hotfix-backmerge.yml` uses internally for the identical reason.
+`close-out-release.yml` is the one generated workflow that both mutates GitHub state *and* opens a PR expected to pass its own required checks unattended (so its pre-armed `--auto --merge` can actually complete). It authenticates as `${{ secrets.INSTALLER_DISPATCH_TOKEN || github.token }}` — set that repo secret to skip the manual-approval click entirely. Unset, close-out still completes correctly, it just needs that one click per release. This is a repo secret, not something `devaudit install`/`devaudit update` sets — GitHub secrets are outside what the CLI touches (see [What `update` touches, precisely](#what-update-touches-precisely) above). Same secret name/pattern `DevAudit-Installer`'s own `hotfix-backmerge.yml` uses internally for the identical reason.
 
 Generate it as a **fine-grained PAT, not classic** — scoped only to the specific repo(s) that need it (this repo, plus any other repos sharing the token, e.g. across the installer and its consumers), permissions **Contents: Read and write** and **Pull requests: Read and write** only, with a **real expiration date** (not "No expiration" — an unwatched token dying silently is exactly how devaudit-installer#670 went undiagnosed for weeks). No guidance is needed on *whose* account generates it beyond "an account with write access to the target repo(s)" — a dedicated bot account is unnecessary overhead for this.
 
