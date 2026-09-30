@@ -2,7 +2,7 @@ import { promises as fs } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execa } from 'execa';
-import { exists, isDir, isFile, listFiles } from '../lib/fs-utils.js';
+import { exists, isDir, isFile } from '../lib/fs-utils.js';
 import { readSdlcConfig } from '../lib/sdlc-config.js';
 import { applyConsumerPatches } from './consumer-patches.js';
 import { formatSyncedFiles } from './format-sync.js';
@@ -39,8 +39,21 @@ function isManagedPath(relPosixPath: string): boolean {
   return MANAGED_PATH_PREFIXES.some((p) => (p.endsWith('/') ? relPosixPath.startsWith(p) : relPosixPath === p));
 }
 
-async function hashManagedTree(root: string): Promise<KnownFiles> {
-  const known = new Map<string, { sha256: string; section: string }>();
+/**
+ * Recursively collect every file under every managed directory prefix
+ * (plus the exact-name files), as absolute paths. Several managed
+ * surfaces nest more than one level deep — `SDLC/blueprints/*.raw.md`,
+ * `SDLC/bin/*.cjs`, and every `.claude/skills/<name>/...` file — so a
+ * shallow, single-level listing (as `listFiles` does) silently drops all
+ * of them. Shared by `hashManagedTree` (the baseline itself) and
+ * `listManagedFiles` (what gets formatted before hashing) so both see the
+ * identical file set; a mismatch there previously left nested files
+ * unformatted in the baseline while the real sync's own format pass did
+ * cover them, producing a spurious hash mismatch for every nested managed
+ * file devaudit-installer#930's formatter normalizes.
+ */
+async function collectManagedFilesRecursive(root: string): Promise<readonly string[]> {
+  const out: string[] = [];
   async function walk(dir: string): Promise<void> {
     if (!(await isDir(dir))) return;
     const entries = await fs.readdir(dir, { withFileTypes: true });
@@ -49,9 +62,7 @@ async function hashManagedTree(root: string): Promise<KnownFiles> {
       if (entry.isDirectory()) {
         await walk(abs);
       } else if (entry.isFile()) {
-        const rel = toManifestKey(root, abs);
-        if (!isManagedPath(rel)) continue;
-        known.set(rel, { sha256: sha256(await fs.readFile(abs)), section: 'bootstrap' });
+        out.push(abs);
       }
     }
   }
@@ -59,8 +70,18 @@ async function hashManagedTree(root: string): Promise<KnownFiles> {
     if (prefix.endsWith('/')) {
       await walk(join(root, ...prefix.split('/').filter(Boolean)));
     } else if (await isFile(join(root, prefix))) {
-      known.set(prefix, { sha256: sha256(await fs.readFile(join(root, prefix))), section: 'bootstrap' });
+      out.push(join(root, prefix));
     }
+  }
+  return out;
+}
+
+async function hashManagedTree(root: string): Promise<KnownFiles> {
+  const known = new Map<string, { sha256: string; section: string }>();
+  for (const abs of await collectManagedFilesRecursive(root)) {
+    const rel = toManifestKey(root, abs);
+    if (!isManagedPath(rel)) continue;
+    known.set(rel, { sha256: sha256(await fs.readFile(abs)), section: 'bootstrap' });
   }
   return known;
 }
@@ -69,11 +90,44 @@ export interface BaselineRunner {
   (opts: { readonly worktreeDir: string; readonly version: string }): Promise<void>;
 }
 
-/** Default runner: `npx --yes @metasession.co/devaudit-cli@<version> update <dir>`. */
+/**
+ * Default runner: `npx --yes @metasession.co/devaudit-cli@<version> update <dir>`.
+ *
+ * Deliberately strips `DEVAUDIT_INSTALLER_ROOT` (and the bundled-snapshot
+ * override it can imply) from the child's environment: `execa` inherits the
+ * parent process's env by default, and the *current* CLI invocation (the
+ * one running this bootstrap) commonly has that variable set to its own
+ * checkout so it can find `sdlc/files` in dev/CI. If that leaked through,
+ * the "old version" npx run would resolve the *current* (unreleased)
+ * templates instead of its own bundled ones — silently reconstructing a
+ * baseline that matches today's output rather than what was actually
+ * synced historically, defeating the entire point of running an old
+ * version. Letting the old package resolve its own bundled `sdlc/files`
+ * (the normal npm-install case) is what makes this a real reconstruction.
+ */
+/**
+ * The env `defaultBaselineRunner` passes to the child `npx` process —
+ * pulled out as its own pure, directly-testable function (no subprocess
+ * spawn needed to verify the key is really gone) since the omission is the
+ * entire point of the fix it exists for.
+ */
+export function baselineRunnerEnv(sourceEnv: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  const { DEVAUDIT_INSTALLER_ROOT: _unused, ...cleanEnv } = sourceEnv;
+  return cleanEnv;
+}
+
 export const defaultBaselineRunner: BaselineRunner = async ({ worktreeDir, version }) => {
+  const cleanEnv = baselineRunnerEnv();
+  // execa's `env` option *extends* `process.env` by default (`extendEnv:
+  // true`) — passing `env: cleanEnv` alone still lets execa merge the key
+  // back in from the real `process.env`, since "extend" fills in anything
+  // the given `env` object doesn't specify. `extendEnv: false` is required
+  // to make the omission actually stick.
   await execa('npx', ['--yes', `@metasession.co/devaudit-cli@${version}`, 'update', worktreeDir], {
     reject: false,
     timeout: 5 * 60 * 1000,
+    env: cleanEnv,
+    extendEnv: false,
   });
 };
 
@@ -126,6 +180,23 @@ export async function buildBaseline(ctx: SyncContext, runner: BaselineRunner = d
 
     await runner({ worktreeDir, version });
 
+    // A git worktree never has node_modules (git doesn't track it) — the
+    // consumer's own prettier at `node_modules/.bin/prettier` that
+    // `formatSyncedFiles` looks for would otherwise silently fail to
+    // resolve here, leaving the baseline for anything prettier normalizes
+    // (e.g. YAML/JSON quote style) unformatted while the *real* sync's own
+    // format pass (running against the actual repo, which does have
+    // node_modules) succeeds — producing a spurious mismatch between the
+    // baseline and on-disk content for a file nobody actually touched.
+    // Symlinking the real repo's node_modules in is safe: its contents
+    // don't depend on which devaudit version synced the framework files
+    // sitting alongside it.
+    const realNodeModules = join(ctx.repoRoot, 'node_modules');
+    const worktreeNodeModules = join(worktreeDir, 'node_modules');
+    if (await isDir(realNodeModules)) {
+      await fs.symlink(realNodeModules, worktreeNodeModules, 'dir').catch(() => undefined);
+    }
+
     // Re-apply the CURRENT version's consumer patches + formatter over the
     // reconstructed baseline, so a patch-carrying or formatter-normalized
     // file compares correctly against this sync's own patched/formatted
@@ -150,14 +221,5 @@ export async function buildBaseline(ctx: SyncContext, runner: BaselineRunner = d
 }
 
 async function listManagedFiles(root: string): Promise<readonly string[]> {
-  const out: string[] = [];
-  for (const prefix of MANAGED_PATH_PREFIXES) {
-    if (prefix.endsWith('/')) {
-      const dir = join(root, ...prefix.split('/').filter(Boolean));
-      out.push(...(await listFiles(dir)));
-    } else if (await exists(join(root, prefix))) {
-      out.push(join(root, prefix));
-    }
-  }
-  return out;
+  return collectManagedFilesRecursive(root);
 }

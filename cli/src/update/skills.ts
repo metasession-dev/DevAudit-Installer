@@ -59,7 +59,14 @@ export async function syncSkills(ctx: SyncContext): Promise<SectionResult> {
   }
   const message =
     removedStale > 0 ? `${count} synced to .claude/skills/; removed ${removedStale} stale file(s)` : `${count} synced to .claude/skills/`;
-  return { name: 'Claude Code skills', filesSynced: count, message };
+  // devaudit-installer#930 follow-up: without filePaths, section 2l's
+  // formatter normalization (and the identical baseline-reconstruction
+  // pass in manifest-bootstrap.ts) never sees these files at all — every
+  // skill markdown file would go un-prettier-formatted forever, permanently
+  // out of step with the baseline reconstruction's own (correct) recursive
+  // listing, which caused every skill file to read as a false-positive
+  // sync conflict on the very next sync.
+  return { name: 'Claude Code skills', filesSynced: count, message, filePaths: [...keepPaths] };
 }
 
 function listAllUnder(dir: string, keepPaths: ReadonlySet<string>): readonly string[] {

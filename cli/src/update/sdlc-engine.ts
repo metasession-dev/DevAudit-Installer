@@ -44,12 +44,17 @@ export async function syncSdlcEngine(ctx: SyncContext): Promise<SectionResult> {
   if (!ctx.dryRun) await ensureDir(binDst);
 
   let count = 0;
+  const filePaths: string[] = [];
+  const binDstPath = join(binDst, 'devaudit-sdlc.cjs');
   const binContent = await fs.readFile(binSrc);
-  const binOutcome = await writeManaged(ctx.managed!, join(binDst, 'devaudit-sdlc.cjs'), binContent, {
+  const binOutcome = await writeManaged(ctx.managed!, binDstPath, binContent, {
     section: '2h',
     mode: 0o755,
   });
-  if (binOutcome !== 'conflict') count += 1;
+  if (binOutcome !== 'conflict') {
+    count += 1;
+    filePaths.push(binDstPath);
+  }
 
   // Every consumer synced before #929 has the broken .js copy sitting next
   // to (now) the .cjs one — remove it if unmodified so a stale, crashing
@@ -72,6 +77,7 @@ export async function syncSdlcEngine(ctx: SyncContext): Promise<SectionResult> {
   if (await isDir(blueprintsSrc)) {
     const result = await syncDirManaged(ctx.managed!, blueprintsSrc, blueprintsDst, '2h');
     count += result.synced;
+    filePaths.push(...result.filePaths);
     const keep = new Set(result.filePaths);
     const sweep = await removeStaleUnderManaged(ctx.managed!, blueprintsDst, keep, '2h');
     removedStaleBlueprints = sweep.removed;
@@ -85,5 +91,10 @@ export async function syncSdlcEngine(ctx: SyncContext): Promise<SectionResult> {
   const blueprintNote = removedStaleBlueprints > 0 ? `; removed ${removedStaleBlueprints} stale blueprint file(s)` : '';
   const message = `synced to SDLC/bin/ + SDLC/blueprints/${staleNote}${blueprintNote}`;
 
-  return { name: 'SDLC CLI engine', filesSynced: count, message };
+  // devaudit-installer#930 follow-up: without filePaths, section 2l's
+  // formatter normalization never sees the blueprint *.raw.md files,
+  // permanently out of step with the baseline reconstruction's own
+  // (correct) recursive listing — every blueprint file read as a
+  // false-positive sync conflict on the very next sync.
+  return { name: 'SDLC CLI engine', filesSynced: count, message, filePaths };
 }
