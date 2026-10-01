@@ -1,0 +1,16 @@
+We have built a tool that follows this SDLC path 
+Takes a github issue, 
+Does an analysis and gives it a risk rating
+Produces an implementation and waits for a human reviewer
+Implements the issue as planned
+Tests via TDD 
+Identifies, writes and executes E2E tests producing all the necessary plans and reports
+Deploys to a UAT and waits for a human to review and signoff UAT
+Deploys to production and waits again for final human signoff
+
+Like any process it needs some hand holding and monitoring to make sure it doesnt get carried away with itself. But 95% of the time the results are spectacular.
+
+It even produces artifacts that adhere to ISO 29119, ISO 27001, SOC 2, GDPR and EU AI ACT as part of its outputs presented in a format Auditors and Reviews will understand.
+
+
+You should take it for a spin https://devaudit.ai/onboarding
