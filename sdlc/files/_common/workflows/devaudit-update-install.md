@@ -14,6 +14,7 @@ This workflow detects whether your project needs a fresh DevAudit install or jus
 - You are in the consuming project's root directory
 - For a fresh install: you need a DevAudit portal token (`DEVAUDIT_USER_TOKEN`) and know your project slug, stack, and host
 - For an update: the project was previously onboarded (has `sdlc-config.json`)
+- The repository's **"Allow auto-merge"** setting (repo Settings → General) should be enabled. `close-out-release.yml` arms auto-merge on the reconciliation PR it opens (devaudit#620) — with this off, `gh pr merge --auto` fails outright and the PR is left needing a manual merge. Neither `devaudit install` nor `devaudit update` sets this automatically today; check/enable it once per repo.
 
 ## Steps
 
@@ -42,7 +43,7 @@ echo ".husky/ hooks:     $(test -f .husky/pre-push && echo YES || echo NO)"
 echo "scripts/ dir:      $(test -d scripts && echo YES || echo NO)"
 echo "CI workflow:       $(test -f .github/workflows/ci.yml && echo YES || echo NO)"
 echo "INSTRUCTIONS.md:   $(test -f INSTRUCTIONS.md && echo YES || echo NO)"
-echo "SDLC/bin/ binary:  $(test -f SDLC/bin/devaudit-sdlc.js && echo YES || echo NO)"
+echo "SDLC/bin/ binary:  $(test -f SDLC/bin/devaudit-sdlc.cjs && echo YES || echo NO)"
 echo "SDLC/blueprints:   $(test -d SDLC/blueprints && echo YES || echo NO)"
 ```
 
@@ -83,7 +84,7 @@ echo "SDLC/ dir:         $(test -d SDLC && echo YES || echo NO)"
 echo ".husky/ hooks:     $(test -f .husky/pre-push && echo YES || echo NO)"
 echo "CI workflow:       $(test -f .github/workflows/ci.yml && echo YES || echo NO)"
 echo "INSTRUCTIONS.md:   $(test -f INSTRUCTIONS.md && echo YES || echo NO)"
-echo "SDLC/bin/ binary:  $(test -f SDLC/bin/devaudit-sdlc.js && echo YES || echo NO)"
+echo "SDLC/bin/ binary:  $(test -f SDLC/bin/devaudit-sdlc.cjs && echo YES || echo NO)"
 echo "SDLC/blueprints:   $(test -d SDLC/blueprints && echo YES || echo NO)"
 ```
 
@@ -93,7 +94,7 @@ Skip to step 4.
 
 ### 3. Update — run `devaudit update`
 
-This syncs the latest SDLC templates, binary, blueprints, hooks, scripts, and skills from the published CLI package into your repo. It does NOT touch `sdlc-config.json`, portal registration, or secrets.
+This syncs the latest SDLC templates, binary, blueprints, hooks, scripts, and skills from the published CLI package into your repo, re-applies branch protection, and stamps `devaudit_synced_version` into `sdlc-config.json`. It does not touch portal registration or secrets.
 
 ```bash
 npx @metasession.co/devaudit-cli update .
@@ -109,9 +110,9 @@ After update completes, verify the new binary + blueprints landed:
 
 ```bash
 // turbo
-echo "SDLC/bin/ binary:  $(test -f SDLC/bin/devaudit-sdlc.js && echo YES || echo NO)"
+echo "SDLC/bin/ binary:  $(test -f SDLC/bin/devaudit-sdlc.cjs && echo YES || echo NO)"
 echo "SDLC/blueprints:   $(ls SDLC/blueprints/*.raw.md 2>/dev/null | wc -l) file(s)"
-echo "Binary works:      $(node SDLC/bin/devaudit-sdlc.js --phase=issue --view >/dev/null 2>&1 && echo YES || echo NO)"
+echo "Binary works:      $(node SDLC/bin/devaudit-sdlc.cjs --phase=issue --view >/dev/null 2>&1 && echo YES || echo NO)"
 ```
 
 Expected: `binary: YES`, `blueprints: 6 file(s)`, `Binary works: YES`.
@@ -144,7 +145,7 @@ Invoke the sdlc-implementer skill and tell it:
 > **Housekeeping change.** The working tree has uncommitted changes from `devaudit install` (or `devaudit update`). Commit type is `chore:`, no `REQ-XXX`. Use the SDLC lightweight path: invoke the SDLC engine for the sentinel, run local gates, create a `chore/sync-devaudit-sdlc-{version}` branch, commit, push, open a PR targeting `develop`, wait for terminal-green checks on the current PR SHA, then guide merge. This is normal integration housekeeping: it has PR review only, creates no tracked approval release, and is absorbed into the next tracked REQ through bundled-change lineage. A standalone housekeeping release is allowed only when the `sdlc-implementer` standalone-exception contract is explicitly satisfied.
 
 The skill will:
-1. Invoke `node SDLC/bin/devaudit-sdlc.js --phase=issue --view` to write the `.sdlc-implementer-invoked` sentinel
+1. Invoke `node SDLC/bin/devaudit-sdlc.cjs --phase=issue --view` to write the `.sdlc-implementer-invoked` sentinel
 2. Run local gates (lint, tsc, test)
 3. Create a `chore/` branch, commit, and push
 4. Open a PR targeting `develop`
@@ -169,21 +170,25 @@ The skill will:
 
 ## What update does (existing project)
 
-1. Syncs all SDLC templates (stage docs, skills, blueprints, binary) — overwrites with latest
-2. Syncs git hooks — overwrites with latest
-3. Regenerates CI workflow from template — overwrites with latest
-4. Syncs scripts — overwrites with latest
+1. Syncs all SDLC templates (stage docs, skills, blueprints, binary) — manifest-driven (devaudit-installer#930): an unmodified file updates silently, a hand-edited one is preserved as a reported conflict instead of overwritten
+2. Syncs git hooks — manifest-driven, same conflict handling
+3. Regenerates CI workflow from template — manifest-driven, same conflict handling
+4. Syncs scripts — manifest-driven, same conflict handling
 5. Updates AI agent pointer files (`.cursorrules`, `.windsurfrules`, `CLAUDE.md`, etc.)
 6. Adds sentinel entries to `.gitignore` if missing
 7. Adds `postinstall` script (`playwright install chromium`) to `package.json` if `@playwright/test` is a required dep and no postinstall exists — ensures browsers auto-install after `npm ci`
-8. Syncs Windsurf workflow files to `.devin/workflows/` — overwrites with latest
-9. Does NOT touch: `sdlc-config.json`, portal registration, API keys, secrets, branch protection
+8. Syncs Windsurf workflow files to `.devin/workflows/` — manifest-driven, same conflict handling
+9. Re-applies branch protection to the release + integration branches (unions required checks; does not weaken any manual tightening)
+10. Stamps `devaudit_synced_version` (and `e2e_regression_enabled` if `--enable-/--disable-e2e-regression` was passed) into `sdlc-config.json` — no other `sdlc-config.json` key is touched
+11. Does NOT touch: portal registration, API keys, secrets
+12. Writes `.devaudit/sync-manifest.json` last, recording every managed file's hash for the next sync's conflict detection (devaudit-installer#930)
 
 ## Common issues
 
 - **`npx` prompts to install the package** — this is normal on first run. Answer `y` to proceed. The package is `@metasession.co/devaudit-cli`.
 - **Install fails with 401/403** — `DEVAUDIT_USER_TOKEN` is missing, expired, or wrong. Get a new token from the DevAudit portal `/settings/api-keys`.
-- **Update overwrites custom CI config** — `devaudit update` regenerates `ci.yml` from the template. If you have project-specific customizations, keep them in a separate workflow file (e.g. `.github/workflows/project-specific.yml`) rather than editing `ci.yml` directly.
-- **`SDLC/bin/devaudit-sdlc.js` missing after update** — the sync section 2h failed. Check that the CLI version you're using is >= 0.3.2 (the version that added the engine sync).
+- **Update reports a sync conflict** — a managed file's on-disk content no longer matches what `devaudit update` last wrote (a hand-edit, or a pre-existing file at that path). Devaudit-installer#930: the local file is left untouched, the fresh template content is written to `<path>.devaudit-new` next to it, and the conflict is listed in the sync's summary and in `devaudit doctor`'s `sync-conflicts` check. Resolve it: `mv <path>.devaudit-new <path>` to take upstream, or move your change into a `.devaudit-patches/` patch or an `sdlc-config.json` key first, then take upstream the same way.
+- **`SDLC/bin/devaudit-sdlc.cjs` missing after update** — the sync section 2h failed. Check that the CLI version you're using is >= 0.3.2 (the version that added the engine sync).
 - **Postinstall script not added** — ensure you're using CLI >= 0.3.3. If a `postinstall` script already exists (and doesn't mention `playwright install`), it won't be overwritten — a warning is logged instead. Add `playwright install chromium` manually if needed.
-- **Pre-push hook blocks pushes** — the hook checks for `.sdlc-implementer-invoked`. Run `node SDLC/bin/devaudit-sdlc.js --phase=issue` before committing to write the sentinel.
+- **Pre-push hook blocks pushes** — the hook checks for `.sdlc-implementer-invoked`. Run `node SDLC/bin/devaudit-sdlc.cjs --phase=issue` before committing to write the sentinel.
+- **Close-out reconciliation PR never merges itself** — `gh api repos/{owner}/{repo} -q '.allow_auto_merge'` should print `true`. If it's `false`, enable "Allow auto-merge" in repo Settings → General (or `gh api -X PATCH repos/{owner}/{repo} -f allow_auto_merge=true` with admin access) and re-run the close-out workflow, or manually merge the pending PR this once.

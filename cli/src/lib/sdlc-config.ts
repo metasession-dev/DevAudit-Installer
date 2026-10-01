@@ -38,6 +38,15 @@ export interface SdlcConfig {
    * `devaudit update` with neither flag must leave it untouched.
    */
   readonly e2e_regression_enabled?: boolean;
+  /**
+   * Job-level `timeout-minutes` for the `e2e-regression.yml` job (devaudit-
+   * installer#928). Defaults to 55 when absent. This is a generic operational
+   * budget, not sharding-specific tuning — it applies whether or not
+   * `e2e/ci-reliability/regression-run.sh` is present, because the GitHub
+   * Actions job-level timeout is evaluated before any step (including a
+   * hook script) runs, so a script cannot raise it at runtime.
+   */
+  readonly e2e_regression_timeout_minutes?: number;
   readonly devaudit?: {
     readonly base_url?: string;
     readonly project_slug?: string;

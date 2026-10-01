@@ -50,6 +50,9 @@ async function gitApplyCheck(
 export async function applyConsumerPatches(
   ctx: SyncContext,
 ): Promise<SectionResult> {
+  if (ctx.dryRun) {
+    return { name: "consumer patches", filesSynced: 0, skipped: true, message: "skipped in --dry-run (would run git apply)" };
+  }
   const patchRoot = join(ctx.projectPath, PATCH_DIRECTORY);
   let entries;
   try {

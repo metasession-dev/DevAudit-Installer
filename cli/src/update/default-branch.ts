@@ -10,6 +10,9 @@ import type { SyncContext, SectionResult } from './types.js';
  * path for already-onboarded repos.
  */
 export async function verifyDefaultBranch(ctx: SyncContext): Promise<SectionResult> {
+  if (ctx.dryRun) {
+    return { name: 'Default branch', filesSynced: 0, skipped: true, message: 'skipped in --dry-run (would call the git provider)' };
+  }
   // sdlc-config.json lives at the repo root (#689 follow-up), not this
   // target's own directory — see write-config.ts for why.
   const config = await readSdlcConfig(ctx.repoRoot);

@@ -113,7 +113,7 @@ The implementation has two layers: **prose-level instructions** that work when t
 `devaudit-sdlc` now exposes a real orchestration command for blocked/reviewing PRs:
 
 ```bash
-node SDLC/bin/devaudit-sdlc.js --watch-pr=<number> --repo <owner/name> --release REQ-XXX --project-slug <slug>
+node SDLC/bin/devaudit-sdlc.cjs --watch-pr=<number> --repo <owner/name> --release REQ-XXX --project-slug <slug>
 ```
 
 The loop is intentionally narrow:

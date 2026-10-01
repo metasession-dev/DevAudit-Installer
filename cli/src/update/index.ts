@@ -1,4 +1,4 @@
-import { basename, relative, resolve } from "node:path";
+import { basename, resolve } from "node:path";
 import { isDir } from "../lib/fs-utils.js";
 import { resolveInstallerRoot } from "../lib/installer-root.js";
 import { resolveRepoRoot } from "../lib/git-root.js";
@@ -20,8 +20,11 @@ import { verifyBranchProtection } from "./branch-protection.js";
 import { runValidation } from "./validation.js";
 import { applyConsumerPatches } from "./consumer-patches.js";
 import { formatSyncedFiles } from "./format-sync.js";
-import { evaluateDrift, formatDriftWarning } from "./drift-warning.js";
 import { stampVersion } from "./stamp-version.js";
+import { readManifest, writeManifest } from "./sync-manifest.js";
+import { buildBaseline } from "./manifest-bootstrap.js";
+import { ManagedSyncState, formatConflictSummary, type KnownFiles } from "./write-managed.js";
+import { CLI_VERSION } from "../lib/version.js";
 import { logger } from "../lib/logger.js";
 import type { SyncContext, SectionResult, SyncReport } from "./types.js";
 
@@ -46,7 +49,12 @@ const SECTION_RUNNERS: ReadonlyArray<{
   { key: "2k", run: verifyBranchProtection },
 ];
 
-export async function syncProject(projectPath: string): Promise<SyncReport> {
+export interface SyncProjectOptions {
+  /** Preview mode: classify and report writes/conflicts/removals, write nothing. */
+  readonly dryRun?: boolean;
+}
+
+export async function syncProject(projectPath: string, options: SyncProjectOptions = {}): Promise<SyncReport> {
   const absPath = resolve(projectPath);
   if (!(await isDir(absPath))) {
     throw new Error(`Project path not found: ${absPath}`);
@@ -55,6 +63,7 @@ export async function syncProject(projectPath: string): Promise<SyncReport> {
   const repoRoot = await resolveRepoRoot(absPath);
   const log = logger();
   const projectName = basename(absPath);
+  const dryRun = options.dryRun ?? false;
   log.info(`--- Syncing to: ${projectName} (${absPath}) ---`);
   // sdlc-config.json lives at the repo root (#689 follow-up), not this
   // target's own directory — see write-config.ts for why.
@@ -68,14 +77,35 @@ export async function syncProject(projectPath: string): Promise<SyncReport> {
       `  DEPRECATED: stack/host keys missing from sdlc-config.json — defaulted to ${stack}+${host}.`,
     );
   }
-  const ctx: SyncContext = {
+  const baseCtx: SyncContext = {
     installerRoot,
     projectPath: absPath,
     repoRoot,
     projectName,
     stack,
     host,
+    dryRun,
   };
+
+  // Sync-manifest classification state (devaudit-installer#930): read the
+  // previous manifest if one exists; otherwise reconstruct a baseline of
+  // "what devaudit last wrote" via a scratch git worktree running the
+  // consumer's previously-recorded CLI version, falling back to an empty
+  // (maximally conservative) baseline if that reconstruction isn't
+  // possible. Either way, every writing section below classifies against
+  // the resulting `known` map instead of overwriting unconditionally.
+  const previousManifest = await readManifest(repoRoot);
+  let known: KnownFiles | undefined = previousManifest?.files
+    ? new Map(Object.entries(previousManifest.files).map(([k, v]) => [k, { sha256: v.sha256, section: v.section }]))
+    : undefined;
+  if (!known) {
+    const baseline = await buildBaseline(baseCtx);
+    known = baseline.known;
+    if (baseline.warning) log.warn(`  ${baseline.warning}`);
+  }
+  const managed = new ManagedSyncState(repoRoot, known, dryRun);
+  const ctx: SyncContext = { ...baseCtx, managed };
+
   const sections: SectionResult[] = [];
   const sectionWarnings: string[] = [];
   let total = 0;
@@ -116,27 +146,6 @@ export async function syncProject(projectPath: string): Promise<SyncReport> {
     sectionWarnings.push(formatResult.warning);
     log.warn(`  [2l] ${formatResult.warning}`);
   }
-  // Drift-warning evaluation (DevAudit-Installer#758), deliberately run
-  // here — after formatSyncedFiles has normalized the files sections just
-  // wrote — rather than inline within each section at write time. A
-  // section captures pre-overwrite content via `driftCandidates`; deciding
-  // "is this real drift" before the formatter runs compared not-yet-
-  // formatted new content against already-formatted old content and
-  // flagged pure formatting differences as drift (DevAudit-Installer#766).
-  const driftCandidates = sections.flatMap((s) => s.driftCandidates ?? []);
-  if (driftCandidates.length > 0) {
-    const driftedRelPaths: string[] = [];
-    for (const { outputPath, oldContent } of driftCandidates) {
-      if (await evaluateDrift(repoRoot, outputPath, oldContent)) {
-        driftedRelPaths.push(relative(repoRoot, outputPath).split("\\").join("/"));
-      }
-    }
-    if (driftedRelPaths.length > 0) {
-      const driftWarning = formatDriftWarning(driftedRelPaths);
-      sectionWarnings.push(driftWarning);
-      log.warn(`  [2f] ${driftWarning}`);
-    }
-  }
   // Stamp last, deliberately after every other section: it should only
   // reflect a sync that actually ran to completion.
   const stampResult = await stampVersion(ctx);
@@ -146,6 +155,24 @@ export async function syncProject(projectPath: string): Promise<SyncReport> {
   } else {
     log.log(`  [2m] ${stampResult.name}: ${stampResult.message ?? ""}`);
   }
+
+  // Sync manifest (devaudit-installer#930), deliberately last of all —
+  // after consumer patches (2j) and formatting (2l) have both run, so it
+  // hashes the *final* on-disk content a patch-carrying or reformatted
+  // file actually has, not a pre-patch/pre-format snapshot that would read
+  // as spuriously drifted on the next sync (closing the gap SRS-PATCH-084-
+  // 001/002 flagged).
+  if (!dryRun) {
+    const nextManifest = await managed.finalize(CLI_VERSION, previousManifest);
+    await writeManifest(repoRoot, nextManifest);
+  }
+  log.log(`  [2n] sync manifest: ${dryRun ? "SKIPPED (dry-run)" : "written to .devaudit/sync-manifest.json"}`);
+
+  const conflictSummary = formatConflictSummary(managed.conflicts);
+  if (conflictSummary) {
+    sectionWarnings.push(conflictSummary);
+  }
+
   log.log("");
   log.info(`  Total: ${total} files synced`);
   log.log("");
@@ -170,12 +197,13 @@ export async function syncProject(projectPath: string): Promise<SyncReport> {
 
 export async function syncAll(
   projectPaths: readonly string[],
+  options: SyncProjectOptions = {},
 ): Promise<readonly SyncReport[]> {
   const reports: SyncReport[] = [];
   for (const p of projectPaths) {
     try {
       // eslint-disable-next-line no-await-in-loop
-      reports.push(await syncProject(p));
+      reports.push(await syncProject(p, options));
     } catch (err) {
       const log = logger();
       log.error(

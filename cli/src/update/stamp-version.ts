@@ -29,6 +29,13 @@ export async function stampVersion(ctx: SyncContext): Promise<SectionResult> {
       message: `already stamped ${CLI_VERSION}`,
     };
   }
+  if (ctx.dryRun) {
+    return {
+      name: 'version stamp',
+      filesSynced: 0,
+      message: `[dry-run] would stamp devaudit_synced_version: ${CLI_VERSION}`,
+    };
+  }
   const updated = { ...existing, devaudit_synced_version: CLI_VERSION };
   await fs.writeFile(configPath, JSON.stringify(updated, null, 2) + '\n', 'utf-8');
   return {

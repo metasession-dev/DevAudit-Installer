@@ -103,10 +103,10 @@ The SDLC rules source lives in `sdlc/ai-rules/INSTRUCTIONS-SDLC.md`. This is the
 | ------------------------------------- | ----------------- | ----------------------------------------------------------------------- |
 | `INSTRUCTIONS.md` (project standards) | Project developer | Untouched — everything before `## SDLC Compliance Process` is preserved |
 | `INSTRUCTIONS.md` (SDLC section)      | Sync script       | Replaced from `INSTRUCTIONS-SDLC.md`                                    |
-| `AGENTS.md`                           | Sync script       | Overwritten with pointer                                                |
-| `.cursorrules`                        | Sync script       | Overwritten with pointer                                                |
-| `.windsurfrules`                      | Sync script       | Overwritten with pointer                                                |
-| `GEMINI.md`                           | Sync script       | Overwritten with pointer                                                |
+| `AGENTS.md`                           | Sync script       | Overwritten with pointer, unless hand-edited — then kept as a conflict (devaudit-installer#930; see [What update touches, precisely](#what-update-touches-precisely)) |
+| `.cursorrules`                        | Sync script       | Overwritten with pointer, unless hand-edited — then kept as a conflict  |
+| `.windsurfrules`                      | Sync script       | Overwritten with pointer, unless hand-edited — then kept as a conflict  |
+| `GEMINI.md`                           | Sync script       | Overwritten with pointer, unless hand-edited — then kept as a conflict  |
 | `CLAUDE.md` (project header)          | Project developer | Preserved                                                               |
 | `CLAUDE.md` (pointer section)         | Sync script       | Appended or replaced                                                    |
 
@@ -118,7 +118,7 @@ The onboarding script handles the first sync. To complete project-specific tailo
 2. **Expand `CLAUDE.md`** — repo overview, build commands, key directories (the sync script creates a minimal header).
 3. **Commit all generated files** as part of the onboarding PR.
 
-On subsequent syncs, only the SDLC section and pointer files are updated. Project-specific content above the SDLC section is preserved.
+On subsequent syncs, `INSTRUCTIONS.md`'s SDLC section and `CLAUDE.md`'s pointer section are replaced/appended as above, and project-specific content above them is preserved — but that's specific to these two merge-managed files. Every other synced surface (stage docs, `.claude/skills/`, stack hooks + hook config files, `scripts/`, CI workflow templates, `.github/ISSUE_TEMPLATE/`, the SDLC engine binary + blueprints, `.devin/workflows/`, the E2E evidence helper, the `.gitignore` sentinel block) is **fully regenerated on every sync**, not left alone until something changes — see [What update touches, precisely](#what-update-touches-precisely) below.
 
 ## Ongoing sync strategy
 
@@ -177,7 +177,52 @@ Syncing several projects at once from anywhere:
 npx @metasession.co/devaudit-cli@latest update ../consumer-1 ../consumer-2
 ```
 
-Either path syncs: `_common/` stage docs, AI agent pointer files, SDLC rules into `INSTRUCTIONS.md`, stack-specific hooks and scripts (`stacks/<name>/`), host-specific config (`hosts/<name>/`), and CI workflow templates (`ci/`). The CLI additionally fires `beforeSync` / `afterSync` plugin lifecycle hooks and then applies any reviewed consumer overrides from `.devaudit-patches/`. **What it does not touch:** the portal project, your API keys, GitHub secrets, branch protection, `sdlc-config.json`, anything under `compliance/`, or the patch files themselves.
+Either path syncs: `_common/` stage docs, AI agent pointer files, SDLC rules into `INSTRUCTIONS.md`, stack-specific hooks and scripts (`stacks/<name>/`), host-specific config (`hosts/<name>/`), and CI workflow templates (`ci/`). The CLI additionally fires `beforeSync` / `afterSync` plugin lifecycle hooks and then applies any reviewed consumer overrides from `.devaudit-patches/`.
+
+#### What `update` touches, precisely
+
+Every section below runs on **every** `update` — this is not a one-time onboarding list. Sections marked *(managed)* are **manifest-driven** (devaudit-installer#930): a file whose on-disk content still matches what devaudit last wrote is overwritten silently; a file that's been hand-edited since, or a pre-existing file at the same path that devaudit never wrote (typically an onboarding scenario), is **left byte-for-byte untouched**, with the new upstream content written to a sibling `<path>.devaudit-new` instead and the conflict recorded in `.devaudit/sync-manifest.json` (see [Sync conflicts](#sync-conflicts) below). This replaced an earlier, simpler design where every one of these sections overwrote (or, for directory-shaped targets, `rm -rf`'d and recopied) unconditionally.
+
+| Section | What it does |
+| --- | --- |
+| Stage docs (`SDLC/*.md`) | *(managed)* copied verbatim from `_common/` |
+| AI rule pointer files (`.cursorrules`, `.windsurfrules`, `GEMINI.md`, `AGENTS.md`) | *(managed)* overwritten with the current pointer content |
+| `CLAUDE.md` / `INSTRUCTIONS.md` | Merge-managed — only the SDLC-owned section is replaced/appended; project-specific content above it is preserved (see [After first sync](#after-first-sync) above). Not manifest-tracked; this mechanism already handles a consumer's own content safely |
+| Stack hooks + hook config files (`.husky/*`, `commitlint.config.mjs`, `lint-staged.config.mjs`, `.prettierrc.json`) | *(managed)* |
+| `scripts/*.sh` | *(managed)* |
+| `.github/ISSUE_TEMPLATE/*.yml` | *(managed)* |
+| `.claude/skills/<name>/` | *(managed)* — each file syncs individually; a stale file upstream no longer ships is removed only if it's unmodified, and a consumer-added file with no upstream counterpart (e.g. a project's own notes dropped into a skill directory) is never touched at all, since devaudit has no record of ever writing it |
+| E2E evidence helper (`e2e/helpers/evidence.ts`, `evidence-shot-core.ts`, `test-tags.ts`) | *(managed)* |
+| CI workflow templates (`.github/workflows/*.yml`) | *(managed)* from the current template + `sdlc-config.json`. A hand-edit not captured as a `.devaudit-patches/*.patch` is preserved as a conflict, not silently overwritten — this replaced the earlier best-effort, overwrite-then-warn drift check |
+| `.gitignore` | Additive only — existing lines are never removed or rewritten, only missing sentinel entries are appended. Not manifest-tracked (append-only is already safe) |
+| SDLC CLI engine (`SDLC/bin/devaudit-sdlc.cjs`, `SDLC/blueprints/`) | *(managed)* — a stale blueprint file upstream no longer ships, or the pre-#929 stale `.js` binary, is removed only if unmodified |
+| `.devin/workflows/*.md` | *(managed)* |
+| `.devaudit-patches/*.patch` | Applied after every managed section above, so a tracked customization survives — see [Temporary consumer patches](#temporary-consumer-patches) below. The sync manifest records each patched file's **post-patch** content, so a patch-carrying file reads as clean (not a conflict) on the next sync |
+| Default branch | Set to `integration_branch` if it isn't already, once resolvable via the git provider |
+| **Branch protection** | **Actively re-applied**, not merely verified: `verifyBranchProtection` calls the provider's `applyBranchProtection` on both the release and integration branch every sync, unioning required checks. If you've tightened branch protection manually beyond what devaudit requires, that's preserved (the provider unions rather than replaces) — but do not rely on `update` leaving branch protection alone |
+| Formatting | The consumer's own `prettier` runs over every file the sections above just wrote (a conflicted file, left untouched, is not reformatted) |
+| `sdlc-config.json`'s `devaudit_synced_version` | **Written on every sync** — this is the one config field `update` always touches. `--enable-/--disable-e2e-regression` additionally rewrite `e2e_regression_enabled` when passed. Every other key — including any custom/unknown key your project adds — is preserved untouched by a plain `update` |
+| `.devaudit/sync-manifest.json` | *(new, devaudit-installer#930)* Written last, after every other section — records the sha256 of what devaudit last wrote for every managed path, so the next sync can tell an unmodified file from a hand-edited one. Commit this file |
+
+**Never touched by `update`:** the portal project, your API keys, GitHub secrets, anything under `compliance/`, or the patch files themselves. (`install`/`join`'s own onboarding-time writes — creating the portal project, issuing keys, setting GitHub secrets — are a separate, one-time path; see "The CLI: install, update, join" in the main README.)
+
+#### Sync conflicts
+
+When a managed file's on-disk content doesn't match what devaudit last wrote (a hand-edit, or — on the very first sync after upgrading to a devaudit-installer#930-or-later CLI — a file devaudit can't prove it wrote, since no manifest exists yet), `update` does **not** overwrite it. Instead:
+
+- The local file is left exactly as it is.
+- The new upstream content is written to `<path>.devaudit-new` next to it (already gitignored via the sentinel block).
+- The conflict is logged loudly during the sync, listed in an end-of-sync summary, and recorded in `.devaudit/sync-manifest.json` (`conflict: true`).
+- The sync still exits 0 — a conflict is reported, not fatal, so an unattended `update` still completes.
+
+Resolve each one:
+
+- **Take upstream:** `mv <path>.devaudit-new <path>`. The next sync then sees a clean match and clears the conflict.
+- **Keep your change permanently:** move it into a config key (see "Deciding: config key vs. patch" below), `.devaudit-patches/`, or — for skill-owned CI behavior — a sanctioned hook (see devaudit-installer#928's `e2e/ci-reliability/regression-run.sh`). Then restore the upstream content (`mv <path>.devaudit-new <path>`) so the file is byte-identical to what devaudit would write, and the conflict clears the same way.
+
+Run `devaudit doctor` any time to re-list every unresolved conflict (the `sync-conflicts` check) without having to re-run a full `update`.
+
+**The very first sync after upgrading** works the same way, even though no manifest exists yet: `update` reconstructs a baseline of "what devaudit last wrote" by running your project's previously-recorded CLI version (`sdlc-config.json`'s `devaudit_synced_version`) into a scratch git worktree, so your existing customizations are protected from the start, not just from the second sync onward. If that reconstruction isn't possible — no recorded version, no git repository, or the reconstruction itself fails — `update` falls back to treating every existing file at a managed path as a conflict and deleting nothing, which is the safe direction to fail in (worst case, extra `.devaudit-new` files to review; never a silent loss).
 
 ### Temporary consumer patches
 
@@ -275,6 +320,18 @@ A customization expressed through any of these survives every future sync
 automatically — no patch, nothing to reapply, nothing that can be silently
 reverted.
 
+**A fourth path needs no deciding at all: just leave the hand-edit in place.**
+Since devaudit-installer#930, an edit to a managed file that isn't captured
+as a config key, a patch, or a hook is *detected and preserved* automatically
+— the sync manifest notices the file no longer matches what devaudit last
+wrote and reports it as a conflict (see [Sync conflicts](#sync-conflicts)
+above) instead of silently overwriting it. This is a safety net, not a
+recommended workflow: an unresolved conflict re-appears every sync, and the
+file drifts further from whatever the current template actually renders.
+Reach for a config key, patch, or hook when you want the customization to
+keep applying cleanly going forward; rely on conflict detection only as the
+backstop for something not yet migrated.
+
 Before reaching for `.devaudit-patches/`, work through this in order:
 
 1. **Check for an existing config key.** Read the `SdlcConfig` interface in
@@ -301,6 +358,27 @@ Two real examples from one onboarding session motivated this: a
 were patched, and DevAudit-Installer#759 was filed proposing
 `typescript_check_env` and `install_flags` to close the gap generally rather
 than leaving those two patches as the permanent way to solve it.
+
+**Re-roll guardrail.** A patch that has been re-rolled more than once against
+a template restructure is no longer temporary scaffolding — escalate it to a
+framework fix (a new config key, or, for skill-owned CI behavior, a hook —
+see below) on its next touch rather than re-rolling it again. `e2e-regression.yml`'s
+sharding logic was patched and re-rolled three times against template
+changes before devaudit-installer#928 gave it a proper extension point; don't
+let another patch reach that state.
+
+**A third mechanism, alongside config keys and patches: hooks.** Some CI
+behavior isn't a value to plug into a config key (it's a diagnosed,
+per-project *decision*, not project-specific *data*) and isn't a good fit for
+a patch either (it needs to survive a template being regenerated from
+scratch, not merely re-applied to one). For skill-owned CI behavior like
+`e2e-ci-reliability`'s sharding/warm-up tuning, the framework instead exposes
+a fixed, undeclared path the generated workflow invokes if present — see
+`e2e-regression.yml`'s "E2E Regression Tests" step, which runs
+`e2e/ci-reliability/regression-run.sh` if it exists, else its own default
+command. `devaudit` never creates, overwrites, or deletes a hook script; it
+is entirely consumer/skill-owned, and needs no `.devaudit-patches` entry or
+upstream-issue trail because it was never generated content to begin with.
 
 ### One-time migration: `META_COMPLY_*` → `DEVAUDIT_*` rename
 
@@ -427,7 +505,7 @@ Generated workflows use two distinct auth domains — **`DEVAUDIT_USER_TOKEN` is
 
 A PR authored by the default `github.token` (actor `github-actions[bot]`) is subject to GitHub's own `action_required` gate on any `pull_request`-triggered workflow run *it* causes — required checks on that PR (e.g. `Quality Gates`) sit stuck until a maintainer manually clicks "Approve and run," once per PR. This is a GitHub platform behavior, not something `permissions:` can opt out of.
 
-`close-out-release.yml` is the one generated workflow that both mutates GitHub state *and* opens a PR expected to pass its own required checks unattended (so its pre-armed `--auto --merge` can actually complete). It authenticates as `${{ secrets.INSTALLER_DISPATCH_TOKEN || github.token }}` — set that repo secret to skip the manual-approval click entirely. Unset, close-out still completes correctly, it just needs that one click per release. This is a repo secret, not something `devaudit install`/`devaudit update` sets — GitHub secrets are outside what the CLI touches (see "What it does not touch" above). Same secret name/pattern `DevAudit-Installer`'s own `hotfix-backmerge.yml` uses internally for the identical reason.
+`close-out-release.yml` is the one generated workflow that both mutates GitHub state *and* opens a PR expected to pass its own required checks unattended (so its pre-armed `--auto --merge` can actually complete). It authenticates as `${{ secrets.INSTALLER_DISPATCH_TOKEN || github.token }}` — set that repo secret to skip the manual-approval click entirely. Unset, close-out still completes correctly, it just needs that one click per release. This is a repo secret, not something `devaudit install`/`devaudit update` sets — GitHub secrets are outside what the CLI touches (see [What `update` touches, precisely](#what-update-touches-precisely) above). Same secret name/pattern `DevAudit-Installer`'s own `hotfix-backmerge.yml` uses internally for the identical reason.
 
 Generate it as a **fine-grained PAT, not classic** — scoped only to the specific repo(s) that need it (this repo, plus any other repos sharing the token, e.g. across the installer and its consumers), permissions **Contents: Read and write** and **Pull requests: Read and write** only, with a **real expiration date** (not "No expiration" — an unwatched token dying silently is exactly how devaudit-installer#670 went undiagnosed for weeks). No guidance is needed on *whose* account generates it beyond "an account with write access to the target repo(s)" — a dedicated bot account is unnecessary overhead for this.
 

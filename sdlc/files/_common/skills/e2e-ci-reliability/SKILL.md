@@ -62,6 +62,14 @@ Also consider, independent of the specific failure that triggered the review:
 - Re-run the full regression tier at least twice to confirm the failure signature from Phase 1 is gone — a single clean run after a flake-class fix is not strong evidence; the whole point of this failure class is that it doesn't reproduce reliably on a single run either way.
 - If sharding was added, confirm shard JSON reports still merge correctly for any downstream consumer (`jq -s`) and that artifact-upload globs cover the shard-numbered directories.
 
+#### Persistence: make a CI-level fix survive `devaudit update`
+
+`e2e-regression.yml` is a generated file (see `docs/consuming-projects.md`'s "what update touches" table) — **never hand-edit it directly, and never capture the edit as a `.devaudit-patches/e2e-regression.yml.patch`.** A patch against a generated CI template breaks every time that template's shape changes, and re-rolling the same patch against a restructured template more than once is a signal to escalate to a framework fix on its next touch, not to re-roll it again.
+
+Instead, a sharding/warm-up/reliability fix for this workflow is authored as `e2e/ci-reliability/regression-run.sh` in the consumer repo (devaudit-installer#928) — a fixed path the CI template invokes if present, falling back to its own default command if not. `devaudit` never creates, overwrites, or deletes this file; it is entirely consumer/skill-owned. See `references/reliability-fixes.md`'s "Implementation mechanics" for the script's contract (inputs, required outputs, exit-code mapping) and a worked example.
+
+If the job's own time budget (not the suite's internal sharding) needs raising — for example, several shards' restart overhead pushes the total past the default — set `e2e_regression_timeout_minutes` in `sdlc-config.json` (default 55). This is a job-level GitHub Actions ceiling a script cannot raise at runtime, so it's the one setting for this workflow that *is* a config key rather than something the hook script controls.
+
 ### Phase 6 — Fold into defect-filing behavior
 
 The isolation-test-first check (Phase 2) is a process fix, not just a one-time diagnostic — so the pattern of spending hours proving several specs' application code correct for what turns out to be one environmental cause doesn't recur. When invoked from `e2e-test-engineer`'s Phase 6 defect triage:

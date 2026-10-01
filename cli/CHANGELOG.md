@@ -4,6 +4,141 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+### Fixed
+
+- **#929** — `SDLC/bin/devaudit-sdlc.js` was genuine CommonJS but was synced with a `.js` extension and no isolating `package.json`, so any consumer whose own `package.json` declares `"type": "module"` (a common modern default) had it misinterpreted as ESM and crashed on every phase-transition/freshness-check sentinel invocation with `require is not defined`. Renamed to `devaudit-sdlc.cjs` (forces CommonJS regardless of the consumer's `package.json`) and updated `syncSdlcEngine` to sync the new name and remove a stale pre-#929 `.js` copy if one is present. **Operator action after updating:** invoke the binary as `node SDLC/bin/devaudit-sdlc.cjs`, not `.js`; any consumer-local scripts or docs that hard-code the old `.js` path need updating too.
+- **#928** — combining `database_env`/`app_env`/`e2e_env` (in `e2e-regression.yml`'s job env, the Python `ci.yml`'s Quality Gates job env, and the merged `{{DATABASE_AND_APP_ENV}}` token in node `ci.yml`/`feature-e2e.yml`) did plain string concatenation with no dedup — a key set in more than one source (e.g. `MONGODB_DB_NAME`, needed by both the app to boot and the E2E seed to reach the same database) produced a job-level `env:` block with a duplicate YAML key, which fails to parse at all. New `mergeEnvSources` dedupes with a fixed precedence (`database_env` < `app_env` < `e2e_env`, later wins). **Operator action:** none — this is a pure bugfix; the next `devaudit update` regenerates valid YAML for any consumer whose configs overlap this way.
+- **#930** — the sync manifest's bootstrap reconstruction (below) had three bugs found by #932's pre-release validation gate (run against cloned real consumers, not fixtures alone): (1) `DEVAUDIT_INSTALLER_ROOT` leaked into the "old version" `npx` child process, so the reconstructed baseline matched the *current* templates instead of history, defeating reconstruction; (2) the scratch git worktree used for reconstruction has no `node_modules` (git doesn't track it), so the consumer's own prettier silently failed to resolve there, leaving anything it normalizes (markdown tables, YAML/JSON quote style) unformatted in the baseline while the real sync formatted correctly — a spurious mismatch; (3) the file list feeding the baseline's format pass was collected non-recursively, silently dropping every nested `.claude/skills/<name>/...` and `SDLC/blueprints/*.raw.md`/`SDLC/bin/*` file. A fourth, production-affecting bug surfaced by the same gate: `syncSkills`/`syncSdlcEngine` never reported which files they wrote, so the real sync's own formatter never touched skill or blueprint markdown either — only the (now-recursive) baseline did, permanently disagreeing with production. All four fixed together; each has a regression test. **Operator action:** none — these were internal reconstruction-accuracy bugs; a consumer whose first post-upgrade sync previously showed spurious skill/blueprint conflicts should see them resolve cleanly now.
+
+### Added
+
+- **#928** — `e2e-regression.yml`'s "E2E Regression Tests" step now runs `e2e/ci-reliability/regression-run.sh` if present in the consumer repo, falling back to the previous default command otherwise. This gives the `e2e-ci-reliability` skill a stable, sync-safe place to put project-specific reliability tuning (sharding, dev-server warm-up) that survives `devaudit update` without a `.devaudit-patches` entry re-rolled against every template restructure. The path is fixed and undeclared in `sdlc-config.json` on purpose — `devaudit` never creates, overwrites, or deletes this file. Also new: `e2e_regression_timeout_minutes` config key (default 55) for the job's `timeout-minutes`, since a hook script can't raise a GitHub Actions job-level timeout at runtime; and widened `e2e-regression-report` artifact-upload globs (`e2e-regression-results*.json`, `playwright-report*/`, `test-results*/`, `e2e-server*.log`) so a hook's sharded outputs are captured without any further CI-workflow change. **Operator action:** a consumer with an `.devaudit-patches/e2e-regression.yml.patch` hand-patching sharding logic (e.g. wawagardenbar-app) should move that logic into `e2e/ci-reliability/regression-run.sh` and delete the patch.
+- **#930** — a committed `.devaudit/sync-manifest.json` now records the sha256 of every file `install`/`update`/`join` writes. Every regenerating sync section (stage docs, AI rule pointer files, stack hooks, scripts, issue templates, skills, the E2E evidence helper, CI workflow templates, the SDLC engine binary + blueprints, `.devin/workflows`) routes through a new shared `writeManaged`/`removeManaged` helper instead of a direct file write or `rm -rf` + recopy. A file that's still unmodified since the last sync updates exactly as before; a hand-edited one — or a pre-existing file at a devaudit-managed path devaudit has no record of writing, typically at onboarding — is left byte-for-byte untouched, with the fresh content written to a sibling `<path>.devaudit-new` and the conflict reported (a loud sync-time warning, an end-of-sync summary, `conflict: true` in the manifest, and a new `devaudit doctor` `sync-conflicts` check) instead of silently overwritten. The very first sync after upgrading — before any manifest exists — reconstructs a baseline by running your project's previously-recorded CLI version into a scratch git worktree; if that isn't possible (no recorded version, no git, or the reconstruction itself fails), it falls back to treating every existing managed file as a conflict and deleting nothing, the safe direction to fail in. `--dry-run` now runs this full classification and reports the same conflict summary a real `update` would, writing nothing. **Operator action on your first sync under this version:** review the printed conflicts summary (if any) and resolve each per `docs/consuming-projects.md#sync-conflicts` — most existing consumers should see few or none, since the bootstrap reconstruction protects anything genuinely unmodified.
+
+### Changed
+
+- **#930** — `.claude/skills/<name>/` and `SDLC/blueprints/` are no longer wiped (`rm -rf`) and recopied on every sync. Each upstream file syncs individually (manifest-driven, see above); a consumer-added file inside a skill directory with no upstream counterpart now survives every sync instead of being deleted.
+
+## [1.7.3] — 2026-09-29
+
+### Fixed
+
+- **#921** — a conflicting `.devaudit-patches/*.patch` (one that no longer applies cleanly) now skips just that file with a warning instead of throwing out of the section loop and silently aborting every later sync step, including the version stamp.
+- **#921** — `e2e-regression.yml`'s job-wide env now also threads `app_env`, matching `ci.yml.template`/`feature-e2e.yml.template`'s existing behavior — the dev server this workflow starts needs its own runtime config, distinct from `e2e_env`'s test-only credentials.
+
+## [1.7.2] — 2026-09-29
+
+### Fixed
+
+- **#912** — `DEVAUDIT_USER_TOKEN` is no longer written as a repo secret (it's an operator-local credential, not something CI needs); corrected attribution docs and SRS drift found during the same audit.
+
+## [1.7.1] — 2026-09-29
+
+### Fixed
+
+- **#899** — stopped auto-attributing `SOC2.CC7.2` to a defect that CI itself caught pre-merge — that clause is specifically about production incidents; a CI-caught regression never reached production.
+
+### Changed
+
+- Documentation pass: filled deep-coverage gaps in undocumented flags, hooks, config keys, and skill sub-flows; explained in-flight vs. post-deploy defect handling in `incident-export.md`; fixed README/docs organization gaps and added a table of contents; added a housekeeping-release runbook and a prompts FAQ.
+
+## [1.7.0] — 2026-09-28
+
+### Added
+
+- **#890** — new `e2e-ci-reliability` skill: diagnoses long-run E2E suite flakiness (sharding, warm-up, timeout tuning) as a per-project, skill-owned concern rather than a framework default.
+- **#886** — CLI opt-in for the E2E regression tier (`--enable-e2e-regression`/`--disable-e2e-regression`), plus viewer-key docs and wiring.
+- **#889** — `doctor`/onboarding now surface host-adapter secrets and CLI prerequisites the operator still needs to configure.
+
+### Fixed
+
+- **#893** — enforced `sdlc-implementer`'s Phase 0 freshness check (a stale-framework consumer is now caught before Phase 0 proceeds).
+- **#892** — Phase 5's post-deploy triage gate is now wired to the portal's resolve endpoint.
+- **#887** — capture the `gh api` error body on a deployment-status POST failure instead of a generic message.
+- **#885** — self-hosted-runner robustness fixes for `ci.yml.template`.
+- **#884** — a declared REQ bundle now shares one portal release instead of creating a separate one per bundled REQ.
+- **#883** — declared Railway adapter prerequisites explicitly; gated the reconcile-deployment workflow to Railway hosts only (devaudit-installer#841).
+- **#882** — gated `playwright install --with-deps` on runner type (self-hosted runners already have system deps).
+- **#881** — added a halt/resume path for a Phase 2 merge refused by the environment.
+- **#880** — derive bidirectional cross-feature regression scenarios.
+- **#879** — scan both the SRS table and heading blocks for REQ-ID allocation (previously missed IDs that existed only as a heading).
+- **#878** — archive the bundle manifest on close-out; guard against a stale step-0 derivation.
+
+## [1.6.1] — 2026-09-26
+
+### Fixed
+
+- Gated `compliance-evidence.yml`'s E2E Regression listener by `e2e_regression_enabled` — a consumer who never opted in no longer gets a listener waiting on a check that will never run.
+
+## [1.6.0] — 2026-09-26
+
+### Added
+
+- Generalized `fleet-doctor` into a multi-tenant `devaudit doctor --fleet`.
+- Enforced an org-boundary check before any `fleet-doctor` write action.
+
+### Changed
+
+- Deprecated polyglot-monorepo `targets` support; fixed stale naming in the docs. Documented `doctor`/`fleet-doctor` as the SDLC health-check layer and added a canonical `devaudit doctor` reference.
+
+## [1.5.1] — 2026-09-25
+
+### Added
+
+- `devaudit install --with-viewer-key` issues a read-only API key.
+- New `fleet-doctor` skill: an operator-only fleet-wide drift audit.
+- `devaudit doctor --json` mode plus fleet-doctor-consumable checks.
+- `resolve` mode for `report-test-execution.sh`, for self-service cycle-excuse handling.
+
+### Fixed
+
+- Reverted the execa 9→10 bump — it broke Windows local-bin shebang execution.
+- Decoupled `plugin-sdk`'s DTS emission from `tsup` so the TypeScript 7 build no longer crashes.
+- Added `vite` as an explicit devDependency for `vitest` 5.
+- **#831** — onboarded the `ostendo-workhorse-ci` self-hosted runner for the Linux CLI CI leg.
+
+## [1.5.0] — 2026-09-21
+
+### Added
+
+- `devaudit doctor` now verifies onboarding-checklist invariants.
+- New opt-in `e2e-regression.yml.template` — three-tier E2E gating.
+- SAST/dependency-audit evidence now fans out to declared-bundle sibling REQs.
+
+### Fixed
+
+- Preserved declared-bundle co-tracked members across CI's automatic bundled-changes regeneration.
+- Failed loudly instead of silently swallowing a stale E2E dev server kill.
+- Propagated the checkout `clean:false` fix (from an earlier release) to the remaining 8 self-hosted-capable workflow templates.
+- `commitlint` no longer rejects the `Sdlc-Implementer-Sentinel` commit trailer on a long phase history.
+- `validate-commits.sh`'s `CC_REGEX` no longer rejects the standard `style:` commit type.
+- Corrected `INSTALLER_DISPATCH_TOKEN` guidance (fine-grained, scoped, resource-owner).
+
+## [1.4.2] — 2026-09-10
+
+### Fixed
+
+- **#799** — a cyclic advisory back-edge is now treated as non-fatal, not a gate failure.
+- **#807** — resolve a deployment-origin E2E REQ via its nearest-ancestor commit before hard-failing.
+- **#783** — close out a reused REQ ID whose ticket lives under `superseded-releases/`.
+- **#798** — report the post-deploy E2E Regression tier as "not required" when the consumer hasn't opted in, instead of a misleading failure.
+
+## [1.4.1] — 2026-09-09
+
+### Added
+
+- Opt-in `mypy_scoped_diff` for the Python stack.
+
+### Fixed
+
+- Stopped rendering an empty `env:` block on the Python Quality Gates job.
+- Routed the `e2e-regression-3-tier.yml` reference through `CI_RUNNER_LABEL`.
+- Made `release.yml` resumable after a partial publish.
+
+### Changed
+
+- Documented `mission-control`, `mission-control-api`, and `thorstack-site` as active consumers.
+
 ## [1.4.0] — 2026-09-08
 
 ### Added

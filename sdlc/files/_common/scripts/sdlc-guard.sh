@@ -63,7 +63,7 @@ fi
 # ── Freshness-check enforcement (devaudit-installer#839) ──────────────
 # Phase 0 step 0 records a freshness-check entry (freshnessCheckedAt) in
 # the same sentinel array phase records use, via
-# `node SDLC/bin/devaudit-sdlc.js --freshness-checked=<version>`. A tracked
+# `node SDLC/bin/devaudit-sdlc.cjs --freshness-checked=<version>`. A tracked
 # push must have one — unless this REQ's earliest sentinel record predates
 # FRESHNESS_ENFORCED_SINCE, in which case it was already in flight before
 # this enforcement existed and is grandfathered (it never had a chance to
@@ -97,7 +97,7 @@ echo "       The .sdlc-implementer-invoked sentinel has no freshness-check entry
 echo "       which means Phase 0 step 0's freshness check was never recorded."
 echo ""
 echo "       Invoke the sdlc-implementer skill (Claude Code), or run this directly:"
-echo "         node SDLC/bin/devaudit-sdlc.js --freshness-checked=<installed-version>"
+echo "         node SDLC/bin/devaudit-sdlc.cjs --freshness-checked=<installed-version>"
 echo ""
 echo "       Bypass with --no-verify (last resort, not a habit)."
 exit 1

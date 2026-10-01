@@ -93,7 +93,7 @@ describe('formatSyncedFiles', () => {
 
     const result = await formatSyncedFiles(makeCtx(dir), [
       join(dir, 'upload-evidence.sh'),
-      join(dir, 'SDLC', 'bin', 'devaudit-sdlc.js'),
+      join(dir, 'SDLC', 'bin', 'devaudit-sdlc.cjs'),
     ]);
 
     expect(result.skipped).toBe(true);
