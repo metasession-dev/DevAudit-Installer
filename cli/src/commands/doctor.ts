@@ -388,6 +388,95 @@ async function checkRailwayCliPresent(): Promise<CheckResult> {
 }
 
 /**
+ * devaudit-installer#942 — commitlint resolves its config via `cosmiconfig`
+ * against a fixed, documented search-place order (package.json's
+ * `commitlint` field first, then `.commitlintrc*` variants, then
+ * `commitlint.config.{js,cjs,mjs,ts,cts}` —
+ * https://commitlint.js.org/reference/configuration.html); the FIRST
+ * candidate found on disk wins, regardless of which one DevAudit manages.
+ * A legacy config left over from before DevAudit was synced (most often
+ * `.cjs`, which sorts ahead of `.mjs` in that order) silently shadows the
+ * managed `commitlint.config.mjs` — including its `Sdlc-Implementer-Sentinel:`
+ * exemption (#814) — producing commit-msg rejections that look like a
+ * DevAudit bug rather than a leftover local file. Mirroring commitlint's
+ * fixed order here (rather than shelling out to the consumer's own
+ * commitlint, which isn't guaranteed to be installed yet) lets this check
+ * run even before the consumer's first `npm install`.
+ */
+const COMMITLINT_SEARCH_ORDER = [
+  'package.json#commitlint',
+  '.commitlintrc',
+  '.commitlintrc.json',
+  '.commitlintrc.yaml',
+  '.commitlintrc.yml',
+  '.commitlintrc.js',
+  '.commitlintrc.cjs',
+  '.commitlintrc.mjs',
+  '.commitlintrc.ts',
+  '.commitlintrc.cts',
+  'commitlint.config.js',
+  'commitlint.config.cjs',
+  'commitlint.config.mjs',
+  'commitlint.config.ts',
+  'commitlint.config.cts',
+] as const;
+
+const MANAGED_COMMITLINT_CONFIG = 'commitlint.config.mjs';
+
+async function checkCommitlintConfigShadowing(): Promise<CheckResult> {
+  const name = 'commitlint-config-shadowing';
+  const consumer = await readConsumerConfig();
+  if (!consumer) return { name, ok: true, detail: 'skipped (not a consumer project)', suspectedOrigin: 'unknown' };
+  const { repoRoot } = consumer;
+  try {
+    await fs.access(`${repoRoot}/${MANAGED_COMMITLINT_CONFIG}`);
+  } catch {
+    return {
+      name,
+      ok: true,
+      detail: `skipped (${MANAGED_COMMITLINT_CONFIG} not synced here)`,
+      suspectedOrigin: 'unknown',
+    };
+  }
+  const present: string[] = [];
+  for (const candidate of COMMITLINT_SEARCH_ORDER) {
+    if (candidate === 'package.json#commitlint') {
+      try {
+        const pkg = JSON.parse(await fs.readFile(`${repoRoot}/package.json`, 'utf-8')) as Record<string, unknown>;
+        if (pkg['commitlint'] !== undefined) present.push(candidate);
+      } catch {
+        // no package.json, or unparsable — nothing to report here
+      }
+      continue;
+    }
+    try {
+      await fs.access(`${repoRoot}/${candidate}`);
+      present.push(candidate);
+    } catch {
+      // not present
+    }
+  }
+  const winner = present[0];
+  if (!winner || winner === MANAGED_COMMITLINT_CONFIG) {
+    return {
+      name,
+      ok: true,
+      detail: `only the managed ${MANAGED_COMMITLINT_CONFIG} is in effect`,
+      suspectedOrigin: 'consumer-drift',
+    };
+  }
+  return {
+    name,
+    ok: false,
+    detail:
+      `${winner} shadows the managed ${MANAGED_COMMITLINT_CONFIG} (commitlint loads the first match in: ` +
+      `${COMMITLINT_SEARCH_ORDER.join(', ')}) — remove ${winner}, or merge anything it still needs into ` +
+      `${MANAGED_COMMITLINT_CONFIG}`,
+    suspectedOrigin: 'consumer-drift',
+  };
+}
+
+/**
  * devaudit-installer#930 — surface every unresolved sync-manifest conflict
  * (a devaudit-managed file whose on-disk content diverged from what was
  * last synced, so the conflict policy kept the local file and wrote the
@@ -457,6 +546,7 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
     await checkPrePushHookPresent(),
     await checkRailwayCliPresent(),
     await checkSyncConflicts(),
+    await checkCommitlintConfigShadowing(),
   ];
   let onboardingIssues = false;
   for (const check of onboardingChecks) {

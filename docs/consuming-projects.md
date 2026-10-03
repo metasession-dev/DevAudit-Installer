@@ -224,6 +224,10 @@ Run `devaudit doctor` any time to re-list every unresolved conflict (the `sync-c
 
 **The very first sync after upgrading** works the same way, even though no manifest exists yet: `update` reconstructs a baseline of "what devaudit last wrote" by running your project's previously-recorded CLI version (`sdlc-config.json`'s `devaudit_synced_version`) into a scratch git worktree, so your existing customizations are protected from the start, not just from the second sync onward. If that reconstruction isn't possible — no recorded version, no git repository, or the reconstruction itself fails — `update` falls back to treating every existing file at a managed path as a conflict and deleting nothing, which is the safe direction to fail in (worst case, extra `.devaudit-new` files to review; never a silent loss).
 
+#### Commitlint config shadowing (devaudit-installer#942)
+
+Only one commitlint config should exist in a consumer repo — the managed `commitlint.config.mjs`. A leftover legacy config from before devaudit was synced (`.commitlintrc*`, `commitlint.config.{js,cjs,ts}`, or a `commitlint` field in `package.json`) can silently take priority over it, since commitlint loads the first match it finds in its own fixed search order — most commonly a `.cjs` file, which sorts ahead of `.mjs`. When that happens, the managed config's rules (including the `Sdlc-Implementer-Sentinel:` trailer exemption, devaudit-installer#814) silently don't apply, and commits fail with the *stock* config-conventional error text instead of the managed override's. `devaudit doctor`'s `commitlint-config-shadowing` check catches this — it names both files and which one wins; remove or merge the legacy one.
+
 ### Temporary consumer patches
 
 Use `.devaudit-patches/` only when a consuming project needs a reviewed,
