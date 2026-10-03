@@ -33,11 +33,20 @@ export function doneReport(ctx: InstallContext, plan: InstallPlan): StepResult {
     };
   }
   const branch = 'feat/sdlc-onboarding';
+  // devaudit-installer#945 — the raw value only ever exists here, inside the
+  // CLI process; GitHub repo secrets are write-only and can never be read
+  // back afterward. Print it exactly once, with an explicit "won't be shown
+  // again" warning, and give the literal .env instruction so the documented
+  // "safe to export locally" claim is actually actionable.
   const viewerKeyLines = plan.viewerApiKey
     ? [
         '',
-        `  Read-only viewer API key issued (repo secret ${plan.viewerApiKeySecretName}).`,
-        '    Safe to export locally for an agent (e.g. sdlc-implementer) to query release/',
+        `  ⚠ ${plan.viewerApiKeySecretName} (read-only, safe to persist locally) — shown once, will not be shown again:`,
+        `    ${plan.viewerApiKey}`,
+        '',
+        `  Add it to this project's .env now: echo "${plan.viewerApiKeySecretName}=${plan.viewerApiKey}" >> .env`,
+        "    (.env is gitignored by DevAudit's sentinel entries -- devaudit-installer#945.)",
+        '  Safe to export locally for an agent (e.g. sdlc-implementer) to query release/',
         '    check/cycle status -- it can only reach the read-back endpoints, never upload',
         '    evidence or approve a release.',
       ]

@@ -59,7 +59,7 @@ If `sdlc-config.json` already exists in the target, `install` runs non-interacti
 4. **Write `sdlc-config.json`** in the consumer's directory.
 5. **Create the DevAudit project** (idempotent — skips if a project with this slug already belongs to the operator).
 6. **Issue a project-scoped API key** named `Onboarding-issued` (idempotent — won't re-issue if one already exists; will warn). This key carries the `uploader` role — write access to evidence upload and release status for this one project — and is consumed **only by CI**; never export it locally, never hand it to an agent (see [`permissions-and-tokens-reference.md`](./articles/permissions-and-tokens-reference.md) for why).
-   - **Optional:** pass `--with-viewer-key` to also issue a second, read-only `viewer`-role key (`Onboarding-issued (viewer)`), stored as `DEVAUDIT_VIEWER_API_KEY`. A viewer key can only reach the portal's read-back endpoints (`GET .../checks`, `GET .../cycles`) — never upload evidence or approve a release — so, unlike the uploader key, it's safe to export locally for an agent (e.g. `sdlc-implementer`) to query release/check/cycle status. Off by default; existing installs are unaffected. See devaudit#867.
+   - **Optional:** pass `--with-viewer-key` to also issue a second, read-only `viewer`-role key (`Onboarding-issued (viewer)`), stored as `DEVAUDIT_VIEWER_API_KEY`. A viewer key can only reach the portal's read-back endpoints (`GET .../checks`, `GET .../cycles`) — never upload evidence or approve a release — so, unlike the uploader key, it's safe to persist locally for an agent (e.g. `sdlc-implementer`) to query release/check/cycle status. The raw value is printed to the terminal once, at mint time (devaudit-installer#945) — see "Opting into the read-only viewer key" below for how to capture it. Off by default; existing installs are unaffected. See devaudit#867.
 7. **Set GitHub secrets** via `gh secret set`:
    - `DEVAUDIT_API_KEY` (the just-issued uploader key)
    - `DEVAUDIT_VIEWER_API_KEY` (only if `--with-viewer-key` was passed)
@@ -141,7 +141,18 @@ From the next requirement onward, use the **Requirement** issue template instead
 
 `DEVAUDIT_API_KEY` — the key `install` issues by default (Step 2, item 6) — carries the `uploader` role: it can upload evidence and mutate release state for this one project. It's meant for **CI only**, set as a repo secret and never exported to a local shell or handed to an AI coding agent — a leaked uploader key can forge evidence or approve a release on your behalf.
 
-`DEVAUDIT_VIEWER_API_KEY` (devaudit#867) is the safe alternative: a second, project-scoped key with the `viewer` role, which can only reach the portal's read-back endpoints (`GET .../checks`, `GET .../cycles`, release lookup) — it can never upload evidence or approve anything. That's what makes it the one credential in this system safe to export locally or hand to an agent. `sdlc-implementer` (devaudit-installer#876) now prefers it automatically for Phase 5's portal-state read whenever `sdlc-config.json` has one configured, falling back to the uploader key otherwise — see [`permissions-and-tokens-reference.md`](./articles/permissions-and-tokens-reference.md) for the full credential model.
+`DEVAUDIT_VIEWER_API_KEY` (devaudit#867) is the safe alternative: a second, project-scoped key with the `viewer` role, which can only reach the portal's read-back endpoints (`GET .../checks`, `GET .../cycles`, release lookup) — it can never upload evidence or approve anything. That's what makes it the one credential in this system safe to persist locally or hand to an agent. `sdlc-implementer` (devaudit-installer#876) now prefers it automatically for Phase 5's portal-state read whenever `sdlc-config.json` has one configured, falling back to the uploader key otherwise — see [`permissions-and-tokens-reference.md`](./articles/permissions-and-tokens-reference.md) for the full credential model.
+
+**Capturing the raw value (devaudit-installer#945).** GitHub repo secrets are write-only — nothing, including `gh secret list`, can read one back after it's set. So `install` prints the raw value to the terminal exactly once, immediately after it's minted, with an explicit "won't be shown again" warning and the literal command to persist it:
+
+```
+⚠ DEVAUDIT_VIEWER_API_KEY (read-only, safe to persist locally) — shown once, will not be shown again:
+  <raw-value>
+
+Add it to this project's .env now: echo "DEVAUDIT_VIEWER_API_KEY=<raw-value>" >> .env
+```
+
+Copy it into `.env` right then — there's no later recovery path. `.env`/`.env.local` are unconditionally gitignored by DevAudit's sentinel entries, so this can't land in a commit. If you miss it, there's no "show me again" command by design (same reasoning as a cloud provider's one-time access-key display); recover by revoking the key in the portal UI and re-running `devaudit install --force-team-config --with-viewer-key`, which mints a fresh one and prints it the same way.
 
 **What it covers.** Phase 5's "read portal state" lookup, and any other read-only status check you point it at — nothing more.
 

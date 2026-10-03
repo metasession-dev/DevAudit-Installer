@@ -385,6 +385,10 @@ describe('syncProject — native TS sync against a fixture', () => {
     expect(gitignoreContent).toContain('.e2e-evidence-wired');
     expect(gitignoreContent).toContain('.sdlc-implementer-invoked');
     expect(gitignoreContent).toContain('.sdlc-pr-watch.json');
+    // devaudit-installer#945 — .env/.env.local must be gitignored unconditionally,
+    // since install tells the operator to persist DEVAUDIT_VIEWER_API_KEY into .env.
+    expect(gitignoreContent).toContain('.env');
+    expect(gitignoreContent).toContain('.env.local');
     // Section 2h — SDLC CLI engine (binary + blueprints)
     expect(await fs.stat(join(fixtureDir, 'SDLC', 'bin', 'devaudit-sdlc.cjs'))).toBeTruthy();
     expect(await fs.stat(join(fixtureDir, 'SDLC', 'blueprints', '1-plan-requirement.raw.md'))).toBeTruthy();

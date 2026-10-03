@@ -217,6 +217,75 @@ describe('devaudit doctor — onboarding-checklist invariants (#867)', () => {
   }, 30_000);
 });
 
+describe('devaudit doctor — commitlint config shadowing (#942)', () => {
+  it('skips when commitlint.config.mjs was never synced', async () => {
+    const { mkdtemp, writeFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const dir = await mkdtemp(join(tmpdir(), 'devaudit-doctor-commitlint-unsynced-'));
+    await writeFile(join(dir, 'sdlc-config.json'), JSON.stringify({ project_slug: 'fixture' }));
+    const result = await execa('node', [BIN, 'doctor'], { cwd: dir, reject: false });
+    const output = result.stdout + result.stderr;
+    expect(output).toMatch(/commitlint-config-shadowing\s+skipped \(commitlint\.config\.mjs not synced here\)/);
+  }, 30_000);
+
+  it('reports clean when only the managed commitlint.config.mjs is present', async () => {
+    const { mkdtemp, writeFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const dir = await mkdtemp(join(tmpdir(), 'devaudit-doctor-commitlint-ok-'));
+    await writeFile(join(dir, 'sdlc-config.json'), JSON.stringify({ project_slug: 'fixture' }));
+    await writeFile(join(dir, 'commitlint.config.mjs'), 'export default {};\n');
+    const result = await execa('node', [BIN, 'doctor'], { cwd: dir, reject: false });
+    const output = result.stdout + result.stderr;
+    expect(output).toMatch(/commitlint-config-shadowing\s+only the managed commitlint\.config\.mjs is in effect/);
+  }, 30_000);
+
+  it('warns when a legacy commitlint.config.cjs shadows the managed .mjs', async () => {
+    const { mkdtemp, writeFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const dir = await mkdtemp(join(tmpdir(), 'devaudit-doctor-commitlint-shadow-'));
+    await writeFile(join(dir, 'sdlc-config.json'), JSON.stringify({ project_slug: 'fixture' }));
+    await writeFile(join(dir, 'commitlint.config.mjs'), 'export default {};\n');
+    await writeFile(join(dir, 'commitlint.config.cjs'), 'module.exports = {};\n');
+    const result = await execa('node', [BIN, 'doctor'], { cwd: dir, reject: false });
+    const output = result.stdout + result.stderr;
+    expect(output).toContain('commitlint.config.cjs shadows the managed commitlint.config.mjs');
+    expect(output).toContain('remove commitlint.config.cjs');
+  }, 30_000);
+
+  it('warns when a package.json#commitlint field shadows the managed .mjs', async () => {
+    const { mkdtemp, writeFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const dir = await mkdtemp(join(tmpdir(), 'devaudit-doctor-commitlint-pkg-'));
+    await writeFile(join(dir, 'sdlc-config.json'), JSON.stringify({ project_slug: 'fixture' }));
+    await writeFile(join(dir, 'commitlint.config.mjs'), 'export default {};\n');
+    await writeFile(join(dir, 'package.json'), JSON.stringify({ commitlint: { extends: ['@commitlint/config-conventional'] } }));
+    const result = await execa('node', [BIN, 'doctor'], { cwd: dir, reject: false });
+    const output = result.stdout + result.stderr;
+    expect(output).toContain('package.json#commitlint shadows the managed commitlint.config.mjs');
+  }, 30_000);
+
+  it('--json reports commitlint-config-shadowing with a consumer-drift suspectedOrigin', async () => {
+    const { mkdtemp, writeFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const dir = await mkdtemp(join(tmpdir(), 'devaudit-doctor-commitlint-json-'));
+    await writeFile(join(dir, 'sdlc-config.json'), JSON.stringify({ project_slug: 'fixture' }));
+    await writeFile(join(dir, 'commitlint.config.mjs'), 'export default {};\n');
+    await writeFile(join(dir, 'commitlint.config.cjs'), 'module.exports = {};\n');
+    const result = await execa('node', [BIN, '--json', 'doctor'], { cwd: dir, reject: false });
+    const report = JSON.parse(result.stdout) as {
+      onboarding: Array<{ name: string; ok: boolean; suspectedOrigin?: string; detail: string }>;
+    };
+    const check = report.onboarding.find((c) => c.name === 'commitlint-config-shadowing');
+    expect(check?.ok).toBe(false);
+    expect(check?.suspectedOrigin).toBe('consumer-drift');
+  }, 30_000);
+});
+
 describe('devaudit doctor — host-adapter prerequisites (#843)', () => {
   // Node-scripted mock (not bash) + a .cmd shim, mirroring writeMockGh in
   // devaudit-sdlc-engine.test.ts — a bash-shebang-only fake `gh` never runs
