@@ -12,6 +12,12 @@ const SENTINEL_ENTRIES = [
   // manifest's conflict policy writes next to a locally-modified managed
   // file (e.g. ci.yml.devaudit-new); never meant to be committed.
   '*.devaudit-new',
+  // devaudit-installer#945 — `devaudit install --with-viewer-key` tells the
+  // operator to persist the one-time-printed DEVAUDIT_VIEWER_API_KEY value
+  // into .env; guarantee that instruction can never land in a commit, even
+  // on a project with no pre-existing .env gitignore rule of its own.
+  '.env',
+  '.env.local',
 ];
 
 const MARKER = '# DevAudit sentinel files (devaudit-installer#226)';

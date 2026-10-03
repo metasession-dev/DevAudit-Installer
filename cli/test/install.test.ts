@@ -297,6 +297,44 @@ describe('runInstall — native TS install against a node fixture', () => {
       const secretNames = secretCalls.map((c) => c.args[0]);
       expect(secretNames).toContain('DEVAUDIT_VIEWER_API_KEY');
       expect(secretNames).toContain('DEVAUDIT_API_KEY');
+      // devaudit-installer#945 — the raw value only ever exists transiently
+      // inside the CLI process (GitHub secrets are write-only), so the done
+      // report must print it exactly once, with a "won't be shown again"
+      // warning and the literal .env instruction. The mock api-keys POST
+      // endpoint (line 112-113 above) always returns 'dak_test_plain'.
+      const doneStep = report.steps.find((x) => x.step.startsWith('12/'));
+      expect(doneStep?.message).toContain('dak_test_plain');
+      expect(doneStep?.message).toContain('shown once, will not be shown again');
+      expect(doneStep?.message).toContain('echo "DEVAUDIT_VIEWER_API_KEY=dak_test_plain" >> .env');
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it('--with-viewer-key: re-running against an already-existing viewer key does not reveal a value', async () => {
+    server.use(
+      http.get(`${BASE_URL}/api/projects/:id/api-keys`, () =>
+        HttpResponse.json([{ id: 'key-viewer', name: 'Onboarding-issued (viewer)', revoked_at: null }]),
+      ),
+    );
+    const { runInstall } = await import('../src/install/index.js');
+    const dir = await buildNodeFixture();
+    await fs.writeFile(
+      join(dir, 'sdlc-config.json'),
+      JSON.stringify({ project_slug: 'fixture-app', stack: 'node', host: 'railway', node_version: '20' }),
+    );
+    try {
+      const report = await runInstall({
+        path: dir,
+        dryRun: false,
+        nonInteractive: true,
+        provider: makeFakeProvider(),
+        withViewerKey: true,
+      });
+      const stepByStart = (s: string) => report.steps.find((x) => x.step.startsWith(s));
+      expect(stepByStart('6b/')?.status).toBe('warn');
+      const doneStep = report.steps.find((x) => x.step.startsWith('12/'));
+      expect(doneStep?.message).not.toContain('shown once, will not be shown again');
     } finally {
       await fs.rm(dir, { recursive: true, force: true });
     }
