@@ -66,7 +66,10 @@ A release is keyed by `(project, version)`.
 | `vYYYY.MM.DD` | Bare-date housekeeping/integration record | Historical CI context by default, not an active full release |
 
 A tracked promotion can bundle multiple REQs and/or prior housekeeping work. Each
-tracked REQ keeps a distinct release record. The approval envelope must include
+absorbed predecessor REQ keeps its own release record (linked as historical
+context); a REQ declared into a bundle up front does not get one (see
+[Bundling several issues into one release](#bundling-several-issues-into-one-release)).
+The approval envelope must include
 `BUNDLED-CHANGES-REQ-XXX.md`, `BUNDLED-CHANGES-REQ-XXX.json`, a submitted bundle
 manifest, and equivalent context in the ticket, test execution summary, security
 summary, and AI-use note where relevant.
@@ -74,6 +77,34 @@ summary, and AI-use note where relevant.
 Evidence and test/deployment executions remain owned by their source release. The
 portal shows predecessors as linked historical context. It must not make an
 absorbed bare-date record look abandoned or still pending approval.
+
+## Bundling several issues into one release
+
+Several small, independent issues can ship as **one release**: declare them with
+`Bundles: #A, #B` in the triggering issue or when invoking `sdlc-implementer`
+(never inferred from prose). Eligibility: no CRITICAL member, risk tiers within one
+step of each other, no overlapping files. Each issue still gets its own REQ, plan,
+acceptance criteria, ticket, RTM row and **its own commit** (so any one can be
+reverted), but they share one branch (`feat/bundle-<slug>`), one integration PR,
+one release PR, and one portal release.
+
+| Concept | How a declared bundle behaves |
+| ------- | ----------------------------- |
+| Portal release | **One**, keyed by the core REQ (the REQ whose number names `BUNDLED-CHANGES-<core>.{md,json}`). There is no portal release named after a member. |
+| Evidence | Every member's evidence keeps the member's own REQ as its requirement tag, but is filed under the core's release (`scripts/resolve-bundle-release.sh <REQ>` decides; CI and the compliance-document upload call it for you). The portal shows each member as a requirement of the one release. |
+| Approval | One UAT approval and one production approval for the whole bundle. If UAT requests changes the whole bundle's release drops out of approval, even if only one REQ needed rework; bundle scope also freezes at UAT submission. |
+| Tickets and RTM | One `RELEASE-TICKET-REQ-XXX.md` and one RTM row per REQ (the compliance validator requires both). Members are **not** listed under "Absorbed predecessor releases"; that field is only for earlier, separate releases being absorbed. |
+| Manifest | The committed `BUNDLED-CHANGES-<core>.{md,json}` lists members as `role: "co_tracked"`. That is a local declaration: `derive-release-version.sh` and CI regeneration read it, but `submit-bundle-manifest.sh` does not send `co_tracked` members to the portal (predecessors and housekeeping are still submitted). |
+| Close-out | The close-out PR releases the members with the core: their tickets move to `approved-releases/`, Status `RELEASED`, a `Released with bundle` backlink, RTM `RELEASED`. Absorbed predecessors are still superseded. |
+
+Limits: declared bundles are supported by the Node CI template. The Python template
+does not generate bundled changes, and `feature-e2e.yml` handles a single REQ per
+run, so it skips a multi-REQ bundle PR.
+
+If you find a portal release named after a bundled member (an older consumer
+version created these), do not submit it for review. Update the consumer
+(`devaudit update`), leave the empty draft alone, and report it; there is no portal
+action to discard an empty draft yet.
 
 ## Housekeeping
 

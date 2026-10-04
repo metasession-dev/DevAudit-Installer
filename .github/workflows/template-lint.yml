@@ -97,6 +97,15 @@ jobs:
           bash sdlc/files/_common/scripts/generate-bundled-changes.test.sh
           bash sdlc/files/_common/scripts/validate-compliance-artifacts.test.sh
 
+      - name: Run declared-bundle single-release tests (devaudit-installer#955)
+        run: |
+          chmod +x sdlc/files/_common/scripts/resolve-bundle-release.sh
+          chmod +x sdlc/files/_common/scripts/submit-bundle-manifest.sh
+          chmod +x sdlc/files/_common/scripts/close-out-release.sh
+          bash sdlc/files/_common/scripts/resolve-bundle-release.test.sh
+          bash sdlc/files/_common/scripts/submit-bundle-manifest.test.sh
+          bash sdlc/files/_common/scripts/close-out-release.test.sh
+
       - name: Run pre-push hook tests
         run: |
           chmod +x sdlc/files/stacks/node/hooks/pre-push

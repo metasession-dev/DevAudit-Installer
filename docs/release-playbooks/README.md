@@ -98,6 +98,25 @@ ownership and journey views must show predecessors as linked historical context,
 not active approvals. The close-out moves absorbed predecessor tickets to
 `compliance/superseded-releases/` when the manifest identifies them.
 
+A **declared bundle** (`Bundles: #A, #B`) is different from absorbing earlier
+releases: it is one release with one approval, keyed by the core REQ. Its
+`co_tracked` members are requirements of that release, not releases of their own:
+
+- their evidence is tagged with the member's REQ but filed under the core's
+  release (`scripts/resolve-bundle-release.sh`); CI does this automatically;
+- the bundle manifest lists them, but `submit-bundle-manifest.sh` does not send
+  `co_tracked` members to the portal (predecessors and housekeeping items are
+  still submitted, with a recomputed manifest hash);
+- the close-out PR releases them with the core: their tickets move to
+  `compliance/approved-releases/` (Status `RELEASED`, `Released with bundle`
+  backlink, RTM `RELEASED`), while absorbed predecessors still move to
+  `superseded-releases/`.
+
+If a portal release named after a bundled member exists (an older consumer
+version created these), do not submit it for review and do not approve it; it is
+an empty draft that nothing depends on. Update the consumer and report it. See
+[Bundling several issues into one release](../change-workflows.md#bundling-several-issues-into-one-release).
+
 Incident evidence follows the same ownership rule. `incident-report*.md` and
 `nil-incident-report*.md` must carry frontmatter that identifies
 `incident_kind`, `source_release`, and a stable semantic id. The generated

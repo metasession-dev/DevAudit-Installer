@@ -423,8 +423,15 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     // #192 terminal-release skip, mirroring the existing E2E fan-out.
     expect(source).toContain('compliance/approved-releases/RELEASE-TICKET-${MEMBER_REQ}.md');
     expect(source).toContain('compliance/superseded-releases/RELEASE-TICKET-${MEMBER_REQ}.md');
-    // Each member gets its own release, not the primary's.
-    expect(source).toContain('--release ${MEMBER_REQ} --create-release-if-missing');
+    // devaudit-installer#955 — a declared bundle is ONE portal release. The
+    // member's evidence keeps its own REQ as the requirement tag but is filed
+    // against the bundle's release (resolve-bundle-release.sh), never a
+    // release named after the member (that created orphan drafts nothing
+    // ever submitted or approved, blocking the core via the portal's
+    // co_tracked sibling gate).
+    expect(source).toContain('MEMBER_RELEASE=$(bash scripts/resolve-bundle-release.sh "$MEMBER_REQ")');
+    expect(source).toContain('--release ${MEMBER_RELEASE} --create-release-if-missing');
+    expect(source).not.toContain('--release ${MEMBER_REQ} --create-release-if-missing');
     // This block must appear before the SAST/dependency-audit primary
     // uploads' section ends and the (unrelated) E2E fan-out begins, so a
     // reader sees both fan-outs are analogous, adjacent mechanisms.

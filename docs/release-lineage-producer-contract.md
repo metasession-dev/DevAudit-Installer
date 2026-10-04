@@ -203,6 +203,13 @@ must describe:
 - constituent release membership
 - relationship type (`superseded`, `absorbed`, `inherited`)
 - role (`core`, `predecessor`, `tracked_sibling`, `follow_up`, `housekeeping`)
+- locally only, `co_tracked` (relationship `bundled`): a REQ declared into the bundle
+  up front (`Bundles: #A, #B`). It is recorded in the committed manifest so
+  `derive-release-version.sh` and CI regeneration can see it, but it is **never
+  submitted**: `submit-bundle-manifest.sh` removes `co_tracked` members from the
+  payload and recomputes `manifestHash` for what it sends. A declared bundle is one
+  portal release; its members are requirements of it, with evidence filed under the
+  core (`scripts/resolve-bundle-release.sh`)
 - optional PR and commit range context
 - non-release work items kept separate from real release rows
 - manifest hash and generator metadata
