@@ -170,6 +170,11 @@ if ! [[ "$VERSION" =~ $DATE_VERSION_RE ]]; then
         version="${ticket##*/RELEASE-TICKET-}"
         version="${version%.md}"
         [ "$version" = "$VERSION" ] && continue
+        # A member named in --declared-bundle is already accounted for: it is emitted below as
+        # role "co_tracked". Declared members have their own release tickets (the compliance
+        # validator requires one per REQ), so without this they were reported as unlisted
+        # predecessors whenever the core ticket also named a real predecessor (#952).
+        case ",${DECLARED_BUNDLE// /}," in *",${version},"*) continue ;; esac
         printf '%s\n' "$version"
       done
     fi

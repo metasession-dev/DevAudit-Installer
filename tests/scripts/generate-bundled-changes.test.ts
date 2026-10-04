@@ -133,3 +133,81 @@ describe('generate-bundled-changes.sh — bare-date releases (devaudit-installer
     expect(result.stderr).toContain('release ticket for REQ-100 not found');
   });
 });
+
+describe('generate-bundled-changes.sh — declared bundle members with release tickets (devaudit-installer#952)', () => {
+  function ticket(req: string, extra = ''): string {
+    return `# Release Ticket: ${req} — ${req} title\n\n**Status:** TESTED - PENDING SIGN-OFF\n**Requirement ID:** ${req}\n**PR:** #1\n\n## Summary\n\n${req} summary.\n${extra}`;
+  }
+
+  function seed(tickets: Record<string, string>): string {
+    mkdirSync(join(dir, 'compliance/pending-releases'), { recursive: true });
+    for (const [req, body] of Object.entries(tickets)) {
+      writeFileSync(join(dir, `compliance/pending-releases/RELEASE-TICKET-${req}.md`), body);
+    }
+    writeFileSync(join(dir, 'seed.txt'), 'seed\n');
+    execSync('git add -A', { cwd: dir });
+    execSync('git commit -q -m "chore: seed tickets"', { cwd: dir });
+    return 'HEAD';
+  }
+
+  const CORE = ticket('REQ-035', '\n- **Absorbed predecessor releases:** REQ-034\n');
+
+  it('accepts declared co-tracked members that have tickets alongside a listed predecessor', () => {
+    const sinceRef = seed({
+      'REQ-034': ticket('REQ-034'),
+      'REQ-035': CORE,
+      'REQ-036': ticket('REQ-036'),
+      'REQ-037': ticket('REQ-037'),
+    });
+    const manifestPath = join(dir, 'manifest.json');
+    const result = run(
+      [sinceRef, 'REQ-035', '--json-out', manifestPath, '--declared-bundle', 'REQ-036,REQ-037'],
+      dir,
+    );
+
+    expect(result.stderr).toBe('');
+    expect(result.status).toBe(0);
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf-8'));
+    const roles = Object.fromEntries(
+      manifest.members.map((m: { version: string; role: string }) => [m.version, m.role]),
+    );
+    // Each member exactly once: a predecessor is not also co-tracked, and vice versa.
+    expect(manifest.members).toHaveLength(3);
+    expect(roles).toEqual({
+      'REQ-034': 'predecessor',
+      'REQ-036': 'co_tracked',
+      'REQ-037': 'co_tracked',
+    });
+  });
+
+  it('still refuses a pending ticket that is neither listed nor declared', () => {
+    const sinceRef = seed({
+      'REQ-034': ticket('REQ-034'),
+      'REQ-035': CORE,
+      'REQ-036': ticket('REQ-036'),
+      'REQ-099': ticket('REQ-099'),
+    });
+    const result = run(
+      [sinceRef, 'REQ-035', '--json-out', join(dir, 'm.json'), '--declared-bundle', 'REQ-036'],
+      dir,
+    );
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toMatch(/ambiguous predecessor ownership/);
+    expect(result.stderr).toContain('REQ-099');
+    expect(result.stderr).not.toContain('REQ-036');
+  });
+
+  it('still refuses a ticketed member that is not declared', () => {
+    const sinceRef = seed({
+      'REQ-034': ticket('REQ-034'),
+      'REQ-035': CORE,
+      'REQ-036': ticket('REQ-036'),
+    });
+    const result = run([sinceRef, 'REQ-035', '--json-out', join(dir, 'm.json')], dir);
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toMatch(/ambiguous predecessor ownership/);
+    expect(result.stderr).toContain('REQ-036');
+  });
+});
