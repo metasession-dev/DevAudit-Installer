@@ -60,6 +60,36 @@ if [ "$SCHEMA_VERSION" != "1" ] && [ "$SCHEMA_VERSION" != "2" ]; then
   exit 1
 fi
 
+WORK_DIR="$(mktemp -d)"
+trap 'rm -rf "$WORK_DIR"' EXIT
+
+# devaudit-installer#955 — a declared bundle is ONE portal release with ONE
+# UAT approval (devaudit-installer#736/#817/#884). Its co_tracked members are
+# a *local* declaration only: they stay in the committed manifest so
+# derive-release-version.sh (step 0) and CI regeneration can see them, and
+# their evidence is filed against the core release (resolve-bundle-release.sh).
+# They are NOT submitted to the portal: the portal models a submitted
+# co_tracked member as a separate sibling release that must itself reach UAT
+# approval before the core can proceed, and it refuses the role/relationship
+# outright where its database constraints lag (metasession-dev/devaudit#885).
+# Predecessors, housekeeping and non-release work items are still submitted.
+#
+# manifestHash covers the members, so a payload with members removed needs a
+# freshly computed hash; the recipe below is generate-bundled-changes.sh's own
+# (canonical sorted-key JSON minus generator.generatedAt, sha256), which the
+# portal recomputes on ingest.
+if jq -e '(.members // []) | any(.role == "co_tracked")' "$MANIFEST_PATH" >/dev/null; then
+  STRIPPED="$(jq -c 'del(.manifestHash) | .members |= map(select(.role != "co_tracked"))' "$MANIFEST_PATH")"
+  if [ "$SCHEMA_VERSION" = "2" ]; then
+    HASH_INPUT="$(jq -cS 'del(.generator.generatedAt)' <<<"$STRIPPED")"
+    NEW_HASH="sha256:$(printf '%s' "$HASH_INPUT" | sha256sum | awk '{print $1}')"
+    STRIPPED="$(jq -c --arg hash "$NEW_HASH" '. + { manifestHash: $hash }' <<<"$STRIPPED")"
+  fi
+  printf '%s\n' "$STRIPPED" > "$WORK_DIR/manifest.json"
+  echo "Not submitting co_tracked bundle members to the portal (they are filed under the core release ${RELEASE_VERSION})."
+  MANIFEST_PATH="$WORK_DIR/manifest.json"
+fi
+
 MEMBER_COUNT="$(jq -r '(.members // []) | length' "$MANIFEST_PATH")"
 WORK_ITEM_COUNT="$(jq -r '(.nonReleaseWorkItems // []) | length' "$MANIFEST_PATH")"
 if [ "$MEMBER_COUNT" = "0" ] && [ "$WORK_ITEM_COUNT" = "0" ]; then
@@ -87,8 +117,7 @@ if [ "$RECONCILE_EXISTING_OWNERSHIP" = "true" ]; then
 fi
 
 POST_URL="${BASE_URL}/api/ci/releases/${RELEASE_ID}/bundle-manifest"
-HTTP_BODY_FILE="$(mktemp)"
-trap 'rm -f "$HTTP_BODY_FILE"' EXIT
+HTTP_BODY_FILE="$WORK_DIR/response.json"
 HTTP_CODE="$(
   curl -sS -o "$HTTP_BODY_FILE" -w "%{http_code}" \
     -X POST \
