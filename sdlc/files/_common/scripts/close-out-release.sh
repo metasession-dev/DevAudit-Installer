@@ -14,6 +14,12 @@
 # predecessor releases from looking abandoned after the successor approval
 # envelope closes.
 #
+# Declared-bundle members (role "co_tracked", devaudit-installer#736/#955) are
+# released WITH the core, not superseded by it: their tickets move to
+# compliance/approved-releases/, Status flips to RELEASED with a
+# "Released with bundle" backlink to the core, and their RTM rows flip to
+# RELEASED. They have no portal release of their own to wait on.
+#
 # The script stages the changes but does NOT commit — the caller (the close-out
 # workflow, or a human) commits/opens the PR.
 #
@@ -250,6 +256,62 @@ mark_ticket_superseded() {
   fi
 }
 
+# devaudit-installer#955 — close a declared-bundle member out together with its
+# core. Idempotent: a ticket already in approved-releases/ only has its Status
+# and backlink re-asserted; a ticket already in superseded-releases/ is left
+# alone (a superseded fact must not be rewritten as RELEASED).
+mark_ticket_released_with_bundle() {
+  local version="$1"
+  local source_path target_path tmp_file
+  source_path="$(find_release_ticket_file "$version" 2>/dev/null || true)"
+  if [ -z "$source_path" ]; then
+    echo "::warning::Bundle member ${version} has no release ticket to close out."
+    return 0
+  fi
+  case "$source_path" in
+    "${SUPERSEDED_DIR}"/*)
+      echo "Bundle member ${version} ticket is already superseded — left as is."
+      return 0
+      ;;
+  esac
+
+  mkdir -p "$APPROVED_DIR"
+  target_path="${APPROVED_DIR}/RELEASE-TICKET-${version}.md"
+  if [ "$source_path" != "$target_path" ]; then
+    git mv "$source_path" "$target_path" 2>/dev/null || mv "$source_path" "$target_path"
+    echo "Moved bundle member ticket -> ${target_path}"
+  fi
+
+  tmp_file="$(mktemp)"
+  awk -v core="$REQ_ID" -v closed_on="$TODAY" -v prline="$PR_LINE" '
+    BEGIN { status_done=0; bundle_seen=0; pr_seen=0 }
+    /^\*\*Status:\*\*/ && status_done==0 { print "**Status:** RELEASED"; status_done=1; next }
+    /^\*\*Release PR:\*\*/ && prline!="" { print prline; pr_seen=1; next }
+    /^\*\*DevAudit Release:\*\*/ && prline!="" && pr_seen==0 { print prline; pr_seen=1 }
+    /^\*\*Released with bundle:\*\*/ {
+      print "**Released with bundle:** " core " (closed out " closed_on ")"
+      bundle_seen=1
+      next
+    }
+    { print }
+    /^\*\*DevAudit Release:\*\*/ && bundle_seen==0 {
+      print "**Released with bundle:** " core " (closed out " closed_on ")"
+      bundle_seen=1
+    }
+    END {
+      if (pr_seen==0 && prline!="") print prline
+      if (bundle_seen==0) print "**Released with bundle:** " core " (closed out " closed_on ")"
+    }
+  ' "$target_path" > "$tmp_file"
+  mv "$tmp_file" "$target_path"
+  git add "$target_path" 2>/dev/null || true
+  echo "Bundle member ticket ${version} -> RELEASED (with ${REQ_ID})."
+
+  if printf '%s' "$version" | grep -qE '^REQ-[0-9]{3,}$'; then
+    update_rtm_status "$version" "RELEASED"
+  fi
+}
+
 # ── Optional portal safety check ─────────────────────────────────────────────
 if [ -n "${DEVAUDIT_API_KEY:-}" ] && [ -n "${DEVAUDIT_BASE_URL:-}" ]; then
   BASE="${DEVAUDIT_BASE_URL%/}"
@@ -406,6 +468,15 @@ if [ -n "$BUNDLE_MANIFEST" ] && command -v jq >/dev/null 2>&1; then
         ]
       | @tsv
     ' "$BUNDLE_MANIFEST" 2>/dev/null || true
+  )
+
+  # devaudit-installer#955 — declared-bundle members are released with the core.
+  while IFS= read -r member_version; do
+    [ -n "$member_version" ] || continue
+    mark_ticket_released_with_bundle "$member_version"
+  done < <(
+    jq -r '(.members // []) | map(select((.role // "") == "co_tracked")) | .[] | (.version // empty)' \
+      "$BUNDLE_MANIFEST" 2>/dev/null || true
   )
 fi
 

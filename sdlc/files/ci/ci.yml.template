@@ -800,8 +800,12 @@ jobs:
                  || compgen -G "compliance/superseded-releases/RELEASE-TICKET-${MEMBER_REQ}.md" > /dev/null 2>&1; then
                 continue
               fi
+              # devaudit-installer#955 — the evidence is tagged with the
+              # member's own REQ (positional arg below) but filed against the
+              # bundle's single release, never a release named after the member.
+              MEMBER_RELEASE=$(bash scripts/resolve-bundle-release.sh "$MEMBER_REQ")
               MEMBER_FLAGS="--git-sha ${{ github.sha }} --ci-run-id ${{ github.run_id }} --branch ${{ github.ref_name }}"
-              MEMBER_FLAGS="${MEMBER_FLAGS} --release ${MEMBER_REQ} --create-release-if-missing"
+              MEMBER_FLAGS="${MEMBER_FLAGS} --release ${MEMBER_RELEASE} --create-release-if-missing"
               MEMBER_FLAGS="${MEMBER_FLAGS} --environment uat --sdlc-stage 2"
               if [ -f ci-evidence/sast-results.json ]; then
                 upload "sast-results.json -> ${MEMBER_REQ}" \
@@ -940,8 +944,11 @@ jobs:
             echo "Checking tagged E2E JSON attachment candidates: ${E2E_REQS[*]}"
             echo "::notice::Not fanning out gate-outcomes.json to pending REQs; gate evidence remains on ${COMMIT_REQ} unless represented through explicit release lineage."
             for REQ_ID in "${E2E_REQS[@]}"; do
+              # devaudit-installer#955 — file a declared-bundle member's
+              # evidence against the bundle's single release.
+              FANOUT_RELEASE=$(bash scripts/resolve-bundle-release.sh "$REQ_ID")
               FANOUT_FLAGS="--git-sha ${{ github.sha }} --ci-run-id ${{ github.run_id }} --branch ${{ github.ref_name }}"
-              FANOUT_FLAGS="${FANOUT_FLAGS} --release ${REQ_ID} --create-release-if-missing"
+              FANOUT_FLAGS="${FANOUT_FLAGS} --release ${FANOUT_RELEASE} --create-release-if-missing"
               FANOUT_FLAGS="${FANOUT_FLAGS} --environment uat --sdlc-stage 2"
               FANOUT_FLAGS="${FANOUT_FLAGS} --test-execution ${{ github.run_id }}"
               if [ -f ci-evidence/e2e-results.json ] && has_req_tagged_e2e_result "$REQ_ID" ci-evidence/e2e-results.json; then
@@ -1037,6 +1044,14 @@ jobs:
               [ -n "$RELEASE_TITLE" ] && REQ_META+=(--release-title "$RELEASE_TITLE")
               [ -n "$RELEASE_SUMMARY" ] && REQ_META+=(--release-summary "$RELEASE_SUMMARY")
               [ -n "$REQ_CT" ] && REQ_META+=(--change-type "$REQ_CT")
+              # devaudit-installer#955 — a declared-bundle member's evidence is
+              # filed against the bundle's single release, never a release
+              # named after the member. Title/summary/change-type describe the
+              # core's own release row, so a member must not set them.
+              REQ_RELEASE=$(bash scripts/resolve-bundle-release.sh "$REQ")
+              if [ "$REQ_RELEASE" != "$REQ" ]; then
+                REQ_META=()
+              fi
               # devaudit-installer#147 — per-REQ scoped glob. ONLY this REQ's
               # own screenshots/ directory; legacy folders for REQs not in
               # SHOT_REQS are intentionally ignored.
@@ -1076,7 +1091,7 @@ jobs:
 
                 if bash scripts/upload-evidence.sh \
                   {{PROJECT_SLUG}} "$REQ" screenshot "$NAMED" \
-                  --category screenshot ${FLAGS} --release "$REQ" \
+                  --category screenshot ${FLAGS} --release "$REQ_RELEASE" \
                   "${REQ_META[@]}" \
                   "${ORIGIN_META[@]}"
                 then

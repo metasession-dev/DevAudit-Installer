@@ -412,6 +412,96 @@ EOF
   rm -rf "$(dirname "$dir")"
 }
 
+# ── Case: declared-bundle members are released WITH the core (#955) ─────────
+# Members (role co_tracked) have no portal release of their own, so close-out
+# moves their tickets to approved-releases/ as RELEASED (not superseded), flips
+# their RTM rows, and leaves predecessors on the existing superseded path.
+{
+  dir="$(mktemp -d)/cli-close-out-fixture-bundle-members"
+  mkdir -p "$dir/compliance/pending-releases" "$dir/compliance/approved-releases"
+  cd "$dir"
+  git init -q --initial-branch=main >/dev/null
+  git config user.email "test@example.com"
+  git config user.name "test"
+  cat > compliance/RTM.md <<'EOF'
+# Requirements Traceability Matrix
+
+| REQ-ID  | Source | Risk | Evidence | Status | Owner | Date |
+| ------- | ------ | ---- | -------- | ------ | ----- | ---- |
+| REQ-103 | #499   | LOW  | compliance/evidence/REQ-103/ | TESTED - PENDING SIGN-OFF | test | 2026-09-01 |
+| REQ-104 | #500   | HIGH | compliance/evidence/REQ-104/ | TESTED - PENDING SIGN-OFF | test | 2026-09-01 |
+| REQ-105 | #501   | LOW  | compliance/evidence/REQ-105/ | TESTED - PENDING SIGN-OFF | test | 2026-09-01 |
+| REQ-106 | #502   | LOW  | compliance/evidence/REQ-106/ | TESTED - PENDING SIGN-OFF | test | 2026-09-01 |
+EOF
+  for r in REQ-103 REQ-104 REQ-105 REQ-106; do
+    cat > "compliance/pending-releases/RELEASE-TICKET-${r}.md" <<EOF
+# Release Ticket: ${r}
+
+**Status:** TESTED - PENDING SIGN-OFF
+**DevAudit Release:** ${r}
+EOF
+  done
+  cat > compliance/pending-releases/BUNDLED-CHANGES-REQ-104.md <<'EOF'
+## Bundled Changes
+
+### Co-Tracked Bundle Members
+
+- `REQ-105` (co-tracked/bundled) — Second bundled REQ
+- `REQ-106` (co-tracked/bundled) — Third bundled REQ
+EOF
+  cat > compliance/pending-releases/BUNDLED-CHANGES-REQ-104.json <<'EOF'
+{
+  "schemaVersion": 2,
+  "approvalRelease": { "version": "REQ-104" },
+  "coreRelease": { "version": "REQ-104" },
+  "members": [
+    { "version": "REQ-103", "role": "predecessor", "relationship": "superseded", "reason": "Earlier unreleased REQ absorbed here." },
+    { "version": "REQ-105", "role": "co_tracked", "relationship": "bundled" },
+    { "version": "REQ-106", "role": "co_tracked", "relationship": "bundled" }
+  ],
+  "nonReleaseWorkItems": []
+}
+EOF
+  git add -A
+  git commit -q -m "fixture: declared bundle with co_tracked members and a predecessor"
+  unset DEVAUDIT_API_KEY DEVAUDIT_BASE_URL || true
+  bash "$HELPER" REQ-104 --release-pr 77 >/dev/null 2>&1 || true
+
+  for m in REQ-105 REQ-106; do
+    [ -f "compliance/approved-releases/RELEASE-TICKET-${m}.md" ] \
+      && assert_eq "bundle member ${m} ticket moved to approved-releases" "yes" "yes" \
+      || assert_eq "bundle member ${m} ticket moved to approved-releases" "yes" "no"
+    [ ! -f "compliance/pending-releases/RELEASE-TICKET-${m}.md" ] \
+      && assert_eq "bundle member ${m} ticket left pending-releases" "yes" "yes" \
+      || assert_eq "bundle member ${m} ticket left pending-releases" "yes" "no"
+    assert_eq "bundle member ${m} ticket Status is RELEASED" "**Status:** RELEASED" \
+      "$(grep -m1 '^\*\*Status:\*\*' "compliance/approved-releases/RELEASE-TICKET-${m}.md" || true)"
+    if grep -qF '**Released with bundle:** REQ-104 (closed out ' "compliance/approved-releases/RELEASE-TICKET-${m}.md"; then
+      assert_eq "bundle member ${m} ticket backlinks the core" "yes" "yes"
+    else
+      assert_eq "bundle member ${m} ticket backlinks the core" "yes" "no"
+    fi
+    assert_eq "bundle member ${m} ticket records the release PR" "**Release PR:** #77" \
+      "$(grep -m1 '^\*\*Release PR:\*\*' "compliance/approved-releases/RELEASE-TICKET-${m}.md" || true)"
+    row=$(grep -m1 -E "^\| ${m} " compliance/RTM.md || true)
+    col5=$(echo "$row" | awk -F '|' '{gsub(/^[[:space:]]+|[[:space:]]+$/,"",$6); print $6}')
+    assert_eq "bundle member ${m} RTM row -> RELEASED" "RELEASED" "$col5"
+  done
+
+  [ -f compliance/superseded-releases/RELEASE-TICKET-REQ-103.md ] \
+    && assert_eq "predecessor REQ-103 still goes to superseded-releases" "yes" "yes" \
+    || assert_eq "predecessor REQ-103 still goes to superseded-releases" "yes" "no"
+  row=$(grep -m1 -E "^\| REQ-103 " compliance/RTM.md || true)
+  col5=$(echo "$row" | awk -F '|' '{gsub(/^[[:space:]]+|[[:space:]]+$/,"",$6); print $6}')
+  assert_eq "predecessor REQ-103 RTM row -> SUPERSEDED" "SUPERSEDED" "$col5"
+
+  # Idempotent: a second close-out run does not duplicate the backlink.
+  bash "$HELPER" REQ-104 --release-pr 77 >/dev/null 2>&1 || true
+  assert_eq "member backlink is not duplicated on re-run" "1" \
+    "$(grep -c '^\*\*Released with bundle:\*\*' compliance/approved-releases/RELEASE-TICKET-REQ-105.md)"
+  rm -rf "$(dirname "$dir")"
+}
+
 echo
 echo "Result: $PASS passed, $FAIL failed"
 [ "$FAIL" = "0" ]

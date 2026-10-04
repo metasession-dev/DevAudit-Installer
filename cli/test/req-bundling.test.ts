@@ -99,12 +99,11 @@ describe('ci.yml.template — preserves declared co-tracked bundle members (#817
     expect(template).toContain('"${DECLARED_BUNDLE_ARGS[@]}" > "$BUNDLED_FILE"');
   });
 
-  it('submits co_tracked members to the portal now that devaudit#857 has shipped (#817)', () => {
-    // devaudit#857 shipped 2026-09-25 and added role="co_tracked" to the
-    // portal's accepted vocabulary, gating UAT approval atomically across
-    // every co_tracked member. The earlier filtered-submission workaround
-    // (dropping co_tracked members from the payload to avoid an HTTP 400)
-    // is no longer needed and must not regress back in.
+  it('hands the full committed manifest to submit-bundle-manifest.sh, which owns the co_tracked filter (#955)', () => {
+    // devaudit-installer#817 lifted an earlier filter in this template; #955
+    // moved the (different, deliberate) filtering into submit-bundle-manifest.sh
+    // so EVERY caller gets it and the manifestHash is recomputed in one place.
+    // The template must therefore not filter on its own.
     expect(template).not.toContain('.members |= map(select(.role != "co-tracked"))');
     expect(template).not.toContain('.members |= map(select(.role != "co_tracked"))');
     expect(template).not.toContain('SUBMIT_MANIFEST');
@@ -134,5 +133,51 @@ describe('derive-release-version.sh — declared-bundle manifest priority tier (
   it('requires exactly one declared-bundle file, else falls through unchanged', () => {
     expect(script).toContain('DECLARED_BUNDLE_FILES[@]');
     expect(script).toContain('-eq 1');
+  });
+});
+
+describe('declared bundle = one portal release (#955)', () => {
+  const read = (rel: string) =>
+    readFileSync(resolve(root, rel), 'utf8').replace(/\r\n/g, '\n');
+  const ciTemplate = read('sdlc/files/ci/ci.yml.template');
+  const uploadDocs = readCommon('scripts/upload-compliance-documents.sh');
+  const submit = readCommon('scripts/submit-bundle-manifest.sh');
+  const closeOut = readCommon('scripts/close-out-release.sh');
+  const resolver = readCommon('scripts/resolve-bundle-release.sh');
+
+  it('ships the resolver and keys it on co_tracked membership of a live declared bundle', () => {
+    expect(resolver).toContain('any(.role == "co_tracked" and .version == $req)');
+    expect(resolver).toContain('compliance/approved-releases/RELEASE-TICKET-${core}.md');
+    expect(resolver).toContain('compliance/superseded-releases/RELEASE-TICKET-${core}.md');
+    expect(resolver).toContain('exit 3');
+  });
+
+  it('files every per-REQ upload in ci.yml.template against the resolved release, never the member', () => {
+    expect(ciTemplate).toContain('MEMBER_RELEASE=$(bash scripts/resolve-bundle-release.sh "$MEMBER_REQ")');
+    expect(ciTemplate).toContain('FANOUT_RELEASE=$(bash scripts/resolve-bundle-release.sh "$REQ_ID")');
+    expect(ciTemplate).toContain('REQ_RELEASE=$(bash scripts/resolve-bundle-release.sh "$REQ")');
+    expect(ciTemplate).toContain('--category screenshot ${FLAGS} --release "$REQ_RELEASE"');
+    expect(ciTemplate).not.toContain('--release ${MEMBER_REQ} --create-release-if-missing');
+    expect(ciTemplate).not.toContain('--release ${REQ_ID} --create-release-if-missing');
+    expect(ciTemplate).not.toContain('--category screenshot ${FLAGS} --release "$REQ" ');
+  });
+
+  it('files compliance documents against the resolved release and skips rather than mis-files on a conflict', () => {
+    expect(uploadDocs).toContain('bash scripts/resolve-bundle-release.sh "$TICKET_REQ"');
+    expect(uploadDocs).toContain('bash scripts/resolve-bundle-release.sh "$REQ_ID"');
+    expect(uploadDocs).toContain('--release \\"${REQ_RELEASE}\\"');
+    expect(uploadDocs).not.toContain('--release \\"${REQ_ID}\\"');
+  });
+
+  it('does not submit co_tracked members to the portal and recomputes manifestHash for the stripped payload', () => {
+    expect(submit).toContain('map(select(.role != "co_tracked"))');
+    expect(submit).toContain("jq -cS 'del(.generator.generatedAt)'");
+    expect(submit).toContain('sha256sum');
+  });
+
+  it('closes declared-bundle members out with the core', () => {
+    expect(closeOut).toContain('mark_ticket_released_with_bundle');
+    expect(closeOut).toContain('select((.role // "") == "co_tracked")');
+    expect(closeOut).toContain('update_rtm_status "$version" "RELEASED"');
   });
 });

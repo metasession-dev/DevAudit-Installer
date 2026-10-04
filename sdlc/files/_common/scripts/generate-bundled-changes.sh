@@ -31,10 +31,15 @@ while [ "$#" -gt 0 ]; do
     # devaudit-installer#736 — a comma-separated list of REQ-XXX declared
     # co-primary at Phase 1 planning time by sdlc-implementer's bundle
     # eligibility check, as opposed to the predecessor/housekeeping
-    # absorption modelled by the rest of this script. Additive: does not
-    # touch the ambiguity-guard logic above, since these REQs are declared
+    # absorption modelled by the rest of this script. These REQs are declared
     # directly here, not extracted from a ticket's "Absorbed predecessor
-    # releases" field.
+    # releases" field, so they are excluded from the unlisted-predecessor
+    # candidate list below (they have release tickets of their own, one per
+    # REQ, which would otherwise read as unlisted predecessors —
+    # devaudit-installer#952/#953). They are a LOCAL declaration: the manifest
+    # keeps them for derive-release-version.sh and CI regeneration, but
+    # submit-bundle-manifest.sh does not send them to the portal, because a
+    # declared bundle is one portal release (devaudit-installer#955).
     --declared-bundle) DECLARED_BUNDLE="$2"; shift 2 ;;
     *) echo "Unknown argument: $1" >&2; exit 2 ;;
   esac
@@ -300,12 +305,12 @@ done
 # predecessor-absorption members above.
 #
 # devaudit-installer#817 — the `role` value is "co_tracked" (underscore),
-# matching the portal's validation (metasession-dev/devaudit
+# matching the portal's own vocabulary (metasession-dev/devaudit
 # lib/api/release-lineage-contract.ts MEMBER_ROLES, which the portal does
 # not normalise). An earlier version of this script emitted "co-tracked"
-# (hyphen), which the portal hard-rejects with HTTP 400 the moment it's
-# submitted unfiltered — keep this exact spelling if the filter in
-# ci.yml.template is ever touched again.
+# (hyphen). Keep this exact spelling: resolve-bundle-release.sh,
+# submit-bundle-manifest.sh, close-out-release.sh and the CI templates all
+# select on role == "co_tracked" (devaudit-installer#955).
 CO_TRACKED_LINES=()
 if [ -n "$DECLARED_BUNDLE" ]; then
   declare -A CO_TRACKED_SET=()
