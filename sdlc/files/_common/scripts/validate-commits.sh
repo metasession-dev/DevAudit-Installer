@@ -54,6 +54,29 @@ if [ -z "$ACTIVE_RELEASE_REQS" ] && [ -f compliance/RTM.md ]; then
     | grep -oE '^\|[[:space:]]*REQ-[0-9]+' \
     | grep -oE 'REQ-[0-9]+' | sort -u || true)
 fi
+# A declared bundle (`Bundles: #A, #B`, devaudit-installer#736) is ONE release
+# keyed by its core REQ; its members (co_tracked, predecessor, housekeeping)
+# keep their own tickets but are not separate releases. Collapse each live
+# bundle's members into the core so the single-active-release test below sees
+# one release, not N (devaudit-installer#966). A manifest whose core ticket is
+# not pending is stale and ignored.
+if [ -n "$ACTIVE_RELEASE_REQS" ] && [ -d compliance/pending-releases ]; then
+  for manifest_md in compliance/pending-releases/BUNDLED-CHANGES-REQ-*.md; do
+    [ -f "$manifest_md" ] || continue
+    core="$(basename "$manifest_md" .md)"
+    core="${core#BUNDLED-CHANGES-}"
+    printf '%s\n' "$ACTIVE_RELEASE_REQS" | grep -qx "$core" || continue
+    manifest_json="${manifest_md%.md}.json"
+    if [ -f "$manifest_json" ] && command -v jq >/dev/null 2>&1; then
+      members=$(jq -r '(.members // [])[] | .version // empty' "$manifest_json" 2>/dev/null || true)
+    else
+      members=$(grep -oE '`REQ-[0-9]+`' "$manifest_md" 2>/dev/null | tr -d '`' || true)
+    fi
+    [ -n "$members" ] || continue
+    ACTIVE_RELEASE_REQS=$(printf '%s\n' "$ACTIVE_RELEASE_REQS" \
+      | grep -vxF -f <(printf '%s\n' "$members" | grep -vxF "$core") || true)
+  done
+fi
 ACTIVE_RELEASE_REQ_COUNT=0
 if [ -n "$ACTIVE_RELEASE_REQS" ]; then
   ACTIVE_RELEASE_REQ_COUNT=$(printf '%s\n' "$ACTIVE_RELEASE_REQS" | grep -c . || true)
@@ -69,6 +92,27 @@ while IFS= read -r sha; do
   if ! echo "$SUBJECT" | grep -qE "$CC_REGEX"; then
     # Allow merge commits
     if echo "$SUBJECT" | grep -q '^Merge '; then
+      continue
+    fi
+    # Declared legacy exemption (devaudit-installer#966): history that predates
+    # the convention and cannot be rewritten may be listed in sdlc-config.json
+    # under commit_validation.legacy_non_conventional as
+    # {"sha": "<7+ hex chars>", "reason": "<why>"}. A reason is required, the
+    # exemption is printed on every run, and it covers ONLY this format check
+    # (requirement traceability still applies). Never a silent skip.
+    LEGACY_REASON=""
+    if [ -f sdlc-config.json ] && command -v jq >/dev/null 2>&1; then
+      LEGACY_REASON=$(jq -r --arg sha "$sha" '
+        (.commit_validation.legacy_non_conventional // [])[]
+        | . as $e
+        | select(($e.sha // "") | length >= 7)
+        | select(($sha | startswith($e.sha)) and (($e.reason // "") | length > 0))
+        | $e.reason' sdlc-config.json 2>/dev/null | head -1 || true)
+    fi
+    if [ -n "$LEGACY_REASON" ]; then
+      echo "EXEMPT [$SHORT]: Not Conventional Commits format (declared legacy history in sdlc-config.json): \"$SUBJECT\""
+      echo "       Reason: $LEGACY_REASON"
+      WARN_COUNT=$((WARN_COUNT + 1))
       continue
     fi
     echo "ERROR [$SHORT]: Not Conventional Commits format: \"$SUBJECT\""

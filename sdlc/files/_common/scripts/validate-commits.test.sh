@@ -204,6 +204,84 @@ assert_exit "style: commit exits 0" 0
 assert_grep "no conventional-commit error for style:" "Not Conventional Commits format" 0
 assert_grep "no missing-requirement error for style:" "implementation commit but cites no requirement" 0
 
+# Case 10: a declared bundle (core + co_tracked members + predecessor) is ONE
+# active release, so the single-release downgrade applies — devaudit-installer#966.
+write_bundle() {
+  local core="$1"; shift
+  mkdir -p compliance/pending-releases
+  local members=""
+  for m in "$@"; do
+    printf '# Release Ticket: %s\n' "$m" > "compliance/pending-releases/RELEASE-TICKET-${m}.md"
+    role="co_tracked"; [ "$m" = "REQ-034" ] && role="predecessor"
+    members="${members}{\"version\":\"${m}\",\"role\":\"${role}\"},"
+  done
+  printf '# Release Ticket: %s\n' "$core" > "compliance/pending-releases/RELEASE-TICKET-${core}.md"
+  printf '{"members":[%s{"version":"%s","role":"core"}]}\n' "$members" "$core" \
+    > "compliance/pending-releases/BUNDLED-CHANGES-${core}.json"
+  printf '# Bundled changes %s\n' "$core" > "compliance/pending-releases/BUNDLED-CHANGES-${core}.md"
+  git add compliance/pending-releases
+  git commit -q --amend --no-edit
+}
+
+echo "Case 10: declared bundle counts as one active release"
+make_fixture "$WORKDIR/case10" "feat: untraced history" "Co-Authored-By: Test <test@example.com>"
+write_bundle REQ-035 REQ-034 REQ-036 REQ-037 REQ-038
+run_validator
+assert_exit "declared bundle exits 0" 0
+assert_grep "warning names the bundle core as the one active release" 'WARNING .*one active tracked release \(REQ-035\)' 1
+assert_grep "no hard error under a declared bundle" "ERROR .*implementation commit but cites no requirement" 0
+
+# Case 11: a bundle plus an unrelated pending release is still two releases.
+echo "Case 11: bundle plus an independent release stays ambiguous"
+make_fixture "$WORKDIR/case11" "feat: untraced history" "Co-Authored-By: Test <test@example.com>"
+write_bundle REQ-035 REQ-034 REQ-036
+printf '# Release Ticket: REQ-040\n' > compliance/pending-releases/RELEASE-TICKET-REQ-040.md
+git add compliance/pending-releases
+git commit -q --amend --no-edit
+run_validator
+assert_exit "bundle + independent release exits 1" 1
+assert_grep "hard error when two releases are active" "ERROR .*implementation commit but cites no requirement" 1
+
+# Case 12: a manifest whose core ticket is not pending is stale and must not
+# collapse anything.
+echo "Case 12: stale manifest (core ticket not pending) does not collapse tickets"
+make_fixture "$WORKDIR/case12" "feat: untraced history" "Co-Authored-By: Test <test@example.com>"
+write_bundle REQ-035 REQ-036 REQ-037
+rm compliance/pending-releases/RELEASE-TICKET-REQ-035.md
+git add -A compliance/pending-releases
+git commit -q --amend --no-edit
+run_validator
+assert_exit "stale manifest leaves two tickets ambiguous" 1
+
+# Case 13: a declared legacy exemption covers the format check only, needs a
+# reason, and is printed — devaudit-installer#966.
+echo "Case 13: declared legacy non-conventional commit is exempt, visibly"
+make_fixture "$WORKDIR/case13" "Strip scaffolding for re-onboarding" "Co-Authored-By: Test <test@example.com>"
+SHA13=$(git rev-parse HEAD)
+printf '{"commit_validation":{"legacy_non_conventional":[{"sha":"%s","reason":"pre-convention history"}]}}\n' "${SHA13:0:10}" > sdlc-config.json
+run_validator
+assert_exit "declared legacy commit exits 0" 0
+assert_grep "exemption is printed, not silent" "EXEMPT .*declared legacy history" 1
+assert_grep "reason is printed" "Reason: pre-convention history" 1
+assert_grep "no format error for the exempt commit" "Not Conventional Commits format: " 0
+
+echo "Case 14: exemption without a reason, or a short sha, does not exempt"
+make_fixture "$WORKDIR/case14" "Strip scaffolding for re-onboarding" "Co-Authored-By: Test <test@example.com>"
+SHA14=$(git rev-parse HEAD)
+printf '{"commit_validation":{"legacy_non_conventional":[{"sha":"%s"}]}}\n' "${SHA14:0:10}" > sdlc-config.json
+run_validator
+assert_exit "no reason -> still an error" 1
+printf '{"commit_validation":{"legacy_non_conventional":[{"sha":"%s","reason":"x"}]}}\n' "${SHA14:0:4}" > sdlc-config.json
+run_validator
+assert_exit "sha shorter than 7 chars -> still an error" 1
+
+echo "Case 15: exempt format does not waive requirement traceability"
+make_fixture "$WORKDIR/case15" "feat: untraced and unrelated" "Co-Authored-By: Test <test@example.com>"
+SHA15=$(git rev-parse HEAD)
+printf '{"commit_validation":{"legacy_non_conventional":[{"sha":"%s","reason":"legacy"}]}}\n' "${SHA15:0:10}" > sdlc-config.json
+run_validator
+assert_exit "conventional commit missing REQ is unaffected by the exemption" 1
+
 echo
 echo "Result: $PASS passed, $FAIL failed"
 [ "$FAIL" = "0" ]
