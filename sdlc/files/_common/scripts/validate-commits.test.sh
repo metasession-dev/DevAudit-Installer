@@ -253,6 +253,35 @@ git commit -q --amend --no-edit
 run_validator
 assert_exit "stale manifest leaves two tickets ambiguous" 1
 
+# Case 13: a declared legacy exemption covers the format check only, needs a
+# reason, and is printed — devaudit-installer#966.
+echo "Case 13: declared legacy non-conventional commit is exempt, visibly"
+make_fixture "$WORKDIR/case13" "Strip scaffolding for re-onboarding" "Co-Authored-By: Test <test@example.com>"
+SHA13=$(git rev-parse HEAD)
+printf '{"commit_validation":{"legacy_non_conventional":[{"sha":"%s","reason":"pre-convention history"}]}}\n' "${SHA13:0:10}" > sdlc-config.json
+run_validator
+assert_exit "declared legacy commit exits 0" 0
+assert_grep "exemption is printed, not silent" "EXEMPT .*declared legacy history" 1
+assert_grep "reason is printed" "Reason: pre-convention history" 1
+assert_grep "no format error for the exempt commit" "Not Conventional Commits format: " 0
+
+echo "Case 14: exemption without a reason, or a short sha, does not exempt"
+make_fixture "$WORKDIR/case14" "Strip scaffolding for re-onboarding" "Co-Authored-By: Test <test@example.com>"
+SHA14=$(git rev-parse HEAD)
+printf '{"commit_validation":{"legacy_non_conventional":[{"sha":"%s"}]}}\n' "${SHA14:0:10}" > sdlc-config.json
+run_validator
+assert_exit "no reason -> still an error" 1
+printf '{"commit_validation":{"legacy_non_conventional":[{"sha":"%s","reason":"x"}]}}\n' "${SHA14:0:4}" > sdlc-config.json
+run_validator
+assert_exit "sha shorter than 7 chars -> still an error" 1
+
+echo "Case 15: exempt format does not waive requirement traceability"
+make_fixture "$WORKDIR/case15" "feat: untraced and unrelated" "Co-Authored-By: Test <test@example.com>"
+SHA15=$(git rev-parse HEAD)
+printf '{"commit_validation":{"legacy_non_conventional":[{"sha":"%s","reason":"legacy"}]}}\n' "${SHA15:0:10}" > sdlc-config.json
+run_validator
+assert_exit "conventional commit missing REQ is unaffected by the exemption" 1
+
 echo
 echo "Result: $PASS passed, $FAIL failed"
 [ "$FAIL" = "0" ]

@@ -94,6 +94,11 @@
     "auto_low_risk_threshold": "LOW"
   },
 
+  "_comment_commit_validation": "validate-commits.sh declared exemptions (devaudit-installer#966). legacy_non_conventional lists commits that predate the Conventional Commits rule and cannot be rewritten: [{\"sha\": \"<7+ hex chars>\", \"reason\": \"<why>\"}]. Each entry needs a reason, is printed as EXEMPT on every run, and exempts only the format check (requirement traceability still applies). Empty by default.",
+  "commit_validation": {
+    "legacy_non_conventional": []
+  },
+
   "_comment_production_review": "Post-deploy production review gate (Stage 5). terminal_status='prod_review' (default, Option A) means post-deploy-prod.yml stops at prod_review; a human in the portal clicks 'Approve Production' (→ prod_approved) then 'Mark as Released' (→ released) for an explicit two-event audit trail. terminal_status='released' (Option B) preserves the v1.21.x auto-release behaviour — workflow PATCHes straight to released with no human click. Closes #138.",
   "production_review": {
     "enabled": true,
