@@ -204,6 +204,55 @@ assert_exit "style: commit exits 0" 0
 assert_grep "no conventional-commit error for style:" "Not Conventional Commits format" 0
 assert_grep "no missing-requirement error for style:" "implementation commit but cites no requirement" 0
 
+# Case 10: a declared bundle (core + co_tracked members + predecessor) is ONE
+# active release, so the single-release downgrade applies — devaudit-installer#966.
+write_bundle() {
+  local core="$1"; shift
+  mkdir -p compliance/pending-releases
+  local members=""
+  for m in "$@"; do
+    printf '# Release Ticket: %s\n' "$m" > "compliance/pending-releases/RELEASE-TICKET-${m}.md"
+    role="co_tracked"; [ "$m" = "REQ-034" ] && role="predecessor"
+    members="${members}{\"version\":\"${m}\",\"role\":\"${role}\"},"
+  done
+  printf '# Release Ticket: %s\n' "$core" > "compliance/pending-releases/RELEASE-TICKET-${core}.md"
+  printf '{"members":[%s{"version":"%s","role":"core"}]}\n' "$members" "$core" \
+    > "compliance/pending-releases/BUNDLED-CHANGES-${core}.json"
+  printf '# Bundled changes %s\n' "$core" > "compliance/pending-releases/BUNDLED-CHANGES-${core}.md"
+  git add compliance/pending-releases
+  git commit -q --amend --no-edit
+}
+
+echo "Case 10: declared bundle counts as one active release"
+make_fixture "$WORKDIR/case10" "feat: untraced history" "Co-Authored-By: Test <test@example.com>"
+write_bundle REQ-035 REQ-034 REQ-036 REQ-037 REQ-038
+run_validator
+assert_exit "declared bundle exits 0" 0
+assert_grep "warning names the bundle core as the one active release" 'WARNING .*one active tracked release \(REQ-035\)' 1
+assert_grep "no hard error under a declared bundle" "ERROR .*implementation commit but cites no requirement" 0
+
+# Case 11: a bundle plus an unrelated pending release is still two releases.
+echo "Case 11: bundle plus an independent release stays ambiguous"
+make_fixture "$WORKDIR/case11" "feat: untraced history" "Co-Authored-By: Test <test@example.com>"
+write_bundle REQ-035 REQ-034 REQ-036
+printf '# Release Ticket: REQ-040\n' > compliance/pending-releases/RELEASE-TICKET-REQ-040.md
+git add compliance/pending-releases
+git commit -q --amend --no-edit
+run_validator
+assert_exit "bundle + independent release exits 1" 1
+assert_grep "hard error when two releases are active" "ERROR .*implementation commit but cites no requirement" 1
+
+# Case 12: a manifest whose core ticket is not pending is stale and must not
+# collapse anything.
+echo "Case 12: stale manifest (core ticket not pending) does not collapse tickets"
+make_fixture "$WORKDIR/case12" "feat: untraced history" "Co-Authored-By: Test <test@example.com>"
+write_bundle REQ-035 REQ-036 REQ-037
+rm compliance/pending-releases/RELEASE-TICKET-REQ-035.md
+git add -A compliance/pending-releases
+git commit -q --amend --no-edit
+run_validator
+assert_exit "stale manifest leaves two tickets ambiguous" 1
+
 echo
 echo "Result: $PASS passed, $FAIL failed"
 [ "$FAIL" = "0" ]
