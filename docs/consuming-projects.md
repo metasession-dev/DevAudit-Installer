@@ -583,6 +583,10 @@ After making changes to the SDLC framework in DevAudit:
   - [ ] Verify the chore PR's `Compliance Validation` + `Quality Gates` checks pass before merging.
 - [ ] Confirm the fleet is current: `devaudit doctor --fleet` (from any onboarded consumer's checkout).
 
+## Release-PR Quality Gates provenance
+
+`quality-gates-provenance.yml` runs on PRs to the release branch. For a release PR (`develop → main`) it does not accept just any `Quality Gates` success on the head SHA: it finds the latest commit in `origin/<release>..<head>` that touches a path outside `paths_ignore` and requires a real `ci.yml` `Quality Gates` success on that commit. The docs-only `CI Status Fallback` status (which `ci.yml` leaves in place on compliance/doc commits) does not count for code beneath it. If the code commit never got a real `ci.yml` run — for example the self-hosted runner was offline — the release PR stays red; rerun CI on the commit named in the error, or push it through the develop flow. Entirely docs-only ranges still pass on the fallback. Hotfix PRs are unchanged (they dispatch `ci.yml` directly). See REQ-FRAMEWORK-CIYML-023 in `docs/SRS.md`.
+
 ## See also
 
 - [docs/onboarding.md](onboarding.md) — full onboarding walkthrough.

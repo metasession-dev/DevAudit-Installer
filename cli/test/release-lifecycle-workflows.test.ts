@@ -37,6 +37,26 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     expect(verifier).toContain('Public npm verification timed out');
   });
 
+  it('provenance requires a real ci.yml Quality Gates success on the latest code-bearing commit (#971)', () => {
+    const source = template('quality-gates-provenance.yml.template');
+    const helper = commonScript('provenance-gated-commit.sh');
+    expect(source).toContain('bash scripts/provenance-gated-commit.sh gated-commit');
+    expect(source).toContain('"$VERIFY" "$GATED_SHA" "$CURRENT_RUN_ID"');
+    expect(source).toContain('VERIFY=real-ci-success');
+    expect(source).toContain('CI_WORKFLOW_PATH: .github/workflows/ci.yml');
+    expect(source).toContain('{{PATHS_IGNORE_LIST}}');
+    expect(source).toContain('fetch-depth: 0');
+    expect(source).toContain('does not count for code beneath it');
+    expect(source).toContain('MAX_ATTEMPTS=10');
+    // Hotfix dispatch path is unchanged.
+    expect(source).toContain('gh workflow run ci.yml --ref "$HEAD_REF"');
+    // The helper resolves each check-run's workflow run and compares .path.
+    expect(helper).toContain("--jq '.path'");
+    expect(helper).toContain('/actions/runs/${run_id}');
+    expect(helper).toContain('"${run_path%%@*}" = "$CI_WORKFLOW_PATH"');
+    expect(helper).toContain('.conclusion == \\"success\\"');
+  });
+
   it('reports a tracked close-out only after its reconciliation PR merges', () => {
     const source = template('close-out-completion.yml.template');
     expect(source).toContain("types: [closed]");
