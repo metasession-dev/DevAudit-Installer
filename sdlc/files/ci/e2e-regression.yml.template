@@ -43,8 +43,7 @@ on:
     types: [created]
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+{{E2E_REGRESSION_CONCURRENCY}}
 
 permissions:
   contents: read

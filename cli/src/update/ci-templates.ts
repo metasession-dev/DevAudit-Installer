@@ -117,6 +117,12 @@ interface SdlcConfig {
   // devaudit-installer#928 hook script) runs, so a script cannot raise it
   // at runtime.
   readonly e2e_regression_timeout_minutes?: number;
+  // devaudit-installer#969 — fixed concurrency group for e2e-regression.yml,
+  // for projects whose critical/regression specs mutate a SHARED backend.
+  // Empty/absent = the original per-ref group with PR-only cancellation.
+  readonly e2e_concurrency_group?: string;
+  // Only meaningful with e2e_concurrency_group; defaults to false there.
+  readonly e2e_concurrency_cancel_in_progress?: boolean;
   readonly paths_ignore?: readonly string[];
   /** See #689/#690 — when present, sync runs once per target instead of once for the flat config. */
   readonly targets?: readonly Target[];
@@ -363,6 +369,30 @@ function buildE2eRegressionServerStep(cfg: SdlcConfig): string {
  */
 function buildE2eRegressionJobEnv(cfg: SdlcConfig): string {
   return renderEnvHeaderBlock(mergeEnvSources(cfg.database_env, cfg.app_env, cfg.e2e_env));
+}
+
+/**
+ * Build e2e-regression.yml's `concurrency:` body (devaudit-installer#969).
+ * Default (no `e2e_concurrency_group`) is the original per-workflow-and-ref
+ * group, cancelling only on pull_request — byte-for-byte unchanged. When a
+ * fixed group is configured, every trigger (PR, dispatch, post-deploy)
+ * shares it and `cancel-in-progress` defaults to false so a run is never
+ * killed mid-mutation of shared data. Note GitHub keeps one running and one
+ * pending run per group: a newer queued run replaces an older queued one.
+ */
+function buildE2eRegressionConcurrency(cfg: SdlcConfig): string {
+  const group = (cfg.e2e_concurrency_group ?? '').trim();
+  if (!group) {
+    return [
+      '  group: ${{ github.workflow }}-${{ github.ref }}',
+      "  cancel-in-progress: ${{ github.event_name == 'pull_request' }}",
+    ].join('\n');
+  }
+  const plain = /^[A-Za-z0-9_.\/-]+$/.test(group);
+  return [
+    `  group: ${plain ? group : JSON.stringify(group)}`,
+    `  cancel-in-progress: ${cfg.e2e_concurrency_cancel_in_progress === true ? 'true' : 'false'}`,
+  ].join('\n');
 }
 
 /**
@@ -846,6 +876,7 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
       E2E_FEATURE_TEST_STEP: buildFeatureE2eTestStep(cfg),
       E2E_AUTHENTICATED_STEP: buildAuthenticatedE2eStep(cfg),
       E2E_REGRESSION_JOB_ENV: buildE2eRegressionJobEnv(cfg),
+      E2E_REGRESSION_CONCURRENCY: buildE2eRegressionConcurrency(cfg),
       E2E_REGRESSION_SERVER_STEP: buildE2eRegressionServerStep(cfg),
     };
 
