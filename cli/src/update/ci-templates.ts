@@ -495,6 +495,56 @@ function buildTypeCheckRun(scoped: boolean, sourceDirs: string): string {
   ].join('\n');
 }
 
+/**
+ * Default container-side port per service, used to turn a bare
+ * `database_port` (the port tests connect to on localhost) into a
+ * `host:container` mapping. A bare `ports: - <n>` entry in a GitHub Actions
+ * service container means container port `<n>` on a RANDOM host port
+ * (devaudit-installer#963). mongodb is deliberately absent: its
+ * `DATABASE_URI_STEP` resolves the random host port from the container port,
+ * so its output is unchanged.
+ */
+const DATABASE_DEFAULT_CONTAINER_PORT: Readonly<Record<string, string>> = {
+  postgres: '5432',
+};
+
+function resolveDatabasePort(dbService: string, dbPort: string): string {
+  if (!dbPort) return dbPort;
+  const port = dbPort.trim();
+  const containerDefault = DATABASE_DEFAULT_CONTAINER_PORT[dbService];
+  if (!containerDefault || !port || port.includes(':')) return dbPort;
+  return `${port}:${containerDefault}`;
+}
+
+/**
+ * `database_env` inside the service container (devaudit-installer#963): the
+ * official postgres image reads POSTGRES_PASSWORD from its OWN environment,
+ * and a job-level `env:` block never reaches a service container. The
+ * job-level copy is kept too (steps often need the same credentials).
+ * Not emitted for mongodb (pre-existing output preserved) or an empty env.
+ */
+function buildDatabaseServiceEnv(cfg: SdlcConfig): string {
+  if (!cfg.database_service || cfg.database_service === 'mongodb') return '';
+  const env = cfg.database_env ?? {};
+  if (Object.keys(env).length === 0) return '';
+  return `        env:\n${indentEnvBlock({ ...env }, 10)}`;
+}
+
+/**
+ * Without a healthcheck GitHub starts steps as soon as the container exists,
+ * not when it accepts connections (devaudit-installer#963).
+ */
+function buildDatabaseServiceOptions(dbService: string): string {
+  if (dbService !== 'postgres') return '';
+  return [
+    '        options: >-',
+    '          --health-cmd pg_isready',
+    '          --health-interval 10s',
+    '          --health-timeout 5s',
+    '          --health-retries 5',
+  ].join('\n');
+}
+
 function buildDbUriStep(dbService: string, dbPort: string): string {
   if (dbService !== 'mongodb') return '';
   return [
@@ -751,7 +801,7 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
       ACCEPTED_DEP_RISKS: cfg.accepted_dep_risks,
       DATABASE_SERVICE: cfg.database_service,
       DATABASE_IMAGE: cfg.database_image,
-      DATABASE_PORT: cfg.database_port,
+      DATABASE_PORT: resolveDatabasePort(cfg.database_service, cfg.database_port),
       E2E_PROJECT: cfg.e2e_project,
       E2E_START_COMMAND: cfg.e2e_start_command,
       E2E_REGRESSION_TIMEOUT_MINUTES: String(cfg.e2e_regression_timeout_minutes ?? 55),
@@ -815,6 +865,10 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
         cfg.typescript_check_env && Object.keys(cfg.typescript_check_env).length > 0
           ? `        env:\n${indentEnvBlock({ ...cfg.typescript_check_env }, 10)}`
           : '',
+      // devaudit-installer#963 — container-side config. Empty (line dropped)
+      // for mongodb, which keeps its pre-#963 output byte-for-byte.
+      DATABASE_SERVICE_ENV: buildDatabaseServiceEnv(cfg),
+      DATABASE_SERVICE_OPTIONS: buildDatabaseServiceOptions(cfg.database_service),
       DATABASE_URI_STEP: buildDbUriStep(cfg.database_service, cfg.database_port),
       E2E_SETUP_STEP: buildE2eSetupStep(cfg),
       E2E_DEV_SERVER_STEP: buildE2eDevServerStep(cfg),
