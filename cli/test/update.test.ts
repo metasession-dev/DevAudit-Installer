@@ -324,7 +324,11 @@ describe('syncProject — native TS sync against a fixture', () => {
     expect(provenanceYml).toContain('gh workflow run ci.yml --ref "$HEAD_REF"');
     expect(provenanceYml).toContain('gh run watch "$RUN_ID" --exit-status');
     expect(provenanceYml).toContain('MAX_ATTEMPTS=10');
-    expect(provenanceYml).toContain('Develop-side Quality Gates for SHA ${HEAD_SHA} not successful yet');
+    expect(provenanceYml).toContain('Develop-side Quality Gates for SHA ${GATED_SHA} not successful yet');
+    // #971 — gated-commit walk, ci.yml-only provenance, paths_ignore reuse.
+    expect(provenanceYml).toContain('scripts/provenance-gated-commit.sh gated-commit');
+    expect(provenanceYml).toContain('PATHS_IGNORE: |');
+    expect(provenanceYml).not.toContain('{{PATHS_IGNORE_LIST}}');
     const postDeployYml = await fs.readFile(
       join(fixtureDir, '.github', 'workflows', 'post-deploy-prod.yml'),
       'utf-8',

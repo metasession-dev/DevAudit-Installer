@@ -16,6 +16,17 @@
 #   - hotfix PR (`hotfix/* -> {{RELEASE_BRANCH}}`): dispatch the real ci.yml gates on
 #     the hotfix branch and proxy that result back onto the PR
 #
+#   Release-PR provenance (devaudit-installer#971): the check is NOT "any
+#   Quality Gates success on the head SHA". It finds the latest commit in
+#   origin/{{RELEASE_BRANCH}}..head that touches a non-`paths-ignore` path (the same
+#   patterns ci.yml skips on; scripts/provenance-gated-commit.sh) and requires a
+#   completed+successful `Quality Gates` check-run on THAT commit produced by
+#   ci.yml. A success from ci-status-fallback.yml (docs-only) or from this
+#   workflow never counts for code beneath it. If every commit in the range is
+#   docs-only, any Quality Gates success on the head is accepted. A release PR
+#   therefore stays red when the code commit never got a real ci.yml run (e.g.
+#   runner offline) -- that is intended.
+#
 #   The job name is exactly `Quality Gates` to satisfy existing branch-protection
 #   rules without introducing a new required-check name.
 
@@ -132,40 +143,55 @@ jobs:
           echo "Watching dispatched ci.yml run ${RUN_ID} for hotfix branch ${HEAD_REF}..."
           gh run watch "$RUN_ID" --exit-status
 
+      - uses: actions/checkout@v6
+        if: steps.classify.outputs.kind != 'hotfix'
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
       - name: Verify prior Quality Gates success on head SHA
         if: steps.classify.outputs.kind != 'hotfix'
         env:
           GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           CURRENT_RUN_ID: ${{ github.run_id }}
+          RELEASE_BRANCH: {{RELEASE_BRANCH}}
+          QG_NAME: Quality Gates
+          CI_WORKFLOW_PATH: .github/workflows/ci.yml
+          # Same patterns ci.yml's push `paths-ignore` uses (#971).
+          PATHS_IGNORE: |
+{{PATHS_IGNORE_LIST}}            - 'sdlc-config.json'
         run: |
-          echo "Checking for prior successful 'Quality Gates' on SHA: $HEAD_SHA"
+          git fetch --no-tags origin "${RELEASE_BRANCH}:refs/remotes/origin/${RELEASE_BRANCH}" 2>/dev/null || true
+          read -r GATED_SHA GATED_KIND < <(bash scripts/provenance-gated-commit.sh gated-commit "origin/${RELEASE_BRANCH}" "$HEAD_SHA")
+          if [ "$GATED_KIND" = "code" ]; then
+            VERIFY=real-ci-success
+            echo "Latest code-bearing commit in origin/${RELEASE_BRANCH}..${HEAD_SHA}: ${GATED_SHA}"
+            echo "Requiring a real ${CI_WORKFLOW_PATH} 'Quality Gates' success on it (the docs-only CI Status Fallback does not count)."
+          else
+            VERIFY=any-success
+            GATED_SHA="$HEAD_SHA"
+            echo "Every commit in origin/${RELEASE_BRANCH}..${HEAD_SHA} is docs-only; accepting any 'Quality Gates' success on the head."
+          fi
           echo "Excluding current workflow run: $CURRENT_RUN_ID"
-          CURRENT_RUN_URL="/actions/runs/${CURRENT_RUN_ID}"
           MAX_ATTEMPTS=10
           WAIT_SECONDS=30
 
           for ATTEMPT in $(seq 1 $MAX_ATTEMPTS); do
-            RESPONSE=$(gh api \
-              "/repos/${{ github.repository }}/commits/${HEAD_SHA}/check-runs?name=Quality%20Gates" \
-              --jq ".check_runs[]
-                | select(.status == \"completed\" and .conclusion == \"success\")
-                | select((.details_url // \"\") | contains(\"${CURRENT_RUN_URL}\") | not)")
-
-            if [ -n "$RESPONSE" ]; then
-              echo "Found prior successful Quality Gates result:"
-              echo "$RESPONSE" | head -5
+            if RESPONSE=$(bash scripts/provenance-gated-commit.sh "$VERIFY" "$GATED_SHA" "$CURRENT_RUN_ID"); then
+              echo "$RESPONSE"
               echo ""
-              echo "Provenance verified — this SHA passed develop-side Quality Gates."
+              echo "Provenance verified — commit ${GATED_SHA} passed develop-side Quality Gates."
               exit 0
             fi
 
             if [ "$ATTEMPT" -lt "$MAX_ATTEMPTS" ]; then
-              echo "Develop-side Quality Gates for SHA ${HEAD_SHA} not successful yet. Waiting ${WAIT_SECONDS}s (${ATTEMPT}/${MAX_ATTEMPTS})..."
+              echo "Develop-side Quality Gates for SHA ${GATED_SHA} not successful yet. Waiting ${WAIT_SECONDS}s (${ATTEMPT}/${MAX_ATTEMPTS})..."
               sleep "$WAIT_SECONDS"
             fi
           done
 
-          echo "::error::No successful develop-side Quality Gates result found for SHA ${HEAD_SHA} after waiting $((MAX_ATTEMPTS * WAIT_SECONDS / 60)) minutes."
-          echo "::error::Push this exact commit through the normal develop flow first, or wait for the in-flight develop pipeline to finish and rerun this check."
+          echo "::error::Commit ${GATED_SHA} (latest code-bearing commit in this release PR; head is ${HEAD_SHA}) has no successful ${CI_WORKFLOW_PATH} Quality Gates run after waiting $((MAX_ATTEMPTS * WAIT_SECONDS / 60)) minutes."
+          echo "::error::The docs-only CI Status Fallback success on a later commit does not count for code beneath it. Rerun CI on ${GATED_SHA} (or push it through the develop flow so ci.yml runs on it), then rerun this check."
           exit 1

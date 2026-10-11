@@ -748,8 +748,17 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
     // target has already been filtered out above) regenerate byte-identical.
     const prPathsIgnoreBlock =
       otherTargetDirs.length > 0 ? `    paths-ignore:\n${otherTargetDirs.map((p) => `      - '${p}'`).join('\n')}` : '';
+    // Same patterns as PATHS_IGNORE, indented to sit under a `run:`/env block
+    // scalar in quality-gates-provenance.yml (#971) — one source of truth, so
+    // provenance classifies "docs-only" exactly as ci.yml's push filter does.
+    // Each line ends in \n; the template appends its own sdlc-config.json
+    // line after the token, as ci.yml does.
+    const pathsIgnoreListBlock = [...(cfg.paths_ignore ?? []), ...otherTargetDirs]
+      .map((p) => `            - '${p}'\n`)
+      .join('');
     const blocks: Record<string, string> = {
       PATHS_IGNORE: pathsIgnoreBlock,
+      PATHS_IGNORE_LIST: pathsIgnoreListBlock,
       PR_PATHS_IGNORE: prPathsIgnoreBlock,
       // Collapsed into one merged token (devaudit-installer#928): previously
       // separate DATABASE_ENV/APP_ENV block tokens combined by string
