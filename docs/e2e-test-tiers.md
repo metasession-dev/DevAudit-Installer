@@ -38,6 +38,23 @@ Most projects don't need this — the blocking smoke gate above is mandatory and
 
 A plain `devaudit update` with neither flag never touches `e2e_regression_enabled` — it's pure opt-in, not something a routine sync can silently flip.
 
+## Shared backends: a fixed concurrency group
+
+By default `e2e-regression.yml` uses the group `${{ github.workflow }}-${{ github.ref }}` and cancels in-progress runs only for `pull_request`. The group is per ref, so a PR-to-main `critical` run, a `workflow_dispatch` run on another ref and the post-deploy `regression` run each get their own group and can run **at the same time**. If your specs mutate a **shared** backend (e.g. a shared UAT database that mutating specs restore afterwards), overlapping runs overwrite each other's data and produce flaky failures that look like regressions, and a cancelled run can leave the shared data dirty.
+
+Set a fixed group in `sdlc-config.json` (devaudit-installer#969):
+
+```json
+"e2e_concurrency_group": "uat-e2e-data"
+```
+
+- Every trigger of `e2e-regression.yml` then shares that one group, and `cancel-in-progress` is `false` (a running job is never killed mid-mutation).
+- `e2e_concurrency_cancel_in_progress: true` restores cancellation with the fixed group, if you really want it.
+- Empty or absent (the default) leaves the generated workflow exactly as before.
+- `ci.yml` (smoke) and `feature-e2e.yml` get no group; they are expected not to mutate shared data.
+
+**Caveat:** GitHub keeps at most **one running and one pending** run per group. A newer queued run replaces an older queued one, so a queued PR `critical` run can be silently superseded by a later dispatch even with `cancel-in-progress: false`. A fixed group reduces overlap; it does not guarantee every queued run executes. Re-run any run that shows as cancelled by replacement.
+
 ## Before enabling: how the generated workflows use `e2e_env` and your Playwright config
 
 Read this before putting real credentials in `e2e_env` or turning on `e2e_regression_enabled`. Four behaviours of the generated workflows interact with your own Playwright setup.

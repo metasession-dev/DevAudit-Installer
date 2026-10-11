@@ -47,6 +47,17 @@ export interface SdlcConfig {
    * hook script) runs, so a script cannot raise it at runtime.
    */
   readonly e2e_regression_timeout_minutes?: number;
+  /**
+   * Fixed `concurrency.group` for `e2e-regression.yml` (devaudit-installer#969),
+   * for projects whose critical/regression specs mutate a shared backend.
+   * Empty/absent keeps the default per-workflow-and-ref group.
+   */
+  readonly e2e_concurrency_group?: string;
+  /**
+   * `cancel-in-progress` when `e2e_concurrency_group` is set (default `false`).
+   * Ignored when no fixed group is configured.
+   */
+  readonly e2e_concurrency_cancel_in_progress?: boolean;
   readonly devaudit?: {
     readonly base_url?: string;
     readonly project_slug?: string;

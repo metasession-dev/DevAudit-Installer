@@ -103,8 +103,10 @@ moment, not the end of the test.
 | --- | --- | --- |
 | `database_service` | string | The service name in the generated `services:` block (e.g. `mongodb`, `postgres`). Empty (the default) strips the block entirely — no service container at all. |
 | `database_image` | string | The container image for that service (e.g. `mongo:7`). |
-| `database_port` | string | The container port to expose; combined with `database_service: mongodb` this also renders a dynamic-port `DATABASE_URI_STEP` so the app connects to whatever port the runner actually assigned. |
-| `database_env` | map | Env applied to the database service container itself (distinct from `e2e_env`, which applies to the app/test steps). |
+| `database_port` | string | For `postgres`: the port your tests connect to on `localhost` (the host side). A bare number such as `"5434"` is published as `5434:5432` (container port from the image default); an explicit `"5434:5432"` is passed through unchanged. For `mongodb`: the container port to expose; this also renders a dynamic-port `DATABASE_URI_STEP` so the app connects to whatever port the runner actually assigned. |
+| `database_env` | map | Env for the database. For `postgres` (and any non-`mongodb` service) it is emitted **inside the service container** (`services.<name>.env` — e.g. `POSTGRES_PASSWORD`, which the image refuses to start without) and also job-wide for steps. `mongodb` keeps job-level env only. Distinct from `e2e_env`, which applies to the app/test steps. |
+
+For `postgres` the generator also adds a `pg_isready` healthcheck (`options: --health-cmd ...`) so steps wait until the database accepts connections (devaudit-installer#963).
 
 Use this when a stock database image is enough; use `e2e_setup_command`/`e2e_env` above when you need a CLI-managed local instance (schema loading, a specific startup sequence) that a plain service container can't do alone.
 
