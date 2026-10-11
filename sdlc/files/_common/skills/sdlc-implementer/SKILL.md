@@ -395,6 +395,7 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
    **Bundle eligibility (devaudit-installer#736).** A hard halt is the wrong answer when several already-tracked, genuinely-independent issues just happen to be small — forcing N full REQ→plan→PR→UAT→release cycles for e.g. two five-line unrelated fixes is avoidable ceremony. The operator can opt into sharing one branch/PR/release across multiple REQs by structurally declaring it — `Bundles: #A, #B` in the triggering issue's body/comment, or by invoking `sdlc-implementer` directly against multiple issue numbers. **Never infer bundle-worthiness from free prose alone** — the declaration must be structural.
 
    When a bundle is declared, evaluate eligibility instead of halting unconditionally:
+   - **Reject `stack: python` outright (devaudit-installer#955).** Read `stack` from `sdlc-config.json` first. If it is `python`, stop with: "Declared bundles are a Node-template feature — the Python CI template generates no bundled changes or bundle manifest, so a bundle would silently not work. Split these into separate REQs, or track Python bundle parity in a follow-up issue." Do not half-support it.
    - **Reject** (fall back to the halt-and-ask-to-split behavior above) if: any bundled issue classifies as CRITICAL risk; the bundled issues' risk classes span more than one tier apart (e.g. LOW + HIGH); or any two bundled issues touch overlapping files/logic (evidence and rollback must stay REQ-isolated even inside one shared PR).
    - **Otherwise eligible.** Run Phase 1 steps 1–12 once per REQ-XXX in the bundle — own plan, own AC table, own SRS-IDs, own ADR/risk assessment, own RTM row, same as the single-REQ path — but targeting one shared branch (Phase 2 step 1) instead of each REQ getting its own, and landing as one shared PR (Phase 2 step 8) instead of N.
    - **Bundle-level ceremony = the max risk class across the set.** A HIGH member anywhere in the bundle means the whole bundle gets HIGH-level gates and the Phase 1 step 11 checkpoint fires — bundling must never quietly downgrade the depth of gates or evidence a higher-risk member would have received alone.
@@ -811,6 +812,17 @@ Invoked separately by the user after UAT activity on the portal. Trigger: "resum
    - **Still pending UAT (no approval, no change-request)** → report "UAT review still pending on the portal at <link>" and stop. Do not act.
 
    - **UAT rejected** → halt. Post on the issue: "UAT rejected this release. Options: (a) close PR and re-plan from scratch, (b) escalate to a different reviewer, (c) appeal the rejection with new context." See [`references/change-request-loop.md`](./references/change-request-loop.md) §"If the change-request is a rejection" for details. Do not attempt to address — the reviewer has marked the release fundamentally broken. Wait for the user to decide.
+
+#### Closing a release PR without releasing (devaudit-installer#955)
+
+When a REQ finished Phases 1–4 but its release PR is closed unmerged (e.g. REQ-034: `uat_approved`, PR closed) and the work is meant to ship with the next release, record the decision in the repo, not just in the closed PR:
+
+1. **Set the release-ticket field** in `compliance/pending-releases/RELEASE-TICKET-REQ-XXX.md`: `- **Release intent:** deferred-to-next — <reason, PR #N closed unmerged>` (the validator rejects any other value; omit the line for no declared intent).
+2. **Keep the RTM row** as it is (`TESTED - PENDING SIGN-OFF`/approved state). Do not delete the ticket or the row.
+3. **Comment on the closed PR** with the reason and that the REQ is deferred to the next release.
+4. **Leave the portal release as it is.** There is no portal defer/cancel route; the release sits at its current state and is superseded at the absorbing release's close-out (existing behaviour).
+
+The absorbing release must then list the deferred REQ under `**Absorbed predecessor releases:**` in its ticket. `generate-bundled-changes.sh` refuses to run when a pending ticket carries this intent and the field says `None`/omits it, and when the field says `None` but that REQ's commits are already in the release range — deferred REQs are never absorbed silently.
 
 ## Native agent responsibilities and re-invocation protocol (devaudit-installer#226)
 

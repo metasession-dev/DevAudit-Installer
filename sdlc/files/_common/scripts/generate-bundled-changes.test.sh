@@ -345,5 +345,98 @@ assert_eq "duplicate member rejected" "1" "$RC"
 assert_contains "duplicate member error text" "duplicate declared bundle member" "$OUTPUT"
 echo
 
+# Tests 10-14: Release intent / no-silent-absorption guards (#955).
+add_intent() {
+  printf '%s\n' "- **Release intent:** $2" >> "compliance/pending-releases/RELEASE-TICKET-$1.md"
+}
+run_gen() {
+  set +e
+  OUTPUT=$(bash "$HELPER" "$SINCE" "REQ-042" --json-out "$PWD/bundle.json" 2>&1)
+  RC=$?
+  set -e
+}
+
+echo "Test 10: None + candidate REQ commits in SINCE..HEAD fails"
+DIR10="$TMPDIR_BASE/test10"
+make_fixture "$DIR10"
+SINCE="$(git rev-list --max-parents=0 HEAD)"
+write_release_ticket "REQ-041" "REQ-041 - Deferred" "Prior." "None"
+write_release_ticket "REQ-042" "REQ-042 - Current" "Current." "None"
+add_commit "feat: deferred work [REQ-041]"
+run_gen
+assert_eq "None with in-range candidate commits rejected" "1" "$RC"
+assert_contains "names the ticket" "RELEASE-TICKET-REQ-041.md" "$OUTPUT"
+assert_contains "says to list it under Absorbed predecessor releases" "under 'Absorbed predecessor releases'" "$OUTPUT"
+echo
+
+echo "Test 10b: Ref: trailer also counts, REQ-04 does not match REQ-041"
+DIR10B="$TMPDIR_BASE/test10b"
+make_fixture "$DIR10B"
+SINCE="$(git rev-list --max-parents=0 HEAD)"
+write_release_ticket "REQ-04" "REQ-04 - Other" "Other." "None"
+write_release_ticket "REQ-042" "REQ-042 - Current" "Current." "None"
+add_commit "feat: other work [REQ-041]"
+run_gen
+assert_eq "REQ-04 not confused with REQ-041" "0" "$RC"
+add_commit "$(printf 'fix: thing\n\nRef: REQ-04')"
+run_gen
+assert_eq "Ref: trailer for the candidate rejected" "1" "$RC"
+echo
+
+echo "Test 11: Release intent set + predecessor field None fails"
+DIR11="$TMPDIR_BASE/test11"
+make_fixture "$DIR11"
+SINCE="$(git rev-list --max-parents=0 HEAD)"
+write_release_ticket "REQ-041" "REQ-041 - Deferred" "Prior." "None"
+add_intent "REQ-041" "deferred-to-next — PR #9 closed unmerged"
+write_release_ticket "REQ-042" "REQ-042 - Current" "Current." "None"
+run_gen
+assert_eq "deferred candidate with None rejected" "1" "$RC"
+assert_contains "names the deferred ticket" "RELEASE-TICKET-REQ-041.md" "$OUTPUT"
+assert_contains "quotes the intent" "deferred-to-next" "$OUTPUT"
+echo
+
+echo "Test 11b: Release intent set + predecessor field omitted fails with the deferral message"
+write_release_ticket "REQ-042" "REQ-042 - Current" "Current." "None"
+sed -i '/Absorbed predecessor releases/d' compliance/pending-releases/RELEASE-TICKET-REQ-042.md
+run_gen
+assert_eq "deferred candidate with omitted field rejected" "1" "$RC"
+assert_contains "deferral message, not generic ambiguity" "never absorbed silently" "$OUTPUT"
+echo
+
+echo "Test 12: Release intent set and candidate listed passes"
+write_release_ticket "REQ-042" "REQ-042 - Current" "Current." "REQ-041"
+add_commit "feat: deferred work [REQ-041]"
+run_gen
+assert_eq "listed deferral passes" "0" "$RC"
+assert_eq "REQ-041 is a predecessor member" "predecessor" "$(jq -r '.members[0].role' bundle.json)"
+echo
+
+echo "Test 13: no intent and no candidate commits passes as before"
+DIR13="$TMPDIR_BASE/test13"
+make_fixture "$DIR13"
+SINCE="$(git rev-list --max-parents=0 HEAD)"
+write_release_ticket "REQ-041" "REQ-041 - Other" "Prior." "None"
+write_release_ticket "REQ-042" "REQ-042 - Current" "Current." "None"
+add_commit "feat: current work [REQ-042]"
+run_gen
+assert_eq "None without intent or commits passes" "0" "$RC"
+echo
+
+echo "Test 14: a declared-bundle member with an intent is not a candidate"
+DIR14="$TMPDIR_BASE/test14"
+make_fixture "$DIR14"
+SINCE="$(git rev-list --max-parents=0 HEAD)"
+write_release_ticket "REQ-043" "REQ-043 - Member" "Member." "None"
+add_intent "REQ-043" "deferred-to-next — PR #9 closed unmerged"
+write_release_ticket "REQ-042" "REQ-042 - Current" "Current." "None"
+add_commit "feat: member work [REQ-043]"
+set +e
+OUTPUT=$(bash "$HELPER" "$SINCE" "REQ-042" --declared-bundle REQ-043 --json-out "$PWD/bundle.json" 2>&1)
+RC=$?
+set -e
+assert_eq "declared member skipped by the guards" "0" "$RC"
+echo
+
 echo "=== Summary: ${PASS} pass / ${FAIL} fail ==="
 [ "$FAIL" -eq 0 ]
