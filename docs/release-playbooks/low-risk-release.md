@@ -75,6 +75,12 @@ The successor owns the approval envelope; predecessors retain their own
 evidence/executions and are linked as historical context. Do not silently relabel
 their evidence as belonging to the successor.
 
+A finished REQ whose release PR was closed unmerged is **deferred**, not
+superseded: record `Release intent: deferred-to-next` on its ticket, keep it in
+`pending-releases/`, and list it under `Absorbed predecessor releases` when the
+next release takes it. The promotion gate fails a PR that carries its commits
+otherwise. See [README](./README.md#deferred-releases).
+
 ## Hotfix
 
 For an actual production emergency: create `hotfix/REQ-XXX-*` from

@@ -107,7 +107,7 @@ No new work is required here; this phase just confirms the existing gate continu
 
 1. Stand up a disposable tracer-consumer fixture; `devaudit install` it against the release candidate.
 2. Author one trivial tracked requirement; drive it through the SDLC stage *scripts* (not the interactive skill — the skill requires a human in the loop by design and must stay that way).
-3. Extend the existing `msw` mocking pattern already used in `cli/test/fleet.test.ts`/`install.test.ts`/`join.test.ts` to the `check-release-approval.yml.template` and `close-out-release.yml.template` portal endpoints. Script the mock to walk `draft → uat_review → uat_approved` and fire a simulated `release-closed` dispatch.
+3. Extend the existing `msw` mocking pattern already used in `cli/test/fleet.test.ts`/`install.test.ts`/`join.test.ts` to the `check-release-approval.yml.template` and `close-out-release.yml.template` portal endpoints. Script the mock to walk `draft → uat_review → uat_approved` and fire a simulated `release-closed` dispatch. (Portal defer/resume, live as of 2026-10-11, is admin-only via PAT or session; if the fixture ever covers it, it must use a PAT-style fixture, never a CI key.)
 4. Assert the generated gate logic correctly blocks/proceeds on each portal state, and the generated close-out logic correctly performs merge-back, ticket/RTM reconciliation, and status reporting.
 
 **This never creates a real UAT approval or a real "released" transition on behalf of a human** — it proves the generated plumbing is correct in a test harness, exactly as devaudit-installer#941 specifies. The actual human approval click on the real audit instance (Phase 3c) stays exactly as manual as it is today; this is a deliberate compliance control, not a gap to automate away.

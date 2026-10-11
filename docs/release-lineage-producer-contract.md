@@ -201,7 +201,7 @@ must describe:
 - the approval envelope release
 - the core release
 - constituent release membership
-- relationship type (`superseded`, `absorbed`, `inherited`)
+- relationship type (`superseded`, `absorbed`, `inherited`); a deferred release (`Release intent: deferred-to-next`) is not a relationship: it stays pending until a successor lists it under `Absorbed predecessor releases`, and only then is it recorded as a predecessor
 - role (`core`, `predecessor`, `tracked_sibling`, `follow_up`, `housekeeping`)
 - locally only, `co_tracked` (relationship `bundled`): a REQ declared into the bundle
   up front (`Bundles: #A, #B`). It is recorded in the committed manifest so
