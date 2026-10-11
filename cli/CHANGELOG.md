@@ -4,6 +4,10 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+### Added
+
+- **#969** (umbrella #957) — new optional `sdlc-config.json` keys `e2e_concurrency_group` and `e2e_concurrency_cancel_in_progress` for `e2e-regression.yml`. When `e2e_concurrency_group` is set it becomes the fixed `concurrency.group` for every trigger (PR, `workflow_dispatch`, post-deploy) with `cancel-in-progress: false` unless overridden, so projects whose critical/regression specs mutate a shared backend no longer run overlapping, data-clobbering jobs. Unset/empty keeps the generated output byte-for-byte unchanged. GitHub keeps one running and one pending run per group, so a newer queued run replaces an older queued one (see `docs/e2e-test-tiers.md`). The proposed `devaudit doctor` warning is not included. Retires the META-ATS local `e2e-regression.yml` patch once adopted.
+
 ### Fixed
 
 - **#966** (umbrella #957) — `validate-commits.sh` now counts a declared bundle as **one** active release when deciding whether an untraced `feat`/`fix` commit may be downgraded to a warning. Each live bundle's members (co_tracked, predecessor, housekeeping, read from `BUNDLED-CHANGES-<core>.json`, or the `.md` when `jq` is absent) collapse into the core REQ; a manifest whose core ticket is no longer pending is ignored. Previously a bundle of five tickets counted as five releases, so the single-release escape hatch never applied and the release PR's Compliance Validation failed. Extended `validate-commits.test.sh` (bundle, bundle plus independent release, stale manifest). Also adds a **declared legacy exemption** for history that predates Conventional Commits and cannot be rewritten: `sdlc-config.json` `commit_validation.legacy_non_conventional: [{sha, reason}]` (sha ≥ 7 chars, reason required). Each exempted commit is printed as `EXEMPT` with its reason on every run and counted as a warning; it waives only the format check, never requirement traceability.
