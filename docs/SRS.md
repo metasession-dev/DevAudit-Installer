@@ -557,6 +557,7 @@ dependencies (tier 3) — which is exactly the coverage the current unit-only su
 | REQ-CLI-UPDATE-031           | Manifest-driven deletion replaces every unconditional stale-file/directory removal (#930)                                                                   | Must     | `cli/src/update/write-managed.ts`                                                                                             |
 | REQ-CLI-UPDATE-032           | Manifest bootstrap: reconstructs a baseline on the first sync after upgrading, with a conservative fallback (#930)                                          | Must     | `cli/src/update/manifest-bootstrap.ts`                                                                                        |
 | REQ-CLI-UPDATE-033           | Unknown/custom sdlc-config.json keys survive every sync path untouched (#930)                                                                               | Must     | `cli/src/update/stamp-version.ts`                                                                                             |
+| REQ-CLI-UPDATE-034           | Idempotently seed the labels synced issue templates reference (needs-triage etc.); best-effort (#970)                                                       | Should   | `cli/src/update/issue-labels.ts`                                                                                              |
 | REQ-CLI-STATUS-001           | Report installed-vs-expected framework state for a consumer (human output)                                                                                  | Should   | `cli/src/commands/status.ts`                                                                                                  |
 | REQ-CLI-STATUS-002           | --json machine-readable status                                                                                                                              | Should   | `cli/src/commands/status.ts`                                                                                                  |
 | REQ-CLI-STATUS-003           | Not-a-consumer (missing sdlc-config.json) exits 7                                                                                                           | Should   | `cli/src/commands/status.ts`                                                                                                  |
@@ -1459,6 +1460,15 @@ Command registration: `cli/src/index.ts` (`main`). Installer-root / template-sou
 - **Given** a consumer's `sdlc-config.json` has custom top-level keys and nested objects **When** `devaudit update` runs (with or without `--enable-/--disable-e2e-regression`), or `devaudit install` re-runs in operator mode against an existing config **Then** every unrecognized key, including nested objects and arrays, is present and byte-identical (JSON round-trip) in the file afterward — every write path in this codebase spreads the existing parsed object before setting only the specific field(s) it owns, never reconstructing the file from a known-fields allowlist.
 - **Error paths:** N/A.
 - **Fixtures/env:** `cli/test/sync-manifest.test.ts` "preserves unknown/custom top-level and nested sdlc-config.json keys across update".
+
+#### REQ-CLI-UPDATE-034 — Seed the labels the synced issue templates reference (devaudit-installer#970)
+
+- **Priority:** Should — without it `gh issue create --label needs-triage` fails in every onboarded repo.
+- **Source:** `cli/src/update/issue-labels.ts` (`ensureIssueTemplateLabels`, `collectTemplateLabels`, `parseTemplateLabels`), called from `syncProject` (so both `install` and `update`).
+- **Given** a sync against a GitHub repo with `gh` authenticated **Then** the union of `bug`/`requirement`/`needs-triage` and every `labels: [...]` declared in `sdlc/files/_common/github/ISSUE_TEMPLATE/*.yml` is listed (`gh label list`) and each missing label is created with `gh label create <l> --force`; existing labels are never modified.
+- **Given** `--dry-run` **Then** no `gh` call is made; the would-be labels are logged.
+- **Error paths:** `gh` missing, unauthenticated, or repo not on GitHub, or an individual create failing, logs a warning (with the manual `gh label create` commands) and never fails the sync.
+- **Fixtures/env:** `cli/test/issue-labels.test.ts` (mocked `execa`).
 
 ---
 
