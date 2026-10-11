@@ -184,6 +184,8 @@ Elevated review required for: [list security-sensitive code categories for this 
 
 **Status lifecycle:** DRAFT → IN PROGRESS → TESTED - PENDING SIGN-OFF → APPROVED - DEPLOYED
 
+A REQ whose release PR is closed unmerged and ships with a later release is set to `DEFERRED` (non-terminal, reversible; its ticket stays in `pending-releases/` with `- **Release intent:** deferred-to-next — …`). It leaves `DEFERRED` when the absorbing release is approved and deployed.
+
 **JSDoc headers:** `@requirement REQ-XXX - Brief description` in modified source files.
 
 ---
@@ -196,7 +198,7 @@ compliance/
 ├── test-plan.md                    # This document
 ├── test-cases.md
 ├── test-summary-report.md
-├── pending-releases/
+├── pending-releases/               # includes deferred tickets
 │   └── RELEASE-TICKET-REQ-XXX.md
 ├── approved-releases/
 │   └── RELEASE-TICKET-REQ-XXX.md

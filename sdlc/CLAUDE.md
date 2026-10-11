@@ -46,7 +46,7 @@ All templates assume these gates: TypeScript (0 errors), SAST/Semgrep (0 high/cr
 
 - **Commit format:** Conventional Commits with `Co-Authored-By` tags for AI, `Ref: REQ-XXX` for tracked requirements
 - **Requirement IDs:** `REQ-XXX` format, tracked in `compliance/RTM.md`
-- **Status lifecycle:** DRAFT → IN PROGRESS → TESTED - PENDING SIGN-OFF → APPROVED - DEPLOYED
+- **Status lifecycle:** DRAFT → IN PROGRESS → TESTED - PENDING SIGN-OFF → APPROVED - DEPLOYED (a release PR closed unmerged is `DEFERRED`, non-terminal, until a later release absorbs it)
 - **Branching:** GitFlow — permanent `develop` branch, protected `main` (production), `feature/*` and `fix/*` from `develop`, `hotfix/*` from `main`, merge commits to preserve audit trail
 - **Evidence model:** local testing (comprehensive) + CI testing (independent verification, tamper-resistant)
 - **Placeholders:** Templates use `[BRACKETED_VALUES]` and `# UPDATE` markers for project-specific customization

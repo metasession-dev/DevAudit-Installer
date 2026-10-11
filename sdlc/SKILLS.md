@@ -121,6 +121,8 @@ node SDLC/bin/devaudit-sdlc.cjs --watch-pr=<number> --repo <owner/name> --once
 
 or, without `--once`, a bounded poll loop that persists retry state in `.sdlc-pr-watch.json`, re-runs likely flaky workflows, and re-runs the Release Approval Gate when the portal is already approved but GitHub has not yet converged. That makes "blocked PR handling" an executable part of the orchestration contract rather than a prose-only reminder.
 
+When a finished REQ's release PR is closed unmerged, `sdlc-implementer` records the deferral in the repo (ticket `Release intent: deferred-to-next`, RTM `DEFERRED`, PR comment) and tells the absorbing release to list it under `Absorbed predecessor releases`. Deferring or resuming the portal release is a manual, admin-only step with a personal access token or portal session, which the skill hands to the operator and never performs with CI/API/viewer keys; `devaudit doctor` diagnoses these states read-only, while `doctor --fix` and any skill/CLI defer command are planned (phase 3b of #956).
+
 `sdlc-implementer` is **not** used for trivial / housekeeping changes (docs, formatting, dependency bumps, CI tweaks) — those skip the requirement and the ceremony. See [the change-type matrix](../docs/change-workflows.md) and the [trivial-change walkthrough](./files/_common/implementing-an-sdlc-issue.md#trivial-change-walkthrough).
 
 ### The SoT-alignment skill family
