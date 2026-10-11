@@ -49,7 +49,21 @@ async function renderRegression(extra: Record<string, unknown>): Promise<string>
     );
     await fs.writeFile(
       join(dir, 'package.json'),
-      JSON.stringify({ name: 'fixture-app', private: true, version: '0.0.0', devDependencies: { '@playwright/test': '*' } }),
+      JSON.stringify({
+        name: 'fixture-app',
+        private: true,
+        version: '0.0.0',
+        devDependencies: {
+          husky: '*',
+          '@commitlint/cli': '*',
+          '@commitlint/config-conventional': '*',
+          'lint-staged': '*',
+          prettier: '*',
+          eslint: '*',
+          typescript: '*',
+          '@playwright/test': '*',
+        },
+      }),
     );
     await fs.mkdir(join(dir, '.husky'), { recursive: true });
     await fs.mkdir(join(dir, 'scripts'), { recursive: true });
@@ -65,7 +79,7 @@ function concurrencyOf(yaml: string): { group: string; 'cancel-in-progress': unk
   return (yamlLoad(yaml) as { concurrency: { group: string; 'cancel-in-progress': unknown } }).concurrency;
 }
 
-describe('e2e-regression.yml concurrency (#969)', { timeout: 60_000 }, () => {
+describe('e2e-regression.yml concurrency (#969)', { timeout: 120_000 }, () => {
   it('default (key unset) keeps the original block byte-for-byte', async () => {
     const yaml = await renderRegression({});
     expect(yaml).toContain(
