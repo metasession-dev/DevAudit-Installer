@@ -188,6 +188,10 @@ If the portal state is `uat_rejected` (not `uat_changes_requested`), the reviewe
 2. Post on the issue: "UAT rejected this release. Awaiting user direction — options are to (a) close the PR and re-plan from scratch, (b) escalate the rejection to a different reviewer, or (c) appeal the rejection with new context."
 3. Wait for the user to decide. The skill does not unilaterally reopen, force-merge, or escalate.
 
+## If the release PR is closed without releasing
+
+This is not a rejection and not a change request. Follow SKILL.md "Closing a release PR without releasing" (devaudit-installer#955): set `- **Release intent:** deferred-to-next — <reason, PR #N closed unmerged>` on the ticket, keep the RTM row, comment on the PR, and leave the portal release alone (the absorbing release supersedes it at close-out). Do not run this loop.
+
 ## Release ticket status transitions
 
 The release ticket (`compliance/pending-releases/RELEASE-TICKET-REQ-XXX.md`) `**Status:**` field is updated at each transition in the change-request loop, mirroring the portal's state machine for audit trail completeness:

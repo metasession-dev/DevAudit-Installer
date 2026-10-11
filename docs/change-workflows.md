@@ -97,9 +97,35 @@ one release PR, and one portal release.
 | Manifest | The committed `BUNDLED-CHANGES-<core>.{md,json}` lists members as `role: "co_tracked"`. That is a local declaration: `derive-release-version.sh` and CI regeneration read it, but `submit-bundle-manifest.sh` does not send `co_tracked` members to the portal (predecessors and housekeeping are still submitted). |
 | Close-out | The close-out PR releases the members with the core: their tickets move to `approved-releases/`, Status `RELEASED`, a `Released with bundle` backlink, RTM `RELEASED`. Absorbed predecessors are still superseded. |
 
-Limits: declared bundles are supported by the Node CI template. The Python template
-does not generate bundled changes, and `feature-e2e.yml` handles a single REQ per
+Limits: declared bundles are supported by the Node CI template only. The Python
+template generates no bundled changes or bundle manifest, so `sdlc-implementer`
+rejects a declared bundle when `stack: python` rather than half-supporting it (#955).
+Also, `feature-e2e.yml` handles a single REQ per
 run, so it skips a multi-REQ bundle PR.
+
+### Deferring a finished REQ into the next release
+
+Sometimes a REQ finishes Phases 1–4 (it may even be `uat_approved`) but its release PR
+is closed unmerged and the work is meant to ship with the next release. Record that in
+the repo, not only in the closed PR:
+
+1. On the REQ's `RELEASE-TICKET-REQ-XXX.md` set
+   `- **Release intent:** deferred-to-next — <reason, PR #N closed unmerged>`. The field
+   is optional; absent means no declared intent. `validate-compliance-artifacts.sh`
+   rejects a malformed value.
+2. Keep the RTM row, and comment on the closed PR.
+3. Leave the portal release alone. The portal has no defer/cancel route, so it stays at
+   its current state (for example `uat_approved` with a closed PR) until the absorbing
+   release supersedes it at close-out.
+
+The next release lists the deferred REQ under `**Absorbed predecessor releases:**`.
+`generate-bundled-changes.sh` **refuses** to run (naming the ticket) when a pending
+ticket carries the intent and the field says `None` or omits it, and also when the field
+says `None` but that pending REQ's `[REQ-x]` / `Ref: REQ-x` commits are already in the
+`<since>..HEAD` range. A deferred REQ is never absorbed silently, because its code would
+otherwise ship under another release's approval with no lineage and its ticket would
+stay pending forever. Doctor diagnosis/repair, an RTM `DEFERRED` state and a promotion
+gate are tracked separately in #956 and build on this field.
 
 If you find a portal release named after a bundled member (an older consumer
 version created these), do not submit it for review. Update the consumer

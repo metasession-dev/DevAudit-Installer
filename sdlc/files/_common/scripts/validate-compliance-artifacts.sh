@@ -240,6 +240,21 @@ for REQ in $REQUIREMENTS; do
     EXIT_CODE=1
   fi
 
+  # devaudit-installer#955 — optional release-ticket field:
+  #   - **Release intent:** deferred-to-next — <reason, PR #N closed unmerged>
+  # Absent = no declared intent. Present = must be well-formed.
+  if [ -n "$TICKET_FILE" ]; then
+    INTENT_LINE=$(grep -m1 '^\- \*\*Release intent:\*\*' "$TICKET_FILE" 2>/dev/null || true)
+    if [ -n "$INTENT_LINE" ]; then
+      if printf '%s' "$INTENT_LINE" | grep -qE '^- \*\*Release intent:\*\* +deferred-to-next +(—|–|--|-) +[^[:space:]]'; then
+        echo "  OK: Release intent is well-formed (deferred-to-next)"
+      else
+        echo "  ERROR: Release ticket has a malformed '**Release intent:**' — expected '- **Release intent:** deferred-to-next — <reason, PR #N closed unmerged>' (omit the line when there is no declared intent)"
+        EXIT_CODE=1
+      fi
+    fi
+  fi
+
   BUNDLED_FILE=""
   for BUNDLED_PATTERN in \
     "compliance/pending-releases/BUNDLED-CHANGES-${REQ}.md" \

@@ -519,6 +519,10 @@ Create `compliance/pending-releases/RELEASE-TICKET-REQ-XXX.md`:
 **Risk Level:** [LOW / MEDIUM / HIGH]
 **PR:** [Will be linked when PR is created]
 
+<!-- OPTIONAL. Add this bullet ONLY when this release PR is closed without releasing and the REQ is deferred into the next release (omit it otherwise; absent = no declared intent):
+    - **Release intent:** deferred-to-next — <reason, PR #N closed unmerged>
+(indented here so a copied template never matches the guards.) The absorbing release must then list this REQ under "Absorbed predecessor releases". -->
+
 ---
 
 ## Summary

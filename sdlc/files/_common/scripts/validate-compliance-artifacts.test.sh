@@ -584,6 +584,41 @@ assert_grep "E2E-verification-method ERROR still fires for a real claim" 'ERROR:
 assert_exit "validator fails when Playwright is named but no spec tags it" 1
 cd "$WORKDIR"
 
+# --- Release intent field (#955) ---
+intent_case() {
+  local name="$1" intent_line="$2"
+  make_fixture "$WORKDIR/$name" "Ref: REQ-370"
+  {
+    echo '# RTM'; echo; echo '| ID | Description | Status |'; echo '| --- | --- | --- |'
+    echo '| REQ-370 | Intent case | TESTED - PENDING SIGN-OFF |'
+  } > compliance/RTM.md
+  mkdir -p compliance/evidence/REQ-370
+  for f in test-scope test-plan test-execution-summary; do echo x > compliance/evidence/REQ-370/$f.md; done
+  { echo '# Release Ticket'; [ -z "$intent_line" ] || echo "$intent_line"; } > compliance/pending-releases/RELEASE-TICKET-REQ-370.md
+  git add . && git commit -q --amend --no-edit
+  run_validator
+}
+
+echo "Case 16: Release intent absent is accepted silently"
+intent_case case16 ""
+assert_grep "no intent error" 'Release intent' 0
+cd "$WORKDIR"
+
+echo "Case 17: well-formed deferred-to-next is accepted"
+intent_case case17 '- **Release intent:** deferred-to-next — superseded by REQ-371, PR #44 closed unmerged'
+assert_grep "intent OK line" 'OK: Release intent is well-formed' 1
+assert_grep "no intent error" 'ERROR: Release ticket has a malformed' 0
+cd "$WORKDIR"
+
+echo "Case 18: malformed Release intent values fail"
+intent_case case18 '- **Release intent:** deferred-to-next'
+assert_grep "missing reason rejected" 'ERROR: Release ticket has a malformed' 1
+assert_exit "validator fails" 1
+cd "$WORKDIR"
+intent_case case18b '- **Release intent:** later — PR #44 closed unmerged'
+assert_grep "unknown value rejected" 'ERROR: Release ticket has a malformed' 1
+cd "$WORKDIR"
+
 echo
 echo "=== validate-compliance-artifacts.test.sh: $PASS passed, $FAIL failed ==="
 [ "$FAIL" -eq 0 ]

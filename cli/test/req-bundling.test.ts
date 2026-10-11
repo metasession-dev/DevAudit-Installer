@@ -181,3 +181,41 @@ describe('declared bundle = one portal release (#955)', () => {
     expect(closeOut).toContain('update_rtm_status "$version" "RELEASED"');
   });
 });
+
+describe('Release intent deferral + Python rejection (#955 remainder)', () => {
+  const skill = readCommon('skills/sdlc-implementer/SKILL.md');
+  const loop = readCommon('skills/sdlc-implementer/references/change-request-loop.md');
+  const generator = readCommon('scripts/generate-bundled-changes.sh');
+  const validator = readCommon('scripts/validate-compliance-artifacts.sh');
+  const blueprint = readFileSync(
+    resolve(root, 'sdlc/src/blueprints/3-compile-evidence.raw.md'),
+    'utf8',
+  ).replace(/\r\n/g, '\n');
+
+  it('the skill documents closing a release PR without releasing', () => {
+    expect(skill).toContain('Closing a release PR without releasing');
+    expect(skill).toContain('- **Release intent:** deferred-to-next — <reason, PR #N closed unmerged>');
+    expect(skill).toContain('Keep the RTM row');
+    expect(skill).toContain('Leave the portal release as it is');
+    expect(skill).toContain('deferred REQs are never absorbed silently');
+    expect(loop).toContain('Closing a release PR without releasing');
+  });
+
+  it('bundle mode rejects stack: python', () => {
+    expect(skill).toContain('Reject `stack: python` outright');
+    expect(skill).toContain('Declared bundles are a Node-template feature');
+  });
+
+  it('the generator guards deferred intent and None-with-commits', () => {
+    expect(generator).toContain('extract_release_intent');
+    expect(generator).toContain('deferred REQs are never absorbed silently');
+    expect(generator).toContain("under 'Absorbed predecessor releases'");
+    expect(generator).toContain('req_has_commits_in_range');
+  });
+
+  it('the validator checks the Release intent value and the ticket template documents it', () => {
+    expect(validator).toContain('**Release intent:**');
+    expect(validator).toContain('deferred-to-next');
+    expect(blueprint).toContain('Release intent:** deferred-to-next');
+  });
+});
