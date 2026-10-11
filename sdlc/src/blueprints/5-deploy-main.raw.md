@@ -168,7 +168,7 @@ consumer repository. `close-out-release.yml` then opens a
 `chore/close-out-REQ-XXX` PR to the configured integration branch. That PR is
 the canonical reconciliation record: it updates the RTM, moves the release
 ticket to `approved-releases/`, and moves manifest-listed absorbed predecessors
-to `superseded-releases/`.
+to `superseded-releases/`. A deferred predecessor that this release absorbs (listed under `Absorbed predecessor releases`) is superseded here, the same way; one that was not absorbed stays pending and, if a portal admin deferred it, remains `deferred` (reversible) until resumed or superseded. Deferring or resuming a portal release is a manual admin action with a PAT or portal session, never part of this flow.
 
 Review and merge the close-out PR after its required checks are terminal green
 on its current head SHA. It is an administrative reconciliation PR, not a new

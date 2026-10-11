@@ -629,7 +629,7 @@ Before creating a PR from `develop` to `main`, verify ALL of the following:
 - [ ] Latest CI run on `develop` is green (not stale, not cancelled)
 - [ ] Working tree is clean
 - [ ] UAT verification passed (if configured)
-- [ ] DevAudit UAT approval granted
+- [ ] DevAudit UAT approval granted (portal status not `deferred`)
 
 **For tracked requirements (REQ-XXX):**
 - [ ] `compliance/evidence/REQ-XXX/test-scope.md` exists and all items addressed
@@ -640,6 +640,15 @@ Before creating a PR from `develop` to `main`, verify ALL of the following:
 - [ ] Evidence uploaded to DevAudit
 
 If any item fails, resolve it before proceeding.
+
+## Closing a Release PR Without Releasing (devaudit-installer#955, #956)
+
+If a REQ finished the lifecycle but its release PR is closed unmerged and the work will ship with the next release:
+
+1. In `compliance/pending-releases/RELEASE-TICKET-REQ-XXX.md` set `- **Release intent:** deferred-to-next — <reason, PR #N closed unmerged>` (the sole declaration; the ticket stays in `pending-releases/`). Set the RTM row to `DEFERRED` (non-terminal; keep the row) and comment on the closed PR.
+2. The next release must list the REQ under `Absorbed predecessor releases` in its ticket. `generate-bundled-changes.sh` refuses to run otherwise, and the develop-to-main promotion gate (`check-deferred-reqs-in-range.sh`, inside the Release Scope Integrity job) fails the PR if a deferred REQ's commits are in the diff and it is not listed.
+3. Optionally, a portal admin may also defer the portal release (manual, admin-only, via `POST /api/releases/[id]/defer` with a personal access token or a portal session; never with CI/API/viewer keys). Resume returns it to `draft`. If it is not deferred, it stays at its current state and is superseded at the absorbing release's close-out. "Deferred" is reversible; "superseded" (absorbed by a successor) and "abandoned" are not.
+4. `devaudit doctor` diagnoses these states read-only (`release-pr-closed`, `deferred-will-ship`, `predecessors-none`, `bundle-members`; see `docs/doctor.md`). `doctor --fix` and CLI/skill defer/resume commands are planned (phase 3b of #956), not available.
 
 ---
 
