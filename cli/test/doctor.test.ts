@@ -557,7 +557,8 @@ describe('devaudit doctor — D6 "Absorbed predecessor releases: None" (#956)', 
       it(c.label, async (ctx) => {
         const hasTools =
           process.platform !== 'win32' &&
-          (await execa('bash', ['--version'], { reject: false })).exitCode === 0 &&
+          // the script needs bash >=4 (mapfile, declare -A); macOS ships 3.2
+          (await execa('bash', ['-c', 'type mapfile'], { reject: false })).exitCode === 0 &&
           (await execa('jq', ['--version'], { reject: false })).exitCode === 0;
         if (!hasTools) return ctx.skip();
         const dir = await fixtureRepo();
