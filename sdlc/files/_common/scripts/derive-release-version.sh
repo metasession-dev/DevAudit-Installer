@@ -52,6 +52,10 @@
 # RTM row is IN PROGRESS, attribute to it. RTM_PATH defaults to
 # compliance/RTM.md and is overridable via env.
 #
+# Deferred work (#956): steps 4 and 4-bis ignore any pending ticket with
+# `Release intent: deferred-to-next` (and RTM rows with status DEFERRED are
+# never IN PROGRESS), so a parked REQ is never derived as the in-flight release.
+#
 # The id is taken from a bracketed [REQ-XXX] tag (subject or body) or the
 # `Ref:` line — NOT from unbracketed prose (e.g. "target close: REQ-002" must
 # not win over "Ref: REQ-001"). Step 3 exists because a "Merge pull request"
@@ -203,6 +207,16 @@ if [ "$(echo "$PARENTS" | wc -w)" = "2" ]; then
   fi
 fi
 
+# devaudit-installer#956 — a pending ticket carrying
+#   - **Release intent:** deferred-to-next — <reason>
+# (or an RTM row with status DEFERRED) is parked, not in flight: steps 4 and
+# 4-bis must not count it as the in-flight release. Absent field = not deferred.
+is_deferred_ticket() {
+  local line
+  line=$(grep -m1 '^\- \*\*Release intent:\*\*' "$1" 2>/dev/null || true)
+  printf '%s' "$line" | grep -qE '^- \*\*Release intent:\*\*[[:space:]]+deferred-to-next'
+}
+
 # 4. Pending release ticket on disk: when exactly one
 # `compliance/pending-releases/RELEASE-TICKET-REQ-*.md` is present, the
 # operator's explicit state says THIS is the in-flight release. Use it.
@@ -214,14 +228,15 @@ fi
 # a silent bare-date resolution — the flag gates whether it's *used*, not
 # whether its existence is surfaced.
 if [ -d compliance/pending-releases ]; then
-  # NUL-delimited count so filenames with spaces don't trip us up.
-  TICKET_COUNT=$(find compliance/pending-releases -maxdepth 1 -type f \
-    -name 'RELEASE-TICKET-REQ-*.md' -print0 2>/dev/null \
-    | tr -cd '\0' | wc -c)
-  if [ "$TICKET_COUNT" = "1" ]; then
-    TICKET_CANDIDATE=$(find compliance/pending-releases -maxdepth 1 -type f \
-      -name 'RELEASE-TICKET-REQ-*.md' -print 2>/dev/null \
-      | head -1 | xargs -n1 basename \
+  # Deferred tickets (#956) are skipped: they are parked, not in flight.
+  NON_DEFERRED_TICKETS=()
+  while IFS= read -r -d '' f; do
+    is_deferred_ticket "$f" && continue
+    NON_DEFERRED_TICKETS+=("$f")
+  done < <(find compliance/pending-releases -maxdepth 1 -type f \
+    -name 'RELEASE-TICKET-REQ-*.md' -print0 2>/dev/null)
+  if [ "${#NON_DEFERRED_TICKETS[@]}" = "1" ]; then
+    TICKET_CANDIDATE=$(basename "${NON_DEFERRED_TICKETS[0]}" \
       | sed -E 's/^RELEASE-TICKET-(REQ-[0-9]+)\.md$/\1/')
     if [ "${DEVAUDIT_ALLOW_PENDING_TICKET_FALLBACK:-0}" = "1" ]; then
       echo "$TICKET_CANDIDATE"
@@ -251,6 +266,16 @@ if [ -f "$RTM_PATH" ]; then
     | grep -E '\|[[:space:]]+IN PROGRESS' \
     | grep -oE '^\|[[:space:]]*REQ-[0-9]+' \
     | grep -oE 'REQ-[0-9]+' | sort -u || true)
+  # A row still IN PROGRESS whose pending ticket is deferred (#956) is parked.
+  if [ -n "$IN_PROGRESS_REQS" ]; then
+    LIVE_IN_PROGRESS=""
+    for r in $IN_PROGRESS_REQS; do
+      t="compliance/pending-releases/RELEASE-TICKET-${r}.md"
+      if [ -f "$t" ] && is_deferred_ticket "$t"; then continue; fi
+      LIVE_IN_PROGRESS="${LIVE_IN_PROGRESS}${r}"$'\n'
+    done
+    IN_PROGRESS_REQS=$(printf '%s' "$LIVE_IN_PROGRESS" | grep . || true)
+  fi
   if [ -n "$IN_PROGRESS_REQS" ]; then
     IN_PROGRESS_COUNT=$(echo "$IN_PROGRESS_REQS" | grep -c .)
     if [ "$IN_PROGRESS_COUNT" = "1" ]; then

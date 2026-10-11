@@ -201,6 +201,12 @@ for REQ in $REQUIREMENTS; do
       echo "  OK: RTM status is APPROVED"
     elif printf '%s' "$RTM_STATUS" | grep -q "SUPERSEDED"; then
       echo "  OK: RTM status is SUPERSEDED"
+    elif printf '%s' "$RTM_STATUS" | grep -q "DEFERRED"; then
+      # devaudit-installer#956 — a parked release (its release PR was closed
+      # without releasing). Valid status, NOT terminal: the ticket stays in
+      # pending-releases/ and the REQ ships only when a later release lists it
+      # under 'Absorbed predecessor releases'. Never flagged as unresolved.
+      echo "  OK: RTM status is DEFERRED (parked; ticket stays in pending-releases/)"
     else
       echo "  WARNING: RTM entry exists but status is not TESTED - PENDING SIGN-OFF"
     fi
@@ -252,6 +258,10 @@ for REQ in $REQUIREMENTS; do
         echo "  ERROR: Release ticket has a malformed '**Release intent:**' — expected '- **Release intent:** deferred-to-next — <reason, PR #N closed unmerged>' (omit the line when there is no declared intent)"
         EXIT_CODE=1
       fi
+    elif printf '%s' "${RTM_STATUS:-}" | grep -q "DEFERRED"; then
+      # The ticket field is the sole declaration of deferral (#956); an RTM
+      # DEFERRED row without it is a mismatch worth surfacing, not a failure.
+      echo "  WARNING: RTM status is DEFERRED but the release ticket has no '**Release intent:** deferred-to-next' line — the ticket field is the sole declaration of deferral"
     fi
   fi
 
