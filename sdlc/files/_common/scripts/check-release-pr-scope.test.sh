@@ -44,6 +44,7 @@ make_fixture() {
   cp "$SCRIPT_DIR/extract-release-metadata.sh" "$dir/scripts/extract-release-metadata.sh"
   cp "$SCRIPT_DIR/standalone-housekeeping-release.sh" "$dir/scripts/standalone-housekeeping-release.sh"
   cp "$HELPER" "$dir/scripts/check-release-pr-scope.sh"
+  cp "$SCRIPT_DIR/check-deferred-reqs-in-range.sh" "$SCRIPT_DIR/list-reqs-in-range.sh" "$dir/scripts/"
   chmod +x "$dir/scripts/"*.sh
   (
     cd "$dir"

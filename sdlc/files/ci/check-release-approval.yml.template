@@ -281,6 +281,12 @@ jobs:
             uat_approved|prod_review|prod_approved|released)
               echo "Release approval confirmed (status: ${STATUS})"
               ;;
+            deferred)
+              # devaudit-installer#956 — the portal parked this release. Still
+              # fails the gate (a deferred release is not approved).
+              echo "::error::Release ${VERSION} is deferred — it was parked without being released and is not approved. Resume it in the DevAudit portal, or promote its REQs through a successor release that lists ${VERSION} under 'Absorbed predecessor releases'."
+              exit 1
+              ;;
             *)
               echo "::error::Release ${VERSION} is '${STATUS}' — release approval required (have an authorised reviewer approve in DevAudit; in v1.22.x the backend status enum remains 'uat_approved')."
               exit 1

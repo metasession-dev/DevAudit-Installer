@@ -46,6 +46,11 @@ ACTIVE_RELEASE_REQS=""
 if [ -d compliance/pending-releases ]; then
   ACTIVE_RELEASE_REQS=$(find compliance/pending-releases -maxdepth 1 -type f \
     -name 'RELEASE-TICKET-REQ-*.md' -print 2>/dev/null \
+    | while IFS= read -r t; do
+        # Deferred tickets (#956) are parked, not an active release.
+        grep -qE '^- \*\*Release intent:\*\*[[:space:]]+deferred-to-next' "$t" 2>/dev/null && continue
+        printf '%s\n' "$t"
+      done \
     | sed -E 's|.*/RELEASE-TICKET-(REQ-[0-9]+)\.md$|\1|' | sort -u || true)
 fi
 if [ -z "$ACTIVE_RELEASE_REQS" ] && [ -f compliance/RTM.md ]; then

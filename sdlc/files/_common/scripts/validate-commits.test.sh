@@ -282,6 +282,26 @@ printf '{"commit_validation":{"legacy_non_conventional":[{"sha":"%s","reason":"l
 run_validator
 assert_exit "conventional commit missing REQ is unaffected by the exemption" 1
 
+echo "Case 16: a deferred pending ticket is not an active release (#956)"
+make_fixture "$WORKDIR/case16" "feat: implement kitchen workflow" "Co-Authored-By: Test <test@example.com>"
+mkdir -p compliance/pending-releases
+printf '%s\n' '# Release Ticket: REQ-123' '- **Release intent:** deferred-to-next — PR #9 closed unmerged' > compliance/pending-releases/RELEASE-TICKET-REQ-123.md
+git add compliance/pending-releases
+git commit -q --amend --no-edit
+run_validator
+assert_exit "only a deferred ticket -> missing REQ stays a hard error" 1
+
+echo "Case 17: deferred ticket does not hide the single live release (#956)"
+make_fixture "$WORKDIR/case17" "feat: implement kitchen workflow" "Co-Authored-By: Test <test@example.com>"
+mkdir -p compliance/pending-releases
+printf '%s\n' '# Release Ticket: REQ-123' '- **Release intent:** deferred-to-next — PR #9 closed unmerged' > compliance/pending-releases/RELEASE-TICKET-REQ-123.md
+printf '%s\n' '# Release Ticket: REQ-124' > compliance/pending-releases/RELEASE-TICKET-REQ-124.md
+git add compliance/pending-releases
+git commit -q --amend --no-edit
+run_validator
+assert_exit "one live + one deferred -> single active release warning, exit 0" 0
+assert_grep "live release named" 'one active tracked release \(REQ-124\)' 1
+
 echo
 echo "Result: $PASS passed, $FAIL failed"
 [ "$FAIL" = "0" ]

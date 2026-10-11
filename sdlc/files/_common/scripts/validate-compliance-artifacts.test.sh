@@ -619,6 +619,48 @@ intent_case case18b '- **Release intent:** later — PR #44 closed unmerged'
 assert_grep "unknown value rejected" 'ERROR: Release ticket has a malformed' 1
 cd "$WORKDIR"
 
+echo "Case 19: DEFERRED RTM status is a valid non-terminal status (#956)"
+make_fixture "$WORKDIR/case19" "Ref: REQ-040"
+{
+  echo '# RTM'
+  echo
+  echo '| ID | Description | Status |'
+  echo '| --- | --- | --- |'
+  echo '| REQ-040 | Parked release | DEFERRED |'
+} > compliance/RTM.md
+mkdir -p compliance/evidence/REQ-040
+echo "scope" > compliance/evidence/REQ-040/test-scope.md
+echo "plan" > compliance/evidence/REQ-040/test-plan.md
+echo "summary" > compliance/evidence/REQ-040/test-execution-summary.md
+printf '%s\n' '- **Release intent:** deferred-to-next — PR #44 closed unmerged' > compliance/pending-releases/RELEASE-TICKET-REQ-040.md
+git add . && git commit -q --amend --no-edit
+run_validator
+assert_grep "DEFERRED accepted" 'OK: RTM status is DEFERRED' 1
+assert_grep "no not-TESTED warning" 'WARNING: RTM entry exists but status' 0
+assert_grep "no mismatch warning when ticket declares intent" 'WARNING: RTM status is DEFERRED but' 0
+assert_exit "validator exits 0 with DEFERRED RTM row and pending ticket" 0
+cd "$WORKDIR"
+
+echo "Case 20: DEFERRED RTM row without ticket intent warns but does not fail"
+make_fixture "$WORKDIR/case20" "Ref: REQ-041"
+{
+  echo '# RTM'
+  echo
+  echo '| ID | Description | Status |'
+  echo '| --- | --- | --- |'
+  echo '| REQ-041 | Parked release | DEFERRED |'
+} > compliance/RTM.md
+mkdir -p compliance/evidence/REQ-041
+echo "scope" > compliance/evidence/REQ-041/test-scope.md
+echo "plan" > compliance/evidence/REQ-041/test-plan.md
+echo "summary" > compliance/evidence/REQ-041/test-execution-summary.md
+touch compliance/pending-releases/RELEASE-TICKET-REQ-041.md
+git add . && git commit -q --amend --no-edit
+run_validator
+assert_grep "mismatch warning" 'WARNING: RTM status is DEFERRED but' 1
+assert_exit "validator exits 0" 0
+cd "$WORKDIR"
+
 echo
 echo "=== validate-compliance-artifacts.test.sh: $PASS passed, $FAIL failed ==="
 [ "$FAIL" -eq 0 ]

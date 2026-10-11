@@ -449,6 +449,42 @@ cat > compliance/pending-releases/BUNDLED-CHANGES-REQ-037.md <<'EOF'
 EOF
 assert_eq "live bundle manifest (ticket not archived) still wins -> REQ-037" "REQ-037" "$(run_helper)"
 
+# Case 19 (#956): a deferred pending ticket is ignored by step 4. With one
+# deferred and one live ticket, the live one is the in-flight release.
+make_fixture "$WORK/c19" "chore: devaudit update"
+mkdir -p compliance/pending-releases
+printf '%s\n' '# Release Ticket: REQ-401' '- **Release intent:** deferred-to-next — PR #9 closed unmerged' > compliance/pending-releases/RELEASE-TICKET-REQ-401.md
+printf '%s\n' '# Release Ticket: REQ-402' > compliance/pending-releases/RELEASE-TICKET-REQ-402.md
+GOT=$(DEVAUDIT_ALLOW_PENDING_TICKET_FALLBACK=1 run_helper 2>/dev/null)
+assert_eq "deferred ticket ignored at step 4 -> REQ-402" "REQ-402" "$GOT"
+
+# Case 20 (#956): the only pending ticket is deferred -> not the in-flight
+# release; falls through to the bare date.
+make_fixture "$WORK/c20" "chore: devaudit update"
+mkdir -p compliance/pending-releases
+printf '%s\n' '# Release Ticket: REQ-401' '- **Release intent:** deferred-to-next — PR #9 closed unmerged' > compliance/pending-releases/RELEASE-TICKET-REQ-401.md
+GOT=$(DEVAUDIT_ALLOW_PENDING_TICKET_FALLBACK=1 run_helper 2>/dev/null)
+assert_eq "only a deferred ticket -> bare date" "$TODAY" "$GOT"
+
+# Case 21 (#956): step 4-bis ignores an IN PROGRESS RTM row whose pending
+# ticket is deferred, and ignores DEFERRED rows.
+make_fixture "$WORK/c21" "chore: devaudit update"
+mkdir -p compliance/pending-releases
+printf '%s\n' '# Release Ticket: REQ-401' '- **Release intent:** deferred-to-next — PR #9 closed unmerged' > compliance/pending-releases/RELEASE-TICKET-REQ-401.md
+cat > compliance/RTM.md <<'RTM'
+| REQ-ID  | Status      |
+| ------- | ----------- |
+| REQ-401 | IN PROGRESS |
+| REQ-403 | DEFERRED    |
+RTM
+GOT=$(DEVAUDIT_ALLOW_PENDING_TICKET_FALLBACK=1 run_helper 2>/dev/null)
+assert_eq "deferred ticket's IN PROGRESS row + DEFERRED row ignored -> bare date" "$TODAY" "$GOT"
+cat >> compliance/RTM.md <<'RTM'
+| REQ-404 | IN PROGRESS |
+RTM
+GOT=$(DEVAUDIT_ALLOW_PENDING_TICKET_FALLBACK=1 run_helper 2>/dev/null)
+assert_eq "live IN PROGRESS row still wins at step 4-bis -> REQ-404" "REQ-404" "$GOT"
+
 echo ""
 echo "=== Summary: $PASS pass / $FAIL fail ==="
 
