@@ -4,6 +4,10 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+### Documentation
+
+- **#910** (umbrella #957) — `docs/consuming-projects.md` gains one consolidated section on `sdlc-config.json`: why it is the per-consumer source of truth, exactly what `update`/`install` do and do not write to it, and the two ways project-specific parameters get in (cross-linked from `docs/onboarding.md`, whose idempotence note is also corrected to say only wizard-owned keys are rewritten). `docs/e2e-test-tiers.md` gains a pre-enable checklist: `e2e_env` scope per workflow (job-wide in `e2e-regression.yml`, E2E steps only in `ci.yml` and `feature-e2e.yml`), a warning that legacy Playwright `globalSetup`/`globalTeardown` run against whatever backend `e2e_env` points at, `feature-e2e.yml` running every Playwright project (no `--project`) and how to guard one with `GITHUB_WORKFLOW`, and the unanchored `e2e/**/*.spec.ts` `testMatch` pitfall.
+
 ### Fixed
 
 - **#966** (umbrella #957) — `validate-commits.sh` now counts a declared bundle as **one** active release when deciding whether an untraced `feat`/`fix` commit may be downgraded to a warning. Each live bundle's members (co_tracked, predecessor, housekeeping, read from `BUNDLED-CHANGES-<core>.json`, or the `.md` when `jq` is absent) collapse into the core REQ; a manifest whose core ticket is no longer pending is ignored. Previously a bundle of five tickets counted as five releases, so the single-release escape hatch never applied and the release PR's Compliance Validation failed. Extended `validate-commits.test.sh` (bundle, bundle plus independent release, stale manifest). Also adds a **declared legacy exemption** for history that predates Conventional Commits and cannot be rewritten: `sdlc-config.json` `commit_validation.legacy_non_conventional: [{sha, reason}]` (sha ≥ 7 chars, reason required). Each exempted commit is printed as `EXEMPT` with its reason on every run and counted as a warning; it waives only the format check, never requirement traceability.

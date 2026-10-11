@@ -228,6 +228,39 @@ Run `devaudit doctor` any time to re-list every unresolved conflict (the `sync-c
 
 Only one commitlint config should exist in a consumer repo — the managed `commitlint.config.mjs`. A leftover legacy config from before devaudit was synced (`.commitlintrc*`, `commitlint.config.{js,cjs,ts}`, or a `commitlint` field in `package.json`) can silently take priority over it, since commitlint loads the first match it finds in its own fixed search order — most commonly a `.cjs` file, which sorts ahead of `.mjs`. When that happens, the managed config's rules (including the `Sdlc-Implementer-Sentinel:` trailer exemption, devaudit-installer#814) silently don't apply, and commits fail with the *stock* config-conventional error text instead of the managed override's. `devaudit doctor`'s `commitlint-config-shadowing` check catches this — it names both files and which one wins; remove or merge the legacy one.
 
+### `sdlc-config.json`: what it is, why `update` leaves it alone, how parameters get in
+
+(devaudit-installer#910.) Three questions come up for every new operator or agent; this section answers them in one place. The detail lives in the sections it links to.
+
+#### 1. Why this file matters
+
+`sdlc-config.json` is the **single per-consumer source of truth**. It holds the stack and host selection, the DevAudit project slug (which must match the portal's project record), the branch names (`release_branch` / `integration_branch`), the runner selection, the E2E and database configuration, and every other field on the `SdlcConfig` interface. Every CI workflow, hook and script that `devaudit update` generates is rendered from these values plus the framework templates. The templates are the same for every consumer; the config is what makes them yours.
+
+#### 2. Why `update` does not overwrite it
+
+A framework update must be able to replace templates wholesale, so the project-specific values cannot live in the templates. They live in this file instead, and `devaudit update` treats the file as consumer-owned. If it were regenerated on each sync you would lose the portal-linked slug, custom branch names, runner choice and every tuned value on every framework update.
+
+Precisely (see the *Never touched by `update`* line and the `sdlc-config.json` row in [What `update` touches, precisely](#what-update-touches-precisely)):
+
+| Actor | What it does to `sdlc-config.json` |
+| --- | --- |
+| `devaudit update` | Writes `devaudit_synced_version` on each sync, and `e2e_regression_enabled` only when `--enable-e2e-regression` / `--disable-e2e-regression` is passed. Every other key, including keys it does not recognise and nested objects, is preserved. |
+| `devaudit install` (first run) | Creates the file: values the wizard owns (stack, host, project slug, runtime version, working directory, source dirs, production URL secret, the `devaudit` block) plus defaults for everything else. |
+| `devaudit install` (re-run) | Existing customisations (`app_env`, `build_env`, `e2e_*`, `database_*`, ...) win over the defaults. Only the wizard-owned values are re-applied from the current install plan. |
+| You (or your agent) | Hand-edit anything else, then run `devaudit update` to regenerate the workflows. |
+
+#### 3. How project-specific parameters get in
+
+There are two paths:
+
+- **Detected or prompted at `install` time.** The CLI reads `pyproject.toml` / `package.json` to infer the stack and working directory, then prompts for the remaining wizard values (project slug, runtime version, source dirs, working directory, production URL secret). See [`onboarding.md`](onboarding.md#step-2--run-the-installer).
+- **Added by hand later, for anything `install` did not ask about** (`database_*`, `paths_ignore`, `e2e_*`, `runner`, `install_flags`, ...). Nothing auto-populates these. The end-to-end workflow for a new customisation is:
+  1. Look for an existing key: read the `SdlcConfig` interface in `cli/src/update/ci-templates.ts` (the only copy that cannot go stale) or the annotated [`sdlc/files/sdlc-config.example.json`](../sdlc/files/sdlc-config.example.json), which is the closest thing to a full field reference today. Each key has a `_comment_<key>` entry.
+  2. If a key exists, set it in `sdlc-config.json` and run `devaudit update`. Nothing to patch, and it survives every future sync.
+  3. If none exists, follow [Deciding: config key vs. patch](#deciding-config-key-vs-patch): a temporary `.devaudit-patches/` bridge with its `.patch.json`, plus an upstream issue proposing the key. Delete the patch once the key ships.
+
+There is currently no command that lists the available keys; that would be a feature rather than a documentation fix.
+
 ### Temporary consumer patches
 
 Use `.devaudit-patches/` only when a consuming project needs a reviewed,
@@ -301,6 +334,8 @@ touching anything:
    `applied: <file>.patch`, not the conflict warning.
 
 #### Deciding: config key vs. patch
+
+(Background on the file itself: [`sdlc-config.json`: what it is, why `update` leaves it alone, how parameters get in](#sdlc-configjson-what-it-is-why-update-leaves-it-alone-how-parameters-get-in).)
 
 A generated file needing project-specific customization is not automatically
 a patch situation. Every field on the `SdlcConfig` interface

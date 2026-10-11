@@ -38,6 +38,42 @@ Most projects don't need this — the blocking smoke gate above is mandatory and
 
 A plain `devaudit update` with neither flag never touches `e2e_regression_enabled` — it's pure opt-in, not something a routine sync can silently flip.
 
+## Before enabling: how the generated workflows use `e2e_env` and your Playwright config
+
+Read this before putting real credentials in `e2e_env` or turning on `e2e_regression_enabled`. Four behaviours of the generated workflows interact with your own Playwright setup.
+
+### Where `e2e_env` is applied
+
+| Workflow | `e2e_env` scope | Notes |
+| --- | --- | --- |
+| `e2e-regression.yml` | **Job-wide** (every step in the job) | Merged with `database_env` and `app_env` into the job's `env:` block (`buildE2eRegressionJobEnv`). Precedence on a duplicate key: `database_env` < `app_env` < `e2e_env`. |
+| `ci.yml` | **E2E steps only**: setup, dev-server start, the E2E test step and the authenticated/seed steps | `database_env` and `app_env` are still applied job-wide; `e2e_env` overrides them only on the E2E steps (`buildE2eSetupStep`, `buildE2eDevServerStep`, `buildE2eTestStep`, `buildAuthenticatedE2eStep`). |
+| `feature-e2e.yml` | **E2E steps only**: the same setup, dev-server and test steps | The test step is `buildFeatureE2eTestStep`. `database_env` and `app_env` are job-wide as in `ci.yml`. |
+
+So if `e2e_env` carries credentials for a shared or real backend, in `e2e-regression.yml` every step of the job sees them, not just the Playwright process.
+
+### Review `globalSetup` / `globalTeardown` before pointing `e2e_env` at a real backend
+
+When `e2e_env` carries real credentials, your Playwright `globalSetup` / `globalTeardown` (including legacy ones written when E2E only ever ran against a disposable local stack) run against **that backend**. In one consumer this meant a legacy global setup that created an admin user with a known password and a global teardown that deleted organisations by name, both of which would have executed against the real service. Before enabling, read your global setup and teardown, and guard or remove anything that creates privileged users, resets data, or deletes by name. Prefer a disposable backend (see [`e2e-local-db-ci.md`](./e2e-local-db-ci.md)).
+
+### `feature-e2e.yml` runs every Playwright project
+
+`feature-e2e.yml` runs `npx playwright test --grep "$REQ_ID"` with **no `--project` flag**, so every project defined in your `playwright.config.ts` runs there, not only the one named in `e2e_project`. (`ci.yml` passes `--project=<e2e_project>`; `e2e-regression.yml` passes the tier's project.) A project that must not run in that workflow, for example a destructive `regression` project or one that needs a backend the feature job does not have, needs a guard in the config. `GITHUB_WORKFLOW` holds the workflow's `name:`, which is `Feature In-Scope E2E` for this workflow:
+
+```ts
+const inFeatureE2e = process.env.GITHUB_WORKFLOW === 'Feature In-Scope E2E';
+
+projects: [
+  { name: 'smoke', /* ... */ },
+  // Skip the heavy/destructive project when the feature workflow runs.
+  ...(inFeatureE2e ? [] : [{ name: 'regression', /* ... */ }]),
+],
+```
+
+### Keep specs under `e2e/`, or anchor your `testMatch`
+
+The documented layout and the generated workflows assume specs live under `e2e/`. A Playwright `testMatch` glob such as `e2e/**/*.spec.ts` also matches `tests/e2e/playwright/...`, because the pattern is not anchored to the repo root. If you keep a second suite under `tests/e2e/`, set `testDir` explicitly and either anchor the pattern or add a `testIgnore` for the other tree, then check with `npx playwright test --list` that only the specs you expect are picked up.
+
 ## Screenshot density across tiers
 
 DevAudit also distinguishes between feature-proof captures and regression-proof captures:
