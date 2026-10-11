@@ -72,8 +72,10 @@ jobs:
     services:
       {{DATABASE_SERVICE}}:
         image: {{DATABASE_IMAGE}}
+{{DATABASE_SERVICE_ENV}}
         ports:
           - {{DATABASE_PORT}}
+{{DATABASE_SERVICE_OPTIONS}}
 
 {{E2E_REGRESSION_JOB_ENV}}
 
