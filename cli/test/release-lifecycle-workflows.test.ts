@@ -570,6 +570,36 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     );
   });
 
+  // #973 — link the PR before the approval gate so pr_url is set while draft.
+  it('links the release PR before the approval gate and keeps the gate text and conditions (#973)', () => {
+    const source = template('check-release-approval.yml.template').replace(/\r\n/g, '\n');
+    const at = (s: string) => source.indexOf(`- name: ${s}`);
+    const order = [
+      'Resolve current release',
+      'Link PR to release',
+      'Post release link on PR',
+      'Enforce release approval',
+      'SHA comparison',
+    ].map(at);
+    expect(order.every((i) => i >= 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    const resolve = source.slice(order[0], order[1]);
+    expect(resolve).toContain('echo "approved_sha=${APPROVED_SHA}" >> "$GITHUB_OUTPUT"');
+    expect(resolve).toContain('No release found for ${LOOKUP_PREFIX}');
+    expect(resolve).not.toContain('case "$STATUS"');
+    const enforce = source.slice(order[3], order[4]);
+    expect(enforce).toContain("if: env.BOOTSTRAP_MODE != 'true' && steps.standalone.outputs.standalone != 'true'");
+    expect(enforce).not.toContain('github.event_name == ');
+    expect(enforce).toContain('uat_approved|prod_review|prod_approved|released)');
+    expect(enforce).toContain("release approval required (have an authorised reviewer approve in DevAudit;");
+    expect(enforce).toContain('exit 1');
+    const link = source.slice(order[1], order[2]);
+    expect(link).toContain("github.event_name == 'pull_request'");
+    expect(link).toContain('prInfo');
+    // The SHA comparison and the dispatch re-trigger stay behind the gate.
+    expect(order[3]).toBeLessThan(source.indexOf('- name: Create refreshed PR check run'));
+  });
+
   it('admits only declared standalone promotions without tracked portal approval', () => {
     const source = template('check-release-approval.yml.template');
     expect(source).toContain('Detect declared standalone housekeeping promotion');

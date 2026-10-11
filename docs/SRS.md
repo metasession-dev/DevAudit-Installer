@@ -750,6 +750,7 @@ dependencies (tier 3) — which is exactly the coverage the current unit-only su
 | REQ-FRAMEWORK-APPROVAL-002   | Gate blocks merge unless the resolved tracked release is approved; a fully declared standalone housekeeping promotion is governed by its explicit exception | Must     | `sdlc/files/ci/check-release-approval.yml.template`                                                                           |
 | REQ-FRAMEWORK-APPROVAL-003   | Bootstrap mode passes the gate on the introducing PR                                                                                                        | Must     | `sdlc/files/ci/check-release-approval.yml.template`                                                                           |
 | REQ-FRAMEWORK-APPROVAL-004   | Gate links the PR to the release and posts a portal link comment                                                                                            | Should   | `sdlc/files/ci/check-release-approval.yml.template`                                                                           |
+| REQ-FRAMEWORK-APPROVAL-005   | PR is linked to the release before the approval gate fails (#973)                                                                                           | Should   | `sdlc/files/ci/check-release-approval.yml.template`                                                                           |
 | REQ-FRAMEWORK-POSTDEPLOY-001 | post-deploy-prod.yml runs read-only prod verification on push to main                                                                                       | Should   | `sdlc/files/ci/post-deploy-prod.yml.template`                                                                                 |
 | REQ-FRAMEWORK-POSTDEPLOY-002 | Promotes every in-scope release and uploads production evidence (stage 5)                                                                                   | Should   | `sdlc/files/ci/post-deploy-prod.yml.template`                                                                                 |
 | REQ-FRAMEWORK-POSTDEPLOY-003 | Post-deploy smoke failure files incident issue with structured sections (#210 AC28-AC29)                                                                    | Should   | `sdlc/files/ci/post-deploy-prod.yml.template`                                                                                 |
@@ -3067,7 +3068,7 @@ Area codes: FRAMEWORK-CIYML (ci.yml quality gates + evidence job), FRAMEWORK-EVI
 #### REQ-FRAMEWORK-APPROVAL-002 — Gate blocks merge unless the resolved release is approved
 
 - **Priority:** Must — the load-bearing blocking behaviour of the entire compliance flow.
-- **Source:** `sdlc/files/ci/check-release-approval.yml.template` step `Resolve current release` (`if: BOOTSTRAP_MODE != 'true'`): derives prefix via `derive-release-version.sh`, polls `GET ${BASE}/api/ci/releases/resolve?projectSlug=…&versionPrefix=…` up to 6× × 10s; reads `.latest.status`; passes only when status ∈ `{uat_approved, prod_review, prod_approved, released}`, else `::error::` exit 1.
+- **Source:** `sdlc/files/ci/check-release-approval.yml.template` steps `Resolve current release` (`if: BOOTSTRAP_MODE != 'true'`; derives prefix via `derive-release-version.sh`, polls `GET ${BASE}/api/ci/releases/resolve?projectSlug=…&versionPrefix=…` up to 6× × 10s; reads `.latest.status`) and `Enforce release approval` (runs after the PR-link steps, #973); passes only when status ∈ `{uat_approved, prod_review, prod_approved, released}`, else `::error::` exit 1.
 - **Preconditions / inputs:** A registered release (from ci.yml `register-release`); a reviewer has approved in the portal.
 - **Given** a PR to main with a resolvable release **When** the release status is approved (`uat_approved`+) **Then** the gate passes and merge is allowed; **When** the status is unapproved (e.g. `uat_pending`) **Then** the gate fails and merge is blocked. **When** no release resolves after 6 attempts **Then** `::error::No release found … Push to develop first` + exit 1.
 - **Error paths:** Race with `register-release` handled by the 6×10s retry; no release = hard fail.
@@ -3092,6 +3093,15 @@ Area codes: FRAMEWORK-CIYML (ci.yml quality gates + evidence job), FRAMEWORK-EVI
 - **Fixtures/env:** PR fixture + portal/gh stubs; an approved-SHA mismatch fixture.
 
 ---
+
+#### REQ-FRAMEWORK-APPROVAL-005 — PR is linked to the release before the approval gate fails (#973)
+
+- **Priority:** Should — traceability; ensures the portal `pr_url`/`pr_number` are set while the release is still draft.
+- **Source:** `sdlc/files/ci/check-release-approval.yml.template` step order: `Resolve current release` (always outputs `release_id`/`version`/`status`/`approved_sha`; fails only if no release exists after its retries) → `Link PR to release` → `Post release link on PR` → `Enforce release approval` (the `case "$STATUS"` gate, unchanged error text) → `SHA comparison` → `Create refreshed PR check run`.
+- **Preconditions / inputs:** Non-bootstrap, non-standalone `pull_request` run against a release whose status is not yet approved.
+- **Given** a PR to main with a `draft` release **When** `Check Release Approval` runs **Then** the release is PATCHed with `prInfo` and the `**DevAudit Release:**` comment is posted, and only then `Enforce release approval` fails with `release approval required`. **When** the release is approved **Then** all steps run and the SHA comparison still runs (only reachable for approved releases). Bootstrap and standalone-housekeeping runs skip all of these steps as before.
+- **Error paths:** No release found → `Resolve current release` fails and nothing is linked; PR check stays red until approval.
+- **Fixtures/env:** Workflow-text test in `cli/test/release-lifecycle-workflows.test.ts` pinning the step order.
 
 #### REQ-FRAMEWORK-POSTDEPLOY-001 — post-deploy-prod.yml runs read-only prod verification on push to main
 
