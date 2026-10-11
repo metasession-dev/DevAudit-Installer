@@ -4,6 +4,10 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+### Documentation
+
+- **#910** (umbrella #957) — `docs/consuming-projects.md` gains one consolidated section on `sdlc-config.json`: why it is the per-consumer source of truth, exactly what `update`/`install` do and do not write to it, and the two ways project-specific parameters get in (cross-linked from `docs/onboarding.md`, whose idempotence note is also corrected to say only wizard-owned keys are rewritten). `docs/e2e-test-tiers.md` gains a pre-enable checklist: `e2e_env` scope per workflow (job-wide in `e2e-regression.yml`, E2E steps only in `ci.yml` and `feature-e2e.yml`), a warning that legacy Playwright `globalSetup`/`globalTeardown` run against whatever backend `e2e_env` points at, `feature-e2e.yml` running every Playwright project (no `--project`) and how to guard one with `GITHUB_WORKFLOW`, and the unanchored `e2e/**/*.spec.ts` `testMatch` pitfall.
+
 ### Fixed
 
 - **#963** (umbrella #957) — generated workflows emitted a Postgres service container that could not start. For `database_service: postgres`: `database_env` is now emitted inside the service (`services.postgres.env`; the job-level copy is kept for steps) so `POSTGRES_PASSWORD` actually reaches the container; a bare `database_port` (e.g. `"5434"`) is published as `host:container` (`5434:5432`, container port from the image default) and an explicit `"5434:5432"` passes through; and a `pg_isready` healthcheck (`options:`) is added so steps wait for readiness. Applies to `ci.yml` (node and python), `feature-e2e.yml` and `e2e-regression.yml`. `mongodb` and no-database output is unchanged. **Operator action:** a consumer that emptied the `database_*` keys as a workaround can repopulate them after updating.
