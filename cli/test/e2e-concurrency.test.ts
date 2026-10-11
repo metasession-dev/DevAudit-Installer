@@ -69,7 +69,8 @@ async function renderRegression(extra: Record<string, unknown>): Promise<string>
     await fs.mkdir(join(dir, 'scripts'), { recursive: true });
     await fs.mkdir(join(dir, '.github', 'workflows'), { recursive: true });
     await syncProject(dir);
-    return await fs.readFile(join(dir, '.github', 'workflows', 'e2e-regression.yml'), 'utf8');
+    // Windows checks templates out with CRLF; normalise so the \n assertions hold.
+    return (await fs.readFile(join(dir, '.github', 'workflows', 'e2e-regression.yml'), 'utf8')).replace(/\r\n/g, '\n');
   } finally {
     await fs.rm(dir, { recursive: true, force: true });
   }
