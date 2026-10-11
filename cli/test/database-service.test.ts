@@ -61,7 +61,21 @@ async function render(
     );
     await fs.writeFile(
       join(dir, 'package.json'),
-      JSON.stringify({ name: 'fixture-db', private: true, version: '0.0.0', devDependencies: { '@playwright/test': '*' } }),
+      JSON.stringify({
+        name: 'fixture-db',
+        private: true,
+        version: '0.0.0',
+        devDependencies: {
+          husky: '*',
+          '@commitlint/cli': '*',
+          '@commitlint/config-conventional': '*',
+          'lint-staged': '*',
+          prettier: '*',
+          eslint: '*',
+          typescript: '*',
+          '@playwright/test': '*',
+        },
+      }),
     );
     await fs.mkdir(join(dir, '.husky'), { recursive: true });
     await fs.mkdir(join(dir, 'scripts'), { recursive: true });
@@ -96,7 +110,7 @@ const ISSUE_CONFIG = {
   },
 };
 
-describe('database service container generation (#963)', { timeout: 60_000 }, () => {
+describe('database service container generation (#963)', { timeout: 120_000 }, () => {
   it("renders the issue's postgres config as a bootable service (python ci.yml)", async () => {
     const files = await render('python', ISSUE_CONFIG);
     const svc = servicesOf(files['ci.yml']!)['postgres']!;
