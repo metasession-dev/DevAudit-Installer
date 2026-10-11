@@ -164,6 +164,7 @@ Copy it into `.env` right then — there's no later recovery path. `.env`/`.env.
 | Phase 4/5 — record a UAT execution | `scripts/record-uat-execution.sh` | Uploader key (write) |
 | Post-deploy — report test execution | `scripts/report-test-execution.sh` | Uploader key (write) |
 | Deployment reconciliation | `scripts/reconcile-railway-deployment.sh` (or the equivalent for your host adapter) | Uploader key (write) |
+| Defer / resume a release (portal `deferred` state; admin-only) | Manual today: portal UI session, or `POST /api/releases/[id]/defer` / `/resume` with your own PAT (`DEVAUDIT_USER_TOKEN`) | Human admin PAT or portal session. **Not** the uploader or viewer key, and not CI; no CLI or skill command does this yet (planned, phase 3b of #956) |
 
 **The design decision (devaudit-installer#845):** these stay operator/CI-only by design — a session running `sdlc-implementer` locally without the uploader key should expect to hand these specific steps to CI's own automatic runs or to the operator, not treat it as a missing-credential bug to work around. A narrower third key (e.g. a "record-only" role that can create releases and record UAT/test executions but never approve one) was considered and rejected for now — it would be new portal-side scope with its own blast-radius analysis, not something to build speculatively ahead of a concrete operator-experience problem it solves. If that changes, revisit here.
 

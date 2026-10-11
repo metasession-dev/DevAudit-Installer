@@ -425,7 +425,7 @@ During the META-COMPLY ↔ DevAudit-Installer repo split, four identifiers were 
 
 | Old                      | New                   | Where                                         |
 | ------------------------ | --------------------- | --------------------------------------------- |
-| `META_COMPLY_USER_TOKEN` | `DEVAUDIT_USER_TOKEN` | GitHub secret + env var (PAT)                 |
+| `META_COMPLY_USER_TOKEN` | `DEVAUDIT_USER_TOKEN` | Operator-local env var (PAT); not a repo secret since #912 |
 | `META_COMPLY_API_KEY`    | `DEVAUDIT_API_KEY`    | GitHub secret + env var (per-project CI key)  |
 | `META_COMPLY_BASE_URL`   | `DEVAUDIT_BASE_URL`   | GitHub variable (portal URL)                  |
 | `X-Meta-Comply-Token`    | `X-DevAudit-Token`    | HTTP header on portal API calls (PAT-bearing) |
@@ -438,11 +438,10 @@ Each existing consumer onboarded before the rename needs **a one-time rotation**
 cd path/to/consumer-repo
 
 # 1. Read current values (you'll re-paste them)
-gh secret list                # confirm META_COMPLY_USER_TOKEN and META_COMPLY_API_KEY are set
+gh secret list                # confirm META_COMPLY_API_KEY is set (a legacy META_COMPLY_USER_TOKEN may also be listed; it is not re-created, see #912)
 gh variable list              # confirm META_COMPLY_BASE_URL is set
 
 # 2. Set the new names (paste the same values when prompted)
-gh secret set DEVAUDIT_USER_TOKEN     # paste the mctok_... value
 gh secret set DEVAUDIT_API_KEY        # paste the mc_... value
 gh variable set DEVAUDIT_BASE_URL --body "https://devaudit.ai"
 
@@ -460,12 +459,12 @@ git push -u origin chore/sync-sdlc-rename-devaudit-identifiers
 gh pr create --base main
 
 # 5. After CI passes and PR is merged, clean up the old secrets/vars
-gh secret delete META_COMPLY_USER_TOKEN
+gh secret delete META_COMPLY_USER_TOKEN   # only if present; DEVAUDIT_USER_TOKEN is never a repo secret (#912)
 gh secret delete META_COMPLY_API_KEY
 gh variable delete META_COMPLY_BASE_URL
 ```
 
-Operators also re-export the user-token locally with the new name:
+Operators re-export the user-token (PAT) locally with the new name; it stays out of GitHub secrets (#912):
 
 ```bash
 export DEVAUDIT_USER_TOKEN="mctok_..."
@@ -503,7 +502,7 @@ npm view @metasession.co/devaudit-cli version
 | **Project slug**             | `sdlc-config.json` `project_slug`                                                                 | Used to create releases, upload evidence, check approval                                          | Must match `compliance_projects.slug` in DevAudit                                    |
 | **GitHub vars/secrets**      | `DEVAUDIT_BASE_URL` (variable), `DEVAUDIT_API_KEY` (secret), optionally `DEVAUDIT_VIEWER_API_KEY` (secret) | Consuming projects' CI workflows authenticate against DevAudit via `DEVAUDIT_API_KEY` — see [Token contract](#token-contract) below; `DEVAUDIT_USER_TOKEN` is *not* a repo secret (devaudit-installer#912) | Set by `devaudit install`; refresh manually when API keys rotate                     |
 | **Compliance doc filenames** | `RTM.md`, `test-plan.md`, `test-cases.md`, `test-summary-report.md`                               | CI upload step looks for these exact filenames                                                    | Renaming requires updating all consumer CI workflows                                 |
-| **Release status values**    | `draft`, `uat_review`, `uat_approved`, `uat_rejected`, `prod_review`, `prod_approved`, `released` | `check-release-approval.yml` checks for specific statuses                                         | Changing status names requires updating all consumer release-approval gate workflows |
+| **Release status values**    | `draft`, `uat_review`, `uat_changes_requested`, `uat_rejected`, `uat_approved`, `prod_review`, `prod_approved`, `released`, `superseded`, `deferred` | `check-release-approval.yml` checks for specific statuses                                         | Changing status names requires updating all consumer release-approval gate workflows |
 | **Risk tier column**         | `compliance_projects.risk_tier` (`low`, `medium`, `high`)                                         | Controls self-approval rules: LOW allows self-approval, MEDIUM/HIGH requires independent reviewer | Default `medium`; set per project in DevAudit portal                                 |
 
 #### Important (consistency, not immediately breaking)
@@ -536,7 +535,7 @@ Generated workflows use two distinct auth domains — **`DEVAUDIT_USER_TOKEN` is
   - `${{ github.token }}`
   - used for GitHub Actions repo mutations such as checkout, branch push, PR creation, issue/comment/label edits, and check-run updates
 
-`DEVAUDIT_USER_TOKEN` (the operator's personal PAT) is a *third*, separate credential: it authenticates the one action that genuinely needs a verified human identity — submitting a release for UAT review (`sdlc/files/_common/scripts/submit-for-uat-review.sh`) — and it's read from the operator's local shell (`devaudit auth login` cache or an exported env var), never from a GitHub Actions secret. It is not the default GitHub auth token for workflow repo mutations either; if a workflow is mutating GitHub state, the expected auth path is the workflow token plus explicit `permissions:` on the job.
+`DEVAUDIT_USER_TOKEN` (the operator's personal PAT) is a *third*, separate credential: it authenticates the actions that genuinely need a verified human identity: submitting a release for UAT review (`sdlc/files/_common/scripts/submit-for-uat-review.sh`) and, for a portal admin, deferring or resuming a release (`POST /api/releases/[id]/defer` and `/resume`, admin-only; CI, API and viewer keys are rejected and the CI status PATCH cannot set `deferred`). Defer and resume are manual today (an admin's own PAT or portal UI session); no CLI or skill command calls them yet (planned, phase 3b of #956). The PAT is read from the operator's local shell (`devaudit auth login` cache or an exported env var), never from a GitHub Actions secret. It is not the default GitHub auth token for workflow repo mutations either; if a workflow is mutating GitHub state, the expected auth path is the workflow token plus explicit `permissions:` on the job.
 
 `DEVAUDIT_API_KEY` (or its per-target derived name) and the `DEVAUDIT_BASE_URL` variable are removable via `devaudit uninstall` — see [Offboarding a project](#offboarding-a-project) above. `devaudit uninstall` also deletes any `DEVAUDIT_USER_TOKEN` repo secret if present, which is a no-op on any project onboarded after #912.
 

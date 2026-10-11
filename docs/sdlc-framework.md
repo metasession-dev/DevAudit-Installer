@@ -275,7 +275,7 @@ So Stage 1 and Stage 3 evidence may be critical audit material, but they are sti
 │                                                                                         │
 │  Create PR (develop → main) ──→ CI checks pass (commit SHA status)                      │
 │       │                              │                                                  │
-│       │                       check-uat-approval.yml ──→ ✓ uat_approved                 │
+│       │                       check-release-approval.yml ──→ ✓ uat_approved             │
 │       │                                                                                 │
 │       ├── LOW risk ──→ Self-merge permitted                                             │
 │       └── MEDIUM/HIGH risk ──→ Second human reviewer required                           │
@@ -322,6 +322,36 @@ So Stage 1 and Stage 3 evidence may be critical audit material, but they are sti
 │                                                                                         │
 └─────────────────────────────────────────────────────────────────────────────────────────┘
 ```
+
+### Release states, including `deferred`
+
+A portal release moves `draft` → `uat_review` → (`uat_changes_requested` or `uat_rejected` and back to `draft`) → `uat_approved` → `released`. Two off-ramps sit beside that line (`deferred` and `superseded`; dropped work is `abandoned`, not drawn):
+
+```mermaid
+stateDiagram-v2
+    [*] --> draft
+    draft --> uat_review
+    uat_review --> uat_changes_requested
+    uat_changes_requested --> draft
+    uat_review --> uat_rejected
+    uat_rejected --> draft
+    uat_review --> uat_approved
+    uat_approved --> released
+    draft --> deferred: admin defer
+    uat_review --> deferred: admin defer
+    uat_rejected --> deferred: admin defer
+    uat_approved --> deferred: admin defer
+    deferred --> draft: admin resume
+    deferred --> superseded: successor release
+    draft --> superseded: absorbed at close-out
+    released --> [*]
+    superseded --> [*]
+```
+
+- **`deferred`** is reversible: the release PR was closed without releasing and the work stays pending (ticket `Release intent: deferred-to-next`, RTM `DEFERRED`). Resume returns it to `draft`.
+- **`superseded`** is terminal: a successor release absorbed it at close-out.
+- **`abandoned`** is terminal: the work was cancelled or dropped.
+- Defer and resume are admin-only (`POST /api/releases/[id]/defer` and `/resume`, session or personal access token; never CI, API or viewer keys). They are manual today; tooling for them is planned (phase 3b of #956). See [`doctor.md`](./doctor.md#4-release-deferral-diagnosis-non-gating-read-only-956) for the read-only diagnosis.
 
 ## Enforcing the SDLC via AI Assistants
 

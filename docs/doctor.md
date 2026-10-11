@@ -55,7 +55,9 @@ A release PR closed without releasing leaves a ticket, the portal release and `d
 | `bundle-members` | D7 | For a declared bundle (`BUNDLED-CHANGES-<core>.json`): a `co_tracked` member ticket is still pending after the core ticket was archived or released on the portal, or a member has its own orphan `draft` portal release. Report only. |
 | `releases` | D8 | The existing check in section 3: portal `released` while the ticket is still pending. |
 
-D1, D2 and D5 (they need the portal `deferred` state) are not diagnosed yet.
+D1, D2 and D5 are not diagnosed yet (planned, phase 3b of #956), and neither is `devaudit doctor --fix`.
+
+**Defer and resume are manual today.** The portal `deferred` state is live, but no CLI or skill command calls it. An admin defers or resumes a release by hand, from the portal UI session or with their own personal access token (`DEVAUDIT_USER_TOKEN`, the same PAT used for UAT submission; see [Token contract](consuming-projects.md#token-contract)). `POST /api/releases/[id]/defer` and `/resume` are admin-only and reject CI, API and viewer keys, so the read-only viewer key `doctor` uses can never do this. A planned `doctor --fix` (phase 3b) would propose these steps; it is not available.
 
 ### Portal reads use the viewer key
 

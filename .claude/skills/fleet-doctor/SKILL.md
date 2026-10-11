@@ -66,6 +66,8 @@ Route by severity, exactly as the operator's own triage would:
 - **Not urgent** — invoke that consumer's own `sdlc-implementer`, routed through its Lightweight path (`chore:`/`docs:`/`ci:`, no `REQ-XXX`, no UAT ceremony) to merge the fix directly.
 - **Defer to the next tracked requirement's bundle** — file the fix as a normal tracked-or-housekeeping issue in that consumer's own repo and leave it unassigned. Don't invent a second bundling mechanism: the next real `sdlc-implementer` run against that consumer picks it up via the **existing** `Bundles: #A, #B` declaration (Phase 1 step 4 of `sdlc-implementer`, devaudit-installer#736).
 
+**Terminology:** "defer" here means *postponing a drift fix* into a consumer's next `Bundles:` run. It is unrelated to **release deferral** (#956: the `Release intent: deferred-to-next` ticket line, RTM `DEFERRED`, and the portal `deferred` state, which postpone a *release*). This skill never defers, resumes or supersedes a release; those are per-consumer admin actions (manual today, see [`docs/doctor.md`](../../../docs/doctor.md)), and a `release-pr-closed`/`deferred-will-ship` finding in a consumer's doctor output is classified like any other consumer drift.
+
 ### 6. Report
 
 One run summary, in the same LAST/NEXT sticky-comment style `sdlc-implementer` already uses for a single REQ, scaled to a fleet run:
