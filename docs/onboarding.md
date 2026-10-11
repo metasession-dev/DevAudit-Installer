@@ -56,7 +56,7 @@ If `sdlc-config.json` already exists in the target, `install` runs non-interacti
 1. **Authenticate** — validates the PAT against DevAudit; aborts if invalid.
 2. **Detect the stack and working directory** — reads `pyproject.toml` / `package.json` to infer `python` / `node` and find the manifest location.
 3. **Configure** — interactive prompts for the remaining values (project slug, runtime version, source dirs, working directory, production URL secret name + value).
-4. **Write `sdlc-config.json`** in the consumer's directory.
+4. **Write `sdlc-config.json`** in the consumer's directory. This file is the per-consumer source of truth that `devaudit update` leaves alone; see [`sdlc-config.json`: what it is, why `update` leaves it alone, how parameters get in](consuming-projects.md#sdlc-configjson-what-it-is-why-update-leaves-it-alone-how-parameters-get-in) for how values the wizard did not ask about get in later.
 5. **Create the DevAudit project** (idempotent — skips if a project with this slug already belongs to the operator).
 6. **Issue a project-scoped API key** named `Onboarding-issued` (idempotent — won't re-issue if one already exists; will warn). This key carries the `uploader` role — write access to evidence upload and release status for this one project — and is consumed **only by CI**; never export it locally, never hand it to an agent (see [`permissions-and-tokens-reference.md`](./articles/permissions-and-tokens-reference.md) for why).
    - **Optional:** pass `--with-viewer-key` to also issue a second, read-only `viewer`-role key (`Onboarding-issued (viewer)`), stored as `DEVAUDIT_VIEWER_API_KEY`. A viewer key can only reach the portal's read-back endpoints (`GET .../checks`, `GET .../cycles`) — never upload evidence or approve a release — so, unlike the uploader key, it's safe to persist locally for an agent (e.g. `sdlc-implementer`) to query release/check/cycle status. The raw value is printed to the terminal once, at mint time (devaudit-installer#945) — see "Opting into the read-only viewer key" below for how to capture it. Off by default; existing installs are unaffected. See devaudit#867.
@@ -237,7 +237,7 @@ Everything else is automated.
 
 Re-running the script on the same consumer is safe:
 
-- `sdlc-config.json` is overwritten with the wizard answers (rerun applies the new answers).
+- `sdlc-config.json` is rewritten with the wizard-owned values from the current answers (stack, host, project slug, runtime version, working directory, source dirs, production URL secret, `devaudit` block); every other existing key (`app_env`, `build_env`, `e2e_*`, `database_*`, ...) is preserved.
 - DevAudit project lookup returns the existing project; no duplicate created.
 - API key issuance skips with a warning if `Onboarding-issued` already exists (revoke first in the portal if you want a fresh one).
 - GitHub secrets/variables overwrite via `gh secret set` / `gh variable set`.

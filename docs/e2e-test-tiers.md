@@ -38,6 +38,59 @@ Most projects don't need this — the blocking smoke gate above is mandatory and
 
 A plain `devaudit update` with neither flag never touches `e2e_regression_enabled` — it's pure opt-in, not something a routine sync can silently flip.
 
+## Shared backends: a fixed concurrency group
+
+By default `e2e-regression.yml` uses the group `${{ github.workflow }}-${{ github.ref }}` and cancels in-progress runs only for `pull_request`. The group is per ref, so a PR-to-main `critical` run, a `workflow_dispatch` run on another ref and the post-deploy `regression` run each get their own group and can run **at the same time**. If your specs mutate a **shared** backend (e.g. a shared UAT database that mutating specs restore afterwards), overlapping runs overwrite each other's data and produce flaky failures that look like regressions, and a cancelled run can leave the shared data dirty.
+
+Set a fixed group in `sdlc-config.json` (devaudit-installer#969):
+
+```json
+"e2e_concurrency_group": "uat-e2e-data"
+```
+
+- Every trigger of `e2e-regression.yml` then shares that one group, and `cancel-in-progress` is `false` (a running job is never killed mid-mutation).
+- `e2e_concurrency_cancel_in_progress: true` restores cancellation with the fixed group, if you really want it.
+- Empty or absent (the default) leaves the generated workflow exactly as before.
+- `ci.yml` (smoke) and `feature-e2e.yml` get no group; they are expected not to mutate shared data.
+
+**Caveat:** GitHub keeps at most **one running and one pending** run per group. A newer queued run replaces an older queued one, so a queued PR `critical` run can be silently superseded by a later dispatch even with `cancel-in-progress: false`. A fixed group reduces overlap; it does not guarantee every queued run executes. Re-run any run that shows as cancelled by replacement.
+
+## Before enabling: how the generated workflows use `e2e_env` and your Playwright config
+
+Read this before putting real credentials in `e2e_env` or turning on `e2e_regression_enabled`. Four behaviours of the generated workflows interact with your own Playwright setup.
+
+### Where `e2e_env` is applied
+
+| Workflow | `e2e_env` scope | Notes |
+| --- | --- | --- |
+| `e2e-regression.yml` | **Job-wide** (every step in the job) | Merged with `database_env` and `app_env` into the job's `env:` block (`buildE2eRegressionJobEnv`). Precedence on a duplicate key: `database_env` < `app_env` < `e2e_env`. |
+| `ci.yml` | **E2E steps only**: setup, dev-server start, the E2E test step and the authenticated/seed steps | `database_env` and `app_env` are still applied job-wide; `e2e_env` overrides them only on the E2E steps (`buildE2eSetupStep`, `buildE2eDevServerStep`, `buildE2eTestStep`, `buildAuthenticatedE2eStep`). |
+| `feature-e2e.yml` | **E2E steps only**: the same setup, dev-server and test steps | The test step is `buildFeatureE2eTestStep`. `database_env` and `app_env` are job-wide as in `ci.yml`. |
+
+So if `e2e_env` carries credentials for a shared or real backend, in `e2e-regression.yml` every step of the job sees them, not just the Playwright process.
+
+### Review `globalSetup` / `globalTeardown` before pointing `e2e_env` at a real backend
+
+When `e2e_env` carries real credentials, your Playwright `globalSetup` / `globalTeardown` (including legacy ones written when E2E only ever ran against a disposable local stack) run against **that backend**. In one consumer this meant a legacy global setup that created an admin user with a known password and a global teardown that deleted organisations by name, both of which would have executed against the real service. Before enabling, read your global setup and teardown, and guard or remove anything that creates privileged users, resets data, or deletes by name. Prefer a disposable backend (see [`e2e-local-db-ci.md`](./e2e-local-db-ci.md)).
+
+### `feature-e2e.yml` runs every Playwright project
+
+`feature-e2e.yml` runs `npx playwright test --grep "$REQ_ID"` with **no `--project` flag**, so every project defined in your `playwright.config.ts` runs there, not only the one named in `e2e_project`. (`ci.yml` passes `--project=<e2e_project>`; `e2e-regression.yml` passes the tier's project.) A project that must not run in that workflow, for example a destructive `regression` project or one that needs a backend the feature job does not have, needs a guard in the config. `GITHUB_WORKFLOW` holds the workflow's `name:`, which is `Feature In-Scope E2E` for this workflow:
+
+```ts
+const inFeatureE2e = process.env.GITHUB_WORKFLOW === 'Feature In-Scope E2E';
+
+projects: [
+  { name: 'smoke', /* ... */ },
+  // Skip the heavy/destructive project when the feature workflow runs.
+  ...(inFeatureE2e ? [] : [{ name: 'regression', /* ... */ }]),
+],
+```
+
+### Keep specs under `e2e/`, or anchor your `testMatch`
+
+The documented layout and the generated workflows assume specs live under `e2e/`. A Playwright `testMatch` glob such as `e2e/**/*.spec.ts` also matches `tests/e2e/playwright/...`, because the pattern is not anchored to the repo root. If you keep a second suite under `tests/e2e/`, set `testDir` explicitly and either anchor the pattern or add a `testIgnore` for the other tree, then check with `npx playwright test --list` that only the specs you expect are picked up.
+
 ## Screenshot density across tiers
 
 DevAudit also distinguishes between feature-proof captures and regression-proof captures:
