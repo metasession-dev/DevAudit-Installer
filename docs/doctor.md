@@ -15,7 +15,7 @@ Implementation: [`cli/src/commands/doctor.ts`](../cli/src/commands/doctor.ts) (s
 - **`0`** — all required tools present.
 - **`6`** — one or more required tools missing.
 
-Onboarding-checklist gaps and release-closeout drift are reported but **do not** affect the exit code — they're warnings, not tool-preflight failures. A CI step that wants to gate on them should parse `--json` output itself rather than relying on the process exit code.
+Onboarding-checklist gaps, release-closeout drift and release-deferral findings are reported but **do not** affect the exit code — they're warnings, not tool-preflight failures. A CI step that wants to gate on them should parse `--json` output itself rather than relying on the process exit code.
 
 ## What it checks
 
@@ -36,11 +36,37 @@ Skipped entirely (reported as `ok` with a "skipped" detail) when not run inside 
 | `secrets` | Required GitHub repo secrets are present (`gh secret list`): the configured `api_key_secret` name (default `DEVAUDIT_API_KEY`), the viewer-key secret if configured, and (devaudit-installer#843) the resolved host adapter's own `required_secrets` from its `adapter.json` (e.g. `RAILWAY_TOKEN` for the `railway` host — never reported for a non-Railway consumer). Presence only — `gh secret list` never returns values. `DEVAUDIT_USER_TOKEN` is deliberately not checked here (devaudit-installer#912) — it's never a repo secret; it's the operator's local credential (see `--fleet` below). |
 | `pre-push-hook` | `.husky/pre-push` or `.git/hooks/pre-push` exists — this is what enforces the `sdlc-implementer` sentinel. |
 | `railway-cli` | devaudit-installer#843 — the `railway` CLI is on `PATH`, checked only when `.github/workflows/reconcile-deployment.yml` is actually present in this consumer's synced files (i.e. only for the `railway` host adapter, per #841). Skipped entirely for every other host, so a Vercel (or any non-Railway) consumer never sees a false positive for a tool it will never need. |
+| `commitlint-config-shadowing` | devaudit-installer#942 — a legacy commitlint config (`.commitlintrc*`, `commitlint.config.{js,cjs,ts,cts}`, or a `package.json#commitlint` field) that commitlint's fixed search order loads *before* the managed `commitlint.config.mjs`, silently defeating its `Sdlc-Implementer-Sentinel:` exemption. Skipped when `commitlint.config.mjs` is not synced. |
 | `sync-conflicts` | devaudit-installer#930 — lists every unresolved entry in `.devaudit/sync-manifest.json` with `conflict: true` (a managed file `update` detected as locally modified and left untouched, with the fresh upstream content sitting in a sibling `<path>.devaudit-new`). Non-gating — resolve each per `docs/consuming-projects.md#sync-conflicts`. Reports "skipped" if no manifest exists yet (never synced under a devaudit-installer#930-or-later CLI). |
 
 ### 3. Release closeout drift (non-gating)
 
-`checkReleaseCloseoutDrift` — a reconciliation safety net. Flags any release ticket still sitting in `compliance/pending-releases/` whose portal release is already `released` (i.e. a close-out that was missed, e.g. a dropped dispatch). Calls the DevAudit portal API using `sdlc-config.json`'s `devaudit.project_slug`/`devaudit.base_url` plus `DEVAUDIT_API_KEY`; skips gracefully if any of those aren't available.
+`checkReleaseCloseoutDrift` — a reconciliation safety net. Flags any release ticket still sitting in `compliance/pending-releases/` whose portal release is already `released` (i.e. a close-out that was missed, e.g. a dropped dispatch). Calls the DevAudit portal API using `sdlc-config.json`'s `devaudit.project_slug`/`devaudit.base_url` plus a read key (see [Portal reads](#portal-reads-use-the-viewer-key)); skips gracefully if any of those aren't available. `compliance/pending-releases/` is resolved from the repo root, so the check gives the same answer from any subdirectory.
+
+### 4. Release-deferral diagnosis (non-gating, read-only; #956)
+
+A release PR closed without releasing leaves a ticket, the portal release and `develop` disagreeing. The ticket's `- **Release intent:** deferred-to-next — <reason>` line is the **sole declaration** of a deferral; deferred tickets stay in `compliance/pending-releases/`. These checks diagnose the mismatches; they never change anything (a `--fix` is planned separately). They are reported under the `deferral` key of `--json`, never affect the exit code, and each degrades to `skipped (…)` when its data source is missing (no `compliance/`, git ref, `gh`, portal key, or network).
+
+| Check | Situation | Warns when |
+| --- | --- | --- |
+| `release-pr-closed` | D3 | The ticket's linked release PR is closed unmerged (`gh pr view`), the portal release is still `draft`/`uat_review`/`uat_approved`, and the ticket has no `Release intent`. Needs `gh` and a portal key; without a key the closed PR is noted but not flagged. |
+| `deferred-will-ship` | D4 | A deferred REQ's commits (`[REQ-x]` subject tag or `Ref: REQ-x` trailer, ignoring `Release-Closeout:` commits) are on `develop` (not yet on `main`) and no pending, non-deferred ticket lists it under `Absorbed predecessor releases` — it will ship unapproved. |
+| `predecessors-none` | D6 | A ticket says `Absorbed predecessor releases: None` while another pending `REQ-<n>` ticket has commits since the last tag (or the merge-base with `main`). TypeScript port of the guard in `generate-bundled-changes.sh`. |
+| `bundle-members` | D7 | For a declared bundle (`BUNDLED-CHANGES-<core>.json`): a `co_tracked` member ticket is still pending after the core ticket was archived or released on the portal, or a member has its own orphan `draft` portal release. Report only. |
+| `releases` | D8 | The existing check in section 3: portal `released` while the ticket is still pending. |
+
+D1, D2 and D5 (they need the portal `deferred` state) are not diagnosed yet.
+
+### Portal reads use the viewer key
+
+Every portal read in `doctor` is read-only (`GET /api/ci/releases/resolve`) and uses `DEVAUDIT_VIEWER_API_KEY` from the environment or the repo-root `.env`, falling back to `DEVAUDIT_API_KEY`. Issue the viewer key with `devaudit install --with-viewer-key`. Key values are never printed. With neither key set, portal-backed checks report `skipped`.
+
+### `--json` shape
+
+`--json` keeps `ok`, `tools`, `releaseCloseoutDrift` and `onboarding` exactly as before and adds (additively):
+
+- `deferral` — the four checks of section 4 (`[]` outside a consumer project).
+- `proposals` — flat list of `{ check, subject, detail, remediation }`, where `remediation` is `{ id, tier, summary, plan[], needsPortal }` (tier `A` local + reversible, `B` portal state change, `C` git history/code). They are inert descriptions of what a future `--fix` would offer; plain `doctor` performs none of them.
 
 ## `suspectedOrigin` tagging
 
