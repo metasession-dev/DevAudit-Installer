@@ -10,8 +10,10 @@ import { resolveToken } from './auth.js';
  * credential at hand is one of those, `resolveDeferralCredential` throws a
  * `DeferralCredentialError`. No secret is ever included in an error message.
  *
- * ASSUMED request shape (verify against the portal before release):
- *   POST {base}/api/releases/{id}/defer   body {"reason": string, "untilDate"?: "YYYY-MM-DD", "toVersion"?: string}
+ * Request shape (verified against the portal route handlers
+ * app/api/releases/[id]/defer|resume/route.ts; the portal returns 400 for
+ * validation AND wrong-state errors, 409 only for a concurrent change):
+ *   POST {base}/api/releases/{id}/defer   body {"reason": string, "deferredUntil"?: date string, "deferredToVersion"?: string}
  *   POST {base}/api/releases/{id}/resume  body {} (optional {"reason"})
  *   200/2xx JSON; optional `uatApprovalIdsAtDefer` (or `uat_approval_ids_at_defer`) array in the response.
  */
@@ -102,9 +104,9 @@ function messageFor(kind: DeferralErrorKind, action: string, serverMsg: string |
     case 'not-found':
       return `Portal release not found (404) for ${action}.${tail}`;
     case 'conflict':
-      return `Portal refused ${action} (409): the release is not in a state that allows it (deferrable: draft, uat_review, uat_rejected, uat_approved; resume needs deferred).${tail}`;
+      return `Portal refused ${action} (409): the release changed concurrently; re-run to pick up its current state.${tail}`;
     case 'invalid':
-      return `Portal rejected the ${action} request (422): invalid reason, date or target version.${tail}`;
+      return `Portal rejected the ${action} request (400/422): invalid reason, date or target version, or the release is not in a state that allows it (deferrable: draft, uat_review, uat_rejected, uat_approved; resume needs deferred).${tail}`;
     case 'server':
       return `Portal error during ${action}.${tail}`;
     case 'timeout':
@@ -176,8 +178,8 @@ export function deferRelease(
 ): Promise<DeferralResult> {
   return post(ctx, releaseId, 'defer', {
     reason: req.reason,
-    ...(req.untilDate ? { untilDate: req.untilDate } : {}),
-    ...(req.toVersion ? { toVersion: req.toVersion } : {}),
+    ...(req.untilDate ? { deferredUntil: req.untilDate } : {}),
+    ...(req.toVersion ? { deferredToVersion: req.toVersion } : {}),
   });
 }
 

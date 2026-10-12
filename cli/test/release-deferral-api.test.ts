@@ -39,7 +39,7 @@ describe('deferRelease / resumeRelease', () => {
     expect(r).toEqual({ status: 'deferred', uatApprovalIdsAtDefer: ['a1', 'a2'] });
     expect(seen!.headers.get('x-devaudit-token')).toBe(PAT);
     expect(seen!.headers.get('authorization')).toBeNull();
-    expect(seen!.body).toEqual({ reason: 'PR closed', untilDate: '2026-12-01', toVersion: 'REQ-050' });
+    expect(seen!.body).toEqual({ reason: 'PR closed', deferredUntil: '2026-12-01', deferredToVersion: 'REQ-050' });
     expect(seen!.url).toBe(`${BASE}/api/releases/rel-1/defer`);
   });
 
