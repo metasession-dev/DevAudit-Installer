@@ -68,6 +68,7 @@ This repository uses a **GitFlow** branching model with five branch types:
 
 **Shipping a release:**
 
+0. Run the [release validation plan](docs/release-validation-plan.md) (`scripts/release-validation.sh all <consumers...>`) on the candidate and paste its `results.md` on the release PR; a release ships only with no `FAIL`
 1. Open a PR from `develop` into `main`: `gh pr create --base main --head develop`
 2. CI must pass on `develop` before merging to `main`
 3. Merge `develop` → `main` (merge commits)

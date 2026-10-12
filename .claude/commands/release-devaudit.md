@@ -4,6 +4,7 @@ description: Full release pipeline — verify, bump if needed, build, publish al
 
 Run the full DevAudit-Installer release pipeline documented in `.devin/workflows/devaudit-build-release.md`. Read that file first, then execute it step by step in this repo:
 
+0. **Release validation** — the candidate passed [`docs/release-validation-plan.md`](../../docs/release-validation-plan.md) (`scripts/release-validation.sh all <consumers...>`, no `FAIL`) and its `results.md` is on the release PR. If it was not run, stop and run it first.
 1. **Verify prerequisites** — the release-ready commit is already merged to `main`, `Enforce GitFlow` is green on `main`, and there's no outstanding `backmerge/* -> develop` PR waiting. If any of these aren't true, stop and report what's blocking instead of proceeding.
 2. **Verify version alignment** across all 5 `package.json` files (`plugin-sdk`, `cli`, `sdlc`, `plugins/devaudit-plugin-prisma`, `plugins/devaudit-plugin-evidence-export`).
 3. **Check npm registry state** — if the current version is already published, compute the suggested next patch version and ask the user to confirm the target version before bumping (never pick a minor/major bump unilaterally).
