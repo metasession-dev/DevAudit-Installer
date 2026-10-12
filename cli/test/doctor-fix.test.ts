@@ -348,8 +348,32 @@ describe('runFix interactive behaviour', () => {
     expect((await runFix([p], d, { ...base0, yes: true, reason: 'r' })).outcomes[0]!.status).toBe('applied');
   });
 
+  it('stale deferral is never resumed non-interactively, even with --yes --reason (#984)', async () => {
+    const ni = asks({ nonInteractiveReason: () => 'CI is set', select: async () => { throw new Error('no prompt'); } });
+    const d = await deps({ ask: ni });
+    await writeTicket(d.repoRoot, 'REQ-5', { intent: 'deferred-to-next — old' });
+    const p = prop('resume-stale-deferral', 'B', { version: 'REQ-5', releaseId: 'r5', ticketPath: 'compliance/pending-releases/RELEASE-TICKET-REQ-5.md' });
+    const r = await runFix([p], d, { ...base0, yes: true, reason: 'r' });
+    expect(r.outcomes[0]).toMatchObject({ status: 'unapplied' });
+    expect(r.outcomes[0]!.message).toMatch(/interactive decision/);
+    expect(r.unapplied).toBe(1);
+    expect(calls).toEqual([]);
+  });
+
+  it('stale deferral: extend / abandon are guidance only (#984)', async () => {
+    for (const choice of ['extend', 'abandon']) {
+      const d = await deps({ ask: asks({ select: async () => choice }) });
+      await writeTicket(d.repoRoot, 'REQ-5', { intent: 'deferred-to-next — old' });
+      const p = prop('resume-stale-deferral', 'B', { version: 'REQ-5', releaseId: 'r5', ticketPath: 'compliance/pending-releases/RELEASE-TICKET-REQ-5.md' });
+      const r = await runFix([p], d, base0);
+      expect(r.outcomes[0]).toMatchObject({ status: 'unapplied' });
+      expect(r.outcomes[0]!.message).toMatch(new RegExp(choice));
+    }
+    expect(calls).toEqual([]);
+  });
+
   it('resume clears the ticket intent and restores the RTM status', async () => {
-    const d = await deps({ ask: asks() });
+    const d = await deps({ ask: asks({ select: async () => 'resume' }) });
     await writeTicket(d.repoRoot, 'REQ-5', { intent: 'deferred-to-next — old' });
     await writeRtm(d.repoRoot, { 'REQ-5': 'DEFERRED' });
     const p = prop('resume-stale-deferral', 'B', { version: 'REQ-5', releaseId: 'r5', ticketPath: 'compliance/pending-releases/RELEASE-TICKET-REQ-5.md' });

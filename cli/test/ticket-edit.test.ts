@@ -20,8 +20,8 @@ describe('setReleaseIntent', () => {
     const crlf = setReleaseIntent(T.replace(/\n/g, '\r\n'), 'r')!;
     expect(crlf).not.toMatch(/[^\r]\n/);
   });
-  it('omits the dash when the reason is empty', () => {
-    expect(setReleaseIntent('# t\n', '  ')).toContain('deferred-to-next\n');
+  it('refuses an empty reason: validate-compliance-artifacts.sh rejects the field without one (#984)', () => {
+    expect(() => setReleaseIntent('# t\n', '  ')).toThrow(/reason is required/);
   });
 });
 

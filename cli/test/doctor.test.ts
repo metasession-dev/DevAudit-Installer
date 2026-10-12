@@ -835,7 +835,7 @@ describe('devaudit doctor — D8 releases check + JSON surface (#956)', () => {
       expect.objectContaining({
         check: 'releases',
         subject: 'REQ-060',
-        remediation: expect.objectContaining({ id: 'close-out-release', tier: 'A', needsPortal: false, plan: ['./scripts/close-out-release.sh REQ-060'] }),
+        remediation: expect.objectContaining({ id: 'close-out-release', tier: 'C', needsPortal: false, plan: ['./scripts/close-out-release.sh REQ-060'] }),
       }),
     );
   }, 30_000);

@@ -233,12 +233,36 @@ export async function runFix(
           break;
         }
         case 'resume-stale-deferral': {
+          // #984 — a stale deferral is a decision (resume / extend / abandon),
+          // never a default: `--yes --reason` given for another proposal must
+          // not resume every stale deferral, so non-interactive runs leave it
+          // unapplied.
+          if (nonInteractive) {
+            out.push(mk(p, 'unapplied', `stale deferral needs an interactive decision (resume / extend / abandon; ${nonInteractive})`));
+            break;
+          }
+          const decision = await ask.select(`${p.subject}: ${p.detail}. What now?`, [
+            { value: 'resume', label: 'Resume (portal back to draft, ticket Release intent removed)' },
+            { value: 'extend', label: 'Extend (guidance only)' },
+            { value: 'abandon', label: 'Abandon (guidance only)' },
+          ], { json });
+          if (decision !== 'resume') {
+            out.push(mk(p, 'unapplied', decision === 'extend'
+              ? 'extend is not performed by this tool: re-review on the portal and set a new review-by date'
+              : decision === 'abandon'
+                ? 'abandon is not performed by this tool: close the release out as abandoned (see the sdlc-implementer skill)'
+                : 'no decision taken'));
+            break;
+          }
           const g = await authoriseB(p, 'resuming');
           if (!g.reason) { out.push(mk(p, 'unapplied', g.why)); break; }
           const c = await portalCall(p, 'resume', g.reason);
           if ('failed' in c) { out.push(mk(p, 'failed', c.failed)); break; }
           // Resume returns the portal release to draft. The ticket field is the
           // sole declaration, so clear it (else D1 would re-propose deferring).
+          // The RTM row goes back to TESTED - PENDING SIGN-OFF: only a finished
+          // REQ (Phase 3 sets that status) can have its release PR closed and
+          // be deferred, so that is the status it had before (#984).
           const notes = ['portal release resumed (back to draft)'];
           const ticket = d['ticketPath'] ? join(deps.repoRoot, d['ticketPath']) : null;
           if (ticket && (await editFile(ticket, clearReleaseIntent)) === 'changed') notes.push(`${d['ticketPath']}: Release intent removed`);

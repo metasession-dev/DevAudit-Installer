@@ -580,8 +580,18 @@ function buildDbUriStep(dbService: string, dbPort: string): string {
  *                              hang the job waiting for a runner that may
  *                              not exist)
  */
+/**
+ * #984 — a config with no `runner` key rendered `runs-on: ,` (invalid YAML in
+ * every workflow). Treat it like `install`'s default, `self-hosted`, whose
+ * runtime expression falls back to ubuntu-latest unless CI_RUNNER_LABEL is set.
+ */
+function runnerOf(cfg: SdlcConfig): string {
+  return typeof cfg.runner === 'string' && cfg.runner.trim() !== '' ? cfg.runner : 'self-hosted';
+}
+
 function resolveRunner(cfg: SdlcConfig): string {
-  if (cfg.runner !== 'self-hosted') return cfg.runner;
+  const runner = runnerOf(cfg);
+  if (runner !== 'self-hosted') return runner;
   const label = "(inputs.runner_label || vars.CI_RUNNER_LABEL || 'github-ci')";
   return `\${{ ${label} == 'github-ci' && 'ubuntu-latest' || ${label} }}`;
 }
@@ -602,7 +612,7 @@ function resolveRunner(cfg: SdlcConfig): string {
  * would be wrong whenever CI_RUNNER_LABEL falls back to 'github-ci'.
  */
 function resolveCheckoutClean(cfg: SdlcConfig): string {
-  if (cfg.runner !== 'self-hosted') return 'true';
+  if (runnerOf(cfg) !== 'self-hosted') return 'true';
   const label = "(inputs.runner_label || vars.CI_RUNNER_LABEL || 'github-ci')";
   return `\${{ ${label} == 'github-ci' && 'true' || 'false' }}`;
 }
@@ -625,7 +635,7 @@ function resolveCheckoutClean(cfg: SdlcConfig): string {
  * collapses to plain `npx playwright install chromium` when empty.
  */
 function resolvePlaywrightWithDeps(cfg: SdlcConfig): string {
-  if (cfg.runner !== 'self-hosted') return ' --with-deps';
+  if (runnerOf(cfg) !== 'self-hosted') return ' --with-deps';
   const label = "(inputs.runner_label || vars.CI_RUNNER_LABEL || 'github-ci')";
   return `\${{ ${label} == 'github-ci' && ' --with-deps' || '' }}`;
 }
@@ -645,7 +655,7 @@ function resolvePlaywrightWithDeps(cfg: SdlcConfig): string {
  * gets this self-hosted-only behavior, same as CHECKOUT_CLEAN.
  */
 function resolveStaleNextCleanupCondition(cfg: SdlcConfig): string {
-  if (cfg.runner !== 'self-hosted') return 'false';
+  if (runnerOf(cfg) !== 'self-hosted') return 'false';
   const label = "(inputs.runner_label || vars.CI_RUNNER_LABEL || 'github-ci')";
   return `\${{ ${label} != 'github-ci' }}`;
 }
@@ -659,7 +669,7 @@ function resolveStaleNextCleanupCondition(cfg: SdlcConfig): string {
  * (devaudit-installer#816).
  */
 function resolveNpmAuditMaxAttempts(cfg: SdlcConfig): string {
-  if (cfg.runner !== 'self-hosted') return '1';
+  if (runnerOf(cfg) !== 'self-hosted') return '1';
   const label = "(inputs.runner_label || vars.CI_RUNNER_LABEL || 'github-ci')";
   return `\${{ ${label} == 'github-ci' && '1' || '5' }}`;
 }
