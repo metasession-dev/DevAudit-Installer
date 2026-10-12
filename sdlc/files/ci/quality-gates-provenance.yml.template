@@ -116,18 +116,12 @@ jobs:
               --event workflow_dispatch \
               --limit 50 \
               --json databaseId,headSha)
-            RUN_ID=$(BEFORE_JSON="$BEFORE_JSON" AFTER_JSON="$AFTER_JSON" HEAD_SHA="$HEAD_SHA" python3 - <<'PY'
-            import json
-            import os
-
-            before = {str(item["databaseId"]) for item in json.loads(os.environ["BEFORE_JSON"])}
-            head_sha = os.environ["HEAD_SHA"]
-            for item in json.loads(os.environ["AFTER_JSON"]):
-                if item.get("headSha") == head_sha and str(item["databaseId"]) not in before:
-                    print(item["databaseId"])
-                    break
-            PY
-            )
+            # devaudit-installer#987 — jq, not a python heredoc: an indented
+            # heredoc terminator inside this nested block never terminated.
+            RUN_ID=$(jq -r --argjson before "$BEFORE_JSON" --arg sha "$HEAD_SHA" '
+              ($before | map(.databaseId | tostring)) as $seen
+              | [ .[] | select(.headSha == $sha) | select((.databaseId | tostring) as $id | ($seen | index($id)) | not) ]
+              | .[0].databaseId // empty' <<< "$AFTER_JSON")
             if [ -n "$RUN_ID" ]; then
               break
             fi

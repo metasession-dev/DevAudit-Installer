@@ -205,25 +205,19 @@ jobs:
             MERGE_SHA=$(echo "$CLOSING_PRS" | jq -r '.mergeCommit.oid // .mergeCommit // "unknown"' 2>/dev/null | head -1)
             PR_TITLE=$(echo "$CLOSING_PRS" | jq -r '.title' 2>/dev/null | head -1)
             PR_NUM=$(echo "$CLOSING_PRS" | jq -r '.number' 2>/dev/null | head -1)
-            # DevAudit-Installer#228 — heredoc to keep markdown content
-            # inside the YAML literal block scalar.
-            CONTAINMENT=$(cat <<EOF
-            - **Containment actions:** auto-derived from PR #${PR_NUM}: ${PR_TITLE}
-            - **Mitigation deployed:** [PR #${PR_NUM}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/pull/${PR_NUM}) (${MERGE_SHA})
-            - **Recovery actions:** REPLACE — if additional recovery steps were taken
-            - **Verification that the incident is resolved:** REPLACE — how was the fix verified (re-run E2E, manual check, etc.)
-            EOF
-            )
-            CONTAINMENT=$(echo "$CONTAINMENT" | sed 's/^            //')
+            # DevAudit-Installer#228 / #987 — printf, not a heredoc: an indented
+            # heredoc terminator inside this nested block never terminated.
+            CONTAINMENT=$(printf '%s\n' \
+              "- **Containment actions:** auto-derived from PR #${PR_NUM}: ${PR_TITLE}" \
+              "- **Mitigation deployed:** [PR #${PR_NUM}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/pull/${PR_NUM}) (${MERGE_SHA})" \
+              "- **Recovery actions:** REPLACE — if additional recovery steps were taken" \
+              "- **Verification that the incident is resolved:** REPLACE — how was the fix verified (re-run E2E, manual check, etc.)")
           else
-            CONTAINMENT=$(cat <<EOF
-            - **Containment actions:** REPLACE — no linked PR found
-            - **Mitigation deployed:** REPLACE
-            - **Recovery actions:** REPLACE
-            - **Verification that the incident is resolved:** REPLACE
-            EOF
-            )
-            CONTAINMENT=$(echo "$CONTAINMENT" | sed 's/^            //')
+            CONTAINMENT=$(printf '%s\n' \
+              "- **Containment actions:** REPLACE — no linked PR found" \
+              "- **Mitigation deployed:** REPLACE" \
+              "- **Recovery actions:** REPLACE" \
+              "- **Verification that the incident is resolved:** REPLACE")
           fi
 
           # §4g — Lessons learned: scan comments for follow-up issue references.
