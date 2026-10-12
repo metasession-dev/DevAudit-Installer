@@ -35,11 +35,16 @@ The gate never writes to a consumer repository or to the portal:
    directory. The real working copies (for example `/srv/ostendo/projects/<name>`)
    are never touched.
 2. **No push.** The clone's push URL is set to an invalid value.
-3. **No GitHub writes.** Since #970, `devaudit update` creates the issue
-   labels the synced templates need with `gh label create`, which would write
-   to the real repository. The script puts a stub `gh` first on `PATH` for every
-   command it runs in a clone. The stub records the call and fails it, and
-   `update` treats label seeding as best-effort.
+3. **No GitHub writes.** `devaudit update` talks to GitHub through `gh`. It reads repo
+   metadata (`verifyDefaultBranch` reads the default branch), and it can write:
+   `gh label create` for the issue-template labels (#970) and
+   `gh repo edit --default-branch` when the default branch is not
+   `integration_branch`. The script puts a stub `gh` first on `PATH` for every
+   command it runs in a clone. The stub passes **read-only** calls (`repo view`,
+   `label list`, `api` without a method or fields, ...) to the real `gh` and
+   **refuses** everything else. Each refused write is listed under
+   `gh-writes-blocked`: that is what `update` *would* have changed on the real
+   repository, so read it.
 4. **No portal access.** `DEVAUDIT_USER_TOKEN`, `DEVAUDIT_API_KEY`,
    `DEVAUDIT_VIEWER_API_KEY`, `GH_TOKEN` and `GITHUB_TOKEN` are unset for those
    commands. Doctor's portal checks report `skipped`.
@@ -75,7 +80,7 @@ against the candidate CLI (`node cli/dist/index.js`, with
 | `clone` | clone of `develop` (else the default branch) with an `sdlc-config.json`; push disabled | yes |
 | `update` | `devaudit update .` exits 0 | yes |
 | | local-modification conflicts (`*.devaudit-new`) listed | WARN: review each one. A conflict on a file the release changed means the consumer must resolve it at update time, so note it in the release notes |
-| `gh-writes-blocked` | the stub intercepted every `gh` write | informational |
+| `gh-writes-blocked` | every `gh` write was refused; the list shows what `update` would have written to GitHub | informational: a `repo edit` entry means the consumer's default branch is not its `integration_branch` |
 | `update-idempotent` | after committing the first sync locally, a second `update` changes nothing | yes |
 | `synced-scripts` | the deferral and provenance scripts are present and executable | yes |
 | `workflows-parse` | every `.github/workflows/*.yml` parses as YAML, has no unrendered `{{TOKEN}}`, and every bash `run:` passes `bash -n` | yes |
@@ -106,11 +111,12 @@ The consumer list is the active set in [consuming-projects.md](consuming-project
 | wawagardenbar-app | node | |
 | META-ATS | node | the Claude GitHub app has no access; run locally |
 | META-JOBS | node | |
-| META-TALENT | node | |
 | ThorStack-Frontend | node | |
 | ThorStack-Backend | python | |
 | thorstack-site | node | |
 | fleet-control | python | uses the deprecated polyglot `targets` mechanic |
+
+META-TALENT has a local checkout but `metasession-dev/META-TALENT` no longer resolves on GitHub (2026-10-12), so it is not in the list.
 
 ### Fresh-onboard fixtures
 
@@ -138,7 +144,7 @@ project.
 
 ```bash
 # everything (layer 1, every consumer, both fixtures)
-scripts/release-validation.sh all wawagardenbar-app META-ATS META-JOBS META-TALENT \
+scripts/release-validation.sh all wawagardenbar-app META-ATS META-JOBS \
   ThorStack-Frontend ThorStack-Backend thorstack-site fleet-control
 
 # one part

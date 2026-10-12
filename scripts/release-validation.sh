@@ -68,13 +68,36 @@ die() { echo "release-validation: $*" >&2; exit 2; }
 # ---------------------------------------------------------------------------
 make_stub_gh() {
   mkdir -p "$STUB_BIN"
-  cat > "$STUB_BIN/gh" <<EOF
+  local real_gh
+  real_gh="$(PATH="${PATH//$STUB_BIN:/}" command -v gh || true)"
+  cat > "$STUB_BIN/gh" <<'GHSTUB'
 #!/usr/bin/env bash
-# release-validation stub: never let a validation run write to GitHub.
-echo "\$(date -u +%FT%TZ) cwd=\$PWD gh \$*" >> "$GH_LOG"
-echo "gh is disabled during release validation (stub)" >&2
+# release-validation stub: read-only gh calls pass through to the real gh
+# (update needs repo metadata: verifyDefaultBranch reads the default branch);
+# every other call is refused, so a validation run never writes to GitHub
+# (label create #970, repo edit --default-branch, variable/secret set, api
+# with a method or fields, pr/issue create, ...).
+REAL_GH="__REAL_GH__"
+GH_LOG="__GH_LOG__"
+read_only=0
+case "${1:-} ${2:-}" in
+  "--version "*|"version "*|"auth status") read_only=1 ;;
+  "repo view"|"label list"|"pr list"|"pr view"|"issue list"|"issue view"|"run list"|"run view"|"variable list"|"secret list") read_only=1 ;;
+  "api "*)
+    read_only=1
+    for a in "$@"; do
+      case "$a" in -X|-X*|--method|--method=*|-f|-f*|-F|-F*|--field|--field=*|--raw-field|--raw-field=*|--input|--input=*) read_only=0 ;; esac
+    done ;;
+esac
+if [ "$read_only" = 1 ] && [ -n "$REAL_GH" ]; then
+  echo "$(date -u +%FT%TZ) cwd=$PWD ALLOWED gh $*" >> "$GH_LOG"
+  exec "$REAL_GH" "$@"
+fi
+echo "$(date -u +%FT%TZ) cwd=$PWD BLOCKED gh $*" >> "$GH_LOG"
+echo "gh write blocked during release validation (stub): gh $*" >&2
 exit 1
-EOF
+GHSTUB
+  sed -i "s#__REAL_GH__#${real_gh}#; s#__GH_LOG__#${GH_LOG}#" "$STUB_BIN/gh"
   chmod +x "$STUB_BIN/gh"
 }
 
@@ -188,9 +211,10 @@ run_update_twice() { # <target> <dir>
   else
     record "$target" update PASS "exit 0, $(isolated "$dir" git status --porcelain | wc -l | tr -d ' ') path(s) changed"
   fi
-  if grep -q 'gh ' "$GH_LOG" 2>/dev/null; then
-    record "$target" gh-writes-blocked PASS "$(grep -c "cwd=$dir" "$GH_LOG" 2>/dev/null || echo 0) gh call(s) intercepted by the stub"
-  fi
+  local blocked
+  blocked=$(grep -F "cwd=$dir " "$GH_LOG" 2>/dev/null | grep ' BLOCKED gh ' \
+    | sed -E 's/.* BLOCKED gh ([^ ]+ [^ ]+).*/\1/' | sort | uniq -c | sed -E 's/^ +//' | tr '\n' ';')
+  record "$target" gh-writes-blocked PASS "${blocked:-no gh write attempted}"
   # Commit the sync locally (throwaway clone) so a second run can be compared.
   isolated "$dir" git add -A >/dev/null 2>&1
   isolated "$dir" git -c user.name=release-validation -c user.email=rv@localhost \
@@ -448,10 +472,22 @@ run_layer1() {
   else
     record installer mock-portal-lifecycle FAIL "tests/release-pipeline-e2e/run.sh failed"
   fi
-  # pack the CLI exactly as npm would and install it into an empty prefix
-  local pack="$WORK_DIR/pack" tgz
-  rm -rf "$pack"; mkdir -p "$pack"
+  # Pack the CLI and plugin-sdk as npm would and install them into an empty
+  # prefix. The CLI depends on `file:../plugin-sdk` for local development;
+  # release.yml rewrites that to the published version before publishing, so
+  # do the equivalent here: point it at the packed plugin-sdk tarball.
+  local pack="$WORK_DIR/pack" tgz sdk_tgz
+  rm -rf "$pack"; mkdir -p "$pack/repack"
+  sdk_tgz=$(cd "$ROOT/plugin-sdk" && npm pack --silent --pack-destination "$pack" 2>/dev/null | tail -1)
   tgz=$(cd "$ROOT/cli" && npm pack --silent --pack-destination "$pack" 2>/dev/null | tail -1)
+  if [ -n "$tgz" ] && [ -n "$sdk_tgz" ]; then
+    tar -xzf "$pack/$tgz" -C "$pack/repack" \
+      && jq --arg dep "file:$pack/$sdk_tgz" '.dependencies["@metasession.co/devaudit-plugin-sdk"] = $dep' \
+           "$pack/repack/package/package.json" > "$pack/repack/package.json.tmp" \
+      && mv "$pack/repack/package.json.tmp" "$pack/repack/package/package.json" \
+      && tar -czf "$pack/cli-release-shaped.tgz" -C "$pack/repack" package \
+      && tgz=cli-release-shaped.tgz || tgz=""
+  fi
   if [ -n "$tgz" ] && ( cd "$pack" && npm init -y >/dev/null 2>&1 && npm install --silent "$pack/$tgz" >/dev/null 2>&1 ); then
     out=$(cd "$pack" && npx --no-install devaudit --version 2>/dev/null)
     if [ "$out" = "$v" ]; then record installer pack-install PASS "npm pack + install: devaudit --version = $out"

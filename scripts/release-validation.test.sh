@@ -18,14 +18,22 @@ export WORK_DIR="$TMP/work"
 source "$ROOT/scripts/release-validation.sh"
 set +e
 
-# 1. the stub gh records and refuses every call
-make_stub_gh
-if "$STUB_BIN/gh" label create needs-triage --force >/dev/null 2>&1; then
-  no "stub gh refuses writes"
-else
-  ok "stub gh refuses writes"
-fi
-if grep -q 'gh label create needs-triage --force' "$GH_LOG"; then ok "stub gh logs the call"; else no "stub gh logs the call"; fi
+# 1. the stub gh passes read-only calls to the real gh and refuses writes
+mkdir -p "$TMP/realbin"
+printf '#!/usr/bin/env bash\necho "REAL $*"\n' > "$TMP/realbin/gh"; chmod +x "$TMP/realbin/gh"
+PATH="$TMP/realbin:$PATH" make_stub_gh
+for w in "label create needs-triage --force" "repo edit o/r --default-branch develop" \
+         "api -X PATCH repos/o/r" "api repos/o/r -f default_branch=develop" "variable set X --body y" "pr create"; do
+  # shellcheck disable=SC2086
+  if "$STUB_BIN/gh" $w >/dev/null 2>&1; then no "stub refuses: gh $w"; else ok "stub refuses: gh $w"; fi
+done
+for r in "repo view --json name" "label list" "api repos/o/r" "auth status"; do
+  # shellcheck disable=SC2086
+  out=$("$STUB_BIN/gh" $r 2>/dev/null)
+  if [ "$out" = "REAL $r" ]; then ok "stub passes read: gh $r"; else no "stub passes read: gh $r ($out)"; fi
+done
+if grep -q 'BLOCKED gh label create needs-triage --force' "$GH_LOG" && grep -q 'ALLOWED gh label list' "$GH_LOG"; then
+  ok "stub logs allowed and blocked calls"; else no "stub logs allowed and blocked calls"; fi
 
 # 2. isolated() puts the stub first and strips portal/GitHub credentials
 mkdir -p "$TMP/clone"
