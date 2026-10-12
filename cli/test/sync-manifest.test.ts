@@ -511,3 +511,19 @@ describe('manifest bootstrap (devaudit-installer#930)', () => {
     }
   }, 60_000);
 });
+
+// #984 — the manifest must not churn between two identical syncs: file keys
+// are written sorted, whatever order the sections recorded them in.
+describe('writeManifest key order (#984)', () => {
+  it('writes files sorted by key, independent of insertion order', async () => {
+    const a = await fs.mkdtemp(join(tmpdir(), 'manifest-order-a-'));
+    const b = await fs.mkdtemp(join(tmpdir(), 'manifest-order-b-'));
+    const e = (s: string) => ({ sha256: s, section: '2b' });
+    await writeManifest(a, { version: 1, cli_version: '0.0.0', files: { 'b.md': e('1'), 'a.md': e('2'), '.x': e('3') } } as SyncManifest);
+    await writeManifest(b, { version: 1, cli_version: '0.0.0', files: { '.x': e('3'), 'a.md': e('2'), 'b.md': e('1') } } as SyncManifest);
+    const ra = await fs.readFile(join(a, '.devaudit', 'sync-manifest.json'), 'utf-8');
+    const rb = await fs.readFile(join(b, '.devaudit', 'sync-manifest.json'), 'utf-8');
+    expect(ra).toBe(rb);
+    expect(Object.keys(JSON.parse(ra).files)).toEqual(['.x', 'a.md', 'b.md']);
+  });
+});
