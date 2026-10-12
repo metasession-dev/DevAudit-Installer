@@ -24,7 +24,10 @@ function join(lines: string[], eol: string, trailing: boolean): string {
 /** Insert or replace `- **Release intent:** deferred-to-next — <reason>`. */
 export function setReleaseIntent(content: string, reason: string): string | null {
   const clean = reason.replace(/\s+/g, ' ').trim();
-  const line = `- **Release intent:** deferred-to-next${clean ? ` — ${clean}` : ''}`;
+  // #984 — validate-compliance-artifacts.sh rejects the field without a
+  // reason, so never write one.
+  if (!clean) throw new Error('a deferral reason is required for the Release intent field');
+  const line = `- **Release intent:** deferred-to-next — ${clean}`;
   const { lines, eol, trailing } = split(content);
   const at = lines.findIndex((l) => INTENT_RE.test(l));
   if (at >= 0) {

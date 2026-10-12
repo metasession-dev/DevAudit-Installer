@@ -585,7 +585,9 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
       detail: `${req} is released on the portal but still in pending-releases/`,
       remediation: {
         id: 'close-out-release',
-        tier: 'A' as const,
+        // #984 — guidance: `--fix` never runs close-out-release.sh (it moves
+        // files with git), so it is tier C (printed, not counted as unapplied).
+        tier: 'C' as const,
         summary: `Close out ${req} locally`,
         plan: [`./scripts/close-out-release.sh ${req}`],
         needsPortal: false,

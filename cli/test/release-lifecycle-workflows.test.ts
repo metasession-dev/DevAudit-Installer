@@ -860,6 +860,11 @@ describe('deferred tickets are skipped by every pending-ticket loop (#956 phase 
     expect(wf).toContain("sed -nE 's/^(REQ-[^ ]+) deferred$/\\1/p'");
     expect(wf).toContain("if: steps.scan.outputs.has_stale == 'true'");
     expect(wf).toContain('silent absorption');
+    // #984 — stale wording only when a stale ticket was found; a deferred-only
+    // finding gets its own title and no "close-out triggered" text.
+    expect(wf).toContain('if [ "$HAS_STALE" = "true" ]; then');
+    expect(wf).toContain('Release close-out reconciliation: deferred release(s) shipped without approval');
+    expect(wf).toContain('--title "$TITLE"');
   });
 
   it('the helper ships in the synced scripts and is executable shell', () => {
