@@ -2,6 +2,7 @@ import { resolve } from 'node:path';
 import { readSdlcConfig, checkFrameworkFiles } from '../lib/sdlc-config.js';
 import { resolveRepoRoot } from '../lib/git-root.js';
 import { emitJsonResult, isJsonMode, logger } from '../lib/logger.js';
+import { readPendingTickets } from '../lib/release-tickets.js';
 
 const FRAMEWORK_FILES = [
   'INSTRUCTIONS.md',
@@ -39,6 +40,9 @@ export async function runStatus(options: StatusOptions): Promise<void> {
     process.exit(7);
     return;
   }
+  // Pending release tickets; deferred ones stay in pending-releases/ (#956) and are shown separately.
+  const pendingTickets = (await readPendingTickets(repoRoot)) ?? [];
+  const deferredTickets = pendingTickets.filter((t) => t.deferred).map((t) => t.version);
   const files = await checkFrameworkFiles(projectPath, FRAMEWORK_FILES);
   const presentFiles = files.filter((f) => f.present).map((f) => f.path);
   const missingFiles = files.filter((f) => !f.present).map((f) => f.path);
@@ -56,6 +60,8 @@ export async function runStatus(options: StatusOptions): Promise<void> {
       devaudit_base_url: config.devaudit?.base_url ?? null,
       uat_enabled: config.uat?.enabled ?? false,
       approval_mode: config.approval?.mode ?? null,
+      pending_tickets: pendingTickets.length - deferredTickets.length,
+      deferred_tickets: deferredTickets,
       files_present: presentFiles,
       files_missing: missingFiles,
     });
@@ -74,6 +80,10 @@ export async function runStatus(options: StatusOptions): Promise<void> {
   log.log(`  DevAudit URL:   ${config.devaudit?.base_url ?? '(unset)'}`);
   log.log(`  UAT enabled:    ${config.uat?.enabled ?? false}`);
   log.log(`  Approval mode:  ${config.approval?.mode ?? '(unset)'}`);
+  if (pendingTickets.length > 0) {
+    log.log(`  Pending tickets: ${pendingTickets.length - deferredTickets.length}`);
+    if (deferredTickets.length > 0) log.log(`  Deferred tickets: ${deferredTickets.length} (${deferredTickets.join(', ')})`);
+  }
   log.log('');
   log.info('Framework files present?');
   for (const f of files) {

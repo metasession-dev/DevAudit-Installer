@@ -11,9 +11,8 @@
 export type SuspectedOrigin = 'framework' | 'consumer-drift' | 'unknown';
 
 /**
- * devaudit-installer#956 — additive descriptor a finding may carry so the
- * phase-3b `doctor --fix` can build on it. Nothing in this PR acts on it:
- * plain `doctor` stays read-only. Tier A = local + reversible, B = portal
+ * devaudit-installer#956 — additive descriptor a finding may carry. Plain
+ * `doctor` only reports it (read-only); `doctor --fix` (phase 3b) acts on it. Tier A = local + reversible, B = portal
  * state change (human PAT), C = git history/code (commands printed only).
  */
 export interface Remediation {
@@ -22,6 +21,12 @@ export interface Remediation {
   readonly summary: string;
   readonly plan: readonly string[];
   readonly needsPortal: boolean;
+  /**
+   * Machine-readable parameters for `doctor --fix` (ticket path, portal
+   * release id, reason, ...). Additive; absent on descriptors that only
+   * describe guidance.
+   */
+  readonly data?: Readonly<Record<string, string>>;
 }
 
 export interface Finding {
