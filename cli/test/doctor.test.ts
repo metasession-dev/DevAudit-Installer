@@ -594,6 +594,7 @@ describe('devaudit doctor — graceful skips (#956)', () => {
     const { json, exitCode } = await doctorJson(dir);
     expect(json.deferral.map((c) => c.name)).toEqual([
       'release-pr-closed', 'deferred-will-ship', 'predecessors-none', 'bundle-members',
+      'deferred-portal-sync', 'deferred-ticket-sync', 'deferral-age',
     ]);
     for (const c of json.deferral) {
       expect(c.ok).toBe(true);
