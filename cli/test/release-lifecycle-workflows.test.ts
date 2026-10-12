@@ -801,3 +801,69 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     });
   });
 });
+
+describe('deferred tickets are skipped by every pending-ticket loop (#956 phase 3b)', () => {
+  const SKIP_GUARD = 'if [ -f scripts/is-deferred-ticket.sh ] && bash scripts/is-deferred-ticket.sh "$TICKET"; then';
+  const SKIP_LOG = 'Skipping ${REQ_ID}: deferred (Release intent: deferred-to-next)';
+
+  it('post-deploy-prod does not promote, upload to, or PATCH a deferred release', () => {
+    const source = template('post-deploy-prod.yml.template');
+    const loop = source.slice(source.indexOf('Resolve in-scope releases'), source.indexOf('Start production deployment executions'));
+    expect(loop).toContain('if [ -f scripts/is-deferred-ticket.sh ] && bash scripts/is-deferred-ticket.sh "$T"; then');
+    expect(loop).toContain('Skipping ${PENDING_REQ}: deferred (Release intent: deferred-to-next)');
+    // the skip happens before the REQ is added to the promoted set
+    expect(loop.indexOf('is-deferred-ticket.sh')).toBeLessThan(loop.indexOf('REQS="${REQS} ${PENDING_REQ}"'));
+    // all-deferred falls through to the existing "no tracked release ticket" path, loudly
+    expect(loop).toContain('are deferred: treating this promotion as having no tracked release ticket');
+    expect(loop.indexOf('are deferred: treating')).toBeLessThan(loop.indexOf('if [ -z "${REQS}" ]; then\n              chmod +x scripts/derive-release-version.sh'));
+    // the standalone-housekeeping fallback is still there
+    expect(loop).toContain('STANDALONE-HOUSEKEEPING-${VERSION}.json');
+    expect(loop).toContain('No tracked release ticket or standalone declaration');
+  });
+
+  it('ci.yml skips deferred tickets in the E2E fan-out and the per-REQ screenshot loop', () => {
+    const source = template('ci.yml.template');
+    expect(source.split(SKIP_GUARD).length - 1).toBe(2);
+    expect(source.split(SKIP_LOG).length - 1).toBe(2);
+    expect(source.indexOf(SKIP_GUARD)).toBeLessThan(source.indexOf('E2E_REQS+=("$REQ_ID")'));
+    expect(source.indexOf(SKIP_GUARD, source.indexOf('SHOT_REQS=()'))).toBeLessThan(source.indexOf('SHOT_REQS+=("$REQ_ID")'));
+  });
+
+  it('the python ci.yml in-scope evidence loop skips deferred tickets (parity with the node template)', () => {
+    const source = template('python/ci.yml.template');
+    expect(source).toContain(SKIP_GUARD);
+    expect(source).toContain(SKIP_LOG);
+    expect(source.indexOf(SKIP_GUARD)).toBeLessThan(source.indexOf('IN_SCOPE_REQS+=("$REQ_ID")'));
+  });
+
+  it('compliance-evidence.yml and upload-compliance-documents.sh skip deferred tickets', () => {
+    const wf = template('compliance-evidence.yml.template');
+    expect(wf).toContain(SKIP_GUARD);
+    expect(wf.indexOf(SKIP_GUARD)).toBeLessThan(wf.indexOf('REQS+=("$REQ_ID")'));
+    const script = commonScript('upload-compliance-documents.sh');
+    expect(script).toContain('bash scripts/is-deferred-ticket.sh "$TICKET"');
+    expect(script).toContain(SKIP_LOG);
+  });
+
+  it('periodic-review reports deferred tickets separately from pending ones', () => {
+    const source = template('periodic-review.yml.template');
+    expect(source).toContain('DEFERRED_RELEASES=$((DEFERRED_RELEASES + 1))');
+    expect(source).toContain('echo "deferred_releases=${DEFERRED_RELEASES}"');
+    expect(source).toContain('| Deferred releases at period end');
+    expect(source).not.toContain("PENDING_RELEASES=$(find compliance/pending-releases");
+  });
+
+  it('close-out-reconcile never treats a deferred ticket as a missed close-out, but keeps the silent-absorption signal', () => {
+    const script = commonScript('close-out-reconcile.sh');
+    expect(script).toContain('echo "$REQ deferred"');
+    const wf = template('close-out-reconcile.yml.template');
+    expect(wf).toContain("sed -nE 's/^(REQ-[^ ]+) deferred$/\\1/p'");
+    expect(wf).toContain("if: steps.scan.outputs.has_stale == 'true'");
+    expect(wf).toContain('silent absorption');
+  });
+
+  it('the helper ships in the synced scripts and is executable shell', () => {
+    const helper = commonScript('is-deferred-ticket.sh');
+    expect(helper).toContain("grep -qE '^- \\*\\*Release intent:\\*\\*[[:space:]]+deferred-to-next'");
+  });
+});

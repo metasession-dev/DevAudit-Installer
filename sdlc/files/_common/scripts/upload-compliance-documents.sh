@@ -421,6 +421,11 @@ if [ -d compliance/pending-releases ]; then
       echo "Skipping ${REQ_ID}: already in a terminal release directory (stale pending ticket)"
       continue
     fi
+    # devaudit-installer#956 — deferred tickets stay in pending-releases/ but are not part of this release.
+    if [ -f scripts/is-deferred-ticket.sh ] && bash scripts/is-deferred-ticket.sh "$TICKET"; then
+      echo "Skipping ${REQ_ID}: deferred (Release intent: deferred-to-next)"
+      continue
+    fi
     IN_SCOPE_REQS+=("$REQ_ID")
   done
 fi

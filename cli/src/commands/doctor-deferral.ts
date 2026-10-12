@@ -17,7 +17,9 @@ import {
   resolvePortalReadKey,
   resolveReleaseByPrefix,
   type PortalReadContext,
+  type ReleaseLookup,
 } from '../lib/releases-api.js';
+import { readDeferralMaxAgeDays } from '../lib/sdlc-config.js';
 
 /**
  * devaudit-installer#956 phase 3a-2 — READ-ONLY release-deferral diagnosis
@@ -42,6 +44,12 @@ export interface DeferralContext {
   readonly portalNote: string;
   /** Returns null when `gh` is not runnable at all. */
   readonly runGh: (args: readonly string[]) => Promise<GhResult | null>;
+  /** `deferral_max_age_days` (D5): validated positive integer, default 30. */
+  readonly deferralMaxAgeDays: number;
+  /** Set when sdlc-config.json held an invalid `deferral_max_age_days`. */
+  readonly deferralMaxAgeInvalid: boolean;
+  /** Injectable clock for D5. */
+  readonly now?: () => Date;
 }
 
 export async function buildDeferralContext(
@@ -58,10 +66,13 @@ export async function buildDeferralContext(
   if (!slug || !base) portalNote = 'no devaudit.project_slug/base_url in sdlc-config.json';
   else if (!key) portalNote = 'no DEVAUDIT_VIEWER_API_KEY (or DEVAUDIT_API_KEY) in env/.env';
   else portal = { baseUrl: base, projectSlug: slug, apiKey: key.key };
+  const age = readDeferralMaxAgeDays(cfg);
   return {
     repoRoot,
     portal,
     portalNote,
+    deferralMaxAgeDays: age.days,
+    deferralMaxAgeInvalid: age.invalid,
     runGh:
       runGh ??
       (async (args) => {
@@ -155,6 +166,12 @@ export async function checkClosedReleasePr(ctx: DeferralContext): Promise<CheckR
             `reopen: reopen PR #${t.prNumber}`,
           ],
           needsPortal: true,
+          data: {
+            version: t.version,
+            ticketPath: relTicketPath(t),
+            ...(lookup.release.id ? { releaseId: lookup.release.id } : {}),
+            prNumber: String(t.prNumber),
+          },
         },
       });
     }
@@ -197,6 +214,7 @@ export async function checkDeferredWillShip(ctx: DeferralContext): Promise<Check
             `or revert ${t.version}'s commits from ${develop} (tier C: commands are printed, never run)`,
           ],
           needsPortal: false,
+          data: { deferred: t.version, branch: develop },
         },
       });
     }
@@ -239,6 +257,7 @@ export async function checkPredecessorsNone(ctx: DeferralContext): Promise<Check
             summary: `List ${cand.version} under "Absorbed predecessor releases" in ${t.version}'s ticket`,
             plan: [`edit RELEASE-TICKET-${t.version}.md: replace "None" with ${cand.version}`],
             needsPortal: false,
+            data: { version: t.version, candidate: cand.version, ticketPath: relTicketPath(t) },
           },
         });
       }
@@ -291,11 +310,175 @@ export async function checkBundleMembers(ctx: DeferralContext): Promise<CheckRes
   });
 }
 
+const DEFERRABLE_PORTAL_STATES = new Set(['draft', 'uat_review', 'uat_rejected', 'uat_approved']);
+
+const lookupCache = new WeakMap<DeferralContext, Map<string, ReleaseLookup>>();
+
+/** Per-run memo so D1/D2/D5 share one portal lookup per version. */
+async function lookupOnce(ctx: DeferralContext, version: string): Promise<ReleaseLookup> {
+  if (!ctx.portal) return { kind: 'unavailable', reason: 'no portal' };
+  let m = lookupCache.get(ctx);
+  if (!m) lookupCache.set(ctx, (m = new Map()));
+  let hit = m.get(version);
+  if (!hit) m.set(version, (hit = await resolveReleaseByPrefix(ctx.portal, version)));
+  return hit;
+}
+
+function relTicketPath(t: PendingTicket): string {
+  return t.path.replace(/\\/g, '/').replace(/^.*\/compliance\//, 'compliance/');
+}
+
+/** The free-text reason after `deferred-to-next` in a ticket's Release intent value. */
+export function deferralReasonFromIntent(intent: string | null): string {
+  if (!intent) return '';
+  return intent.replace(/^deferred-to-next/, '').replace(/^\s*[\u2014\u2013:-]+\s*/, '').trim();
+}
+
+/** D1 — ticket declares `deferred-to-next`, but the portal release is not `deferred`. */
+export async function checkDeferredTicketNotOnPortal(ctx: DeferralContext): Promise<CheckResult> {
+  const name = 'deferred-portal-sync';
+  return safe(name, async () => {
+    const tickets = await readPendingTickets(ctx.repoRoot);
+    if (!tickets) return skipped(name, 'no compliance/pending-releases/');
+    const deferred = tickets.filter((t) => t.deferred);
+    if (deferred.length === 0) return result(name, [], 'no deferred tickets');
+    if (!ctx.portal) return skipped(name, ctx.portalNote);
+    const notes: string[] = [];
+    const findings: Finding[] = [];
+    for (const t of deferred) {
+      const lookup = await lookupOnce(ctx, t.version);
+      if (lookup.kind === 'unavailable') {
+        notes.push(`${t.version}: portal ${lookup.reason}`);
+        continue;
+      }
+      if (lookup.kind !== 'found') continue;
+      const status = lookup.release.status;
+      if (status === 'deferred' || !DEFERRABLE_PORTAL_STATES.has(status) || !lookup.release.id) continue;
+      findings.push({
+        subject: t.version,
+        detail: `${t.version}: ticket declares Release intent deferred-to-next but the portal release is ${status}, not deferred`,
+        remediation: {
+          id: 'defer-portal-release',
+          tier: 'B',
+          summary: `Defer the portal release for ${t.version} (admin PAT, typed reason)`,
+          plan: [
+            `POST /api/releases/${lookup.release.id}/defer with the reason from the ticket (or one you type)`,
+            'requires a portal admin personal access token (DEVAUDIT_USER_TOKEN); API/viewer keys are never used',
+          ],
+          needsPortal: true,
+          data: {
+            version: t.version,
+            releaseId: lookup.release.id,
+            reason: deferralReasonFromIntent(t.intent),
+          },
+        },
+      });
+    }
+    return result(name, findings, 'every deferred ticket is deferred on the portal (or not deferrable)', [...new Set(notes)]);
+  });
+}
+
+/** D2 — portal release is `deferred`, but the ticket / RTM is not marked. */
+export async function checkPortalDeferredNotInTicket(ctx: DeferralContext): Promise<CheckResult> {
+  const name = 'deferred-ticket-sync';
+  return safe(name, async () => {
+    const tickets = await readPendingTickets(ctx.repoRoot);
+    if (!tickets) return skipped(name, 'no compliance/pending-releases/');
+    const candidates = tickets.filter((t) => !t.deferred && /^REQ-[0-9]+$/.test(t.version));
+    if (candidates.length === 0) return result(name, [], 'no undeclared pending ticket to compare');
+    if (!ctx.portal) return skipped(name, ctx.portalNote);
+    const notes: string[] = [];
+    const findings: Finding[] = [];
+    for (const t of candidates) {
+      const lookup = await lookupOnce(ctx, t.version);
+      if (lookup.kind === 'unavailable') {
+        notes.push(`${t.version}: portal ${lookup.reason}`);
+        continue;
+      }
+      if (lookup.kind !== 'found' || lookup.release.status !== 'deferred') continue;
+      const reason = lookup.release.deferredReason?.trim() || 'deferred on the portal';
+      findings.push({
+        subject: t.version,
+        detail: `${t.version}: the portal release is deferred but the ticket has no "Release intent: deferred-to-next" (the ticket field is the sole declaration)`,
+        remediation: {
+          id: 'mark-ticket-deferred',
+          tier: 'A',
+          summary: `Mark ${t.version} deferred locally (ticket Release intent + RTM DEFERRED)`,
+          plan: [
+            `write "- **Release intent:** deferred-to-next — ${reason}" into ${relTicketPath(t)}`,
+            `set the ${t.version} RTM row status to DEFERRED`,
+          ],
+          needsPortal: false,
+          data: { version: t.version, ticketPath: relTicketPath(t), reason },
+        },
+      });
+    }
+    return result(name, findings, 'every portal-deferred release is declared in its ticket', [...new Set(notes)]);
+  });
+}
+
+/** D5 — deferred longer than `deferral_max_age_days`, or past `deferredUntil`. */
+export async function checkStaleDeferrals(ctx: DeferralContext): Promise<CheckResult> {
+  const name = 'deferral-age';
+  return safe(name, async () => {
+    const tickets = await readPendingTickets(ctx.repoRoot);
+    if (!tickets) return skipped(name, 'no compliance/pending-releases/');
+    const deferred = tickets.filter((t) => t.deferred);
+    if (deferred.length === 0) return result(name, [], 'no deferred tickets');
+    if (!ctx.portal) return skipped(name, ctx.portalNote);
+    const now = (ctx.now ?? (() => new Date()))().getTime();
+    const dayMs = 86_400_000;
+    const notes: string[] = [];
+    if (ctx.deferralMaxAgeInvalid) {
+      notes.push(`invalid deferral_max_age_days in sdlc-config.json, using ${ctx.deferralMaxAgeDays}`);
+    }
+    const findings: Finding[] = [];
+    for (const t of deferred) {
+      const lookup = await lookupOnce(ctx, t.version);
+      if (lookup.kind === 'unavailable') {
+        notes.push(`${t.version}: portal ${lookup.reason}`);
+        continue;
+      }
+      if (lookup.kind !== 'found' || lookup.release.status !== 'deferred') continue;
+      const r = lookup.release;
+      const since = r.deferredAt ? Date.parse(r.deferredAt) : NaN;
+      const until = r.deferredUntil ? Date.parse(r.deferredUntil) : NaN;
+      const ageDays = Number.isNaN(since) ? null : Math.floor((now - since) / dayMs);
+      const why: string[] = [];
+      if (!Number.isNaN(until) && until < now) why.push(`past its review-by date ${r.deferredUntil}`);
+      if (ageDays !== null && ageDays > ctx.deferralMaxAgeDays) {
+        why.push(`deferred ${ageDays} days (limit ${ctx.deferralMaxAgeDays})`);
+      }
+      if (why.length === 0 || !r.id) continue;
+      findings.push({
+        subject: t.version,
+        detail: `${t.version}: ${why.join('; ')} — extend, resume, or abandon it`,
+        remediation: {
+          id: 'resume-stale-deferral',
+          tier: 'B',
+          summary: `Resume the stale deferral of ${t.version} (returns the portal release to draft)`,
+          plan: [
+            `resume: POST /api/releases/${r.id}/resume (admin PAT, typed reason) and remove the ticket's Release intent`,
+            'extend: re-review and decide a new review-by date on the portal (not performed by this tool)',
+            'abandon: close the release out as abandoned (not performed by this tool)',
+          ],
+          needsPortal: true,
+          data: { version: t.version, releaseId: r.id, ticketPath: relTicketPath(t) },
+        },
+      });
+    }
+    return result(name, findings, `no deferral older than ${ctx.deferralMaxAgeDays} days or past its review-by date`, [...new Set(notes)]);
+  });
+}
+
 export async function runDeferralChecks(ctx: DeferralContext): Promise<readonly CheckResult[]> {
   return [
     await checkClosedReleasePr(ctx),
     await checkDeferredWillShip(ctx),
     await checkPredecessorsNone(ctx),
     await checkBundleMembers(ctx),
+    await checkDeferredTicketNotOnPortal(ctx),
+    await checkPortalDeferredNotInTicket(ctx),
+    await checkStaleDeferrals(ctx),
   ];
 }

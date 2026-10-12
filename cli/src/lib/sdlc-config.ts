@@ -58,6 +58,12 @@ export interface SdlcConfig {
    * Ignored when no fixed group is configured.
    */
   readonly e2e_concurrency_cancel_in_progress?: boolean;
+  /**
+   * `devaudit doctor` D5 (#956): a release deferred longer than this many days
+   * is flagged for review. Positive integer; default 30 (invalid values fall
+   * back to the default and are noted by doctor).
+   */
+  readonly deferral_max_age_days?: number;
   readonly devaudit?: {
     readonly base_url?: string;
     readonly project_slug?: string;
@@ -155,4 +161,14 @@ export async function checkFrameworkFiles(
     }),
   );
   return checks;
+}
+
+export const DEFAULT_DEFERRAL_MAX_AGE_DAYS = 30;
+
+/** Read `deferral_max_age_days`: a positive integer, else the default (`invalid` set when a value was present but rejected). */
+export function readDeferralMaxAgeDays(cfg: Record<string, unknown>): { days: number; invalid: boolean } {
+  const v = cfg['deferral_max_age_days'];
+  if (v === undefined) return { days: DEFAULT_DEFERRAL_MAX_AGE_DAYS, invalid: false };
+  if (typeof v === 'number' && Number.isInteger(v) && v > 0) return { days: v, invalid: false };
+  return { days: DEFAULT_DEFERRAL_MAX_AGE_DAYS, invalid: true };
 }

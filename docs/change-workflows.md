@@ -119,7 +119,8 @@ the repo, not only in the closed PR:
    `validate-compliance-artifacts.sh` accepts. `validate-commits.sh` and
    `derive-release-version.sh` ignore deferred tickets and rows, so the parked REQ is
    never derived as the in-flight release.
-4. Optionally defer the portal release too. A portal admin does this **manually** with
+4. Optionally defer the portal release too. A portal admin does this with
+   `devaudit doctor --fix` (their own PAT, a typed reason and confirmation) or **manually** with
    `POST /api/releases/[id]/defer` (and `/resume`), authenticated by a personal access
    token (`DEVAUDIT_USER_TOKEN`, the PAT already used for UAT submission) or a portal
    session. It is admin-only: CI, API and viewer keys cannot do it and the CI status
@@ -146,8 +147,9 @@ specific message (the gate still fails).
 
 `devaudit doctor` diagnoses the state read-only (`release-pr-closed`,
 `deferred-will-ship`, `predecessors-none`, `bundle-members`; see
-[doctor](./doctor.md)). Tiered repair (`doctor --fix`) and any CLI or skill command
-that calls defer/resume are planned (phase 3b of #956) and not available. Rationale:
+[doctor](./doctor.md)). `devaudit doctor --fix` repairs them in tiers (A local edits, B portal defer/resume with the
+operator's PAT, a reason and confirmation, C printed only); the manual portal route stays as the
+fallback. Rationale:
 [ADR-002](./ADR/ADR-002-release-deferral.md).
 
 If you find a portal release named after a bundled member (an older consumer

@@ -351,7 +351,7 @@ stateDiagram-v2
 - **`deferred`** is reversible: the release PR was closed without releasing and the work stays pending (ticket `Release intent: deferred-to-next`, RTM `DEFERRED`). Resume returns it to `draft`.
 - **`superseded`** is terminal: a successor release absorbed it at close-out.
 - **`abandoned`** is terminal: the work was cancelled or dropped.
-- Defer and resume are admin-only (`POST /api/releases/[id]/defer` and `/resume`, session or personal access token; never CI, API or viewer keys). They are manual today; tooling for them is planned (phase 3b of #956). See [`doctor.md`](./doctor.md#4-release-deferral-diagnosis-non-gating-read-only-956) for the read-only diagnosis.
+- Defer and resume are admin-only (`POST /api/releases/[id]/defer` and `/resume`, session or personal access token; never CI, API or viewer keys). `devaudit doctor --fix` performs them with the operator's PAT, a typed reason and confirmation (the manual route remains the fallback). See [`doctor.md`](./doctor.md#4-release-deferral-diagnosis-non-gating-read-only-956) for the diagnosis and [`doctor --fix`](./doctor.md#devaudit-doctor---fix) for the repair.
 
 ## Enforcing the SDLC via AI Assistants
 

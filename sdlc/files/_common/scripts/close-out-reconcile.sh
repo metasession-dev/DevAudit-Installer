@@ -18,6 +18,13 @@
 # (typically: trigger close-out-release.yml's existing reconciliation
 # logic for it). Prints nothing, exits 0, if none are stale.
 #
+# A ticket carrying `Release intent: deferred-to-next` (#956) is parked, not
+# stale: it is NOT reported just for sitting in pending-releases/. If its
+# commits ARE reachable from origin/main, though, its code shipped without
+# the release being approved (a silent absorption); that signal is kept and
+# printed as `REQ-XXX deferred` so the caller can word it accordingly and
+# must not auto-close it out as a normal release.
+#
 # Usage:
 #   close-out-reconcile.sh [pending-dir]
 #
@@ -27,6 +34,11 @@
 set -euo pipefail
 
 PENDING_DIR="${1:-compliance/pending-releases}"
+
+# Shared deferred-ticket check (sourced next to this script when present).
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=is-deferred-ticket.sh
+[ -f "$SCRIPT_DIR/is-deferred-ticket.sh" ] && source "$SCRIPT_DIR/is-deferred-ticket.sh"
 
 [ -d "$PENDING_DIR" ] || exit 0
 
@@ -45,6 +57,10 @@ for TICKET in "$PENDING_DIR"/RELEASE-TICKET-REQ-*.md; do
   # flags OR together by default (git log semantics) unless --all-match is
   # given, which we deliberately don't pass.
   if git log origin/main -E --grep="\[${REQ}\]" --grep="Ref: ${REQ}\$" --oneline -1 2>/dev/null | grep -q .; then
-    echo "$REQ"
+    if declare -F is_deferred_ticket >/dev/null && is_deferred_ticket "$TICKET"; then
+      echo "$REQ deferred"
+    else
+      echo "$REQ"
+    fi
   fi
 done

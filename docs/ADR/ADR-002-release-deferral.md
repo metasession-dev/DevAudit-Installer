@@ -59,19 +59,17 @@ Treat portal `deferred` as the truth and have the portal open a PR to set the ti
 
 Let CI or an API key set the state (for example from the closed-PR event or the status PATCH). **Rejected**: it would let an automation credential park or resume a release, including an approved one, with no human accountable. Keeping defer and resume admin-only preserves the four-eyes posture.
 
-## Open items (phase 3b of #956, not implemented)
+## Open items
 
-- `devaudit doctor --fix` with tiered remediation: tier A, B and C proposals, and the remaining doctor checks D1, D2 and D5.
-- A `deferral_max_age_days` doctor setting, default 30 (planned).
-- `--fix` exits non-zero when proposals remain unapplied.
-- `--fleet` must not forward `--fix`; fleet sweeps stay read-only.
-- Interactive prompts for proposals, with non-interactive rules.
-- Any CLI or skill command that calls defer or resume (needs a human admin PAT, never CI/API/viewer keys).
+Shipped in phase 3b of #956 (2026-10-12):
 
-## References
+- `devaudit doctor --fix` with tiered remediation (tier A local edits, tier B portal defer/resume, tier C printed only) and the doctor checks D1 (`deferred-portal-sync`), D2 (`deferred-ticket-sync`) and D5 (`deferral-age`).
+- The `deferral_max_age_days` doctor setting in `sdlc-config.json` (positive integer, default 30).
+- `--fix` exits non-zero (8) when proposals remain unapplied.
+- The deferred-ticket skip in the CI loops that iterate `pending-releases/` (post-deploy-prod, ci, compliance-evidence, periodic-review, close-out-reconcile).
 
-- Issue #956 (release deferral lifecycle); metasession-dev/devaudit#887 (the `deferred` state) and #886 (status-PATCH hardening).
-- [Deferring a finished REQ into the next release](../change-workflows.md#deferring-a-finished-req-into-the-next-release)
-- [Release playbooks: deferred releases](../release-playbooks/README.md#deferred-releases)
-- [Doctor: release-deferral diagnosis](../doctor.md)
-- [Release lineage and test-execution audit model](../release-lineage-and-test-execution-audit-model.md)
+Still open: none from this ADR. The decisions above are unchanged.
+
+## Update 3b (2026-10-12)
+
+Phase 3b implements, without changing any decision above: the portal actions are performed by `devaudit doctor --fix` with the operator's own personal access token, a typed reason and an explicit confirmation (never `--yes` alone), and the client refuses API, viewer and CI keys with a typed error, so the admin-only decision (Alternative C stays rejected) is enforced in the tool as well as by the portal. The manual route remains documented as the fallback. Deferred tickets keep living in `pending-releases/` (Alternative A stays rejected); the CI loops that previously treated every pending ticket as part of the release in flight now skip them via `is-deferred-ticket.sh`, which closes the defect recorded against `REQ-FRAMEWORK-POSTDEPLOY-002`. The Negative consequences about two manual steps and the missing CLI are therefore resolved by `doctor --fix` for operators who use it.

@@ -10,9 +10,22 @@ import { resolveAdapters } from '../update/resolve-adapters.js';
 import type { CheckResult, Proposal } from '../lib/doctor-types.js';
 import { resolvePortalReadKey, resolveReleaseByPrefix } from '../lib/releases-api.js';
 import { buildDeferralContext, runDeferralChecks } from './doctor-deferral.js';
+import { FIX_EXIT_UNAPPLIED, runFix, type FixDeps, type FixReport } from './doctor-fix.js';
+import { commitsInRange, refExists, reqHasCommits } from '../lib/req-commits.js';
 
 export interface DoctorOptions {
   readonly plugins?: readonly LoadedPlugin[];
+  /**
+   * `doctor --fix` (#956 phase 3b). Absent = plain read-only doctor, whose
+   * behaviour and exit codes are unchanged.
+   */
+  readonly fix?: {
+    readonly yes?: boolean;
+    readonly reason?: string;
+    readonly dryRun?: boolean;
+    /** Test seam: replaces the default prompt/credential/portal wiring. */
+    readonly deps?: Partial<FixDeps>;
+  };
 }
 
 async function checkCommand(name: string, args: readonly string[]): Promise<CheckResult> {
@@ -579,6 +592,43 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
       },
     })),
   ];
+  let fixReport: FixReport | null = null;
+  if (options.fix) {
+    const fixOpts = {
+      yes: Boolean(options.fix.yes),
+      ...(options.fix.reason ? { reason: options.fix.reason } : {}),
+      dryRun: Boolean(options.fix.dryRun),
+      json: jsonMode,
+    };
+    if (!consumer) {
+      fixReport = { dryRun: fixOpts.dryRun, outcomes: [], unapplied: 0 };
+    } else {
+      const devauditCfg = (consumer.cfg['devaudit'] ?? {}) as { base_url?: string };
+      const deps: FixDeps = {
+        repoRoot: consumer.repoRoot,
+        baseUrl: (devauditCfg.base_url ?? '').replace(/\/$/, ''),
+        commitsFor: async (req) => {
+          const main = (await refExists(consumer.repoRoot, 'origin/main')) ? 'origin/main' : 'main';
+          const dev = (await refExists(consumer.repoRoot, 'develop')) ? 'develop' : 'origin/develop';
+          const commits = await commitsInRange(consumer.repoRoot, main, dev);
+          return commits.filter((c) => reqHasCommits([c], req)).map((c) => c.subject);
+        },
+        ...options.fix.deps,
+      };
+      if (!jsonMode) log.log(`\nApplying fixes${fixOpts.dryRun ? ' (dry run: nothing will change)' : ''}...`);
+      fixReport = await runFix(proposals, deps, fixOpts);
+    }
+    if (!jsonMode) {
+      if (fixReport.outcomes.length === 0) log.log('  Nothing to fix.');
+      for (const o of fixReport.outcomes) {
+        const marker = { applied: '✓', unchanged: '=', planned: '~', unapplied: '⚠', failed: '✗', reported: 'i' }[o.status];
+        log.log(`  ${marker} [${o.tier}] ${o.id} ${o.subject}: ${o.status} — ${o.message}`);
+      }
+      if (fixReport.unapplied > 0) {
+        log.warn(`${fixReport.unapplied} proposal(s) remain unapplied. Re-run interactively, or pass --yes (tier A) / --yes --reason "<text>" (portal changes).`);
+      }
+    }
+  }
   const plugins = options.plugins ?? (await discoverPlugins()).loaded;
   if (plugins.length > 0) {
     const ctx = await buildPluginContext({ projectPath: resolve(process.cwd()) });
@@ -593,11 +643,13 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
       // Additive (#956): release-deferral checks and inert remediation proposals.
       deferral: deferralChecks,
       proposals,
+      ...(fixReport ? { fix: fixReport } : {}),
     });
   }
   if (allOk) {
     if (!jsonMode) log.success('All required tools present.');
-    process.exit(0);
+    // `--fix` only: proposals left unapplied are a non-zero exit (maintainer decision on #956).
+    process.exit(fixReport && fixReport.unapplied > 0 ? FIX_EXIT_UNAPPLIED : 0);
   } else {
     if (!jsonMode) {
       log.error('One or more required tools are missing. Install them and re-run `devaudit doctor`.');
