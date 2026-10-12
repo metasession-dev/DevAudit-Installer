@@ -42,6 +42,14 @@ export async function resolvePortalReadKey(repoRoot: string): Promise<PortalKey 
 
 export interface PortalRelease {
   readonly status: string;
+  /** Portal release id (needed by the admin defer/resume routes). */
+  readonly id?: string;
+  readonly version?: string;
+  /** Populated by the portal for `deferred` releases (devaudit#895). */
+  readonly deferredAt?: string | null;
+  readonly deferredReason?: string | null;
+  readonly deferredUntil?: string | null;
+  readonly deferredToVersion?: string | null;
 }
 
 export type ReleaseLookup =
@@ -74,10 +82,23 @@ export async function resolveReleaseByPrefix(
     );
     if (res.status === 404) return { kind: 'not-found' };
     if (!res.ok) return { kind: 'unavailable', reason: `portal returned ${res.status}` };
-    const body = (await res.json()) as { latest?: { status?: string } | null };
-    const status = body.latest?.status;
-    if (typeof status !== 'string') return { kind: 'not-found' };
-    return { kind: 'found', release: { status } };
+    const body = (await res.json()) as { latest?: Record<string, unknown> | null };
+    const latest = body.latest;
+    const status = latest?.['status'];
+    if (typeof status !== 'string' || !latest) return { kind: 'not-found' };
+    const str = (k: string): string | null => (typeof latest[k] === 'string' ? (latest[k] as string) : null);
+    return {
+      kind: 'found',
+      release: {
+        status,
+        ...(str('id') ? { id: str('id') as string } : {}),
+        ...(str('version') ? { version: str('version') as string } : {}),
+        deferredAt: str('deferredAt'),
+        deferredReason: str('deferredReason'),
+        deferredUntil: str('deferredUntil'),
+        deferredToVersion: str('deferredToVersion'),
+      },
+    };
   } catch (err) {
     const reason = err instanceof Error && err.name === 'AbortError' ? 'timed out' : 'network error';
     return { kind: 'unavailable', reason };
