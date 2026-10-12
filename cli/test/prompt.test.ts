@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import {
   canPrompt,
+  select,
   confirm,
   input,
   isCiEnv,
@@ -12,11 +13,12 @@ import {
 const TTY = { stdinIsTty: true, stdoutIsTty: true, ci: false, json: false };
 const CANCEL = Symbol('cancel');
 
-function fakeDriver(c: boolean | symbol, t: string | symbol): PromptDriver & { calls: number } {
+function fakeDriver(c: boolean | symbol, t: string | symbol, sel: string | symbol = 'b'): PromptDriver & { calls: number } {
   const d = {
     calls: 0,
     confirm: async () => (d.calls++, c),
     text: async () => (d.calls++, t),
+    select: async () => (d.calls++, sel),
     isCancel: (v: unknown) => v === CANCEL,
   };
   return d;
@@ -71,6 +73,18 @@ describe('prompt helper', () => {
     expect(nonInteractiveReason(json)).toBe(reason);
     expect(await confirm('Apply?', { json })).toBeNull();
     expect(await input('Reason?', { json })).toBeNull();
+    expect(d.calls).toBe(0);
+  });
+
+  it('select returns the chosen value, null on cancel and when non-interactive', async () => {
+    const opts = [{ value: 'a', label: 'A' }, { value: 'b', label: 'B' }];
+    setPromptTestHooks({ driver: fakeDriver(true, 'x', 'a'), env: TTY });
+    expect(await select('Pick', opts)).toBe('a');
+    setPromptTestHooks({ driver: fakeDriver(true, 'x', CANCEL), env: TTY });
+    expect(await select('Pick', opts)).toBeNull();
+    const d = fakeDriver(true, 'x');
+    setPromptTestHooks({ driver: d, env: { ...TTY, ci: true } });
+    expect(await select('Pick', opts)).toBeNull();
     expect(d.calls).toBe(0);
   });
 

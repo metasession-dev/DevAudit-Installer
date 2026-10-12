@@ -166,6 +166,12 @@ export async function checkClosedReleasePr(ctx: DeferralContext): Promise<CheckR
             `reopen: reopen PR #${t.prNumber}`,
           ],
           needsPortal: true,
+          data: {
+            version: t.version,
+            ticketPath: relTicketPath(t),
+            ...(lookup.release.id ? { releaseId: lookup.release.id } : {}),
+            prNumber: String(t.prNumber),
+          },
         },
       });
     }
@@ -208,6 +214,7 @@ export async function checkDeferredWillShip(ctx: DeferralContext): Promise<Check
             `or revert ${t.version}'s commits from ${develop} (tier C: commands are printed, never run)`,
           ],
           needsPortal: false,
+          data: { deferred: t.version, branch: develop },
         },
       });
     }
@@ -250,6 +257,7 @@ export async function checkPredecessorsNone(ctx: DeferralContext): Promise<Check
             summary: `List ${cand.version} under "Absorbed predecessor releases" in ${t.version}'s ticket`,
             plan: [`edit RELEASE-TICKET-${t.version}.md: replace "None" with ${cand.version}`],
             needsPortal: false,
+            data: { version: t.version, candidate: cand.version, ticketPath: relTicketPath(t) },
           },
         });
       }

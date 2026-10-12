@@ -24,12 +24,15 @@ export interface PromptEnvironment {
 export interface PromptDriver {
   confirm(message: string): Promise<boolean | symbol>;
   text(message: string): Promise<string | symbol>;
+  select(message: string, options: readonly { value: string; label: string }[]): Promise<string | symbol>;
   isCancel(value: unknown): boolean;
 }
 
 const clackDriver: PromptDriver = {
   confirm: (message) => clack.confirm({ message, initialValue: false }),
   text: (message) => clack.text({ message }),
+  select: (message, options) =>
+    clack.select<string>({ message, options: options.map((o) => ({ value: o.value, label: o.label })) }),
   isCancel: (value) => clack.isCancel(value),
 };
 
@@ -96,4 +99,17 @@ export async function input(question: string, opts: { json?: boolean } = {}): Pr
   if (driver.isCancel(answer)) return null;
   const trimmed = String(answer).trim();
   return trimmed.length > 0 ? trimmed : null;
+}
+
+/** Pick one of `options`. `null` = not asked or cancelled. */
+export async function select(
+  question: string,
+  options: readonly { value: string; label: string }[],
+  opts: { json?: boolean } = {},
+): Promise<string | null> {
+  assertNotSecret(question);
+  if (!canPrompt(opts.json ?? false)) return null;
+  const answer = await driver.select(question, options);
+  if (driver.isCancel(answer)) return null;
+  return String(answer);
 }
