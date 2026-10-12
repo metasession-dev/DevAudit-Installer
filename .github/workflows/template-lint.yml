@@ -28,6 +28,8 @@ on:
       - 'scripts/check-recovery-workflow.test.sh'
       - 'scripts/lint-shell-failure-modes.sh'
       - 'scripts/lint-shell-failure-modes.test.sh'
+      - 'scripts/release-validation.sh'
+      - 'scripts/release-validation.test.sh'
       - 'scripts/runner-host/**'
       - 'tests/release-pipeline-e2e/**'
       - '.github/workflows/template-lint.yml'
@@ -47,6 +49,8 @@ on:
       - 'scripts/check-recovery-workflow.test.sh'
       - 'scripts/lint-shell-failure-modes.sh'
       - 'scripts/lint-shell-failure-modes.test.sh'
+      - 'scripts/release-validation.sh'
+      - 'scripts/release-validation.test.sh'
       - 'scripts/runner-host/**'
       - 'tests/release-pipeline-e2e/**'
       - '.github/workflows/template-lint.yml'
@@ -126,6 +130,7 @@ jobs:
           bash scripts/check-recovery-workflow.test.sh
           bash scripts/runner-host/runner-host.test.sh
           bash scripts/lint-shell-failure-modes.test.sh
+          bash scripts/release-validation.test.sh
           bash scripts/lint-shell-failure-modes.sh sdlc/files
 
       - name: Run extract-release-metadata tests
