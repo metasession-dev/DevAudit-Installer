@@ -490,6 +490,11 @@ jobs:
             for TICKET in compliance/pending-releases/RELEASE-TICKET-REQ-*.md; do
               [ -f "$TICKET" ] || continue
               REQ_ID=$(basename "$TICKET" .md | sed 's/^RELEASE-TICKET-//')
+              # devaudit-installer#956 — deferred tickets stay in pending-releases/ but are not part of this release.
+              if [ -f scripts/is-deferred-ticket.sh ] && bash scripts/is-deferred-ticket.sh "$TICKET"; then
+                echo "Skipping ${REQ_ID}: deferred (Release intent: deferred-to-next)"
+                continue
+              fi
               IN_SCOPE_REQS+=("$REQ_ID")
             done
           fi

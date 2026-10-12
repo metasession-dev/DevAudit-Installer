@@ -434,6 +434,11 @@ jobs:
                  || compgen -G "compliance/superseded-releases/RELEASE-TICKET-${REQ_ID}.md" > /dev/null 2>&1; then
                 continue
               fi
+              # devaudit-installer#956 — deferred tickets stay in pending-releases/ but are not part of this release.
+              if [ -f scripts/is-deferred-ticket.sh ] && bash scripts/is-deferred-ticket.sh "$TICKET"; then
+                echo "Skipping ${REQ_ID}: deferred (Release intent: deferred-to-next)"
+                continue
+              fi
               REQS+=("$REQ_ID")
             done
           fi

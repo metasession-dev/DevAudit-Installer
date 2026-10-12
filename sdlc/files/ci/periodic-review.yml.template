@@ -65,13 +65,23 @@ jobs:
           # for the operator's review-and-attest moment.
           RTM_REQS=0
           PENDING_RELEASES=0
+          DEFERRED_RELEASES=0
           APPROVED_RELEASES=0
           INCIDENT_REPORTS=0
           if [ -f compliance/RTM.md ]; then
             RTM_REQS=$(grep -oE '^\| REQ-[0-9]+ ' compliance/RTM.md | wc -l | tr -d ' ')
           fi
           if [ -d compliance/pending-releases ]; then
-            PENDING_RELEASES=$(find compliance/pending-releases -maxdepth 1 -name 'RELEASE-TICKET-REQ-*.md' -type f 2>/dev/null | wc -l | tr -d ' ')
+            # devaudit-installer#956 — deferred tickets stay in pending-releases/
+            # but are reported separately, not as pending.
+            for T in compliance/pending-releases/RELEASE-TICKET-REQ-*.md; do
+              [ -f "$T" ] || continue
+              if [ -f scripts/is-deferred-ticket.sh ] && bash scripts/is-deferred-ticket.sh "$T"; then
+                DEFERRED_RELEASES=$((DEFERRED_RELEASES + 1))
+              else
+                PENDING_RELEASES=$((PENDING_RELEASES + 1))
+              fi
+            done
           fi
           if [ -d compliance/approved-releases ]; then
             APPROVED_RELEASES=$(find compliance/approved-releases -maxdepth 1 -name 'RELEASE-TICKET-REQ-*.md' -type f 2>/dev/null | wc -l | tr -d ' ')
@@ -90,6 +100,7 @@ jobs:
           {
             echo "rtm_reqs=${RTM_REQS}"
             echo "pending_releases=${PENDING_RELEASES}"
+            echo "deferred_releases=${DEFERRED_RELEASES}"
             echo "approved_releases=${APPROVED_RELEASES}"
             echo "incident_reports=${INCIDENT_REPORTS}"
             echo "ci_total=${TOTAL_RUNS}"
@@ -104,6 +115,7 @@ jobs:
           REVIEW_ID: ${{ steps.period.outputs.review_id }}
           RTM_REQS: ${{ steps.metrics.outputs.rtm_reqs }}
           PENDING_RELEASES: ${{ steps.metrics.outputs.pending_releases }}
+          DEFERRED_RELEASES: ${{ steps.metrics.outputs.deferred_releases }}
           APPROVED_RELEASES: ${{ steps.metrics.outputs.approved_releases }}
           INCIDENT_REPORTS: ${{ steps.metrics.outputs.incident_reports }}
           CI_TOTAL: ${{ steps.metrics.outputs.ci_total }}
@@ -147,6 +159,7 @@ jobs:
           | ----------------------------------------- | ------------------------- |
           | Total tracked REQs in RTM                 | ${RTM_REQS}               |
           | Pending releases at period end            | ${PENDING_RELEASES}       |
+          | Deferred releases at period end           | ${DEFERRED_RELEASES}      |
           | Approved releases (cumulative)            | ${APPROVED_RELEASES}      |
           | Incident reports on disk                  | ${INCIDENT_REPORTS}       |
           | CI runs on \`develop\` (this period)       | ${CI_TOTAL}               |

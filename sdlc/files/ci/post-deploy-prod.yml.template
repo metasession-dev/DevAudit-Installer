@@ -125,13 +125,26 @@ jobs:
             fi
           else
             REQS=""
+            DEFERRED_SKIPPED=0
             if [ -d compliance/pending-releases ]; then
               for T in compliance/pending-releases/RELEASE-TICKET-REQ-*.md; do
                 [ -f "$T" ] || continue
-                REQS="${REQS} $(basename "$T" .md | sed 's/^RELEASE-TICKET-//')"
+                PENDING_REQ=$(basename "$T" .md | sed 's/^RELEASE-TICKET-//')
+                # devaudit-installer#956 — a deferred REQ's code never reached
+                # main as part of this release: never promote it, upload
+                # production evidence to it, or PATCH its portal release.
+                if [ -f scripts/is-deferred-ticket.sh ] && bash scripts/is-deferred-ticket.sh "$T"; then
+                  echo "Skipping ${PENDING_REQ}: deferred (Release intent: deferred-to-next)"
+                  DEFERRED_SKIPPED=$((DEFERRED_SKIPPED + 1))
+                  continue
+                fi
+                REQS="${REQS} ${PENDING_REQ}"
               done
             fi
             REQS=$(echo ${REQS} | tr ' ' '\n' | sort -u | tr '\n' ' ' | sed 's/[[:space:]]*$//')
+            if [ -z "${REQS}" ] && [ "$DEFERRED_SKIPPED" -gt 0 ]; then
+              echo "All ${DEFERRED_SKIPPED} pending release ticket(s) are deferred: treating this promotion as having no tracked release ticket (nothing is promoted to a deferred release)."
+            fi
             if [ -z "${REQS}" ]; then
               chmod +x scripts/derive-release-version.sh scripts/standalone-housekeeping-release.sh 2>/dev/null || true
               VERSION=$(bash scripts/derive-release-version.sh)
