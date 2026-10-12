@@ -2585,3 +2585,23 @@ describe('runUpdate — --enable/--disable-e2e-regression (#876)', () => {
     }
   }, 30_000);
 });
+
+// #984 — a config without `runner` rendered `runs-on: ,` in every workflow.
+describe('syncProject — missing runner key (#984)', () => {
+  it('falls back to the self-hosted default expression instead of an empty runs-on', async () => {
+    const dir = await buildFixture();
+    process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
+    const cfgPath = join(dir, 'sdlc-config.json');
+    const cfg = JSON.parse(await fs.readFile(cfgPath, 'utf-8')) as Record<string, unknown>;
+    delete cfg['runner'];
+    await fs.writeFile(cfgPath, JSON.stringify(cfg));
+    try {
+      await syncProject(dir);
+      const wf = await fs.readFile(join(dir, '.github', 'workflows', 'check-release-approval.yml'), 'utf-8');
+      expect(wf).not.toMatch(/runs-on:\s*,/);
+      expect(wf).toContain("runs-on: ${{ (inputs.runner_label || vars.CI_RUNNER_LABEL || 'github-ci') == 'github-ci' && 'ubuntu-latest'");
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+});
