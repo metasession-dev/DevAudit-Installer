@@ -97,7 +97,7 @@ export async function syncProject(projectPath: string, options: SyncProjectOptio
   // the resulting `known` map instead of overwriting unconditionally.
   const previousManifest = await readManifest(repoRoot);
   let known: KnownFiles | undefined = previousManifest?.files
-    ? new Map(Object.entries(previousManifest.files).map(([k, v]) => [k, { sha256: v.sha256, section: v.section }]))
+    ? new Map(Object.entries(previousManifest.files).map(([k, v]) => [k, { sha256: v.sha256, section: v.section, conflict: v.conflict === true }]))
     : undefined;
   if (!known) {
     const baseline = await buildBaseline(baseCtx);

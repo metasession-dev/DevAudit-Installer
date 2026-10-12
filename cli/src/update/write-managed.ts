@@ -14,7 +14,10 @@ import { sha256, toManifestKey, type ManifestEntry, type SyncManifest } from './
  * conservative mode, or this is a fresh `install`) needs no special-casing
  * anywhere else — every path is simply "unknown" to classify against.
  */
-export type KnownFiles = ReadonlyMap<string, { readonly sha256: string; readonly section: string }>;
+export type KnownFiles = ReadonlyMap<
+  string,
+  { readonly sha256: string; readonly section: string; readonly conflict?: boolean }
+>;
 
 interface PendingEntry {
   readonly section: string;
@@ -163,7 +166,12 @@ export async function writeManaged(
       state.markTouched(relPath, opts.section);
       return 'identical';
     }
-    if (known && onDiskHash === known.sha256) {
+    // devaudit-installer#988 — a path the previous sync left in conflict is
+    // never "unmodified": its recorded hash may be the consumer's own content
+    // (an unknown-but-present file at first sync), and treating a match as
+    // clean would overwrite the local edit with upstream. It stays a conflict
+    // until the file matches upstream (the `identical` branch above).
+    if (known && !known.conflict && onDiskHash === known.sha256) {
       if (!state.dryRun) await writeWithMode(absPath, content, opts.mode);
       state.markTouched(relPath, opts.section);
       return 'written';
@@ -173,7 +181,8 @@ export async function writeManaged(
     if (!state.dryRun) {
       await writeWithMode(`${absPath}.devaudit-new`, content, opts.mode);
     }
-    state.markConflict(relPath, opts.section, known?.sha256 ?? onDiskHash, newHash);
+    // #988 — with no known baseline, record none (''), never the local hash.
+    state.markConflict(relPath, opts.section, known?.sha256 ?? '', newHash);
     return 'conflict';
   }
 
@@ -205,7 +214,7 @@ export async function removeManaged(
     return 'removed';
   }
   const onDiskHash = sha256(await fs.readFile(absPath));
-  if (onDiskHash === known.sha256) {
+  if (!known.conflict && onDiskHash === known.sha256) {
     if (!state.dryRun) await fs.rm(absPath);
     state.markRemoved(relPath);
     return 'removed';
