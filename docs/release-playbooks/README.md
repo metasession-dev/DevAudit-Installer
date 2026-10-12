@@ -150,15 +150,15 @@ release, is **deferred**, not abandoned and not (yet) superseded. The lifecycle:
   work to a release; at close-out the deferred predecessor is superseded.
 - **Portal state.** The portal has a `deferred` state (from `draft`, `uat_review`,
   `uat_rejected` or `uat_approved`; resume returns to `draft`). An admin sets it
-  manually with `POST /api/releases/[id]/defer` and `/resume` using a personal access
-  token (or portal session); CI, API and viewer keys cannot, and the CI status PATCH
+  with `devaudit doctor --fix`, or manually with `POST /api/releases/[id]/defer` and
+  `/resume`, using a personal access token (or portal session); CI, API and viewer keys cannot, and the CI status PATCH
   cannot set it. If the admin does not defer it, the portal release stays at its
   current state until the absorbing release supersedes it at close-out.
   `check-release-approval` fails with a specific message for a `deferred` release.
 - **Diagnosis.** `devaudit doctor` reports `release-pr-closed`, `deferred-will-ship`,
   `predecessors-none` and `bundle-members` read-only (see [doctor](../doctor.md));
-  nothing repairs them automatically yet (`doctor --fix` is planned, phase 3b of
-  #956).
+  `devaudit doctor --fix` repairs them (see [doctor](../doctor.md)); it never defers
+  the portal release without the operator's PAT, a typed reason and confirmation.
 
 See [Deferring a finished REQ into the next release](../change-workflows.md#deferring-a-finished-req-into-the-next-release)
 and [ADR-002](../ADR/ADR-002-release-deferral.md).
