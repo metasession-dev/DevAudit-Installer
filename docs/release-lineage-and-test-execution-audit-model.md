@@ -49,7 +49,7 @@ REQ-093 demonstrates the result. The chronological numbering logic can correctly
 3. **A test execution is one governed run.** Retries and reruns are separate executions within the same iteration unless they introduce new rework.
 4. **An evidence upload is not an execution.** Documents can describe a release, stage, iteration, or execution, but uploading a document proves none of them occurred.
 5. **Bundling preserves identity.** A predecessor remains queryable under its original release identifier, status, stage history, iterations, and evidence.
-6. **Superseded does not mean abandoned.** The record must identify the successor, reason, absorbed scope, and final disposition.
+6. **Superseded does not mean abandoned, and neither means deferred.** *Deferred* (ticket `Release intent: deferred-to-next`, RTM `DEFERRED`, portal `deferred`) is reversible: the work remains pending and `release.resumed` returns the portal release to `draft`. *Superseded* is terminal: a successor absorbed the scope at close-out. *Abandoned* means the work was cancelled or dropped. Only a deferred release that is later absorbed ends as superseded. The record must identify the successor, reason, absorbed scope, and final disposition.
 7. **Evidence is referenced, not reassigned.** Evidence remains owned by the source release and execution that produced it. A successor approval may inherit it through an explicit relationship.
 8. **Stage counts and chronology are separate views.** Stage grouping answers how many attempts a stage needed. A timeline answers how the overall release evolved.
 9. **Outcomes are producer facts.** The portal must not infer pass or fail from filenames, artifact presence, or display order when an authoritative workflow result is available.
@@ -304,6 +304,7 @@ The portal audit log must include at least:
 - `release.bundle_member_added`;
 - `release.bundle_member_removed` before approval;
 - `release.superseded`;
+- `release.deferred` and `release.resumed` (admin-only portal defer/resume; a deferral is reversible and is not a supersession);
 - `release_iteration.opened`;
 - `release_iteration.closed`;
 - `release_iteration.reconciled`;

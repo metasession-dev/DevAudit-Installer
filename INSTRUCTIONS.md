@@ -105,7 +105,7 @@ Every framework PR should also be smoke-synced (`devaudit update`) against at le
 
 - Never embed credentials in templates. Tokens live in consumer env vars or GitHub secrets, not in shipped files.
 - Adapter manifests are evaluated by `validate-adapter.cjs` — any change to schemas needs explicit review.
-- `devaudit install` takes `DEVAUDIT_USER_TOKEN` from env / `devaudit auth login` cache / `--token`, never from a prompt that gets logged. Keep it that way.
+- `devaudit install` takes `DEVAUDIT_USER_TOKEN` from env / `devaudit auth login` cache / `--token`, never from a prompt that gets logged. Keep it that way. The same PAT is the credential a portal admin uses to defer or resume a release (`POST /api/releases/[id]/defer` / `/resume`; never CI, API or viewer keys); that is manual today and no CLI command calls it yet (planned, phase 3b of #956).
 
 ## Related documents
 

@@ -132,6 +132,37 @@ through the explicit bundle manifest and portal lineage, not duplicate upload
 rows. Requirement-scoped E2E JSON is the exception only when the JSON contains an
 executed test tagged for that requirement.
 
+### Deferred releases
+
+A release whose PR was closed unmerged, with the work meant to ship in the next
+release, is **deferred**, not abandoned and not (yet) superseded. The lifecycle:
+
+- **Declaration.** The ticket's `- **Release intent:** deferred-to-next — <reason,
+  PR #N closed unmerged>` line is the sole declaration. The ticket stays in
+  `compliance/pending-releases/`; the RTM row becomes `DEFERRED` (non-terminal).
+  `validate-commits.sh` and `derive-release-version.sh` ignore deferred tickets and
+  rows, so a parked REQ is never derived as the in-flight release.
+- **Promotion gate.** `check-deferred-reqs-in-range.sh`, a failing step of
+  `check-release-pr-scope.sh` inside the existing Release Scope Integrity job (not a
+  separate required check), fails a `develop -> main` PR whose range holds a
+  deferred REQ's commits unless the release ticket lists it under `Absorbed
+  predecessor releases`. Listing it there is the deliberate act that re-attaches the
+  work to a release; at close-out the deferred predecessor is superseded.
+- **Portal state.** The portal has a `deferred` state (from `draft`, `uat_review`,
+  `uat_rejected` or `uat_approved`; resume returns to `draft`). An admin sets it
+  manually with `POST /api/releases/[id]/defer` and `/resume` using a personal access
+  token (or portal session); CI, API and viewer keys cannot, and the CI status PATCH
+  cannot set it. If the admin does not defer it, the portal release stays at its
+  current state until the absorbing release supersedes it at close-out.
+  `check-release-approval` fails with a specific message for a `deferred` release.
+- **Diagnosis.** `devaudit doctor` reports `release-pr-closed`, `deferred-will-ship`,
+  `predecessors-none` and `bundle-members` read-only (see [doctor](../doctor.md));
+  nothing repairs them automatically yet (`doctor --fix` is planned, phase 3b of
+  #956).
+
+See [Deferring a finished REQ into the next release](../change-workflows.md#deferring-a-finished-req-into-the-next-release)
+and [ADR-002](../ADR/ADR-002-release-deferral.md).
+
 ### Close-out
 
 `released` in the portal is the trigger for close-out, not merely a merged PR.
@@ -308,7 +339,9 @@ not evidence for the new SHA.
 
 For a reviewed `develop -> main` promotion, release-scope integrity may use an
 exactly-one pending release ticket or exactly-one active RTM row as the selected
-tracked scope. That fallback is not ordinary commit ownership and must remain
+tracked scope. Deferred tickets and `DEFERRED` RTM rows are parked, not in flight,
+so they never count toward "exactly one" (a deferred ticket beside one live ticket
+still leaves one candidate). That fallback is not ordinary commit ownership and must remain
 disabled for feature, housekeeping, hotfix, and integration CI contexts.
 
 ## Operator recovery and historical data

@@ -501,7 +501,7 @@ Every push to the integration branch triggers the full CI pipeline. All gates ru
 
 **How it works:**
 
-1. **Find in-scope REQs** — scan `compliance/pending-releases/RELEASE-TICKET-REQ-*.md` for pending release tickets. Skip REQs already in terminal release directories (`approved-releases/` or `superseded-releases/`).
+1. **Find in-scope REQs** — scan `compliance/pending-releases/RELEASE-TICKET-REQ-*.md` for pending release tickets. Skip REQs already in terminal release directories (`approved-releases/` or `superseded-releases/`). Deferred tickets stay in `pending-releases/` and are not terminal.
 
 2. **For each in-scope REQ with zero screenshots** — check if the Playwright JSON report (`e2e-results.json`) contains any tests tagged with the REQ:
 
@@ -699,7 +699,7 @@ Requirement (REQ-XXX in RTM)
 - Commit messages reference requirement IDs: `Ref: REQ-XXX`
 - Pull requests link commits to requirements in PR body
 - Test results linked to requirement IDs via portal uploads
-- RTM maintained per project with status progression: `DRAFT → IMPLEMENTED → TESTED - PENDING SIGN-OFF → RELEASED`
+- RTM maintained per project with status progression: `DRAFT → IMPLEMENTED → TESTED - PENDING SIGN-OFF → RELEASED`, with `DEFERRED` as a non-terminal side state for a finished REQ whose release PR was closed unmerged and which ships with the next release (it returns to the progression when absorbed or resumed)
 
 ### Audit Readiness
 

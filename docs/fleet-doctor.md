@@ -32,6 +32,8 @@ For every non-clean finding, whether it's most likely a **framework/portal defec
 | Consumer drift, not urgent | Invoke that consumer's own `sdlc-implementer`, routed through its existing Lightweight path (housekeeping merge, no `REQ-XXX`, no UAT ceremony). |
 | Consumer drift, deferrable | File a normal issue in that consumer's repo and leave it for the next tracked `sdlc-implementer` run to pick up via the **existing** `Bundles: #A, #B` declaration — no new bundling mechanism. |
 
+**Terminology:** "defer" here means *postponing a drift fix* into a consumer's next `Bundles:` run. It is unrelated to **release deferral** (#956: the `Release intent: deferred-to-next` ticket line, RTM `DEFERRED`, and the portal `deferred` state, which postpone a *release*). This skill never defers, resumes or supersedes a release; those are per-consumer admin actions (manual today, see [`docs/doctor.md`](doctor.md#4-release-deferral-diagnosis-non-gating-read-only-956)), and a `release-pr-closed`/`deferred-will-ship` finding in a consumer's doctor output is classified like any other consumer drift.
+
 ## What it never does
 
 - Never edits framework code in `devaudit` or `DevAudit-Installer` directly.

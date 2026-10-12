@@ -96,6 +96,12 @@ The portal dispatches `release-closed`, which opens the close-out PR back to
 `$INTEGRATION_BRANCH`. Review and merge it. Manual dispatch is fallback; local
 close-out scripts are recovery-only.
 
+If a high-risk release PR is closed unmerged and the work will ship with the next
+release, defer it rather than leaving it half-approved: declare
+`Release intent: deferred-to-next` on the ticket and have a portal admin defer the
+portal release (manual, personal access token or session). The absorbing release
+carries its own approval envelope; the deferred one is superseded at its close-out. See [README](./README.md#deferred-releases).
+
 ## Hotfix
 
 For production-impacting urgency, branch `hotfix/REQ-XXX-*` from

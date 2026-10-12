@@ -31,6 +31,7 @@ See [`doctor.md`](doctor.md) for the full check list. For each non-`ok` result, 
 
 - **Consumer-side gap** (`suspectedOrigin: consumer-drift`) — fix it in this consumer: add the missing GitHub secret, opt into (or explicitly decline) `e2e_regression_enabled` via `devaudit update --enable-e2e-regression`/`--disable-e2e-regression` (see [`e2e-test-tiers.md`](e2e-test-tiers.md)), bootstrap `docs/SRS.md`/`compliance/RTM.md`, add the pre-push hook (`devaudit join`).
 - **Framework-side gap** (`suspectedOrigin: framework`, or the same anomaly repeating identically across every consumer) — don't patch it locally. File a DevAudit-Installer issue instead, the same way today's `#877` triage did.
+- **Release-deferral finding** (`release-pr-closed`, `deferred-will-ship`, `predecessors-none`, `bundle-members`; read-only, see [`doctor.md`](doctor.md#4-release-deferral-diagnosis-non-gating-read-only-956)) — these are about a closed or postponed *release*, not drift to fix by housekeeping. Declare the deferral in the ticket (`Release intent: deferred-to-next`) or list the predecessor under `Absorbed predecessor releases`; deferring or resuming the portal release is a manual admin step (own PAT or portal session), and `doctor --fix` is planned (phase 3b of #956), not available.
 - **Ambiguous** (`suspectedOrigin: unknown`) — usually an operator-local auth/tooling issue (e.g. `gh` not authenticated in this shell) rather than either repo; re-run in an authenticated shell before concluding anything.
 
 ### 3. Commit, open a PR, merge

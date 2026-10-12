@@ -35,7 +35,8 @@ Tracked releases and housekeeping releases both rely on the same core verificati
 ### On the PR to `main`
 
 - `Compliance Validation` should confirm the change matches the declared workflow shape
-- `DevAudit Release Approval` should stay red until the portal release is approved for UAT
+- `Release Scope Integrity` should fail if a deferred REQ's commits are in the diff and it is not listed under `Absorbed predecessor releases` (`check-deferred-reqs-in-range.sh`)
+- `DevAudit Release Approval` should stay red until the portal release is approved for UAT (a portal `deferred` release gets a specific message and stays red)
 - once UAT approval is granted, rerunning the approval workflow should turn the gate green
 
 #### `DevAudit Release Approval` re-dispatch/check-run lifecycle (devaudit-installer#788)
@@ -59,6 +60,7 @@ The portal's `release-approved` `repository_dispatch` re-triggers `check-release
 | Markdown/governance/release-ticket evidence | `compliance-evidence.yml` |
 | PR truthfulness and artifact completeness | `compliance-validation.yml` |
 | UAT approval/four-eyes | `check-release-approval.yml` |
+| Deferred-REQ promotion gate (a deferred REQ's commits must not reach `main` unless listed under `Absorbed predecessor releases`) | `check-deferred-reqs-in-range.sh`, run by `check-release-pr-scope.sh` inside the existing Release Scope Integrity job (not a separate required check) |
 | Production health and release close-out | `post-deploy-prod.yml` |
 
 ## See also

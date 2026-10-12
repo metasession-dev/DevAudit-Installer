@@ -20,7 +20,7 @@ This page is the short reader-facing overview. The full contract for skill struc
 
 | Skill | Role | Runs from | What it produces |
 | --- | --- | --- | --- |
-| `fleet-doctor` | Fleet drift auditor | `DevAudit-Installer` (operator's own checkout, with sibling consumer repos on disk) | Sweeps every active consumer via `devaudit doctor --json`, classifies each finding as framework-origin (raised as an issue in `devaudit`/`DevAudit-Installer`) or consumer-drift (fixed in place — hotfix, Lightweight-path housekeeping, or deferred into the consumer's next tracked REQ bundle) |
+| `fleet-doctor` | Fleet drift auditor | `DevAudit-Installer` (operator's own checkout, with sibling consumer repos on disk) | Sweeps every active consumer via `devaudit doctor --json`, classifies each finding as framework-origin (raised as an issue in `devaudit`/`DevAudit-Installer`) or consumer-drift (fixed in place — hotfix, Lightweight-path housekeeping, or postponed into the consumer's next tracked REQ bundle; this is unrelated to *release* deferral, see [`fleet-doctor.md`](./fleet-doctor.md)) |
 
 `fleet-doctor` lives at `.claude/skills/fleet-doctor/` in this repo, not under `sdlc/files/_common/skills/` (the synced-template pool) — that's what keeps `devaudit update` from ever copying it into a consumer, where it would have no siblings to audit. See [`docs/fleet-doctor.md`](./fleet-doctor.md) for the full walkthrough.
 

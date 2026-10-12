@@ -124,3 +124,6 @@ context. In the later tracked release, they should see exactly what was absorbed
 and which source executions cover it. Auditors should be able to follow the linked
 predecessor, source evidence, and final approval envelope without interpreting
 the historical row as abandoned work.
+
+Housekeeping has no REQ, RTM row or ticket, so it is never `deferred`: that state
+applies only to tracked REQs (see [README](./README.md#deferred-releases)).

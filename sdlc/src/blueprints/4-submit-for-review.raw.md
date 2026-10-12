@@ -30,7 +30,7 @@ If you are an AI agent reading this file, you are strictly prohibited from manua
 - CI on `develop` is green
 - UAT-environment verification has passed (only if Stage 3 Step 10 applied — opt-in by risk class)
 - Evidence is compiled, committed, and uploaded
-- **Release is approved in DevAudit** (status: `uat_approved` — backend enum kept as-is in v1.22.x for backwards-compat; renamed to `release_approved` in v1.23.0)
+- **Release is approved in DevAudit** (status: `uat_approved` — backend enum kept as-is in v1.22.x for backwards-compat; renamed to `release_approved` in v1.23.0). A release that a portal admin has deferred (`deferred`) is not approved and fails the gate until it is resumed (back to `draft`)
 
 The PR is the **merge request**, not the development workspace. Develop on `develop`, iterate until ready, then create the PR as the final step before merge.
 
@@ -69,7 +69,7 @@ Before creating a PR, verify all prerequisites are met. **Do NOT skip this check
 - [ ] CI is not stale (ran against the latest commit): compare CI commit SHA with `git rev-parse develop`
 - [ ] Working tree is clean: `git status`
 - [ ] UAT-environment verification passed (only if Stage 3 Step 10 applied to this requirement)
-- [ ] Release approved in DevAudit (Stage 3 Step 11)
+- [ ] Release approved in DevAudit (Stage 3 Step 11), and not `deferred`
 
 **For tracked requirements (REQ-XXX):**
 - [ ] `compliance/evidence/REQ-XXX/test-scope.md` exists and all items addressed
@@ -77,6 +77,7 @@ Before creating a PR, verify all prerequisites are met. **Do NOT skip this check
 - [ ] `compliance/evidence/REQ-XXX/ai-prompts.md` exists (if AI was used on MEDIUM/HIGH risk)
 - [ ] RTM status is `TESTED - PENDING SIGN-OFF`: `grep 'REQ-XXX' compliance/RTM.md`
 - [ ] Release ticket exists: `ls compliance/pending-releases/RELEASE-TICKET-REQ-XXX.md`
+- [ ] Any REQ deferred earlier (ticket `**Release intent:** deferred-to-next`) is listed under `Absorbed predecessor releases` in this release's ticket; the develop-to-main promotion gate (`check-deferred-reqs-in-range.sh`, inside the Release Scope Integrity job) fails the PR otherwise
 - [ ] Evidence uploaded to DevAudit (or saved locally if git-based)
 
 **Risk-tier reminder:**

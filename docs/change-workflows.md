@@ -114,9 +114,20 @@ the repo, not only in the closed PR:
    is optional; absent means no declared intent. `validate-compliance-artifacts.sh`
    rejects a malformed value.
 2. Keep the RTM row, and comment on the closed PR.
-3. Leave the portal release alone. The portal has no defer/cancel route, so it stays at
-   its current state (for example `uat_approved` with a closed PR) until the absorbing
-   release supersedes it at close-out.
+3. Leave the ticket in `compliance/pending-releases/` (there is no separate deferred
+   directory) and set the RTM row to `DEFERRED`, a non-terminal status that
+   `validate-compliance-artifacts.sh` accepts. `validate-commits.sh` and
+   `derive-release-version.sh` ignore deferred tickets and rows, so the parked REQ is
+   never derived as the in-flight release.
+4. Optionally defer the portal release too. A portal admin does this **manually** with
+   `POST /api/releases/[id]/defer` (and `/resume`), authenticated by a personal access
+   token (`DEVAUDIT_USER_TOKEN`, the PAT already used for UAT submission) or a portal
+   session. It is admin-only: CI, API and viewer keys cannot do it and the CI status
+   PATCH cannot set it. Allowed from `draft`, `uat_review`, `uat_rejected` and
+   `uat_approved`; resume returns to `draft`. If the portal release is not deferred it
+   stays at its current state (for example `uat_approved` with a closed PR) until the
+   absorbing release supersedes it at close-out. Deferred is reversible and the work
+   remains pending; superseded is terminal.
 
 The next release lists the deferred REQ under `**Absorbed predecessor releases:**`.
 `generate-bundled-changes.sh` **refuses** to run (naming the ticket) when a pending
@@ -124,8 +135,20 @@ ticket carries the intent and the field says `None` or omits it, and also when t
 says `None` but that pending REQ's `[REQ-x]` / `Ref: REQ-x` commits are already in the
 `<since>..HEAD` range. A deferred REQ is never absorbed silently, because its code would
 otherwise ship under another release's approval with no lineage and its ticket would
-stay pending forever. Doctor diagnosis/repair, an RTM `DEFERRED` state and a promotion
-gate are tracked separately in #956 and build on this field.
+stay pending forever.
+
+The develop-to-main **promotion gate** enforces the same rule at the PR:
+`check-deferred-reqs-in-range.sh`, a failing step of `check-release-pr-scope.sh` inside
+the existing Release Scope Integrity job (not a new required check), fails when a
+deferred REQ's commits are in the diff and it is not listed under `Absorbed predecessor
+releases`. `check-release-approval` also reports a portal `deferred` release with a
+specific message (the gate still fails).
+
+`devaudit doctor` diagnoses the state read-only (`release-pr-closed`,
+`deferred-will-ship`, `predecessors-none`, `bundle-members`; see
+[doctor](./doctor.md)). Tiered repair (`doctor --fix`) and any CLI or skill command
+that calls defer/resume are planned (phase 3b of #956) and not available. Rationale:
+[ADR-002](./ADR/ADR-002-release-deferral.md).
 
 If you find a portal release named after a bundled member (an older consumer
 version created these), do not submit it for review. Update the consumer

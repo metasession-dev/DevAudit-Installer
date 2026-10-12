@@ -196,7 +196,7 @@ describe('Release intent deferral + Python rejection (#955 remainder)', () => {
     expect(skill).toContain('Closing a release PR without releasing');
     expect(skill).toContain('- **Release intent:** deferred-to-next — <reason, PR #N closed unmerged>');
     expect(skill).toContain('Keep the RTM row');
-    expect(skill).toContain('Leave the portal release as it is');
+    expect(skill).toContain('Portal defer is a MANUAL, admin-only step');
     expect(skill).toContain('deferred REQs are never absorbed silently');
     expect(loop).toContain('Closing a release PR without releasing');
   });
