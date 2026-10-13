@@ -309,6 +309,7 @@ export function formatConflictSummary(conflicts: readonly ConflictNote[]): strin
   lines.push(
     'Resolve each: take upstream with `mv <path>.devaudit-new <path>`, or keep your change permanently via a config key, .devaudit-patches, or a sanctioned hook, then restore upstream content and delete <path>.devaudit-new.',
     'Run `devaudit doctor` (the sync-conflicts check) any time to re-list unresolved conflicts.',
+    'Review process: https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/sync-conflict-review.md',
   );
   return lines.join('\n');
 }

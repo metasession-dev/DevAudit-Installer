@@ -1,6 +1,7 @@
 import { execa } from 'execa';
 import type {
   BranchProtectionResult,
+  EnsureBranchProtectionResult,
   GitProvider,
   PullRequestCreateOptions,
   PullRequestCreated,
@@ -29,6 +30,25 @@ async function ghAvailable(): Promise<boolean> {
     ghAvailabilityCache = { available: false };
     return false;
   }
+}
+
+/** GitHub's answer when the plan has no branch protection for this repo (private repo on GitHub Free). */
+const PLAN_UNAVAILABLE = /upgrade to github pro|make this repository public/i;
+
+interface BranchRule {
+  readonly type: string;
+  readonly parameters?: {
+    readonly required_status_checks?: readonly { readonly context: string }[];
+    readonly required_approving_review_count?: number;
+  };
+}
+
+interface ClassicProtection {
+  readonly required_status_checks?: {
+    readonly contexts?: readonly string[];
+    readonly checks?: readonly { readonly context: string }[];
+  } | null;
+  readonly required_pull_request_reviews?: { readonly required_approving_review_count?: number } | null;
 }
 
 /** Order-preserving, deduped union of two required-check-context lists. Exported for tests. */
@@ -298,6 +318,147 @@ export class GitHubProvider implements GitProvider {
     );
     if (res.ok) return { applied: true };
     return { applied: false, message: `GitHub REST branch-protection PUT failed: HTTP ${res.status}` };
+  }
+
+  async ensureBranchProtection(
+    cwd: string,
+    branch: string,
+    requiredChecks: readonly string[],
+    options?: { readonly minReviewCount?: number },
+  ): Promise<EnsureBranchProtectionResult> {
+    const minReviews = options?.minReviewCount ?? 0;
+    let meta: RepoMeta;
+    try {
+      meta = await this.getRepoMeta(cwd);
+    } catch (err) {
+      return { status: 'failed', message: (err as Error).message };
+    }
+    const repo = `/repos/${meta.owner}/${meta.name}`;
+    const base = `${repo}/branches/${encodeURIComponent(branch)}/protection`;
+
+    // Rulesets first: a branch they protect gets no classic protection on
+    // top (#990). The endpoint answers 403 "Upgrade to GitHub Pro" for a
+    // private repo on GitHub Free, where classic protection is unavailable too.
+    const rules = await this.api(cwd, 'GET', `${repo}/rules/branches/${encodeURIComponent(branch)}`);
+    if (rules.status === 403 && PLAN_UNAVAILABLE.test(rules.message)) {
+      return { status: 'unavailable', message: rules.message };
+    }
+    if (rules.status === 200 && Array.isArray(rules.data)) {
+      const list = rules.data as readonly BranchRule[];
+      const protecting = list.filter((r) => r.type === 'required_status_checks' || r.type === 'pull_request');
+      if (protecting.length > 0) {
+        const have = new Set(
+          list
+            .filter((r) => r.type === 'required_status_checks')
+            .flatMap((r) => (r.parameters?.required_status_checks ?? []).map((c) => c.context)),
+        );
+        const reviews = Math.max(
+          0,
+          ...list.filter((r) => r.type === 'pull_request').map((r) => r.parameters?.required_approving_review_count ?? 0),
+        );
+        return {
+          status: 'ruleset',
+          missingChecks: requiredChecks.filter((c) => !have.has(c)),
+          ...(reviews < minReviews
+            ? { message: `rulesets require ${reviews} approving review(s); DevAudit expects at least ${minReviews}` }
+            : {}),
+        };
+      }
+    }
+
+    const current = await this.api(cwd, 'GET', base);
+    if (current.status === 403 && PLAN_UNAVAILABLE.test(current.message)) {
+      return { status: 'unavailable', message: current.message };
+    }
+    if (current.status === 404) {
+      // No protection at all: nothing to preserve, so apply the install defaults.
+      const applied = await this.applyBranchProtection(cwd, branch, requiredChecks, { requiredReviewCount: minReviews });
+      if (applied.applied) return { status: 'created' };
+      if (PLAN_UNAVAILABLE.test(applied.message ?? '')) return { status: 'unavailable', message: applied.message };
+      return { status: 'failed', message: applied.message };
+    }
+    if (current.status !== 200) {
+      return { status: 'failed', message: `could not read branch protection: ${current.message}` };
+    }
+
+    const data = (current.data ?? {}) as ClassicProtection;
+    const changes: string[] = [];
+    const existing = new Set([
+      ...(data.required_status_checks?.contexts ?? []),
+      ...(data.required_status_checks?.checks ?? []).map((c) => c.context),
+    ]);
+    const missing = requiredChecks.filter((c) => !existing.has(c));
+    if (missing.length > 0) {
+      // Sub-resource writes only, so every other setting stays as it is.
+      const res = data.required_status_checks
+        ? await this.api(cwd, 'POST', `${base}/required_status_checks/contexts`, { contexts: missing })
+        : await this.api(cwd, 'PATCH', `${base}/required_status_checks`, { strict: false, contexts: missing });
+      if (res.status < 200 || res.status >= 300) {
+        return { status: 'failed', message: `could not add required check(s): ${res.message}` };
+      }
+      changes.push(`added required check(s) ${missing.map((c) => `"${c}"`).join(', ')}`);
+    }
+    const reviews = data.required_pull_request_reviews?.required_approving_review_count;
+    if (minReviews > 0 && (reviews === undefined || reviews < minReviews)) {
+      const res = await this.api(cwd, 'PATCH', `${base}/required_pull_request_reviews`, {
+        required_approving_review_count: minReviews,
+      });
+      if (res.status < 200 || res.status >= 300) {
+        return {
+          status: 'failed',
+          changes,
+          message: `could not raise required approving reviews to ${minReviews}: ${res.message}`,
+        };
+      }
+      changes.push(`raised required approving reviews from ${reviews ?? 'none'} to ${minReviews}`);
+    }
+    return changes.length > 0 ? { status: 'updated', changes } : { status: 'ok' };
+  }
+
+  /**
+   * One GitHub REST call through `gh api` (preferred) or fetch. Never throws:
+   * `status` is the HTTP status (0 when no transport is available) and
+   * `message` the API's error message. A GET is sent without `-X` so a
+   * read-only `gh` wrapper (the release-validation stub) lets it through.
+   */
+  private async api(
+    cwd: string,
+    method: 'GET' | 'POST' | 'PATCH' | 'PUT',
+    path: string,
+    body?: unknown,
+  ): Promise<{ status: number; data?: unknown; message: string }> {
+    if (this.preferGhCli && (await ghAvailable())) {
+      const args = method === 'GET' ? ['api', path] : ['api', '-X', method, path, '--input', '-'];
+      const res = await execa('gh', args, {
+        cwd,
+        reject: false,
+        ...(body !== undefined ? { input: JSON.stringify(body) } : {}),
+      });
+      let data: unknown;
+      try {
+        data = res.stdout ? (JSON.parse(res.stdout) as unknown) : undefined;
+      } catch {
+        data = undefined;
+      }
+      if (res.exitCode === 0) return { status: 200, data, message: '' };
+      const status = Number(/HTTP (\d{3})/.exec(res.stderr)?.[1] ?? 0);
+      const apiMessage = (data as { message?: string } | undefined)?.message;
+      return { status, data, message: apiMessage ?? (res.stderr.split('\n')[0] || 'gh api call failed') };
+    }
+    if (!this.token) return { status: 0, message: 'No `gh` CLI and no GH_TOKEN' };
+    const res = await fetch(`https://api.github.com${path}`, {
+      method,
+      headers: { ...this.authHeaders(), ...(body !== undefined ? { 'content-type': 'application/json' } : {}) },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+    let data: unknown;
+    try {
+      data = (await res.json()) as unknown;
+    } catch {
+      data = undefined;
+    }
+    const apiMessage = (data as { message?: string } | undefined)?.message;
+    return { status: res.status, data, message: res.ok ? '' : (apiMessage ?? `HTTP ${res.status}`) };
   }
 
   async createPullRequest(cwd: string, opts: PullRequestCreateOptions): Promise<PullRequestCreated> {

@@ -1,6 +1,6 @@
 import { promises as fs } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { delimiter, join } from 'node:path';
 import { execa } from 'execa';
 import { exists, isDir, isFile } from '../lib/fs-utils.js';
 import { readSdlcConfig } from '../lib/sdlc-config.js';
@@ -111,24 +111,67 @@ export interface BaselineRunner {
  * spawn needed to verify the key is really gone) since the omission is the
  * entire point of the fix it exists for.
  */
-export function baselineRunnerEnv(sourceEnv: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
-  const { DEVAUDIT_INSTALLER_ROOT: _unused, ...cleanEnv } = sourceEnv;
+export function baselineRunnerEnv(sourceEnv: NodeJS.ProcessEnv = process.env, noGhDir?: string): NodeJS.ProcessEnv {
+  const cleanEnv: NodeJS.ProcessEnv = {};
+  for (const [key, value] of Object.entries(sourceEnv)) {
+    if (key === 'DEVAUDIT_INSTALLER_ROOT' || BASELINE_STRIPPED_ENV.includes(key)) continue;
+    cleanEnv[key] = value;
+  }
+  if (noGhDir) {
+    // Windows spells it `Path`; keep whichever key the environment uses.
+    const pathKey = Object.keys(cleanEnv).find((k) => k.toUpperCase() === 'PATH') ?? 'PATH';
+    const current = cleanEnv[pathKey];
+    cleanEnv[pathKey] = current ? `${noGhDir}${delimiter}${current}` : noGhDir;
+  }
   return cleanEnv;
 }
 
-export const defaultBaselineRunner: BaselineRunner = async ({ worktreeDir, version }) => {
-  const cleanEnv = baselineRunnerEnv();
-  // execa's `env` option *extends* `process.env` by default (`extendEnv:
-  // true`) — passing `env: cleanEnv` alone still lets execa merge the key
-  // back in from the real `process.env`, since "extend" fills in anything
-  // the given `env` object doesn't specify. `extendEnv: false` is required
-  // to make the omission actually stick.
-  await execa('npx', ['--yes', `@metasession.co/devaudit-cli@${version}`, 'update', worktreeDir], {
-    reject: false,
-    timeout: 5 * 60 * 1000,
-    env: cleanEnv,
-    extendEnv: false,
+/**
+ * devaudit-installer#990 — the baseline run is a full `update` of an older
+ * CLI inside a worktree whose `origin` is the real repository. Left alone it
+ * would also run that version's GitHub side effects (a blind branch-
+ * protection PUT, label creation, a default-branch edit) against the live
+ * repo, once per consumer, on the first sync after an upgrade. The child
+ * only needs to write files, so it gets no GitHub or portal credentials and
+ * a `gh` that always fails: the old CLI then reports its provider sections
+ * as unavailable and writes nothing remote.
+ */
+const BASELINE_STRIPPED_ENV: readonly string[] = [
+  'GH_TOKEN',
+  'GITHUB_TOKEN',
+  'GH_ENTERPRISE_TOKEN',
+  'GITHUB_ENTERPRISE_TOKEN',
+  'DEVAUDIT_USER_TOKEN',
+  'DEVAUDIT_API_KEY',
+  'DEVAUDIT_VIEWER_API_KEY',
+];
+
+/** Writes a `gh` (and `gh.cmd`) that always exits 1 into `dir`. */
+export async function writeNoGhShim(dir: string): Promise<void> {
+  await fs.writeFile(join(dir, 'gh'), '#!/bin/sh\necho "gh disabled during devaudit baseline reconstruction" >&2\nexit 1\n', {
+    mode: 0o755,
   });
+  await fs.writeFile(join(dir, 'gh.cmd'), '@echo gh disabled during devaudit baseline reconstruction 1>&2\r\n@exit /b 1\r\n');
+}
+
+export const defaultBaselineRunner: BaselineRunner = async ({ worktreeDir, version }) => {
+  const noGhDir = await fs.mkdtemp(join(tmpdir(), 'devaudit-nogh-'));
+  try {
+    await writeNoGhShim(noGhDir);
+    // execa's `env` option *extends* `process.env` by default (`extendEnv:
+    // true`) — passing `env: cleanEnv` alone still lets execa merge the key
+    // back in from the real `process.env`, since "extend" fills in anything
+    // the given `env` object doesn't specify. `extendEnv: false` is required
+    // to make the omission actually stick.
+    await execa('npx', ['--yes', `@metasession.co/devaudit-cli@${version}`, 'update', worktreeDir], {
+      reject: false,
+      timeout: 5 * 60 * 1000,
+      env: baselineRunnerEnv(process.env, noGhDir),
+      extendEnv: false,
+    });
+  } finally {
+    await fs.rm(noGhDir, { recursive: true, force: true });
+  }
 };
 
 export interface BaselineResult {

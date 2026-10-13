@@ -56,6 +56,9 @@ function makeFakeProvider() {
       providerCalls.push({ method: 'applyBranchProtection', args: [branch, checks.length] });
       return { applied: true };
     },
+    async ensureBranchProtection() {
+      return { status: 'ok' as const };
+    },
     async createPullRequest() {
       providerCalls.push({ method: 'createPullRequest', args: [] });
       return { url: 'https://github.com/metasession-dev/fixture-app/pull/1' };
