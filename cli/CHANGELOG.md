@@ -4,6 +4,21 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+## [1.8.0] — 2026-10-13
+
+Release deferral, `doctor --fix`, and a hardening pass found by the new pre-release validation gate (`docs/release-validation-plan.md`).
+
+### Upgrade notes
+
+Read these before running `devaudit update` on a project.
+
+- **Update once, to 1.8.0, not to 1.7.4–1.7.6.** Those versions overwrite a locally modified file on the *second* `update` after a conflict (#988, data loss). 1.8.0 never overwrites a path left in conflict until it is resolved. A project whose committed `.devaudit/sync-manifest.json` was written by 1.7.4–1.7.6 is protected from the first 1.8.0 update on (check that no earlier local change was lost).
+- **Resolve every `.devaudit-new` file in the same PR that adopts the update.** The review process is `docs/sync-conflict-review.md`: list, diff, classify (take upstream, move the change to a config key or `.devaudit-patches/`, or keep), verify with a second `update` and `devaudit doctor`, and record the outcome per file in the PR.
+- **Two generated workflows had non-terminating heredocs** (`quality-gates-provenance.yml` on the hotfix path, `incident-export.yml` containment, #987). A project that kept its own copy of either must take the upstream version.
+- **`update` no longer resets branch protection** (#990): it adds a missing required check or raises a review count below the minimum and keeps every other setting; a branch protected by rulesets is left alone. A private repository on GitHub Free, where neither exists, now gets a warning that required checks are not enforced.
+- **New, optional:** release deferral (`Release intent: deferred-to-next` on a release ticket, RTM status `DEFERRED`, a promotion gate, `devaudit doctor` checks and `doctor --fix`). Deferring or resuming the portal release is an admin action with a personal access token; CI keys cannot do it. Declared bundles remain a Node-template feature (Python parity is #995).
+- **Run the portal release that ships devaudit#897 as well** (a deferred predecessor is superseded when its successor's close-out completes). Until the portal is deployed, a deferred release absorbed by a successor stays `deferred` on the portal.
+
 ### Documentation
 
 - **Release validation layer 2b** (#941, umbrella #957) — `scripts/release-validation.sh layer2b` (also the last step of `all`): maps what changed since the last release tag to surfaces (`scripts/release-validation/surfaces.tsv`), applies the update to two representative clones and runs a scenario per changed surface on them (the clone's own approval-gate workflow against a mock portal, local-edit survival across two updates, branch-protection and baseline-run behaviour, deferral, doctor, changed-script parsing, a per-area report of what the update changed). A changed surface with no scenario is reported as a WARN, and a unit test fails when a surface has no scenario. Documented in `docs/release-validation-plan.md`.
