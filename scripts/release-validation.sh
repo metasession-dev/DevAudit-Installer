@@ -122,7 +122,7 @@ ensure_build() {
   echo "Building the candidate CLI ($ROOT/cli)..."
   ( cd "$ROOT/plugin-sdk" && npm ci --silent >/dev/null 2>&1 && npm run build --silent >/dev/null 2>&1 ) \
     || die "plugin-sdk build failed"
-  ( cd "$ROOT/cli" && npm ci --silent >/dev/null 2>&1 && npm run build --silent >/dev/null 2>&1 ) \
+  ( cd "$ROOT/cli" && npm install --legacy-peer-deps --silent >/dev/null 2>&1 && npm run build --silent >/dev/null 2>&1 ) \
     || die "cli build failed"
 }
 

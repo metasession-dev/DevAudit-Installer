@@ -153,7 +153,7 @@ scripts/release-validation.sh consumer wawagardenbar-app
 WORK_DIR=/tmp/rv scripts/release-validation.sh fixture node python
 ```
 
-The script builds the candidate (`SKIP_BUILD=1` reuses `cli/dist`), keeps
+The script builds the candidate with the same installs as CI (`npm ci` for `plugin-sdk`, `npm install --legacy-peer-deps` for `cli`; `npm ci` rejects `cli`'s lockfile, #996) and `SKIP_BUILD=1` reuses `cli/dist`, keeps
 `WORK_DIR` for inspection (clones, update logs, `gh-stub.log`), and writes
 `$WORK_DIR/results.md`. It exits 1 if any check failed.
 
