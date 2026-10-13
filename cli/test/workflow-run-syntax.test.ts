@@ -56,7 +56,7 @@ function bashProblems(workflows: Record<string, string>): string[] {
   return problems;
 }
 
-describe.skipIf(process.platform === 'win32')('generated workflow run: steps pass bash -n (#987)', () => {
+describe('generated workflow run: steps pass bash -n (#987)', () => {
   for (const stack of ['node', 'python'] as const) {
     it(`${stack}: every bash run step parses with no warnings`, async () => {
       const workflows = await renderAll(stack);
