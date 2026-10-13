@@ -146,7 +146,7 @@ async function buildNodeFixture(): Promise<string> {
 }
 
 beforeAll(() => {
-  server.listen({ onUnhandledRequest: 'error' });
+  server.listen({ onUnhandledFrame: 'error' });
   process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
   process.env['DEVAUDIT_USER_TOKEN'] = 'mctok_test_fixture';
   process.env['DEVAUDIT_BASE_URL'] = BASE_URL;

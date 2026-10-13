@@ -16,7 +16,7 @@ const cfg = { project_slug: 'fixture', devaudit: { project_slug: 'fixture', base
 const NOW = new Date('2026-10-12T00:00:00Z');
 
 const server = setupServer();
-beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }));
 afterAll(() => server.close());
 afterEach(() => {
   server.resetHandlers();

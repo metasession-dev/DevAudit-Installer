@@ -76,7 +76,7 @@ async function fixtureDir(): Promise<string> {
   return fs.mkdtemp(join(tmpdir(), 'cli-uninstall-fixture-'));
 }
 
-beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }));
 afterAll(() => server.close());
 afterEach(() => {
   providerCalls.length = 0;
