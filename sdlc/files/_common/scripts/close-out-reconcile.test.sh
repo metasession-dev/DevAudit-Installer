@@ -115,7 +115,28 @@ test_ignores_non_req_ticket_filenames() {
   rm -rf "$(dirname "$dir")"
 }
 
+# devaudit-installer#956 — deferred tickets stay in pending-releases/.
+test_deferred_ticket_not_a_missed_close_out() {
+  local dir
+  dir="$(mktemp -d)/fixture-deferred"
+  make_fixture "$dir"
+  # REQ-103 never reached main and is deferred: parked, must NOT be reported.
+  printf '# REQ-103\n\n- **Release intent:** deferred-to-next — PR closed\n' \
+    > compliance/pending-releases/RELEASE-TICKET-REQ-103.md
+  # REQ-102 is deferred AND its commits are on main: a silent absorption,
+  # still reported, but flagged so it is not closed out as a normal release.
+  printf '# REQ-102\n\n- **Release intent:** deferred-to-next — PR closed\n' \
+    > compliance/pending-releases/RELEASE-TICKET-REQ-102.md
+
+  local result
+  result="$("$HELPER" compliance/pending-releases | sort)"
+  assert_eq "deferred+unshipped is skipped; deferred+on-main is flagged; normal stale unchanged"     "$(printf 'REQ-101\nREQ-102 deferred')" "$result"
+
+  rm -rf "$(dirname "$dir")"
+}
+
 test_detects_stale_pending_tickets
+test_deferred_ticket_not_a_missed_close_out
 test_no_pending_dir_is_a_quiet_noop
 test_ignores_non_req_ticket_filenames
 

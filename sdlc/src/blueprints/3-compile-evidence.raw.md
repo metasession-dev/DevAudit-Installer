@@ -45,7 +45,7 @@ If you are an AI agent reading this file, you are strictly prohibited from manua
 | `compliance/evidence/REQ-XXX/ai-use-note.md` | Git | Small markdown, needs PR review |
 | `compliance/evidence/REQ-XXX/ai-prompts.md` | Git | Small markdown, needs PR review |
 | `compliance/evidence/REQ-XXX/security-summary.md` | Git | Small markdown, needs PR review |
-| `compliance/pending-releases/RELEASE-TICKET-*.md` | Git | Reviewed and moved to approved-releases |
+| `compliance/pending-releases/RELEASE-TICKET-*.md` | Git | Reviewed and moved to approved-releases (a deferred ticket stays in `pending-releases/`) |
 | E2E results (JSON) | DevAudit | Large, bloats git history |
 | Screenshots (PNG/JPG) | DevAudit | Binary, bloats git history |
 | SAST results (JSON) | DevAudit | Large JSON, bloats git history |
@@ -519,6 +519,10 @@ Create `compliance/pending-releases/RELEASE-TICKET-REQ-XXX.md`:
 **Risk Level:** [LOW / MEDIUM / HIGH]
 **PR:** [Will be linked when PR is created]
 
+<!-- OPTIONAL. Add this bullet ONLY when this release PR is closed without releasing and the REQ is deferred into the next release (omit it otherwise; absent = no declared intent):
+    - **Release intent:** deferred-to-next — <reason, PR #N closed unmerged>
+(indented here so a copied template never matches the guards.) The absorbing release must then list this REQ under "Absorbed predecessor releases". This ticket field is the sole declaration of deferral; the portal never writes it back. The RTM row becomes `DEFERRED` (non-terminal). A portal admin may additionally defer the portal release manually (see Stage 4). -->
+
 ---
 
 ## Summary
@@ -790,7 +794,7 @@ The script:
 2. Checks a `RELEASE-TICKET-*.md` exists in `compliance/pending-releases/`.
 3. Checks CI gates are green on the current develop HEAD (via `gh run list`).
 4. Resolves the release id from DevAudit using `DEVAUDIT_API_KEY` (existing).
-5. Submits with `DEVAUDIT_USER_TOKEN` (Personal Access Token issued from `/settings/tokens` in DevAudit). The submission carries the issuing user's identity, so `isOwnRelease` keeps holding for Step 11b under `dual_actor`.
+5. Submits with `DEVAUDIT_USER_TOKEN` (Personal Access Token issued from `/settings/tokens` in DevAudit). The submission carries the issuing user's identity, so `isOwnRelease` keeps holding for Step 11b under `dual_actor`. The same PAT is also the credential for an admin's manual portal defer/resume of a release (admin-only; never `DEVAUDIT_API_KEY`, the viewer key or CI).
 6. Idempotent — if the release is already in `uat_review` (or later), exits 0 with a note rather than failing.
 
 Required environment variables for the scripted path:
@@ -877,6 +881,7 @@ Copy these from `sdlc/files/ci/` into your project's `.github/workflows/`:
 
 **`check-release-approval.yml`** (renamed from `check-uat-approval.yml` in sdlc-v1.22.0) — Release Approval Gate on PRs to main:
 - Blocks merge until the release is approved in DevAudit (`uat_approved` / `release_approved` / downstream statuses)
+- Fails with a specific message when the portal status is `deferred` (a deferred release is not approved; an admin must resume it, which returns it to `draft`)
 - Add as a required status check on the `main` branch protection rule
 
 **`post-deploy-prod.yml`** — Production evidence capture after merge to main:
@@ -889,7 +894,7 @@ The source of truth for compliance documents remains in git. DevAudit holds read
 ## Output
 
 - RTM: `TESTED - PENDING SIGN-OFF`
-- Release ticket in `compliance/pending-releases/`
+- Release ticket in `compliance/pending-releases/` (carries `**Release intent:** deferred-to-next — …` only if the REQ is later deferred)
 - Test + security + AI evidence uploaded to DevAudit (or in `compliance/evidence/REQ-XXX/` if git-based)
 - Compliance documents (test scope, AI notes, security summary) committed to git and pushed
 - Test scope fully addressed

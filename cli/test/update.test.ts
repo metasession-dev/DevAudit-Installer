@@ -324,7 +324,11 @@ describe('syncProject — native TS sync against a fixture', () => {
     expect(provenanceYml).toContain('gh workflow run ci.yml --ref "$HEAD_REF"');
     expect(provenanceYml).toContain('gh run watch "$RUN_ID" --exit-status');
     expect(provenanceYml).toContain('MAX_ATTEMPTS=10');
-    expect(provenanceYml).toContain('Develop-side Quality Gates for SHA ${HEAD_SHA} not successful yet');
+    expect(provenanceYml).toContain('Develop-side Quality Gates for SHA ${GATED_SHA} not successful yet');
+    // #971 — gated-commit walk, ci.yml-only provenance, paths_ignore reuse.
+    expect(provenanceYml).toContain('scripts/provenance-gated-commit.sh gated-commit');
+    expect(provenanceYml).toContain('PATHS_IGNORE: |');
+    expect(provenanceYml).not.toContain('{{PATHS_IGNORE_LIST}}');
     const postDeployYml = await fs.readFile(
       join(fixtureDir, '.github', 'workflows', 'post-deploy-prod.yml'),
       'utf-8',
@@ -854,15 +858,21 @@ describe('syncProject — native TS sync against a fixture', () => {
       const apiCi = await fs.readFile(join(workflowsDir, 'ci-api.yml'), 'utf-8');
 
       // Each target's push trigger ignores the OTHER target's subtree...
-      expect(webCi).toContain("- 'mission-control-api/**'");
-      expect(apiCi).toContain("- 'mission-control/**'");
+      // Quote style is the formatter's business: section 2l runs the
+      // consumer's prettier when one is reachable (it rewrites 'x' to "x"), so
+      // match either quote instead of depending on the machine's PATH.
+      const ignores = (dir: string) => new RegExp(`- ['"]${dir}/\\*\\*['"]`);
+      expect(webCi).toMatch(ignores('mission-control-api'));
+      expect(apiCi).toMatch(ignores('mission-control'));
       // ...but not its own.
-      expect(webCi).not.toContain("- 'mission-control/**'");
-      expect(apiCi).not.toContain("- 'mission-control-api/**'");
+      expect(webCi).not.toMatch(ignores('mission-control'));
+      expect(apiCi).not.toMatch(ignores('mission-control-api'));
 
       // pull_request gains a matching paths-ignore block (previously absent).
-      expect(webCi).toMatch(/pull_request:\s*\n\s*branches: \[develop\]\s*\n\s*paths-ignore:\s*\n\s*- 'mission-control-api\/\*\*'/);
-      expect(apiCi).toMatch(/pull_request:\s*\n\s*branches: \[develop\]\s*\n\s*paths-ignore:\s*\n\s*- 'mission-control\/\*\*'/);
+      const prBlock = (dir: string) =>
+        new RegExp(`pull_request:\\s*\\n\\s*branches: \\[develop\\]\\s*\\n\\s*paths-ignore:\\s*\\n\\s*- ['"]${dir}/\\*\\*['"]`);
+      expect(webCi).toMatch(prBlock('mission-control-api'));
+      expect(apiCi).toMatch(prBlock('mission-control'));
 
       await expectAllWorkflowsValidYaml(dir);
     } finally {
@@ -2580,4 +2590,24 @@ describe('runUpdate — --enable/--disable-e2e-regression (#876)', () => {
       await fs.rm(dir, { recursive: true, force: true });
     }
   }, 30_000);
+});
+
+// #984 — a config without `runner` rendered `runs-on: ,` in every workflow.
+describe('syncProject — missing runner key (#984)', () => {
+  it('falls back to the self-hosted default expression instead of an empty runs-on', async () => {
+    const dir = await buildFixture();
+    process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
+    const cfgPath = join(dir, 'sdlc-config.json');
+    const cfg = JSON.parse(await fs.readFile(cfgPath, 'utf-8')) as Record<string, unknown>;
+    delete cfg['runner'];
+    await fs.writeFile(cfgPath, JSON.stringify(cfg));
+    try {
+      await syncProject(dir);
+      const wf = await fs.readFile(join(dir, '.github', 'workflows', 'check-release-approval.yml'), 'utf-8');
+      expect(wf).not.toMatch(/runs-on:\s*,/);
+      expect(wf).toContain("runs-on: ${{ (inputs.runner_label || vars.CI_RUNNER_LABEL || 'github-ci') == 'github-ci' && 'ubuntu-latest'");
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
 });

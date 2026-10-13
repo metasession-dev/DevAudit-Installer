@@ -37,6 +37,26 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     expect(verifier).toContain('Public npm verification timed out');
   });
 
+  it('provenance requires a real ci.yml Quality Gates success on the latest code-bearing commit (#971)', () => {
+    const source = template('quality-gates-provenance.yml.template');
+    const helper = commonScript('provenance-gated-commit.sh');
+    expect(source).toContain('bash scripts/provenance-gated-commit.sh gated-commit');
+    expect(source).toContain('"$VERIFY" "$GATED_SHA" "$CURRENT_RUN_ID"');
+    expect(source).toContain('VERIFY=real-ci-success');
+    expect(source).toContain('CI_WORKFLOW_PATH: .github/workflows/ci.yml');
+    expect(source).toContain('{{PATHS_IGNORE_LIST}}');
+    expect(source).toContain('fetch-depth: 0');
+    expect(source).toContain('does not count for code beneath it');
+    expect(source).toContain('MAX_ATTEMPTS=10');
+    // Hotfix dispatch path is unchanged.
+    expect(source).toContain('gh workflow run ci.yml --ref "$HEAD_REF"');
+    // The helper resolves each check-run's workflow run and compares .path.
+    expect(helper).toContain("--jq '.path'");
+    expect(helper).toContain('/actions/runs/${run_id}');
+    expect(helper).toContain('"${run_path%%@*}" = "$CI_WORKFLOW_PATH"');
+    expect(helper).toContain('.conclusion == \\"success\\"');
+  });
+
   it('reports a tracked close-out only after its reconciliation PR merges', () => {
     const source = template('close-out-completion.yml.template');
     expect(source).toContain("types: [closed]");
@@ -550,6 +570,36 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     );
   });
 
+  // #973 — link the PR before the approval gate so pr_url is set while draft.
+  it('links the release PR before the approval gate and keeps the gate text and conditions (#973)', () => {
+    const source = template('check-release-approval.yml.template').replace(/\r\n/g, '\n');
+    const at = (s: string) => source.indexOf(`- name: ${s}`);
+    const order = [
+      'Resolve current release',
+      'Link PR to release',
+      'Post release link on PR',
+      'Enforce release approval',
+      'SHA comparison',
+    ].map(at);
+    expect(order.every((i) => i >= 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    const resolve = source.slice(order[0], order[1]);
+    expect(resolve).toContain('echo "approved_sha=${APPROVED_SHA}" >> "$GITHUB_OUTPUT"');
+    expect(resolve).toContain('No release found for ${LOOKUP_PREFIX}');
+    expect(resolve).not.toContain('case "$STATUS"');
+    const enforce = source.slice(order[3], order[4]);
+    expect(enforce).toContain("if: env.BOOTSTRAP_MODE != 'true' && steps.standalone.outputs.standalone != 'true'");
+    expect(enforce).not.toContain('github.event_name == ');
+    expect(enforce).toContain('uat_approved|prod_review|prod_approved|released)');
+    expect(enforce).toContain("release approval required (have an authorised reviewer approve in DevAudit;");
+    expect(enforce).toContain('exit 1');
+    const link = source.slice(order[1], order[2]);
+    expect(link).toContain("github.event_name == 'pull_request'");
+    expect(link).toContain('prInfo');
+    // The SHA comparison and the dispatch re-trigger stay behind the gate.
+    expect(order[3]).toBeLessThan(source.indexOf('- name: Create refreshed PR check run'));
+  });
+
   it('admits only declared standalone promotions without tracked portal approval', () => {
     const source = template('check-release-approval.yml.template');
     expect(source).toContain('Detect declared standalone housekeeping promotion');
@@ -749,5 +799,76 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
       expect(source).toContain('RELEASE-TICKET-REQ-*.md');
       expect(source).toContain('git log origin/main -E --grep="\\[${REQ}\\]" --grep="Ref: ${REQ}\\$"');
     });
+  });
+});
+
+describe('deferred tickets are skipped by every pending-ticket loop (#956 phase 3b)', () => {
+  const SKIP_GUARD = 'if [ -f scripts/is-deferred-ticket.sh ] && bash scripts/is-deferred-ticket.sh "$TICKET"; then';
+  const SKIP_LOG = 'Skipping ${REQ_ID}: deferred (Release intent: deferred-to-next)';
+
+  it('post-deploy-prod does not promote, upload to, or PATCH a deferred release', () => {
+    const source = template('post-deploy-prod.yml.template');
+    const loop = source.slice(source.indexOf('Resolve in-scope releases'), source.indexOf('Start production deployment executions'));
+    expect(loop).toContain('if [ -f scripts/is-deferred-ticket.sh ] && bash scripts/is-deferred-ticket.sh "$T"; then');
+    expect(loop).toContain('Skipping ${PENDING_REQ}: deferred (Release intent: deferred-to-next)');
+    // the skip happens before the REQ is added to the promoted set
+    expect(loop.indexOf('is-deferred-ticket.sh')).toBeLessThan(loop.indexOf('REQS="${REQS} ${PENDING_REQ}"'));
+    // all-deferred falls through to the existing "no tracked release ticket" path, loudly
+    expect(loop).toContain('are deferred: treating this promotion as having no tracked release ticket');
+    expect(loop.indexOf('are deferred: treating')).toBeLessThan(loop.indexOf('if [ -z "${REQS}" ]; then\n              chmod +x scripts/derive-release-version.sh'));
+    // the standalone-housekeeping fallback is still there
+    expect(loop).toContain('STANDALONE-HOUSEKEEPING-${VERSION}.json');
+    expect(loop).toContain('No tracked release ticket or standalone declaration');
+  });
+
+  it('ci.yml skips deferred tickets in the E2E fan-out and the per-REQ screenshot loop', () => {
+    const source = template('ci.yml.template');
+    expect(source.split(SKIP_GUARD).length - 1).toBe(2);
+    expect(source.split(SKIP_LOG).length - 1).toBe(2);
+    expect(source.indexOf(SKIP_GUARD)).toBeLessThan(source.indexOf('E2E_REQS+=("$REQ_ID")'));
+    expect(source.indexOf(SKIP_GUARD, source.indexOf('SHOT_REQS=()'))).toBeLessThan(source.indexOf('SHOT_REQS+=("$REQ_ID")'));
+  });
+
+  it('the python ci.yml in-scope evidence loop skips deferred tickets (parity with the node template)', () => {
+    const source = template('python/ci.yml.template');
+    expect(source).toContain(SKIP_GUARD);
+    expect(source).toContain(SKIP_LOG);
+    expect(source.indexOf(SKIP_GUARD)).toBeLessThan(source.indexOf('IN_SCOPE_REQS+=("$REQ_ID")'));
+  });
+
+  it('compliance-evidence.yml and upload-compliance-documents.sh skip deferred tickets', () => {
+    const wf = template('compliance-evidence.yml.template');
+    expect(wf).toContain(SKIP_GUARD);
+    expect(wf.indexOf(SKIP_GUARD)).toBeLessThan(wf.indexOf('REQS+=("$REQ_ID")'));
+    const script = commonScript('upload-compliance-documents.sh');
+    expect(script).toContain('bash scripts/is-deferred-ticket.sh "$TICKET"');
+    expect(script).toContain(SKIP_LOG);
+  });
+
+  it('periodic-review reports deferred tickets separately from pending ones', () => {
+    const source = template('periodic-review.yml.template');
+    expect(source).toContain('DEFERRED_RELEASES=$((DEFERRED_RELEASES + 1))');
+    expect(source).toContain('echo "deferred_releases=${DEFERRED_RELEASES}"');
+    expect(source).toContain('| Deferred releases at period end');
+    expect(source).not.toContain("PENDING_RELEASES=$(find compliance/pending-releases");
+  });
+
+  it('close-out-reconcile never treats a deferred ticket as a missed close-out, but keeps the silent-absorption signal', () => {
+    const script = commonScript('close-out-reconcile.sh');
+    expect(script).toContain('echo "$REQ deferred"');
+    const wf = template('close-out-reconcile.yml.template');
+    expect(wf).toContain("sed -nE 's/^(REQ-[^ ]+) deferred$/\\1/p'");
+    expect(wf).toContain("if: steps.scan.outputs.has_stale == 'true'");
+    expect(wf).toContain('silent absorption');
+    // #984 — stale wording only when a stale ticket was found; a deferred-only
+    // finding gets its own title and no "close-out triggered" text.
+    expect(wf).toContain('if [ "$HAS_STALE" = "true" ]; then');
+    expect(wf).toContain('Release close-out reconciliation: deferred release(s) shipped without approval');
+    expect(wf).toContain('--title "$TITLE"');
+  });
+
+  it('the helper ships in the synced scripts and is executable shell', () => {
+    const helper = commonScript('is-deferred-ticket.sh');
+    expect(helper).toContain("grep -qE '^- \\*\\*Release intent:\\*\\*[[:space:]]+deferred-to-next'");
   });
 });

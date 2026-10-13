@@ -125,13 +125,26 @@ jobs:
             fi
           else
             REQS=""
+            DEFERRED_SKIPPED=0
             if [ -d compliance/pending-releases ]; then
               for T in compliance/pending-releases/RELEASE-TICKET-REQ-*.md; do
                 [ -f "$T" ] || continue
-                REQS="${REQS} $(basename "$T" .md | sed 's/^RELEASE-TICKET-//')"
+                PENDING_REQ=$(basename "$T" .md | sed 's/^RELEASE-TICKET-//')
+                # devaudit-installer#956 — a deferred REQ's code never reached
+                # main as part of this release: never promote it, upload
+                # production evidence to it, or PATCH its portal release.
+                if [ -f scripts/is-deferred-ticket.sh ] && bash scripts/is-deferred-ticket.sh "$T"; then
+                  echo "Skipping ${PENDING_REQ}: deferred (Release intent: deferred-to-next)"
+                  DEFERRED_SKIPPED=$((DEFERRED_SKIPPED + 1))
+                  continue
+                fi
+                REQS="${REQS} ${PENDING_REQ}"
               done
             fi
             REQS=$(echo ${REQS} | tr ' ' '\n' | sort -u | tr '\n' ' ' | sed 's/[[:space:]]*$//')
+            if [ -z "${REQS}" ] && [ "$DEFERRED_SKIPPED" -gt 0 ]; then
+              echo "All ${DEFERRED_SKIPPED} pending release ticket(s) are deferred: treating this promotion as having no tracked release ticket (nothing is promoted to a deferred release)."
+            fi
             if [ -z "${REQS}" ]; then
               chmod +x scripts/derive-release-version.sh scripts/standalone-housekeeping-release.sh 2>/dev/null || true
               VERSION=$(bash scripts/derive-release-version.sh)
@@ -403,7 +416,7 @@ jobs:
           ${SMOKE_RESULTS}
           \`\`\`
 
-          This incident was detected by the autonomous post-deploy production smoke workflow. The production health check failed after deploying ${GIT_SHA}. Page the on-call per the project's incident playbook. The \`incident\` label ensures an \`incident_report\` will be generated on close.
+          This incident was detected by the autonomous post-deploy production smoke workflow. The production health check failed after deploying ${GIT_SHA}. Page the on-call per the incident playbook of the project. The \`incident\` label ensures an \`incident_report\` will be generated on close.
 
           ### Framework attribution
 
@@ -415,7 +428,7 @@ jobs:
           - [ ] \`GDPR.Art-34\` — data-subject notification required: <REPLACE — yes/no>
           - [ ] \`EUAIA.Art-9 / Art-14 / Art-15\` — AI failure: <REPLACE — yes/no, which article(s)>
 
-          Once closed, the \`incident-export.yml\` workflow exports this issue's body to \`compliance/governance/incident-report-<N>.md\`. Routing depends on the Framework attribution ticks (DevAudit-Installer#200 Fix 1):
+          Once closed, the \`incident-export.yml\` workflow exports the body of this issue to \`compliance/governance/incident-report-<N>.md\`. Routing depends on the Framework attribution ticks (DevAudit-Installer#200 Fix 1):
           - **Path A (baseline-only — only \`ISO29119.3.5.4\` ticked):** direct-committed to \`develop\`, no PR. GDPR triage pre-filled as N/A. Next \`compliance-evidence.yml\` run uploads as \`incident_report\`.
           - **Path B (any of SOC2/GDPR/EUAIA ticked):** auto-files a PR with the GDPR triage + sign-off sections to fill in. Merge that PR → \`compliance-evidence.yml\` uploads as \`incident_report\`.
           BODY_EOF

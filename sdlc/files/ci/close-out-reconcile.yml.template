@@ -66,13 +66,28 @@ jobs:
         run: |
           set -euo pipefail
           chmod +x scripts/close-out-reconcile.sh 2>/dev/null || true
-          STALE=$(bash scripts/close-out-reconcile.sh compliance/pending-releases)
-          if [ -z "$STALE" ]; then
+          chmod +x scripts/is-deferred-ticket.sh 2>/dev/null || true
+          SCAN=$(bash scripts/close-out-reconcile.sh compliance/pending-releases)
+          # devaudit-installer#956 — `REQ-XXX deferred` lines are deferred
+          # tickets whose code is already on main (silent absorption): reported,
+          # never auto-closed-out as a normal release.
+          STALE=$(printf '%s\n' "$SCAN" | grep -E '^REQ-[^ ]+$' || true)
+          ABSORBED=$(printf '%s\n' "$SCAN" | sed -nE 's/^(REQ-[^ ]+) deferred$/\1/p')
+          if [ -n "$ABSORBED" ]; then
+            {
+              echo "absorbed<<ABSORBED_EOF"
+              echo "$ABSORBED"
+              echo "ABSORBED_EOF"
+            } >> "$GITHUB_OUTPUT"
+            echo "::warning::Deferred ticket(s) whose code is already on origin/main (silent absorption, not a missed close-out): $(echo "$ABSORBED" | tr '\n' ' ')"
+          fi
+          if [ -z "$STALE" ] && [ -z "$ABSORBED" ]; then
             echo "No stale pending releases found — origin/main and compliance/pending-releases/ agree."
             echo "found=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           echo "found=true" >> "$GITHUB_OUTPUT"
+          echo "has_stale=$([ -n "$STALE" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
           # Multi-line output: https://docs.github.com/actions/using-workflows/workflow-commands-for-github-actions#multiline-strings
           {
             echo "stale<<STALE_EOF"
@@ -83,7 +98,7 @@ jobs:
           echo "$STALE"
 
       - name: Trigger close-out-release.yml for each stale release
-        if: steps.scan.outputs.found == 'true'
+        if: steps.scan.outputs.has_stale == 'true'
         run: |
           set -euo pipefail
           TRIGGERED=""
@@ -106,7 +121,18 @@ jobs:
         run: |
           set -euo pipefail
           RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          BODY="## Release close-out reconciliation found stale pending release(s)
+          ABSORBED="${{ steps.scan.outputs.absorbed }}"
+          ABSORBED=$(printf '%s' "$ABSORBED" | tr '\n' ' ')
+          HAS_STALE="${{ steps.scan.outputs.has_stale }}"
+          ABSORBED_SECTION="**Deferred ticket(s) whose code is already on \`origin/main\` (silent absorption — NOT a missed close-out; no close-out was triggered):**
+          ${ABSORBED:-none}
+
+          A deferred release (\`Release intent: deferred-to-next\`) must ship only when a later release lists it under 'Absorbed predecessor releases'. Check how its commits reached \`main\` (the develop -> main promotion gate should have blocked this), then either list it in the shipping release's ticket and close it out, or revert its commits."
+          if [ "$HAS_STALE" = "true" ]; then
+            # devaudit-installer#984 — the stale wording applies only when a
+            # stale (non-deferred) ticket was found and close-out was triggered.
+            TITLE="Release close-out reconciliation: stale pending release(s) detected"
+            BODY="## Release close-out reconciliation found stale pending release(s)
 
           The following release ticket(s) in \`compliance/pending-releases/\` are for requirements whose code is already reachable from \`origin/main\`, but whose close-out reconciliation (portal → \`released\` → \`release-closed\` dispatch → this repo's ticket/RTM flip) never ran — likely a missed or failed \`release-closed\` dispatch. See [docs/issues/pending-releases-not-closed-out.md](../blob/develop/docs/issues/pending-releases-not-closed-out.md) for the full failure-mode background.
 
@@ -116,11 +142,25 @@ jobs:
           **Failed to trigger (needs manual \`workflow_dispatch\` with \`release=<REQ-XXX>\`):**
           ${FAILED:-none}
 
+          ${ABSORBED_SECTION}
+
           **Detected by:** \`close-out-reconcile.yml\` (devaudit-installer#786) — run: ${RUN_URL}
 
           This issue is informational — the triggered \`close-out-release.yml\` run(s) above should open their own reconciliation PR(s) shortly if reconciliation succeeds. Close this once you've confirmed those PR(s) merged (or investigated any listed as failed-to-trigger)."
+          else
+            TITLE="Release close-out reconciliation: deferred release(s) shipped without approval"
+            BODY="## Release close-out reconciliation found deferred release(s) already on main
+
+          No stale pending release was found and no close-out was triggered.
+
+          ${ABSORBED_SECTION}
+
+          **Detected by:** \`close-out-reconcile.yml\` (devaudit-installer#786, #956) — run: ${RUN_URL}
+
+          Close this once the deferred release is either listed as an absorbed predecessor and closed out, or its commits are reverted."
+          fi
           gh issue create \
-            --title "Release close-out reconciliation: stale pending release(s) detected" \
+            --title "$TITLE" \
             --body "$BODY" \
             --label "bug" \
             || echo "::warning::Could not open the reconciliation tracking issue."

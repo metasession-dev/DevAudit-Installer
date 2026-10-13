@@ -239,15 +239,6 @@ jobs:
           echo "status=${STATUS}" >> "$GITHUB_OUTPUT"
           echo "approved_sha=${APPROVED_SHA}" >> "$GITHUB_OUTPUT"
           echo "Release ${VERSION} status: ${STATUS}"
-          case "$STATUS" in
-            uat_approved|prod_review|prod_approved|released)
-              echo "Release approval confirmed (status: ${STATUS})"
-              ;;
-            *)
-              echo "::error::Release ${VERSION} is '${STATUS}' — release approval required (have an authorised reviewer approve in DevAudit; in v1.22.x the backend status enum remains 'uat_approved')."
-              exit 1
-              ;;
-          esac
 
       - name: Link PR to release
         if: env.BOOTSTRAP_MODE != 'true' && steps.standalone.outputs.standalone != 'true' && github.event_name == 'pull_request'
@@ -277,6 +268,30 @@ jobs:
           else
             gh pr comment ${{ github.event.pull_request.number }} --body "${BODY}" || true
           fi
+
+      - name: Enforce release approval
+        if: env.BOOTSTRAP_MODE != 'true' && steps.standalone.outputs.standalone != 'true'
+        run: |
+          # #973 — the approval gate runs AFTER 'Link PR to release' and
+          # 'Post release link on PR' so the portal records pr_url while the
+          # release is still draft. The PR check result is unchanged.
+          STATUS="${{ steps.release.outputs.status }}"
+          VERSION="${{ steps.release.outputs.version }}"
+          case "$STATUS" in
+            uat_approved|prod_review|prod_approved|released)
+              echo "Release approval confirmed (status: ${STATUS})"
+              ;;
+            deferred)
+              # devaudit-installer#956 — the portal parked this release. Still
+              # fails the gate (a deferred release is not approved).
+              echo "::error::Release ${VERSION} is deferred — it was parked without being released and is not approved. Resume it in the DevAudit portal, or promote its REQs through a successor release that lists ${VERSION} under 'Absorbed predecessor releases'."
+              exit 1
+              ;;
+            *)
+              echo "::error::Release ${VERSION} is '${STATUS}' — release approval required (have an authorised reviewer approve in DevAudit; in v1.22.x the backend status enum remains 'uat_approved')."
+              exit 1
+              ;;
+          esac
 
       - name: SHA comparison
         if: env.BOOTSTRAP_MODE != 'true' && steps.standalone.outputs.standalone != 'true' && github.event_name == 'pull_request'

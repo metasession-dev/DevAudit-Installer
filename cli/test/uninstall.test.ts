@@ -43,6 +43,9 @@ function makeFakeProvider() {
     async applyBranchProtection() {
       return { applied: true };
     },
+    async ensureBranchProtection() {
+      return { status: 'ok' as const };
+    },
     async createPullRequest() {
       return { url: 'https://github.com/metasession-dev/fixture-app/pull/1' };
     },
@@ -73,7 +76,7 @@ async function fixtureDir(): Promise<string> {
   return fs.mkdtemp(join(tmpdir(), 'cli-uninstall-fixture-'));
 }
 
-beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }));
 afterAll(() => server.close());
 afterEach(() => {
   providerCalls.length = 0;

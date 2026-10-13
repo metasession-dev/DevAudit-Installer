@@ -35,11 +35,38 @@ Six kinds of identity touch a release. Two never leave GitHub, two never leave t
 
 The mechanism worth seeing: a release zig-zags between GitHub's world and the portal's world several times before it ships, and a different credential is doing the work at nearly every step. Every node below carries the credential that authenticates it.
 
-![A tracked requirement moving from first commit through released to close-out, crossing between GitHub and the DevAudit portal four times via DEVAUDIT_API_KEY, with personal git access, GITHUB_TOKEN, branch protection, DEVAUDIT_USER_TOKEN, and INSTALLER_DISPATCH_TOKEN each labeled at the step that uses them; an auditor reads the portal lane independently with a scoped login and never touches GitHub; NPM_TOKEN is shown separately as an unrelated pipeline triggered by version tags](images/permissions-release-flow-diagram.png)
+```mermaid
+flowchart TD
+    subgraph GH["GitHub"]
+        A["Commit and push<br/>personal git access"] --> B["CI: Quality Gates<br/>GITHUB_TOKEN"]
+        B --> C["Release Approval Gate polls portal<br/>DEVAUDIT_API_KEY"]
+        C --> D["PR merges to main<br/>branch protection: 1 required review"]
+        D --> E["Post-deploy smoke test<br/>GITHUB_TOKEN + DEVAUDIT_API_KEY"]
+        F["Close-out PR opens and auto-merges<br/>GITHUB_TOKEN or INSTALLER_DISPATCH_TOKEN"]
+    end
+    subgraph PO["DevAudit portal"]
+        P1["Evidence stored, release at draft / uat_review"]
+        P2["UAT approval: a different human<br/>DEVAUDIT_USER_TOKEN or session"]
+        P3["Production approval: released<br/>DEVAUDIT_USER_TOKEN or session"]
+        PD["deferred (reversible)<br/>admin only: DEVAUDIT_USER_TOKEN or session"]
+        AU["Auditor: scoped read-only login"]
+    end
+    B -- "DEVAUDIT_API_KEY" --> P1
+    P1 --> P2
+    P2 -- "uat_approved" --> C
+    E -- "DEVAUDIT_API_KEY" --> P3
+    P3 -- "released triggers close-out" --> F
+    P1 -. "admin defers" .-> PD
+    P2 -. "admin defers" .-> PD
+    PD -. "admin resumes, back to draft" .-> P1
+    PO --- AU
+    N["NPM_TOKEN: separate release.yml pipeline on version tags, unrelated to any requirement's promotion"]
+```
 
-A tracked requirement moving from first commit to `released` and on to close-out. The four cross-boundary hops (down to evidence storage, up to the release gate, down to production evidence, up to close-out) are where a credential from one system authenticates a call into the other — three of them are `DEVAUDIT_API_KEY`; the fourth (the portal flipping to `released` triggering GitHub's close-out automation) is what actually invokes `GITHUB_TOKEN` or `INSTALLER_DISPATCH_TOKEN`. Every other node names the credential doing the work at that step, so nothing in the flow is unlabeled. The auditor, bottom, only ever touches the portal lane. `NPM_TOKEN`, top right, is deliberately drawn disconnected — it belongs to a different pipeline entirely (`release.yml` on a version-tag push), not to any single requirement's promotion.
 
-> This diagram predates the optional `DEVAUDIT_VIEWER_API_KEY` (devaudit#867, table below) and doesn't depict it — it's a read-only side-channel an agent may query at any point in the flow, not another hop in the release's own promotion path, so it doesn't change any node above.
+A tracked requirement moving from first commit to `released` and on to close-out, with the optional admin-only defer and resume detour (dotted). This replaces an earlier PNG that had no editable source and predated deferral. The four cross-boundary hops (down to evidence storage, up to the release gate, down to production evidence, up to close-out) are where a credential from one system authenticates a call into the other — three of them are `DEVAUDIT_API_KEY`; the fourth (the portal flipping to `released` triggering GitHub's close-out automation) is what actually invokes `GITHUB_TOKEN` or `INSTALLER_DISPATCH_TOKEN`. Every other node names the credential doing the work at that step, so nothing in the flow is unlabeled. The auditor only ever touches the portal lane. `NPM_TOKEN` is deliberately drawn disconnected — it belongs to a different pipeline entirely (`release.yml` on a version-tag push), not to any single requirement's promotion.
+
+> This diagram doesn't depict the optional `DEVAUDIT_VIEWER_API_KEY` (devaudit#867, table below) — it's a read-only side-channel an agent may query at any point in the flow, not another hop in the release's own promotion path, so it doesn't change any node above.
 
 ---
 
@@ -53,7 +80,7 @@ Ordered roughly by blast radius — what someone could do with it, not how often
 | **`GITHUB_TOKEN`** | Minted automatically by GitHub Actions — no human ever requests it | Injected as an env var into the running job only; never written anywhere | This one repo only. Exactly what that workflow's own `permissions:` block grants (often just `contents: read`). Dies when the job ends. | Nearly every workflow — CI, linting, the release pipeline |
 | **`INSTALLER_DISPATCH_TOKEN`** | A human generates a classic `repo`-scope (or fine-grained Contents+PRs read/write) PAT at github.com/settings/tokens | Pasted into repo **Settings → Secrets and variables → Actions** as `INSTALLER_DISPATCH_TOKEN` | Whatever that PAT is scoped to — this repo, if set up correctly. Exists specifically so a bot-opened PR isn't authored by the bot. | `hotfix-backmerge.yml`; consumer projects' `close-out-release.yml` |
 | **`NPM_TOKEN`** | A human generates an access token on npmjs.com (or `npm token create`) | Pasted into repo **Settings → Secrets and variables → Actions** as `NPM_TOKEN` | Publish rights on the 5 `@metasession.co/*` packages. Nothing else. | `release.yml` only, on tag push |
-| **`DEVAUDIT_USER_TOKEN`** — `mctok_…`, a PAT | A human issues it at devaudit.ai/settings/tokens | Exported locally (`export DEVAUDIT_USER_TOKEN=…`) or cached via `devaudit auth login` — **never** a repo secret (devaudit-installer#912: `install` stopped writing it as one once nothing in CI was found to consume it that way) | Carries the operator's full portal identity. Project creation, API-key issuance, and every audit-log entry it touches attribute to this person by name. | `devaudit install`/`join`, release approvals, portal login |
+| **`DEVAUDIT_USER_TOKEN`** — `mctok_…`, a PAT | A human issues it at devaudit.ai/settings/tokens | Exported locally (`export DEVAUDIT_USER_TOKEN=…`) or cached via `devaudit auth login` — **never** a repo secret (devaudit-installer#912: `install` stopped writing it as one once nothing in CI was found to consume it that way) | Carries the operator's full portal identity. Project creation, API-key issuance, and every audit-log entry it touches attribute to this person by name. | `devaudit install`/`join`, release approvals, UAT submission, portal admin defer/resume of a release (`devaudit doctor --fix`, or by hand; `POST /api/releases/[id]/defer` and `/resume` reject CI, API and viewer keys), portal login |
 | **`DEVAUDIT_API_KEY`** | Minted automatically by the portal during `devaudit install`, authenticated via the operator's `DEVAUDIT_USER_TOKEN` — not requested directly by a human | Written as a repo secret by `devaudit install` itself, as `DEVAUDIT_API_KEY` | **One project.** A compromised key can upload junk evidence or poll status for that project — it cannot touch any other project on the portal. | Every generated CI workflow that uploads evidence or checks release status |
 | **`DEVAUDIT_VIEWER_API_KEY`** (optional, devaudit#867) | Minted by the portal during `devaudit install --with-viewer-key` (opt-in; off by default) | Written as a repo secret by `devaudit install`, as `DEVAUDIT_VIEWER_API_KEY`. The raw value is printed to the terminal exactly once, at mint time, with a "won't be shown again" warning (devaudit-installer#945 — GitHub secrets are write-only, so this is the only chance to capture it); the operator persists it into the project's gitignored `.env` if they want an agent to use it in an interactive session | **One project, read-only.** A compromised key can only query release/check/cycle status for that project — it cannot upload evidence, approve a release, or touch any other project. This is the one credential in this table safe to hand to an AI agent, because a leak or misuse can't mutate anything. | The read-back endpoints (`GET .../checks`, `GET .../cycles`, `GET .../resolve` release-lookup) — never a write route; `sdlc-implementer` or a CI status check, if configured to use it. See [`onboarding.md#opting-into-the-read-only-viewer-key`](../onboarding.md#opting-into-the-read-only-viewer-key) for the fresh-install and retrofit commands. |
 

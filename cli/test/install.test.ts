@@ -55,6 +55,9 @@ function makeFakeProvider() {
       providerCalls.push({ method: 'applyBranchProtection', args: [branch, [...checks]] });
       return { applied: true };
     },
+    async ensureBranchProtection() {
+      return { status: 'ok' as const };
+    },
     async createPullRequest() {
       providerCalls.push({ method: 'createPullRequest', args: [] });
       return { url: 'https://github.com/metasession-dev/fixture-app/pull/1' };
@@ -143,7 +146,7 @@ async function buildNodeFixture(): Promise<string> {
 }
 
 beforeAll(() => {
-  server.listen({ onUnhandledRequest: 'error' });
+  server.listen({ onUnhandledFrame: 'error' });
   process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
   process.env['DEVAUDIT_USER_TOKEN'] = 'mctok_test_fixture';
   process.env['DEVAUDIT_BASE_URL'] = BASE_URL;

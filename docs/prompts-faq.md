@@ -23,6 +23,7 @@ See [`onboarding.md`](onboarding.md) for the full walkthrough.
 | Opt back out | `devaudit update --disable-e2e-regression .` |
 | Check this project's own health before starting new work | `devaudit doctor` (or `devaudit doctor --json` for a script/agent) |
 | Sweep every project my account can see for drift | `devaudit doctor --fleet` |
+| A release PR was closed without merging: what is the state? | `devaudit doctor` (read-only release-deferral checks; see [`doctor.md`](doctor.md#4-release-deferral-diagnosis-non-gating-read-only-956)). Deferring or resuming the portal release is a manual admin action today; there is no prompt or command for it yet |
 | Run the full pre-flight housekeeping pass (sync + doctor + fix) | See [`housekeeping-release-runbook.md`](housekeeping-release-runbook.md) |
 
 ## Implementing a tracked change — `sdlc-implementer`

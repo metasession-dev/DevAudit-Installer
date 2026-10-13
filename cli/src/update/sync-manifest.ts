@@ -66,5 +66,13 @@ export async function readManifest(repoRoot: string): Promise<SyncManifest | und
 export async function writeManifest(repoRoot: string, manifest: SyncManifest): Promise<void> {
   const manifestPath = join(repoRoot, MANIFEST_RELATIVE_PATH);
   await fs.mkdir(join(repoRoot, '.devaudit'), { recursive: true });
-  await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n', 'utf-8');
+  // #984 — sort the file keys: sections record files in completion order,
+  // which differs between a first and a second sync, so an unsorted manifest
+  // churned on every `update` even when nothing changed.
+  const files = Object.fromEntries(
+    Object.keys(manifest.files)
+      .sort()
+      .map((k) => [k, manifest.files[k]]),
+  );
+  await fs.writeFile(manifestPath, JSON.stringify({ ...manifest, files }, null, 2) + '\n', 'utf-8');
 }

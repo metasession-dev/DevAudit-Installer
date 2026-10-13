@@ -76,7 +76,7 @@ const restServer = setupServer(
   http.patch('https://api.github.com/repos/foo/bar', () => HttpResponse.json({ default_branch: 'develop' })),
 );
 
-beforeAll(() => restServer.listen({ onUnhandledRequest: 'error' }));
+beforeAll(() => restServer.listen({ onUnhandledFrame: 'error' }));
 afterAll(() => restServer.close());
 
 afterEach(async () => {

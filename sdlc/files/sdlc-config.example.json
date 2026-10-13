@@ -55,6 +55,12 @@
   "_comment_e2e_regression": "Opt-in: generates e2e-regression.yml, a three-tier smoke/critical/regression E2E gating workflow distinct from the blocking smoke gate above — PR-to-main runs the `critical` Playwright project, a successful production deployment runs the full `regression` project as a post-merge safety net (auto-files a bug/priority:high issue on failure), and workflow_dispatch supports scoped fix-and-verify iterations. Requires playwright.config.ts to define `smoke`/`critical`/`regression` projects (falls back to `smoke` on PR-to-main if `critical` isn't defined yet). Reuses e2e_env/e2e_setup_command/e2e_port above — no separate config surface. Opt in via `devaudit update --enable-e2e-regression <path>` (devaudit-installer#876) rather than hand-editing this field, or set it directly if hand-editing anyway — see docs/e2e-test-tiers.md#opting-into-the-3-tier-regression-gate. Leave false/absent unless you want the ~55-minute full-regression job (most projects don't).",
   "e2e_regression_enabled": false,
 
+  "_comment_e2e_concurrency_group": "Optional (devaudit-installer#969). Fixed concurrency group for e2e-regression.yml. Leave empty to keep the default per-workflow-and-ref group (`${{ github.workflow }}-${{ github.ref }}`, cancelling only on pull_request). Set it (e.g. \"uat-e2e-data\") when the critical/regression specs mutate a SHARED backend, so PR, workflow_dispatch and post-deploy runs queue instead of overlapping; cancel-in-progress then defaults to false (see e2e_concurrency_cancel_in_progress). GitHub keeps one running and one pending run per group, so a newer queued run replaces an older queued one. See docs/e2e-test-tiers.md.",
+  "e2e_concurrency_group": "",
+
+  "_comment_e2e_concurrency_cancel_in_progress": "Optional. Only used when e2e_concurrency_group is set; default false. Set true to restore cancel-in-progress with the fixed group (cancels the running run when a newer one starts - risky mid-mutation on a shared backend).",
+  "e2e_concurrency_cancel_in_progress": false,
+
   "paths_ignore": [
     ".github/workflows/**",
     "SDLC/**",
@@ -92,6 +98,11 @@
   "approval": {
     "mode": "dual_actor",
     "auto_low_risk_threshold": "LOW"
+  },
+
+  "_comment_commit_validation": "validate-commits.sh declared exemptions (devaudit-installer#966). legacy_non_conventional lists commits that predate the Conventional Commits rule and cannot be rewritten: [{\"sha\": \"<7+ hex chars>\", \"reason\": \"<why>\"}]. Each entry needs a reason, is printed as EXEMPT on every run, and exempts only the format check (requirement traceability still applies). Empty by default.",
+  "commit_validation": {
+    "legacy_non_conventional": []
   },
 
   "_comment_production_review": "Post-deploy production review gate (Stage 5). terminal_status='prod_review' (default, Option A) means post-deploy-prod.yml stops at prod_review; a human in the portal clicks 'Approve Production' (→ prod_approved) then 'Mark as Released' (→ released) for an explicit two-event audit trail. terminal_status='released' (Option B) preserves the v1.21.x auto-release behaviour — workflow PATCHes straight to released with no human click. Closes #138.",

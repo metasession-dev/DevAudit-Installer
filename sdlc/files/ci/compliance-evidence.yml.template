@@ -434,6 +434,11 @@ jobs:
                  || compgen -G "compliance/superseded-releases/RELEASE-TICKET-${REQ_ID}.md" > /dev/null 2>&1; then
                 continue
               fi
+              # devaudit-installer#956 — deferred tickets stay in pending-releases/ but are not part of this release.
+              if [ -f scripts/is-deferred-ticket.sh ] && bash scripts/is-deferred-ticket.sh "$TICKET"; then
+                echo "Skipping ${REQ_ID}: deferred (Release intent: deferred-to-next)"
+                continue
+              fi
               REQS+=("$REQ_ID")
             done
           fi
@@ -917,7 +922,7 @@ jobs:
               - [ ] \`GDPR.Art-34\` — data-subject notification required: <REPLACE — yes/no>
               - [ ] \`EUAIA.Art-9 / Art-14 / Art-15\` — AI failure: <REPLACE — yes/no, which article(s)>
 
-              Once closed, the \`incident-export.yml\` workflow exports this issue's body to \`compliance/governance/incident-report-<N>.md\`.
+              Once closed, the \`incident-export.yml\` workflow exports the body of this issue to \`compliance/governance/incident-report-<N>.md\`.
           EOF
               )
               # Strip the 14-space heredoc indentation so the issue body is clean.

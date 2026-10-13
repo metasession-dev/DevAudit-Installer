@@ -199,7 +199,7 @@ Every section below runs on **every** `update` — this is not a one-time onboar
 | `.devin/workflows/*.md` | *(managed)* |
 | `.devaudit-patches/*.patch` | Applied after every managed section above, so a tracked customization survives — see [Temporary consumer patches](#temporary-consumer-patches) below. The sync manifest records each patched file's **post-patch** content, so a patch-carrying file reads as clean (not a conflict) on the next sync |
 | Default branch | Set to `integration_branch` if it isn't already, once resolvable via the git provider |
-| **Branch protection** | **Actively re-applied**, not merely verified: `verifyBranchProtection` calls the provider's `applyBranchProtection` on both the release and integration branch every sync, unioning required checks. If you've tightened branch protection manually beyond what devaudit requires, that's preserved (the provider unions rather than replaces) — but do not rely on `update` leaving branch protection alone |
+| **Branch protection** | **Checked and topped up** on the release and integration branch every sync (devaudit-installer#990): a missing required check is added and a review count below DevAudit's minimum (1 on `main`, 0 on `develop`) is raised. Nothing else changes: admin enforcement, a higher review count, code-owner reviews and every other setting you chose are kept. A branch with no protection at all gets the install defaults. A branch protected by **repository rulesets** gets no classic protection on top; `update` only warns if the ruleset lacks a required check. A private repository on GitHub Free has neither feature, so `update` warns that required checks are not enforced and writes nothing. The summary line names every change it made |
 | Formatting | The consumer's own `prettier` runs over every file the sections above just wrote (a conflicted file, left untouched, is not reformatted) |
 | `sdlc-config.json`'s `devaudit_synced_version` | **Written on every sync** — this is the one config field `update` always touches. `--enable-/--disable-e2e-regression` additionally rewrite `e2e_regression_enabled` when passed. Every other key — including any custom/unknown key your project adds — is preserved untouched by a plain `update` |
 | `.devaudit/sync-manifest.json` | *(new, devaudit-installer#930)* Written last, after every other section — records the sha256 of what devaudit last wrote for every managed path, so the next sync can tell an unmodified file from a hand-edited one. Commit this file |
@@ -222,11 +222,46 @@ Resolve each one:
 
 Run `devaudit doctor` any time to re-list every unresolved conflict (the `sync-conflicts` check) without having to re-run a full `update`.
 
+The step-by-step review (list, diff, classify, act, verify, record) that every adoption PR follows is in [sync-conflict-review.md](sync-conflict-review.md).
+
 **The very first sync after upgrading** works the same way, even though no manifest exists yet: `update` reconstructs a baseline of "what devaudit last wrote" by running your project's previously-recorded CLI version (`sdlc-config.json`'s `devaudit_synced_version`) into a scratch git worktree, so your existing customizations are protected from the start, not just from the second sync onward. If that reconstruction isn't possible — no recorded version, no git repository, or the reconstruction itself fails — `update` falls back to treating every existing file at a managed path as a conflict and deleting nothing, which is the safe direction to fail in (worst case, extra `.devaudit-new` files to review; never a silent loss).
 
 #### Commitlint config shadowing (devaudit-installer#942)
 
 Only one commitlint config should exist in a consumer repo — the managed `commitlint.config.mjs`. A leftover legacy config from before devaudit was synced (`.commitlintrc*`, `commitlint.config.{js,cjs,ts}`, or a `commitlint` field in `package.json`) can silently take priority over it, since commitlint loads the first match it finds in its own fixed search order — most commonly a `.cjs` file, which sorts ahead of `.mjs`. When that happens, the managed config's rules (including the `Sdlc-Implementer-Sentinel:` trailer exemption, devaudit-installer#814) silently don't apply, and commits fail with the *stock* config-conventional error text instead of the managed override's. `devaudit doctor`'s `commitlint-config-shadowing` check catches this — it names both files and which one wins; remove or merge the legacy one.
+
+### `sdlc-config.json`: what it is, why `update` leaves it alone, how parameters get in
+
+(devaudit-installer#910.) Three questions come up for every new operator or agent; this section answers them in one place. The detail lives in the sections it links to.
+
+#### 1. Why this file matters
+
+`sdlc-config.json` is the **single per-consumer source of truth**. It holds the stack and host selection, the DevAudit project slug (which must match the portal's project record), the branch names (`release_branch` / `integration_branch`), the runner selection, the E2E and database configuration, and every other field on the `SdlcConfig` interface. Every CI workflow, hook and script that `devaudit update` generates is rendered from these values plus the framework templates. The templates are the same for every consumer; the config is what makes them yours.
+
+#### 2. Why `update` does not overwrite it
+
+A framework update must be able to replace templates wholesale, so the project-specific values cannot live in the templates. They live in this file instead, and `devaudit update` treats the file as consumer-owned. If it were regenerated on each sync you would lose the portal-linked slug, custom branch names, runner choice and every tuned value on every framework update.
+
+Precisely (see the *Never touched by `update`* line and the `sdlc-config.json` row in [What `update` touches, precisely](#what-update-touches-precisely)):
+
+| Actor | What it does to `sdlc-config.json` |
+| --- | --- |
+| `devaudit update` | Writes `devaudit_synced_version` on each sync, and `e2e_regression_enabled` only when `--enable-e2e-regression` / `--disable-e2e-regression` is passed. Every other key, including keys it does not recognise and nested objects, is preserved. |
+| `devaudit install` (first run) | Creates the file: values the wizard owns (stack, host, project slug, runtime version, working directory, source dirs, production URL secret, the `devaudit` block) plus defaults for everything else. |
+| `devaudit install` (re-run) | Existing customisations (`app_env`, `build_env`, `e2e_*`, `database_*`, ...) win over the defaults. Only the wizard-owned values are re-applied from the current install plan. |
+| You (or your agent) | Hand-edit anything else, then run `devaudit update` to regenerate the workflows. |
+
+#### 3. How project-specific parameters get in
+
+There are two paths:
+
+- **Detected or prompted at `install` time.** The CLI reads `pyproject.toml` / `package.json` to infer the stack and working directory, then prompts for the remaining wizard values (project slug, runtime version, source dirs, working directory, production URL secret). See [`onboarding.md`](onboarding.md#step-2--run-the-installer).
+- **Added by hand later, for anything `install` did not ask about** (`database_*`, `paths_ignore`, `e2e_*`, `runner`, `install_flags`, ...). Nothing auto-populates these. The end-to-end workflow for a new customisation is:
+  1. Look for an existing key: read the `SdlcConfig` interface in `cli/src/update/ci-templates.ts` (the only copy that cannot go stale) or the annotated [`sdlc/files/sdlc-config.example.json`](../sdlc/files/sdlc-config.example.json), which is the closest thing to a full field reference today. Each key has a `_comment_<key>` entry.
+  2. If a key exists, set it in `sdlc-config.json` and run `devaudit update`. Nothing to patch, and it survives every future sync.
+  3. If none exists, follow [Deciding: config key vs. patch](#deciding-config-key-vs-patch): a temporary `.devaudit-patches/` bridge with its `.patch.json`, plus an upstream issue proposing the key. Delete the patch once the key ships.
+
+There is currently no command that lists the available keys; that would be a feature rather than a documentation fix.
 
 ### Temporary consumer patches
 
@@ -301,6 +336,8 @@ touching anything:
    `applied: <file>.patch`, not the conflict warning.
 
 #### Deciding: config key vs. patch
+
+(Background on the file itself: [`sdlc-config.json`: what it is, why `update` leaves it alone, how parameters get in](#sdlc-configjson-what-it-is-why-update-leaves-it-alone-how-parameters-get-in).)
 
 A generated file needing project-specific customization is not automatically
 a patch situation. Every field on the `SdlcConfig` interface
@@ -390,7 +427,7 @@ During the META-COMPLY ↔ DevAudit-Installer repo split, four identifiers were 
 
 | Old                      | New                   | Where                                         |
 | ------------------------ | --------------------- | --------------------------------------------- |
-| `META_COMPLY_USER_TOKEN` | `DEVAUDIT_USER_TOKEN` | GitHub secret + env var (PAT)                 |
+| `META_COMPLY_USER_TOKEN` | `DEVAUDIT_USER_TOKEN` | Operator-local env var (PAT); not a repo secret since #912 |
 | `META_COMPLY_API_KEY`    | `DEVAUDIT_API_KEY`    | GitHub secret + env var (per-project CI key)  |
 | `META_COMPLY_BASE_URL`   | `DEVAUDIT_BASE_URL`   | GitHub variable (portal URL)                  |
 | `X-Meta-Comply-Token`    | `X-DevAudit-Token`    | HTTP header on portal API calls (PAT-bearing) |
@@ -403,11 +440,10 @@ Each existing consumer onboarded before the rename needs **a one-time rotation**
 cd path/to/consumer-repo
 
 # 1. Read current values (you'll re-paste them)
-gh secret list                # confirm META_COMPLY_USER_TOKEN and META_COMPLY_API_KEY are set
+gh secret list                # confirm META_COMPLY_API_KEY is set (a legacy META_COMPLY_USER_TOKEN may also be listed; it is not re-created, see #912)
 gh variable list              # confirm META_COMPLY_BASE_URL is set
 
 # 2. Set the new names (paste the same values when prompted)
-gh secret set DEVAUDIT_USER_TOKEN     # paste the mctok_... value
 gh secret set DEVAUDIT_API_KEY        # paste the mc_... value
 gh variable set DEVAUDIT_BASE_URL --body "https://devaudit.ai"
 
@@ -425,12 +461,12 @@ git push -u origin chore/sync-sdlc-rename-devaudit-identifiers
 gh pr create --base main
 
 # 5. After CI passes and PR is merged, clean up the old secrets/vars
-gh secret delete META_COMPLY_USER_TOKEN
+gh secret delete META_COMPLY_USER_TOKEN   # only if present; DEVAUDIT_USER_TOKEN is never a repo secret (#912)
 gh secret delete META_COMPLY_API_KEY
 gh variable delete META_COMPLY_BASE_URL
 ```
 
-Operators also re-export the user-token locally with the new name:
+Operators re-export the user-token (PAT) locally with the new name; it stays out of GitHub secrets (#912):
 
 ```bash
 export DEVAUDIT_USER_TOKEN="mctok_..."
@@ -468,7 +504,7 @@ npm view @metasession.co/devaudit-cli version
 | **Project slug**             | `sdlc-config.json` `project_slug`                                                                 | Used to create releases, upload evidence, check approval                                          | Must match `compliance_projects.slug` in DevAudit                                    |
 | **GitHub vars/secrets**      | `DEVAUDIT_BASE_URL` (variable), `DEVAUDIT_API_KEY` (secret), optionally `DEVAUDIT_VIEWER_API_KEY` (secret) | Consuming projects' CI workflows authenticate against DevAudit via `DEVAUDIT_API_KEY` — see [Token contract](#token-contract) below; `DEVAUDIT_USER_TOKEN` is *not* a repo secret (devaudit-installer#912) | Set by `devaudit install`; refresh manually when API keys rotate                     |
 | **Compliance doc filenames** | `RTM.md`, `test-plan.md`, `test-cases.md`, `test-summary-report.md`                               | CI upload step looks for these exact filenames                                                    | Renaming requires updating all consumer CI workflows                                 |
-| **Release status values**    | `draft`, `uat_review`, `uat_approved`, `uat_rejected`, `prod_review`, `prod_approved`, `released` | `check-release-approval.yml` checks for specific statuses                                         | Changing status names requires updating all consumer release-approval gate workflows |
+| **Release status values**    | `draft`, `uat_review`, `uat_changes_requested`, `uat_rejected`, `uat_approved`, `prod_review`, `prod_approved`, `released`, `superseded`, `deferred` | `check-release-approval.yml` checks for specific statuses                                         | Changing status names requires updating all consumer release-approval gate workflows |
 | **Risk tier column**         | `compliance_projects.risk_tier` (`low`, `medium`, `high`)                                         | Controls self-approval rules: LOW allows self-approval, MEDIUM/HIGH requires independent reviewer | Default `medium`; set per project in DevAudit portal                                 |
 
 #### Important (consistency, not immediately breaking)
@@ -501,7 +537,7 @@ Generated workflows use two distinct auth domains — **`DEVAUDIT_USER_TOKEN` is
   - `${{ github.token }}`
   - used for GitHub Actions repo mutations such as checkout, branch push, PR creation, issue/comment/label edits, and check-run updates
 
-`DEVAUDIT_USER_TOKEN` (the operator's personal PAT) is a *third*, separate credential: it authenticates the one action that genuinely needs a verified human identity — submitting a release for UAT review (`sdlc/files/_common/scripts/submit-for-uat-review.sh`) — and it's read from the operator's local shell (`devaudit auth login` cache or an exported env var), never from a GitHub Actions secret. It is not the default GitHub auth token for workflow repo mutations either; if a workflow is mutating GitHub state, the expected auth path is the workflow token plus explicit `permissions:` on the job.
+`DEVAUDIT_USER_TOKEN` (the operator's personal PAT) is a *third*, separate credential: it authenticates the actions that genuinely need a verified human identity: submitting a release for UAT review (`sdlc/files/_common/scripts/submit-for-uat-review.sh`) and, for a portal admin, deferring or resuming a release (`POST /api/releases/[id]/defer` and `/resume`, admin-only; CI, API and viewer keys are rejected and the CI status PATCH cannot set `deferred`). `devaudit doctor --fix` calls them for you (after you supply a reason and confirm; never from `--yes` alone), using this PAT only and refusing API/viewer keys; the manual route (portal UI session, or the two routes with your own PAT) remains the fallback. The PAT is read from the operator's local shell (`devaudit auth login` cache or an exported env var), never from a GitHub Actions secret. It is not the default GitHub auth token for workflow repo mutations either; if a workflow is mutating GitHub state, the expected auth path is the workflow token plus explicit `permissions:` on the job.
 
 `DEVAUDIT_API_KEY` (or its per-target derived name) and the `DEVAUDIT_BASE_URL` variable are removable via `devaudit uninstall` — see [Offboarding a project](#offboarding-a-project) above. `devaudit uninstall` also deletes any `DEVAUDIT_USER_TOKEN` repo secret if present, which is a no-op on any project onboarded after #912.
 
@@ -547,6 +583,10 @@ After making changes to the SDLC framework in DevAudit:
   - [ ] Commit and push on a sync branch; open a chore PR.
   - [ ] Verify the chore PR's `Compliance Validation` + `Quality Gates` checks pass before merging.
 - [ ] Confirm the fleet is current: `devaudit doctor --fleet` (from any onboarded consumer's checkout).
+
+## Release-PR Quality Gates provenance
+
+`quality-gates-provenance.yml` runs on PRs to the release branch. For a release PR (`develop → main`) it does not accept just any `Quality Gates` success on the head SHA: it finds the latest commit in `origin/<release>..<head>` that touches a path outside `paths_ignore` and requires a real `ci.yml` `Quality Gates` success on that commit. The docs-only `CI Status Fallback` status (which `ci.yml` leaves in place on compliance/doc commits) does not count for code beneath it. If the code commit never got a real `ci.yml` run — for example the self-hosted runner was offline — the release PR stays red; rerun CI on the commit named in the error, or push it through the develop flow. Entirely docs-only ranges still pass on the fallback. Hotfix PRs are unchanged (they dispatch `ci.yml` directly). See REQ-FRAMEWORK-CIYML-023 in `docs/SRS.md`.
 
 ## See also
 

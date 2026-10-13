@@ -118,4 +118,17 @@ if [[ "$CURRENT_RELEASE" =~ ^REQ-[0-9]+$ ]]; then
   fi
 fi
 
+# devaudit-installer#956 — promotion gate: a develop -> main PR must not carry
+# a deferred REQ's commits unless the release ticket lists it as an absorbed
+# predecessor. Runs only for the promotion PR; informational for Stage 4 (it is
+# a step of this job, not a separate required status context).
+if [ "$ALLOW_PENDING_TICKET_FALLBACK" = "1" ]; then
+  if [ ! -f scripts/check-deferred-reqs-in-range.sh ]; then
+    echo "::error::scripts/check-deferred-reqs-in-range.sh is missing — run devaudit update."
+    exit 1
+  fi
+  CURRENT_RELEASE="$CURRENT_RELEASE" SINCE_REF="origin/${RELEASE_BRANCH}" \
+    bash scripts/check-deferred-reqs-in-range.sh
+fi
+
 echo "Release Scope Integrity verified for ${CURRENT_RELEASE}."

@@ -52,8 +52,10 @@ jobs:
     services:
       {{DATABASE_SERVICE}}:
         image: {{DATABASE_IMAGE}}
+{{DATABASE_SERVICE_ENV}}
         ports:
           - {{DATABASE_PORT}}
+{{DATABASE_SERVICE_OPTIONS}}
 
     env:
 {{DATABASE_AND_APP_ENV}}
@@ -937,6 +939,11 @@ jobs:
               if [ "$REQ_ID" = "$COMMIT_REQ" ]; then
                 continue
               fi
+              # devaudit-installer#956 — deferred tickets stay in pending-releases/ but are not part of this release.
+              if [ -f scripts/is-deferred-ticket.sh ] && bash scripts/is-deferred-ticket.sh "$TICKET"; then
+                echo "Skipping ${REQ_ID}: deferred (Release intent: deferred-to-next)"
+                continue
+              fi
               E2E_REQS+=("$REQ_ID")
             done
           fi
@@ -1022,6 +1029,11 @@ jobs:
               if compgen -G "compliance/approved-releases/RELEASE-TICKET-${REQ_ID}.md" > /dev/null 2>&1 \
                  || compgen -G "compliance/superseded-releases/RELEASE-TICKET-${REQ_ID}.md" > /dev/null 2>&1; then
                 echo "Skipping ${REQ_ID}: already in a terminal release directory (stale pending ticket)"
+                continue
+              fi
+              # devaudit-installer#956 — deferred tickets stay in pending-releases/ but are not part of this release.
+              if [ -f scripts/is-deferred-ticket.sh ] && bash scripts/is-deferred-ticket.sh "$TICKET"; then
+                echo "Skipping ${REQ_ID}: deferred (Release intent: deferred-to-next)"
                 continue
               fi
               SHOT_REQS+=("$REQ_ID")

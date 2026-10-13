@@ -7,28 +7,25 @@ import { discoverPlugins, buildPluginContext, runHook, type LoadedPlugin } from 
 import { resolveInstallerRoot } from '../lib/installer-root.js';
 import { loadHostAdapter } from '../lib/adapter.js';
 import { resolveAdapters } from '../update/resolve-adapters.js';
+import type { CheckResult, Proposal } from '../lib/doctor-types.js';
+import { resolvePortalReadKey, resolveReleaseByPrefix } from '../lib/releases-api.js';
+import { buildDeferralContext, runDeferralChecks } from './doctor-deferral.js';
+import { FIX_EXIT_UNAPPLIED, runFix, type FixDeps, type FixReport } from './doctor-fix.js';
+import { commitsInRange, refExists, reqHasCommits } from '../lib/req-commits.js';
 
 export interface DoctorOptions {
   readonly plugins?: readonly LoadedPlugin[];
-}
-
-/**
- * First-pass signal for `fleet-doctor` (devaudit-installer#867): whether a
- * failing check most likely points at this one consumer having drifted from
- * what onboarding/template-sync should have produced (`consumer-drift`), or
- * at the framework/portal itself (`framework`) -- e.g. every consumer would
- * fail the same way regardless of local state. `fleet-doctor` re-evaluates
- * this with cross-consumer evidence; it isn't taken as final here. Tool
- * preflight checks (node/git/gh/jq/curl) describe the operator's own
- * machine, not either repo, so they're tagged `unknown`.
- */
-type SuspectedOrigin = 'framework' | 'consumer-drift' | 'unknown';
-
-interface CheckResult {
-  readonly name: string;
-  readonly ok: boolean;
-  readonly detail: string;
-  readonly suspectedOrigin?: SuspectedOrigin;
+  /**
+   * `doctor --fix` (#956 phase 3b). Absent = plain read-only doctor, whose
+   * behaviour and exit codes are unchanged.
+   */
+  readonly fix?: {
+    readonly yes?: boolean;
+    readonly reason?: string;
+    readonly dryRun?: boolean;
+    /** Test seam: replaces the default prompt/credential/portal wiring. */
+    readonly deps?: Partial<FixDeps>;
+  };
 }
 
 async function checkCommand(name: string, args: readonly string[]): Promise<CheckResult> {
@@ -57,64 +54,61 @@ async function checkNodeVersion(): Promise<CheckResult> {
  * Non-fatal: a warning, not a tool-gate failure. Skips gracefully when not in
  * a consumer project or when no portal credentials are available.
  */
-async function checkReleaseCloseoutDrift(): Promise<CheckResult> {
+async function checkReleaseCloseoutDrift(): Promise<{ result: CheckResult; drifted: readonly string[] }> {
   const name = 'releases';
+  const done = (result: CheckResult, drifted: readonly string[] = []) => ({ result, drifted });
   let cfg: { project_slug?: string; devaudit?: { project_slug?: string; base_url?: string } };
+  let repoRoot: string;
   try {
     // sdlc-config.json lives at the repo root (#689 follow-up), not
     // necessarily cwd itself for a polyglot-monorepo target.
-    const repoRoot = await resolveRepoRoot(process.cwd());
+    repoRoot = await resolveRepoRoot(process.cwd());
     cfg = JSON.parse(await fs.readFile(`${repoRoot}/sdlc-config.json`, 'utf-8'));
   } catch {
-    return { name, ok: true, detail: 'skipped (not a consumer project)' };
+    return done({ name, ok: true, detail: 'skipped (not a consumer project)' });
   }
   let entries: string[];
   try {
-    entries = await fs.readdir('compliance/pending-releases');
+    // Repo-root relative (#956): a cwd-relative path missed the directory
+    // whenever doctor ran from a subdirectory.
+    entries = await fs.readdir(`${repoRoot}/compliance/pending-releases`);
   } catch {
-    return { name, ok: true, detail: 'no pending-releases/' };
+    return done({ name, ok: true, detail: 'no pending-releases/' });
   }
   const reqs = entries
     .filter((f) => /^RELEASE-TICKET-REQ-\d+\.md$/.test(f))
     .map((f) => f.replace(/^RELEASE-TICKET-/, '').replace(/\.md$/, ''));
-  if (reqs.length === 0) return { name, ok: true, detail: 'no pending release tickets' };
+  if (reqs.length === 0) return done({ name, ok: true, detail: 'no pending release tickets' });
 
   const slug = cfg.devaudit?.project_slug ?? cfg.project_slug;
   const base = (cfg.devaudit?.base_url ?? '').replace(/\/$/, '');
-  const apiKey = process.env['DEVAUDIT_API_KEY'];
-  if (!slug || !base || !apiKey) {
-    return {
+  // Read-only portal access: viewer key preferred, API key as fallback (#956).
+  const key = await resolvePortalReadKey(repoRoot);
+  if (!slug || !base || !key) {
+    return done({
       name,
       ok: true,
-      detail: `${reqs.length} pending ticket(s); portal drift check skipped (set DEVAUDIT_API_KEY + devaudit.base_url)`,
-    };
+      detail: `${reqs.length} pending ticket(s); portal drift check skipped (set DEVAUDIT_VIEWER_API_KEY or DEVAUDIT_API_KEY + devaudit.base_url)`,
+    });
   }
 
   const drifted: string[] = [];
   for (const req of reqs) {
-    try {
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 10000);
-      const res = await fetch(
-        `${base}/api/ci/releases/resolve?projectSlug=${encodeURIComponent(slug)}&versionPrefix=${encodeURIComponent(req)}`,
-        { headers: { Authorization: `Bearer ${apiKey}` }, signal: ctrl.signal },
-      );
-      clearTimeout(timer);
-      if (!res.ok) continue;
-      const body = (await res.json()) as { latest?: { status?: string } };
-      if (body.latest?.status === 'released') drifted.push(req);
-    } catch {
-      // network/timeout — leave as a skip for this REQ
-    }
+    // network/timeout/non-2xx — leave as a skip for this REQ
+    const lookup = await resolveReleaseByPrefix({ baseUrl: base, projectSlug: slug, apiKey: key.key }, req);
+    if (lookup.kind === 'found' && lookup.release.status === 'released') drifted.push(req);
   }
   if (drifted.length > 0) {
-    return {
-      name,
-      ok: false,
-      detail: `released on the portal but still in pending-releases/: ${drifted.join(', ')} — run ./scripts/close-out-release.sh <REQ>`,
-    };
+    return done(
+      {
+        name,
+        ok: false,
+        detail: `released on the portal but still in pending-releases/: ${drifted.join(', ')} — run ./scripts/close-out-release.sh <REQ>`,
+      },
+      drifted,
+    );
   }
-  return { name, ok: true, detail: `${reqs.length} pending ticket(s); none released on the portal` };
+  return done({ name, ok: true, detail: `${reqs.length} pending ticket(s); none released on the portal` });
 }
 
 /**
@@ -527,7 +521,7 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
     }
   }
   // Reconciliation safety-net — reported but does not gate the tool check (#60).
-  const closeout = await checkReleaseCloseoutDrift();
+  const { result: closeout, drifted: closeoutDrifted } = await checkReleaseCloseoutDrift();
   if (!jsonMode) {
     const closeoutMarker = closeout.ok ? '✓' : '⚠';
     log.log(`  ${closeoutMarker} ${closeout.name.padEnd(8)} ${closeout.detail}`);
@@ -562,6 +556,81 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
       log.warn('Onboarding checklist gaps detected — see above. (Does not affect the tool check.)');
     }
   }
+  // Release-deferral diagnosis (#956 phase 3a-2): read-only, non-gating, and
+  // reported under a new additive JSON key so existing keys are untouched.
+  const consumer = await readConsumerConfig();
+  const deferralChecks: readonly CheckResult[] = consumer
+    ? await runDeferralChecks(await buildDeferralContext(consumer.repoRoot, consumer.cfg))
+    : [];
+  let deferralIssues = false;
+  for (const check of deferralChecks) {
+    if (!check.ok) deferralIssues = true;
+    if (!jsonMode) {
+      const marker = check.ok ? '✓' : '⚠';
+      log.log(`  ${marker} ${check.name.padEnd(18)} ${check.detail}`);
+    }
+  }
+  if (!jsonMode && deferralIssues) {
+    log.warn('Release-deferral findings detected — see above. (Read-only; does not affect the tool check.)');
+  }
+  const proposals: Proposal[] = [
+    ...deferralChecks.flatMap((c) =>
+      (c.findings ?? []).flatMap((f) =>
+        f.remediation ? [{ check: c.name, subject: f.subject, detail: f.detail, remediation: f.remediation }] : [],
+      ),
+    ),
+    ...closeoutDrifted.map((req) => ({
+      check: closeout.name,
+      subject: req,
+      detail: `${req} is released on the portal but still in pending-releases/`,
+      remediation: {
+        id: 'close-out-release',
+        // #984 — guidance: `--fix` never runs close-out-release.sh (it moves
+        // files with git), so it is tier C (printed, not counted as unapplied).
+        tier: 'C' as const,
+        summary: `Close out ${req} locally`,
+        plan: [`./scripts/close-out-release.sh ${req}`],
+        needsPortal: false,
+      },
+    })),
+  ];
+  let fixReport: FixReport | null = null;
+  if (options.fix) {
+    const fixOpts = {
+      yes: Boolean(options.fix.yes),
+      ...(options.fix.reason ? { reason: options.fix.reason } : {}),
+      dryRun: Boolean(options.fix.dryRun),
+      json: jsonMode,
+    };
+    if (!consumer) {
+      fixReport = { dryRun: fixOpts.dryRun, outcomes: [], unapplied: 0 };
+    } else {
+      const devauditCfg = (consumer.cfg['devaudit'] ?? {}) as { base_url?: string };
+      const deps: FixDeps = {
+        repoRoot: consumer.repoRoot,
+        baseUrl: (devauditCfg.base_url ?? '').replace(/\/$/, ''),
+        commitsFor: async (req) => {
+          const main = (await refExists(consumer.repoRoot, 'origin/main')) ? 'origin/main' : 'main';
+          const dev = (await refExists(consumer.repoRoot, 'develop')) ? 'develop' : 'origin/develop';
+          const commits = await commitsInRange(consumer.repoRoot, main, dev);
+          return commits.filter((c) => reqHasCommits([c], req)).map((c) => c.subject);
+        },
+        ...options.fix.deps,
+      };
+      if (!jsonMode) log.log(`\nApplying fixes${fixOpts.dryRun ? ' (dry run: nothing will change)' : ''}...`);
+      fixReport = await runFix(proposals, deps, fixOpts);
+    }
+    if (!jsonMode) {
+      if (fixReport.outcomes.length === 0) log.log('  Nothing to fix.');
+      for (const o of fixReport.outcomes) {
+        const marker = { applied: '✓', unchanged: '=', planned: '~', unapplied: '⚠', failed: '✗', reported: 'i' }[o.status];
+        log.log(`  ${marker} [${o.tier}] ${o.id} ${o.subject}: ${o.status} — ${o.message}`);
+      }
+      if (fixReport.unapplied > 0) {
+        log.warn(`${fixReport.unapplied} proposal(s) remain unapplied. Re-run interactively, or pass --yes (tier A) / --yes --reason "<text>" (portal changes).`);
+      }
+    }
+  }
   const plugins = options.plugins ?? (await discoverPlugins()).loaded;
   if (plugins.length > 0) {
     const ctx = await buildPluginContext({ projectPath: resolve(process.cwd()) });
@@ -573,11 +642,16 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
       tools: checks,
       releaseCloseoutDrift: closeout,
       onboarding: onboardingChecks,
+      // Additive (#956): release-deferral checks and inert remediation proposals.
+      deferral: deferralChecks,
+      proposals,
+      ...(fixReport ? { fix: fixReport } : {}),
     });
   }
   if (allOk) {
     if (!jsonMode) log.success('All required tools present.');
-    process.exit(0);
+    // `--fix` only: proposals left unapplied are a non-zero exit (maintainer decision on #956).
+    process.exit(fixReport && fixReport.unapplied > 0 ? FIX_EXIT_UNAPPLIED : 0);
   } else {
     if (!jsonMode) {
       log.error('One or more required tools are missing. Install them and re-run `devaudit doctor`.');

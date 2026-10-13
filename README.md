@@ -58,7 +58,7 @@ Beyond `install`/`update`/`join`, the CLI ships:
 
 | Command | Purpose |
 | --- | --- |
-| `devaudit doctor` (`--fleet`) | Local health check of a consumer project; `--fleet` sweeps every project your account can see. See [`docs/doctor.md`](./docs/doctor.md). |
+| `devaudit doctor` (`--fleet`, `--fix`) | Local health check of a consumer project; `--fleet` sweeps every project your account can see (read-only). Also reports non-gating release-deferral mismatches after a release PR is closed unmerged, and `--fix` repairs them in tiers (local edits; portal defer/resume only with your PAT, a reason and confirmation). See [`docs/doctor.md`](./docs/doctor.md). |
 | `devaudit push` | Upload an evidence file to a project/release (the CLI port of `scripts/upload-evidence.sh`) — what CI and `sdlc-implementer` call under the hood to record test executions, gate results, and other evidence. Full flag reference: [`docs/push.md`](./docs/push.md). |
 | `devaudit status` | Show a consumer project's current framework state (synced version, onboarding checklist, pending releases). |
 | `devaudit uninstall` | Disconnect a repo from DevAudit: revokes its API key(s), removes the GitHub secrets/variables `install` wrote, and drops it from `sdlc-config.json`. Leaves branch protection and synced files in place. |

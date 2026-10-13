@@ -201,6 +201,12 @@ for REQ in $REQUIREMENTS; do
       echo "  OK: RTM status is APPROVED"
     elif printf '%s' "$RTM_STATUS" | grep -q "SUPERSEDED"; then
       echo "  OK: RTM status is SUPERSEDED"
+    elif printf '%s' "$RTM_STATUS" | grep -q "DEFERRED"; then
+      # devaudit-installer#956 — a parked release (its release PR was closed
+      # without releasing). Valid status, NOT terminal: the ticket stays in
+      # pending-releases/ and the REQ ships only when a later release lists it
+      # under 'Absorbed predecessor releases'. Never flagged as unresolved.
+      echo "  OK: RTM status is DEFERRED (parked; ticket stays in pending-releases/)"
     else
       echo "  WARNING: RTM entry exists but status is not TESTED - PENDING SIGN-OFF"
     fi
@@ -238,6 +244,25 @@ for REQ in $REQUIREMENTS; do
   else
     echo "  ERROR: Release ticket missing: compliance/pending-releases/RELEASE-TICKET-${REQ}.md"
     EXIT_CODE=1
+  fi
+
+  # devaudit-installer#955 — optional release-ticket field:
+  #   - **Release intent:** deferred-to-next — <reason, PR #N closed unmerged>
+  # Absent = no declared intent. Present = must be well-formed.
+  if [ -n "$TICKET_FILE" ]; then
+    INTENT_LINE=$(grep -m1 '^\- \*\*Release intent:\*\*' "$TICKET_FILE" 2>/dev/null || true)
+    if [ -n "$INTENT_LINE" ]; then
+      if printf '%s' "$INTENT_LINE" | grep -qE '^- \*\*Release intent:\*\* +deferred-to-next +(—|–|--|-) +[^[:space:]]'; then
+        echo "  OK: Release intent is well-formed (deferred-to-next)"
+      else
+        echo "  ERROR: Release ticket has a malformed '**Release intent:**' — expected '- **Release intent:** deferred-to-next — <reason, PR #N closed unmerged>' (omit the line when there is no declared intent)"
+        EXIT_CODE=1
+      fi
+    elif printf '%s' "${RTM_STATUS:-}" | grep -q "DEFERRED"; then
+      # The ticket field is the sole declaration of deferral (#956); an RTM
+      # DEFERRED row without it is a mismatch worth surfacing, not a failure.
+      echo "  WARNING: RTM status is DEFERRED but the release ticket has no '**Release intent:** deferred-to-next' line — the ticket field is the sole declaration of deferral"
+    fi
   fi
 
   BUNDLED_FILE=""

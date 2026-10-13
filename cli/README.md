@@ -40,7 +40,7 @@ npm install -g @metasession.co/devaudit-cli@latest   # upgrade
 ### Working
 
 - `devaudit --help` / `--version`
-- `devaudit doctor` — tool preflight (`node` >=22, `git`, `gh`, `jq`, `curl`), plus non-gating onboarding-checklist and release-closeout-drift checks; see [`docs/doctor.md`](../docs/doctor.md) for the full contract
+- `devaudit doctor` — tool preflight (`node` >=22, `git`, `gh`, `jq`, `curl`), plus non-gating onboarding-checklist, release-closeout-drift and read-only release-deferral checks (`deferral` and `proposals` keys in `--json`). `devaudit doctor --fix [--yes] [--reason <text>] [--dry-run]` proposes and applies the repairs: tier A local edits, tier B portal defer/resume with your PAT, a reason and confirmation (never `--yes` alone), tier C printed only; it exits 8 when proposals remain unapplied; see [`docs/doctor.md`](../docs/doctor.md) for the full contract
 - `devaudit doctor --fleet` — self-service, read-only sweep of every project your `DEVAUDIT_USER_TOKEN` can see on the portal, checked out locally as siblings of the current directory; never files issues or changes anything (devaudit-installer#861)
 - `devaudit status [path]` — reads `sdlc-config.json` from a consumer project, prints stack/host/slug/source-dirs, and reports which framework files are present
 - `devaudit install [path]` — **native TS, 11-step interactive onboarding** under `src/install/` (auth-probe → detect-stack → prompts → write-config → project → api-key → github → hooks-bootstrap → branch-protection → sync-templates → done-report). Replaces the former `scripts/sdlc-onboard.sh` (removed); no shell-out.

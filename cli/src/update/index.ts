@@ -1,3 +1,4 @@
+import { ensureIssueTemplateLabels } from "./issue-labels.js";
 import { basename, resolve } from "node:path";
 import { isDir } from "../lib/fs-utils.js";
 import { resolveInstallerRoot } from "../lib/installer-root.js";
@@ -96,7 +97,7 @@ export async function syncProject(projectPath: string, options: SyncProjectOptio
   // the resulting `known` map instead of overwriting unconditionally.
   const previousManifest = await readManifest(repoRoot);
   let known: KnownFiles | undefined = previousManifest?.files
-    ? new Map(Object.entries(previousManifest.files).map(([k, v]) => [k, { sha256: v.sha256, section: v.section }]))
+    ? new Map(Object.entries(previousManifest.files).map(([k, v]) => [k, { sha256: v.sha256, section: v.section, conflict: v.conflict === true }]))
     : undefined;
   if (!known) {
     const baseline = await buildBaseline(baseCtx);
@@ -167,6 +168,10 @@ export async function syncProject(projectPath: string, options: SyncProjectOptio
     await writeManifest(repoRoot, nextManifest);
   }
   log.log(`  [2n] sync manifest: ${dryRun ? "SKIPPED (dry-run)" : "written to .devaudit/sync-manifest.json"}`);
+
+  // devaudit-installer#970 — seed the labels the synced issue templates
+  // reference. Best-effort: warns, never fails the sync.
+  await ensureIssueTemplateLabels(repoRoot, installerRoot, { dryRun });
 
   const conflictSummary = formatConflictSummary(managed.conflicts);
   if (conflictSummary) {

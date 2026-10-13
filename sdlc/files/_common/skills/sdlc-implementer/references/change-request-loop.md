@@ -14,6 +14,10 @@ draft
         ├─→ uat_approved (reviewer clicks Approve on the portal)
         ├─→ uat_changes_requested (reviewer clicks Request Changes, leaves comments)
         └─→ uat_rejected (rare — reviewer marks the release fundamentally broken)
+
+  draft / uat_review / uat_rejected / uat_approved
+        └─→ deferred (admin-only, manual: PR closed unmerged, work ships later)
+              └─→ draft (admin resumes), or superseded by a successor release
               ↑
               └─ on new commits to the linked PR branch, state resets to uat_review
 ```
@@ -188,6 +192,10 @@ If the portal state is `uat_rejected` (not `uat_changes_requested`), the reviewe
 2. Post on the issue: "UAT rejected this release. Awaiting user direction — options are to (a) close the PR and re-plan from scratch, (b) escalate the rejection to a different reviewer, or (c) appeal the rejection with new context."
 3. Wait for the user to decide. The skill does not unilaterally reopen, force-merge, or escalate.
 
+## If the release PR is closed without releasing
+
+This is not a rejection and not a change request. Follow SKILL.md "Closing a release PR without releasing" (devaudit-installer#955): set `- **Release intent:** deferred-to-next — <reason, PR #N closed unmerged>` on the ticket, keep the RTM row (status `DEFERRED`), comment on the PR, and leave the portal release to the admin: they may additionally defer it on the portal (a manual, admin-only step using their PAT or a portal session — never CI/API/viewer keys, and not something this loop does); if they do not, the absorbing release supersedes it at close-out. A deferred portal release is not a change request and not a rejection; resume returns it to `draft`. Do not run this loop.
+
 ## Release ticket status transitions
 
 The release ticket (`compliance/pending-releases/RELEASE-TICKET-REQ-XXX.md`) `**Status:**` field is updated at each transition in the change-request loop, mirroring the portal's state machine for audit trail completeness:
@@ -200,6 +208,8 @@ The release ticket (`compliance/pending-releases/RELEASE-TICKET-REQ-XXX.md`) `**
 | After merge + deploy + prod verification | `RELEASED` |
 | If rejected | `REJECTED — AWAITING OPERATOR DIRECTION` |
 | If iteration cap hit and abandoned | `ABANDONED — ITERATION CAP REACHED (N=5)` |
+
+A REQ deferred into the next release is not a transition of this table: it is declared with `- **Release intent:** deferred-to-next — …` (the `**Status:**` value is untouched) and the RTM row becomes `DEFERRED`.
 
 Commit each ticket update alongside the corresponding delta-plan or evidence commit in the same iteration commit.
 

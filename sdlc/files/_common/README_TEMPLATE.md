@@ -303,7 +303,7 @@ Evidence artifacts are uploaded to DevAudit instead of being committed to git.
 - `compliance/evidence/REQ-XXX/test-scope.md` — pre-implementation test scope (text, not binary)
 - `compliance/evidence/REQ-XXX/ai-use-note.md` — AI involvement records (text)
 - `compliance/evidence/REQ-XXX/security-summary.md` — security summary (text)
-- Release tickets in `compliance/pending-releases/` and `compliance/approved-releases/`
+- Release tickets in `compliance/pending-releases/` (deferred tickets stay here) and `compliance/approved-releases/`
 
 **What moves to DevAudit:**
 - Screenshots (PNG, JPEG) from E2E test runs

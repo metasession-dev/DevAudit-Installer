@@ -47,7 +47,7 @@ jobs:
 
       - name: Install CLI deps
         working-directory: cli
-        run: npm ci
+        run: npm install --legacy-peer-deps
 
       - name: Run evidence contract tests
         working-directory: cli

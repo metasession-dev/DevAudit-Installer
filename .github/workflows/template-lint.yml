@@ -26,8 +26,12 @@ on:
       - 'scripts/release-routing-contract.test.sh'
       - 'scripts/action-runtime-contract.test.sh'
       - 'scripts/check-recovery-workflow.test.sh'
+      - 'scripts/auto-merge-workflow.test.sh'
+      - '.github/workflows/auto-merge.yml'
       - 'scripts/lint-shell-failure-modes.sh'
       - 'scripts/lint-shell-failure-modes.test.sh'
+      - 'scripts/release-validation.sh'
+      - 'scripts/release-validation.test.sh'
       - 'scripts/runner-host/**'
       - 'tests/release-pipeline-e2e/**'
       - '.github/workflows/template-lint.yml'
@@ -45,8 +49,12 @@ on:
       - 'scripts/release-routing-contract.test.sh'
       - 'scripts/action-runtime-contract.test.sh'
       - 'scripts/check-recovery-workflow.test.sh'
+      - 'scripts/auto-merge-workflow.test.sh'
+      - '.github/workflows/auto-merge.yml'
       - 'scripts/lint-shell-failure-modes.sh'
       - 'scripts/lint-shell-failure-modes.test.sh'
+      - 'scripts/release-validation.sh'
+      - 'scripts/release-validation.test.sh'
       - 'scripts/runner-host/**'
       - 'tests/release-pipeline-e2e/**'
       - '.github/workflows/template-lint.yml'
@@ -87,6 +95,9 @@ jobs:
           chmod +x sdlc/files/_common/scripts/standalone-housekeeping-release.sh
           chmod +x sdlc/files/_common/scripts/evaluate-npm-audit.sh
           bash sdlc/files/_common/scripts/check-release-pr-scope.test.sh
+          bash sdlc/files/_common/scripts/list-reqs-in-range.test.sh
+          bash sdlc/files/_common/scripts/check-deferred-reqs-in-range.test.sh
+          bash sdlc/files/_common/scripts/provenance-gated-commit.test.sh
           bash sdlc/files/_common/scripts/standalone-housekeeping-release.test.sh
           bash sdlc/files/_common/scripts/evaluate-npm-audit.test.sh
 
@@ -121,8 +132,10 @@ jobs:
           bash scripts/release-routing-contract.test.sh
           bash scripts/action-runtime-contract.test.sh
           bash scripts/check-recovery-workflow.test.sh
+          bash scripts/auto-merge-workflow.test.sh
           bash scripts/runner-host/runner-host.test.sh
           bash scripts/lint-shell-failure-modes.test.sh
+          bash scripts/release-validation.test.sh
           bash scripts/lint-shell-failure-modes.sh sdlc/files
 
       - name: Run extract-release-metadata tests

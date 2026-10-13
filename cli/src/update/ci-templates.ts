@@ -117,6 +117,12 @@ interface SdlcConfig {
   // devaudit-installer#928 hook script) runs, so a script cannot raise it
   // at runtime.
   readonly e2e_regression_timeout_minutes?: number;
+  // devaudit-installer#969 — fixed concurrency group for e2e-regression.yml,
+  // for projects whose critical/regression specs mutate a SHARED backend.
+  // Empty/absent = the original per-ref group with PR-only cancellation.
+  readonly e2e_concurrency_group?: string;
+  // Only meaningful with e2e_concurrency_group; defaults to false there.
+  readonly e2e_concurrency_cancel_in_progress?: boolean;
   readonly paths_ignore?: readonly string[];
   /** See #689/#690 — when present, sync runs once per target instead of once for the flat config. */
   readonly targets?: readonly Target[];
@@ -366,6 +372,30 @@ function buildE2eRegressionJobEnv(cfg: SdlcConfig): string {
 }
 
 /**
+ * Build e2e-regression.yml's `concurrency:` body (devaudit-installer#969).
+ * Default (no `e2e_concurrency_group`) is the original per-workflow-and-ref
+ * group, cancelling only on pull_request — byte-for-byte unchanged. When a
+ * fixed group is configured, every trigger (PR, dispatch, post-deploy)
+ * shares it and `cancel-in-progress` defaults to false so a run is never
+ * killed mid-mutation of shared data. Note GitHub keeps one running and one
+ * pending run per group: a newer queued run replaces an older queued one.
+ */
+function buildE2eRegressionConcurrency(cfg: SdlcConfig): string {
+  const group = (cfg.e2e_concurrency_group ?? '').trim();
+  if (!group) {
+    return [
+      '  group: ${{ github.workflow }}-${{ github.ref }}',
+      "  cancel-in-progress: ${{ github.event_name == 'pull_request' }}",
+    ].join('\n');
+  }
+  const plain = /^[A-Za-z0-9_.\/-]+$/.test(group);
+  return [
+    `  group: ${plain ? group : JSON.stringify(group)}`,
+    `  cancel-in-progress: ${cfg.e2e_concurrency_cancel_in_progress === true ? 'true' : 'false'}`,
+  ].join('\n');
+}
+
+/**
  * Build the "Run in-scope E2E" step for feature-e2e.yml. Mirrors
  * buildE2eTestStep (same env wiring for e2e_env + JSON reporter) but uses
  * `--grep "$REQ_ID"` to run only the specs tagged with the branch's REQ,
@@ -465,6 +495,56 @@ function buildTypeCheckRun(scoped: boolean, sourceDirs: string): string {
   ].join('\n');
 }
 
+/**
+ * Default container-side port per service, used to turn a bare
+ * `database_port` (the port tests connect to on localhost) into a
+ * `host:container` mapping. A bare `ports: - <n>` entry in a GitHub Actions
+ * service container means container port `<n>` on a RANDOM host port
+ * (devaudit-installer#963). mongodb is deliberately absent: its
+ * `DATABASE_URI_STEP` resolves the random host port from the container port,
+ * so its output is unchanged.
+ */
+const DATABASE_DEFAULT_CONTAINER_PORT: Readonly<Record<string, string>> = {
+  postgres: '5432',
+};
+
+function resolveDatabasePort(dbService: string, dbPort: string): string {
+  if (!dbPort) return dbPort;
+  const port = dbPort.trim();
+  const containerDefault = DATABASE_DEFAULT_CONTAINER_PORT[dbService];
+  if (!containerDefault || !port || port.includes(':')) return dbPort;
+  return `${port}:${containerDefault}`;
+}
+
+/**
+ * `database_env` inside the service container (devaudit-installer#963): the
+ * official postgres image reads POSTGRES_PASSWORD from its OWN environment,
+ * and a job-level `env:` block never reaches a service container. The
+ * job-level copy is kept too (steps often need the same credentials).
+ * Not emitted for mongodb (pre-existing output preserved) or an empty env.
+ */
+function buildDatabaseServiceEnv(cfg: SdlcConfig): string {
+  if (!cfg.database_service || cfg.database_service === 'mongodb') return '';
+  const env = cfg.database_env ?? {};
+  if (Object.keys(env).length === 0) return '';
+  return `        env:\n${indentEnvBlock({ ...env }, 10)}`;
+}
+
+/**
+ * Without a healthcheck GitHub starts steps as soon as the container exists,
+ * not when it accepts connections (devaudit-installer#963).
+ */
+function buildDatabaseServiceOptions(dbService: string): string {
+  if (dbService !== 'postgres') return '';
+  return [
+    '        options: >-',
+    '          --health-cmd pg_isready',
+    '          --health-interval 10s',
+    '          --health-timeout 5s',
+    '          --health-retries 5',
+  ].join('\n');
+}
+
 function buildDbUriStep(dbService: string, dbPort: string): string {
   if (dbService !== 'mongodb') return '';
   return [
@@ -500,8 +580,18 @@ function buildDbUriStep(dbService: string, dbPort: string): string {
  *                              hang the job waiting for a runner that may
  *                              not exist)
  */
+/**
+ * #984 — a config with no `runner` key rendered `runs-on: ,` (invalid YAML in
+ * every workflow). Treat it like `install`'s default, `self-hosted`, whose
+ * runtime expression falls back to ubuntu-latest unless CI_RUNNER_LABEL is set.
+ */
+function runnerOf(cfg: SdlcConfig): string {
+  return typeof cfg.runner === 'string' && cfg.runner.trim() !== '' ? cfg.runner : 'self-hosted';
+}
+
 function resolveRunner(cfg: SdlcConfig): string {
-  if (cfg.runner !== 'self-hosted') return cfg.runner;
+  const runner = runnerOf(cfg);
+  if (runner !== 'self-hosted') return runner;
   const label = "(inputs.runner_label || vars.CI_RUNNER_LABEL || 'github-ci')";
   return `\${{ ${label} == 'github-ci' && 'ubuntu-latest' || ${label} }}`;
 }
@@ -522,7 +612,7 @@ function resolveRunner(cfg: SdlcConfig): string {
  * would be wrong whenever CI_RUNNER_LABEL falls back to 'github-ci'.
  */
 function resolveCheckoutClean(cfg: SdlcConfig): string {
-  if (cfg.runner !== 'self-hosted') return 'true';
+  if (runnerOf(cfg) !== 'self-hosted') return 'true';
   const label = "(inputs.runner_label || vars.CI_RUNNER_LABEL || 'github-ci')";
   return `\${{ ${label} == 'github-ci' && 'true' || 'false' }}`;
 }
@@ -545,7 +635,7 @@ function resolveCheckoutClean(cfg: SdlcConfig): string {
  * collapses to plain `npx playwright install chromium` when empty.
  */
 function resolvePlaywrightWithDeps(cfg: SdlcConfig): string {
-  if (cfg.runner !== 'self-hosted') return ' --with-deps';
+  if (runnerOf(cfg) !== 'self-hosted') return ' --with-deps';
   const label = "(inputs.runner_label || vars.CI_RUNNER_LABEL || 'github-ci')";
   return `\${{ ${label} == 'github-ci' && ' --with-deps' || '' }}`;
 }
@@ -565,7 +655,7 @@ function resolvePlaywrightWithDeps(cfg: SdlcConfig): string {
  * gets this self-hosted-only behavior, same as CHECKOUT_CLEAN.
  */
 function resolveStaleNextCleanupCondition(cfg: SdlcConfig): string {
-  if (cfg.runner !== 'self-hosted') return 'false';
+  if (runnerOf(cfg) !== 'self-hosted') return 'false';
   const label = "(inputs.runner_label || vars.CI_RUNNER_LABEL || 'github-ci')";
   return `\${{ ${label} != 'github-ci' }}`;
 }
@@ -579,7 +669,7 @@ function resolveStaleNextCleanupCondition(cfg: SdlcConfig): string {
  * (devaudit-installer#816).
  */
 function resolveNpmAuditMaxAttempts(cfg: SdlcConfig): string {
-  if (cfg.runner !== 'self-hosted') return '1';
+  if (runnerOf(cfg) !== 'self-hosted') return '1';
   const label = "(inputs.runner_label || vars.CI_RUNNER_LABEL || 'github-ci')";
   return `\${{ ${label} == 'github-ci' && '1' || '5' }}`;
 }
@@ -721,7 +811,7 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
       ACCEPTED_DEP_RISKS: cfg.accepted_dep_risks,
       DATABASE_SERVICE: cfg.database_service,
       DATABASE_IMAGE: cfg.database_image,
-      DATABASE_PORT: cfg.database_port,
+      DATABASE_PORT: resolveDatabasePort(cfg.database_service, cfg.database_port),
       E2E_PROJECT: cfg.e2e_project,
       E2E_START_COMMAND: cfg.e2e_start_command,
       E2E_REGRESSION_TIMEOUT_MINUTES: String(cfg.e2e_regression_timeout_minutes ?? 55),
@@ -748,8 +838,17 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
     // target has already been filtered out above) regenerate byte-identical.
     const prPathsIgnoreBlock =
       otherTargetDirs.length > 0 ? `    paths-ignore:\n${otherTargetDirs.map((p) => `      - '${p}'`).join('\n')}` : '';
+    // Same patterns as PATHS_IGNORE, indented to sit under a `run:`/env block
+    // scalar in quality-gates-provenance.yml (#971) — one source of truth, so
+    // provenance classifies "docs-only" exactly as ci.yml's push filter does.
+    // Each line ends in \n; the template appends its own sdlc-config.json
+    // line after the token, as ci.yml does.
+    const pathsIgnoreListBlock = [...(cfg.paths_ignore ?? []), ...otherTargetDirs]
+      .map((p) => `            - '${p}'\n`)
+      .join('');
     const blocks: Record<string, string> = {
       PATHS_IGNORE: pathsIgnoreBlock,
+      PATHS_IGNORE_LIST: pathsIgnoreListBlock,
       PR_PATHS_IGNORE: prPathsIgnoreBlock,
       // Collapsed into one merged token (devaudit-installer#928): previously
       // separate DATABASE_ENV/APP_ENV block tokens combined by string
@@ -785,6 +884,10 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
         cfg.typescript_check_env && Object.keys(cfg.typescript_check_env).length > 0
           ? `        env:\n${indentEnvBlock({ ...cfg.typescript_check_env }, 10)}`
           : '',
+      // devaudit-installer#963 — container-side config. Empty (line dropped)
+      // for mongodb, which keeps its pre-#963 output byte-for-byte.
+      DATABASE_SERVICE_ENV: buildDatabaseServiceEnv(cfg),
+      DATABASE_SERVICE_OPTIONS: buildDatabaseServiceOptions(cfg.database_service),
       DATABASE_URI_STEP: buildDbUriStep(cfg.database_service, cfg.database_port),
       E2E_SETUP_STEP: buildE2eSetupStep(cfg),
       E2E_DEV_SERVER_STEP: buildE2eDevServerStep(cfg),
@@ -792,6 +895,7 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
       E2E_FEATURE_TEST_STEP: buildFeatureE2eTestStep(cfg),
       E2E_AUTHENTICATED_STEP: buildAuthenticatedE2eStep(cfg),
       E2E_REGRESSION_JOB_ENV: buildE2eRegressionJobEnv(cfg),
+      E2E_REGRESSION_CONCURRENCY: buildE2eRegressionConcurrency(cfg),
       E2E_REGRESSION_SERVER_STEP: buildE2eRegressionServerStep(cfg),
     };
 

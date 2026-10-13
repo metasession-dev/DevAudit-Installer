@@ -135,6 +135,30 @@ extract_explicit_predecessors() {
   printf '%s' "$line" | grep -oE 'REQ-[0-9]+|v[0-9]{4}\.[0-9]{2}\.[0-9]{2}([.][0-9]+)?' || true
 }
 
+# devaudit-installer#955 — a release ticket may carry
+#   - **Release intent:** deferred-to-next — <reason, PR #N closed unmerged>
+# meaning its release PR was closed without releasing and the next release is
+# expected to absorb it. Prints the raw value (empty when the field is absent;
+# absence means no declared intent).
+extract_release_intent() {
+  local file="$1" line=""
+  line=$(grep -m1 '^\- \*\*Release intent:\*\*' "$file" 2>/dev/null || true)
+  [ -n "$line" ] || return 0
+  trim "$(printf '%s' "$line" | sed -E 's/^\- \*\*Release intent:\*\*//')"
+}
+
+is_deferred_intent() {
+  case "$1" in deferred-to-next*) return 0 ;; esac
+  return 1
+}
+
+# True when a commit in SINCE_REF..HEAD carries "[REQ-x]" or "Ref: REQ-x"
+# (exact id; REQ-1 does not match REQ-10).
+req_has_commits_in_range() {
+  local req="$1"
+  [ -n "$(git log "$SINCE_REF"..HEAD --format=%h -1 -E --grep "\\[${req}\\]|Ref:[[:space:]]*${req}([^0-9]|$)" 2>/dev/null || true)" ]
+}
+
 derive_commit_range() {
   local version="$1" file="$2"
   local from="" to="" sha=""
@@ -219,6 +243,30 @@ if ! [[ "$VERSION" =~ $DATE_VERSION_RE ]]; then
       exit 1
     fi
   done
+
+  # devaudit-installer#955 — deferred REQs are never absorbed silently. A
+  # pending candidate whose ticket says "Release intent: deferred-to-next"
+  # must be listed under "Absorbed predecessor releases" (the field saying
+  # None, or omitted, is not enough), and a candidate whose REQ commits are
+  # already in SINCE_REF..HEAD cannot be waved through with an explicit None.
+  for version in "${CANDIDATE_RELEASES[@]}"; do
+    [ -z "${EXPLICIT_SET[$version]:-}" ] || continue
+    cand_ticket="compliance/pending-releases/RELEASE-TICKET-${version}.md"
+    intent="$(extract_release_intent "$cand_ticket")"
+    if is_deferred_intent "$intent"; then
+      echo "Error: ${cand_ticket} declares 'Release intent: ${intent}' but ${VERSION}'s release ticket does not list ${version} under 'Absorbed predecessor releases'. List ${version} there; deferred REQs are never absorbed silently." >&2
+      exit 1
+    fi
+  done
+  if [ "$PREDECESSORS_FIELD_PRESENT" = true ] && [ "${#EXPLICIT_PREDECESSORS[@]}" -eq 0 ]; then
+    for version in "${CANDIDATE_RELEASES[@]}"; do
+      [[ "$version" =~ ^REQ-[0-9]+$ ]] || continue
+      if req_has_commits_in_range "$version"; then
+        echo "Error: ${VERSION}'s release ticket says 'Absorbed predecessor releases: None' but pending ticket compliance/pending-releases/RELEASE-TICKET-${version}.md has commits tagged ${version} in ${SINCE_REF}..HEAD, so its code ships under ${VERSION}. List ${version} under 'Absorbed predecessor releases' in ${CURRENT_TICKET}." >&2
+        exit 1
+      fi
+    done
+  fi
 
   if [ "${#CANDIDATE_RELEASES[@]}" -gt 0 ] && [ "$PREDECESSORS_FIELD_PRESENT" = false ]; then
     echo "Error: ambiguous predecessor ownership for ${VERSION}. Pending release tickets exist but the release ticket does not explicitly list absorbed predecessor releases." >&2

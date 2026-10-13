@@ -11,6 +11,23 @@ export interface BranchProtectionResult {
   readonly message?: string;
 }
 
+/**
+ * devaudit-installer#990 — outcome of `ensureBranchProtection` (used by
+ * `update`). `ok`: nothing to change. `updated`: missing pieces were added
+ * (see `changes`). `created`: the branch had no protection, so the install
+ * defaults were applied. `ruleset`: repository rulesets protect the branch,
+ * so classic protection is left alone (`missingChecks` lists required checks
+ * the rulesets lack). `unavailable`: the plan does not offer protection for
+ * this repository (private repo on GitHub Free). `failed`: a read or write
+ * failed (`message`).
+ */
+export interface EnsureBranchProtectionResult {
+  readonly status: 'ok' | 'updated' | 'created' | 'ruleset' | 'unavailable' | 'failed';
+  readonly changes?: readonly string[];
+  readonly missingChecks?: readonly string[];
+  readonly message?: string;
+}
+
 export interface SetDefaultBranchResult {
   readonly changed: boolean;
   readonly message?: string;
@@ -66,5 +83,19 @@ export interface GitProvider {
     requiredChecks: readonly string[],
     options?: { readonly requiredReviewCount?: number },
   ): Promise<BranchProtectionResult>;
+  /**
+   * devaudit-installer#990 — the `update` path. Reads the branch's current
+   * protection and adds only what DevAudit needs (missing required checks,
+   * a review count below `minReviewCount`). Never lowers or removes a
+   * setting a maintainer chose, never adds classic protection to a branch
+   * that repository rulesets already protect, and only falls back to the
+   * install defaults when the branch has no protection at all.
+   */
+  ensureBranchProtection(
+    cwd: string,
+    branch: string,
+    requiredChecks: readonly string[],
+    options?: { readonly minReviewCount?: number },
+  ): Promise<EnsureBranchProtectionResult>;
   createPullRequest(cwd: string, opts: PullRequestCreateOptions): Promise<PullRequestCreated>;
 }

@@ -1,5 +1,7 @@
 # Framework: Suppress housekeeping release noise from automated syncs and bundle changes into the next REQ release
 
+> **See also:** deferral of a tracked REQ into the next release (ticket `Release intent: deferred-to-next`, RTM `DEFERRED`, promotion gate) is documented in [Deferring a finished REQ into the next release](../change-workflows.md#deferring-a-finished-req-into-the-next-release) and [ADR-002](../ADR/ADR-002-release-deferral.md). The text below is historical.
+
 **Status:** Proposed / Ready for implementation
 **Labels:** `enhancement`, `framework`, `ci`
 **Priority:** High
