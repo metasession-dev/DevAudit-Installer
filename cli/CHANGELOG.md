@@ -6,6 +6,8 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ### Documentation
 
+- **#941** (umbrella #957) — behavioural test of the generated Release Approval Gate (`cli/test/release-approval-gate-behavior.test.ts`): the rendered workflow steps run against a mock portal for every release status, bootstrap mode, fail-closed and invalid-key cases. `docs/release-validation-plan.md` states what the lifecycle gate now covers and what is still open (the close-out workflow's GitHub steps).
+
 - **SRS gap closure** (umbrella #957) — `docs/SRS.md` had 16 index rows with no requirement body (`REQ-FRAMEWORK-CIYML-014`, `-E2EREGRESSION-002`, `-HOOK-001/-002/-004`, `-SKILL-001..004`, `-VALIDATE-001`, `REQ-SKILL-IMPLEMENTER-025..030`) and 2 bodies with no index row (`REQ-CLI-PUSH-019`, `REQ-FRAMEWORK-EVIDENCE-015`). All 18 are now consistent, the bodies written from the code they name. `REQ-FRAMEWORK-CIYML-014` was also wrong: it said `register-release` creates no portal release, but the template creates it (`--create-release-if-missing`); corrected. Totals recounted: 323 requirements.
 
 - **Sync-conflict review process** (umbrella #957) — new `docs/sync-conflict-review.md`: how to review `.devaudit-new` files after every `update` (list, diff, classify into six outcomes, act, verify, record a per-path table in the adoption PR), plus the maintainer disposition for the release-validation gate's conflict warnings. Linked from `consuming-projects.md`, `doctor.md`, the housekeeping runbook, the `sdlc-implementer` skill, both `devaudit-update-install.md` copies and the end-of-sync conflict summary.
