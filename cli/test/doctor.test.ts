@@ -628,7 +628,7 @@ describe('devaudit doctor — graceful skips (#956)', () => {
 describe('devaudit doctor — portal-backed checks (#956, msw)', () => {
   const BASE = 'https://devaudit.test';
   const server = setupServer();
-  beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
+  beforeAll(() => server.listen({ onUnhandledFrame: 'error' }));
   afterAll(() => server.close());
   afterEach(() => {
     server.resetHandlers();

@@ -15,7 +15,7 @@ const ctx = { baseUrl: BASE, token: PAT, timeoutMs: 500 };
 
 let seen: { headers: Headers; body: unknown; url: string } | null = null;
 const server = setupServer();
-beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }));
 afterEach(() => {
   server.resetHandlers();
   seen = null;
