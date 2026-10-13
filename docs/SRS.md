@@ -25,6 +25,8 @@ This repo carries **two** observable surfaces, both specified here:
 
 **2026-09-20 partial update (#828):** added/updated `REQ-CLI-DOCTOR-004/005`, `REQ-FRAMEWORK-ADAPTER-015`, `REQ-FRAMEWORK-CIYML-015..018`, `REQ-FRAMEWORK-VALIDATE-004`, `REQ-FRAMEWORK-E2EREGRESSION-001` — covering `#813`, `#814`, `#815`, `#817` (DevAudit-Installer half only), `#819`, `#820`, `#821`, `#826`. This was a **scoped** update (that specific set of recent PRs), **not** the full gap-analysis audit `#828` also offered as an option — the 101-commits-since-2026-08-01 gap that audit describes remains open for everything outside this list. Also flagged, not fixed: `REQ-FRAMEWORK-CIYML-014`'s index entry has no matching body section, and `REQ-FRAMEWORK-CIYML-013`'s body heading doesn't match its index description — pre-existing inconsistencies, found while inserting `CIYML-015..018` nearby, left for the next full audit rather than guessed at here.
 
+**2026-10-13 update (SRS gap closure, umbrella #957):** closed the index/body inconsistencies this document carried since 2026-09-20. Added the 16 bodies that existed only as index rows: `REQ-FRAMEWORK-CIYML-014`, `REQ-FRAMEWORK-E2EREGRESSION-002`, `REQ-FRAMEWORK-HOOK-001/-002/-004`, `REQ-FRAMEWORK-SKILL-001..004`, `REQ-FRAMEWORK-VALIDATE-001`, `REQ-SKILL-IMPLEMENTER-025..030`, each written from the code it names. Added the index rows for the two bodies that had none: `REQ-CLI-PUSH-019` and `REQ-FRAMEWORK-EVIDENCE-015`. `REQ-FRAMEWORK-CIYML-014` was also factually wrong: its index text said `register-release` creates no portal release, but the template now creates it (`upload-evidence.sh --create-release-if-missing`); the row and body are corrected. §3 recounted from 321 to 323 requirements (145 Must · 143 Should · 31 Could · 4 Won't), script-verified, and every index row now has a body and every body an index row.
+
 **2026-10-13 update (#990, umbrella #957):** `REQ-CLI-UPDATE-023` rewritten. `update` no longer re-PUTs branch protection with fixed settings on every sync, which reset the review count, forced admin enforcement and cleared settings the PUT did not send. It now reads the branch's protection and adds only what DevAudit needs, through `GitProvider.ensureBranchProtection`. A branch protected by repository rulesets gets no classic protection on top, and a private repository on GitHub Free (where neither is available) is reported, not written. `REQ-CLI-UPDATE-032` gains a fifth correction: the manifest bootstrap's old-CLI baseline run had full GitHub credentials and so ran that version's blind protection PUT, label creation and default-branch edit against the live repository on the first sync after an upgrade; the child now runs without GitHub or portal credentials and with a `gh` that always fails. Two documentation gaps from the v1.8.0 review closed in the same change: `REQ-CLI-UPDATE-029` now states the manifest's sorted file keys and `REQ-FRAMEWORK-RENDER-001` the missing-`runner` default (both shipped in #984 without an SRS line). The sync-conflict review process is documented in `docs/sync-conflict-review.md`. No requirement added or removed.
 
 **2026-10-13 update (#988, #987, umbrella #957):** `REQ-CLI-UPDATE-030` corrected — a path left in conflict is never overwritten or removed by a later sync (it was: an untracked-but-present conflict recorded the local hash as its baseline, so the second `update` replaced the consumer's edit with upstream). The generated `quality-gates-provenance.yml` (hotfix dispatch run lookup) and `incident-export.yml` (containment section) no longer use heredocs whose indented terminators never terminated; `cli/test/workflow-run-syntax.test.ts` runs `bash -n` on every generated bash `run:` step. Both found by the release-validation gate. No requirement added or removed.
@@ -501,7 +503,7 @@ dependencies (tier 3) — which is exactly the coverage the current unit-only su
 
 ## 3. Prioritized Requirements Index
 
-321 requirements across the CLI, framework templates, and skills (recounted 2026-10-12 after adding `REQ-CLI-DOCTOR-010..013` and `REQ-FRAMEWORK-DEFERRAL-005`, 316 verified before adding; recounted 2026-10-11 after adding `REQ-SKILL-IMPLEMENTER-034`, which also corrected a stale Should count of 134 to the table's actual 137 before adding it; recounted 2026-10-11 after adding `REQ-CLI-DOCTOR-007..009`; recounted 2026-10-11 after adding `REQ-FRAMEWORK-DEFERRAL-001..004`, which also corrected a stale 304 to the table's actual 308 before adding them; recounted 2026-10-11 after adding `REQ-FRAMEWORK-BUNDLE-006..008`; recounted 2026-10-04 after adding `REQ-FRAMEWORK-BUNDLE-001..005`; the count was previously recounted 2026-09-29, when the stated 203 had drifted from the table's actual row count). **MoSCoW:** 144 Must · 142 Should · 31 Could · 4 Won't. Run **Must** first (CLI smoke), then **Should** (CLI critical), then **Could** (regression); **Won't** rows document unbuilt stubs (`org`, `config`, `upgrade`, inert `--org`).
+323 requirements across the CLI, framework templates, and skills (recounted 2026-10-13 after adding the index rows for `REQ-CLI-PUSH-019` and `REQ-FRAMEWORK-EVIDENCE-015`, which had bodies but no row; recounted 2026-10-12 after adding `REQ-CLI-DOCTOR-010..013` and `REQ-FRAMEWORK-DEFERRAL-005`, 316 verified before adding; recounted 2026-10-11 after adding `REQ-SKILL-IMPLEMENTER-034`, which also corrected a stale Should count of 134 to the table's actual 137 before adding it; recounted 2026-10-11 after adding `REQ-CLI-DOCTOR-007..009`; recounted 2026-10-11 after adding `REQ-FRAMEWORK-DEFERRAL-001..004`, which also corrected a stale 304 to the table's actual 308 before adding them; recounted 2026-10-11 after adding `REQ-FRAMEWORK-BUNDLE-006..008`; recounted 2026-10-04 after adding `REQ-FRAMEWORK-BUNDLE-001..005`; the count was previously recounted 2026-09-29, when the stated 203 had drifted from the table's actual row count). **MoSCoW:** 145 Must · 143 Should · 31 Could · 4 Won't. Run **Must** first (CLI smoke), then **Should** (CLI critical), then **Could** (regression); **Won't** rows document unbuilt stubs (`org`, `config`, `upgrade`, inert `--org`).
 
 | ID                           | Title                                                                                                                                                       | Priority | Primary source                                                                                                                |
 | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------- |
@@ -616,6 +618,7 @@ dependencies (tier 3) — which is exactly the coverage the current unit-only su
 | REQ-CLI-PUSH-016             | --test-execution forwards testExecutionId form field for portal test execution grouping (#209)                                                              | Should   | `cli/src/commands/push.ts`, `cli/src/lib/ci-upload.ts`                                                                        |
 | REQ-CLI-PUSH-017             | Upload bodies are sourced from disk-backed blobs, not `fs.readFile()` whole-buffer preloading                                                               | Should   | `cli/src/lib/ci-upload.ts`                                                                                                    |
 | REQ-CLI-PUSH-018             | Starter-stub skip uses a small text prefix read, not whole-file buffering                                                                                   | Should   | `cli/src/lib/ci-upload.ts`                                                                                                    |
+| REQ-CLI-PUSH-019             | Shared release-lineage contract publishes canonical enums, payload shapes, and execution rendering (#391)                                                   | Should   | `contracts/release-lineage-contract.json`, `cli/src/lib/release-lineage-contract.ts`                                          |
 | REQ-CLI-AUTH-001             | auth login --token validates against the portal then caches at mode 0600                                                                                    | Must     | `cli/src/commands/auth/login.ts`                                                                                              |
 | REQ-CLI-AUTH-002             | auth login interactive PAT paste with mctok\_ validation                                                                                                    | Should   | `cli/src/commands/auth/login.ts`                                                                                              |
 | REQ-CLI-AUTH-003             | auth login rejects an invalid token (exit 3) without caching                                                                                                | Must     | `cli/src/commands/auth/login.ts`                                                                                              |
@@ -712,7 +715,7 @@ dependencies (tier 3) — which is exactly the coverage the current unit-only su
 | REQ-FRAMEWORK-CIYML-011      | Evidence-completeness gate: 3-scenario logic (A: hard error, B: spec-on-disk warning, C: unit-test warning) (#237)                                          | Should   | `sdlc/files/ci/ci.yml.template`                                                                                               |
 | REQ-FRAMEWORK-CIYML-012      | CI templates stamp --test-execution on all uploads for portal test execution grouping (#209)                                                                | Should   | `sdlc/files/ci/ci.yml.template`, `sdlc/files/ci/compliance-evidence.yml.template`                                             |
 | REQ-FRAMEWORK-CIYML-013      | First-class test execution rollout uses execution-scoped uploads and forbids document-as-execution attribution (#391)                                        | Should   | `contracts/release-lineage-contract.json`, `docs/release-lineage-producer-contract.md`                                        |
-| REQ-FRAMEWORK-CIYML-014      | register-release does not create portal release records; creation deferred to upload-evidence (#226)                                                        | Must     | `sdlc/files/ci/ci.yml.template`                                                                                               |
+| REQ-FRAMEWORK-CIYML-014      | register-release derives the version and ensures the portal release exists for gate-execution lineage (#226; corrected 2026-10-13: it does create the release)   | Must     | `sdlc/files/ci/ci.yml.template`                                                                                               |
 | REQ-FRAMEWORK-CIYML-015      | Checkout clean:false self-hosted expression propagated to the 8 remaining self-hosted-capable templates, not just ci.yml (#815)                              | Should   | `sdlc/files/ci/{check-release-approval,close-out-completion,close-out-release,compliance-evidence,compliance-validation,feature-e2e,post-deploy-prod,reconcile-deployment}.yml.template` |
 | REQ-FRAMEWORK-CIYML-016      | Declared-bundle co-tracked members survive the automatic bundled-changes regeneration (#817); not submitted to the portal (#955)        | Should   | `sdlc/files/ci/ci.yml.template`, `sdlc/files/_common/scripts/generate-bundled-changes.sh`, `sdlc/files/_common/scripts/submit-bundle-manifest.sh` |
 | REQ-FRAMEWORK-CIYML-017      | SAST/dependency-audit evidence fans out to declared-bundle members, filed under the bundle's single release (#819, #955)                                                                     | Should   | `sdlc/files/ci/ci.yml.template`                                                                                               |
@@ -767,6 +770,7 @@ dependencies (tier 3) — which is exactly the coverage the current unit-only su
 | REQ-FRAMEWORK-EVIDENCE-012   | Catch-all compliance_document fallback eliminated; unrecognized files skip-with-warning (#205)                                                              | Must     | `sdlc/files/ci/compliance-evidence.yml.template`                                                                              |
 | REQ-FRAMEWORK-EVIDENCE-013   | Typed evidence_type per artifact: sast_report, dependency_audit, e2e_report, e2e_result, smoke_test, release_ticket, coverage_report, gate_outcome (#207)   | Must     | `sdlc/files/ci/compliance-evidence.yml.template`, `sdlc/files/ci/ci.yml.template`                                             |
 | REQ-FRAMEWORK-EVIDENCE-014   | workflow_run E2E upload recovers tracked release context from artifact metadata before falling back to `_compliance-docs` (#311)                            | Should   | `sdlc/files/ci/compliance-evidence.yml.template`                                                                              |
+| REQ-FRAMEWORK-EVIDENCE-015   | E2E scope decision persisted as evidence, distinguishing deliberate skip from missing coverage (#737)                                                       | Must     | `sdlc/files/_common/skills/e2e-test-engineer/SKILL.md`, `sdlc/files/_common/skills/sdlc-implementer/SKILL.md`                 |
 | REQ-FRAMEWORK-VALIDATION-001 | compliance-validation.yml gates PRs to main on artifact + commit + test-summary validity (#240)                                                             | Should   | `sdlc/files/ci/compliance-validation.yml.template`                                                                            |
 | REQ-FRAMEWORK-VALIDATION-002 | ci-status-fallback emits the Quality Gates status on docs-only commits                                                                                      | Could    | `sdlc/files/ci/ci-status-fallback.yml.template`                                                                               |
 | REQ-FRAMEWORK-VALIDATION-004 | ci-status-fallback declares the token permission needed to write commit statuses (`statuses: write`)                                                        | Must     | `sdlc/files/ci/ci-status-fallback.yml.template`                                                                               |
@@ -2358,6 +2362,61 @@ Scope note: The six entries below are **Claude Code skills** — directories und
 - **Error paths:** Template missing → warning, continue.
 - **Fixtures/env:** Release with no incidents (expect nil report generated and uploaded); release with incidents (expect no nil report).
 
+#### REQ-SKILL-IMPLEMENTER-025 — Phase 1 step 5b extracts test-scope.md and test-plan.md into compliance/evidence/ (#226)
+
+- **Priority:** Must — the CI validator and the pre-push hook (REQ-FRAMEWORK-HOOK-004) look for these two files in `compliance/evidence/REQ-XXX/`, not in the plan folder.
+- **Source:** `sdlc/files/_common/skills/sdlc-implementer/SKILL.md` (Phase 1 step 5b, and its drift-management paragraph).
+- **Preconditions / inputs:** The implementation plan exists at `compliance/plans/REQ-XXX/implementation-plan.md` (step 5).
+- **Given** the plan **Then** the skill writes `test-scope.md` (the AC table with SRS-IDs, risk class and verification method per AC, from the plan's acceptance-criteria table) and `test-plan.md` (the test file listing with AC coverage, test type and whether each AC has a test, from the plan's test-scope section) under `compliance/evidence/REQ-XXX/`. The plan folder keeps the full plan.
+- **Given** the AC table later changes (requirements-gap flow option b, scope-expansion halt option b, a plan deviation) **Then** both files are re-extracted from the updated plan and the existing evidence invalidated, so the three never disagree.
+- **Error paths:** Without them `validate-compliance-artifacts.sh` fails and the push is blocked.
+- **Fixtures/env:** A plan with an AC table; the two extracted files in the evidence folder.
+
+#### REQ-SKILL-IMPLEMENTER-026 — Phase 3 step 6b copies implementation-plan.md to compliance/evidence/ (#226)
+
+- **Priority:** Must — the third artefact the compliance validator expects (with REQ-SKILL-IMPLEMENTER-025's two).
+- **Source:** `sdlc/files/_common/skills/sdlc-implementer/SKILL.md` (Phase 3 step 6b).
+- **Given** Phase 3 evidence compilation **Then** the skill copies, not moves, `compliance/plans/REQ-XXX/implementation-plan.md` to `compliance/evidence/REQ-XXX/implementation-plan.md`, so the plan directory keeps its original and the evidence folder holds the version that shipped.
+- **Error paths:** A missing copy fails `validate-compliance-artifacts.sh` and blocks the push.
+- **Fixtures/env:** The evidence folder listing after Phase 3 (`test-scope.md`, `test-plan.md`, `implementation-plan.md`).
+
+#### REQ-SKILL-IMPLEMENTER-027 — Resume protocol: the skill is re-invoked after environment detours and re-reads its state idempotently (#226)
+
+- **Priority:** Must — a skill invocation is stateless instruction injection, so continuity depends on re-entry reconstructing state from the repository.
+- **Source:** `sdlc/files/_common/skills/sdlc-implementer/SKILL.md` ("Re-invocation protocol"; Phase 5 step 0).
+- **Preconditions / inputs:** The native agent finished an environment detour (service start-up failure, test-debug loop, CI failure fix) or a UAT activity.
+- **Given** a detour **Then** the agent re-invokes `Skill(name: "sdlc-implementer", args: "resume REQ-XXX — <detour>, re-enter at Phase N")`. The skill re-reads `compliance/RTM.md` (row exists and carries the provenance stamp), `compliance/evidence/REQ-XXX/` (which artefacts exist), `git log` (commits already made) and, in Phase 5, the release ticket location and the merge commit, then resumes at the right phase (for example Phase 3 step 1 when implementation is complete but evidence is missing).
+- **Given** a phase boundary **Then** the agent must not advance (Phase 2 to 3, 3 to 4) without re-invoking, except at steps where the skill says it continues in the same turn.
+- **Given** the release PR was merged **Then** the workflow is not done until deploy verification, portal `released` and the close-out PR (REQ-SKILL-IMPLEMENTER-029).
+- **Error paths:** None; the re-read is read-only.
+- **Fixtures/env:** A repo with evidence for Phases 1 to 2 only; the resume lands at Phase 3.
+
+#### REQ-SKILL-IMPLEMENTER-028 — Native-agent responsibilities and the re-invocation boundary are documented in SKILL.md (#226)
+
+- **Priority:** Must — the division of labour is what makes REQ-SKILL-IMPLEMENTER-027 work; unwritten, agents either stall on environment problems or skip the skill.
+- **Source:** `sdlc/files/_common/skills/sdlc-implementer/SKILL.md` ("Native agent responsibilities and re-invocation protocol").
+- **Given** the skill text **Then** it states that the native agent executes commands (`npx playwright test`, dev servers, databases), debugs the environment (ports, locks, Playwright browser installs), inspects the browser, interacts with external services (host deploy status, UAT health checks; the DevAudit portal is human-only) and does git operations (merge conflicts, push retries, branches), while the skill owns workflow decisions, compliance checklists and phase transitions.
+- **Error paths:** None; documentation requirement, checked by the skill-text tests.
+- **Fixtures/env:** The rendered `.claude/skills/sdlc-implementer/SKILL.md` in a consumer.
+
+#### REQ-SKILL-IMPLEMENTER-029 — Phase 5 close-out: RTM to APPROVED - DEPLOYED, ticket to approved-releases/, commit and push; a deferred ticket is not closed out (#226, #956)
+
+- **Priority:** Must — without it a released REQ stays in `pending-releases/` and the next release treats it as in flight.
+- **Source:** `sdlc/files/_common/skills/sdlc-implementer/SKILL.md` (Phase 5); `scripts/close-out-release.sh` (REQ-FRAMEWORK-BUNDLE-004).
+- **Preconditions / inputs:** The portal release is `released` (UAT approved, merged to the release branch with `gh pr merge --merge`, deployed and verified).
+- **Given** the portal `repository_dispatch('release-closed')` **Then** the automated `chore/close-out-REQ-XXX` PR against the integration branch updates the RTM, moves the ticket to `compliance/approved-releases/` and moves manifest-listed predecessors to `superseded-releases/`; the skill verifies and merges it once its required checks are terminal green on the current head SHA. If no PR appears, the skill manually dispatches the Release Close-out workflow; `scripts/close-out-release.sh` runs locally only for documented recovery or catch-up, and a normal direct close-out commit to a protected branch is never made.
+- **Given** the ticket carries `Release intent: deferred-to-next` (REQ-FRAMEWORK-BUNDLE-006) **Then** it is not closed out: it stays in `pending-releases/` with RTM status `DEFERRED` (REQ-FRAMEWORK-DEFERRAL-001, REQ-SKILL-IMPLEMENTER-034).
+- **Error paths:** A close-out PR with failing checks is not merged; the skill reports and stops.
+- **Fixtures/env:** A fixture release moving from `pending-releases/` to `approved-releases/`; a deferred ticket left in place.
+
+#### REQ-SKILL-IMPLEMENTER-030 — Commit-scoping rule: the subject cites the active REQ only, other REQs go in the body (#226)
+
+- **Priority:** Must — the portal's commit scanner reads `REQ-XXX` tags from commit subjects, so citing another REQ in the subject attributes out-of-scope requirements to the current release.
+- **Source:** `sdlc/files/_common/skills/sdlc-implementer/SKILL.md` ("Commit-scoping rule for SRS updates").
+- **Given** a commit authored in REQ-XXX's flow **Then** the subject cites `[REQ-XXX]` (the active REQ) even when the content touches others; other REQs appear in the body (`Ref: REQ-083, REQ-084`), never the subject. A subject such as `docs: [REQ-083/084] ...` is wrong.
+- **Error paths:** A wrong subject is not rejected by a hook; the portal association is wrong. `validate-commits.sh` accepts the `[REQ-NNN]` or `Ref:` forms (REQ-FRAMEWORK-VALIDATE-001).
+- **Fixtures/env:** Two commit messages, correct and incorrect.
+
 #### REQ-SKILL-IMPLEMENTER-031 — Phase 4 blocker classification can run as an executable PR watch loop with persisted retry state (#304)
 
 - **Priority:** Must — the phase-4 handoff must be able to keep classifying blocked/waiting PRs without relying on a one-shot manual `gh` read.
@@ -2764,6 +2823,18 @@ Area codes: FRAMEWORK-CIYML (ci.yml quality gates + evidence job), FRAMEWORK-EVI
 - **Fixtures/env:** contract examples and rollout documentation; later workflow-emission issues consume this rule.
 
 > **Note:** REQ-FRAMEWORK-CIYML-014 (index above) has no body section in this document — flagged as a pre-existing gap found while adding CIYML-015..018 below, not authored here (no requirement is invented; its content would need to be reverse-engineered from `sdlc/files/ci/ci.yml.template`'s register-release job before it can be written accurately).
+
+#### REQ-FRAMEWORK-CIYML-014 — register-release derives the release version and ensures the portal release exists for gate-execution lineage (#226, corrected 2026-10-13)
+
+- **Priority:** Must — the first-class test-execution APIs need an exact release row before the stage-2 execution can start (REQ-FRAMEWORK-CIYML-013), and a failed gate run must stay visible even when later evidence generation fails.
+- **Source:** `sdlc/files/ci/ci.yml.template` (job `register-release`, steps `Resolve DevAudit base URL`, `Determine release version`, `Ensure release exists for gate-execution lineage`, `Upload standalone housekeeping declaration`, `Generate and upload bundled changes`).
+- **Correction (2026-10-13):** the original index entry (#226) said register-release does not create portal release records and leaves creation to `upload-evidence`. The template has since changed (cycle lifecycle and test-execution provenance work, `f24d8ae`, `bf9ed51`): the job now calls `scripts/upload-evidence.sh ... _compliance-docs release_registration README.md --release <version> --create-release-if-missing --environment uat --category planning`, with `|| true` so a portal error never fails the gate.
+- **Preconditions / inputs:** Not a pull request (PRs to the integration branch report Quality Gates without mutating releases), `github.ref_name` is the integration branch, and a DevAudit base URL is configured (`devaudit.base_url` in `sdlc-config.json`, else the deprecated `DEVAUDIT_BASE_URL` variable, #156).
+- **Given** a configured base URL and no `DEVAUDIT_API_KEY` **Then** the job fails with `::error::DEVAUDIT_API_KEY (secret) must be set...`. **Given** no base URL **Then** release registration is skipped with a warning.
+- **Given** `scripts/derive-release-version.sh` (the helper shared with `compliance-evidence.yml`) prints an empty version (close-out reconciliation) **Then** `version=skip` and every later step is skipped. **Given** a version **Then** the release is created if missing and later steps use it.
+- **Given** a bare-date version with a `compliance/standalone-housekeeping/` declaration **Then** it is validated and uploaded as a `release_ticket`.
+- **Error paths:** As above; the lineage step swallows upload errors.
+- **Fixtures/env:** The rendered `ci.yml` job (template-lint, `workflow-run-syntax.test.ts`).
 
 #### REQ-FRAMEWORK-CIYML-015 — Checkout `clean:false` self-hosted expression propagated to the 8 remaining self-hosted-capable templates (#815)
 
@@ -3343,6 +3414,17 @@ Area codes: FRAMEWORK-CIYML (ci.yml quality gates + evidence job), FRAMEWORK-EVI
 
 ---
 
+#### REQ-FRAMEWORK-E2EREGRESSION-002 — e2e-regression.yml concurrency group is configurable via e2e_concurrency_group / e2e_concurrency_cancel_in_progress (#969)
+
+- **Priority:** Could — only consumers whose E2E runs share mutable data (one database, one shared environment) need to serialise runs across triggers.
+- **Source:** `sdlc/files/ci/e2e-regression.yml.template` (`{{E2E_REGRESSION_CONCURRENCY}}`); `cli/src/update/ci-templates.ts` (`buildE2eRegressionConcurrency`); `cli/src/lib/sdlc-config.ts` (`e2e_concurrency_group`, `e2e_concurrency_cancel_in_progress`).
+- **Preconditions / inputs:** `e2e_regression_enabled` (REQ-FRAMEWORK-E2EREGRESSION-001).
+- **Given** no `e2e_concurrency_group` (or a blank one) **Then** the rendered `concurrency:` block is the original `group: ${{ github.workflow }}-${{ github.ref }}` with `cancel-in-progress: ${{ github.event_name == 'pull_request' }}`, byte for byte as before #969.
+- **Given** a non-blank group **Then** `group:` is that value (quoted via `JSON.stringify` unless it matches `[A-Za-z0-9_./-]+`), shared by every trigger (PR, dispatch, post-deploy), and `cancel-in-progress` is `true` only when `e2e_concurrency_cancel_in_progress` is exactly `true`, otherwise `false`, so a run is never killed mid-mutation of shared data.
+- GitHub keeps one running and one pending run per group: a newer queued run replaces an older queued one.
+- **Error paths:** None; `e2e_concurrency_cancel_in_progress` without a group is ignored.
+- **Fixtures/env:** `cli/test/e2e-concurrency.test.ts`.
+
 #### REQ-FRAMEWORK-RENDER-001 — Scalar token substitution populates runner, slug, versions, gate params
 
 - **Priority:** Must — every workflow's correctness depends on tokens being substituted; an unsubstituted `{{TOKEN}}` is a broken workflow.
@@ -3738,6 +3820,27 @@ The observable contract is derived entirely from source: adapter manifests under
 
 ---
 
+#### REQ-FRAMEWORK-HOOK-001 — Pre-push hook checks for E2E evidence before allowing pushes with UI-facing file changes (#226)
+
+- **Priority:** Should — a UI change pushed with no E2E run is the failure the E2E gate exists to stop; the CI gate is the backstop, this is the early local one.
+- **Source:** `sdlc/files/stacks/node/hooks/pre-push` (section 2, "E2E evidence check"); written by `e2e-test-engineer` (`.e2e-gate-passed`, REQ-FRAMEWORK-SKILL-004).
+- **Preconditions / inputs:** A push whose `remote_ref` ends in `refs/heads/<integration_branch>` (from `sdlc-config.json`, default `develop`). The commit range is `compute_range` (remote..local; for a new ref, merge-base against `origin/<integration_branch>`, then `origin/HEAD`, then the bare SHA, #741/#743).
+- **Given** the range changes a file matching `app/**/*.tsx`, `src/**/*.tsx`, `pages/**/*.tsx` or the `.jsx` equivalents **When** the hook runs **Then** it requires either a `.e2e-gate-passed` sentinel or a `playwright-report/` directory with a file newer than `.git/HEAD`. **Given** neither exists **Then** exit 1 with `ERROR: E2E gate was not run before pushing.`, the changed UI files, and the `--no-verify` bypass note.
+- **Given** the gate ran **Then** the REQ-scoped check of REQ-FRAMEWORK-HOOK-005 (#578) also applies before `Pre-push: E2E evidence check passed.` is printed.
+- **Given** no UI-facing file changed, or the push targets another branch **Then** the check is skipped entirely.
+- **Error paths:** Missing evidence → exit 1; `--no-verify` bypasses (last resort; CI re-checks).
+- **Fixtures/env:** A push with a changed `app/page.tsx` and no sentinel or report (blocked); the same with `.e2e-gate-passed` (passes); a push of `lib/util.ts` only (skipped).
+
+#### REQ-FRAMEWORK-HOOK-002 — Pre-push hook checks for the sdlc-implementer-invoked sentinel on feat/fix/refactor/perf commits (#226)
+
+- **Priority:** Should — stops a tracked change from reaching the remote without the SDLC skill flow; `validate-commits.sh` (REQ-FRAMEWORK-VALIDATE-001) enforces the same thing in CI.
+- **Source:** `sdlc/files/stacks/node/hooks/pre-push` (section 3, and 3b phase progression, #278); `.sdlc-implementer-invoked` written by `node SDLC/bin/devaudit-sdlc.cjs --phase=<N>` (REQ-FRAMEWORK-SKILL-001).
+- **Preconditions / inputs:** Any push (not only to the integration branch, #278). A commit subject matching `^(feat|fix|refactor|perf)(\(.+\))?!?:` marks the push as tracked. `docs`, `chore`, `ci`, `build`, `test` and `revert` are exempt.
+- **Given** a tracked commit in the pushed range and no `.sdlc-implementer-invoked` file **Then** exit 1 with `ERROR: sdlc-implementer skill was not invoked.` **Given** the sentinel exists **Then** `Pre-push: skill-invocation sentinel check passed.`
+- **Given** the sentinel exists and the range touches `compliance/evidence/REQ-*/` **Then** it must contain a phase `3` record; touching `compliance/approved-releases/` or adding an RTM line carrying `RELEASED` requires a phase `5` record (a new `DRAFT` RTM row is not a Phase-5 signal, #744). A missing record → exit 1 naming the phase.
+- **Error paths:** exit 1 as above; `--no-verify` bypasses.
+- **Fixtures/env:** A `feat:` commit without the sentinel (blocked); a `chore:` commit without it (passes); evidence files with a phase-2-only sentinel (blocked).
+
 #### REQ-FRAMEWORK-HOOK-003 — Pre-push hook checks for .e2e-evidence-wired sentinel when e2e spec files changed (#226)
 
 - **Priority:** Should — prevents pushing E2E spec files without evidence wiring validation (Phase 5½).
@@ -3747,6 +3850,17 @@ The observable contract is derived entirely from source: adapter manifests under
 - **Error paths:** Missing `.e2e-evidence-wired` → exit 1; bypass with `--no-verify` (last resort).
 - **Fixtures/env:** A push with e2e spec changes and no sentinel (blocked); a push with e2e spec changes and sentinel present (passes); a push with no e2e spec changes (check skipped).
 
+#### REQ-FRAMEWORK-HOOK-004 — Pre-push hook runs validate-compliance-artifacts.sh for tracked commits (#226)
+
+- **Priority:** Must — the local mirror of the CI compliance gate; catches missing `test-scope.md`, `test-plan.md` and `implementation-plan.md` before a push rather than after a red run.
+- **Source:** `sdlc/files/stacks/node/hooks/pre-push` (section 4, reusing `HAS_TRACKED` from REQ-FRAMEWORK-HOOK-002); `sdlc/files/_common/scripts/validate-compliance-artifacts.sh`.
+- **Preconditions / inputs:** The pushed range contains a `feat`/`fix`/`refactor`/`perf` commit.
+- **Given** a tracked push and `scripts/validate-compliance-artifacts.sh` present **When** the hook runs **Then** it runs `bash scripts/validate-compliance-artifacts.sh origin/<integration_branch>` and, on a non-zero exit, prints `ERROR: Compliance artifact validation failed.` and exits 1; on success `Pre-push: compliance artifact validation passed.`
+- **Given** the script is not present **Then** `Pre-push: compliance artifact validation skipped (script not found).` and the push continues.
+- **Given** no tracked commit **Then** the section does not run.
+- **Error paths:** Validator failure → exit 1; `--no-verify` bypasses.
+- **Fixtures/env:** A tracked push with an evidence folder missing `test-plan.md` (blocked); the same with all three files (passes); a docs-only push (skipped).
+
 #### REQ-FRAMEWORK-HOOK-005 — Pre-push E2E gate is REQ-scoped, not just run-recency
 
 - **Priority:** Should — closes the gap where a stale/unrelated Playwright run satisfied the gate for a REQ that shipped with zero actual coverage (observed concretely on example-app REQ-095) — devaudit-installer#578.
@@ -3755,6 +3869,49 @@ The observable contract is derived entirely from source: adapter manifests under
 - **Given** the E2E gate already passed (fresh `playwright-report/` or an `.e2e-gate-passed` sentinel present) **When** the hook resolves the push's in-scope REQ IDs **Then** for each REQ it requires (a) at least one spec file under `e2e/` tagged `@requirement REQ-XXX`, AND (b) if `.e2e-gate-passed` carries a REQ-ID list (lines after the status line, per REQ-FRAMEWORK-SKILL-004), that list must include the REQ. **Given** either check fails for any in-scope REQ **Then** the hook exits 1 listing each failing REQ annotated `(no tagged spec)` or `(not in .e2e-gate-passed run)`, and does not accept a fresh-but-unrelated run as satisfying the gate. **Given** `.e2e-gate-passed` is old-format (status line only, no REQ list) **Then** the REQ-list cross-check degrades gracefully (skipped for that sentinel) and only the tagged-spec check applies.
 - **Error paths:** Any in-scope REQ failing either check → exit 1 with the itemised `MISSING_REQS` list; bypass with `--no-verify` (last resort, logged as a habit smell, not silently allowed).
 - **Fixtures/env:** A push referencing a REQ with a tagged spec and sentinel coverage (passes); a REQ with a tagged spec but absent from the sentinel's REQ list (blocked, "not in .e2e-gate-passed run"); a REQ with no tagged spec at all (blocked, "no tagged spec"); an old-format sentinel (REQ-list check skipped, tagged-spec check still enforced).
+
+#### REQ-FRAMEWORK-SKILL-001 — sdlc-implementer writes the .sdlc-implementer-invoked sentinel at Phase 0 on the tracked route (#226)
+
+- **Priority:** Must — the sentinel is what the pre-push hook (REQ-FRAMEWORK-HOOK-002) and, indirectly, `validate-commits.sh` use to tell a skill-driven change from a manual one.
+- **Source:** `sdlc/files/_common/skills/sdlc-implementer/SKILL.md` (Phase 0, "tracked" route); the CLI engine `SDLC/bin/devaudit-sdlc.cjs` (`--phase=<N>`).
+- **Preconditions / inputs:** Phase 0 classified the change as tracked (feature, bug fix, refactor, perf).
+- **Given** the tracked route **When** Phase 0 completes **Then** the skill runs `node SDLC/bin/devaudit-sdlc.cjs --phase=issue`, which appends a JSON phase record to `.sdlc-implementer-invoked` (gitignored, local only; REQ-CLI-UPDATE-020). Each later phase transition (1 to 5) runs `--phase=<N>` to append its own record.
+- **Given** the lightweight (housekeeping) route **Then** no sentinel is written and none is required (`docs`/`chore`/... commits are exempt from the hook).
+- **Error paths:** A missing engine binary means the sentinel is not written and the pre-push hook refuses the push; fix by `devaudit update` (REQ-CLI-UPDATE-025).
+- **Fixtures/env:** A fresh tracked run followed by `cat .sdlc-implementer-invoked`: one record per phase entered.
+
+#### REQ-FRAMEWORK-SKILL-002 — sdlc-implementer Phase 2 step 5b halts if the E2E gate was not run for UI-facing changes (#226)
+
+- **Priority:** Must — the skill-level enforcement behind the pre-push hook (REQ-FRAMEWORK-HOOK-001/-003/-005), so the gap is caught before the commit instead of at the push.
+- **Source:** `sdlc/files/_common/skills/sdlc-implementer/SKILL.md` (Phase 2 step 5b); `sdlc/files/_common/skills/e2e-test-engineer/SKILL.md`.
+- **Preconditions / inputs:** Phase 2 gates ran (step 5) and the next step is the commit (step 7).
+- **Given** the diff against the integration branch touches UI-facing files (`app/`, `src/`, `pages/` `*.tsx`/`*.jsx`) **Then** the skill requires `.e2e-gate-passed` or a recent `playwright-report/` and otherwise **halts** with `E2E gate was not run...`, telling the agent to run `npx playwright test` or invoke `e2e-test-engineer` (CI is not a substitute, #238).
+- **Given** changed `e2e/**/*.spec.ts` **Then** the `.e2e-evidence-wired` sentinel must also exist, or the skill halts (REQ-FRAMEWORK-HOOK-003).
+- **Given** no UI-facing files **Then** the check is skipped, the commit body notes `E2E gate skipped`, and the skill writes the `e2e-scope-decision.md` record itself (REQ-FRAMEWORK-EVIDENCE-015, #737).
+- **Given** `e2e-test-engineer` found no UI surface **Then** it wrote a `NOT_NEEDED` sentinel, the check passes and the body records the exemption.
+- **Also in step 5b:** the plan to test-scope AC consistency check, and a halt when the plan names Playwright coverage but no spec tags the REQ.
+- **Error paths:** Each halt returns control to the user; nothing is committed.
+- **Fixtures/env:** A change to `app/page.tsx` without the sentinel (halt); an API-only change (skipped, decision persisted).
+
+#### REQ-FRAMEWORK-SKILL-003 — sdlc-implementer Phase 1 step 9 stamps the RTM row with sdlc-implementer@version provenance (#226)
+
+- **Priority:** Must — `validate-commits.sh` (REQ-FRAMEWORK-VALIDATE-001) fails commits citing a REQ whose RTM row lacks the stamp; this is what writes it.
+- **Source:** `sdlc/files/_common/skills/sdlc-implementer/SKILL.md` (Phase 1 step 9).
+- **Preconditions / inputs:** Phase 1 produced the implementation plan and the REQ is being added to `compliance/RTM.md`.
+- **Given** a new RTM entry **Then** the skill writes REQ-XXX, title, risk class, linked issue, linked test cases (placeholder) and a final-column provenance marker `sdlc-implementer@<version>`. If the RTM table has no provenance column the skill adds one with the header `Provenance`; literal pipe characters in a cell are escaped.
+- **Error paths:** A row without the marker makes `validate-commits.sh` fail with `no sdlc-implementer provenance in RTM.md`; the fix is to re-invoke the skill or add the marker with operator sign-off.
+- **Fixtures/env:** An RTM row written by the skill (ends in `sdlc-implementer@<version>`).
+
+#### REQ-FRAMEWORK-SKILL-004 — e2e-test-engineer writes the .e2e-gate-passed sentinel (status line plus covered REQ IDs, since #578) after a successful E2E run or NOT_NEEDED (#226)
+
+- **Priority:** Must — the pre-push hook and `sdlc-implementer` Phase 2 step 5b read this file to decide whether the E2E gate ran for this push.
+- **Source:** `sdlc/files/_common/skills/e2e-test-engineer/SKILL.md` ("Write the E2E gate sentinel"); consumed by `sdlc/files/stacks/node/hooks/pre-push` (REQ-FRAMEWORK-HOOK-001/-005).
+- **Preconditions / inputs:** The full regression run (Phase 6 step 2) succeeded, or e2e was assessed as not needed.
+- **Given** a successful run **Then** the skill writes `.e2e-gate-passed` in the repo root: line 1 `PASSED <UTC timestamp> <run id>`, then one `REQ-NNN` line per REQ the run covered. **Given** e2e is not needed **Then** line 1 is `NOT_NEEDED <UTC timestamp> <reason>` and the REQ line(s) still follow, so the hook can tell a deliberate skip from an unaccounted REQ.
+- **Given** an old-format sentinel (status line only) **Then** the hook accepts it and skips the per-REQ sentinel cross-check (REQ-FRAMEWORK-HOOK-005).
+- The file is gitignored and never committed (REQ-CLI-UPDATE-020); the durable record is `e2e-scope-decision.md` (REQ-FRAMEWORK-EVIDENCE-015).
+- **Error paths:** Deferring the run to CI does not write it; the hook then blocks the push (#238).
+- **Fixtures/env:** `printf` of the two sentinel shapes; the hook with a REQ missing from the list.
 
 #### REQ-FRAMEWORK-SKILL-005 — e2e-test-engineer Phase 6 pre-flight browser check + anti-deferral instruction (#238)
 
@@ -3791,6 +3948,16 @@ The observable contract is derived entirely from source: adapter manifests under
 - **Given** the skill reaches Phase 3 step 5b **When** it runs the validator **Then** invalid gate states ('deferred', 'browsers not installed', SKIPPED/NOT_NEEDED without rationale) are caught and the skill fixes them before proceeding. **Given** the validator passes **Then** the skill proceeds to evidence upload. **Given** the validator fails **Then** the skill fixes the summary and re-runs the validator.
 - **Error paths:** Validator fails → fix and re-run; validator script missing → skill should note the gap (CI will catch it on PR).
 - **Fixtures/env:** A summary with valid gate states (passes); a summary with 'deferred' (fails, skill fixes); a summary with SKIPPED but no rationale (fails, skill fixes).
+
+#### REQ-FRAMEWORK-VALIDATE-001 — validate-commits.sh checks the RTM provenance stamp for REQ-XXX in feat/fix/refactor/perf commits (#226)
+
+- **Priority:** Must — the CI backstop to the local sentinel: a tracked commit whose REQ was never created by the skill is rejected even when `--no-verify` skipped the hook.
+- **Source:** `sdlc/files/_common/scripts/validate-commits.sh` ("RTM provenance check").
+- **Preconditions / inputs:** A commit of type `feat`, `fix`, `refactor` or `perf`; `compliance/RTM.md` exists. The REQ comes from a `[REQ-NNN]` tag in the subject, else the last `Ref: REQ-NNN` line in the body.
+- **Given** the REQ has an RTM row (`^| REQ-NNN `) without `sdlc-implementer@` **Then** the commit is counted as failed (`ERROR [<sha>]: REQ-NNN in commit message has no sdlc-implementer provenance in RTM.md.`) and the script exits non-zero.
+- **Given** the row carries the stamp, has no row yet, or the commit cites no REQ **Then** this check passes (a missing REQ is handled by the separate traceability check, including the single-active-release warning of #315).
+- **Error paths:** Exit 1 with the remediation text: invoke `sdlc-implementer`, or add the marker manually with operator sign-off.
+- **Fixtures/env:** An RTM with and without the stamp, and commits citing it.
 
 #### REQ-FRAMEWORK-VALIDATE-002 — validate-test-summary.sh rejects invalid gate states in test-execution-summary.md (#240)
 
