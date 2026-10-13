@@ -133,12 +133,9 @@ portal steps are covered by the CLI unit tests, not by this gate.
 in CI) drives the release scripts against `mock-portal.mjs`: release
 derivation, test-execution reporting and close-out.
 
-**Not yet covered (#941):** a full register → submit → approve → release →
-close-out → `release-closed` dispatch cycle. The same goes for the deferral lifecycle
-against a portal (defer, resume, superseding a deferred predecessor at the
-successor's close-out). Until #941 lands, verify these on the portal's own
-test suite and, after the portal deploys, with one manual pass on a test
-project.
+**Release Approval Gate (#941, covered).** `cli/test/release-approval-gate-behavior.test.ts` renders the real `check-release-approval.yml` and runs its `Resolve DevAudit base URL`, `Resolve current release` and `Enforce release approval` steps with bash and curl against an in-process mock portal. It checks that the gate blocks `draft`, `uat_review`, `uat_rejected`, `uat_changes_requested`, `prod_rejected` and `deferred` (with the deferral message), passes `uat_approved`, `prod_review`, `prod_approved` and `released`, resolves the release the derive script names, passes in bootstrap mode (no key, or project not created yet), fails closed when the project endpoint 404s but `releases/resolve` says it exists, and fails on an invalid key. It runs with the rest of vitest in layer 1 (skipped on Windows, which has no bash in the test environment). The mock only answers what the portal would; it never creates an approval. Verified by breaking the gate twice (accepting `draft`, removing the `deferred` branch): the test failed each time.
+
+**Still not covered (#941):** the generated `close-out-release.yml` workflow's GitHub steps (opening the merge-back PR, `repository_dispatch` handling), which need a GitHub API mock rather than a portal mock; and the portal side of the deferral lifecycle (defer, resume, supersede at the successor's close-out), which is covered by the portal's own test suite (`release-service-ci.test.ts`, `approval-service-defer.test.ts`). `scripts/close-out-release.sh` itself (ticket and RTM reconciliation, predecessor handling) is covered by `tests/release-pipeline-e2e/run.sh` and its shell tests. After the portal deploys, do one manual pass on a test project.
 
 ## Running it
 
