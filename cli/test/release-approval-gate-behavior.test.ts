@@ -40,7 +40,12 @@ let portal: { projectStatus: number; resolveStatus: number; release: { id: strin
 beforeAll(async () => {
   prevRoot = process.env['DEVAUDIT_INSTALLER_ROOT'];
   process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
-  workflowText = (await renderAll('node'))['check-release-approval.yml'] ?? '';
+  // Release validation layer 2b points the test at an updated clone's own workflow and
+  // derive script (GATE_WORKFLOW_FILE / GATE_DERIVE_SCRIPT) instead of a fixture render.
+  const override = process.env['GATE_WORKFLOW_FILE'];
+  workflowText = override
+    ? await fs.readFile(override, 'utf8')
+    : ((await renderAll('node'))['check-release-approval.yml'] ?? '');
   server = createServer((req, res) => {
     const url = req.url ?? '';
     res.setHeader('content-type', 'application/json');
@@ -100,7 +105,7 @@ async function runGate(opts: { apiKey: string }): Promise<GateRun> {
   try {
     await fs.mkdir(join(dir, 'scripts'), { recursive: true });
     await fs.copyFile(
-      join(INSTALLER_ROOT, 'sdlc', 'files', '_common', 'scripts', 'derive-release-version.sh'),
+      process.env['GATE_DERIVE_SCRIPT'] ?? join(INSTALLER_ROOT, 'sdlc', 'files', '_common', 'scripts', 'derive-release-version.sh'),
       join(dir, 'scripts', 'derive-release-version.sh'),
     );
     await fs.writeFile(join(dir, 'sdlc-config.json'), JSON.stringify({ project_slug: SLUG, devaudit: { base_url: baseUrl } }));
