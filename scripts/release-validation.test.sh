@@ -54,6 +54,36 @@ if grep -q '^| demo | check-b | WARN | pipe \\| and tab |$' "$WORK_DIR/results.m
 record demo check-c FAIL "broken" >/dev/null
 if summarise >/dev/null; then no "summarise exits 1 with a FAIL"; else ok "summarise exits 1 with a FAIL"; fi
 
+# 3b. layer 2b: path -> surface mapping, changed-surface detection, scenario completeness
+sorted_words() { tr ' ' '\n' | sort | tr '\n' ' ' | sed 's/ $//'; }
+got=$(surface_for_path sdlc/files/ci/check-release-approval.yml.template | sorted_words)
+if [ "$got" = "approval-gate ci-workflows" ]; then ok "2b: gate template is approval-gate + ci-workflows"; else no "2b: gate template surfaces ($got)"; fi
+got=$(surface_for_path cli/src/update/write-managed.ts | sorted_words)
+if [ "$got" = "cli-core sync-safety" ]; then ok "2b: write-managed.ts is sync-safety + cli-core"; else no "2b: write-managed surfaces ($got)"; fi
+if [ -z "$(surface_for_path docs/SRS.md)" ]; then ok "2b: docs map to no surface"; else no "2b: docs mapped to a surface"; fi
+
+mkdir -p "$TMP/repo2b" && (
+  cd "$TMP/repo2b" && git init -q -b main && git config user.name t && git config user.email t@t
+  mkdir -p sdlc/files/ci cli/src/update sdlc/files/weird docs
+  echo a > README.md && git add -A && git commit -q -m base && git tag v0.0.1
+  echo b > sdlc/files/ci/ci.yml.template; echo c > cli/src/update/write-managed.ts
+  echo d > docs/x.md; echo e > sdlc/files/weird/unknown.txt
+  git add -A && git commit -q -m change
+)
+out=$(ROOT="$TMP/repo2b" changed_surfaces v0.0.1)
+if printf '%s\n' "$out" | grep -qP '^ci-workflows\t1$' && printf '%s\n' "$out" | grep -qP '^sync-safety\t1$' \
+   && printf '%s\n' "$out" | grep -qP '^cli-core\t1$' && printf '%s\n' "$out" | grep -q 'unclassified.*sdlc/files/weird/unknown.txt' \
+   && ! printf '%s\n' "$out" | grep -q 'docs/x.md'; then
+  ok "2b: changed surfaces counted; stray shipped path reported; docs ignored"
+else no "2b: changed_surfaces output: $(printf '%s' "$out" | tr '\n' '|')"; fi
+
+missing=""
+while IFS=$'\t' read -r name _; do
+  case "$name" in ''|'#'*) continue ;; esac
+  declare -F "scenario_${name//-/_}" >/dev/null || missing="$missing $name"
+done < "$ROOT/scripts/release-validation/surfaces.tsv"
+if [ -z "$missing" ]; then ok "2b: every surface in surfaces.tsv has a scenario"; else no "2b: surfaces without a scenario:$missing"; fi
+
 # 4. usage errors exit 2
 if bash "$ROOT/scripts/release-validation.sh" >/dev/null 2>&1; then no "no args is a usage error"; else
   rc=$?; [ "$rc" -eq 2 ] && ok "no args exits 2" || no "no args exits 2 (got $rc)"; fi

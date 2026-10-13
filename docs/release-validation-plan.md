@@ -101,6 +101,48 @@ and a successor ticket `REQ-9902`:
 | `scenario-gate-allows` | the gate passes once `REQ-9902` lists `REQ-9901` under `Absorbed predecessor releases` |
 | `scenario-reconcile` | `close-out-reconcile.sh` does not report the deferred ticket as a missed close-out |
 
+## Layer 2b: change-driven checks
+
+Layer 2 proves `update` is safe and idempotent on every consumer, but it runs
+the same generic checks whatever the release changed. Layer 2b asks the
+question a release actually needs answered: **were the things that changed
+exercised, and do they work after the update is applied?** It does not run on
+every consumer; two representative clones (`RV_2B_CONSUMERS`, default
+wawagardenbar-app for node and ThorStack-Backend for python) are enough to
+exercise a change.
+
+`scripts/release-validation.sh layer2b` (also the last step of `all`):
+
+1. **What changed.** `git diff` from the last release tag (`RV_BASE_REF`
+   overrides it) to the candidate, mapped to *surfaces* by
+   [`scripts/release-validation/surfaces.tsv`](../scripts/release-validation/surfaces.tsv)
+   (path regex per surface). Docs, tests, plugins and other non-shipping paths
+   are ignored. A changed shipped path that matches no surface is a `WARN`
+   (`2b-coverage:unclassified`): add it to `surfaces.tsv`.
+2. **Coverage.** Each changed surface needs a scenario function in
+   `scripts/release-validation/layer2b.sh` (`scenario_<surface>`). A changed
+   surface with no scenario is a `WARN` (`2b-coverage:<surface>`): a change
+   nobody exercised. `release-validation.test.sh` fails if `surfaces.tsv`
+   lists a surface with no scenario, so a new surface cannot be added
+   unexercised.
+3. **Apply and exercise.** Each clone gets the update (the same two-run
+   idempotency check as layer 2), then the scenario for every changed surface:
+
+| Surface | Scenario on the updated clone |
+| --- | --- |
+| `approval-gate` | the **clone's own** `check-release-approval*.yml` and `derive-release-version.sh` run against a mock portal (`release-approval-gate-behavior.test.ts` with `GATE_WORKFLOW_FILE`/`GATE_DERIVE_SCRIPT`): blocks every pre-approval state and `deferred`, passes the approved ones |
+| `ci-workflows` | how many workflows the update changed; all of them are parsed, token-checked and `bash -n` checked |
+| `sync-safety` | edit a synced script locally, commit, run `update` twice: the edit must survive and the upstream copy must be in `.devaudit-new` (#988) |
+| `branch-protection` | section 2k reports no unexpected failure, and the manifest baseline run made no `gh` call (#990) |
+| `deferral` | the deferral scenario (ticket, gate, derive, reconcile) on the real history |
+| `doctor` | `doctor --json` contract and `doctor --fix --dry-run` changes nothing |
+| `scripts` | every changed synced script parses |
+| `skills-docs` | skills are present with frontmatter |
+| `cli-core` | the files the update changed in the clone, grouped by area (workflows, scripts, skills, SDLC docs, hooks) |
+
+Adding a scenario for a new kind of change is the job of the PR that makes the
+change: add the surface to `surfaces.tsv` and a `scenario_<surface>` function.
+
 ### Consumers
 
 The consumer list is the active set in [consuming-projects.md](consuming-projects.md):
@@ -139,12 +181,13 @@ derivation, test-execution reporting and close-out.
 ## Running it
 
 ```bash
-# everything (layer 1, every consumer, both fixtures)
+# everything (layer 1, every consumer, both fixtures, layer 2b)
 scripts/release-validation.sh all wawagardenbar-app META-ATS META-JOBS \
   ThorStack-Frontend ThorStack-Backend thorstack-site fleet-control
 
 # one part
 scripts/release-validation.sh layer1
+scripts/release-validation.sh layer2b          # change-driven, two clones
 scripts/release-validation.sh consumer wawagardenbar-app
 WORK_DIR=/tmp/rv scripts/release-validation.sh fixture node python
 ```

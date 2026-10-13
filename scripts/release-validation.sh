@@ -4,9 +4,11 @@
 #
 # Runs the candidate Installer (this checkout, built locally) against:
 #   layer1            this repo's own automated checks + pack/install smoke
+#   layer2b           change-driven: what changed since the last release tag is
+#                     mapped to surfaces and exercised on two representative clones
 #   consumer <name>   an ISOLATED clone of metasession-dev/<name> (or a path)
 #   fixture <stack>   a fresh fixture repo (node | python) with no prior sync
-#   all [names...]    layer1, every named consumer, both fixtures
+#   all [names...]    layer1, every named consumer, both fixtures, layer2b
 #
 # SAFETY (consumer repos are read-only):
 #   - every consumer is cloned into $WORK_DIR; the real checkout under
@@ -382,22 +384,20 @@ validate_dir() { # <target> <dir>
   fi
 }
 
-validate_consumer() { # <name|url|path>
-  local spec="$1" name url dir ref
-  name=$(basename "${spec%.git}")
+# clone_consumer <name|url|path> <dir> <target>: isolated clone of the consumer's
+# develop (else default) branch with push disabled; records clone PASS/FAIL.
+clone_consumer() {
+  local spec="$1" dir="$2" name="$3" url ref
   case "$spec" in
     http*://*|git@*) url="$spec" ;;
     /*|./*|../*) url="$(cd "$spec" && git remote get-url origin)" ;;
     *) url="https://github.com/${GITHUB_OWNER}/${spec}.git" ;;
   esac
-  dir="$WORK_DIR/consumers/$name"
-  echo ""
-  echo "== consumer $name ($url)"
   rm -rf "$dir"
-  mkdir -p "$WORK_DIR/consumers"
+  mkdir -p "$(dirname "$dir")"
   if ! git clone -q "$url" "$dir" 2>"$WORK_DIR/$name.clone.log"; then
     record "$name" clone FAIL "$(tail -1 "$WORK_DIR/$name.clone.log")"
-    return 0
+    return 1
   fi
   git -C "$dir" remote set-url --push origin "no-push://release-validation-is-read-only"
   ref="${CONSUMER_REF:-}"
@@ -407,9 +407,18 @@ validate_consumer() { # <name|url|path>
   git -C "$dir" checkout -q "$ref" 2>/dev/null || git -C "$dir" checkout -q -b "$ref" "origin/$ref"
   if [ ! -f "$dir/sdlc-config.json" ]; then
     record "$name" clone FAIL "no sdlc-config.json on $ref (not an onboarded consumer)"
-    return 0
+    return 1
   fi
   record "$name" clone PASS "$ref @ $(git -C "$dir" rev-parse --short HEAD); push disabled"
+}
+
+validate_consumer() { # <name|url|path>
+  local spec="$1" name dir
+  name=$(basename "${spec%.git}")
+  dir="$WORK_DIR/consumers/$name"
+  echo ""
+  echo "== consumer $name"
+  clone_consumer "$spec" "$dir" "$name" || return 0
   validate_dir "$name" "$dir"
 }
 
@@ -517,18 +526,22 @@ summarise() {
   [ "$fails" -eq 0 ]
 }
 
+# shellcheck source=release-validation/layer2b.sh
+source "$ROOT/scripts/release-validation/layer2b.sh"
+
 main() {
   command -v jq >/dev/null || die "jq is required"
   command -v python3 >/dev/null || die "python3 is required"
   python3 -c 'import yaml' 2>/dev/null || die "python3 PyYAML is required"
-  [ $# -ge 1 ] || die "usage: $0 {layer1|consumer <name>|fixture <node|python>|all [names...]}"
+  [ $# -ge 1 ] || die "usage: $0 {layer1|layer2b|consumer <name>|fixture <node|python>|all [names...]}"
   make_stub_gh
   local cmd="$1"; shift
   case "$cmd" in
     layer1) ensure_build; run_layer1 ;;
+    layer2b) ensure_build; run_layer2b ;;
     consumer) [ $# -ge 1 ] || die "consumer needs a name"; ensure_build; for c in "$@"; do validate_consumer "$c"; done ;;
     fixture) [ $# -ge 1 ] || die "fixture needs node or python"; ensure_build; for s in "$@"; do validate_fixture "$s"; done ;;
-    all) ensure_build; run_layer1; for c in "$@"; do validate_consumer "$c"; done; validate_fixture node; validate_fixture python ;;
+    all) ensure_build; run_layer1; for c in "$@"; do validate_consumer "$c"; done; validate_fixture node; validate_fixture python; run_layer2b ;;
     *) die "unknown command '$cmd'" ;;
   esac
   summarise
