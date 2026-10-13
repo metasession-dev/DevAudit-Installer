@@ -1,12 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { promises as fs } from 'node:fs';
-import { join, dirname, resolve } from 'node:path';
+import { delimiter, join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { spawnSync } from 'node:child_process';
 import { execa } from 'execa';
 import { syncProject } from '../src/update/index.js';
 import { readManifest, writeManifest, sha256, type SyncManifest } from '../src/update/sync-manifest.js';
-import { buildBaseline, baselineRunnerEnv, type BaselineRunner } from '../src/update/manifest-bootstrap.js';
+import { buildBaseline, baselineRunnerEnv, writeNoGhShim, type BaselineRunner } from '../src/update/manifest-bootstrap.js';
 import type { SyncContext } from '../src/update/types.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -387,6 +388,37 @@ describe('manifest bootstrap (devaudit-installer#930)', () => {
     expect(cleanEnv['DEVAUDIT_INSTALLER_ROOT']).toBeUndefined();
     expect(cleanEnv['PATH']).toBe(sourceEnv['PATH']); // everything else survives untouched
     expect(sourceEnv['DEVAUDIT_INSTALLER_ROOT']).toBe(INSTALLER_ROOT); // the input itself isn't mutated
+  });
+
+  it('cuts the baseline child off from GitHub and the portal (#990)', async () => {
+    const sourceEnv = {
+      PATH: '/usr/bin',
+      GH_TOKEN: 'x',
+      GITHUB_TOKEN: 'x',
+      DEVAUDIT_USER_TOKEN: 'x',
+      DEVAUDIT_API_KEY: 'x',
+      DEVAUDIT_VIEWER_API_KEY: 'x',
+      HOME: '/home/u',
+    };
+    const env = baselineRunnerEnv(sourceEnv, '/tmp/nogh');
+    for (const k of ['GH_TOKEN', 'GITHUB_TOKEN', 'DEVAUDIT_USER_TOKEN', 'DEVAUDIT_API_KEY', 'DEVAUDIT_VIEWER_API_KEY']) {
+      expect(env[k]).toBeUndefined();
+    }
+    expect(env['HOME']).toBe('/home/u');
+    expect(env['PATH']?.startsWith(`/tmp/nogh${delimiter}`)).toBe(true);
+    expect(baselineRunnerEnv({ Path: 'C:\\bin' }, 'D:\\nogh')['Path']).toBe(`D:\\nogh${delimiter}C:\\bin`);
+
+    const dir = await fs.mkdtemp(join(tmpdir(), 'cli-nogh-'));
+    try {
+      await writeNoGhShim(dir);
+      if (process.platform !== 'win32') {
+        const r = spawnSync(join(dir, 'gh'), ['api', '-X', 'PUT', '/x'], { encoding: 'utf8' });
+        expect(r.status).toBe(1);
+      }
+      expect(await fs.readFile(join(dir, 'gh.cmd'), 'utf8')).toMatch(/exit \/b 1/);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
   });
 
   // devaudit-installer#932's validation gate caught this too: a git worktree

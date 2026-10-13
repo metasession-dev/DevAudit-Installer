@@ -12,12 +12,15 @@ import {
 } from '../lib/branch-protection-checks.js';
 
 /**
- * Section 2j: Verify and re-apply branch protection.
+ * Section 2k: Verify branch protection and add only what is missing (#990).
  *
- * On every `devaudit update`, check that branch protection is still
- * configured on both the release branch (main) and the integration
- * branch (develop). If missing or the provider is unavailable, report
- * a warning — don't fail the sync.
+ * On every `devaudit update`, check the protection on both the release
+ * branch (main) and the integration branch (develop). Missing required
+ * checks are added and a review count below DevAudit's minimum is raised;
+ * every other setting a maintainer chose (admin enforcement, a higher
+ * review count, code-owner reviews, ...) is kept. A branch protected by
+ * rulesets gets no classic protection on top. Problems are reported as a
+ * warning, never as a sync failure.
  */
 export async function verifyBranchProtection(ctx: SyncContext): Promise<SectionResult> {
   if (ctx.dryRun) {
@@ -51,46 +54,65 @@ export async function verifyBranchProtection(ctx: SyncContext): Promise<SectionR
     };
   }
   const results: string[] = [];
-  // Multi-target (#689/#696): apply once per target with that target's
+  let problem = false;
+  // Multi-target (#689/#696): check once per target with that target's
   // namespaced check name (mirroring the CI workflow job-name suffix from
-  // #692), so branch protection actually requires what each target's
-  // workflow reports. GitHubProvider.applyBranchProtection unions rather
-  // than replaces (#695), so looping here is additive across targets/calls.
+  // #692), so branch protection requires what each target's workflow
+  // reports. ensureBranchProtection only adds (#990), so looping is safe.
   const targets = resolveTargets(config ?? { project_slug: '' });
   const multiTarget = targets.length > 1;
+  const branches: { branch: string; checks: readonly string[]; minReviewCount: number }[] = [];
   for (const target of targets) {
-    // eslint-disable-next-line no-await-in-loop
-    const mainResult = await provider.applyBranchProtection(
-      ctx.projectPath,
-      releaseBranch,
-      namespacedRequiredChecks(MAIN_REQUIRED_CHECKS, target.name, multiTarget),
-      { requiredReviewCount: MAIN_REVIEW_COUNT },
-    );
-    if (mainResult.applied) {
-      results.push(`${releaseBranch}${multiTarget ? ` (${target.name})` : ''}: ok`);
-    } else {
-      results.push(`${releaseBranch}${multiTarget ? ` (${target.name})` : ''}: failed — ${mainResult.message ?? 'unknown'}`);
-    }
+    branches.push({
+      branch: releaseBranch,
+      checks: namespacedRequiredChecks(MAIN_REQUIRED_CHECKS, target.name, multiTarget),
+      minReviewCount: MAIN_REVIEW_COUNT,
+    });
     if (integrationBranch !== releaseBranch) {
-      // eslint-disable-next-line no-await-in-loop
-      const devResult = await provider.applyBranchProtection(
-        ctx.projectPath,
-        integrationBranch,
-        namespacedRequiredChecks(DEVELOP_REQUIRED_CHECKS, target.name, multiTarget),
-        { requiredReviewCount: DEVELOP_REVIEW_COUNT },
-      );
-      if (devResult.applied) {
-        results.push(`${integrationBranch}${multiTarget ? ` (${target.name})` : ''}: ok`);
-      } else {
-        results.push(`${integrationBranch}${multiTarget ? ` (${target.name})` : ''}: failed — ${devResult.message ?? 'unknown'}`);
-      }
+      branches.push({
+        branch: integrationBranch,
+        checks: namespacedRequiredChecks(DEVELOP_REQUIRED_CHECKS, target.name, multiTarget),
+        minReviewCount: DEVELOP_REVIEW_COUNT,
+      });
     }
   }
-  const allOk = results.every((r) => r.endsWith(': ok'));
+  for (const { branch, checks, minReviewCount } of branches) {
+    // eslint-disable-next-line no-await-in-loop
+    const r = await provider.ensureBranchProtection(ctx.projectPath, branch, checks, { minReviewCount });
+    const label = `${branch}${multiTarget ? ` (${checks.join(', ')})` : ''}`;
+    switch (r.status) {
+      case 'ok':
+        results.push(`${label}: ok`);
+        break;
+      case 'updated':
+        results.push(`${label}: ${(r.changes ?? []).join('; ')}`);
+        break;
+      case 'created':
+        results.push(`${label}: no protection found; applied the DevAudit defaults`);
+        break;
+      case 'ruleset': {
+        const missing = r.missingChecks ?? [];
+        const notes = [
+          ...(missing.length > 0 ? [`rulesets do not require ${missing.map((c) => `"${c}"`).join(', ')}; add them to the ruleset`] : []),
+          ...(r.message ? [r.message] : []),
+        ];
+        if (notes.length > 0) problem = true;
+        results.push(`${label}: protected by rulesets${notes.length > 0 ? ` — ${notes.join('; ')}` : ' (ok)'}`);
+        break;
+      }
+      case 'unavailable':
+        problem = true;
+        results.push(`${label}: branch protection is not available for this repository on its GitHub plan — required checks are not enforced`);
+        break;
+      default:
+        problem = true;
+        results.push(`${label}: failed — ${r.message ?? 'unknown'}`);
+    }
+  }
   return {
     name: 'Branch protection',
     filesSynced: 0,
     message: results.join(' | '),
-    warning: allOk ? undefined : 'some branches failed — verify manually',
+    warning: problem ? 'branch protection needs attention — see the message above' : undefined,
   };
 }

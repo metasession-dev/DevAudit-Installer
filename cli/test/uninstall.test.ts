@@ -43,6 +43,9 @@ function makeFakeProvider() {
     async applyBranchProtection() {
       return { applied: true };
     },
+    async ensureBranchProtection() {
+      return { status: 'ok' as const };
+    },
     async createPullRequest() {
       return { url: 'https://github.com/metasession-dev/fixture-app/pull/1' };
     },

@@ -44,8 +44,9 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CLI="$ROOT/cli/dist/index.js"
 WORK_DIR="${WORK_DIR:-$(mktemp -d "${TMPDIR:-/tmp}/devaudit-release-validation.XXXXXX")}"
 GITHUB_OWNER="${GITHUB_OWNER:-metasession-dev}"
-RESULTS="$WORK_DIR/results.tsv"
 mkdir -p "$WORK_DIR"
+WORK_DIR="$(cd "$WORK_DIR" && pwd)" # absolute, no '..': paths are matched against logs
+RESULTS="$WORK_DIR/results.tsv"
 touch "$RESULTS"
 
 STUB_BIN="$WORK_DIR/stub-bin"
@@ -195,7 +196,10 @@ check_synced_scripts() { # <target> <dir>
 # update twice: first succeeds, second changes nothing
 # ---------------------------------------------------------------------------
 run_update_twice() { # <target> <dir>
-  local target="$1" dir="$2" log="$WORK_DIR/$1.update1.log" log2="$WORK_DIR/$1.update2.log" rc
+  local target="$1" dir="$2" log="$WORK_DIR/$1.update1.log" log2="$WORK_DIR/$1.update2.log" rc start
+  # Writes are attributed by log offset, not by cwd: the manifest bootstrap
+  # runs an older CLI in a /tmp worktree, and its writes count too.
+  start=$(wc -l < "$GH_LOG" 2>/dev/null || echo 0)
   isolated "$dir" node "$CLI" update . > "$log" 2>&1
   rc=$?
   if [ $rc -ne 0 ]; then
@@ -212,7 +216,7 @@ run_update_twice() { # <target> <dir>
     record "$target" update PASS "exit 0, $(isolated "$dir" git status --porcelain | wc -l | tr -d ' ') path(s) changed"
   fi
   local blocked
-  blocked=$(grep -F "cwd=$dir " "$GH_LOG" 2>/dev/null | grep ' BLOCKED gh ' \
+  blocked=$(tail -n +"$((start + 1))" "$GH_LOG" 2>/dev/null | grep ' BLOCKED gh ' \
     | sed -E 's/.* BLOCKED gh ([^ ]+ [^ ]+).*/\1/' | sort | uniq -c | sed -E 's/^ +//' | tr '\n' ';')
   record "$target" gh-writes-blocked PASS "${blocked:-no gh write attempted}"
   # Commit the sync locally (throwaway clone) so a second run can be compared.
