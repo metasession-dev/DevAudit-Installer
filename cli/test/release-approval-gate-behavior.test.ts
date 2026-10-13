@@ -61,11 +61,13 @@ beforeAll(async () => {
   await new Promise<void>((ok) => server.listen(0, '127.0.0.1', ok));
   const addr = server.address();
   baseUrl = `http://127.0.0.1:${typeof addr === 'object' && addr ? addr.port : 0}`;
-});
+  // Rendering runs the whole sync (incl. the formatter); under a parallel full
+  // run that exceeds vitest's 10s default hook timeout.
+}, 120_000);
 afterAll(async () => {
   if (prevRoot === undefined) delete process.env['DEVAUDIT_INSTALLER_ROOT'];
   else process.env['DEVAUDIT_INSTALLER_ROOT'] = prevRoot;
-  await new Promise((ok) => server.close(ok));
+  if (server) await new Promise((ok) => server.close(ok));
 });
 
 function stepsByName(): Record<string, Step> {
@@ -161,7 +163,7 @@ const setRelease = (status: string) => {
   portal = { projectStatus: 200, resolveStatus: 200, release: { id: '11111111-1111-4111-8111-111111111111', version: 'REQ-777', status } };
 };
 
-describe.skipIf(process.platform === 'win32')('generated Release Approval Gate, run against a mock portal (#941)', () => {
+describe('generated Release Approval Gate, run against a mock portal (#941)', () => {
   it('rendered the gate workflow', () => {
     expect(workflowText).toContain('name: Release Approval Gate');
   });

@@ -66,8 +66,7 @@ The gate never writes to a consumer repository or to the portal:
 | `mock-portal-lifecycle` | `tests/release-pipeline-e2e/run.sh` against `mock-portal.mjs` | yes |
 | `pack-install` | `npm pack` the CLI, install the tarball into an empty prefix, `devaudit --version` matches | yes |
 
-Known environment-only failures (record them, do not "fix" them): the
-`update.test.ts` #693 case fails on some local machines and passes in GitHub CI.
+Layer 1 has no tolerated failures: every check must pass. (`cli` tests that spawn `dist/` rebuild it first when `src/` is newer, so a stale local build cannot fail them.)
 
 ## Layer 2: consumer clone gate
 
@@ -133,7 +132,7 @@ portal steps are covered by the CLI unit tests, not by this gate.
 in CI) drives the release scripts against `mock-portal.mjs`: release
 derivation, test-execution reporting and close-out.
 
-**Release Approval Gate (#941, covered).** `cli/test/release-approval-gate-behavior.test.ts` renders the real `check-release-approval.yml` and runs its `Resolve DevAudit base URL`, `Resolve current release` and `Enforce release approval` steps with bash and curl against an in-process mock portal. It checks that the gate blocks `draft`, `uat_review`, `uat_rejected`, `uat_changes_requested`, `prod_rejected` and `deferred` (with the deferral message), passes `uat_approved`, `prod_review`, `prod_approved` and `released`, resolves the release the derive script names, passes in bootstrap mode (no key, or project not created yet), fails closed when the project endpoint 404s but `releases/resolve` says it exists, and fails on an invalid key. It runs with the rest of vitest in layer 1 (skipped on Windows, which has no bash in the test environment). The mock only answers what the portal would; it never creates an approval. Verified by breaking the gate twice (accepting `draft`, removing the `deferred` branch): the test failed each time.
+**Release Approval Gate (#941, covered).** `cli/test/release-approval-gate-behavior.test.ts` renders the real `check-release-approval.yml` and runs its `Resolve DevAudit base URL`, `Resolve current release` and `Enforce release approval` steps with bash and curl against an in-process mock portal. It checks that the gate blocks `draft`, `uat_review`, `uat_rejected`, `uat_changes_requested`, `prod_rejected` and `deferred` (with the deferral message), passes `uat_approved`, `prod_review`, `prod_approved` and `released`, resolves the release the derive script names, passes in bootstrap mode (no key, or project not created yet), fails closed when the project endpoint 404s but `releases/resolve` says it exists, and fails on an invalid key. It runs with the rest of vitest in layer 1, on all three OSes. The mock only answers what the portal would; it never creates an approval. Verified by breaking the gate twice (accepting `draft`, removing the `deferred` branch): the test failed each time.
 
 **Still not covered (#941):** the generated `close-out-release.yml` workflow's GitHub steps (opening the merge-back PR, `repository_dispatch` handling), which need a GitHub API mock rather than a portal mock; and the portal side of the deferral lifecycle (defer, resume, supersede at the successor's close-out), which is covered by the portal's own test suite (`release-service-ci.test.ts`, `approval-service-defer.test.ts`). `scripts/close-out-release.sh` itself (ticket and RTM reconciliation, predecessor handling) is covered by `tests/release-pipeline-e2e/run.sh` and its shell tests. After the portal deploys, do one manual pass on a test project.
 

@@ -858,15 +858,21 @@ describe('syncProject — native TS sync against a fixture', () => {
       const apiCi = await fs.readFile(join(workflowsDir, 'ci-api.yml'), 'utf-8');
 
       // Each target's push trigger ignores the OTHER target's subtree...
-      expect(webCi).toContain("- 'mission-control-api/**'");
-      expect(apiCi).toContain("- 'mission-control/**'");
+      // Quote style is the formatter's business: section 2l runs the
+      // consumer's prettier when one is reachable (it rewrites 'x' to "x"), so
+      // match either quote instead of depending on the machine's PATH.
+      const ignores = (dir: string) => new RegExp(`- ['"]${dir}/\\*\\*['"]`);
+      expect(webCi).toMatch(ignores('mission-control-api'));
+      expect(apiCi).toMatch(ignores('mission-control'));
       // ...but not its own.
-      expect(webCi).not.toContain("- 'mission-control/**'");
-      expect(apiCi).not.toContain("- 'mission-control-api/**'");
+      expect(webCi).not.toMatch(ignores('mission-control'));
+      expect(apiCi).not.toMatch(ignores('mission-control-api'));
 
       // pull_request gains a matching paths-ignore block (previously absent).
-      expect(webCi).toMatch(/pull_request:\s*\n\s*branches: \[develop\]\s*\n\s*paths-ignore:\s*\n\s*- 'mission-control-api\/\*\*'/);
-      expect(apiCi).toMatch(/pull_request:\s*\n\s*branches: \[develop\]\s*\n\s*paths-ignore:\s*\n\s*- 'mission-control\/\*\*'/);
+      const prBlock = (dir: string) =>
+        new RegExp(`pull_request:\\s*\\n\\s*branches: \\[develop\\]\\s*\\n\\s*paths-ignore:\\s*\\n\\s*- ['"]${dir}/\\*\\*['"]`);
+      expect(webCi).toMatch(prBlock('mission-control-api'));
+      expect(apiCi).toMatch(prBlock('mission-control'));
 
       await expectAllWorkflowsValidYaml(dir);
     } finally {
