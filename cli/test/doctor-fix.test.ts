@@ -370,7 +370,8 @@ describe('runFix interactive behaviour', () => {
       expect(r.outcomes[0]!.message).toMatch(new RegExp(choice));
     }
     expect(calls).toEqual([]);
-  });
+    // Two fixture setups in a loop: over the 5s default on the Windows runner (twice in one day, #998).
+  }, 30_000);
 
   it('resume clears the ticket intent and restores the RTM status', async () => {
     const d = await deps({ ask: asks({ select: async () => 'resume' }) });

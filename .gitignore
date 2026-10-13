@@ -1,1 +1,4 @@
 docs/RTM.md
+
+# vitest cache (a results.json was once committed, #998)
+node_modules/
