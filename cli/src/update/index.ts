@@ -22,7 +22,7 @@ import { runValidation } from "./validation.js";
 import { applyConsumerPatches } from "./consumer-patches.js";
 import { formatSyncedFiles } from "./format-sync.js";
 import { stampVersion } from "./stamp-version.js";
-import { readManifest, writeManifest } from "./sync-manifest.js";
+import { readManifest, writeManifest, type PatchConflictEntry } from "./sync-manifest.js";
 import { buildBaseline } from "./manifest-bootstrap.js";
 import { ManagedSyncState, formatConflictSummary, type KnownFiles } from "./write-managed.js";
 import { CLI_VERSION } from "../lib/version.js";
@@ -164,8 +164,23 @@ export async function syncProject(projectPath: string, options: SyncProjectOptio
   // as spuriously drifted on the next sync (closing the gap SRS-PATCH-084-
   // 001/002 flagged).
   if (!dryRun) {
-    const nextManifest = await managed.finalize(CLI_VERSION, previousManifest);
-    await writeManifest(repoRoot, nextManifest);
+    const finalized = await managed.finalize(CLI_VERSION, previousManifest);
+    // devaudit-installer#1023 — persist patches currently in conflict (and
+    // drop the record of any that now apply, were removed, or are obsolete:
+    // the map is rebuilt from this sync's result, never carried forward).
+    // `detected_at` is kept from the previous manifest while a patch stays
+    // in conflict so the file doesn't churn on every sync (#984).
+    const now = new Date().toISOString();
+    const patches: Record<string, PatchConflictEntry> = {};
+    for (const conflict of sections.flatMap((s) => s.patchConflicts ?? [])) {
+      patches[conflict.name] = {
+        conflict: true,
+        detected_at: previousManifest?.patches?.[conflict.name]?.detected_at ?? now,
+        ...(conflict.upstreamIssue ? { upstream_issue: conflict.upstreamIssue } : {}),
+        ...(conflict.reason ? { reason: conflict.reason } : {}),
+      };
+    }
+    await writeManifest(repoRoot, { ...finalized, ...(Object.keys(patches).length > 0 ? { patches } : {}) });
   }
   log.log(`  [2n] sync manifest: ${dryRun ? "SKIPPED (dry-run)" : "written to .devaudit/sync-manifest.json"}`);
 

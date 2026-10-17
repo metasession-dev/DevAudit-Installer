@@ -501,6 +501,41 @@ async function checkSyncConflicts(): Promise<CheckResult> {
   };
 }
 
+/**
+ * devaudit-installer#1023 — surface every `.devaudit-patches/*.patch` the
+ * last sync skipped because it no longer applies cleanly. A skipped patch is
+ * correctly non-fatal (#921/#923), but without this the only trace was a
+ * one-time warning in that run's output, so a consumer-side fix could revert
+ * to the upstream template unnoticed (wawagardenbar-app#925). Same shape as
+ * `checkSyncConflicts`: non-gating, reads the persisted sync manifest.
+ */
+async function checkPatchConflicts(): Promise<CheckResult> {
+  const name = 'patch-conflicts';
+  const consumer = await readConsumerConfig();
+  if (!consumer) return { name, ok: true, detail: 'skipped (not a consumer project)', suspectedOrigin: 'unknown' };
+  const { readManifest } = await import('../update/sync-manifest.js');
+  const manifest = await readManifest(consumer.repoRoot);
+  if (!manifest) {
+    return { name, ok: true, detail: 'skipped (no .devaudit/sync-manifest.json yet)', suspectedOrigin: 'unknown' };
+  }
+  const conflicts = Object.entries(manifest.patches ?? {}).filter(([, entry]) => entry.conflict === true);
+  if (conflicts.length === 0) {
+    return { name, ok: true, detail: 'no consumer patches in conflict', suspectedOrigin: 'consumer-drift' };
+  }
+  const described = conflicts.map(([patch, entry]) => {
+    const issue = entry.upstream_issue ? ` (see ${entry.upstream_issue})` : '';
+    return `${patch}${issue} since ${entry.detected_at}`;
+  });
+  return {
+    name,
+    ok: false,
+    detail:
+      `${conflicts.length} consumer patch(es) no longer apply cleanly and are being skipped — the affected file(s) carry the UNPATCHED upstream template: ${described.join('; ')}. ` +
+      'Re-roll or remove each patch: docs/consuming-projects.md#re-rolling-a-conflicting-patch',
+    suspectedOrigin: 'consumer-drift',
+  };
+}
+
 export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
   const log = logger();
   const jsonMode = isJsonMode();
@@ -540,6 +575,7 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
     await checkPrePushHookPresent(),
     await checkRailwayCliPresent(),
     await checkSyncConflicts(),
+    await checkPatchConflicts(),
     await checkCommitlintConfigShadowing(),
   ];
   let onboardingIssues = false;

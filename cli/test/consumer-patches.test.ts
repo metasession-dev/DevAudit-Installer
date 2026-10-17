@@ -146,6 +146,34 @@ describe("consumer patch layer (#84)", () => {
     );
   });
 
+  it("returns the conflicting patches, with their upstream issue and reason, for the sync manifest (#1023)", async () => {
+    const ctx = await fixture("different upstream content\n");
+    await writePatch(ctx);
+    await writePatchMetadata(ctx);
+    const result = await applyConsumerPatches(ctx);
+    expect(result.patchConflicts).toEqual([
+      {
+        name: "example.patch",
+        upstreamIssue:
+          "https://github.com/metasession-dev/DevAudit-Installer/issues/759",
+        reason: "test fixture",
+      },
+    ]);
+  });
+
+  it("reports no patch conflicts when every patch applies or is obsolete (#1023)", async () => {
+    const applying = await fixture();
+    await writePatch(applying);
+    await writePatchMetadata(applying);
+    await expect(applyConsumerPatches(applying)).resolves.toMatchObject({
+      patchConflicts: [],
+    });
+    // Re-running on the already-patched tree: the patch is obsolete, not in conflict.
+    await expect(applyConsumerPatches(applying)).resolves.toMatchObject({
+      patchConflicts: [],
+    });
+  });
+
   it("names the conflicting patch's linked upstream issue in the warning, same as applied/obsolete patches (#921)", async () => {
     const ctx = await fixture("different upstream content\n");
     await writePatch(ctx);
