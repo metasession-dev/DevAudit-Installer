@@ -120,9 +120,38 @@ For Railway, that means:
 - do not run `tsx` / `ts-node` in the long-lived production web process
 - keep background schedulers out of the web process where the platform shape allows it
 
+### `reconcile` (optional webhook-loss recovery, devaudit-installer#1022)
+
+The post-deploy gate waits for the provider's GitHub `deployment_status` event. If the provider deployed but the event never reached GitHub, the gate waits forever. A host that can look its own deployments up declares how, and `devaudit update` then generates `reconcile-deployment.yml` for it (a host without `reconcile` gets none, and a previously generated one is removed):
+
+```json
+"reconcile": {
+  "lookup_script": "lookup-deployment-fly.sh",
+  "required_cli": "flyctl",
+  "secrets": ["FLY_API_TOKEN"]
+}
+```
+
+- `lookup_script` — a file you add under `sdlc/files/_common/scripts/` (it syncs to `scripts/`). Called with `--deployment-id= --project= --service= --environment=`; it prints **one JSON object** `{"id","status","sha","branch","repo"}` (`status`: `success|failed|building|canceled|unknown`) and exits non-zero when the deployment is not found. Everything after the lookup — terminal-success, the exact SHA from `main` of this repo, a health probe, the idempotent GitHub deployment-status POST, the provenance evidence — is the shared `reconcile-deployment.sh`; you write only the lookup. Examples: `lookup-deployment-railway.sh` (the `railway` CLI), `lookup-deployment-vercel.sh` (curl + jq against the REST API).
+- `required_cli` — the CLI the lookup shells out to (`devaudit doctor`'s `reconcile-cli` check expects it on `PATH`), or `null`.
+- `secrets` — repo secrets exposed to the lookup as environment variables. List the same ones in `required_secrets` so `doctor` flags them when missing (they are advisory: only the recovery path needs them).
+
+## Which adapter fields are consumed today
+
+| Field | Consumed by | Status |
+| --- | --- | --- |
+| `name`, `description` | adapter listing, `install --host`, schema validation | used |
+| `required_secrets` | `devaudit doctor` `secrets` check | used |
+| `reconcile` | `devaudit update` (whether and how to generate `reconcile-deployment.yml`), `doctor` `reconcile-cli` | used |
+| `production_url_from` / `production_url_secret_key` | the `{{PRODUCTION_URL_SECRET}}` token, from `production_url_secret` in `sdlc-config.json` | only `secret` is implemented; `static`, `api_lookup` and `env` are accepted by the schema but do nothing yet |
+| `deploy_trigger`, `wait_for_deploy`, `post_deploy_hook` | nothing yet: the generic post-deploy workflow reacts to the provider's GitHub `deployment_status`, whatever triggered the deploy | reserved (documentary) |
+| `config_keys`, `required_env`, `runtime_contract`, `notes` | validated and shown to operators | documentary |
+
+Do not rely on a reserved field changing behaviour; if your host's deploy does not post a GitHub deployment status, see the `custom` host in this repo's docs.
+
 ## Step 4 — Update `post-deploy-prod.yml.template`
 
-This is the only template that consumes the host adapter today (Phase 4 wired in stack-adapter fields but not host-adapter fields). For now, the host's `wait_for_deploy` and `post_deploy_hook` snippets aren't auto-substituted into the workflow — the template has Railway's curl-based wait hardcoded.
+The host's `wait_for_deploy` and `post_deploy_hook` snippets are not auto-substituted into the workflow (see the field table above): the template reacts to the provider's GitHub `deployment_status` and runs a host-neutral independent health probe. `reconcile-deployment.yml` is the one host-specific workflow, and it is generated from the adapter's `reconcile` data (devaudit-installer#1022).
 
 Adding a new host today therefore has two paths:
 
@@ -196,3 +225,41 @@ Hosts often require an auth token (`FLY_API_TOKEN`, `KUBE_CONFIG_DATA`, etc.). D
 - [ADR-001](./ADR/ADR-001-polyglot-sdlc-architecture.md) — why the framework is layered this way.
 - [adding-a-stack.md](./adding-a-stack.md) — sibling walkthrough for stack adapters.
 - [sdlc/files/hosts/railway/adapter.json](../sdlc/files/hosts/railway/adapter.json) — current worked example.
+
+## The `custom` host: AWS, self-hosted, anything (devaudit-installer#1022)
+
+Vercel and Railway post a GitHub `deployment_status` themselves, which is what the production gate (`post-deploy-prod.yml`) waits for. A deploy you run yourself does not, so use `devaudit install --host custom`. The synced `deploy-custom.yml` then does the bookkeeping around **your** command: it creates the GitHub deployment, runs `deploy_command`, verifies the new build is serving, posts `success` (or `failure`), and dispatches `post-deploy-prod.yml` with the deployed SHA (a status created with `GITHUB_TOKEN` does not trigger other workflows, so the dispatch is explicit). Every downstream gate is unchanged.
+
+`sdlc-config.json` keys (all seeded empty by `install --host custom`):
+
+| Key | Meaning |
+| --- | --- |
+| `deploy_command` | **Required.** Run with bash on the runner at the deployed commit. Receives `DEPLOY_SHA`, `DEPLOY_ENVIRONMENT`, `PROD_URL` and your `deploy_secrets`. Exit non-zero to fail the deployment. Missing = the workflow fails loudly. |
+| `deploy_secrets` | Repo secret names exposed to the command as env vars (`AWS_ACCESS_KEY_ID`, an SSH key, ...). |
+| `deployed_sha_url`, `deployed_sha_jq` | An endpoint that reports the running commit (and the jq path to it, e.g. `.version.sha`). With it, verification proves the **new** build is serving. Without it only a health check of `production_url_secret` runs, which an old build still answering also passes. |
+| `deploy_trigger` | `push_to_main` (default, the release branch), `git_tag` (pushed `v*` tags) or `manual` (workflow_dispatch only). |
+| `runner` | As for any host; use a self-hosted runner label when the deploy needs your network. |
+
+Optional secret `DEVAUDIT_PROBE_HEADER` is sent with verification and the post-deploy probes for an access-gated origin.
+
+### Example: AWS ECS
+
+```json
+"host": "custom",
+"deploy_command": "aws ecs update-service --cluster prod --service web --force-new-deployment\naws ecs wait services-stable --cluster prod --services web",
+"deploy_secrets": ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_REGION"],
+"deployed_sha_url": "https://app.example.com/version",
+"deployed_sha_jq": ".sha"
+```
+
+### Example: a self-hosted box over SSH
+
+```json
+"host": "custom",
+"runner": "self-hosted",
+"deploy_command": "ssh deploy@app01 'cd /srv/app && git fetch && git checkout \"$DEPLOY_SHA\" && docker compose up -d --build'",
+"deploy_secrets": [],
+"deployed_sha_url": "https://app.example.com/healthz"
+```
+
+The second example has no `deployed_sha_jq`: the response body must then contain the SHA. Have the app expose its commit (an env var baked in at build time) so verification is meaningful.

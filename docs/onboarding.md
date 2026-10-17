@@ -85,9 +85,10 @@ Beyond the secrets `install` sets automatically (step 7 above), your chosen host
 | Host | Extra repo secret(s) | Local/runner tool | Why |
 | --- | --- | --- | --- |
 | `railway` | `RAILWAY_TOKEN` (advisory — only needed if the recovery path is ever used) | `railway` CLI on `PATH` for whoever runs self-hosted-runner jobs | Consumed only by `reconcile-deployment.yml`, the manual recovery workflow for when Railway's `deployment_status` webhook fails to reach GitHub (devaudit-installer#841). Not needed for normal push-to-main CI. |
-| `vercel` | none | none | Vercel's own Git integration handles deploy + status; no reconciliation workflow is generated for this host. |
+| `custom` | none by default; whatever `deploy_secrets` names (cloud credentials, an SSH key) | whatever `deploy_command` calls | Your deploy runs in the synced `deploy-custom.yml`, which records the GitHub deployment the production gate waits for. No webhook to lose, so no reconcile workflow. See [adding-a-host.md](adding-a-host.md#the-custom-host-aws-self-hosted-anything-devaudit-installer1022). |
+| `vercel` | `VERCEL_TOKEN` (advisory — only needed if the recovery path is ever used; plus an optional `VERCEL_TEAM_ID` secret for a team project; the workflow passes both to the lookup) | none (the lookup uses curl + jq against the Vercel REST API) | Consumed only by `reconcile-deployment.yml`, the manual recovery workflow for when Vercel's `deployment_status` event never reaches GitHub (devaudit-installer#1022). Vercel's own Git integration handles deploy + status in normal operation. |
 
-`devaudit doctor`'s `secrets` and `railway-cli` checks (devaudit-installer#843) read the same `adapter.json` data, so they never drift from this table — a `railway`-host consumer missing `RAILWAY_TOKEN` or the CLI sees an advisory warning, and a `vercel` (or any non-Railway) consumer never sees either check fire.
+`devaudit doctor`'s `secrets` and `reconcile-cli` checks (devaudit-installer#843, #1022) read the same `adapter.json` data, so they never drift from this table — a `railway`-host consumer missing `RAILWAY_TOKEN` or the CLI, or a `vercel`-host consumer missing `VERCEL_TOKEN`, sees an advisory warning; `reconcile-cli` stays silent for Vercel because its lookup needs no CLI.
 
 ## Step 3 — Review and ship the onboarding PR
 
@@ -165,7 +166,7 @@ Copy it into `.env` right then — there's no later recovery path. `.env`/`.env.
 | Phase 1 step 3 — create the portal release | `scripts/upload-evidence.sh` | Uploader key (write) |
 | Phase 4/5 — record a UAT execution | `scripts/record-uat-execution.sh` | Uploader key (write) |
 | Post-deploy — report test execution | `scripts/report-test-execution.sh` | Uploader key (write) |
-| Deployment reconciliation | `scripts/reconcile-railway-deployment.sh` (or the equivalent for your host adapter) | Uploader key (write) |
+| Deployment reconciliation | `scripts/reconcile-deployment.sh` (host-neutral; the provider lookup is the host adapter's `lookup-deployment-<host>.sh`) | Uploader key (write) |
 | Defer / resume a release (portal `deferred` state; admin-only) | `devaudit doctor --fix` (your PAT, a typed reason, confirmation), the portal UI session, or `POST /api/releases/[id]/defer` / `/resume` by hand with your own PAT (`DEVAUDIT_USER_TOKEN`) | Human admin PAT or portal session. **Not** the uploader or viewer key, and not CI; `doctor --fix` refuses them with a clear message |
 
 **The design decision (devaudit-installer#845):** these stay operator/CI-only by design — a session running `sdlc-implementer` locally without the uploader key should expect to hand these specific steps to CI's own automatic runs or to the operator, not treat it as a missing-credential bug to work around. A narrower third key (e.g. a "record-only" role that can create releases and record UAT/test executions but never approve one) was considered and rejected for now — it would be new portal-side scope with its own blast-radius analysis, not something to build speculatively ahead of a concrete operator-experience problem it solves. If that changes, revisit here.
@@ -347,7 +348,7 @@ Running devaudit doctor — checking required tools...
   ✓ e2e-regression  not opted in
   ✓ secrets         all required secrets present (DEVAUDIT_API_KEY)
   ✓ pre-push-hook   present (.husky/pre-push)
-  ✓ railway-cli     skipped (reconcile-deployment.yml not present)
+  ✓ reconcile-cli   skipped (reconcile-deployment.yml not present)
 
 All required tools present.
 ```

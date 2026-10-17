@@ -352,15 +352,16 @@ async function checkE2eRegressionConsistency(): Promise<CheckResult> {
 }
 
 /**
- * devaudit-installer#843 — `reconcile-deployment.yml`'s recovery path shells
- * out to the `railway` CLI (#841), but that workflow is only synced for the
- * `railway` host adapter. Gate this check on the workflow file actually
- * being present in this consumer's synced file set, so a Vercel (or any
- * non-Railway) consumer never sees a false positive for a tool it will never
- * need.
+ * devaudit-installer#843/#1022 — `reconcile-deployment.yml`'s recovery path may
+ * shell out to a host CLI (Railway's `railway`, #841). Which CLI, if any, is
+ * the host adapter's data (`reconcile.required_cli`), not a hardcoded name.
+ * Gated on the workflow file actually being present in this consumer's synced
+ * set, so a host with no recovery workflow, or one whose lookup needs no CLI
+ * (Vercel: curl + jq), never sees a false positive for a tool it will not
+ * need. Named `railway-cli` before #1022.
  */
-async function checkRailwayCliPresent(): Promise<CheckResult> {
-  const name = 'railway-cli';
+async function checkReconcileCliPresent(): Promise<CheckResult> {
+  const name = 'reconcile-cli';
   const consumer = await readConsumerConfig();
   if (!consumer) return { name, ok: true, detail: 'skipped (not a consumer project)', suspectedOrigin: 'unknown' };
   try {
@@ -368,14 +369,25 @@ async function checkRailwayCliPresent(): Promise<CheckResult> {
   } catch {
     return { name, ok: true, detail: 'skipped (reconcile-deployment.yml not present)', suspectedOrigin: 'unknown' };
   }
-  const result = await checkCommand('railway', ['--version']);
+  let requiredCli: string | null | undefined;
+  try {
+    const installerRoot = await resolveInstallerRoot();
+    const { host } = await resolveAdapters(consumer.repoRoot, installerRoot);
+    requiredCli = (await loadHostAdapter(installerRoot, host)).reconcile?.required_cli;
+  } catch {
+    return { name, ok: true, detail: 'skipped (host adapter could not be resolved)', suspectedOrigin: 'unknown' };
+  }
+  if (!requiredCli) {
+    return { name, ok: true, detail: 'skipped (the host adapter\'s reconcile lookup needs no CLI)', suspectedOrigin: 'unknown' };
+  }
+  const result = await checkCommand(requiredCli, ['--version']);
   return result.ok
     ? { name, ok: true, detail: result.detail, suspectedOrigin: 'consumer-drift' }
     : {
         name,
         ok: false,
         detail:
-          "railway CLI not found on PATH — required by reconcile-deployment.yml's recovery workflow " +
+          `${requiredCli} CLI not found on PATH — required by reconcile-deployment.yml's recovery workflow ` +
           '(devaudit-installer#841); install it for whichever user/account runs self-hosted-runner jobs',
         suspectedOrigin: 'consumer-drift',
       };
@@ -680,7 +692,7 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
     await checkE2eRegressionConsistency(),
     await checkRequiredSecretsPresent(),
     await checkPrePushHookPresent(),
-    await checkRailwayCliPresent(),
+    await checkReconcileCliPresent(),
     await checkSyncConflicts(),
     await checkPatchConflicts(),
     await checkAcceptedExceptions(),

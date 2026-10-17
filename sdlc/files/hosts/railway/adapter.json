@@ -38,5 +38,12 @@
     "For long-lived production web services on Railway, do not run tsx/ts-node in production; use compiled JS or a framework's standalone runtime output.",
     "RAILWAY_TOKEN is advisory, not needed for normal CI: it's only consumed by reconcile-deployment.yml (the manual recovery workflow for when Railway's deployment_status webhook fails to reach GitHub). Set it before that recovery path is ever needed, not after (devaudit-installer#841).",
     "reconcile-deployment.yml also requires the `railway` CLI to be on PATH for whatever user runs self-hosted-runner jobs — confirm this at onboarding time, since a runner where only an interactive human user has `railway` installed (not the runner service's own account/PATH) will fail the recovery workflow the first time it's actually invoked (devaudit-installer#841)."
-  ]
+  ],
+  "reconcile": {
+    "lookup_script": "lookup-deployment-railway.sh",
+    "required_cli": "railway",
+    "secrets": [
+      "RAILWAY_TOKEN"
+    ]
+  }
 }

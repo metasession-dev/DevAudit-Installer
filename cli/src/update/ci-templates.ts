@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { exists, isDir, ensureDir } from '../lib/fs-utils.js';
 import { substituteTokens, substituteBlocks, stripServicesBlock, stripE2eRegressionListener } from '../lib/templates.js';
 import { resolveTargets, type Target } from '../lib/sdlc-config.js';
+import { loadHostAdapter } from '../lib/adapter.js';
 import { writeManaged, removeManaged } from './write-managed.js';
 import type { SyncContext, SectionResult } from './types.js';
 
@@ -15,12 +16,14 @@ const CI_TEMPLATES = [
   'compliance-validation.yml.template',
   'check-release-approval.yml.template',
   'post-deploy-prod.yml.template',
-  // devaudit-installer#841: Railway-specific (hardcoded railway CLI +
-  // RAILWAY_TOKEN); only generated for the railway host adapter — see the
-  // ctx.host !== 'railway' skip in the syncCiTemplates loop below. Every
-  // other host adapter used to receive this as dead workflow content with
-  // no reconciliation path of its own.
+  // devaudit-installer#841/#1022: webhook-loss recovery. Only generated for a
+  // host adapter that declares a `reconcile` capability (railway and vercel
+  // today) — see the `!reconcile` skip in the syncCiTemplates loop below. A
+  // host without one used to receive this as dead workflow content.
   'reconcile-deployment.yml.template',
+  // devaudit-installer#1022: runs the `custom` host's own deploy and records the GitHub
+  // deployment. Only generated for a host adapter whose `deploy_workflow` names it.
+  'deploy-custom.yml.template',
   'compliance-evidence.yml.template',
   'feature-e2e.yml.template',
   // DevAudit-Installer#821: three-tier smoke/critical/regression E2E
@@ -56,6 +59,14 @@ interface SdlcConfig {
   readonly python_version?: string | number;
   readonly working_directory?: string;
   readonly runner: string;
+  // `custom` host (devaudit-installer#1022). deploy_command runs on the runner at the deployed
+  // commit; deploy_secrets names repo secrets exposed to it as env; deployed_sha_url (+ jq filter)
+  // lets verification prove the NEW build is serving; deploy_trigger picks what starts a deploy.
+  readonly deploy_command?: string;
+  readonly deploy_secrets?: readonly string[];
+  readonly deployed_sha_url?: string;
+  readonly deployed_sha_jq?: string;
+  readonly deploy_trigger?: 'push_to_main' | 'git_tag' | 'manual';
   readonly source_dirs: string;
   readonly sast_baseline: number | string;
   readonly accepted_dep_risks: string;
@@ -679,6 +690,31 @@ function resolveNpmAuditMaxAttempts(cfg: SdlcConfig): string {
  *
  * Skipped if the consumer has no sdlc-config.json or no .github/workflows/.
  */
+/** Escape a value for use inside a double-quoted shell string in a generated workflow. */
+function shellDoubleQuoteSafe(value: string): string {
+  return value.replace(/[\\"$`]/g, (c) => `\\${c}`).replace(/\r?\n/g, ' ');
+}
+
+function renderDeployTriggerBlock(trigger: SdlcConfig['deploy_trigger'], releaseBranch: string): string {
+  if (trigger === 'manual') return '';
+  if (trigger === 'git_tag') return "  push:\n    tags: ['v*']";
+  return `  push:\n    branches: [${releaseBranch}]`;
+}
+
+function renderDeployCommand(command: string | undefined): string {
+  const body = (command ?? '').trim();
+  if (!body) {
+    return [
+      '          echo "::error::sdlc-config.json deploy_command is not set. The custom host needs the command that deploys your service."',
+      '          exit 1',
+    ].join('\n');
+  }
+  return body
+    .split(/\r?\n/)
+    .map((line) => `          ${line}`)
+    .join('\n');
+}
+
 export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> {
   // sdlc-config.json lives at the repo root (#689 follow-up), not this
   // target's own directory — see write-config.ts for why.
@@ -719,15 +755,26 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
     }
   }
 
-  // devaudit-installer#841 — reconcile-deployment.yml.template is Railway-
-  // specific (hardcoded railway CLI invocation + RAILWAY_TOKEN); consumers
-  // on any other host adapter got a dead workflow file with no equivalent
-  // reconciliation path of their own. Same remove-on-disable shape as the
-  // e2e-regression block above, keyed on the host adapter instead of a
-  // config flag.
-  if (ctx.host !== 'railway') {
+  // devaudit-installer#841/#1022 — reconcile-deployment.yml is the webhook-loss
+  // recovery path for hosts whose adapter declares a `reconcile` capability
+  // (a provider lookup script, an optional CLI, the secrets the lookup needs).
+  // A host without one gets no workflow, and a previously generated one is
+  // removed. Same remove-on-disable shape as the e2e-regression block above,
+  // keyed on the host adapter's data instead of a host name.
+  const hostAdapter = await loadHostAdapter(ctx.installerRoot, ctx.host);
+  const reconcile = hostAdapter.reconcile;
+  const deployWorkflow = hostAdapter.deploy_workflow;
+  if (!reconcile) {
     for (const existing of await fs.readdir(workflowsDir).catch(() => [] as string[])) {
       if (/^reconcile-deployment(-.+)?\.yml$/.test(existing)) {
+        recordRemoval(await removeManaged(ctx.managed!, join(workflowsDir, existing), { section: '2f' }));
+      }
+    }
+  }
+
+  if (!deployWorkflow) {
+    for (const existing of await fs.readdir(workflowsDir).catch(() => [] as string[])) {
+      if (/^deploy-custom(-.+)?\.yml$/.test(existing)) {
         recordRemoval(await removeManaged(ctx.managed!, join(workflowsDir, existing), { section: '2f' }));
       }
     }
@@ -794,6 +841,18 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
 
     const tokens: Record<string, string> = {
       PROJECT_SLUG: projectSlug,
+      HOST: ctx.host,
+      // One `NAME: ${{ secrets.NAME }}` per secret the host's reconcile lookup needs,
+      // spliced under a step-level `env:` (10-space indent). Empty when none.
+      DEPLOY_TRIGGER_BLOCK: renderDeployTriggerBlock(cfg.deploy_trigger, cfg.release_branch ?? 'main'),
+      DEPLOY_COMMAND: renderDeployCommand(cfg.deploy_command),
+      DEPLOY_SECRETS_ENV: (cfg.deploy_secrets ?? [])
+        .filter((n) => /^[A-Z][A-Z0-9_]*$/.test(n))
+        .map((n) => `${n}: \${{ secrets.${n} }}`)
+        .join('\n          '),
+      DEPLOYED_SHA_URL: shellDoubleQuoteSafe(cfg.deployed_sha_url ?? ''),
+      DEPLOYED_SHA_JQ: shellDoubleQuoteSafe(cfg.deployed_sha_jq ?? ''),
+      RECONCILE_SECRETS_ENV: (reconcile?.secrets ?? []).map((n) => `${n}: \${{ secrets.${n} }}`).join('\n          '),
       PRODUCTION_URL_SECRET: productionUrlSecret,
       INTEGRATION_BRANCH: cfg.integration_branch ?? 'develop',
       RELEASE_BRANCH: cfg.release_branch ?? 'main',
@@ -901,7 +960,8 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
 
     for (const tmpl of CI_TEMPLATES) {
       if (tmpl === 'e2e-regression.yml.template' && !cfg.e2e_regression_enabled) continue;
-      if (tmpl === 'reconcile-deployment.yml.template' && ctx.host !== 'railway') continue;
+      if (tmpl === 'reconcile-deployment.yml.template' && !reconcile) continue;
+      if (tmpl === 'deploy-custom.yml.template' && deployWorkflow !== tmpl) continue;
       const stackTmpl = join(ctx.installerRoot, 'sdlc', 'files', 'ci', stack, tmpl);
       const defaultTmpl = join(ctx.installerRoot, 'sdlc', 'files', 'ci', tmpl);
       let tmplPath: string;

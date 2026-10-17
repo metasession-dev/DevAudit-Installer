@@ -349,14 +349,26 @@ describe('devaudit doctor — host-adapter prerequisites (#843)', () => {
       join(dir, 'sdlc-config.json'),
       JSON.stringify({ project_slug: 'fixture', host: 'vercel' }),
     );
-    // devaudit-installer#912: DEVAUDIT_API_KEY alone is now the complete
-    // required set for a vercel consumer — DEVAUDIT_USER_TOKEN isn't a repo secret.
-    const env = await fakeGhOnPath(dir, ['DEVAUDIT_API_KEY']);
+    // devaudit-installer#912: DEVAUDIT_USER_TOKEN isn't a repo secret. Since #1022
+    // the vercel adapter declares VERCEL_TOKEN as an advisory secret (the recovery
+    // workflow's lookup uses it), exactly as railway declares RAILWAY_TOKEN.
+    const env = await fakeGhOnPath(dir, ['DEVAUDIT_API_KEY', 'VERCEL_TOKEN']);
     const result = await execa('node', [BIN, 'doctor'], { cwd: dir, env, reject: false });
     const output = result.stdout + result.stderr;
     expect(output).toContain('all required secrets present');
     expect(output).not.toContain('RAILWAY_TOKEN');
     expect(output).not.toContain('DEVAUDIT_USER_TOKEN');
+  }, 30_000);
+
+  it('reports a missing VERCEL_TOKEN for a vercel host consumer (#1022)', async () => {
+    const { mkdtemp, writeFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const dir = await mkdtemp(join(tmpdir(), 'devaudit-doctor-vercel-token-'));
+    await writeFile(join(dir, 'sdlc-config.json'), JSON.stringify({ project_slug: 'fixture', host: 'vercel' }));
+    const env = await fakeGhOnPath(dir, ['DEVAUDIT_API_KEY']);
+    const result = await execa('node', [BIN, 'doctor'], { cwd: dir, env, reject: false });
+    expect(result.stdout + result.stderr).toContain('missing repo secret(s): VERCEL_TOKEN');
   }, 30_000);
 
   it('patch-conflicts: reports patches the last sync skipped, with their upstream issue (#1023)', async () => {
@@ -477,7 +489,7 @@ describe('devaudit doctor — host-adapter prerequisites (#843)', () => {
     expect(out).toContain('#910 (accepted-e2e-failure) review date 2020-01-01 has passed');
   }, 30_000);
 
-  it('skips the railway-cli check when reconcile-deployment.yml is not present', async () => {
+  it('skips the reconcile-cli check when reconcile-deployment.yml is not present', async () => {
     const { mkdtemp, writeFile } = await import('node:fs/promises');
     const { tmpdir } = await import('node:os');
     const { join } = await import('node:path');
@@ -485,7 +497,7 @@ describe('devaudit doctor — host-adapter prerequisites (#843)', () => {
     await writeFile(join(dir, 'sdlc-config.json'), JSON.stringify({ project_slug: 'fixture' }));
     const result = await execa('node', [BIN, 'doctor'], { cwd: dir, reject: false });
     const output = result.stdout + result.stderr;
-    expect(output).toMatch(/railway-cli\s+skipped \(reconcile-deployment\.yml not present\)/);
+    expect(output).toMatch(/reconcile-cli\s+skipped \(reconcile-deployment\.yml not present\)/);
   }, 30_000);
 
   it('reports the railway CLI missing when reconcile-deployment.yml is present but railway is not on PATH', async () => {
@@ -499,6 +511,20 @@ describe('devaudit doctor — host-adapter prerequisites (#843)', () => {
     const result = await execa('node', [BIN, 'doctor'], { cwd: dir, env: nodeOnlyEnv(), reject: false });
     const output = result.stdout + result.stderr;
     expect(output).toContain('railway CLI not found on PATH');
+  }, 30_000);
+
+  it('does not look for a CLI when the host adapter\'s reconcile lookup needs none (vercel) (#1022)', async () => {
+    const { mkdtemp, mkdir, writeFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const dir = await mkdtemp(join(tmpdir(), 'devaudit-doctor-reconcile-vercel-'));
+    await writeFile(join(dir, 'sdlc-config.json'), JSON.stringify({ project_slug: 'fixture', host: 'vercel' }));
+    await mkdir(join(dir, '.github', 'workflows'), { recursive: true });
+    await writeFile(join(dir, '.github', 'workflows', 'reconcile-deployment.yml'), 'name: reconcile\n');
+    const result = await execa('node', [BIN, 'doctor'], { cwd: dir, env: nodeOnlyEnv(), reject: false });
+    const output = result.stdout + result.stderr;
+    expect(output).toMatch(/reconcile-cli\s+skipped \(the host adapter's reconcile lookup needs no CLI\)/);
+    expect(output).not.toContain('CLI not found on PATH');
   }, 30_000);
 });
 

@@ -413,7 +413,7 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     expect(source).toContain("github.event.deployment_status.state == 'success'");
     expect(source).toContain("endsWith(github.event.deployment.environment, '/ production')");
     expect(source).toContain("endsWith(github.event.deployment.environment, '/production')");
-    expect(source).toContain('GIT_SHA: ${{ github.event.deployment.sha || github.sha }}');
+    expect(source).toContain('GIT_SHA: ${{ github.event.deployment.sha || github.event.inputs.deployed_sha || github.sha }}');
   });
 
   it('only fans out E2E JSON to requirements whose tests executed in that result', () => {
