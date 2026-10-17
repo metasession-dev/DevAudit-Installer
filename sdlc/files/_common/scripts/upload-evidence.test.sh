@@ -230,6 +230,102 @@ assert_not_contains "no local file and no trailer: sentinelContent stays unset (
   'FORM:sentinelContent=' \
   "$LOG_FILE"
 
+# DevAudit-Installer#1018 — a multipart POST under the presigned threshold
+# that the portal/proxy rejects with HTTP 400 ("Failed to parse body as
+# FormData") must fall back to the presigned flow, and a total failure must
+# leave attributable diagnostics (size, path, response headers).
+make_fixture_multipart_400() {
+  local dir="$1" presign_mode="$2"
+  rm -rf "$dir"
+  mkdir -p "$dir/bin"
+  cd "$dir"
+  git init -q --initial-branch=main
+  git config user.email "test@example.com"
+  git config user.name "test"
+  head -c 2048 /dev/zero | tr '\0' 'a' > report.zip
+  git add report.zip
+  git commit -q -m "fix: multipart 400 fixture"
+  cat > bin/curl <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+LOG_FILE="\${UPLOAD_TEST_LOG:?}"
+URL=""; OUT_FILE=""; HDR_FILE=""; WRITE_OUT=""
+ARGS=("\$@")
+for ((i=0; i<\${#ARGS[@]}; i++)); do
+  arg="\${ARGS[\$i]}"
+  case "\$arg" in
+    -o) OUT_FILE="\${ARGS[\$((i+1))]}" ;;
+    -D) HDR_FILE="\${ARGS[\$((i+1))]}" ;;
+    -w) WRITE_OUT="\${ARGS[\$((i+1))]}" ;;
+    http://*|https://*) URL="\$arg" ;;
+  esac
+done
+echo "URL:\${URL}" >> "\$LOG_FILE"
+CODE=200
+BODY='{"ok":true}'
+case "\$URL" in
+  */api/evidence/upload)
+    CODE=400; BODY='{"error":"Failed to parse body as FormData."}'
+    [ -n "\$HDR_FILE" ] && printf 'HTTP/2 400\r\nserver: test-proxy\r\ncontent-type: application/json\r\n' > "\$HDR_FILE"
+    ;;
+  */api/evidence/upload-url)
+    if [ "$presign_mode" = "ok" ]; then
+      BODY='{"uploadUrl":"https://r2.example.test/put","evidenceId":"ev-1"}'
+    else
+      CODE=501; BODY='{"error":"Presigned uploads require R2 storage configuration"}'
+    fi
+    ;;
+esac
+[ -n "\$OUT_FILE" ] && printf '%s' "\$BODY" > "\$OUT_FILE"
+[ -n "\$HDR_FILE" ] && [ ! -s "\$HDR_FILE" ] && : > "\$HDR_FILE"
+[ -n "\$WRITE_OUT" ] && printf '%s' "\$CODE"
+exit 0
+EOF
+  chmod +x bin/curl
+}
+
+D4="$WORK/case4-multipart-400-fallback"
+make_fixture_multipart_400 "$D4" ok
+LOG_FILE="$D4/upload.log"
+touch "$LOG_FILE"
+export PATH="$D4/bin:$PATH"
+export UPLOAD_TEST_LOG="$LOG_FILE"
+RC=0
+bash "$HELPER" fixture-project REQ-091 e2e_report report.zip \
+  --release v2026.07.13 --category e2e_report > "$D4/stdout.log" 2>&1 || RC=$?
+assert_contains "multipart HTTP 400 triggers the presigned fallback" \
+  'URL:https://devaudit.example.test/api/evidence/upload-url' "$LOG_FILE"
+assert_contains "presigned fallback completes the upload" \
+  'URL:https://devaudit.example.test/api/evidence/upload-complete' "$LOG_FILE"
+assert_contains "fallback success is reported as OK" \
+  'OK (2048 bytes, presigned R2 upload after multipart HTTP 400)' "$D4/stdout.log"
+if [ "$RC" -eq 0 ]; then
+  echo "  PASS: fallback upload exits 0"; PASS=$((PASS + 1))
+else
+  echo "  FAIL: fallback upload exits 0 (got $RC)"; FAIL=$((FAIL + 1))
+fi
+
+D5="$WORK/case5-multipart-400-no-presign"
+make_fixture_multipart_400 "$D5" unsupported
+LOG_FILE="$D5/upload.log"
+touch "$LOG_FILE"
+export PATH="$D5/bin:$PATH"
+export UPLOAD_TEST_LOG="$LOG_FILE"
+RC=0
+bash "$HELPER" fixture-project REQ-091 e2e_report report.zip \
+  --release v2026.07.13 --category e2e_report > "$D5/stdout.log" 2>&1 || RC=$?
+assert_contains "total failure logs the portal response body" \
+  'Failed to parse body as FormData.' "$D5/stdout.log"
+assert_contains "total failure logs size, path and evidence type" \
+  'Diagnostics: file=report.zip size=2048B path=multipart evidenceType=e2e_report' "$D5/stdout.log"
+assert_contains "total failure logs response headers" \
+  'server: test-proxy' "$D5/stdout.log"
+if [ "$RC" -ne 0 ]; then
+  echo "  PASS: total failure exits non-zero"; PASS=$((PASS + 1))
+else
+  echo "  FAIL: total failure exits non-zero"; FAIL=$((FAIL + 1))
+fi
+
 echo ""
 echo "=== upload-evidence.test.sh: $PASS passed, $FAIL failed ==="
 if [ "$FAIL" -gt 0 ]; then

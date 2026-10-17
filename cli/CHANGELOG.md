@@ -4,6 +4,10 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+### Fixed
+
+- **Playwright report upload no longer silently disappears** (#1018) — `upload-evidence.sh` falls back to the presigned flow when the multipart POST is rejected with 400/413 below the 25 MB threshold, and prints size/path/evidence-type/response-header diagnostics on any failure. `compliance-evidence.yml` stops swallowing `zip` errors, logs the archive size, and adds a job-summary note when a non-passing run's report cannot be uploaded.
+
 ## [1.8.0] — 2026-10-13
 
 Release deferral, `doctor --fix`, and a hardening pass found by the new pre-release validation gate (`docs/release-validation-plan.md`).
