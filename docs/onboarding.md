@@ -78,6 +78,8 @@ The consumer's working tree is left dirty so the operator can review the diff be
 
 ### Host-adapter prerequisites
 
+**Choosing the host (devaudit-installer#1022).** `devaudit install --host <name>` records `host` in `sdlc-config.json` (interactive runs ask; `--yes` keeps the host already recorded, else `railway`). Re-running `install` never resets a recorded host. Valid names are the adapters under `sdlc/files/hosts/`; an unknown name fails with the list. Optional secret on any host: `DEVAUDIT_PROBE_HEADER`, one full header line (e.g. `x-vercel-protection-bypass: <token>`) that `post-deploy-prod.yml` sends with the independent health probe and smoke checks, for a production origin behind an access gate; unset means unauthenticated probes, as before.
+
 Beyond the secrets `install` sets automatically (step 7 above), your chosen host adapter (`host` in `sdlc-config.json`; each declares its own `required_secrets` and quirks in `sdlc/files/hosts/<host>/adapter.json` — see [`HOST_ADAPTER.md`](../sdlc/HOST_ADAPTER.md)) may need a bit more:
 
 | Host | Extra repo secret(s) | Local/runner tool | Why |

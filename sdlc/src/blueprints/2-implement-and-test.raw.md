@@ -273,7 +273,7 @@ git pull --rebase origin develop
 git push origin develop
 ```
 
-Pushing to `develop` triggers the full CI pipeline (TypeScript, SAST, dependency audit, E2E, build). All gate results are automatically uploaded to DevAudit tagged with the release version and `environment=uat`. The develop branch auto-deploys to the UAT environment (Railway staging). UAT will be formally reviewed and approved in DevAudit before a PR to main can be created.
+Pushing to `develop` triggers the full CI pipeline (TypeScript, SAST, dependency audit, E2E, build). All gate results are automatically uploaded to DevAudit tagged with the release version and `environment=uat`. The develop branch auto-deploys to the UAT environment (your hosting platform's staging). UAT will be formally reviewed and approved in DevAudit before a PR to main can be created.
 
 ### WAIT CHECKPOINT: Confirm CI Green
 

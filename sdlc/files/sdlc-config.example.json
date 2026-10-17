@@ -2,6 +2,9 @@
   "_comment": "SDLC project configuration — used by `devaudit install` / `devaudit update` to generate CI workflows",
 
   "project_slug": "your-project-slug",
+
+  "_comment_host": "Deploy host adapter under sdlc/files/hosts/ (railway, vercel, custom, ...). Chosen at `devaudit install --host <name>`; omit for railway. It decides which host-specific workflows and prerequisites are generated and checked. See docs/adding-a-host.md.",
+  "host": "railway",
   "production_url_secret": "YOUR_PROJECT_PROD_URL",
   "node_version": 20,
   "runner": "self-hosted",
