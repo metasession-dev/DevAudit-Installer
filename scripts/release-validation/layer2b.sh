@@ -107,6 +107,8 @@ check_housekeeping_skip_rule() { # <target> <dir> <candidate-workflows-root>
   for wf in ci.yml compliance-evidence.yml; do
     [ -f "$cand/.github/workflows/$wf" ] || continue
     grep -q 'scripts/derive-release-version.sh' "$cand/.github/workflows/$wf" || continue
+    # The Python ci.yml calls the helper only in bundle-only mode (#995): it keeps its date-based releases.
+    grep -q 'DEVAUDIT_DERIVE_BUNDLE_ONLY=1' "$cand/.github/workflows/$wf" && continue
     grep -q 'DEVAUDIT_SKIP_INTEGRATION_HOUSEKEEPING=1' "$cand/.github/workflows/$wf" || missing="$missing $wf"
   done
   if [ -n "$missing" ]; then

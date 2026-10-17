@@ -10,6 +10,6 @@ doctor	^cli/src/commands/doctor|^cli/src/lib/doctor	doctor JSON contract and --f
 scripts	^sdlc/files/(_common|stacks/[^/]+)/(scripts|hooks)/	synced scripts and git hooks
 skills-docs	^sdlc/files/_common/(skills/|[^/]+\.md$|workflows/)|^sdlc/src/blueprints	skills, stage docs, blueprints
 ai-rules	^sdlc/(ai-rules/|STACK_ADAPTER)	AI pointer files and INSTRUCTIONS.md
-adapters	^sdlc/files/(hosts|stacks)/[^/]+/adapter\.json|^sdlc/files/sdlc-config\.example	stack and host adapters, config example
+adapters	^sdlc/files/(hosts|stacks)/[^/]+/adapter\.json|^sdlc/files/(hosts|stacks)/_schema/|^sdlc/(HOST|STACK)_ADAPTER\.md|^sdlc/files/sdlc-config\.example	stack and host adapters, config example
 sdlc-engine	^sdlc/src/(bin|lib)	the synced SDLC CLI engine
 cli-core	^cli/src/	any CLI source: update is idempotent and the changed files are reported
