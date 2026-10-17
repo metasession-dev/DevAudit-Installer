@@ -82,6 +82,8 @@ export interface HostAdapter {
   readonly required_secrets?: readonly string[];
   /** Webhook-loss recovery for this host (devaudit-installer#1022). Absent = none generated. */
   readonly reconcile?: HostReconcile;
+  /** CI template (under sdlc/files/ci/) that runs this host's deploy (#1022). */
+  readonly deploy_workflow?: string;
   readonly runtime_contract?: {
     readonly preferred_web_runtime: string;
     readonly forbid_typescript_runtime: boolean;

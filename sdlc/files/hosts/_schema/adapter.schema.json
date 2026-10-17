@@ -120,6 +120,11 @@
       "items": { "type": "string", "minLength": 1 },
       "description": "Free-form notes about the host's quirks — backed up here so future maintainers don't have to rediscover them. Not consumed by templates."
     },
+    "deploy_workflow": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+\\.yml\\.template$",
+      "description": "Optional CI template under sdlc/files/ci/ that runs this host's deploy (devaudit-installer#1022). Generated only for hosts that name it; removed for hosts that do not. For hosts that deploy themselves and post their own GitHub deployment status this is absent."
+    },
     "reconcile": {
       "type": "object",
       "description": "Optional webhook-loss recovery (devaudit-installer#1022). When present, `devaudit update` generates reconcile-deployment.yml for this host and `devaudit doctor` checks its prerequisites. The workflow looks the provider's deployment up with lookup_script, verifies it against the expected SHA and a health probe, and records the GitHub deployment status the provider failed to post. Absent means the host has no recovery workflow.",

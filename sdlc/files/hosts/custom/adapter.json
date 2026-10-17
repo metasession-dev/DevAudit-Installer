@@ -1,0 +1,36 @@
+{
+  "$schema": "../_schema/adapter.schema.json",
+  "name": "custom",
+  "description": "Your own deploy: AWS, a self-hosted box, any script. A synced workflow runs your deploy command, creates the GitHub deployment, verifies the new build is serving, and posts the terminal status the production gate waits for.",
+  "deploy_trigger": "ci_step",
+  "production_url_from": "secret",
+  "production_url_secret_key": "production_url_secret",
+  "required_secrets": [
+    "DEVAUDIT_API_KEY"
+  ],
+  "deploy_workflow": "deploy-custom.yml.template",
+  "config_keys": {
+    "required": [
+      "production_url_secret",
+      "runner",
+      "deploy_command"
+    ],
+    "optional": [
+      "deploy_secrets",
+      "deployed_sha_url",
+      "deployed_sha_jq",
+      "deploy_trigger"
+    ],
+    "defaults": {
+      "runner": "ubuntu-latest",
+      "deploy_trigger": "push_to_main"
+    }
+  },
+  "notes": [
+    "Hosts like Vercel and Railway post a GitHub deployment_status themselves; a deploy you run does not, so the post-deploy gate would never fire. deploy-custom.yml fills that gap: it creates the GitHub deployment, runs deploy_command, verifies, posts success or failure, then dispatches post-deploy-prod.yml (a status created with GITHUB_TOKEN does not trigger other workflows).",
+    "deploy_command (sdlc-config.json) is run with bash on the runner at the deployed commit. It receives DEPLOY_SHA, DEPLOY_ENVIRONMENT and PROD_URL, plus every secret named in deploy_secrets as an environment variable (AWS_ACCESS_KEY_ID, an SSH key, ...). Keep it idempotent; exit non-zero to fail the deployment.",
+    "Set deployed_sha_url (and deployed_sha_jq, e.g. .version.sha) to an endpoint that reports the running commit: verification then proves the NEW build is serving. Without it only a health check runs, which an old build still answering also passes.",
+    "deploy_trigger: push_to_main (default) deploys on every push to the release branch, git_tag on pushed v* tags, manual only on workflow_dispatch.",
+    "No reconcile capability: this workflow records the GitHub deployment itself, so there is no webhook to lose. Self-hosted runners: set runner in sdlc-config.json as for any host."
+  ]
+}

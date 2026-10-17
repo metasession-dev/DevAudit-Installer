@@ -225,3 +225,41 @@ Hosts often require an auth token (`FLY_API_TOKEN`, `KUBE_CONFIG_DATA`, etc.). D
 - [ADR-001](./ADR/ADR-001-polyglot-sdlc-architecture.md) — why the framework is layered this way.
 - [adding-a-stack.md](./adding-a-stack.md) — sibling walkthrough for stack adapters.
 - [sdlc/files/hosts/railway/adapter.json](../sdlc/files/hosts/railway/adapter.json) — current worked example.
+
+## The `custom` host: AWS, self-hosted, anything (devaudit-installer#1022)
+
+Vercel and Railway post a GitHub `deployment_status` themselves, which is what the production gate (`post-deploy-prod.yml`) waits for. A deploy you run yourself does not, so use `devaudit install --host custom`. The synced `deploy-custom.yml` then does the bookkeeping around **your** command: it creates the GitHub deployment, runs `deploy_command`, verifies the new build is serving, posts `success` (or `failure`), and dispatches `post-deploy-prod.yml` with the deployed SHA (a status created with `GITHUB_TOKEN` does not trigger other workflows, so the dispatch is explicit). Every downstream gate is unchanged.
+
+`sdlc-config.json` keys (all seeded empty by `install --host custom`):
+
+| Key | Meaning |
+| --- | --- |
+| `deploy_command` | **Required.** Run with bash on the runner at the deployed commit. Receives `DEPLOY_SHA`, `DEPLOY_ENVIRONMENT`, `PROD_URL` and your `deploy_secrets`. Exit non-zero to fail the deployment. Missing = the workflow fails loudly. |
+| `deploy_secrets` | Repo secret names exposed to the command as env vars (`AWS_ACCESS_KEY_ID`, an SSH key, ...). |
+| `deployed_sha_url`, `deployed_sha_jq` | An endpoint that reports the running commit (and the jq path to it, e.g. `.version.sha`). With it, verification proves the **new** build is serving. Without it only a health check of `production_url_secret` runs, which an old build still answering also passes. |
+| `deploy_trigger` | `push_to_main` (default, the release branch), `git_tag` (pushed `v*` tags) or `manual` (workflow_dispatch only). |
+| `runner` | As for any host; use a self-hosted runner label when the deploy needs your network. |
+
+Optional secret `DEVAUDIT_PROBE_HEADER` is sent with verification and the post-deploy probes for an access-gated origin.
+
+### Example: AWS ECS
+
+```json
+"host": "custom",
+"deploy_command": "aws ecs update-service --cluster prod --service web --force-new-deployment\naws ecs wait services-stable --cluster prod --services web",
+"deploy_secrets": ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_REGION"],
+"deployed_sha_url": "https://app.example.com/version",
+"deployed_sha_jq": ".sha"
+```
+
+### Example: a self-hosted box over SSH
+
+```json
+"host": "custom",
+"runner": "self-hosted",
+"deploy_command": "ssh deploy@app01 'cd /srv/app && git fetch && git checkout \"$DEPLOY_SHA\" && docker compose up -d --build'",
+"deploy_secrets": [],
+"deployed_sha_url": "https://app.example.com/healthz"
+```
+
+The second example has no `deployed_sha_jq`: the response body must then contain the SHA. Have the app expose its commit (an env var baked in at build time) so verification is meaningful.

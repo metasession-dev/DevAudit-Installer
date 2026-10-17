@@ -32,6 +32,9 @@ on:
       runner_label:
         description: 'Optional one-run runner label override. Blank uses repository CI_RUNNER_LABEL.'
         required: false
+      deployed_sha:
+        description: 'The exact commit that was deployed (set by deploy-custom.yml; blank = the dispatched ref head).'
+        required: false
   deployment_status:
     types: [created]
 
@@ -61,7 +64,7 @@ jobs:
       # instead of reading a 401/403. Unset = no header (unchanged behaviour).
       PROBE_HEADER: ${{ secrets.DEVAUDIT_PROBE_HEADER }}
       PROJECT_SLUG: {{PROJECT_SLUG}}
-      GIT_SHA: ${{ github.event.deployment.sha || github.sha }}
+      GIT_SHA: ${{ github.event.deployment.sha || github.event.inputs.deployed_sha || github.sha }}
       CI_RUN: ${{ github.run_id }}
       RELEASE_INPUT: ${{ github.event.inputs.release }}
 

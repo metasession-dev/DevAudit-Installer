@@ -115,6 +115,11 @@ export async function writeSdlcConfig(ctx: InstallContext, plan: InstallPlan): P
     uat: { enabled: false, url: '', required_risk_classes: ['payment', 'destructive_migration', 'realtime'] },
     approval: { mode: 'dual_actor', auto_low_risk_threshold: 'LOW' },
     production_review: { enabled: true, terminal_status: 'prod_review' },
+    // devaudit-installer#1022: the `custom` host runs your own deploy; seed the keys it reads
+    // so the operator fills in a command instead of discovering them from the docs.
+    ...(plan.host === 'custom'
+      ? { deploy_command: '', deploy_secrets: [], deployed_sha_url: '', deployed_sha_jq: '', deploy_trigger: 'push_to_main' }
+      : {}),
   };
   const wizardOwned: Record<string, unknown> = {
     stack: plan.stack,
