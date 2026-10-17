@@ -39,7 +39,7 @@ Two sources of truth exist. The consuming repo holds tickets, the RTM and the co
 - Declaration and portal state are two manual steps and can drift (for example a ticket marked deferred while the portal release is still `uat_approved`). Doctor reports this but does not repair it until phase 3b.
 - Deferral by an admin PAT is a manual operation with no CLI or skill command yet.
 - Consumers receive the ticket field, RTM status and gate only after a release and `devaudit update`.
-- Declared bundles are a Node-template feature, so deferral into a bundle is unavailable for `stack: python`.
+- Declared bundles also work for `stack: python` since #995 (the Python CI template registers the bundle's single release); deferral into a bundle is therefore available there too.
 
 ### Neutral
 

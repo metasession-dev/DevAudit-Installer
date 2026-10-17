@@ -138,6 +138,14 @@ if [ -d compliance/pending-releases ]; then
   fi
 fi
 
+# DEVAUDIT_DERIVE_BUNDLE_ONLY=1 (devaudit-installer#995): the Python CI template
+# keeps its date-based release model for ordinary work and only switches to a
+# REQ release when a live declared bundle exists. In that mode the script stops
+# after step 0: it prints the bundle's core REQ, or nothing.
+if [ "${DEVAUDIT_DERIVE_BUNDLE_ONLY:-0}" = "1" ]; then
+  exit 0
+fi
+
 SUBJECT=$(git log -1 --format='%s' 2>/dev/null || echo '')
 BODY=$(git log -1 --format='%b' 2>/dev/null || echo '')
 
