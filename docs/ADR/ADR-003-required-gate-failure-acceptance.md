@@ -22,7 +22,7 @@ Silent acceptance ("known unrelated flakes") must not be possible, and the decis
 4. **The summary cannot hide a failure.** `validate-test-summary.sh` requires a `## E2E failures & triage` row (classification, disposition, reference) for every failure, and `reconcile-e2e-summary.sh` compares the summary with the CI results. Summaries carrying a `CI as of:` stamp are validated strictly (generated executions table, stamp matches the PR head); summaries without it warn, so releases in flight are not broken.
 5. **Failures are visible early and exceptions expire.** The PR watcher comments on the issue and updates the sticky within one poll of a red required check and escalates at `phase4.gate_timeout_hours`. `devaudit doctor` (`accepted-exceptions`) flags exceptions past their review date.
 
-The same pattern applies to the dependency-audit gate (#1017) with a dependency risk-acceptance record.
+The same pattern applies to the dependency-audit gate (#1017): the existing `compliance/security/accepted-vulnerabilities.json` mechanism gains a `schemaVersion` 2 whose entries must reference a validated dependency risk-acceptance record that names the same advisory and tracking issue, and the agent halts with bump-or-accept.
 
 ## Consequences
 

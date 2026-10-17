@@ -7,7 +7,7 @@ import { createServer, type Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { setupServer } from 'msw/node';
 import { http, HttpResponse } from 'msw';
-import { findOverdueExceptions } from '../src/commands/doctor.js';
+import { findOverdueExceptions, findExpiringDependencyExceptions } from '../src/commands/doctor.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const BIN = resolve(HERE, '..', 'bin', 'devaudit.js');
@@ -418,6 +418,42 @@ describe('devaudit doctor — host-adapter prerequisites (#843)', () => {
       '#5 (accepted-e2e-failure) has no "Review by: YYYY-MM-DD" date, so it can never expire',
     ]);
   });
+
+  it('findExpiringDependencyExceptions flags expired, soon-expiring and undated entries (#1017)', () => {
+    const doc = {
+      schemaVersion: 2,
+      exceptions: [
+        { advisoryId: 'GHSA-a', package: 'postcss', expiresAt: '2026-10-01' },
+        { advisoryId: 'GHSA-b', package: 'next', expiresAt: '2026-10-25' },
+        { advisoryId: 'GHSA-c', package: 'lodash', expiresAt: '2027-01-01' },
+        { advisoryId: 'GHSA-d', expiresAt: 'soon' },
+      ],
+    };
+    expect(findExpiringDependencyExceptions(doc, '2026-10-17')).toEqual([
+      'GHSA-a (postcss) expired on 2026-10-01 (the dependency gate fails on it again)',
+      'GHSA-b (next) expires on 2026-10-25',
+      'GHSA-d has no valid expiresAt',
+    ]);
+    expect(findExpiringDependencyExceptions({}, '2026-10-17')).toEqual([]);
+    expect(findExpiringDependencyExceptions(null, '2026-10-17')).toEqual([]);
+  });
+
+  it('accepted-exceptions: reads compliance/security/accepted-vulnerabilities.json without gh (#1017)', async () => {
+    const { mkdtemp, mkdir, writeFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const dir = await mkdtemp(join(tmpdir(), 'devaudit-doctor-depexc-'));
+    await writeFile(join(dir, 'sdlc-config.json'), JSON.stringify({ project_slug: 'fixture' }));
+    await mkdir(join(dir, 'compliance', 'security'), { recursive: true });
+    await writeFile(
+      join(dir, 'compliance', 'security', 'accepted-vulnerabilities.json'),
+      JSON.stringify({ schemaVersion: 2, exceptions: [{ advisoryId: 'GHSA-old', package: 'postcss', expiresAt: '2020-01-01' }] }),
+    );
+    const result = await execa('node', [BIN, 'doctor'], { cwd: dir, env: { ...process.env, PATH: dirname(process.execPath) }, reject: false });
+    const out = result.stdout + result.stderr;
+    expect(out).toMatch(/accepted-exceptions\s+1 accepted exception\(s\) overdue for review/);
+    expect(out).toContain('dependency exception GHSA-old (postcss) expired on 2020-01-01');
+  }, 30_000);
 
   it('accepted-exceptions: reports overdue exceptions from open labelled issues, skips without gh (#1016)', async () => {
     const { mkdtemp, mkdir, writeFile } = await import('node:fs/promises');

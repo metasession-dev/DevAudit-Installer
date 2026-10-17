@@ -368,6 +368,23 @@ for SECSUM in compliance/security-summary-*.md; do
 done
 shopt -u nullglob
 
+# devaudit-installer#1017 -- documented dependency risk acceptances. These are
+# repo-wide (an advisory is not owned by one REQ), referenced from
+# compliance/security/accepted-vulnerabilities.json, and ride the derived
+# release as `accepted_dependency_risk` evidence so approvers can see which
+# advisories the gate waived, why, and until when.
+shopt -s nullglob
+for RISKREC in compliance/security/risk-acceptances/*.md; do
+  [ -f "$RISKREC" ] || continue
+  echo "Uploading dependency risk acceptance: $(basename "$RISKREC")"
+  bash scripts/upload-evidence.sh \
+    ${DEVAUDIT_PROJECT_SLUG} _compliance-docs accepted_dependency_risk "$RISKREC" \
+    --category security ${FLAGS} --release "${DERIVED_RELEASE}" \
+    "${DERIVED_META[@]}" \
+    || echo "Warning: Failed to upload $(basename "$RISKREC")"
+done
+shopt -u nullglob
+
 # Upload release tickets (pending only)
 if [ -d "compliance/pending-releases" ]; then
   for TICKET in compliance/pending-releases/*.md; do

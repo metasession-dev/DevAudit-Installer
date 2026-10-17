@@ -95,6 +95,11 @@
       "description": "Per-REQ e2e-test-engineer invoke/skip decision (DevAudit-Installer#737)",
       "clause_predicates": []
     },
+    "accepted_dependency_risk": {
+      "category": "security_scan",
+      "description": "Documented acceptance of a dependency-audit advisory: reachability, impact, compensating controls, decision-maker, review date, tracking issue (DevAudit-Installer#1017)",
+      "clause_predicates": []
+    },
     "accepted_e2e_failure": {
       "category": "planning",
       "description": "Documented acceptance of a failed required E2E gate: impact assessment, decision-maker, review date, tracking issue (DevAudit-Installer#1016)",
@@ -233,7 +238,8 @@
         "audit_log",
         "bundled_changes",
         "playwright_report_bundle",
-        "accepted_e2e_failure"
+        "accepted_e2e_failure",
+        "accepted_dependency_risk"
       ],
       "not_applicable_evidence_types": []
     },
@@ -267,6 +273,7 @@
         "risk_assessment",
         "e2e_scope_decision",
         "accepted_e2e_failure",
+        "accepted_dependency_risk",
         "ai_use_note",
         "ai_prompt_log",
         "ai_agent_handoff",

@@ -1,0 +1,46 @@
+---
+record_kind: "accepted_dependency_risk"
+advisory_ids:
+  - "GHSA-xxxx-xxxx-xxxx"
+package: "REPLACE — affected package name"
+severity: "high"                    # high | critical
+decision_maker: "REPLACE — name of the person accepting this"
+decided_at: "YYYY-MM-DD"
+review_by: "YYYY-MM-DD"            # must be in the future; doctor flags it once it passes
+remediation_deadline: "YYYY-MM-DD"
+tracking_issue: "https://github.com/<owner>/<repo>/issues/<n>"   # label: accepted-dependency-risk
+---
+
+# Accepted dependency risk — GHSA-xxxx-xxxx-xxxx
+
+> **Created by `sdlc-implementer` only after the operator explicitly chose "Accept" for a failing dependency-audit gate. Never create this automatically. Replace every `REPLACE` / placeholder; `scripts/validate-risk-acceptance-record.sh --kind dependency` rejects an unedited record, and `evaluate-npm-audit.sh` will not honour an exception whose record is missing or does not match.**
+>
+> Save as `compliance/security/risk-acceptances/<advisory-id>.md` and reference it from the exception entry in `compliance/security/accepted-vulnerabilities.json` (`schemaVersion` 2, `acceptanceRecord`).
+
+## Advisories
+
+| Advisory | Severity | Package@version | Dependency path | Introduced by | Fix available |
+| --- | --- | --- | --- | --- | --- |
+| REPLACE | REPLACE | REPLACE | REPLACE | REPLACE | REPLACE — version, or "none" |
+
+## Reachability and exploitability
+
+REPLACE — is the vulnerable code reachable in this application? Which entry points or inputs would trigger it? Is it only in dev/build tooling that never ships? Show the evidence (how you checked), not just the conclusion.
+
+## Impact assessment
+
+REPLACE — what an exploit would let an attacker do here (data exposure, integrity, availability), which requirements and journeys depend on the package, blast radius, likelihood and severity in this deployment.
+
+## Compensating controls
+
+REPLACE — controls that reduce the risk while the advisory is open (WAF/CSP rules, input validation, network isolation, monitoring) and how you verified they hold.
+
+## Remediation
+
+REPLACE — the fix plan held in the tracking issue above: the upgrade or replacement, its owner, the blocker (usually an upstream release), and `remediation_deadline`. The exception expires at `review_by`; if the issue is still open then, fix it or renew with a new record.
+
+## Sign-off
+
+| Role | Name | Date |
+| --- | --- | --- |
+| Decision maker | REPLACE | REPLACE |
