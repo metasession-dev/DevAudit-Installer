@@ -136,6 +136,26 @@ check_housekeeping_skip_rule() { # <target> <dir> <candidate-workflows-root>
   fi
 }
 
+# devaudit-installer#941: the clone's own Release Close-out workflow, executed step by
+# step against a tracer fixture, a fake gh and a mock portal (the counterpart of the gate).
+_closeout_test() { # <workflow>
+  (cd "$ROOT/cli" && CLOSEOUT_WORKFLOW_FILE="$1" DEVAUDIT_INSTALLER_ROOT="$ROOT" \
+     npx vitest run test/close-out-workflow-behavior.test.ts 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | grep -E 'Tests +[0-9]' | tail -1)
+}
+
+scenario_close_out() {
+  local target="$1" dir="$2" wf out
+  wf=$(ls "$dir"/.github/workflows/close-out-release*.yml 2>/dev/null | head -1)
+  if [ -z "$wf" ]; then record "$target" "2b:close-out" SKIP "no close-out-release workflow in this clone"; return; fi
+  if [ -f "$wf.devaudit-new" ]; then wf="$wf.devaudit-new"; fi
+  out=$(_closeout_test "$wf")
+  if printf '%s' "$out" | grep -q 'failed' || [ -z "$out" ]; then
+    record "$target" "2b:close-out" FAIL "the clone's $(basename "$wf") against a mock portal: ${out:-no result}"
+  else
+    record "$target" "2b:close-out" PASS "the clone's $(basename "$wf") run against a mock portal: $out"
+  fi
+}
+
 scenario_ci_workflows() {
   local target="$1" dir="$2" list="$3" n tmp kept
   n=$(grep -c '^\.github/workflows/' "$list" || true)
