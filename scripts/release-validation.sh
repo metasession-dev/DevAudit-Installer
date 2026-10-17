@@ -451,6 +451,18 @@ EOF
   ) || { record "$name" fixture FAIL "could not create the fixture"; return 0; }
   record "$name" fixture PASS "blank $stack repo, no prior sync"
   validate_dir "$name" "$dir"
+  # devaudit-installer#995: declared-bundle parity in the generated Python ci.yml.
+  if [ "$stack" = python ]; then
+    local ci="$dir/.github/workflows/ci.yml"
+    if [ -f "$ci" ] \
+       && grep -q 'Generate and upload bundled changes (declared bundle)' "$ci" \
+       && grep -q 'DEVAUDIT_DERIVE_BUNDLE_ONLY=1' "$ci" \
+       && grep -q 'resolve-bundle-release.sh' "$ci"; then
+      record "$name" python-bundle-parity PASS "the generated Python ci.yml registers a declared bundle and files members via resolve-bundle-release.sh"
+    else
+      record "$name" python-bundle-parity FAIL "the generated Python ci.yml is missing the declared-bundle steps (#995)"
+    fi
+  fi
 }
 
 run_layer1() {

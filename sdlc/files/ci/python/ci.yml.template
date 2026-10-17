@@ -242,6 +242,19 @@ jobs:
           if [ -z "$VERSION" ]; then
             VERSION="${DATE_PREFIX}"
           fi
+          # devaudit-installer#995 -- a live declared bundle (sdlc-implementer
+          # Phase 1 step 4, `Bundles: #A, #B`) is ONE portal release keyed by its
+          # core REQ, with one UAT approval. Everything this run registers for it
+          # (gate evidence, executions, the bundle manifest) must land on that
+          # release. Without a declared bundle the date-based release model below
+          # is unchanged.
+          chmod +x scripts/derive-release-version.sh 2>/dev/null || true
+          BUNDLE_CORE=$(DEVAUDIT_DERIVE_BUNDLE_ONLY=1 bash scripts/derive-release-version.sh 2>/dev/null || true)
+          if [ -n "$BUNDLE_CORE" ]; then
+            echo "Declared bundle ${BUNDLE_CORE} is live; registering this run on its single release instead of ${VERSION}."
+            VERSION="$BUNDLE_CORE"
+            echo "bundle_core=${BUNDLE_CORE}" >> "$GITHUB_OUTPUT"
+          fi
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "Release version: ${VERSION}"
 
@@ -251,6 +264,53 @@ jobs:
           bash scripts/upload-evidence.sh \
             {{PROJECT_SLUG}} _compliance-docs release_registration README.md \
             --release ${{ steps.version.outputs.version }} --create-release-if-missing \
+            --environment uat --category planning \
+            --git-sha ${{ github.sha }} --branch ${{ github.ref_name }} || true
+
+      - name: Generate and upload bundled changes (declared bundle)
+        # devaudit-installer#995 -- Node-template parity for declared bundles.
+        # Only runs when Determine release version found a live declared bundle.
+        if: env.DEVAUDIT_BASE_URL != '' && steps.version.outputs.bundle_core != ''
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          chmod +x scripts/generate-bundled-changes.sh scripts/submit-bundle-manifest.sh scripts/upload-evidence.sh 2>/dev/null || true
+          SINCE_REF=$(git tag --sort=-creatordate | head -1 || true)
+          if [ -z "$SINCE_REF" ]; then
+            git fetch origin main --quiet 2>/dev/null || true
+            if git rev-parse --verify origin/main >/dev/null 2>&1; then
+              SINCE_REF=$(git merge-base origin/main HEAD 2>/dev/null || true)
+            fi
+          fi
+          [ -n "$SINCE_REF" ] || SINCE_REF="HEAD~50"
+          if ! git rev-parse --verify "$SINCE_REF" >/dev/null 2>&1; then
+            echo "::warning::Ref ${SINCE_REF} not found - falling back to HEAD~10"
+            SINCE_REF="HEAD~10"
+          fi
+          if ! git rev-parse --verify "$SINCE_REF" >/dev/null 2>&1; then
+            echo "::warning::Ref ${SINCE_REF} not found - skipping bundled changes"
+            exit 0
+          fi
+          BUNDLED_FILE="compliance/pending-releases/BUNDLED-CHANGES-${VERSION}.md"
+          BUNDLED_MANIFEST="compliance/pending-releases/BUNDLED-CHANGES-${VERSION}.json"
+          # Re-derive the committed --declared-bundle argument so the regeneration
+          # keeps the co_tracked members instead of clobbering them (#817).
+          DECLARED_BUNDLE_ARGS=()
+          if [ -f "$BUNDLED_MANIFEST" ]; then
+            DECLARED_MEMBERS=$(jq -r '(.members // [])[] | select(.role == "co_tracked") | .version' "$BUNDLED_MANIFEST" 2>/dev/null | paste -sd, - || true)
+            [ -z "$DECLARED_MEMBERS" ] || DECLARED_BUNDLE_ARGS=(--declared-bundle "$DECLARED_MEMBERS")
+          fi
+          bash scripts/generate-bundled-changes.sh \
+            "$SINCE_REF" "$VERSION" --json-out "$BUNDLED_MANIFEST" "${DECLARED_BUNDLE_ARGS[@]}" > "$BUNDLED_FILE"
+          # The bundle's single release must exist before the manifest is submitted.
+          bash scripts/upload-evidence.sh \
+            {{PROJECT_SLUG}} _compliance-docs release_registration README.md \
+            --release "$VERSION" --create-release-if-missing \
+            --environment uat --category planning \
+            --git-sha ${{ github.sha }} --branch ${{ github.ref_name }} || true
+          bash scripts/submit-bundle-manifest.sh {{PROJECT_SLUG}} "$VERSION" "$BUNDLED_MANIFEST"
+          bash scripts/upload-evidence.sh \
+            {{PROJECT_SLUG}} _compliance-docs bundled_changes "$BUNDLED_FILE" \
+            --release "$VERSION" \
             --environment uat --category planning \
             --git-sha ${{ github.sha }} --branch ${{ github.ref_name }} || true
 
@@ -542,9 +602,21 @@ jobs:
                     echo "::warning::Unrecognized artifact ${REQ_ID}/${BASENAME} — skipping upload. Add explicit routing in ci.yml if this is a new evidence type. (DevAudit-Installer#205)"
                     continue ;;
                 esac
+                # devaudit-installer#955/#995 -- a declared-bundle member's artifacts
+                # are filed against the bundle's single release (the resolver
+                # prints the member's own REQ for a non-member, in which case this
+                # run's release is kept, unchanged); the member stays the
+                # requirement tag.
+                MEMBER_RELEASE_FLAGS=()
+                if [ -f scripts/resolve-bundle-release.sh ]; then
+                  RESOLVED_RELEASE=$(bash scripts/resolve-bundle-release.sh "${REQ_ID}" 2>/dev/null || true)
+                  if [ -n "$RESOLVED_RELEASE" ] && [ "$RESOLVED_RELEASE" != "${REQ_ID}" ]; then
+                    MEMBER_RELEASE_FLAGS=(--release "$RESOLVED_RELEASE")
+                  fi
+                fi
                 upload "${REQ_ID}/${BASENAME}" \
                   {{PROJECT_SLUG}} "${REQ_ID}" "$EVTYPE" "$ARTIFACT" \
-                  --category "$EVCAT" ${FLAGS}
+                  --category "$EVCAT" ${FLAGS} "${MEMBER_RELEASE_FLAGS[@]}"
               done
             done
           fi
