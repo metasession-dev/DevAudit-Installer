@@ -54,6 +54,12 @@ jobs:
       DEVAUDIT_BASE_URL_VAR: ${{ vars.DEVAUDIT_BASE_URL }}
       DEVAUDIT_API_KEY: ${{ secrets.{{API_KEY_SECRET}} }}
       PROD_URL: ${{ secrets.{{PRODUCTION_URL_SECRET}} }}
+      # devaudit-installer#1022 -- optional. A repo secret holding ONE full HTTP header
+      # line (e.g. `x-vercel-protection-bypass: <token>`), sent with the health probe
+      # and smoke checks so a host with Deployment Protection / an access gate (Vercel
+      # password/SSO, a basic-auth or IP-allow-listed origin) is probed through it
+      # instead of reading a 401/403. Unset = no header (unchanged behaviour).
+      PROBE_HEADER: ${{ secrets.DEVAUDIT_PROBE_HEADER }}
       PROJECT_SLUG: {{PROJECT_SLUG}}
       GIT_SHA: ${{ github.event.deployment.sha || github.sha }}
       CI_RUN: ${{ github.run_id }}
@@ -190,8 +196,10 @@ jobs:
           set -euo pipefail
           DEPLOY_READY=false
           LAST_HTTP_CODE=000
+          PROBE_ARGS=()
+          if [ -n "${PROBE_HEADER:-}" ]; then PROBE_ARGS=(-H "$PROBE_HEADER"); fi
           for i in $(seq 1 30); do
-            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "${PROD_URL}/" || echo "000")
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" ${PROBE_ARGS[@]+"${PROBE_ARGS[@]}"} "${PROD_URL}/" || echo "000")
             LAST_HTTP_CODE="$HTTP_CODE"
             if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 400 ]; then
               echo "::notice::production health probe attempt=${i}/30 url=${PROD_URL}/ http_status=${HTTP_CODE}"
@@ -315,13 +323,15 @@ jobs:
         if: steps.production_probe.outputs.verification == 'production_health_success' && steps.host_deployment.outputs.verification == 'success'
         run: |
           echo "=== Production Smoke Tests ==="
-          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "${PROD_URL}/")
+          PROBE_ARGS=()
+          if [ -n "${PROBE_HEADER:-}" ]; then PROBE_ARGS=(-H "$PROBE_HEADER"); fi
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" ${PROBE_ARGS[@]+"${PROBE_ARGS[@]}"} "${PROD_URL}/")
           echo "Health check: HTTP ${HTTP_CODE}"
           if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 400 ]; then
             echo "::error::Production health check failed"
             exit 1
           fi
-          curl -s -I "${PROD_URL}/" | grep -iE 'x-frame-options|x-content-type|strict-transport|content-security' || true
+          curl -s -I ${PROBE_ARGS[@]+"${PROBE_ARGS[@]}"} "${PROD_URL}/" | grep -iE 'x-frame-options|x-content-type|strict-transport|content-security' || true
           echo "=== Smoke Tests Passed ==="
           cat > prod-smoke-results.json << RESULTS_EOF
           {

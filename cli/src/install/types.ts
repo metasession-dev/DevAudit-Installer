@@ -65,6 +65,11 @@ export interface InstallContext {
    */
   readonly withViewerKey: boolean;
   /**
+   * Host adapter requested with `--host` (devaudit-installer#1022). Undefined
+   * means: keep the host already in `sdlc-config.json`, else the default.
+   */
+  readonly host?: string;
+  /**
    * Set to `'developer'` only AFTER the orchestrator's mode-detection runs
    * (between step 6 and step 7); the steps that run before that point (1–6)
    * see `'operator'` and proceed as usual. The destructive steps (7, 9) and
@@ -76,7 +81,8 @@ export interface InstallContext {
 
 export interface InstallPlan {
   stack: 'node' | 'python';
-  host: 'railway';
+  /** A host adapter name under `sdlc/files/hosts/` (railway, vercel, custom, ...). */
+  host: string;
   projectSlug: string;
   runtimeVersion: string;
   sourceDirs: string;

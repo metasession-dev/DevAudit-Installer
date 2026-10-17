@@ -43,7 +43,7 @@ The steps below are the **manual reference** — useful for understanding what t
 ## Prerequisites
 
 - GitHub repository created
-- Hosting platform configured (Railway, Vercel, Fly, etc.) with auto-deploy from `main` (production)
+- Hosting platform configured (Railway, Vercel, Fly, AWS, self-hosted, etc.) with auto-deploy from `main` (production)
 - UAT environment configured (optional, opt-in by risk class — see Stage 3 Step 10)
 - Local development environment working (app builds and runs)
 - Stack toolchain: Node.js + npm (Node stack) OR Python 3.11+ + pip (Python stack)

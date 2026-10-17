@@ -2,6 +2,8 @@ import { basename } from 'node:path';
 import * as clack from '@clack/prompts';
 import type { DetectedStack, InstallContext, InstallPlan } from './types.js';
 import { readSdlcConfig, resolveTargets, type SdlcConfig } from '../lib/sdlc-config.js';
+import { listHosts } from '../lib/adapter.js';
+import { HOST_HINTS, resolveHost } from './hosts.js';
 
 const NODE_DEFAULTS = { runtimeVersion: '20', sourceDirs: 'app/ lib/' };
 const PYTHON_DEFAULTS = { runtimeVersion: '3.11', sourceDirs: 'src/ tests/' };
@@ -120,7 +122,7 @@ async function planFromConfig(
     );
     return {
       stack: detected.stack,
-      host: 'railway',
+      host: await resolveHost({ installerRoot: ctx.installerRoot, requested: ctx.host, existing: cfg?.host }),
       projectSlug: slug,
       runtimeVersion: defaults.runtimeVersion,
       sourceDirs: defaults.sourceDirs,
@@ -149,7 +151,7 @@ async function planFromConfig(
   const stackMatchesConfig = cfg?.stack === detected.stack;
   return {
     stack: detected.stack,
-    host: 'railway',
+    host: await resolveHost({ installerRoot: ctx.installerRoot, requested: ctx.host, existing: cfg?.host }),
     projectSlug: slug,
     runtimeVersion: String(runtimeKey ?? defaults.runtimeVersion),
     sourceDirs: cfg?.source_dirs ?? defaults.sourceDirs,
@@ -173,8 +175,28 @@ async function planFromPrompts(
 ): Promise<InstallPlan> {
   const slugDefault = defaultSlug(ctx.projectName);
   const wdInitialDefault = detected.workingDirectory;
+  const existingForHost = await readSdlcConfig(ctx.repoRoot);
+  const hostDefault = await resolveHost({
+    installerRoot: ctx.installerRoot,
+    requested: ctx.host,
+    existing: existingForHost?.host,
+  });
+  // devaudit-installer#1022 — ask only when nothing already decides the host:
+  // no --host, and no host recorded in an existing sdlc-config.json.
+  const askHost = ctx.host === undefined && existingForHost?.host === undefined;
+  const hostChoices = askHost ? [...(await listHosts(ctx.installerRoot))].sort() : [];
   const answers = await clack.group(
     {
+      ...(askHost
+        ? {
+            host: () =>
+              clack.select({
+                message: 'Where does production deploy?',
+                initialValue: hostDefault,
+                options: hostChoices.map((name) => ({ value: name, label: name, hint: HOST_HINTS[name] ?? '' })),
+              }),
+          }
+        : {}),
       projectSlug: () => clack.text({ message: 'Project slug', initialValue: slugDefault }),
       runtimeVersion: () =>
         clack.text({
@@ -216,7 +238,7 @@ async function planFromPrompts(
   );
   return {
     stack: detected.stack,
-    host: 'railway',
+    host: askHost ? String((answers as Record<string, unknown>)['host'] ?? hostDefault) : hostDefault,
     projectSlug,
     runtimeVersion: String(answers.runtimeVersion),
     sourceDirs: String(answers.sourceDirs),

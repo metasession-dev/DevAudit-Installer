@@ -858,7 +858,7 @@ The native agent (the AI coding assistant executing this skill) is responsible f
 - **Command execution** — running `npx playwright test`, `npm run dev`, `mongod`, etc.
 - **Environment debugging** — port conflicts, stale locks, missing binaries, Playwright browser installs
 - **Browser inspection** — reading page snapshots, DOM state, error dialogs during E2E debugging
-- **External service interaction** — Railway deploy status, UAT health checks, DevAudit portal (human-only)
+- **External service interaction** — hosting-platform deploy status, UAT health checks, DevAudit portal (human-only)
 - **Git operations** — merge conflicts, push retries, branch management
 
 The skill is responsible for workflow decisions, compliance checklists, and phase transitions. The native agent executes; the skill decides what to do next.

@@ -63,6 +63,10 @@ export async function main(argv: readonly string[]): Promise<void> {
       '--with-viewer-key',
       'Also issue a read-only viewer-role API key (DEVAUDIT_VIEWER_API_KEY) for agent/CI read-back queries against release/check/cycle state. Never grants upload or approval rights. See #867.',
     )
+    .option(
+      '--host <name>',
+      'Deploy host adapter: railway (default), vercel, custom (AWS / self-hosted / anything), or any adapter under sdlc/files/hosts/. Defaults to the host already in sdlc-config.json. See docs/adding-a-host.md.',
+    )
     .action(
       async (
         path: string | undefined,
@@ -72,6 +76,7 @@ export async function main(argv: readonly string[]): Promise<void> {
           forceTeamConfig?: boolean;
           addTarget?: boolean;
           withViewerKey?: boolean;
+          host?: string;
         },
         cmd,
       ) => {
@@ -87,6 +92,7 @@ export async function main(argv: readonly string[]): Promise<void> {
           ...(cmdOpts.withViewerKey !== undefined
             ? { withViewerKey: Boolean(cmdOpts.withViewerKey) }
             : {}),
+          ...(cmdOpts.host !== undefined ? { host: cmdOpts.host } : {}),
           ...(globals.dryRun !== undefined ? { dryRun: Boolean(globals.dryRun) } : {}),
           ...(globals.yes !== undefined ? { yes: Boolean(globals.yes) } : {}),
         });

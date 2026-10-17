@@ -57,7 +57,7 @@
 #                               `testCycleRecordId`.
 #
 # Required environment variables:
-#   DEVAUDIT_BASE_URL  e.g. https://meta-comply-production.up.railway.app
+#   DEVAUDIT_BASE_URL  e.g. https://devaudit.example.com
 #   DEVAUDIT_API_KEY   project-scoped API key (uploader role); format `mc_…`.
 #                         Issue from: Project Settings → API Keys in
 #                         META-COMPLY's web UI.

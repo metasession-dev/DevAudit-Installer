@@ -922,3 +922,33 @@ describe('integration housekeeping registers no portal release (#1020)', () => {
     expect(script).not.toContain('no longer trigger CI');
   });
 });
+
+describe('post-deploy probes can carry an access header (#1022)', () => {
+  const source = template('post-deploy-prod.yml.template');
+
+  it('reads the optional DEVAUDIT_PROBE_HEADER secret once, at job level', () => {
+    expect(source.split('PROBE_HEADER: ${{ secrets.DEVAUDIT_PROBE_HEADER }}').length - 1).toBe(1);
+  });
+
+  it('sends it with the health probe, the smoke check and the header check, and only when set', () => {
+    const probe = source.slice(source.indexOf('Probe production health independently'), source.indexOf('Confirm terminal host deployment success'));
+    expect(probe).toContain('if [ -n "${PROBE_HEADER:-}" ]; then PROBE_ARGS=(-H "$PROBE_HEADER"); fi');
+    expect(probe).toContain('${PROBE_ARGS[@]+"${PROBE_ARGS[@]}"} "${PROD_URL}/"');
+    const smoke = source.slice(source.indexOf('Production smoke tests (read-only)'));
+    expect(smoke).toContain('if [ -n "${PROBE_HEADER:-}" ]; then PROBE_ARGS=(-H "$PROBE_HEADER"); fi');
+    expect(smoke).toContain('curl -s -I ${PROBE_ARGS[@]+"${PROBE_ARGS[@]}"} "${PROD_URL}/"');
+  });
+
+  it('works under set -u with no secret: an empty array expands to nothing', () => {
+    const r = execFileSync('bash', ['-c', 'set -u; PROBE_HEADER=""; PROBE_ARGS=(); if [ -n "${PROBE_HEADER:-}" ]; then PROBE_ARGS=(-H "$PROBE_HEADER"); fi; printf "[%s]" ${PROBE_ARGS[@]+"${PROBE_ARGS[@]}"}'], { encoding: 'utf8' });
+    expect(r).toBe('[]');
+    const withHeader = execFileSync('bash', ['-c', 'set -u; PROBE_HEADER="x-vercel-protection-bypass: tok"; PROBE_ARGS=(); if [ -n "${PROBE_HEADER:-}" ]; then PROBE_ARGS=(-H "$PROBE_HEADER"); fi; printf "[%s]" ${PROBE_ARGS[@]+"${PROBE_ARGS[@]}"}'], { encoding: 'utf8' });
+    expect(withHeader).toBe('[-H][x-vercel-protection-bypass: tok]');
+  });
+
+  it('the Vercel adapter documents the secret instead of telling the operator to disable protection', () => {
+    const adapter = readFileSync(resolve(root, 'sdlc/files/hosts/vercel/adapter.json'), 'utf8');
+    expect(adapter).toContain('DEVAUDIT_PROBE_HEADER');
+    expect(adapter).toContain('x-vercel-protection-bypass');
+  });
+});

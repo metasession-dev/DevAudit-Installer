@@ -61,6 +61,8 @@ export interface RunInstallOptions {
    * `sdlc-implementer` or a CI status check). See devaudit-installer#867.
    */
   readonly withViewerKey?: boolean;
+  /** Deploy host adapter (`railway`, `vercel`, `custom`, ...). See devaudit-installer#1022. */
+  readonly host?: string;
 }
 
 export interface InstallReport {
@@ -96,6 +98,7 @@ export async function runInstall(options: RunInstallOptions): Promise<InstallRep
     installMode: 'operator',
     addTarget: Boolean(options.addTarget),
     withViewerKey: Boolean(options.withViewerKey),
+    ...(options.host !== undefined ? { host: options.host } : {}),
   };
   banner(tentativeCtx);
   const steps: StepResult[] = [];
