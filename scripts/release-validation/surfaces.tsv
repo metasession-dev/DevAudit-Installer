@@ -1,6 +1,7 @@
 # surface<TAB>extended-regex over repo paths<TAB>what it covers
 # A path can belong to several surfaces. A changed shipped path that matches none is reported as unclassified.
 approval-gate	^sdlc/files/ci/check-release-approval	generated Release Approval Gate workflow
+close-out	^sdlc/files/ci/close-out-(release|completion|reconcile)|^sdlc/files/_common/scripts/close-out	generated Release Close-out workflow (#941)
 ci-workflows	^sdlc/files/ci/|^cli/src/update/ci-templates	generated CI workflows (parse, tokens, bash -n)
 sync-safety	^cli/src/update/(write-managed|manifest-bootstrap|sync-manifest|index|format-sync)	conflict preservation, manifest, baseline run
 branch-protection	^cli/src/(update/branch-protection|update/default-branch|lib/(git-provider|branch-protection))	branch protection and default branch on update

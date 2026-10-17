@@ -132,6 +132,7 @@ exercise a change.
 | Surface | Scenario on the updated clone |
 | --- | --- |
 | `approval-gate` | the **clone's own** `check-release-approval*.yml` and `derive-release-version.sh` run against a mock portal (`release-approval-gate-behavior.test.ts` with `GATE_WORKFLOW_FILE`/`GATE_DERIVE_SCRIPT`): blocks every pre-approval state and `deferred`, passes the approved ones |
+| `close-out` | the clone's own `close-out-release.yml` executed step by step against a tracer fixture, a fake `gh` and a mock portal (`cli/test/close-out-workflow-behavior.test.ts`, #941): ticket and RTM reconciliation, idempotency, `pr_opened` then `completed` reports, no report for an unmatched release or an unmerged PR. Test-harness only; no approval or release transition is ever created |
 | `ci-workflows` | how many workflows the update changed; all of them are parsed, token-checked and `bash -n` checked. Also `housekeeping-skip` (#1020): the workflows that derive a release version opt into the integration-housekeeping rule, and the clone's synced `derive-release-version.sh` prints no release for an untagged commit but keeps the bare-date version once a standalone declaration exists |
 | `sync-safety` | edit a synced script locally, commit, run `update` twice: the edit must survive and the upstream copy must be in `.devaudit-new` (#988) |
 | `branch-protection` | section 2k reports no unexpected failure, and the manifest baseline run made no `gh` call (#990) |
