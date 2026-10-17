@@ -38,7 +38,7 @@ There are two normal upload paths into the portal:
 | Upload path            | Producer                               | Typical evidence                                                                        |
 | ---------------------- | -------------------------------------- | --------------------------------------------------------------------------------------- |
 | CI-uploaded            | GitHub Actions workflows               | Gate outputs, machine-generated reports, production smoke, release registration context |
-| Operator/repo-uploaded | committed markdown or explicit uploads | Test plans, release tickets, governance docs, scoped release evidence, accepted-exception records (`accepted_e2e_failure`) |
+| Operator/repo-uploaded | committed markdown or explicit uploads | Test plans, release tickets, governance docs, scoped release evidence, accepted-exception records (`accepted_e2e_failure`, `accepted_dependency_risk`) |
 
 This is why the same release can show both:
 

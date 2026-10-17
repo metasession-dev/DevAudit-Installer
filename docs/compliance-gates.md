@@ -61,6 +61,7 @@ The portal's `release-approved` `repository_dispatch` re-triggers `check-release
 | PR truthfulness and artifact completeness | `compliance-validation.yml` |
 | UAT approval/four-eyes | `check-release-approval.yml` |
 | Required-gate failure on the release PR (fix or documented exception, E2E first) | `sdlc-implementer` Phase 4 step 5a, `report-test-execution.sh resolve`, `validate-risk-acceptance-record.sh`, `validate-test-summary.sh` (see [e2e-test-tiers.md](e2e-test-tiers.md#when-a-tier-fails-fix-or-accept-devaudit-installer1016)) |
+| Dependency-audit failure on the release PR (bump, or accept with an expiring documented risk) | `evaluate-npm-audit.sh` against `compliance/security/accepted-vulnerabilities.json` (`schemaVersion` 2 + `acceptanceRecord`), `validate-risk-acceptance-record.sh --kind dependency`, `sdlc-implementer` Phase 4 (see [Dependency-audit exceptions](#dependency-audit-exceptions-devaudit-installer1017)) |
 | Deferred-REQ promotion gate (a deferred REQ's commits must not reach `main` unless listed under `Absorbed predecessor releases`) | `check-deferred-reqs-in-range.sh`, run by `check-release-pr-scope.sh` inside the existing Release Scope Integrity job (not a separate required check) |
 | Production health and release close-out | `post-deploy-prod.yml` |
 
@@ -70,3 +71,13 @@ The portal's `release-approved` `repository_dispatch` re-triggers `check-release
 - [`docs/evidence-tiers.md`](./evidence-tiers.md)
 - [`docs/e2e-test-tiers.md`](./e2e-test-tiers.md)
 - [`sdlc/src/blueprints/3-compile-evidence.raw.md`](../sdlc/src/blueprints/3-compile-evidence.raw.md)
+
+## Dependency-audit exceptions (devaudit-installer#1017)
+
+The `Quality Gates` dependency audit fails on any unaccepted `high`/`critical` advisory, including ones disclosed after the last push with no code change. A failing audit on a release PR is **fixed** (a dependency bump) or **accepted with a documented, expiring risk**; there is no silent allowlist.
+
+`evaluate-npm-audit.sh` reads `compliance/security/accepted-vulnerabilities.json`. Each entry accepts one advisory at one dependency path and version (`advisoryId`, `package`, `vulnerableRange`, `vulnerableVersion`, `dependencyPath`, `introducedBy`, `approvedAt`, `expiresAt`, `approvedBy`, `reason`, `remediationIssue`, optional `compensatingControls`). It fails closed: a malformed file, an unmatched advisory, or an expired entry fails the gate again.
+
+`"schemaVersion": 2` (new exceptions should use it) also requires `acceptanceRecord`: the repo-root-relative path of `compliance/security/risk-acceptances/<advisory>.md`, written from `.claude/skills/sdlc-implementer/references/dependency-risk-acceptance.md.template`. The helper runs `validate-risk-acceptance-record.sh --kind dependency` on it (advisories, reachability and exploitability, impact assessment, compensating controls, remediation, decision-maker, a future `review_by`, an exact `tracking_issue` URL), checks that it lists the advisory and that its `tracking_issue` equals `remediationIssue`, and records the path and SHA-256 in `dependency-risk-evaluation.json`. `schemaVersion` 1 entries still work and produce a warning.
+
+The tracking issue carries the label `accepted-dependency-risk` and `Review by: YYYY-MM-DD` in its body. `devaudit doctor` (`accepted-exceptions`) flags exceptions expiring within 14 days or already expired, and labelled issues past their review date. Records upload as evidence type `accepted_dependency_risk`. The Python template's `pip-audit` step has no allowlist yet (parity is tracked with #995).

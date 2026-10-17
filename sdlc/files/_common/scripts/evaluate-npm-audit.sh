@@ -2,6 +2,19 @@
 # evaluate-npm-audit.sh -- evaluate npm audit high/critical advisories against
 # narrowly governed, repository-owned temporary risk acceptances.
 #
+# Exceptions file (compliance/security/accepted-vulnerabilities.json):
+#   schemaVersion 1  one entry per accepted advisory/path with approver, expiry,
+#                    reason and a remediation issue.
+#   schemaVersion 2  (devaudit-installer#1017) additionally requires
+#                    `acceptanceRecord`, the repo-root-relative path of a
+#                    compliance/security/risk-acceptances/<advisory>.md record
+#                    that passes validate-risk-acceptance-record.sh --kind
+#                    dependency (impact, reachability, compensating controls,
+#                    decision-maker, a future review date), lists the advisory,
+#                    and names the same tracking issue as `remediationIssue`.
+#                    New exceptions should use v2; v1 entries still work but
+#                    produce a warning. An expired entry fails the gate again.
+#
 # The helper intentionally owns both decision logic and machine-readable output.
 # Workflow templates must not parse its human log output or convert evaluation
 # failures into successful "unknown" results.
@@ -36,14 +49,16 @@ for required_path in "$AUDIT_PATH" "$LOCK_PATH"; do
   }
 done
 
-python3 - "$AUDIT_PATH" "$LOCK_PATH" "$EXCEPTIONS_PATH" "$OUTPUT_PATH" <<'PY'
+python3 - "$AUDIT_PATH" "$LOCK_PATH" "$EXCEPTIONS_PATH" "$OUTPUT_PATH" "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" <<'PY'
+import hashlib
 import json
 import os
 import re
+import subprocess
 import sys
 from datetime import date
 
-audit_path, lock_path, exceptions_path, output_path = sys.argv[1:]
+audit_path, lock_path, exceptions_path, output_path, scripts_dir = sys.argv[1:]
 
 
 def fail(message):
@@ -100,6 +115,57 @@ def valid_date(value, field, index):
         fail(f"exception {index} has invalid {field}: {value}")
 
 
+def record_frontmatter(path):
+    with open(path, encoding="utf-8") as handle:
+        text = handle.read()
+    match = re.match(r"^---\n(.*?)\n---", text, re.S)
+    if match is None:
+        return {}, []
+    scalars = {}
+    ids = []
+    in_ids = False
+    for line in match.group(1).split("\n"):
+        if re.match(r"^advisory_ids:", line):
+            in_ids = True
+            continue
+        if in_ids and re.match(r"^\s*-\s*", line):
+            ids.append(re.sub(r"^\s*-\s*|\s*#.*$|^\"|\"$", "", line).strip().strip('"'))
+            continue
+        in_ids = False
+        pair = re.match(r"^([A-Za-z_]+):\s*(.*)$", line)
+        if pair:
+            scalars[pair.group(1)] = re.sub(r"\s+#.*$", "", pair.group(2)).strip().strip('"')
+    return scalars, ids
+
+
+def validate_acceptance_record(item, index):
+    record = item["acceptanceRecord"]
+    if os.path.isabs(record) or ".." in record.split("/"):
+        fail(f"exception {index} acceptanceRecord must be a repo-root-relative path without '..': {record}")
+    if not os.path.isfile(record):
+        fail(f"exception {index} acceptanceRecord does not exist: {record}")
+    validator = os.path.join(scripts_dir, "validate-risk-acceptance-record.sh")
+    if not os.path.isfile(validator):
+        fail(f"validate-risk-acceptance-record.sh is missing next to this helper ({validator})")
+    check = subprocess.run(
+        ["bash", validator, "--kind", "dependency", record],
+        capture_output=True,
+        text=True,
+    )
+    if check.returncode != 0:
+        fail(f"exception {index} acceptanceRecord {record} is not a valid dependency risk-acceptance record:\n{check.stderr.strip()}")
+    scalars, ids = record_frontmatter(record)
+    if item["advisoryId"] not in ids:
+        fail(f"exception {index} acceptanceRecord {record} does not list advisory {item['advisoryId']} in advisory_ids")
+    if scalars.get("tracking_issue") != item["remediationIssue"]:
+        fail(
+            f"exception {index} remediationIssue {item['remediationIssue']} differs from the record's "
+            f"tracking_issue {scalars.get('tracking_issue')}"
+        )
+    with open(record, "rb") as handle:
+        item["_acceptanceRecordSha256"] = hashlib.sha256(handle.read()).hexdigest()
+
+
 audit = load_json(audit_path, "npm audit JSON")
 lock = load_json(lock_path, "package-lock JSON")
 if not isinstance(audit, dict) or not isinstance(audit.get("vulnerabilities"), dict):
@@ -109,13 +175,15 @@ if not isinstance(lock, dict) or not isinstance(lock.get("packages"), dict):
 
 if os.path.exists(exceptions_path):
     exception_document = load_json(exceptions_path, "risk acceptance JSON")
-    if not isinstance(exception_document, dict) or exception_document.get("schemaVersion") != 1:
-        fail("risk acceptance JSON must be an object with schemaVersion 1")
+    if not isinstance(exception_document, dict) or exception_document.get("schemaVersion") not in (1, 2):
+        fail("risk acceptance JSON must be an object with schemaVersion 1 or 2")
+    exception_schema = exception_document.get("schemaVersion")
     exceptions = exception_document.get("exceptions")
     if not isinstance(exceptions, list):
         fail("risk acceptance JSON must contain an exceptions array")
 else:
     exceptions = []
+    exception_schema = 1
 
 required_fields = (
     "advisoryId",
@@ -129,7 +197,7 @@ required_fields = (
     "approvedBy",
     "reason",
     "remediationIssue",
-)
+) + (("acceptanceRecord",) if exception_schema == 2 else ())
 today = date.today()
 validated_exceptions = []
 seen_exception_keys = set()
@@ -150,6 +218,15 @@ for index, item in enumerate(exceptions, start=1):
     controls = item.get("compensatingControls")
     if controls is not None and (not isinstance(controls, str) or not controls.strip()):
         fail(f"exception {index} compensatingControls must be a non-empty string when present")
+    if exception_schema == 2:
+        validate_acceptance_record(item, index)
+    else:
+        print(
+            f"::warning::exception {index} ({item['advisoryId']}) has no acceptance record "
+            "(schemaVersion 1); new exceptions should use schemaVersion 2 with an acceptanceRecord "
+            "(devaudit-installer#1017)",
+            file=sys.stderr,
+        )
     key = (item["advisoryId"], item["dependencyPath"])
     if key in seen_exception_keys:
         fail(f"duplicate exception for {item['advisoryId']} at {item['dependencyPath']}")
@@ -272,6 +349,9 @@ for (source_name, _source_index), source in advisory_sources.items():
             }
             if "compensatingControls" in match:
                 acceptance["compensatingControls"] = match["compensatingControls"]
+            if "acceptanceRecord" in match:
+                acceptance["acceptanceRecord"] = match["acceptanceRecord"]
+                acceptance["acceptanceRecordSha256"] = match.get("_acceptanceRecordSha256")
             accepted.append({**context, "acceptance": acceptance})
             print(
                 f"Accepted temporary risk: {identifier} ({package}@{version}) "

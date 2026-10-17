@@ -565,6 +565,37 @@ export function findOverdueExceptions(
   return out;
 }
 
+/**
+ * devaudit-installer#1017 -- entries of compliance/security/accepted-vulnerabilities.json
+ * that have expired (the CI dependency gate fails again on them) or expire
+ * within `windowDays`, so the renewal-or-fix happens before the gate goes red.
+ */
+export function findExpiringDependencyExceptions(
+  doc: unknown,
+  today: string,
+  windowDays = 14,
+): string[] {
+  const out: string[] = [];
+  const exceptions = (doc as { exceptions?: unknown })?.exceptions;
+  if (!Array.isArray(exceptions)) return out;
+  const limit = new Date(`${today}T00:00:00Z`);
+  limit.setUTCDate(limit.getUTCDate() + windowDays);
+  const limitIso = limit.toISOString().slice(0, 10);
+  for (const raw of exceptions) {
+    const item = raw as { advisoryId?: string; package?: string; expiresAt?: string };
+    const id = item.advisoryId ?? 'unknown advisory';
+    const pkg = item.package ? ` (${item.package})` : '';
+    if (typeof item.expiresAt !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(item.expiresAt)) {
+      out.push(`${id}${pkg} has no valid expiresAt`);
+    } else if (item.expiresAt <= today) {
+      out.push(`${id}${pkg} expired on ${item.expiresAt} (the dependency gate fails on it again)`);
+    } else if (item.expiresAt <= limitIso) {
+      out.push(`${id}${pkg} expires on ${item.expiresAt}`);
+    }
+  }
+  return out;
+}
+
 async function checkAcceptedExceptions(): Promise<CheckResult> {
   const name = 'accepted-exceptions';
   const consumer = await readConsumerConfig();
@@ -572,6 +603,14 @@ async function checkAcceptedExceptions(): Promise<CheckResult> {
   const today = new Date().toISOString().slice(0, 10);
   const overdue: string[] = [];
   let open = 0;
+  // The repo-owned dependency exceptions file needs no gh at all.
+  try {
+    const fs = await import('node:fs/promises');
+    const raw = await fs.readFile(`${consumer.repoRoot}/compliance/security/accepted-vulnerabilities.json`, 'utf-8');
+    overdue.push(...findExpiringDependencyExceptions(JSON.parse(raw), today).map((m) => `dependency exception ${m}`));
+  } catch {
+    // no file (or unparsable): evaluate-npm-audit.sh reports a malformed file in CI
+  }
   for (const label of ACCEPTED_EXCEPTION_LABELS) {
     try {
       const result = await execa(
@@ -580,13 +619,17 @@ async function checkAcceptedExceptions(): Promise<CheckResult> {
         { cwd: consumer.repoRoot, reject: false },
       );
       if (result.exitCode !== 0) {
-        return { name, ok: true, detail: 'skipped (gh issue list failed — not authenticated, or no repo access)', suspectedOrigin: 'unknown' };
+        return overdue.length > 0
+          ? { name, ok: false, detail: `${overdue.length} accepted exception(s) overdue for review: ${overdue.join('; ')} (gh issue list unavailable, so labelled tracking issues were not checked)`, suspectedOrigin: 'consumer-drift' }
+          : { name, ok: true, detail: 'skipped (gh issue list failed — not authenticated, or no repo access)', suspectedOrigin: 'unknown' };
       }
       const issues = JSON.parse(result.stdout) as Array<{ number: number; title?: string; body?: string | null }>;
       open += issues.length;
       overdue.push(...findOverdueExceptions(issues, label, today));
     } catch {
-      return { name, ok: true, detail: 'skipped (gh issue list unavailable)', suspectedOrigin: 'unknown' };
+      return overdue.length > 0
+        ? { name, ok: false, detail: `${overdue.length} accepted exception(s) overdue for review: ${overdue.join('; ')} (gh issue list unavailable, so labelled tracking issues were not checked)`, suspectedOrigin: 'consumer-drift' }
+        : { name, ok: true, detail: 'skipped (gh issue list unavailable)', suspectedOrigin: 'unknown' };
     }
   }
   if (overdue.length === 0) {
