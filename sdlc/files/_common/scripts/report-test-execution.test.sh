@@ -326,6 +326,42 @@ case_resolve_rejects_invalid_resolution_type() {
   rm -rf "$dir"
 }
 
+case_attribution_guard() {
+  echo "case: a doc-only PR does not record a release-scoped execution; a code PR does (#1019)"
+  local dir out exit_code
+  dir=$(mktemp -d)
+  make_fixture "$dir"
+  ( cd "$dir" && git init -q -b develop && git config user.email t@example.test && git config user.name t && git config commit.gpgsign false \
+    && mkdir -p src compliance && echo a > src/app.ts && git add -A && git commit -q -m "chore: init" \
+    && git update-ref refs/remotes/origin/develop HEAD && git checkout -q -b topic \
+    && echo triage > compliance/triage.md && git add -A && git commit -q -m "compliance: [REQ-109] triage" )
+  out="$dir/out.env"
+  ( cd "$dir" && GITHUB_EVENT_NAME=pull_request GITHUB_BASE_REF=develop \
+    RESOLVE_STATUS=200 RESOLVE_BODY='{"latest":{"id":"release-1","version":"REQ-109"}}' START_STATUS=201 START_BODY='{"id":"cycle-1"}' \
+    run_helper "$dir" start --project-slug wgb --release REQ-109 --sdlc-stage 2 --environment uat --suite-kind e2e \
+      --iteration-key k --iteration-ordinal 1 --idempotency-key github:fixture/repo:e2e:1:1:REQ-109 --commit-sha deadbeef --branch topic --output-file "$out" >"$dir/stdout.log" 2>"$dir/stderr.log" ) && exit_code=0 || exit_code=$?
+  if [ "$exit_code" -eq 0 ]; then ok "doc-only PR: exit 0"; else no "doc-only PR: expected exit 0"; fi
+  if [ -e "$dir/curl.log" ] && grep -q "/cycles/start" "$dir/curl.log"; then no "doc-only PR must not record an execution"; else ok "doc-only PR: no execution recorded"; fi
+  assert_contains "doc-only PR: the skip is a visible warning" "changes no code" "$dir/stdout.log"
+  assert_contains "doc-only PR: the output file says the guard skipped it" "execution_skipped_reason=attribution_guard_doc-only" "$out"
+
+  ( cd "$dir" && echo b >> src/app.ts && git add -A && git commit -q -m "fix: [REQ-109] real change" )
+  rm -f "$dir/curl.log"
+  ( cd "$dir" && GITHUB_EVENT_NAME=pull_request GITHUB_BASE_REF=develop \
+    RESOLVE_STATUS=200 RESOLVE_BODY='{"latest":{"id":"release-1","version":"REQ-109"}}' START_STATUS=201 START_BODY='{"id":"cycle-1"}' \
+    run_helper "$dir" start --project-slug wgb --release REQ-109 --sdlc-stage 2 --environment uat --suite-kind e2e \
+      --iteration-key k --iteration-ordinal 1 --idempotency-key github:fixture/repo:e2e:1:1:REQ-109 --commit-sha deadbeef --branch topic >"$dir/stdout2.log" 2>"$dir/stderr2.log" ) && exit_code=0 || exit_code=$?
+  assert_contains "code PR: the execution is recorded as before" "/cycles/start" "$dir/curl.log"
+  rm -f "$dir/curl.log"
+  ( cd "$dir" && git reset -q --hard HEAD~1 && GITHUB_EVENT_NAME=pull_request GITHUB_BASE_REF=develop \
+    RESOLVE_STATUS=200 RESOLVE_BODY='{"latest":{"id":"release-1","version":"REQ-109"}}' START_STATUS=201 START_BODY='{"id":"cycle-1"}' \
+    run_helper "$dir" start --project-slug wgb --release REQ-109 --sdlc-stage 2 --environment uat --suite-kind e2e \
+      --iteration-key k --iteration-ordinal 1 --idempotency-key github:fixture/repo:e2e:1:1:REQ-109 --commit-sha deadbeef --branch topic --no-attribution-guard >"$dir/stdout3.log" 2>"$dir/stderr3.log" ) && exit_code=0 || exit_code=$?
+  assert_contains "--no-attribution-guard restores the old attribution" "/cycles/start" "$dir/curl.log"
+  rm -rf "$dir"
+}
+
+case_attribution_guard
 case_start_success
 case_complete_reconciles_terminal_conflict
 case_missing_release_fails

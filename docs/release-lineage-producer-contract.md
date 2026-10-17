@@ -188,6 +188,16 @@ If the portal does not expose the required first-class execution capability,
 the producer fails or leaves readiness unresolved. It must not treat an
 artifact grouping key as proof that a test execution occurred.
 
+## Which pull requests may produce a release-scoped execution (devaudit-installer#1019)
+
+A test execution, a tested SHA and a branch bind a release to **code**. A pull request that changes no code must not move them, even when its commits carry `Ref: REQ-XXX` for that release (the REQ-109 shape: a doc-only compliance PR into `develop` whose commit trailer attached its head SHA, branch and a `Feature In-Scope E2E` run to REQ-109's release, while the release PR was a different PR).
+
+`scripts/classify-pr-attribution.sh --base <ref>` decides, from the PR's own diff and commits: `attach` (some changed path is not documentation), `skip:doc-only` (every changed path is under `compliance/`, `docs/`, `SDLC/`, `.devaudit/`, `.github/ISSUE_TEMPLATE/`, or is a `*.md`), `skip:compliance-record` (doc-only, and a commit carries `Compliance-Record: REQ-XXX`), or `skip:no-changes`. `feature-e2e.yml` uses it to emit `req_id=none` (a visible `::notice::`), and, on `pull_request` events, `upload-evidence.sh` drops `--git-sha`, `--branch` and `--create-release-if-missing` (the document still uploads) and `report-test-execution.sh start|complete` records nothing, each with a `::warning::`. `--no-attribution-guard` or `DEVAUDIT_ATTRIBUTION_GUARD=0` turns it off; a failure to compute the range degrades to `attach`. `push` events are never guarded.
+
+A doc-only compliance PR should use `Compliance-Record: REQ-XXX`; `derive-release-version.sh` treats it like `Ref:` (step 2-bis), so the PR's documents still reach that REQ's release when it is pushed to the integration branch.
+
+**Portal behaviour confirmed for this change** (metasession-dev/devaudit `lib/services/release-service.ts`, `findOrCreateRelease`): an upload to an **existing** release never overwrites its `branch`; only title, change type and summary are back-filled when null. A release row's branch is therefore set once, at creation, by whichever upload creates it first. Test cycles, however, are recorded with the uploader's own `commit_sha` and `branch` and attach to the release's journey, so an unrelated PR's execution can interleave with the release's real ones. The guard above stops the installer from sending them. Server-side enforcement (marking a cycle from a non-matching branch non-approval-eligible) needs a rule for what identifies "the release's own work" on the server and is tracked as an open design question in the umbrella (#1024, portal phase).
+
 ## Bundle manifest
 
 `BUNDLED-CHANGES-REQ-XXX.md` remains the human-readable narrative.

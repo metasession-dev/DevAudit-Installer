@@ -326,6 +326,61 @@ else
   echo "  FAIL: total failure exits non-zero"; FAIL=$((FAIL + 1))
 fi
 
+# --- devaudit-installer#1019: a PR that changes no code must not bind SHA/branch ---
+make_pr_fixture() { # <dir> <doc|code>
+  local dir="$1" kind="$2"
+  rm -rf "$dir"; mkdir -p "$dir/bin"; cd "$dir"
+  git init -q --initial-branch=develop
+  git config user.email "test@example.com"; git config user.name "test"; git config commit.gpgsign false
+  mkdir -p src compliance/evidence/REQ-109
+  echo a > src/app.ts; echo base > README.md
+  git add -A; git commit -q -m "chore: init"
+  git update-ref refs/remotes/origin/develop HEAD
+  git checkout -q -b topic
+  if [ "$kind" = doc ]; then echo triage > compliance/evidence/REQ-109/triage.md; else echo b >> src/app.ts; fi
+  git add -A; git commit -q -m "compliance: [REQ-109] triage
+
+Ref: REQ-109"
+  cp "$D1/bin/curl" "$dir/bin/curl"
+  echo "evidence" > evidence.txt
+}
+
+run_pr_upload() { # <dir> [extra args...]
+  local dir="$1"; shift
+  cd "$dir"
+  : > "$dir/upload.log"
+  UPLOAD_TEST_LOG="$dir/upload.log" PATH="$dir/bin:$PATH" GITHUB_EVENT_NAME=pull_request GITHUB_BASE_REF=develop \
+    bash "$HELPER" fixture-project REQ-109 test_report evidence.txt --release REQ-109 --create-release-if-missing \
+    --git-sha deadbeef --branch topic --category test_report "$@" > "$dir/stdout.log" 2>&1
+}
+
+D6="$WORK/case6-doc-pr"
+make_pr_fixture "$D6" doc
+run_pr_upload "$D6"
+assert_not_contains "doc-only PR: the release is not created from the PR" 'FORM:createReleaseIfMissing' "$D6/upload.log"
+assert_not_contains "doc-only PR: the PR branch is not bound to the release" 'FORM:releaseBranch=topic' "$D6/upload.log"
+assert_contains "doc-only PR: the document itself is still uploaded" 'URL:https://devaudit.example.test/api/evidence/upload' "$D6/upload.log"
+assert_contains "doc-only PR: the skip is visible as a warning" "changes no code (doc-only)" "$D6/stdout.log"
+
+D7="$WORK/case7-code-pr"
+make_pr_fixture "$D7" code
+run_pr_upload "$D7"
+assert_contains "code PR: attaches as before (creates the release)" 'FORM:createReleaseIfMissing=true' "$D7/upload.log"
+assert_contains "code PR: attaches as before (binds the branch)" 'FORM:releaseBranch=topic' "$D7/upload.log"
+
+D8="$WORK/case8-doc-pr-override"
+make_pr_fixture "$D8" doc
+run_pr_upload "$D8" --no-attribution-guard
+assert_contains "--no-attribution-guard restores the old attribution" 'FORM:releaseBranch=topic' "$D8/upload.log"
+
+D9="$WORK/case9-push"
+make_pr_fixture "$D9" doc
+cd "$D9"; : > "$D9/upload.log"
+UPLOAD_TEST_LOG="$D9/upload.log" PATH="$D9/bin:$PATH" GITHUB_EVENT_NAME=push \
+  bash "$HELPER" fixture-project REQ-109 test_report evidence.txt --release REQ-109 --create-release-if-missing \
+  --git-sha deadbeef --branch topic --category test_report > "$D9/stdout.log" 2>&1
+assert_contains "non-PR events are never guarded" 'FORM:releaseBranch=topic' "$D9/upload.log"
+
 echo ""
 echo "=== upload-evidence.test.sh: $PASS passed, $FAIL failed ==="
 if [ "$FAIL" -gt 0 ]; then
