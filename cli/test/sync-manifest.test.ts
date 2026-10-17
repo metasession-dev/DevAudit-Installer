@@ -559,3 +559,30 @@ describe('writeManifest key order (#984)', () => {
     expect(Object.keys(JSON.parse(ra).files)).toEqual(['.x', 'a.md', 'b.md']);
   });
 });
+
+describe('sync manifest patch-conflict state (#1023)', () => {
+  it('persists patches sorted, round-trips them, and omits the key when empty', async () => {
+    const dir = await fs.mkdtemp(join(tmpdir(), 'cli-sync-manifest-patches-'));
+    const base = { version: 1 as const, cli_version: '1.8.0', files: {} };
+    await writeManifest(dir, {
+      ...base,
+      patches: {
+        'z.patch': { conflict: true, detected_at: '2026-10-17T00:00:00.000Z' },
+        'a.patch': {
+          conflict: true,
+          detected_at: '2026-10-16T00:00:00.000Z',
+          upstream_issue: 'https://github.com/o/r/issues/1',
+          reason: 'shard fix',
+        },
+      },
+    });
+    const raw = await fs.readFile(join(dir, '.devaudit', 'sync-manifest.json'), 'utf-8');
+    expect(raw.indexOf('a.patch')).toBeLessThan(raw.indexOf('z.patch'));
+    const read = await readManifest(dir);
+    expect(read?.patches?.['a.patch']).toMatchObject({ conflict: true, upstream_issue: 'https://github.com/o/r/issues/1' });
+
+    await writeManifest(dir, { ...base, patches: {} });
+    const cleared = await fs.readFile(join(dir, '.devaudit', 'sync-manifest.json'), 'utf-8');
+    expect(cleared).not.toContain('patches');
+  });
+});

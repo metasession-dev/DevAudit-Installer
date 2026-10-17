@@ -1,7 +1,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { execa } from "execa";
-import type { SectionResult, SyncContext } from "./types.js";
+import type { PatchConflict, SectionResult, SyncContext } from "./types.js";
 
 const PATCH_DIRECTORY = ".devaudit-patches";
 
@@ -204,10 +204,24 @@ export async function applyConsumerPatches(
       : "",
   ].filter(Boolean);
 
+  // DevAudit-Installer#1023 — the warning above is the only place a skipped
+  // patch was ever reported, so a regression to the unpatched template went
+  // unnoticed unless someone watched that exact run. Hand the conflicts back
+  // so the caller persists them in the sync manifest for `devaudit doctor`.
+  const patchConflicts: PatchConflict[] = conflictNames.map((name) => {
+    const meta = metadataByPath.get(join(patchRoot, name));
+    return {
+      name,
+      ...(meta?.upstream_issue ? { upstreamIssue: meta.upstream_issue } : {}),
+      ...(meta?.reason ? { reason: meta.reason } : {}),
+    };
+  });
+
   return {
     name: "consumer patches",
     filesSynced: applicable.length,
     message: details.join("; "),
     ...(warnings.length > 0 ? { warning: warnings.join("; ") } : {}),
+    patchConflicts,
   };
 }

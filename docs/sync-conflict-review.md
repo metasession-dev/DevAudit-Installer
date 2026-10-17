@@ -19,6 +19,7 @@ so resolve conflicts in the same PR that adopts the update.
 | --- | --- |
 | `devaudit update` prints `N file(s) have local modifications devaudit will not overwrite` | Whoever ran the update, in the adoption PR |
 | `devaudit doctor` reports the `sync-conflicts` check with entries | The repository owner, before the next update |
+| `devaudit doctor` reports the `patch-conflicts` check with entries (a `.devaudit-patches/*.patch` was skipped and its file is running on the unpatched upstream template) | The repository owner, as soon as it appears — the patched behaviour is already gone |
 | The release-validation gate lists `WARN conflicts` for a consumer ([release-validation-plan.md](release-validation-plan.md)) | The installer maintainer cutting the release (see [For installer maintainers](#for-installer-maintainers)) |
 
 Target state: **zero unresolved conflicts after each adoption PR merges.** A

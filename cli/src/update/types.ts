@@ -37,6 +37,19 @@ export interface SectionResult {
    * normalization step (DevAudit-Installer#663) to know what to re-format.
    */
   readonly filePaths?: readonly string[];
+  /**
+   * Consumer patches that did not apply cleanly this sync, so the caller can
+   * persist them in the sync manifest (devaudit-installer#1023). Only the
+   * consumer-patches section sets this.
+   */
+  readonly patchConflicts?: readonly PatchConflict[];
+}
+
+export interface PatchConflict {
+  /** Patch file name relative to `.devaudit-patches/`. */
+  readonly name: string;
+  readonly upstreamIssue?: string;
+  readonly reason?: string;
 }
 
 export interface SyncReport {

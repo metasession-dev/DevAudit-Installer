@@ -358,6 +358,49 @@ describe('devaudit doctor — host-adapter prerequisites (#843)', () => {
     expect(output).not.toContain('DEVAUDIT_USER_TOKEN');
   }, 30_000);
 
+  it('patch-conflicts: reports patches the last sync skipped, with their upstream issue (#1023)', async () => {
+    const { mkdtemp, mkdir, writeFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const dir = await mkdtemp(join(tmpdir(), 'devaudit-doctor-patch-conflicts-'));
+    await writeFile(join(dir, 'sdlc-config.json'), JSON.stringify({ project_slug: 'fixture' }));
+    await mkdir(join(dir, '.devaudit'), { recursive: true });
+    await writeFile(
+      join(dir, '.devaudit', 'sync-manifest.json'),
+      JSON.stringify({
+        version: 1,
+        cli_version: '1.8.0',
+        files: {},
+        patches: {
+          'e2e-regression.yml.patch': {
+            conflict: true,
+            detected_at: '2026-10-16T14:41:00.000Z',
+            upstream_issue: 'https://github.com/metasession-dev/wawagardenbar-app/issues/832',
+          },
+        },
+      }),
+    );
+    const result = await execa('node', [BIN, 'doctor'], { cwd: dir, reject: false });
+    const output = result.stdout + result.stderr;
+    expect(output).toMatch(/patch-conflicts\s+1 consumer patch\(es\) no longer apply cleanly/);
+    expect(output).toContain('e2e-regression.yml.patch (see https://github.com/metasession-dev/wawagardenbar-app/issues/832) since 2026-10-16T14:41:00.000Z');
+    expect(output).toContain('docs/consuming-projects.md#re-rolling-a-conflicting-patch');
+  }, 30_000);
+
+  it('patch-conflicts: is clean when the manifest records none, and skips without a manifest (#1023)', async () => {
+    const { mkdtemp, mkdir, writeFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const dir = await mkdtemp(join(tmpdir(), 'devaudit-doctor-patch-clean-'));
+    await writeFile(join(dir, 'sdlc-config.json'), JSON.stringify({ project_slug: 'fixture' }));
+    const none = await execa('node', [BIN, 'doctor'], { cwd: dir, reject: false });
+    expect(none.stdout + none.stderr).toMatch(/patch-conflicts\s+skipped \(no \.devaudit\/sync-manifest\.json yet\)/);
+    await mkdir(join(dir, '.devaudit'), { recursive: true });
+    await writeFile(join(dir, '.devaudit', 'sync-manifest.json'), JSON.stringify({ version: 1, cli_version: '1.8.0', files: {} }));
+    const clean = await execa('node', [BIN, 'doctor'], { cwd: dir, reject: false });
+    expect(clean.stdout + clean.stderr).toMatch(/patch-conflicts\s+no consumer patches in conflict/);
+  }, 30_000);
+
   it('skips the railway-cli check when reconcile-deployment.yml is not present', async () => {
     const { mkdtemp, writeFile } = await import('node:fs/promises');
     const { tmpdir } = await import('node:os');
@@ -828,7 +871,7 @@ describe('devaudit doctor — D8 releases check + JSON surface (#956)', () => {
     expect(Object.keys(json)).toEqual(expect.arrayContaining(['ok', 'tools', 'releaseCloseoutDrift', 'onboarding']));
     expect(Object.keys(json.releaseCloseoutDrift).sort()).toEqual(['detail', 'name', 'ok']);
     expect(json.tools).toHaveLength(5);
-    expect(json.onboarding).toHaveLength(9);
+    expect(json.onboarding).toHaveLength(10);
     // additive keys
     expect(Array.isArray(json.deferral)).toBe(true);
     expect(json.proposals).toContainEqual(

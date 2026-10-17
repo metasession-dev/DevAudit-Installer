@@ -26,10 +26,30 @@ export interface ManifestEntry {
   readonly pending_upstream_sha256?: string | null;
 }
 
+/**
+ * One `.devaudit-patches/*.patch` that does not currently apply cleanly
+ * (devaudit-installer#1023). Persisted so `devaudit doctor` can discover,
+ * after the fact, that a consumer-side fix silently reverted to the fresh
+ * upstream template -- the sync itself only warns once, in that run's output.
+ */
+export interface PatchConflictEntry {
+  readonly conflict: true;
+  /** ISO timestamp of the first sync that saw this patch in conflict. */
+  readonly detected_at: string;
+  /** From the companion `<name>.patch.json`, when present. */
+  readonly upstream_issue?: string;
+  readonly reason?: string;
+}
+
 export interface SyncManifest {
   readonly version: 1;
   readonly cli_version: string;
   readonly files: Readonly<Record<string, ManifestEntry>>;
+  /**
+   * Patches currently in conflict, keyed by patch file name. Absent (not
+   * `{}`) when none are, so a clean consumer's manifest is unchanged.
+   */
+  readonly patches?: Readonly<Record<string, PatchConflictEntry>>;
 }
 
 export const MANIFEST_RELATIVE_PATH = join('.devaudit', 'sync-manifest.json');
@@ -74,5 +94,18 @@ export async function writeManifest(repoRoot: string, manifest: SyncManifest): P
       .sort()
       .map((k) => [k, manifest.files[k]]),
   );
-  await fs.writeFile(manifestPath, JSON.stringify({ ...manifest, files }, null, 2) + '\n', 'utf-8');
+  const { patches, ...rest } = manifest;
+  const sortedPatches =
+    patches && Object.keys(patches).length > 0
+      ? Object.fromEntries(
+          Object.keys(patches)
+            .sort()
+            .map((k) => [k, patches[k]]),
+        )
+      : undefined;
+  await fs.writeFile(
+    manifestPath,
+    JSON.stringify({ ...rest, files, ...(sortedPatches ? { patches: sortedPatches } : {}) }, null, 2) + '\n',
+    'utf-8',
+  );
 }
