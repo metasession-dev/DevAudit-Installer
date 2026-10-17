@@ -19,16 +19,21 @@ There is no REQ, RTM row, tracked evidence pack, portal UAT/production approval,
 or standalone close-out. The merge is complete after review and terminal-green
 checks on the current PR head SHA.
 
-A push may create a bare-date row such as `vYYYY.MM.DD`. This is integration
-CI/history, not an active full release or pending reviewer task. The next
+A normal integration housekeeping push registers **no portal release** (#1020):
+it is GitHub CI history only, not a release or a pending reviewer task. A
+bare-date `vYYYY.MM.DD` row exists only for a standalone housekeeping release
+with a reviewed declaration. The next
 tracked release absorbs the work and must describe it using the bundled-release
 contract in [README](./README.md): the bundle markdown and JSON, submitted
 manifest, and context in the ticket, test-execution summary, security summary,
 and AI-use note where applicable.
 
-`devaudit update` template refreshes use `[skip ci]` where configured. They do
-not create a portal release; their change is still included in the next tracked
-release's bundled context and validated by that release's gate evidence.
+`devaudit update` template refreshes go through the same PR and CI path as any
+other housekeeping change. Their commit message must never carry a skip-CI tag:
+GitHub then runs no workflows, the required `Quality Gates` check is never
+created, and the PR stays BLOCKED (#1020). They create no portal release; their
+change is still included in the next tracked release's bundled context and
+validated by that release's gate evidence.
 
 ### Agent path
 

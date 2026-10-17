@@ -1,5 +1,8 @@
 # Framework: Suppress housekeeping release noise from automated syncs and bundle changes into the next REQ release
 
+> **Superseded (devaudit-installer#409, #1020).** This is a historical design record, not current behaviour: sync commits no longer use a skip-CI tag (it left the sync PR's required `Quality Gates` check unreported), and normal integration housekeeping registers no portal release. Read `sdlc/files/ci/*.yml.template` and `sdlc/files/_common/scripts/derive-release-version.sh` for what actually happens.
+
+
 > **See also:** deferral of a tracked REQ into the next release (ticket `Release intent: deferred-to-next`, RTM `DEFERRED`, promotion gate) is documented in [Deferring a finished REQ into the next release](../change-workflows.md#deferring-a-finished-req-into-the-next-release) and [ADR-002](../ADR/ADR-002-release-deferral.md). The text below is historical.
 
 **Status:** Proposed / Ready for implementation

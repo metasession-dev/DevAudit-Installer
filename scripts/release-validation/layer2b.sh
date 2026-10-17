@@ -98,6 +98,44 @@ scenario_approval_gate() {
   fi
 }
 
+# #1020: integration housekeeping registers no portal release unless a standalone
+# declaration exists. Static: the candidate workflows that derive a version opt in.
+# Behavioural: the clone's synced derive-release-version.sh prints nothing for an
+# untagged commit with the opt-in, and the bare-date version once a declaration exists.
+check_housekeeping_skip_rule() { # <target> <dir> <candidate-workflows-root>
+  local target="$1" dir="$2" cand="$3" wf missing="" t derive got
+  for wf in ci.yml compliance-evidence.yml; do
+    [ -f "$cand/.github/workflows/$wf" ] || continue
+    grep -q 'scripts/derive-release-version.sh' "$cand/.github/workflows/$wf" || continue
+    grep -q 'DEVAUDIT_SKIP_INTEGRATION_HOUSEKEEPING=1' "$cand/.github/workflows/$wf" || missing="$missing $wf"
+  done
+  if [ -n "$missing" ]; then
+    record "$target" "2b:housekeeping-skip" FAIL "derive the release version without the integration-housekeeping opt-in:$missing"
+    return
+  fi
+  derive="$dir/scripts/derive-release-version.sh"
+  [ -f "$derive" ] || { record "$target" "2b:housekeeping-skip" SKIP "no scripts/derive-release-version.sh in the clone"; return; }
+  t=$(mktemp -d "$WORK_DIR/hk.XXXXXX")
+  (
+    cd "$t" && git init -q -b main && git config user.email t@example.test && git config user.name t \
+      && echo x > f && git add f && git commit -q -m "chore: sync SDLC templates from DevAudit"
+  ) >/dev/null 2>&1
+  got=$(cd "$t" && DEVAUDIT_SKIP_INTEGRATION_HOUSEKEEPING=1 bash "$derive" 2>/dev/null)
+  if [ -n "$got" ]; then
+    record "$target" "2b:housekeeping-skip" FAIL "untagged housekeeping with no declaration derived '$got', expected no release"
+    rm -rf "$t"; return
+  fi
+  mkdir -p "$t/compliance/standalone-housekeeping"
+  echo '{}' > "$t/compliance/standalone-housekeeping/STANDALONE-HOUSEKEEPING-v$(date -u +%Y.%m.%d).json"
+  got=$(cd "$t" && DEVAUDIT_SKIP_INTEGRATION_HOUSEKEEPING=1 bash "$derive" 2>/dev/null)
+  rm -rf "$t"
+  if [ "$got" = "v$(date -u +%Y.%m.%d)" ]; then
+    record "$target" "2b:housekeeping-skip" PASS "untagged housekeeping registers no release; with a standalone declaration it keeps $got"
+  else
+    record "$target" "2b:housekeeping-skip" FAIL "with a standalone declaration derived '$got', expected v$(date -u +%Y.%m.%d)"
+  fi
+}
+
 scenario_ci_workflows() {
   local target="$1" dir="$2" list="$3" n tmp kept
   n=$(grep -c '^\.github/workflows/' "$list" || true)
@@ -114,6 +152,7 @@ scenario_ci_workflows() {
     if [ -f "$f.devaudit-new" ]; then cp "$f.devaudit-new" "$tmp/.github/workflows/$base"; kept=$((kept + 1)); else cp "$f" "$tmp/.github/workflows/$base"; fi
   done
   check_workflows "$target:candidate" "$tmp"
+  check_housekeeping_skip_rule "$target" "$dir" "$tmp"
   record "$target" "2b:ci-workflows" PASS "$n workflow file(s) changed by the update; $kept kept as the clone's own (conflict) were checked through their upstream .devaudit-new copy"
   rm -rf "$tmp"
 }

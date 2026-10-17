@@ -104,7 +104,7 @@ Everything above describes the process. Two commands verify it's actually implem
 
 ## Workflow Pipeline
 
-The framework has one tracked path and two housekeeping outcomes: _tracked_ (`REQ-XXX`) for user-visible changes, normal _integration housekeeping_ (bare-date history) for lightweight work, and the explicit _standalone housekeeping_ exception. Normal housekeeping follows branch → gates → PR review → merge, has no tracked-release ceremony, and is absorbed into the next tracked release through bundled-change lineage. Standalone housekeeping requires the declaration and promotion process in the release playbook.
+The framework has one tracked path and two housekeeping outcomes: _tracked_ (`REQ-XXX`) for user-visible changes, normal _integration housekeeping_ (GitHub CI history only, no portal release) for lightweight work, and the explicit _standalone housekeeping_ exception. Normal housekeeping follows branch → gates → PR review → merge, has no tracked-release ceremony, and is absorbed into the next tracked release through bundled-change lineage. Standalone housekeeping requires the declaration and promotion process in the release playbook.
 
 ```
 0. Project Setup    -- repo, branches, CI, compliance directories (run once)

@@ -63,6 +63,7 @@ The gate never writes to a consumer repository or to the portal:
 | `versions-aligned` | all 5 packages share one version | no (WARN before the bump) |
 | `vitest` | full `cli` vitest suite | yes |
 | `shell-tests` | every `sdlc/files/_common/scripts/*.test.sh` and `scripts/*.test.sh` | yes |
+| `no-skip-ci-guidance` | no operator-facing guidance (`cli/src`, `sdlc/`, `docs/` outside `issues/` and `articles/`, `README.md`) recommends a skip-CI tag on a commit that goes through a PR: GitHub then runs no workflows, the required `Quality Gates` check is never created and the PR stays BLOCKED (#1020) | yes |
 | `mock-portal-lifecycle` | `tests/release-pipeline-e2e/run.sh` against `mock-portal.mjs` | yes |
 | `pack-install` | `npm pack` the CLI, install the tarball into an empty prefix, `devaudit --version` matches | yes |
 
@@ -131,7 +132,7 @@ exercise a change.
 | Surface | Scenario on the updated clone |
 | --- | --- |
 | `approval-gate` | the **clone's own** `check-release-approval*.yml` and `derive-release-version.sh` run against a mock portal (`release-approval-gate-behavior.test.ts` with `GATE_WORKFLOW_FILE`/`GATE_DERIVE_SCRIPT`): blocks every pre-approval state and `deferred`, passes the approved ones |
-| `ci-workflows` | how many workflows the update changed; all of them are parsed, token-checked and `bash -n` checked |
+| `ci-workflows` | how many workflows the update changed; all of them are parsed, token-checked and `bash -n` checked. Also `housekeeping-skip` (#1020): the workflows that derive a release version opt into the integration-housekeeping rule, and the clone's synced `derive-release-version.sh` prints no release for an untagged commit but keeps the bare-date version once a standalone declaration exists |
 | `sync-safety` | edit a synced script locally, commit, run `update` twice: the edit must survive and the upstream copy must be in `.devaudit-new` (#988) |
 | `branch-protection` | section 2k reports no unexpected failure, and the manifest baseline run made no `gh` call (#990) |
 | `deferral` | the deferral scenario (ticket, gate, derive, reconcile) on the real history |

@@ -872,3 +872,53 @@ describe('deferred tickets are skipped by every pending-ticket loop (#956 phase 
     expect(helper).toContain("grep -qE '^- \\*\\*Release intent:\\*\\*[[:space:]]+deferred-to-next'");
   });
 });
+
+describe('integration housekeeping registers no portal release (#1020)', () => {
+  const OPT_IN = 'DEVAUDIT_SKIP_INTEGRATION_HOUSEKEEPING=1';
+
+  it('ci.yml and compliance-evidence.yml derive the version with the housekeeping opt-in on every call', () => {
+    const ci = template('ci.yml.template');
+    const ce = template('compliance-evidence.yml.template');
+    expect(ci.split('./scripts/derive-release-version.sh)').length - 1).toBe(1);
+    expect(ci.split(`${OPT_IN} DEVAUDIT_ALLOW_PENDING_TICKET_FALLBACK=1 ./scripts/derive-release-version.sh`).length - 1).toBe(1);
+    // push/dispatch job + workflow_run job
+    expect(ce.split('./scripts/derive-release-version.sh)').length - 1).toBe(2);
+    expect(ce.split(`${OPT_IN} DEVAUDIT_ALLOW_PENDING_TICKET_FALLBACK=1 ./scripts/derive-release-version.sh`).length - 1).toBe(2);
+  });
+
+  it('the node ci.yml upload-evidence job is not run (and never creates a release called "skip") when registration was skipped', () => {
+    const ci = template('ci.yml.template');
+    const job = ci.slice(ci.indexOf('\n  upload-evidence:'));
+    const ifLine = job.split('\n').find((l) => l.trim().startsWith('if: ${{ !cancelled()')) ?? '';
+    expect(ifLine).toContain("needs.register-release.outputs.version != 'skip'");
+  });
+
+  it('release registration steps in register-release stay gated on version != skip', () => {
+    const ci = template('ci.yml.template');
+    const reg = ci.slice(ci.indexOf('\n  register-release:'), ci.indexOf('\n  upload-evidence:'));
+    for (const step of [
+      'Ensure release exists for gate-execution lineage',
+      'Upload standalone housekeeping declaration',
+      'Generate and upload bundled changes',
+    ]) {
+      const from = reg.indexOf(`- name: ${step}`);
+      expect(from, step).toBeGreaterThan(-1);
+      expect(reg.slice(from, from + 200), step).toContain("steps.version.outputs.version != 'skip'");
+    }
+  });
+
+  it('the disabled legacy housekeeping steps are gone from compliance-evidence.yml', () => {
+    const ce = template('compliance-evidence.yml.template');
+    expect(ce).not.toContain('Legacy housekeeping approval path');
+    expect(ce).not.toContain('Legacy housekeeping gate dispatch');
+    expect(ce).not.toContain('if: ${{ false }}');
+  });
+
+  it('derive-release-version.sh documents the rule and no longer claims sync commits skip CI', () => {
+    const script = commonScript('derive-release-version.sh');
+    expect(script).toContain('DEVAUDIT_SKIP_INTEGRATION_HOUSEKEEPING');
+    expect(script).toContain('STANDALONE-HOUSEKEEPING-<version>.json');
+    expect(script).not.toMatch(/include\s+`\[skip ci\]`/);
+    expect(script).not.toContain('no longer trigger CI');
+  });
+});
