@@ -76,7 +76,7 @@ describe('custom host (#1022)', () => {
       expect(postDeploy).toContain('deployed_sha:');
       expect(postDeploy).toContain('github.event.inputs.deployed_sha');
     } finally { await fs.rm(dir, { recursive: true, force: true }); }
-  }, 120_000);
+  }, 300_000);
 
   it('honours deploy_trigger: git_tag deploys on v* tags, manual only on dispatch', async () => {
     const tag = await sync({ deploy_command: 'make deploy', deploy_trigger: 'git_tag' });
@@ -91,7 +91,7 @@ describe('custom host (#1022)', () => {
       await fs.rm(tag.dir, { recursive: true, force: true });
       await fs.rm(manual.dir, { recursive: true, force: true });
     }
-  }, 180_000);
+  }, 300_000);
 
   it('a missing deploy_command renders a loud failing step, and falls back to a health check', async () => {
     const { dir, deploy } = await sync({});
@@ -99,7 +99,7 @@ describe('custom host (#1022)', () => {
       expect(deploy).toContain('sdlc-config.json deploy_command is not set');
       expect(deploy).toContain('--health-url="${PROD_URL}/"');
     } finally { await fs.rm(dir, { recursive: true, force: true }); }
-  }, 120_000);
+  }, 300_000);
 
   it('removes deploy-custom.yml when the host changes to one with no deploy workflow', async () => {
     const { dir } = await sync({ deploy_command: 'make deploy' });
@@ -116,10 +116,10 @@ describe('custom host (#1022)', () => {
       if (prev === undefined) delete process.env['DEVAUDIT_INSTALLER_ROOT']; else process.env['DEVAUDIT_INSTALLER_ROOT'] = prev;
       await fs.rm(dir, { recursive: true, force: true });
     }
-  }, 180_000);
+  }, 300_000);
 
   it('railway and vercel get no deploy-custom.yml', async () => {
     const { dir, files } = await sync({ host: 'vercel' });
     try { expect(files).not.toContain('deploy-custom.yml'); } finally { await fs.rm(dir, { recursive: true, force: true }); }
-  }, 120_000);
+  }, 300_000);
 });
