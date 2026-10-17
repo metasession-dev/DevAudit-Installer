@@ -51,8 +51,20 @@ jobs:
           fi
           RANGE_REQ_COUNT=$(echo "$RANGE_REQS" | grep -c . || true)
 
+          # devaudit-installer#1019 -- a PR that changes no code (documentation /
+          # compliance records only, or an explicit `Compliance-Record: REQ-XXX`
+          # trailer) is not the release's own work: it must not attach test
+          # executions, its head SHA or its branch to that REQ's release. Its
+          # documents still reach the release through compliance-evidence.yml.
+          ATTRIBUTION=attach
+          if [ -f scripts/classify-pr-attribution.sh ]; then
+            ATTRIBUTION=$(bash scripts/classify-pr-attribution.sh --base "origin/${BASE_REF}" 2>/dev/null || echo attach)
+          fi
+
           REQ_ID=""
-          if [ "$RANGE_REQ_COUNT" = "1" ]; then
+          if [[ "$ATTRIBUTION" == skip:* ]]; then
+            echo "::notice::Feature E2E not attributing this PR to any release (${ATTRIBUTION#skip:}): it changes no code, so it must not move a release's tested SHA, branch or executions (devaudit-installer#1019)."
+          elif [ "$RANGE_REQ_COUNT" = "1" ]; then
             REQ_ID="$RANGE_REQS"
           elif [[ $BRANCH =~ (REQ-[0-9]+) ]]; then
             # Fallback: branch-name regex, best-effort when no commit in
@@ -61,7 +73,10 @@ jobs:
             REQ_ID="${BASH_REMATCH[1]}"
           fi
 
-          if [ -n "$REQ_ID" ]; then
+          if [[ "$ATTRIBUTION" == skip:* ]]; then
+            echo "req_id=none" >> "$GITHUB_OUTPUT"
+            echo "has_tests=false" >> "$GITHUB_OUTPUT"
+          elif [ -n "$REQ_ID" ]; then
             echo "req_id=$REQ_ID" >> "$GITHUB_OUTPUT"
             if grep -rl "@requirement $REQ_ID" {{WORKING_DIR_PREFIX}}e2e/ --include="*.spec.ts" >/dev/null 2>&1; then
               echo "has_tests=true" >> "$GITHUB_OUTPUT"

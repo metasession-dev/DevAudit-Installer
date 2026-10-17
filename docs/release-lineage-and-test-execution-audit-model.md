@@ -367,6 +367,10 @@ Since devaudit-installer#1016, `accepted_exception` is a documented waiver and t
 
 `--resolution-type` is one of `retry_passed | superseded | accepted_exception | incident_remediated` — the same enum the portal's release-readiness gate already treats as resolving an otherwise-blocking cycle (any non-null `resolution_type` clears it; only `outcome` itself is otherwise interpreted as pending/failed). This is the self-service path for exactly the scenario `devaudit#866`'s investigation converged on: the mechanism already existed portal-side, nothing in CI tooling could reach it.
 
+### Attribution guard (devaudit-installer#1019)
+
+Producers must not record a release-scoped execution, tested SHA or branch from a pull request that changes no code. See the producer contract's [section on which pull requests may produce a release-scoped execution](release-lineage-producer-contract.md#which-pull-requests-may-produce-a-release-scoped-execution-devaudit-installer1019). The portal's current behaviour (existing releases never have their branch overwritten; cycles keep the uploader's own SHA and branch) is recorded there.
+
 ### Bundle manifest contract
 
 `BUNDLED-CHANGES-REQ-XXX.md` remains the human-readable artifact. The installer must also generate a versioned, machine-readable manifest, for example `BUNDLED-CHANGES-REQ-XXX.json`, containing:

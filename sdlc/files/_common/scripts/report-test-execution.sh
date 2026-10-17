@@ -125,6 +125,8 @@ RESOLUTION_TYPE=""
 RESOLVED_BY_CYCLE_ID=""
 REASON=""
 RECORD_PATH=""
+# devaudit-installer#1019 -- default on; see classify-pr-attribution.sh.
+ATTRIBUTION_GUARD="${DEVAUDIT_ATTRIBUTION_GUARD:-1}"
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -155,6 +157,7 @@ while [ "$#" -gt 0 ]; do
     --resolved-by-cycle-id) RESOLVED_BY_CYCLE_ID="$2"; shift 2 ;;
     --reason) REASON="$2"; shift 2 ;;
     --record) RECORD_PATH="$2"; shift 2 ;;
+    --no-attribution-guard) ATTRIBUTION_GUARD=0; shift ;;
     --output-file) OUTPUT_FILE="$2"; shift 2 ;;
     *) echo "Unknown option: $1"; exit 1 ;;
   esac
@@ -170,6 +173,25 @@ require_arg() {
 
 require_arg "$PROJECT_SLUG" "--project-slug"
 require_arg "$RELEASE_VERSION" "--release"
+
+# devaudit-installer#1019 -- a pull request that changes no code (documentation
+# / compliance records only) must not record a release-scoped test execution:
+# its head SHA and branch would become the release's "tested" code. start and
+# complete are skipped with a warning; resolve is a deliberate triage action and
+# is unaffected.
+if [ "$MODE" != "resolve" ] && [ "$ATTRIBUTION_GUARD" != "0" ] && [ "${GITHUB_EVENT_NAME:-}" = "pull_request" ] \
+   && [ -n "${GITHUB_BASE_REF:-}" ] && [ -f "$(dirname "${BASH_SOURCE[0]}")/classify-pr-attribution.sh" ]; then
+  ATTRIBUTION="$(bash "$(dirname "${BASH_SOURCE[0]}")/classify-pr-attribution.sh" --base "origin/${GITHUB_BASE_REF}" 2>/dev/null || echo attach)"
+  case "$ATTRIBUTION" in
+    skip:*)
+      echo "::warning::This PR changes no code (${ATTRIBUTION#skip:}); not recording a release-scoped test execution for ${RELEASE_VERSION} (devaudit-installer#1019). Pass --no-attribution-guard to override."
+      if [ -n "$OUTPUT_FILE" ]; then
+        printf 'execution_supported=false\nexecution_skipped_reason=attribution_guard_%s\n' "${ATTRIBUTION#skip:}" > "$OUTPUT_FILE"
+      fi
+      exit 0
+      ;;
+  esac
+fi
 
 if [ "$MODE" = "resolve" ]; then
   require_arg "$TEST_CYCLE_ID" "--test-cycle-id"

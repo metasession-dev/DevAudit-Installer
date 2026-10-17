@@ -94,6 +94,11 @@ FILE_PATH="$4"
 shift 4
 
 GIT_SHA=""
+# devaudit-installer#1019 -- on a pull_request run, a PR that changes no code
+# (documentation / compliance records only) must not bind its head SHA or branch
+# to a release, nor create the release: it uploads the document without them.
+# Default on; --no-attribution-guard or DEVAUDIT_ATTRIBUTION_GUARD=0 disables it.
+ATTRIBUTION_GUARD="${DEVAUDIT_ATTRIBUTION_GUARD:-1}"
 CI_RUN_ID=""
 BRANCH=""
 RELEASE_VERSION=""
@@ -123,6 +128,7 @@ while [ "$#" -gt 0 ]; do
     --branch) BRANCH="$2"; shift 2 ;;
     --release) RELEASE_VERSION="$2"; shift 2 ;;
     --create-release-if-missing) CREATE_RELEASE_IF_MISSING=true; shift ;;
+    --no-attribution-guard) ATTRIBUTION_GUARD=0; shift ;;
     --environment) ENVIRONMENT="$2"; shift 2 ;;
     --category) EVIDENCE_CATEGORY="$2"; shift 2 ;;
     # Descriptive title + conventional-commit change type passed through to
@@ -157,6 +163,18 @@ done
 if [ -n "$ENVIRONMENT" ] && [ -z "$RELEASE_VERSION" ]; then
   echo "Error: --environment requires --release (evidence without a release is orphaned)"
   exit 1
+fi
+
+if [ "$ATTRIBUTION_GUARD" != "0" ] && [ "${GITHUB_EVENT_NAME:-}" = "pull_request" ] \
+   && [ -n "$RELEASE_VERSION" ] && { [ -n "$GIT_SHA" ] || [ -n "$BRANCH" ] || [ "$CREATE_RELEASE_IF_MISSING" = true ]; } \
+   && [ -n "${GITHUB_BASE_REF:-}" ] && [ -f "$(dirname "${BASH_SOURCE[0]}")/classify-pr-attribution.sh" ]; then
+  ATTRIBUTION="$(bash "$(dirname "${BASH_SOURCE[0]}")/classify-pr-attribution.sh" --base "origin/${GITHUB_BASE_REF}" 2>/dev/null || echo attach)"
+  case "$ATTRIBUTION" in
+    skip:*)
+      echo "::warning::This PR changes no code (${ATTRIBUTION#skip:}); uploading to ${RELEASE_VERSION} WITHOUT binding its SHA/branch or creating the release (devaudit-installer#1019). Pass --no-attribution-guard to override."
+      GIT_SHA=""; BRANCH=""; CREATE_RELEASE_IF_MISSING=false
+      ;;
+  esac
 fi
 if [ -n "$RELEASE_VERSION" ] && [ -z "$EVIDENCE_CATEGORY" ]; then
   echo "Error: --category is required when --release is specified (gate validation)"
