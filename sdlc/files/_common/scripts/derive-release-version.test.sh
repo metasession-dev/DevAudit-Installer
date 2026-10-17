@@ -504,6 +504,28 @@ assert_eq "#1020 a declaration for a DIFFERENT date does not keep today's row ->
 make_fixture "$WORK/c21" "[REQ-037] feat: tagged work"
 assert_eq "#1020 a REQ-tagged commit is unaffected by the opt-in -> REQ-037" "REQ-037" "$(DEVAUDIT_SKIP_INTEGRATION_HOUSEKEEPING=1 run_helper)"
 
+# devaudit-installer#1019 -- a Compliance-Record trailer attributes the commit's
+# documents to that REQ (like Ref:), a bracketed subject tag still wins over it.
+make_fixture "$WORK/c30" "compliance: record triage
+
+Compliance-Record: REQ-109"
+assert_eq "#1019 Compliance-Record trailer -> REQ-109" "REQ-109" "$(run_helper)"
+
+make_fixture "$WORK/c31" "compliance: record triage
+
+Compliance-Record: req-109"
+assert_eq "#1019 Compliance-Record is case-insensitive -> REQ-109" "REQ-109" "$(run_helper)"
+
+make_fixture "$WORK/c32" "fix: [REQ-037] real work
+
+Compliance-Record: REQ-109"
+assert_eq "#1019 a bracketed subject tag still wins over Compliance-Record -> REQ-037" "REQ-037" "$(run_helper)"
+
+make_fixture "$WORK/c33" "compliance: prose
+
+see Compliance-Record: REQ-109 for context"
+assert_eq "#1019 an indented/in-prose mention is not a trailer line start -> still bare date" "$TODAY" "$(run_helper)"
+
 echo ""
 echo "=== Summary: $PASS pass / $FAIL fail ==="
 

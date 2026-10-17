@@ -13,6 +13,11 @@
 #                                                                    -> REQ-XXX
 #   1. REQ tag in commit subject:     "[REQ-037] feat(kitchen): ..." -> REQ-037
 #   2. Ref in commit body:            "Ref: REQ-037"                 -> REQ-037
+#   2-bis. Compliance-Record trailer: "Compliance-Record: REQ-037"   -> REQ-037
+#                                      (devaudit-installer#1019: same release for the
+#                                      commit's DOCUMENTS, but the PR is classified as
+#                                      document-only, so CI never binds its SHA, branch
+#                                      or test executions to that release)
 #   3. Bracketed tag in commit body:   merge commit whose body is the PR title
 #                                      "... [REQ-037] ..."           -> REQ-037
 #   3-bis. Merge-range scan:          HEAD is a two-parent merge commit and
@@ -150,6 +155,15 @@ if echo "$BODY" | grep -qiE 'Ref:[[:space:]]*REQ-[0-9]+'; then
   exit 0
 fi
 
+# 2-bis. Body: `Compliance-Record: REQ-XXX` (devaudit-installer#1019). A
+# doc-only compliance PR uses this trailer instead of `Ref:` so its documents
+# still land on that REQ's release while classify-pr-attribution.sh keeps its
+# head SHA, branch and test executions off it.
+if echo "$BODY" | grep -qiE '^[[:space:]]*Compliance-Record:[[:space:]]*REQ-[0-9]+'; then
+  echo "$BODY" | grep -ioE '^[[:space:]]*Compliance-Record:[[:space:]]*REQ-[0-9]+' | head -1 | grep -oiE 'REQ-[0-9]+' | tr '[:lower:]' '[:upper:]'
+  exit 0
+fi
+
 # 3. Body: a bracketed [REQ-XXX] anywhere in the body. Catches a merge commit
 # whose body is the PR title — e.g. subject "Merge pull request #7 from …",
 # body "chore(deps): [REQ-002] …". Bracketed-only, so an unbracketed prose
@@ -186,7 +200,7 @@ if [ "$(echo "$PARENTS" | wc -w)" = "2" ]; then
         if echo "$RANGE_BODY" | grep -qE '^Release-Closeout:[[:space:]]*REQ-[0-9]{3,}'; then
           continue
         fi
-        echo "$RANGE_BODY" | grep -ioE '(\[REQ-[0-9]+\]|Ref:[[:space:]]*REQ-[0-9]+)'
+        echo "$RANGE_BODY" | grep -ioE '(\[REQ-[0-9]+\]|Ref:[[:space:]]*REQ-[0-9]+|Compliance-Record:[[:space:]]*REQ-[0-9]+)'
       done \
     | grep -oiE 'REQ-[0-9]+' | tr '[:lower:]' '[:upper:]' | sort -u || true)
   RANGE_REQ_COUNT=$(echo "$RANGE_REQS" | grep -c . || true)

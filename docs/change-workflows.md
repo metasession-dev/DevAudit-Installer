@@ -196,3 +196,7 @@ uncertain history.
 ## A required gate fails on the release PR
 
 Whatever the release type, a failing required check on the release PR is fixed or accepted with a documented exception before UAT; see [e2e-test-tiers.md](e2e-test-tiers.md#when-a-tier-fails-fix-or-accept-devaudit-installer1016) (devaudit-installer#1016).
+
+## Compliance-record PRs (devaudit-installer#1019)
+
+A documentation-only PR that records evidence for an existing REQ (a triage record, an accepted-exception record, a corrected summary) carries `Compliance-Record: REQ-XXX` instead of `Ref:`/`[REQ-XXX]`. Its documents land on that REQ's release, and CI keeps its head SHA, branch and test executions off it. See [release-lineage-producer-contract.md](release-lineage-producer-contract.md#which-pull-requests-may-produce-a-release-scoped-execution-devaudit-installer1019).
