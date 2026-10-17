@@ -201,9 +201,11 @@ describe('Release intent deferral + Python rejection (#955 remainder)', () => {
     expect(loop).toContain('Closing a release PR without releasing');
   });
 
-  it('bundle mode rejects stack: python', () => {
-    expect(skill).toContain('Reject `stack: python` outright');
-    expect(skill).toContain('Declared bundles are a Node-template feature');
+  it('bundle mode supports stack: python (#995) and no longer rejects it', () => {
+    expect(skill).not.toContain('Reject `stack: python` outright');
+    expect(skill).not.toContain('Declared bundles are a Node-template feature');
+    expect(skill).toContain('Python parity (devaudit-installer#995)');
+    expect(skill).toContain('Re-run `devaudit update` first');
   });
 
   it('the generator guards deferred intent and None-with-commits', () => {

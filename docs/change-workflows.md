@@ -97,9 +97,12 @@ one release PR, and one portal release.
 | Manifest | The committed `BUNDLED-CHANGES-<core>.{md,json}` lists members as `role: "co_tracked"`. That is a local declaration: `derive-release-version.sh` and CI regeneration read it, but `submit-bundle-manifest.sh` does not send `co_tracked` members to the portal (predecessors and housekeeping are still submitted). |
 | Close-out | The close-out PR releases the members with the core: their tickets move to `approved-releases/`, Status `RELEASED`, a `Released with bundle` backlink, RTM `RELEASED`. Absorbed predecessors are still superseded. |
 
-Limits: declared bundles are supported by the Node CI template only. The Python
-template generates no bundled changes or bundle manifest, so `sdlc-implementer`
-rejects a declared bundle when `stack: python` rather than half-supporting it (#955).
+Python (#995): declared bundles work on `stack: python` as well. When a live
+declared bundle exists the Python CI template registers the run on the bundle's
+single core-REQ release (instead of the date release), generates and submits the
+bundle manifest, and files each member's artifacts against that release; without a
+declared bundle the Python date-based release model is unchanged. Re-run
+`devaudit update` first: a Python project synced before #995 has the old template.
 Also, `feature-e2e.yml` handles a single REQ per
 run, so it skips a multi-REQ bundle PR.
 

@@ -526,6 +526,21 @@ make_fixture "$WORK/c33" "compliance: prose
 see Compliance-Record: REQ-109 for context"
 assert_eq "#1019 an indented/in-prose mention is not a trailer line start -> still bare date" "$TODAY" "$(run_helper)"
 
+# devaudit-installer#995 -- bundle-only mode (the Python CI template): after step 0
+# the script stops, so ordinary work keeps its date-based release model.
+make_fixture "$WORK/c40" "feat: [REQ-037] ordinary work"
+assert_eq "#995 bundle-only mode, no declared bundle -> empty (ordinary work unchanged)" "" "$(DEVAUDIT_DERIVE_BUNDLE_ONLY=1 run_helper)"
+assert_eq "#995 without the variable the same commit still derives REQ-037" "REQ-037" "$(run_helper)"
+
+make_fixture "$WORK/c41" "feat: [REQ-038] work on a bundle member"
+mkdir -p compliance/pending-releases
+printf '# Bundled changes\n\n## Co-Tracked Bundle Members\n\n- REQ-038\n' > compliance/pending-releases/BUNDLED-CHANGES-REQ-037.md
+assert_eq "#995 bundle-only mode with a live declared bundle -> the core REQ" "REQ-037" "$(DEVAUDIT_DERIVE_BUNDLE_ONLY=1 run_helper)"
+
+mkdir -p compliance/approved-releases
+echo x > compliance/approved-releases/RELEASE-TICKET-REQ-037.md
+assert_eq "#995 bundle-only mode ignores a stale (archived) declared bundle -> empty" "" "$(DEVAUDIT_DERIVE_BUNDLE_ONLY=1 run_helper)"
+
 echo ""
 echo "=== Summary: $PASS pass / $FAIL fail ==="
 
