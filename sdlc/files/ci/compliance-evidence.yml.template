@@ -127,7 +127,7 @@ jobs:
           VERSION=$(DEVAUDIT_SKIP_INTEGRATION_HOUSEKEEPING=1 DEVAUDIT_ALLOW_PENDING_TICKET_FALLBACK=1 ./scripts/derive-release-version.sh)
           if [ -z "$VERSION" ]; then
             echo "version=skip" >> "$GITHUB_OUTPUT"
-            echo "Compliance evidence upload skipped: close-out reconciliation or integration housekeeping (no standalone declaration)."
+            echo "Compliance evidence skipped (close-out reconciliation or integration housekeeping with no standalone declaration)."
             exit 0
           fi
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
@@ -232,7 +232,7 @@ jobs:
           VERSION=$(DEVAUDIT_SKIP_INTEGRATION_HOUSEKEEPING=1 DEVAUDIT_ALLOW_PENDING_TICKET_FALLBACK=1 ./scripts/derive-release-version.sh)
           if [ -z "$VERSION" ]; then
             echo "version=skip" >> "$GITHUB_OUTPUT"
-            echo "E2E evidence upload skipped: close-out reconciliation or integration housekeeping (no standalone declaration)."
+            echo "E2E evidence skipped (close-out reconciliation or integration housekeeping with no standalone declaration)."
             exit 0
           fi
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"

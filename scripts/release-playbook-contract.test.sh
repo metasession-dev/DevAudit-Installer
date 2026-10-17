@@ -44,7 +44,7 @@ expect_contains "$PLAYBOOKS/housekeeping-release.md" "STANDALONE-HOUSEKEEPING-vY
 expect_contains "$PLAYBOOKS/housekeeping-release.md" "wait for the next tracked release"
 expect_contains "$PLAYBOOKS/high-risk-release.md" "backmerge/*"
 expect_contains "$PLAYBOOKS/low-risk-release.md" "render-test-executions.sh"
-expect_contains "$WORKFLOWS" "Historical CI context by default"
+expect_contains "$WORKFLOWS" "normal integration housekeeping has no portal row"
 expect_contains "$SKILL" "mandatory automated reconciliation"
 expect_contains "$SKILL" "Recover Required Checks"
 expect_contains "$SKILL" "record Stage 4 UAT execution"
