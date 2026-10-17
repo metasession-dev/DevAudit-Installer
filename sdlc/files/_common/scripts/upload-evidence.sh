@@ -644,12 +644,29 @@ for FILE in "${FILES[@]}"; do
         continue
       fi
     fi
-    rm -f "$RESP_HEADERS_FILE"
     break
   done
 
+  # DevAudit-Installer#1018 — a 400 ("Failed to parse body as FormData") or
+  # 413 on the multipart path means the file exceeded a body limit that sits
+  # below PRESIGNED_THRESHOLD_BYTES (reverse proxy / framework). Retrying the
+  # same multipart POST cannot succeed, so fall back to the presigned flow
+  # once (unless it was already the path taken above).
+  if [ "$FILE_SIZE" -lt "$PRESIGNED_THRESHOLD_BYTES" ] && { [ "$HTTP_CODE" = "400" ] || [ "$HTTP_CODE" = "413" ]; }; then
+    echo -n "(multipart HTTP ${HTTP_CODE} at ${FILE_SIZE} bytes, trying presigned fallback) "
+    FALLBACK_RESULT=0
+    upload_presigned "$FILE" || FALLBACK_RESULT=$?
+    if [ "$FALLBACK_RESULT" -eq 0 ]; then
+      rm -f "$RESP_BODY_FILE" "$RESP_HEADERS_FILE"
+      echo "OK (${FILE_SIZE} bytes, presigned R2 upload after multipart HTTP ${HTTP_CODE})"
+      SUCCEEDED=$((SUCCEEDED + 1))
+      TOTAL_SIZE=$((TOTAL_SIZE + FILE_SIZE))
+      continue
+    fi
+  fi
+
   if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
-    rm -f "$RESP_BODY_FILE"
+    rm -f "$RESP_BODY_FILE" "$RESP_HEADERS_FILE"
     if [ "$ATTEMPT" -gt 1 ]; then
       echo "OK (${FILE_SIZE} bytes, attempt ${ATTEMPT}/${MAX_ATTEMPTS})"
     else
@@ -666,7 +683,14 @@ for FILE in "${FILES[@]}"; do
     if [ -s "$RESP_BODY_FILE" ]; then
       echo "  Response: $(head -c 500 "$RESP_BODY_FILE")"
     fi
-    rm -f "$RESP_BODY_FILE"
+    # DevAudit-Installer#1018 — diagnostics so a size/limit failure is
+    # attributable from the log alone: size, upload path, content type of
+    # the part, and the response headers (proxy/server identification).
+    echo "  Diagnostics: file=${FILENAME} size=${FILE_SIZE}B path=multipart evidenceType=${EVIDENCE_TYPE} presigned_threshold=${PRESIGNED_THRESHOLD_BYTES}B"
+    if [ -s "$RESP_HEADERS_FILE" ]; then
+      echo "  Response headers: $(tr -d '\r' < "$RESP_HEADERS_FILE" | grep -iE '^(HTTP/|server:|content-type:|content-length:|via:|x-)' | head -8 | tr '\n' '|')"
+    fi
+    rm -f "$RESP_BODY_FILE" "$RESP_HEADERS_FILE"
     FAILED=$((FAILED + 1))
   fi
 done

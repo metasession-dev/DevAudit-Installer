@@ -608,9 +608,7 @@ jobs:
             # Uses evidence_type=e2e_report (NOT test_report) so the
             # portal can distinguish run-context bundles from per-REQ
             # test completion reports (DevAudit-Installer#207).
-            if [ -d e2e-artifacts/playwright-report ]; then
-              (cd e2e-artifacts && zip -qr playwright-report.zip playwright-report/) 2>/dev/null || true
-            fi
+            bash scripts/playwright-report-evidence.sh zip e2e-artifacts "$REQ"
             if [ -f e2e-artifacts/playwright-report.zip ]; then
               # DevAudit-Installer#189 — the Playwright HTML report zip
               # (~50–100MB) exceeds the portal's multipart body parser
@@ -630,6 +628,7 @@ jobs:
               else
                 echo "::warning::playwright HTML report upload failed for ${REQ} (non-blocking — JSON results are canonical evidence)"
                 REQ_FAILURES=$((REQ_FAILURES + 1))
+                bash scripts/playwright-report-evidence.sh missing "$REQ" "${{ github.event.workflow_run.conclusion }}"
               fi
             fi
             case "${{ github.event.workflow_run.conclusion }}" in

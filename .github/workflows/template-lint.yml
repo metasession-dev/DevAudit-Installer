@@ -117,6 +117,13 @@ jobs:
           bash sdlc/files/_common/scripts/submit-bundle-manifest.test.sh
           bash sdlc/files/_common/scripts/close-out-release.test.sh
 
+      - name: Run evidence upload tests (devaudit-installer#1018)
+        run: |
+          chmod +x sdlc/files/_common/scripts/upload-evidence.sh
+          chmod +x sdlc/files/_common/scripts/playwright-report-evidence.sh
+          bash sdlc/files/_common/scripts/upload-evidence.test.sh
+          bash sdlc/files/_common/scripts/playwright-report-evidence.test.sh
+
       - name: Run pre-push hook tests
         run: |
           chmod +x sdlc/files/stacks/node/hooks/pre-push
