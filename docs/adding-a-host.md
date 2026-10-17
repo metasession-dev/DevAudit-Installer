@@ -120,9 +120,38 @@ For Railway, that means:
 - do not run `tsx` / `ts-node` in the long-lived production web process
 - keep background schedulers out of the web process where the platform shape allows it
 
+### `reconcile` (optional webhook-loss recovery, devaudit-installer#1022)
+
+The post-deploy gate waits for the provider's GitHub `deployment_status` event. If the provider deployed but the event never reached GitHub, the gate waits forever. A host that can look its own deployments up declares how, and `devaudit update` then generates `reconcile-deployment.yml` for it (a host without `reconcile` gets none, and a previously generated one is removed):
+
+```json
+"reconcile": {
+  "lookup_script": "lookup-deployment-fly.sh",
+  "required_cli": "flyctl",
+  "secrets": ["FLY_API_TOKEN"]
+}
+```
+
+- `lookup_script` — a file you add under `sdlc/files/_common/scripts/` (it syncs to `scripts/`). Called with `--deployment-id= --project= --service= --environment=`; it prints **one JSON object** `{"id","status","sha","branch","repo"}` (`status`: `success|failed|building|canceled|unknown`) and exits non-zero when the deployment is not found. Everything after the lookup — terminal-success, the exact SHA from `main` of this repo, a health probe, the idempotent GitHub deployment-status POST, the provenance evidence — is the shared `reconcile-deployment.sh`; you write only the lookup. Examples: `lookup-deployment-railway.sh` (the `railway` CLI), `lookup-deployment-vercel.sh` (curl + jq against the REST API).
+- `required_cli` — the CLI the lookup shells out to (`devaudit doctor`'s `reconcile-cli` check expects it on `PATH`), or `null`.
+- `secrets` — repo secrets exposed to the lookup as environment variables. List the same ones in `required_secrets` so `doctor` flags them when missing (they are advisory: only the recovery path needs them).
+
+## Which adapter fields are consumed today
+
+| Field | Consumed by | Status |
+| --- | --- | --- |
+| `name`, `description` | adapter listing, `install --host`, schema validation | used |
+| `required_secrets` | `devaudit doctor` `secrets` check | used |
+| `reconcile` | `devaudit update` (whether and how to generate `reconcile-deployment.yml`), `doctor` `reconcile-cli` | used |
+| `production_url_from` / `production_url_secret_key` | the `{{PRODUCTION_URL_SECRET}}` token, from `production_url_secret` in `sdlc-config.json` | only `secret` is implemented; `static`, `api_lookup` and `env` are accepted by the schema but do nothing yet |
+| `deploy_trigger`, `wait_for_deploy`, `post_deploy_hook` | nothing yet: the generic post-deploy workflow reacts to the provider's GitHub `deployment_status`, whatever triggered the deploy | reserved (documentary) |
+| `config_keys`, `required_env`, `runtime_contract`, `notes` | validated and shown to operators | documentary |
+
+Do not rely on a reserved field changing behaviour; if your host's deploy does not post a GitHub deployment status, see the `custom` host in this repo's docs.
+
 ## Step 4 — Update `post-deploy-prod.yml.template`
 
-This is the only template that consumes the host adapter today (Phase 4 wired in stack-adapter fields but not host-adapter fields). For now, the host's `wait_for_deploy` and `post_deploy_hook` snippets aren't auto-substituted into the workflow — the template has Railway's curl-based wait hardcoded.
+The host's `wait_for_deploy` and `post_deploy_hook` snippets are not auto-substituted into the workflow (see the field table above): the template reacts to the provider's GitHub `deployment_status` and runs a host-neutral independent health probe. `reconcile-deployment.yml` is the one host-specific workflow, and it is generated from the adapter's `reconcile` data (devaudit-installer#1022).
 
 Adding a new host today therefore has two paths:
 

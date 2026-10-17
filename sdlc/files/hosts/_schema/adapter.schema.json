@@ -119,6 +119,28 @@
       "type": "array",
       "items": { "type": "string", "minLength": 1 },
       "description": "Free-form notes about the host's quirks — backed up here so future maintainers don't have to rediscover them. Not consumed by templates."
+    },
+    "reconcile": {
+      "type": "object",
+      "description": "Optional webhook-loss recovery (devaudit-installer#1022). When present, `devaudit update` generates reconcile-deployment.yml for this host and `devaudit doctor` checks its prerequisites. The workflow looks the provider's deployment up with lookup_script, verifies it against the expected SHA and a health probe, and records the GitHub deployment status the provider failed to post. Absent means the host has no recovery workflow.",
+      "additionalProperties": false,
+      "required": ["lookup_script"],
+      "properties": {
+        "lookup_script": {
+          "type": "string",
+          "pattern": "^lookup-deployment-[a-z0-9-]+\\.sh$",
+          "description": "File under sdlc/files/_common/scripts/ (synced to scripts/). Called with --deployment-id --project --service --environment; prints one JSON object {id,status,sha,branch,repo} with status success|failed|building|canceled|unknown, and exits non-zero when the deployment is not found."
+        },
+        "required_cli": {
+          "type": ["string", "null"],
+          "description": "A CLI the lookup shells out to, which `devaudit doctor` expects on PATH for whoever runs the recovery workflow. null when the lookup needs none (curl + jq only)."
+        },
+        "secrets": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
+          "description": "Repo secrets exposed to the lookup as environment variables in reconcile-deployment.yml."
+        }
+      }
     }
   },
   "allOf": [

@@ -68,9 +68,20 @@ export interface StackAdapter {
   readonly manifest_file?: string;
 }
 
+export interface HostReconcile {
+  /** File under sdlc/files/_common/scripts/ that looks a provider deployment up. */
+  readonly lookup_script: string;
+  /** CLI the lookup shells out to (expected on PATH for the runner), or null. */
+  readonly required_cli?: string | null;
+  /** Repo secrets exposed to the lookup as environment variables. */
+  readonly secrets?: readonly string[];
+}
+
 export interface HostAdapter {
   readonly name: string;
   readonly required_secrets?: readonly string[];
+  /** Webhook-loss recovery for this host (devaudit-installer#1022). Absent = none generated. */
+  readonly reconcile?: HostReconcile;
   readonly runtime_contract?: {
     readonly preferred_web_runtime: string;
     readonly forbid_typescript_runtime: boolean;

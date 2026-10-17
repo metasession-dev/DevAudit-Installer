@@ -2392,7 +2392,7 @@ describe('syncProject — native TS sync against a fixture', () => {
     }, 60_000);
   });
 
-  it('does not generate reconcile-deployment.yml for a non-railway host adapter (#841)', async () => {
+  it('generates a vercel-flavoured reconcile-deployment.yml for the vercel host adapter (#1022)', async () => {
     const dir = await buildFixture();
     try {
       const configPath = join(dir, 'sdlc-config.json');
@@ -2400,20 +2400,52 @@ describe('syncProject — native TS sync against a fixture', () => {
       config['host'] = 'vercel';
       await fs.writeFile(configPath, JSON.stringify(config));
       process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
-
       await syncProject(dir);
-      const workflowFiles = await fs.readdir(join(dir, '.github', 'workflows'));
-      // reconcile-deployment.yml.template hardcodes the railway CLI +
-      // RAILWAY_TOKEN — a vercel (or any non-railway) consumer has no use
-      // for it and shouldn't receive dead workflow content.
-      expect(workflowFiles).not.toContain('reconcile-deployment.yml');
+      const content = await fs.readFile(join(dir, '.github', 'workflows', 'reconcile-deployment.yml'), 'utf8');
+      expect(content).toContain('--provider="vercel"');
+      expect(content).toContain('scripts/lookup-deployment-vercel.sh');
+      expect(content).toContain('VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}');
+      expect(content).not.toContain('RAILWAY_TOKEN');
+      expect(content).toContain("--meta-key 'provider=vercel'");
+      // the synced scripts it calls exist in the consumer
+      for (const f of ['reconcile-deployment.sh', 'lookup-deployment-vercel.sh', 'lookup-deployment-railway.sh']) {
+        await expect(fs.stat(join(dir, 'scripts', f))).resolves.toBeTruthy();
+      }
       await expectAllWorkflowsValidYaml(dir);
     } finally {
       await fs.rm(dir, { recursive: true, force: true });
     }
   }, 60_000);
 
-  it('generates reconcile-deployment.yml for the railway host adapter, and removes it if the host changes away from railway (#841)', async () => {
+  it('does not generate reconcile-deployment.yml for a host adapter with no reconcile capability (#841, #1022)', async () => {
+    const dir = await buildFixture();
+    const altRoot = await fs.mkdtemp(join(tmpdir(), 'cli-noreconcile-root-'));
+    try {
+      // A copy of the installer's sdlc/ tree whose vercel adapter declares no `reconcile`:
+      // generation is driven by the adapter's data, not by a host name.
+      await fs.cp(join(INSTALLER_ROOT, 'sdlc'), join(altRoot, 'sdlc'), { recursive: true });
+      const adapterPath = join(altRoot, 'sdlc', 'files', 'hosts', 'vercel', 'adapter.json');
+      const adapter = JSON.parse(await fs.readFile(adapterPath, 'utf8')) as Record<string, unknown>;
+      delete adapter['reconcile'];
+      await fs.writeFile(adapterPath, JSON.stringify(adapter));
+      const configPath = join(dir, 'sdlc-config.json');
+      const config = JSON.parse(await fs.readFile(configPath, 'utf8')) as Record<string, unknown>;
+      config['host'] = 'vercel';
+      await fs.writeFile(configPath, JSON.stringify(config));
+      process.env['DEVAUDIT_INSTALLER_ROOT'] = altRoot;
+
+      await syncProject(dir);
+      const workflowFiles = await fs.readdir(join(dir, '.github', 'workflows'));
+      expect(workflowFiles).not.toContain('reconcile-deployment.yml');
+      await expectAllWorkflowsValidYaml(dir);
+    } finally {
+      process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
+      await fs.rm(dir, { recursive: true, force: true });
+      await fs.rm(altRoot, { recursive: true, force: true });
+    }
+  }, 120_000);
+
+  it('generates reconcile-deployment.yml for the railway host adapter, retargets it on a host change, and removes it for a host with no reconcile capability (#841, #1022)', async () => {
     const dir = await buildFixture();
     try {
       process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
@@ -2423,16 +2455,19 @@ describe('syncProject — native TS sync against a fixture', () => {
       expect(workflowFiles).toContain('reconcile-deployment.yml');
       const content = await fs.readFile(join(workflowDir, 'reconcile-deployment.yml'), 'utf8');
       expect(content).toContain('RAILWAY_TOKEN');
+      expect(content).toContain('--provider="railway"');
+      expect(content).not.toContain('VERCEL_TOKEN');
 
-      // Switching a previously-railway consumer to another host removes the
-      // now-stale reconcile-deployment.yml instead of leaving it behind.
+      // Switching to another host that has a reconcile capability regenerates the
+      // workflow for that host (it is the same managed path, so it is rewritten, not left stale).
       const configPath = join(dir, 'sdlc-config.json');
       const config = JSON.parse(await fs.readFile(configPath, 'utf8')) as Record<string, unknown>;
       config['host'] = 'vercel';
       await fs.writeFile(configPath, JSON.stringify(config));
       await syncProject(dir);
-      const workflowFilesAfter = await fs.readdir(workflowDir);
-      expect(workflowFilesAfter).not.toContain('reconcile-deployment.yml');
+      const after = await fs.readFile(join(workflowDir, 'reconcile-deployment.yml'), 'utf8');
+      expect(after).toContain('--provider="vercel"');
+      expect(after).not.toContain('RAILWAY_TOKEN');
     } finally {
       await fs.rm(dir, { recursive: true, force: true });
     }

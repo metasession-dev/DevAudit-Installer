@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { exists, isDir, ensureDir } from '../lib/fs-utils.js';
 import { substituteTokens, substituteBlocks, stripServicesBlock, stripE2eRegressionListener } from '../lib/templates.js';
 import { resolveTargets, type Target } from '../lib/sdlc-config.js';
+import { loadHostAdapter } from '../lib/adapter.js';
 import { writeManaged, removeManaged } from './write-managed.js';
 import type { SyncContext, SectionResult } from './types.js';
 
@@ -15,11 +16,10 @@ const CI_TEMPLATES = [
   'compliance-validation.yml.template',
   'check-release-approval.yml.template',
   'post-deploy-prod.yml.template',
-  // devaudit-installer#841: Railway-specific (hardcoded railway CLI +
-  // RAILWAY_TOKEN); only generated for the railway host adapter — see the
-  // ctx.host !== 'railway' skip in the syncCiTemplates loop below. Every
-  // other host adapter used to receive this as dead workflow content with
-  // no reconciliation path of its own.
+  // devaudit-installer#841/#1022: webhook-loss recovery. Only generated for a
+  // host adapter that declares a `reconcile` capability (railway and vercel
+  // today) — see the `!reconcile` skip in the syncCiTemplates loop below. A
+  // host without one used to receive this as dead workflow content.
   'reconcile-deployment.yml.template',
   'compliance-evidence.yml.template',
   'feature-e2e.yml.template',
@@ -719,13 +719,15 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
     }
   }
 
-  // devaudit-installer#841 — reconcile-deployment.yml.template is Railway-
-  // specific (hardcoded railway CLI invocation + RAILWAY_TOKEN); consumers
-  // on any other host adapter got a dead workflow file with no equivalent
-  // reconciliation path of their own. Same remove-on-disable shape as the
-  // e2e-regression block above, keyed on the host adapter instead of a
-  // config flag.
-  if (ctx.host !== 'railway') {
+  // devaudit-installer#841/#1022 — reconcile-deployment.yml is the webhook-loss
+  // recovery path for hosts whose adapter declares a `reconcile` capability
+  // (a provider lookup script, an optional CLI, the secrets the lookup needs).
+  // A host without one gets no workflow, and a previously generated one is
+  // removed. Same remove-on-disable shape as the e2e-regression block above,
+  // keyed on the host adapter's data instead of a host name.
+  const hostAdapter = await loadHostAdapter(ctx.installerRoot, ctx.host);
+  const reconcile = hostAdapter.reconcile;
+  if (!reconcile) {
     for (const existing of await fs.readdir(workflowsDir).catch(() => [] as string[])) {
       if (/^reconcile-deployment(-.+)?\.yml$/.test(existing)) {
         recordRemoval(await removeManaged(ctx.managed!, join(workflowsDir, existing), { section: '2f' }));
@@ -794,6 +796,10 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
 
     const tokens: Record<string, string> = {
       PROJECT_SLUG: projectSlug,
+      HOST: ctx.host,
+      // One `NAME: ${{ secrets.NAME }}` per secret the host's reconcile lookup needs,
+      // spliced under a step-level `env:` (10-space indent). Empty when none.
+      RECONCILE_SECRETS_ENV: (reconcile?.secrets ?? []).map((n) => `${n}: \${{ secrets.${n} }}`).join('\n          '),
       PRODUCTION_URL_SECRET: productionUrlSecret,
       INTEGRATION_BRANCH: cfg.integration_branch ?? 'develop',
       RELEASE_BRANCH: cfg.release_branch ?? 'main',
@@ -901,7 +907,7 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
 
     for (const tmpl of CI_TEMPLATES) {
       if (tmpl === 'e2e-regression.yml.template' && !cfg.e2e_regression_enabled) continue;
-      if (tmpl === 'reconcile-deployment.yml.template' && ctx.host !== 'railway') continue;
+      if (tmpl === 'reconcile-deployment.yml.template' && !reconcile) continue;
       const stackTmpl = join(ctx.installerRoot, 'sdlc', 'files', 'ci', stack, tmpl);
       const defaultTmpl = join(ctx.installerRoot, 'sdlc', 'files', 'ci', tmpl);
       let tmplPath: string;

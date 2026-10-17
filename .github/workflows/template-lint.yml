@@ -170,10 +170,10 @@ jobs:
           chmod +x sdlc/files/_common/scripts/close-out-reconcile.sh
           bash sdlc/files/_common/scripts/close-out-reconcile.test.sh
 
-      - name: Run reconcile-railway-deployment tests
+      - name: Run reconcile-deployment and provider lookup tests (devaudit-installer#1022)
         run: |
-          chmod +x sdlc/files/_common/scripts/reconcile-railway-deployment.sh
-          bash sdlc/files/_common/scripts/reconcile-railway-deployment.test.sh
+          chmod +x sdlc/files/_common/scripts/reconcile-deployment.sh sdlc/files/_common/scripts/lookup-deployment-railway.sh sdlc/files/_common/scripts/lookup-deployment-vercel.sh
+          bash sdlc/files/_common/scripts/reconcile-deployment.test.sh
 
       - name: Run release pipeline E2E fixture
         run: bash tests/release-pipeline-e2e/run.sh

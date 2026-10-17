@@ -142,3 +142,7 @@ Backward-compatible additions (new optional fields) need:
 3. Existing adapters can stay as they are.
 
 Backward-incompatible changes (renaming or removing required fields, narrowing an enum) need a v1.24.0-level version bump and a migration note for consumers.
+
+## Optional: `reconcile` (devaudit-installer#1022)
+
+`reconcile` declares the host's webhook-loss recovery: `lookup_script` (a `lookup-deployment-<host>.sh` under `sdlc/files/_common/scripts/` printing `{id,status,sha,branch,repo}` for a provider deployment), `required_cli` (a CLI the lookup needs on `PATH`, or `null`) and `secrets` (repo secrets exposed to the lookup). Its presence is what makes `devaudit update` generate `reconcile-deployment.yml` and `devaudit doctor` check `reconcile-cli`; its absence means neither. See [`docs/adding-a-host.md`](../docs/adding-a-host.md#reconcile-optional-webhook-loss-recovery-devaudit-installer1022) for the contract and the table of which adapter fields are actually consumed.
