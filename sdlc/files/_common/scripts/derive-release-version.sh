@@ -39,12 +39,20 @@
 # ticket. The optional fallback below is disabled by default and may be used
 # only for an explicitly reviewed integration exception.
 #
-# Note (DevAudit-Installer#220): `devaudit update` syncs now include
-# `[skip ci]` in their commit message, so they no longer trigger CI
-# at all. The bare-date fallback (step 5) is therefore reached only by
-# human-authored housekeeping commits — the intended use case. Skipped
-# housekeeping changes are bundled into the next REQ release via
-# `generate-bundled-changes.sh` (run by the register-release CI job).
+# Note (DevAudit-Installer#1020): step 5 is reached by any untagged
+# integration commit, including a `devaudit update` template sync (sync
+# commits no longer carry a skip-CI tag: it left the PR's required
+# `Quality Gates` check unreported forever, and #409 had already removed the
+# sign-off path the tag was protecting). Since #409 normal bare-date
+# housekeeping is integration CI history on GitHub, not a portal release
+# awaiting approval; the next tracked REQ release absorbs it through
+# `generate-bundled-changes.sh`. Set DEVAUDIT_SKIP_INTEGRATION_HOUSEKEEPING=1
+# (ci.yml and compliance-evidence.yml do) and step 5 prints nothing --
+# callers translate that to `skip` -- unless a reviewed standalone
+# declaration compliance/standalone-housekeeping/STANDALONE-HOUSEKEEPING-<version>.json
+# exists, in which case the bare-date version is returned and the portal
+# promotes that row to a standalone housekeeping release. Without the
+# variable the behaviour is unchanged for every other caller.
 #
 # Step 4-bis (DevAudit-Installer#95) is the zero-ceremony equivalent:
 # RTM.md is the file the operator already maintains as the source of
@@ -302,4 +310,15 @@ if echo "$BODY" | grep -qE '^Release-Closeout:[[:space:]]*REQ-[0-9]{3,}'; then
 fi
 
 # 5. Fallback: bare date in UTC
-echo "v$(date -u +%Y.%m.%d)"
+BARE_DATE_VERSION="v$(date -u +%Y.%m.%d)"
+# DevAudit-Installer#1020 -- integration housekeeping registers no portal
+# release. Only a reviewed standalone declaration for this version keeps the
+# bare-date row (opt-in via the variable so other callers are unaffected).
+if [ "${DEVAUDIT_SKIP_INTEGRATION_HOUSEKEEPING:-0}" = "1" ]; then
+  STANDALONE_DECLARATION="${STANDALONE_HOUSEKEEPING_DIR:-compliance/standalone-housekeeping}/STANDALONE-HOUSEKEEPING-${BARE_DATE_VERSION}.json"
+  if [ ! -f "$STANDALONE_DECLARATION" ]; then
+    echo "::notice::Integration housekeeping (${BARE_DATE_VERSION}): no standalone declaration at ${STANDALONE_DECLARATION}, so no portal release is registered; the next tracked release absorbs it." >&2
+    exit 0
+  fi
+fi
+echo "$BARE_DATE_VERSION"

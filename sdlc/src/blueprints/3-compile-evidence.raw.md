@@ -82,7 +82,7 @@ A release is classified by version shape and release mode. **Most of this doc wa
 
 ### Housekeeping outcomes
 
-Normal housekeeping skips the per-requirement evidence and approval path. Run the relevant gates, obtain terminal-green PR review, and merge to `develop`; the bare-date portal row is integration history. When a tracked release later absorbs the work, its bundled-change manifest preserves the source title, evidence ownership, stage, and executions.
+Normal housekeeping skips the per-requirement evidence and approval path. Run the relevant gates, obtain terminal-green PR review, and merge to `develop`; integration housekeeping registers no portal row (#1020), so the run is GitHub CI history only. When a tracked release later absorbs the work, its bundled-change manifest preserves the source title, evidence ownership, stage, and executions.
 
 Use standalone housekeeping only when the change cannot reasonably wait for that tracked release. Follow `docs/release-playbooks/housekeeping-release.md`: add the validated `STANDALONE-HOUSEKEEPING-vYYYY.MM.DD.json` declaration, document why promotion is necessary, pass the required checks, and verify production. There is no automatic release-ticket or security-summary stub PR for either housekeeping outcome.
 
@@ -530,7 +530,7 @@ Create `compliance/pending-releases/RELEASE-TICKET-REQ-XXX.md`:
 
 ## Bundled Changes
 
-Required when `compliance/pending-releases/BUNDLED-CHANGES-REQ-XXX.md` exists or when predecessor bare-date releases are being superseded into this REQ.
+Required when `compliance/pending-releases/BUNDLED-CHANGES-REQ-XXX.md` exists or when legacy predecessor bare-date releases (rows created before #1020) are being superseded into this REQ.
 
 - **Core tracked release:** [REQ-XXX]
 - **Absorbed predecessor releases:** [versions or `None`]

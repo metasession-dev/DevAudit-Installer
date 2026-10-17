@@ -1,5 +1,8 @@
 # When Your CI Creates More Releases Than Your Developers
 
+> **Superseded (devaudit-installer#409, #1020).** This is a historical design record, not current behaviour: sync commits no longer use a skip-CI tag (it left the sync PR's required `Quality Gates` check unreported), and normal integration housekeeping registers no portal release. Read `sdlc/files/ci/*.yml.template` and `sdlc/files/_common/scripts/derive-release-version.sh` for what actually happens.
+
+
 > **Historical case study.** This article documents the pre-#409 housekeeping workflow. Today, normal no-REQ work is integration history and only an explicitly declared standalone exception enters the release approval path.
 
 > **Primary persona:** CTO + Lead Developer

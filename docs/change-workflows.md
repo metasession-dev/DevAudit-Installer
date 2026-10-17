@@ -63,7 +63,7 @@ A release is keyed by `(project, version)`.
 | Version       | Meaning                                   | Review treatment                                             |
 | ------------- | ----------------------------------------- | ------------------------------------------------------------ |
 | `REQ-XXX`     | Tracked release                           | Active approval envelope with per-REQ evidence and lifecycle |
-| `vYYYY.MM.DD` | Bare-date housekeeping/integration record | Historical CI context by default, not an active full release |
+| `vYYYY.MM.DD` | Standalone housekeeping release (only with a reviewed `STANDALONE-HOUSEKEEPING-vYYYY.MM.DD.json` declaration) | Active release for the standalone exception. Normal integration housekeeping has no portal row (#1020) |
 
 A tracked promotion can bundle multiple REQs and/or prior housekeeping work. Each
 absorbed predecessor REQ keeps its own release record (linked as historical

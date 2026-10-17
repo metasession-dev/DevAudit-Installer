@@ -159,9 +159,9 @@ The **`sdlc-implementer`** skill orchestrates one GitHub issue through Stages 1�
 
 ### Housekeeping changes (`v2026.06.04`)
 
-Bare-date integration history for develop pushes that don't carry a `REQ-XXX` — typically `docs:`, `chore:`, `ci:`, `build:`, `test:`, `compliance:`, `revert:` commits. The lightweight path still requires local gates, terminal-green PR checks, and human PR review. It does **not** create a tracked approval release, UAT/production approval request, release ticket, or security-summary stub PR.
+Integration housekeeping (GitHub CI history only, no portal row) for develop pushes that don't carry a `REQ-XXX` — typically `docs:`, `chore:`, `ci:`, `build:`, `test:`, `compliance:`, `revert:` commits. The lightweight path still requires local gates, terminal-green PR checks, and human PR review. It does **not** create a tracked approval release, UAT/production approval request, release ticket, or security-summary stub PR.
 
-The portal records the resulting bare-date row as **integration history**. The next tracked `REQ-XXX` release absorbs relevant work through its bundled-changes manifest while retaining the source history and evidence ownership for audit.
+The portal records nothing for it (#1020): the run is GitHub CI history only, and a bare-date `vYYYY.MM.DD` version exists only for a standalone housekeeping release. The next tracked `REQ-XXX` release absorbs relevant work through its bundled-changes manifest while retaining the source history and evidence ownership for audit.
 
 Use a **standalone housekeeping release** only when the change cannot reasonably wait for the next tracked REQ. The release PR must state `Standalone housekeeping promotion`, include the validated `STANDALONE-HOUSEKEEPING-vYYYY.MM.DD.json` declaration and reason, and pass production verification. The portal then records it as a distinct standalone release. See [the housekeeping playbook](./docs/release-playbooks/housekeeping-release.md) for the exception contract.
 

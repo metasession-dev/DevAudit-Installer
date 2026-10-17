@@ -249,7 +249,7 @@ describe('syncProject — native TS sync against a fixture', () => {
     );
     expect(ciYml).toMatch(/register-release:[\s\S]*if: \$\{\{ github\.event_name != 'pull_request' && github\.ref_name == 'develop' \}\}/);
     expect(ciYml).toMatch(
-      /upload-evidence:[\s\S]*if: \$\{\{ !cancelled\(\) && github\.event_name != 'pull_request' && github\.ref_name == 'develop' && needs\.register-release\.result == 'success' \}\}/,
+      /upload-evidence:[\s\S]*if: \$\{\{ !cancelled\(\) && github\.event_name != 'pull_request' && github\.ref_name == 'develop' && needs\.register-release\.result == 'success' && needs\.register-release\.outputs\.version != 'skip' \}\}/,
     );
     expect(ciYml).toContain('scripts/report-test-execution.sh start');
     expect(ciYml).toContain('--evidence-scope execution --test-execution-record-id');
@@ -285,10 +285,12 @@ describe('syncProject — native TS sync against a fixture', () => {
     expect(complianceUploader).toContain('/api/ci/projects/${DEVAUDIT_PROJECT_SLUG}/audit-log/export');
     expect(complianceUploader).toContain('audit_log "$AUDIT_LOG_FILE"');
     expect(complianceUploader).not.toContain('FLAGS="${FLAGS} --test-execution ${{ github.run_id }}"');
-    // #409: ordinary housekeeping is integration history. The legacy path
-    // that made approval artefacts, opened a PR, and dispatched CI is disabled.
-    expect(complianceEvidenceYml).toContain('Legacy housekeeping approval path (disabled)');
-    expect(complianceEvidenceYml).toContain('Legacy housekeeping gate dispatch (disabled)');
+    // #409/#1020: ordinary housekeeping is integration history and registers no
+    // portal release. The legacy path that made approval artefacts, opened a PR,
+    // and dispatched CI was disabled by #409 and removed by #1020.
+    expect(complianceEvidenceYml).not.toContain('Legacy housekeeping approval path');
+    expect(complianceEvidenceYml).not.toContain('Legacy housekeeping gate dispatch');
+    expect(complianceEvidenceYml).toContain('DEVAUDIT_SKIP_INTEGRATION_HOUSEKEEPING=1');
     expect(complianceEvidenceYml).toContain('contents: read');
     expect(complianceEvidenceYml).not.toContain('actions: write       # gh workflow run ci.yml --ref develop');
     // devaudit-installer#869 — this fixture never sets e2e_regression_enabled,

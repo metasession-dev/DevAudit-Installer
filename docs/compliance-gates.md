@@ -6,7 +6,7 @@ The process view lives in [`docs/change-workflows.md`](./change-workflows.md). T
 
 ## The gate model
 
-Tracked releases and housekeeping releases both rely on the same core verification shape:
+Tracked releases and standalone housekeeping releases both rely on the same core verification shape:
 
 1. run quality gates on `develop`
 2. register the release record

@@ -468,6 +468,19 @@ run_layer1() {
     [ "$(node -p "require('$ROOT/$p/package.json').version")" = "$v" ] || mismatch="$mismatch $p"
   done
   if [ -z "$mismatch" ]; then record installer versions-aligned PASS "all 5 packages at $v"; else record installer versions-aligned WARN "not at $v:$mismatch (bump happens at release)"; fi
+  # #1020: no operator-facing guidance may tell anyone to put a skip-CI tag on a
+  # commit that goes through a PR (GitHub then runs no workflows, so the required
+  # Quality Gates check is never created). Historical records, tests, the changelog
+  # and the SRS (which describes the rule) are exempt.
+  local skip_hits
+  skip_hits=$(cd "$ROOT" && grep -rnI --include='*.md' --include='*.ts' --include='*.sh' --include='*.yml' --include='*.template' --include='*.json' -e '\[skip ci\]' \
+    cli/src sdlc/files sdlc/src docs README.md .devin 2>/dev/null \
+    | grep -v -e '^docs/issues/' -e '^docs/articles/' -e '\.test\.sh:' -e '^docs/SRS\.md:' || true)
+  if [ -z "$skip_hits" ]; then
+    record installer no-skip-ci-guidance PASS "no operator-facing guidance recommends a skip-CI tag"
+  else
+    record installer no-skip-ci-guidance FAIL "skip-CI tag found: $(printf '%s' "$skip_hits" | head -3 | tr '\n' ' ')"
+  fi
   if [ "${SKIP_LAYER1_TESTS:-0}" != "1" ]; then
     out=$(cd "$ROOT/cli" && npx vitest run 2>&1 | grep -E 'Tests +[0-9]' | tail -1)
     if printf '%s' "$out" | grep -q 'failed'; then record installer vitest FAIL "$out"; else record installer vitest PASS "$out"; fi

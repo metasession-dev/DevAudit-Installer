@@ -485,6 +485,25 @@ RTM
 GOT=$(DEVAUDIT_ALLOW_PENDING_TICKET_FALLBACK=1 run_helper 2>/dev/null)
 assert_eq "live IN PROGRESS row still wins at step 4-bis -> REQ-404" "REQ-404" "$GOT"
 
+# DevAudit-Installer#1020 -- integration housekeeping registers no portal
+# release unless a reviewed standalone declaration exists for the version.
+# The behaviour is opt-in (DEVAUDIT_SKIP_INTEGRATION_HOUSEKEEPING=1, set by
+# ci.yml and compliance-evidence.yml); every other caller is unchanged.
+make_fixture "$WORK/c20" "chore: sync SDLC templates from DevAudit"
+assert_eq "#1020 untagged housekeeping, opt-in, no declaration -> empty (skip)" "" "$(DEVAUDIT_SKIP_INTEGRATION_HOUSEKEEPING=1 run_helper 2>/dev/null)"
+assert_eq "#1020 untagged housekeeping WITHOUT the opt-in is unchanged -> $TODAY" "$TODAY" "$(run_helper)"
+
+mkdir -p compliance/standalone-housekeeping
+echo '{}' > "compliance/standalone-housekeeping/STANDALONE-HOUSEKEEPING-${TODAY}.json"
+assert_eq "#1020 opt-in WITH a standalone declaration for today -> $TODAY" "$TODAY" "$(DEVAUDIT_SKIP_INTEGRATION_HOUSEKEEPING=1 run_helper 2>/dev/null)"
+
+echo '{}' > "compliance/standalone-housekeeping/STANDALONE-HOUSEKEEPING-v2000.01.01.json"
+rm "compliance/standalone-housekeeping/STANDALONE-HOUSEKEEPING-${TODAY}.json"
+assert_eq "#1020 a declaration for a DIFFERENT date does not keep today's row -> empty" "" "$(DEVAUDIT_SKIP_INTEGRATION_HOUSEKEEPING=1 run_helper 2>/dev/null)"
+
+make_fixture "$WORK/c21" "[REQ-037] feat: tagged work"
+assert_eq "#1020 a REQ-tagged commit is unaffected by the opt-in -> REQ-037" "REQ-037" "$(DEVAUDIT_SKIP_INTEGRATION_HOUSEKEEPING=1 run_helper)"
+
 echo ""
 echo "=== Summary: $PASS pass / $FAIL fail ==="
 
