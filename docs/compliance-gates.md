@@ -60,6 +60,7 @@ The portal's `release-approved` `repository_dispatch` re-triggers `check-release
 | Markdown/governance/release-ticket evidence | `compliance-evidence.yml` |
 | PR truthfulness and artifact completeness | `compliance-validation.yml` |
 | UAT approval/four-eyes | `check-release-approval.yml` |
+| Required-gate failure on the release PR (fix or documented exception, E2E first) | `sdlc-implementer` Phase 4 step 5a, `report-test-execution.sh resolve`, `validate-risk-acceptance-record.sh`, `validate-test-summary.sh` (see [e2e-test-tiers.md](e2e-test-tiers.md#when-a-tier-fails-fix-or-accept-devaudit-installer1016)) |
 | Deferred-REQ promotion gate (a deferred REQ's commits must not reach `main` unless listed under `Absorbed predecessor releases`) | `check-deferred-reqs-in-range.sh`, run by `check-release-pr-scope.sh` inside the existing Release Scope Integrity job (not a separate required check) |
 | Production health and release close-out | `post-deploy-prod.yml` |
 

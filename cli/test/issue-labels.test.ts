@@ -47,7 +47,7 @@ describe('issue-template label seeding (#970)', () => {
 
   it('collects every label declared by the real templates', async () => {
     const labels = await collectTemplateLabels(ROOT);
-    for (const l of ['bug', 'requirement', 'needs-triage', 'task', 'chore', 'srs-bootstrap', 'documentation']) {
+    for (const l of ['bug', 'requirement', 'needs-triage', 'task', 'chore', 'srs-bootstrap', 'documentation', 'accepted-e2e-failure', 'accepted-dependency-risk']) {
       expect(labels).toContain(l);
     }
   });

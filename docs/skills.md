@@ -65,3 +65,7 @@ These aren't separate skills — they're named, independently-triggerable mechan
 - [`docs/adding-a-skill.md`](./adding-a-skill.md) for skill authoring
 - [`docs/change-workflows.md`](./change-workflows.md) for when the orchestrator is used and when the lightweight path applies
 - [`docs/fleet-doctor.md`](./fleet-doctor.md) for the operator-only fleet-wide drift audit
+
+## Required-gate failure triage (devaudit-installer#1016)
+
+`sdlc-implementer` Phase 4 step 5a halts `[Blocked]` on a failing required check on the release PR and offers exactly two paths, fix or accept with a documented exception (never automatic). `e2e-test-engineer` Phase 6 produces the `## E2E failures & triage` rows and drafts the accepted-exception record only when the operator chose Accept. The record template ships in `sdlc-implementer/references/`. See [e2e-test-tiers.md](e2e-test-tiers.md#when-a-tier-fails-fix-or-accept-devaudit-installer1016).

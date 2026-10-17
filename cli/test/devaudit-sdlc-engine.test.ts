@@ -119,6 +119,9 @@ if (args[0] === 'repo' && args[1] === 'view') {
 if (args[0] === 'run' && args[1] === 'rerun') {
   process.exit(0);
 }
+if (args[0] === 'issue' && args[1] === 'comment') {
+  process.exit(0);
+}
 
 process.stderr.write(\`unexpected gh invocation: \${args.join(' ')}\\n\`);
 process.exit(1);
@@ -493,6 +496,78 @@ describe('devaudit-sdlc CLI engine', () => {
 
       expect(res.exitCode).toBe(2);
       expect(res.stdout).toContain('waiting for required release checks to report');
+    });
+
+    describe('required-gate failure visibility (devaudit-installer#1016, R5)', () => {
+      const RELEASE_PR = JSON.stringify({ state: 'OPEN', isDraft: false, reviewDecision: 'APPROVED', baseRefName: 'main', headRefName: 'develop' });
+      const checksWith = (e2eState: string, e2eBucket: string) =>
+        JSON.stringify([
+          { name: 'Quality Gates', workflow: 'CI', state: 'SUCCESS', bucket: 'pass', link: 'https://github.com/x/actions/runs/101' },
+          { name: 'Release Scope Integrity', workflow: 'CI Pipeline', state: 'SUCCESS', bucket: 'pass', link: 'https://github.com/x/actions/runs/102' },
+          { name: 'Compliance Validation', workflow: 'Compliance Validation', state: 'SUCCESS', bucket: 'pass', link: 'https://github.com/x/actions/runs/103' },
+          { name: 'DevAudit Release Approval', workflow: 'Release Approval Gate', state: 'SUCCESS', bucket: 'pass', link: 'https://github.com/x/actions/runs/104' },
+          { name: 'E2E Regression Suite', workflow: 'E2E Regression', state: e2eState, bucket: e2eBucket, link: 'https://github.com/x/actions/runs/105' },
+        ]);
+      const run = async (checks: string, log: string, extra: readonly string[] = []) => {
+        const mockBin = await writeMockGh(sandbox);
+        return execa(
+          process.execPath,
+          [ENGINE_PATH, '--watch-pr=61', '--repo=metasession-dev/example', '--issue=55', '--once', ...extra],
+          {
+            cwd: sandbox,
+            reject: false,
+            env: {
+              ...process.env,
+              DEVAUDIT_GH_BIN: join(mockBin, 'gh'),
+              PATH: `${mockBin}:${process.env.PATH}`,
+              MOCK_GH_LOG: log,
+              GH_PR_VIEW_JSON: RELEASE_PR,
+              GH_PR_CHECKS_JSON: checks,
+            },
+          },
+        );
+      };
+
+      it('comments on the issue once, with the fix-or-accept options, when a required check is red', async () => {
+        const log = join(sandbox, 'gh-red.log');
+        await fs.writeFile(log, '');
+        const first = await run(checksWith('FAILURE', 'fail'), log);
+        expect(first.stdout).toContain('Required release check(s) failing:');
+        expect(first.stdout).toContain('E2E Regression Suite');
+        const second = await run(checksWith('FAILURE', 'fail'), log);
+        expect(second.stdout).not.toContain('Required release check(s) failing');
+        // the comment body is multi-line, so assert on the whole log
+        const text = await fs.readFile(log, 'utf8');
+        expect(text.split('\n').filter((l) => l.startsWith('issue comment 55'))).toHaveLength(1);
+        expect(text).toContain('E2E Regression Suite');
+        expect(text).toContain('blocked until one of these is completed');
+        expect(text).toContain('accepted_exception');
+      });
+
+      it('stays silent while every required check is green, and re-arms after a recovery', async () => {
+        const log = join(sandbox, 'gh-green.log');
+        await fs.writeFile(log, '');
+        await run(checksWith('SUCCESS', 'pass'), log);
+        expect((await fs.readFile(log, 'utf8')).includes('issue comment')).toBe(false);
+        await run(checksWith('FAILURE', 'fail'), log);
+        await run(checksWith('SUCCESS', 'pass'), log);
+        await run(checksWith('FAILURE', 'fail'), log);
+        const calls = (await fs.readFile(log, 'utf8')).split('\n').filter((l) => l.startsWith('issue comment 55'));
+        expect(calls).toHaveLength(2);
+      });
+
+      it('does not comment when no issue number is known, and still reports the block', async () => {
+        const log = join(sandbox, 'gh-noissue.log');
+        await fs.writeFile(log, '');
+        const mockBin = await writeMockGh(sandbox);
+        const res = await execa(process.execPath, [ENGINE_PATH, '--watch-pr=62', '--repo=metasession-dev/example', '--once'], {
+          cwd: sandbox,
+          reject: false,
+          env: { ...process.env, ISSUE_NUM: '', DEVAUDIT_GH_BIN: join(mockBin, 'gh'), PATH: `${mockBin}:${process.env.PATH}`, MOCK_GH_LOG: log, GH_PR_VIEW_JSON: RELEASE_PR, GH_PR_CHECKS_JSON: checksWith('FAILURE', 'fail') },
+        });
+        expect(res.stdout).toContain('Required release check(s) failing');
+        expect((await fs.readFile(log, 'utf8')).includes('issue comment')).toBe(false);
+      });
     });
 
     it('--watch-pr auto-reruns a flaky failing workflow and persists rerun counts', async () => {

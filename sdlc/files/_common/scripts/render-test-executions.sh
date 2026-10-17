@@ -46,6 +46,11 @@ format_date() {
 }
 
 render_test_executions() {
+  # devaudit-installer#1016 -- marks the table as generated from the release
+  # journey (validate-test-summary.sh rejects a hand-typed table in a summary
+  # that carries a "CI as of:" stamp). The stamp is the journey's own
+  # timestamp when it has one, otherwise the time of rendering.
+  echo "<!-- generated-by: render-test-executions.sh journey-at $(jq -r '.generatedAt // .fetchedAt // empty' "$INPUT_JSON" 2>/dev/null | head -1 | grep . || date -u +%Y-%m-%dT%H:%M:%SZ) -->"
   echo "| Source Release | SDLC Stage | Execution | Suite | Outcome | Workflow / Run | Related Evidence | Incident / Remediation | Date |"
   echo "| --- | --- | --- | --- | --- | --- | --- | --- | --- |"
 

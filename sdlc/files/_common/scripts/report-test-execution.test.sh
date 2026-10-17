@@ -170,12 +170,54 @@ case_missing_release_fails() {
   rm -rf "$dir"
 }
 
+valid_record() { # <file>
+  cat > "$1" <<'REC'
+---
+record_kind: "accepted_e2e_failure"
+req: "REQ-108"
+release: "REQ-108"
+failing_specs:
+  - "e2e/critical/example.spec.ts"
+ci_run: "https://github.com/acme/app/actions/runs/1"
+head_sha: "389bf6f0000000000000000000000000000000aa"
+classification: "flake"
+decision_maker: "A. Operator"
+decided_at: "2026-10-15"
+review_by: "2099-01-01"
+tracking_issue: "https://github.com/acme/app/issues/852"
+---
+
+## Failure
+
+| Spec | Test | CI run / attempt | Error excerpt |
+| --- | --- | --- | --- |
+| example | t | 1/1 | x |
+
+## Evidence of classification
+
+Re-run five times, all pass.
+
+## Impact assessment
+
+No user-visible journey affected.
+
+## Why this does not block this release
+
+Unrelated to the change.
+
+## Remediation
+
+Tracked in the issue above.
+REC
+}
+
 case_resolve_success() {
   echo "case: resolve calls the cycle-resolution endpoint with the excusing payload"
   local dir out exit_code
   dir=$(mktemp -d)
   make_fixture "$dir"
   out="$dir/out.env"
+  valid_record "$dir/record.md"
   RESOLVE_STATUS=200 \
   RESOLVE_BODY='{"latest":{"id":"release-1","version":"REQ-108"}}' \
   RESOLVE_CYCLE_STATUS=200 \
@@ -186,14 +228,66 @@ case_resolve_success() {
     --test-cycle-id cycle-1 \
     --resolution-type accepted_exception \
     --reason "unrelated pre-existing defect wawagardenbar-app#852" \
-    --remediation-reference wawagardenbar-app#852 \
+    --remediation-reference https://github.com/acme/app/issues/852 \
+    --record "$dir/record.md" \
     --output-file "$out" >"$dir/stdout.log" 2>"$dir/stderr.log" && exit_code=0 || exit_code=$?
   if [ "$exit_code" -eq 0 ]; then ok "exit code 0"; else no "expected exit 0"; fi
   assert_contains "called resolve endpoint" "/cycles/cycle-1/resolve" "$dir/curl.log"
   assert_contains "payload has resolutionType" '"resolutionType": "accepted_exception"' "$dir/curl.log"
-  assert_contains "payload has reason" '"reason": "unrelated pre-existing defect wawagardenbar-app#852"' "$dir/curl.log"
-  assert_contains "payload has remediationReference" '"remediationReference": "wawagardenbar-app#852"' "$dir/curl.log"
+  assert_contains "payload has reason referencing the record" '(record: ' "$dir/curl.log"
+  assert_contains "payload has remediationReference" '"remediationReference": "https://github.com/acme/app/issues/852"' "$dir/curl.log"
   assert_contains "outputs resolve endpoint" "execution_endpoint=resolve" "$out"
+  rm -rf "$dir"
+}
+
+case_accepted_exception_requires_tracking_issue_and_record() {
+  echo "case: accepted_exception without --remediation-reference or --record fails before any network call (#1016)"
+  local dir exit_code
+  dir=$(mktemp -d)
+  make_fixture "$dir"
+  valid_record "$dir/record.md"
+  run_helper "$dir" resolve --project-slug wgb --release REQ-108 --test-cycle-id cycle-1 \
+    --resolution-type accepted_exception --reason "flake" --record "$dir/record.md" \
+    >"$dir/stdout.log" 2>"$dir/stderr.log" && exit_code=0 || exit_code=$?
+  if [ "$exit_code" -ne 0 ]; then ok "no tracking issue: non-zero"; else no "expected non-zero without --remediation-reference"; fi
+  assert_contains "error names --remediation-reference" "--remediation-reference" "$dir/stderr.log"
+  run_helper "$dir" resolve --project-slug wgb --release REQ-108 --test-cycle-id cycle-1 \
+    --resolution-type accepted_exception --reason "flake" --remediation-reference https://github.com/acme/app/issues/852 \
+    >"$dir/stdout.log" 2>"$dir/stderr.log" && exit_code=0 || exit_code=$?
+  if [ "$exit_code" -ne 0 ]; then ok "no record: non-zero"; else no "expected non-zero without --record"; fi
+  assert_contains "error names --record" "--record" "$dir/stderr.log"
+  rm -rf "$dir"
+}
+
+case_accepted_exception_rejects_incomplete_record() {
+  echo "case: accepted_exception with an unedited/expired record fails validation (#1016)"
+  local dir exit_code
+  dir=$(mktemp -d)
+  make_fixture "$dir"
+  valid_record "$dir/record.md"
+  sed 's/review_by: "2099-01-01"/review_by: "2020-01-01"/' "$dir/record.md" > "$dir/expired.md"
+  run_helper "$dir" resolve --project-slug wgb --release REQ-108 --test-cycle-id cycle-1 \
+    --resolution-type accepted_exception --reason "flake" --remediation-reference https://github.com/acme/app/issues/852 \
+    --record "$dir/expired.md" >"$dir/stdout.log" 2>"$dir/stderr.log" && exit_code=0 || exit_code=$?
+  if [ "$exit_code" -ne 0 ]; then ok "expired record: non-zero"; else no "expected non-zero for an expired record"; fi
+  assert_contains "error says the review date is not in the future" "not in the future" "$dir/stderr.log"
+  if [ -e "$dir/curl.log" ] && grep -q "/resolve" "$dir/curl.log"; then no "must not call the portal with an invalid record"; else ok "no portal call was made"; fi
+  rm -rf "$dir"
+}
+
+case_retry_passed_needs_no_record() {
+  echo "case: retry_passed (a verified re-run) does not need a record (#1016)"
+  local dir exit_code
+  dir=$(mktemp -d)
+  make_fixture "$dir"
+  RESOLVE_STATUS=200 \
+  RESOLVE_BODY='{"latest":{"id":"release-1","version":"REQ-108"}}' \
+  RESOLVE_CYCLE_STATUS=200 \
+  RESOLVE_CYCLE_BODY='{"id":"cycle-1"}' \
+  run_helper "$dir" resolve --project-slug wgb --release REQ-108 --test-cycle-id cycle-1 \
+    --resolution-type retry_passed --resolved-by-cycle-id cycle-2 --reason "re-run passed on the same SHA" \
+    >"$dir/stdout.log" 2>"$dir/stderr.log" && exit_code=0 || exit_code=$?
+  if [ "$exit_code" -eq 0 ]; then ok "retry_passed succeeds without a record"; else no "expected exit 0"; fi
   rm -rf "$dir"
 }
 
@@ -236,6 +330,9 @@ case_start_success
 case_complete_reconciles_terminal_conflict
 case_missing_release_fails
 case_resolve_success
+case_accepted_exception_requires_tracking_issue_and_record
+case_accepted_exception_rejects_incomplete_record
+case_retry_passed_needs_no_record
 case_resolve_requires_reason
 case_resolve_rejects_invalid_resolution_type
 

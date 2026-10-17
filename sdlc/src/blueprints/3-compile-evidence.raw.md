@@ -132,6 +132,7 @@ cat > compliance/evidence/REQ-XXX/test-execution-summary.md << 'EOF'
 **Date:** [YYYY-MM-DD]
 **Git SHA:** [short SHA]
 **CI Run:** [run ID or "local"]
+**CI as of:** [run id]/[attempt] @ [head sha] <!-- authored pre-PR: use `local @ <sha>`; regenerate after the release PR's CI reaches a terminal state and after every re-run, triage, fix or deferral (devaudit-installer#1016) -->
 
 ## Test design (devaudit#50)
 
@@ -161,6 +162,22 @@ Records the design-time decisions before listing run results — what was tested
 | E2E Tests | PASS | [N]/[N] passed |
 | Build | PASS | Production build succeeded |
 
+## E2E failures & triage
+
+Required whenever ANY execution failed - local runs and every CI attempt, including a failed attempt that a later re-run superseded (devaudit-installer#1016). Optional ("None - no failed execution") when nothing failed. A gate row may not read PASS while a failure here is unresolved, and "known unrelated flakes" is not a disposition. The validator (`validate-test-summary.sh`) fails when a failure is recorded without a row, and `reconcile-e2e-summary.sh` compares these rows with the CI results for the head SHA.
+
+| Spec / check | Source | Classification | Evidence | Disposition | Reference |
+| ------------ | ------ | -------------- | -------- | ----------- | --------- |
+| e2e/critical/foo.spec.ts | CI 123/1 | flake | 5 isolated re-runs pass, code unchanged since REQ-049 | Fix | PR #510 |
+| e2e/critical/bar.spec.ts | local | seed-data gap | seed lacks a transaction for the day | Accepted exception | compliance/evidence/REQ-XXX/accepted-e2e-failure-bar.md |
+| e2e/critical/baz.spec.ts | CI 123/1 | test bug | selector drift | Deferral | https://github.com/owner/repo/issues/512 |
+
+Rules:
+- **Source** is `local` or `CI <run id>/<attempt>`.
+- **Classification** is one of `flake`, `test bug`, `app defect`, `seed-data gap` (the `e2e-test-engineer` Phase 6 buckets).
+- **Disposition** is `Fix` (a `fix/` PR and a green re-run on the head SHA), `Accepted exception` (the record from `.claude/skills/sdlc-implementer/references/e2e-accepted-failure.md.template`, recorded in the portal with `report-test-execution.sh resolve --resolution-type accepted_exception --record ...`), or `Deferral` (tracking issue and target release).
+- **Reference** is mandatory: PR/issue (`#N` or URL) for Fix and Deferral; the accepted-failure record path or tracking issue URL for Accepted exception.
+
 ## Accepted skips
 
 Required when E2E gate result is `SKIPPED`. Optional when no accepted skips exist.
@@ -187,7 +204,7 @@ curl -s -H "Authorization: Bearer ${DEVAUDIT_API_KEY}" \
 bash scripts/render-test-executions.sh /tmp/release-journey.json
 ```
 
-The helper renders a first-class table when `.testExecutions[]` is present. It must not infer executions from legacy artifact grouping.
+The helper renders a first-class table when `.testExecutions[]` is present, preceded by a `<!-- generated-by: render-test-executions.sh ... -->` marker. It must not infer executions from legacy artifact grouping. **Paste the helper's output as-is - never type rows by hand.** It lists every CI execution per attempt (run id and attempt), so a failed attempt 1 that a passing attempt 2 superseded stays visible. A summary carrying a `CI as of:` stamp without the marker fails validation (devaudit-installer#1016); record local runs with their real counts (`3 failed`), never plain `passed` when failures occurred.
 
 | Source Release | SDLC Stage | Execution | Kind | Outcome | Workflow / Run | Related Evidence | Incident / Remediation | Date |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |

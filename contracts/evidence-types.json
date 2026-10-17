@@ -95,6 +95,11 @@
       "description": "Per-REQ e2e-test-engineer invoke/skip decision (DevAudit-Installer#737)",
       "clause_predicates": []
     },
+    "accepted_e2e_failure": {
+      "category": "planning",
+      "description": "Documented acceptance of a failed required E2E gate: impact assessment, decision-maker, review date, tracking issue (DevAudit-Installer#1016)",
+      "clause_predicates": []
+    },
     "test_scope": {
       "category": "planning",
       "description": "Per-REQ test scope document",
@@ -227,7 +232,8 @@
         "incident_report",
         "audit_log",
         "bundled_changes",
-        "playwright_report_bundle"
+        "playwright_report_bundle",
+        "accepted_e2e_failure"
       ],
       "not_applicable_evidence_types": []
     },
@@ -260,6 +266,7 @@
         "architecture_decision",
         "risk_assessment",
         "e2e_scope_decision",
+        "accepted_e2e_failure",
         "ai_use_note",
         "ai_prompt_log",
         "ai_agent_handoff",

@@ -187,3 +187,7 @@ Issue [#98](https://github.com/metasession-dev/DevAudit-Installer/issues/98) tra
 - [`docs/onboarding.md`](./onboarding.md) — the onboarding checklist that points operators back here
 - [`SDLC/joining-an-existing-project.md`](../sdlc/files/_common/joining-an-existing-project.md) — for second developers (templates are never overwritten by `devaudit update`)
 - [`compliance-evidence.yml.template`](../sdlc/files/ci/compliance-evidence.yml.template) — the workflow that picks up edits and uploads them
+
+## Accepted-exception records (devaudit-installer#1016)
+
+A required gate that fails on a release PR is either fixed or accepted with a documented exception. The accepted-E2E-failure record is shipped **inside the `sdlc-implementer` skill** (`.claude/skills/sdlc-implementer/references/e2e-accepted-failure.md.template`), not under `compliance/governance/`: it is created per failure, by `sdlc-implementer`, only after the operator chooses "Accept", never by `bootstrap-governance`. It lands at `compliance/evidence/REQ-XXX/accepted-e2e-failure-<spec>.md` and uploads as evidence type `accepted_e2e_failure` (category `planning`). `scripts/validate-risk-acceptance-record.sh --kind e2e` rejects an unedited template, a missing impact assessment, a review date that is not in the future, or a tracking issue that is not an exact GitHub issue URL.

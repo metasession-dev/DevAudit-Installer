@@ -124,6 +124,19 @@ jobs:
           bash sdlc/files/_common/scripts/upload-evidence.test.sh
           bash sdlc/files/_common/scripts/playwright-report-evidence.test.sh
 
+      - name: Run required-gate triage tests (devaudit-installer#1016)
+        run: |
+          chmod +x sdlc/files/_common/scripts/validate-risk-acceptance-record.sh
+          chmod +x sdlc/files/_common/scripts/reconcile-e2e-summary.sh
+          chmod +x sdlc/files/_common/scripts/validate-test-summary.sh
+          chmod +x sdlc/files/_common/scripts/report-test-execution.sh
+          chmod +x sdlc/files/_common/scripts/render-test-executions.sh
+          bash sdlc/files/_common/scripts/validate-risk-acceptance-record.test.sh
+          bash sdlc/files/_common/scripts/reconcile-e2e-summary.test.sh
+          bash sdlc/files/_common/scripts/validate-test-summary.test.sh
+          bash sdlc/files/_common/scripts/report-test-execution.test.sh
+          bash sdlc/files/_common/scripts/render-test-executions.test.sh
+
       - name: Run pre-push hook tests
         run: |
           chmod +x sdlc/files/stacks/node/hooks/pre-push

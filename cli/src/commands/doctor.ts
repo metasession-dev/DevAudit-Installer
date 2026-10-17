@@ -536,6 +536,70 @@ async function checkPatchConflicts(): Promise<CheckResult> {
   };
 }
 
+/**
+ * devaudit-installer#1016 / #1017 (R6) -- an accepted E2E failure or
+ * accepted dependency risk is a documented, time-boxed exception, tracked as
+ * an open GitHub issue labelled `accepted-e2e-failure` / `accepted-dependency-risk`
+ * whose body carries `Review by: YYYY-MM-DD`. This flags every one whose review
+ * date has passed (or that has no review date, so it can never expire), so an
+ * exception cannot quietly become permanent. Non-gating, and skipped (not a
+ * failure) when `gh` is unavailable or unauthenticated. The portal-side half of
+ * R6 (unresolved failed regression executions) is read by `fleet-doctor`.
+ */
+const ACCEPTED_EXCEPTION_LABELS = ['accepted-e2e-failure', 'accepted-dependency-risk'] as const;
+
+export function findOverdueExceptions(
+  issues: ReadonlyArray<{ number: number; title?: string; body?: string | null }>,
+  label: string,
+  today: string,
+): string[] {
+  const out: string[] = [];
+  for (const issue of issues) {
+    const m = /review by:\s*(\d{4}-\d{2}-\d{2})/i.exec(issue.body ?? '');
+    if (!m || !m[1]) {
+      out.push(`#${issue.number} (${label}) has no "Review by: YYYY-MM-DD" date, so it can never expire`);
+    } else if (m[1] <= today) {
+      out.push(`#${issue.number} (${label}) review date ${m[1]} has passed`);
+    }
+  }
+  return out;
+}
+
+async function checkAcceptedExceptions(): Promise<CheckResult> {
+  const name = 'accepted-exceptions';
+  const consumer = await readConsumerConfig();
+  if (!consumer) return { name, ok: true, detail: 'skipped (not a consumer project)', suspectedOrigin: 'unknown' };
+  const today = new Date().toISOString().slice(0, 10);
+  const overdue: string[] = [];
+  let open = 0;
+  for (const label of ACCEPTED_EXCEPTION_LABELS) {
+    try {
+      const result = await execa(
+        'gh',
+        ['issue', 'list', '--label', label, '--state', 'open', '--limit', '100', '--json', 'number,title,body'],
+        { cwd: consumer.repoRoot, reject: false },
+      );
+      if (result.exitCode !== 0) {
+        return { name, ok: true, detail: 'skipped (gh issue list failed — not authenticated, or no repo access)', suspectedOrigin: 'unknown' };
+      }
+      const issues = JSON.parse(result.stdout) as Array<{ number: number; title?: string; body?: string | null }>;
+      open += issues.length;
+      overdue.push(...findOverdueExceptions(issues, label, today));
+    } catch {
+      return { name, ok: true, detail: 'skipped (gh issue list unavailable)', suspectedOrigin: 'unknown' };
+    }
+  }
+  if (overdue.length === 0) {
+    return { name, ok: true, detail: open === 0 ? 'no open accepted exceptions' : `${open} open accepted exception(s), none past their review date`, suspectedOrigin: 'consumer-drift' };
+  }
+  return {
+    name,
+    ok: false,
+    detail: `${overdue.length} accepted exception(s) overdue for review: ${overdue.join('; ')} — fix the underlying failure/advisory, or renew the exception with a new record and review date`,
+    suspectedOrigin: 'consumer-drift',
+  };
+}
+
 export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
   const log = logger();
   const jsonMode = isJsonMode();
@@ -576,6 +640,7 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
     await checkRailwayCliPresent(),
     await checkSyncConflicts(),
     await checkPatchConflicts(),
+    await checkAcceptedExceptions(),
     await checkCommitlintConfigShadowing(),
   ];
   let onboardingIssues = false;
