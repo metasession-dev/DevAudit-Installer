@@ -192,3 +192,7 @@ administrative PR. Manual workflow dispatch is fallback; local
 Use portal repair/backfill controls only for real historical gaps. Repairs must
 be idempotent and audit-logged; never invent lineage or bundle membership from
 uncertain history.
+
+## A required gate fails on the release PR
+
+Whatever the release type, a failing required check on the release PR is fixed or accepted with a documented exception before UAT; see [e2e-test-tiers.md](e2e-test-tiers.md#when-a-tier-fails-fix-or-accept-devaudit-installer1016) (devaudit-installer#1016).

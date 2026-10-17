@@ -13,7 +13,7 @@ import { logger } from '../lib/logger.js';
 const TEMPLATE_DIR = ['sdlc', 'files', '_common', 'github', 'ISSUE_TEMPLATE'];
 
 /** Always seeded, even if a template stops declaring them. */
-const BASELINE_LABELS = ['bug', 'requirement', 'needs-triage'] as const;
+const BASELINE_LABELS = ['bug', 'requirement', 'needs-triage', 'accepted-e2e-failure', 'accepted-dependency-risk'] as const;
 
 const LABEL_META: Readonly<Record<string, { color: string; description: string }>> = {
   'needs-triage': { color: 'FBCA04', description: 'Awaiting triage' },
@@ -23,6 +23,8 @@ const LABEL_META: Readonly<Record<string, { color: string; description: string }
   chore: { color: 'EDEDED', description: 'Maintenance / housekeeping' },
   documentation: { color: '0075CA', description: 'Improvements or additions to documentation' },
   'srs-bootstrap': { color: '5319E7', description: 'SRS bootstrap request' },
+  'accepted-e2e-failure': { color: 'FBCA04', description: 'Tracks an accepted (documented-exception) E2E failure; carries a Review by date' },
+  'accepted-dependency-risk': { color: 'FBCA04', description: 'Tracks an accepted dependency-audit risk; carries a Review by date' },
 };
 const DEFAULT_META = { color: 'EDEDED', description: '' };
 

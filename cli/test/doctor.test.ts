@@ -7,6 +7,7 @@ import { createServer, type Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { setupServer } from 'msw/node';
 import { http, HttpResponse } from 'msw';
+import { findOverdueExceptions } from '../src/commands/doctor.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const BIN = resolve(HERE, '..', 'bin', 'devaudit.js');
@@ -399,6 +400,45 @@ describe('devaudit doctor — host-adapter prerequisites (#843)', () => {
     await writeFile(join(dir, '.devaudit', 'sync-manifest.json'), JSON.stringify({ version: 1, cli_version: '1.8.0', files: {} }));
     const clean = await execa('node', [BIN, 'doctor'], { cwd: dir, reject: false });
     expect(clean.stdout + clean.stderr).toMatch(/patch-conflicts\s+no consumer patches in conflict/);
+  }, 30_000);
+
+  it('findOverdueExceptions flags past, due-today and missing review dates (#1016)', () => {
+    const issues = [
+      { number: 1, body: 'Fix plan.\nReview by: 2026-12-01' },
+      { number: 2, body: 'Review by: 2026-10-01' },
+      { number: 3, body: 'review by: 2026-10-17' },
+      { number: 4, body: 'no date here' },
+      { number: 5, body: null },
+    ];
+    const out = findOverdueExceptions(issues, 'accepted-e2e-failure', '2026-10-17');
+    expect(out).toEqual([
+      '#2 (accepted-e2e-failure) review date 2026-10-01 has passed',
+      '#3 (accepted-e2e-failure) review date 2026-10-17 has passed',
+      '#4 (accepted-e2e-failure) has no "Review by: YYYY-MM-DD" date, so it can never expire',
+      '#5 (accepted-e2e-failure) has no "Review by: YYYY-MM-DD" date, so it can never expire',
+    ]);
+  });
+
+  it('accepted-exceptions: reports overdue exceptions from open labelled issues, skips without gh (#1016)', async () => {
+    const { mkdtemp, mkdir, writeFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const dir = await mkdtemp(join(tmpdir(), 'devaudit-doctor-accepted-'));
+    await writeFile(join(dir, 'sdlc-config.json'), JSON.stringify({ project_slug: 'fixture' }));
+    const binDir = join(dir, 'fake-bin');
+    await mkdir(binDir, { recursive: true });
+    const issues = JSON.stringify([{ number: 910, title: 'Accepted: webhook replay flake', body: 'Review by: 2020-01-01' }]);
+    await writeFile(
+      join(binDir, 'gh'),
+      `#!/usr/bin/env node\nconst a = process.argv.slice(2);\nif (a[0] === 'issue' && a[1] === 'list') {\n  process.stdout.write(a.includes('accepted-e2e-failure') ? ${JSON.stringify(issues)} : '[]');\n  process.exit(0);\n}\nprocess.stdout.write('[]');\nprocess.exit(0);\n`,
+      { mode: 0o755 },
+    );
+    await writeFile(join(binDir, 'gh.cmd'), `@echo off\r\nnode "%~dp0gh" %*\r\n`, { mode: 0o755 });
+    const env = { ...process.env, PATH: `${binDir}${pathDelimiter}${process.env['PATH'] ?? ''}` };
+    const overdue = await execa('node', [BIN, 'doctor'], { cwd: dir, env, reject: false });
+    const out = overdue.stdout + overdue.stderr;
+    expect(out).toMatch(/accepted-exceptions\s+1 accepted exception\(s\) overdue for review/);
+    expect(out).toContain('#910 (accepted-e2e-failure) review date 2020-01-01 has passed');
   }, 30_000);
 
   it('skips the railway-cli check when reconcile-deployment.yml is not present', async () => {
@@ -871,7 +911,7 @@ describe('devaudit doctor — D8 releases check + JSON surface (#956)', () => {
     expect(Object.keys(json)).toEqual(expect.arrayContaining(['ok', 'tools', 'releaseCloseoutDrift', 'onboarding']));
     expect(Object.keys(json.releaseCloseoutDrift).sort()).toEqual(['detail', 'name', 'ok']);
     expect(json.tools).toHaveLength(5);
-    expect(json.onboarding).toHaveLength(10);
+    expect(json.onboarding).toHaveLength(11);
     // additive keys
     expect(Array.isArray(json.deferral)).toBe(true);
     expect(json.proposals).toContainEqual(

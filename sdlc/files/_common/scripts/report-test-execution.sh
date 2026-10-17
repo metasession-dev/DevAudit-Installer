@@ -38,6 +38,10 @@
 #   --incident-reference <text>    Attached to the cycle row on start|complete
 #   --remediation-reference <text> Attached to the cycle row on start|complete; or on `resolve`, threaded into the resolution record
 #   --resolved-by-cycle-id <uuid>  `resolve` only -- the passing cycle that supersedes this one, if any
+#   --record <path>                `resolve` only -- the documented accepted-exception record
+#                                  (compliance/evidence/REQ-XXX/accepted-e2e-failure-<spec>.md).
+#                                  REQUIRED for --resolution-type accepted_exception, together with
+#                                  --remediation-reference (the tracking issue) -- see below.
 #   --output-file <path>           Writes key=value outputs for callers
 #
 # `resolve` is the self-service path for a failed cycle on an immutable,
@@ -53,7 +57,19 @@
 #     --test-cycle-id 77eb11a9-428d-4aaa-8bd7-d3d0550c6f06 \
 #     --resolution-type accepted_exception \
 #     --reason "unrelated pre-existing defect wawagardenbar-app#852" \
-#     --remediation-reference wawagardenbar-app#852
+#     --remediation-reference https://github.com/metasession-dev/wawagardenbar-app/issues/852 \
+#     --record compliance/evidence/REQ-108/accepted-e2e-failure-webhook-idempotency.md
+#
+# devaudit-installer#1016: `accepted_exception` is a documented waiver, never a
+# silent one. It is refused unless --remediation-reference names the tracking
+# issue AND --record points at a record that passes
+# scripts/validate-risk-acceptance-record.sh --kind e2e (impact assessment,
+# decision-maker, a review date in the future, an exact tracking-issue URL).
+# The record path is appended to the reason sent to the portal. Fixing the
+# failure (retry_passed with a verified re-run, incident_remediated) needs
+# neither. Resolving here records triage in the portal directly, so
+# `execution_triage_missing` clears without merging anything into the release
+# head.
 #
 # Output keys:
 #   execution_supported=true
@@ -108,6 +124,7 @@ TEST_CYCLE_ID=""
 RESOLUTION_TYPE=""
 RESOLVED_BY_CYCLE_ID=""
 REASON=""
+RECORD_PATH=""
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -137,6 +154,7 @@ while [ "$#" -gt 0 ]; do
     --resolution-type) RESOLUTION_TYPE="$2"; shift 2 ;;
     --resolved-by-cycle-id) RESOLVED_BY_CYCLE_ID="$2"; shift 2 ;;
     --reason) REASON="$2"; shift 2 ;;
+    --record) RECORD_PATH="$2"; shift 2 ;;
     --output-file) OUTPUT_FILE="$2"; shift 2 ;;
     *) echo "Unknown option: $1"; exit 1 ;;
   esac
@@ -164,6 +182,23 @@ if [ "$MODE" = "resolve" ]; then
       exit 1
       ;;
   esac
+  # devaudit-installer#1016 -- accepting a failure requires a documented
+  # exception (impact, decision-maker, review date, tracking issue), checked
+  # before any network call.
+  if [ "$RESOLUTION_TYPE" = "accepted_exception" ]; then
+    require_arg "$REMEDIATION_REFERENCE" "--remediation-reference (the tracking issue for an accepted_exception)"
+    require_arg "$RECORD_PATH" "--record (the accepted-exception record for an accepted_exception)"
+    RECORD_VALIDATOR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/validate-risk-acceptance-record.sh"
+    if [ ! -f "$RECORD_VALIDATOR" ]; then
+      echo "Error: $RECORD_VALIDATOR is missing; run devaudit update to restore the synced scripts." >&2
+      exit 1
+    fi
+    if ! bash "$RECORD_VALIDATOR" --kind e2e "$RECORD_PATH" >&2; then
+      echo "Error: --record failed validation; an accepted_exception needs a complete accepted-exception record." >&2
+      exit 1
+    fi
+    REASON="${REASON} (record: ${RECORD_PATH})"
+  fi
 else
   require_arg "$SDLC_STAGE" "--sdlc-stage"
   require_arg "$ENVIRONMENT" "--environment"

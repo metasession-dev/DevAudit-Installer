@@ -17,6 +17,28 @@
 # time it executes; that language means the evidence was never refreshed
 # after the fact (devaudit-installer#607).
 #
+# Failure integrity (devaudit-installer#1016): a summary may not read PASS
+# while a failure is unaccounted for. If the summary records any failed
+# execution ("3 failed", an outcome of failed/timed_out in the Test
+# executions table) it must carry a "## E2E failures & triage" table with one
+# row per failing spec/check:
+#
+#   | Spec / check | Source | Classification | Evidence | Disposition | Reference |
+#
+# Classification: flake | test bug | app defect | seed-data gap.
+# Disposition: "Fix" (PR #N or URL), "Accepted exception" (path to the
+# accepted-e2e-failure record or its tracking issue URL) or "Deferral"
+# (tracking issue). "Known unrelated flakes" is not a disposition.
+# When E2E_RESULTS_JSON (or e2e-artifacts/e2e-regression-results.json) exists
+# the summary is also reconciled with the CI results
+# (reconcile-e2e-summary.sh; E2E_RUN_ID / E2E_RUN_ATTEMPT narrow it to one run).
+#
+# New-format summaries (those carrying a "CI as of: <run>/<attempt> @ <sha>"
+# stamp) are held to the stricter rules: the Test executions table must be the
+# generated one, and the stamp must match DEVAUDIT_PR_HEAD_SHA when it is set.
+# Summaries without the stamp get a warning instead of an error, so releases
+# already in flight are not broken by the new rules.
+#
 # Designed to run as a CI job on PRs to main, alongside
 # validate-compliance-artifacts.sh.
 #
@@ -206,6 +228,100 @@ for REQ in $REQUIREMENTS; do
     echo "         Offending lines:"
     grep -in 'production promotion remains blocked' "$SUMMARY" | sed 's/^/           /'
     EXIT_CODE=1
+  fi
+
+
+  # Check 9: failure integrity (devaudit-installer#1016, R4/R12). A summary
+  # that records a failed execution must account for every failure in an
+  # "## E2E failures & triage" table; "known unrelated flakes" is an assertion,
+  # not evidence.
+  TRIAGE_SECTION=$(awk '/^## E2E failures & triage/{found=1; next} /^## /{found=0} found' "$SUMMARY")
+  HAS_FAILURE=0
+  if grep -Eiq '(^|[^0-9])[1-9][0-9]* failed' "$SUMMARY"; then HAS_FAILURE=1; fi
+  if grep -Eiq '^\|.*\|[[:space:]]*(failed|timed_out)[[:space:]]*\|' "$SUMMARY"; then HAS_FAILURE=1; fi
+  TRIAGE_ROWS=$(printf '%s\n' "$TRIAGE_SECTION" | grep '^|' | grep -Ev '^\|[[:space:]|:-]*$' | grep -Eiv 'classification.*disposition' || true)
+  TRIAGE_COUNT=$(printf '%s' "$TRIAGE_ROWS" | grep -c . || true)
+
+  if [ "$HAS_FAILURE" -eq 1 ] && [ "$TRIAGE_COUNT" -lt 1 ]; then
+    echo "  ERROR: $SUMMARY records a failed execution but has no '## E2E failures & triage' table with a row per failure (devaudit-installer#1016)."
+    echo "         Add | Spec / check | Source | Classification | Evidence | Disposition | Reference | rows: classify each failure"
+    echo "         (flake / test bug / app defect / seed-data gap) and give its disposition (Fix PR, Accepted exception record, or Deferral issue)."
+    EXIT_CODE=1
+  fi
+  if grep -Eiq 'known (unrelated )?(e2e )?flake|known unrelated' "$SUMMARY" && [ "$TRIAGE_COUNT" -lt 1 ]; then
+    echo "  ERROR: 'known unrelated flakes' is asserted in $SUMMARY without a triage table (devaudit-installer#1016) — name each failing spec, its classification and disposition in '## E2E failures & triage'."
+    EXIT_CODE=1
+  fi
+  if [ "$TRIAGE_COUNT" -ge 1 ]; then
+    TRIAGE_BAD=0
+    while IFS= read -r row; do
+      [ -n "$row" ] || continue
+      SPEC=$(printf '%s' "$row" | awk -F'|' '{gsub(/^[[:space:]]+|[[:space:]]+$/,"",$2); print $2}')
+      CLASS=$(printf '%s' "$row" | awk -F'|' '{gsub(/^[[:space:]]+|[[:space:]]+$/,"",$4); print tolower($4)}' | tr '_-' '  ')
+      DISP=$(printf '%s' "$row" | awk -F'|' '{gsub(/^[[:space:]]+|[[:space:]]+$/,"",$6); print tolower($6)}')
+      REFC=$(printf '%s' "$row" | awk -F'|' '{gsub(/^[[:space:]]+|[[:space:]]+$/,"",$7); print $7}')
+      case "$CLASS" in
+        flake*|"test bug"*|"app defect"*|"application defect"*|"seed data gap"*) ;;
+        *) echo "  ERROR: triage row for '$SPEC' has no valid classification (flake / test bug / app defect / seed-data gap), got '$CLASS' (devaudit-installer#1016)"; TRIAGE_BAD=1 ;;
+      esac
+      case "$DISP" in
+        fix*|"accepted exception"*|deferral*) ;;
+        *) echo "  ERROR: triage row for '$SPEC' has no disposition (Fix / Accepted exception / Deferral), got '$DISP' — an unresolved failure cannot ship under a PASS summary (devaudit-installer#1016)"; TRIAGE_BAD=1 ;;
+      esac
+      if [ -z "$REFC" ] || printf '%s' "$REFC" | grep -Eiq '^(replace|tbd|none|n/a|-)$|REPLACE'; then
+        echo "  ERROR: triage row for '$SPEC' has no reference (fix PR, accepted-exception record path, or tracking issue) (devaudit-installer#1016)"; TRIAGE_BAD=1
+      else
+        case "$DISP" in
+          "accepted exception"*)
+            if ! printf '%s' "$REFC" | grep -Eq 'accepted-e2e-failure|\.md|https://github\.com/[^ ]+/issues/[0-9]+'; then
+              echo "  ERROR: 'Accepted exception' row for '$SPEC' must reference its accepted-e2e-failure record or tracking issue URL (devaudit-installer#1016)"; TRIAGE_BAD=1
+            fi ;;
+          fix*|deferral*)
+            if ! printf '%s' "$REFC" | grep -Eq '#[0-9]+|https?://'; then
+              echo "  ERROR: '$DISP' row for '$SPEC' must reference a PR/issue (#N or URL) (devaudit-installer#1016)"; TRIAGE_BAD=1
+            fi ;;
+        esac
+      fi
+    done <<< "$TRIAGE_ROWS"
+    if [ "$TRIAGE_BAD" -eq 1 ]; then EXIT_CODE=1; else echo "  OK: $TRIAGE_COUNT failure(s) triaged with classification, disposition and reference"; fi
+  fi
+
+  # Check 10: new-format rules (devaudit-installer#1016, R9/R11). Strict only
+  # when the summary carries a "CI as of:" stamp; otherwise warn so a release
+  # already in flight is not broken by rules it could not have followed.
+  CI_STAMP=$(grep -Eio 'CI as of:[[:space:]]*[^[:space:]]+/[^[:space:]]+[[:space:]]*@[[:space:]]*[0-9a-f]{7,40}' "$SUMMARY" | head -1 || true)
+  if [ -n "$CI_STAMP" ]; then
+    STAMP_SHA=$(printf '%s' "$CI_STAMP" | grep -Eio '[0-9a-f]{7,40}$')
+    if [ -n "${DEVAUDIT_PR_HEAD_SHA:-}" ]; then
+      # Either may be abbreviated: they match when one is a prefix of the other.
+      case "$DEVAUDIT_PR_HEAD_SHA" in
+        "$STAMP_SHA"*) ;;
+        *)
+          case "$STAMP_SHA" in
+            "$DEVAUDIT_PR_HEAD_SHA"*) ;;
+            *)
+              echo "  ERROR: the summary's '$CI_STAMP' does not match the release PR head ${DEVAUDIT_PR_HEAD_SHA:0:12} — regenerate the summary after the release PR's CI reached a terminal state (devaudit-installer#1016)."
+              EXIT_CODE=1 ;;
+          esac ;;
+      esac
+    fi
+    if ! grep -q 'generated-by: render-test-executions.sh' "$SUMMARY"; then
+      echo "  ERROR: the Test executions table is not the generated one (no '<!-- generated-by: render-test-executions.sh -->' marker). Render it from the release journey with scripts/render-test-executions.sh instead of typing rows by hand (devaudit-installer#1016)."
+      EXIT_CODE=1
+    fi
+  else
+    echo "  WARN: $SUMMARY has no 'CI as of: <run>/<attempt> @ <sha>' stamp — regenerate the summary after the release PR's CI reaches a terminal state and after any re-run, triage or fix (devaudit-installer#1016)."
+  fi
+
+  # Check 11: reconcile with the CI results when they are available (R13).
+  RECON_RESULTS="${E2E_RESULTS_JSON:-e2e-artifacts/e2e-regression-results.json}"
+  if [ -f "$RECON_RESULTS" ] && [ -f "$(dirname "${BASH_SOURCE[0]}")/reconcile-e2e-summary.sh" ]; then
+    RECON_ARGS=(--summary "$SUMMARY" --results "$RECON_RESULTS")
+    [ -n "${E2E_RUN_ID:-}" ] && RECON_ARGS+=(--run-id "$E2E_RUN_ID")
+    [ -n "${E2E_RUN_ATTEMPT:-}" ] && RECON_ARGS+=(--attempt "$E2E_RUN_ATTEMPT")
+    if ! bash "$(dirname "${BASH_SOURCE[0]}")/reconcile-e2e-summary.sh" "${RECON_ARGS[@]}" 2>&1 | sed 's/^/  /'; then
+      EXIT_CODE=1
+    fi
   fi
 
   echo ""

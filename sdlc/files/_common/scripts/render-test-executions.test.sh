@@ -76,6 +76,7 @@ cat > "$WORK/first-class.json" <<'EOF'
 EOF
 
 OUTPUT="$(bash "$HELPER" "$WORK/first-class.json")"
+assert_contains "table is marked as generated (devaudit-installer#1016)" "<!-- generated-by: render-test-executions.sh journey-at " "$OUTPUT"
 assert_contains "first-class heading rendered" "| Source Release | SDLC Stage | Execution | Suite | Outcome | Workflow / Run | Related Evidence | Incident / Remediation | Date |" "$OUTPUT"
 assert_contains "stage label rendered" "| REQ-091 | 2 implement_test | #1 | quality_gate | failed | [Quality Gates](https://github.com/example/repo/actions/runs/100) (run 100, attempt 1) | quality-gates.json | #501 | 2026-07-15 08:05:00 |" "$OUTPUT"
 assert_contains "ordinal increments within source release + stage" "| REQ-091 | 2 implement_test | #2 | quality_gate | passed | [Quality Gates](https://github.com/example/repo/actions/runs/101) (run 101, attempt 2) | quality-gates-rerun.json | PR #507 | 2026-07-15 09:07:00 |" "$OUTPUT"
