@@ -41,7 +41,7 @@ permissions:
 jobs:
   export:
     name: Export closed incident issue to compliance/governance/
-    runs-on: ubuntu-latest
+    runs-on: {{RUNNER}}
     # Only fire when the issue carries the `incident` label. Cheap predicate;
     # skips this job entirely on unlabelled issue closes.
     if: contains(github.event.issue.labels.*.name, 'incident')
