@@ -62,6 +62,18 @@ An incident found outside a tracked run doesn't have to go through the issue-fil
 
 Not for authoring test content (that's `e2e-test-engineer`) and not for a single test that fails the same way every time (that's an ordinary application defect — triage it normally, or via `sdlc-implementer`'s Phase 5 post-deploy triage gate if it's a released regression).
 
+## Repo settings: deploy host, production URL, runner — `devaudit-configure`
+
+- "configure devaudit"
+- "we deploy on Vercel, not Railway"
+- "doctor says the host is wrong"
+- "set up the production URL"
+- "our prod is behind Vercel protection"
+- "we deploy to AWS" / "we deploy to our own servers"
+- "change the CI runner"
+
+Runs `devaudit doctor`, explains what disagrees with how the repo really deploys, and applies each change you confirm through `devaudit configure` (validated, with a dry run first). You set secrets yourself with `devaudit configure secret <NAME>`. See [`configure.md`](configure.md).
+
 ## Governance documents — `governance-doc-author`
 
 - "create / refresh the RoPA"
