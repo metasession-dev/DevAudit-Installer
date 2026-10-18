@@ -54,10 +54,10 @@ The schema enforces that `production_url_secret_key` is present iff `production_
 
 | Field              | Type                   | Purpose                                                                                                                                              |
 | ------------------ | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `wait_for_deploy`  | string (shell snippet) | Blocks until the deploy is live and healthy. Embedded into `post-deploy-prod.yml.template` at sync time. Omit for hosts where deploy is synchronous. |
-| `post_deploy_hook` | string (shell snippet) | Runs after a successful deploy — cache warmup, host-specific bookkeeping, additional smoke tests.                                                    |
+| `wait_for_deploy`  | string (shell snippet) | Blocks until the deploy is live and healthy. Reserved: not yet substituted into any template (the post-deploy workflow reacts to the provider's GitHub `deployment_status`; see `docs/adding-a-host.md`). Omit for hosts where deploy is synchronous. |
+| `post_deploy_hook` | string (shell snippet) | Reserved: runs after a successful deploy — cache warmup, host-specific bookkeeping, additional smoke tests. Not yet consumed.                          |
 
-Both snippets run in a `bash -e` step; they can reference `${PROD_URL}` and any `required_env` values.
+Both fields are reserved and documentary today; when consumed they will run in a `bash -e` step with `${PROD_URL}` and any `required_env` values.
 
 ### Required secrets and env
 

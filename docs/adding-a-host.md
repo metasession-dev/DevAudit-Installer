@@ -4,7 +4,7 @@ Walkthrough for adding a new hosting platform — Fly.io, Vercel, AWS ECS, Kuber
 
 Host adapters are smaller than stack adapters — typically a single `adapter.json` per platform. They don't ship hooks or scripts of their own; the contribution is the deploy trigger, the production-URL resolution scheme, and the `wait_for_deploy` snippet that lands inside the post-deploy workflow template.
 
-Currently the only host is Railway. Fly.io is sketched out as an aspirational example in [HOST_ADAPTER.md](../sdlc/HOST_ADAPTER.md#worked-example-flyio) — the walkthrough below treats Fly.io as the second-host scenario.
+Shipped hosts are `railway`, `vercel` and `custom` (AWS, self-hosted or any deploy script; see [onboarding](./onboarding.md)). Fly.io is sketched out as an aspirational example in [HOST_ADAPTER.md](../sdlc/HOST_ADAPTER.md#worked-example-flyio) — the walkthrough below treats Fly.io as the second-host scenario.
 
 ## When to add a new host
 
