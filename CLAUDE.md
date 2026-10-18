@@ -16,6 +16,7 @@ Guidance for Claude Code (and other agents) working in this repository. `sdlc/CL
 
 - Edit only root `sdlc/files/...`. `cli/sdlc/` is a gitignored generated mirror.
 - Never put a skip-CI tag (`[skip ci]` and its variants) in a commit message that goes through a PR, even quoted in an explanation: GitHub matches the substring anywhere and then runs no workflows, so a required check is never created and the PR stays BLOCKED (#1020).
+- Never name a consuming project (a customer repo DevAudit is installed in) in any tracked file: code, comments, tests, fixtures, docs, SRS, CHANGELOG, skills. This repo is public and ships in the npm package. Use `example-app`, `example-org/example-app` or "a consumer". `scripts/check-no-consumer-names.sh` enforces it in CI from the `CONSUMER_NAME_PATTERN` secret; release validation reads consumers from the gitignored `scripts/release-validation/consumers.local` (#1042).
 - Generated workflow `run:` blocks must stay under GitHub's 21,000-character limit (`cli/test/update.test.ts` enforces 20,000 bytes). Put long shell logic in a script under `sdlc/files/_common/scripts/` instead of the workflow.
 
 ## Branching

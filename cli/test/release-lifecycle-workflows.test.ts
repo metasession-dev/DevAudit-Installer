@@ -175,7 +175,7 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     // A PR authored by the default GITHUB_TOKEN (actor github-actions[bot])
     // has its own pull_request-triggered required checks stuck at
     // action_required, blocking auto-merge until a maintainer manually
-    // approves each pending run — confirmed live on wgb#650 / devaudit#795.
+    // approves each pending run — confirmed live on a consumer / devaudit#795.
     // INSTALLER_DISPATCH_TOKEN opts out of that gate by authenticating as a
     // real, already-trusted account instead; falling back to github.token
     // keeps every consumer who hasn't configured the secret unaffected.

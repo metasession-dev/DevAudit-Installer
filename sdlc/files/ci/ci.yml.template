@@ -41,8 +41,8 @@ jobs:
     if: ${{ always() && (github.event_name != 'pull_request' || !startsWith(github.head_ref, 'chore/close-out-')) && (github.event_name == 'pull_request' || needs.register-release.result == 'success') }}
     runs-on: {{RUNNER}}
 
-    # `working-directory` lets monorepo / subdir Node projects (e.g. META-AGENT
-    # with mission-control/package.json) run gates from the right place without
+    # `working-directory` lets monorepo / subdir Node projects (e.g. a consumer
+    # with example-web/package.json) run gates from the right place without
     # prefixing every command. Defaults to '.' (repo root) when
     # sdlc-config.json doesn't set working_directory.
     defaults:
@@ -331,7 +331,7 @@ jobs:
 
       # actions/upload-artifact@v7 doesn't honour the job's `working-directory`;
       # paths are workspace-relative. Prefix with WORKING_DIR_PREFIX so artifacts
-      # uploaded from a subdir project (e.g. mission-control/) include the
+      # uploaded from a subdir project (e.g. example-web/) include the
       # subdir in their stored path, matching where the gate steps wrote them.
       - uses: actions/upload-artifact@v7
         if: always()

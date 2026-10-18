@@ -272,18 +272,18 @@ A trace of an early `devaudit install ../EXAMPLE-PYTHON-SERVICE` run (the bash i
   ✓ Host (default):       railway
 
 == 3/12 · Configure ==
-  Project slug [meta-agent]:
+  Project slug [example-app]:
   Python version [3.11]:
   Source dirs (space-sep) [src/ tests/]:
   Working directory [example-python-service]:
   Production URL secret name [META_AGENT_PROD_URL]:
-  Production URL (https://...): https://meta-agent.metasession.co
+  Production URL (https://...): https://app.example.com
 
 == 4/12 · Write sdlc-config.json ==
   ✓ Written to .../EXAMPLE-PYTHON-SERVICE/sdlc-config.json
 
 == 5/12 · Create / find DevAudit project ==
-  ✓ Project 'meta-agent' created (id 4f3a2b1c…)
+  ✓ Project 'example-app' created (id 4f3a2b1c…)
 
 == 6/12 · Issue project API key ==
   ✓ API key issued (will be stored as repo secret DEVAUDIT_API_KEY)
@@ -317,7 +317,7 @@ A trace of an early `devaudit install ../EXAMPLE-PYTHON-SERVICE` run (the bash i
     git status
     git checkout -b feat/sdlc-onboarding
     git add -A
-    git commit -m "feat: onboard meta-agent to Metasession SDLC"
+    git commit -m "feat: onboard example-app to Metasession SDLC"
     git push -u origin feat/sdlc-onboarding
     gh pr create --base main
 ```

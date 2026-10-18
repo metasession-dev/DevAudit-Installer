@@ -29,7 +29,7 @@ export DEVAUDIT_USER_TOKEN=$(jq -r '.token' ~/.config/devaudit/auth.json)
 
 ```jsonc
 {
-  "project_slug": "wawagardenbar-app",
+  "project_slug": "example-app",
   "base_url": "https://devaudit.ai",
   "generated_at": "2026-05-19T08:19:00.123Z",
   "total_files": 42,
@@ -38,10 +38,10 @@ export DEVAUDIT_USER_TOKEN=$(jq -r '.token' ~/.config/devaudit/auth.json)
   "entries": [
     {
       "requirement_id": "REQ-001",
-      "file_path": "wawagardenbar-app/REQ-001/2026-05-19_smoke.html",
+      "file_path": "example-app/REQ-001/2026-05-19_smoke.html",
       "file_name": "2026-05-19_smoke.html",
       "file_size_bytes": 12345,
-      "bundled_to": "/tmp/wgb-evidence/REQ-001/2026-05-19_smoke.html"
+      "bundled_to": "/tmp/example-evidence/REQ-001/2026-05-19_smoke.html"
     }
   ]
 }

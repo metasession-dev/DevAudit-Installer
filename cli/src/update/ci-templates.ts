@@ -556,13 +556,35 @@ function buildDatabaseServiceOptions(dbService: string): string {
   ].join('\n');
 }
 
-function buildDbUriStep(dbService: string, dbPort: string): string {
+/**
+ * The env var(s) the MongoDB dynamic-port step exports: every `*_URI` key in
+ * `database_env`, `build_env`, `app_env` or `e2e_env` whose value is a
+ * `mongodb://localhost` URI (the consumer's own variable names), else
+ * `MONGODB_URI`. Previously one consumer's variable name was hardcoded here
+ * for every MongoDB consumer (devaudit-installer#1042).
+ */
+export function mongoUriEnvNames(cfg: SdlcConfig): readonly string[] {
+  const names = new Set<string>();
+  const raw = cfg as unknown as Record<string, unknown>;
+  for (const block of ['database_env', 'build_env', 'app_env', 'e2e_env']) {
+    const env = raw[block];
+    if (!env || typeof env !== 'object') continue;
+    for (const [key, value] of Object.entries(env as Record<string, unknown>)) {
+      if (/^[A-Z][A-Z0-9_]*_URI$/.test(key) && typeof value === 'string' && /^mongodb:\/\/localhost\b/.test(value)) {
+        names.add(key);
+      }
+    }
+  }
+  return names.size > 0 ? [...names].sort() : ['MONGODB_URI'];
+}
+
+function buildDbUriStep(dbService: string, dbPort: string, cfg: SdlcConfig): string {
   if (dbService !== 'mongodb') return '';
   return [
     '      - name: Set database URI from dynamic port',
     '        run: |',
     `          DB_PORT="\${{ job.services.${dbService}.ports['${dbPort}'] }}"`,
-    '          echo "MONGODB_WAWAGARDENBAR_APP_URI=mongodb://localhost:${DB_PORT}" >> "$GITHUB_ENV"',
+    ...mongoUriEnvNames(cfg).map((name) => `          echo "${name}=mongodb://localhost:\${DB_PORT}" >> "$GITHUB_ENV"`),
     '          echo "Database on port: ${DB_PORT}"',
   ].join('\n');
 }
@@ -817,7 +839,7 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
     // generated workflow read the literal `secrets.DEVAUDIT_API_KEY` instead
     // of this field, so only the (legacy, single-target-default-named)
     // "default" target's release-lifecycle jobs could ever authenticate.
-    // Found on the develop->main release PR for metasession-dev/META-AGENT:
+    // Found on the develop->main release PR for a consumer:
     // every non-default target's "Register Release" job failed outright.
     const apiKeySecret = target.devaudit?.api_key_secret ?? cfg.devaudit?.api_key_secret ?? 'DEVAUDIT_API_KEY';
     const workingDirectory = allWorkingDirs[targetIdx]!;
@@ -835,8 +857,8 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
     // needs each Node target's dev server on its own port (avoiding local
     // collisions between sibling apps), so the "Wait for dev server" step
     // must poll the right one instead of the Next.js default for every
-    // target. Found onboarding thorstack-site (port 3100) and
-    // fleet-control-ui (port 3002) in metasession-dev/META-AGENT.
+    // target. Found onboarding example-site (port 3100) and
+    // example-monorepo-ui (port 3002) in a consumer.
     const e2ePort = String(target.e2e_port ?? cfg.e2e_port ?? 3000);
 
     const tokens: Record<string, string> = {
@@ -947,7 +969,7 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
       // for mongodb, which keeps its pre-#963 output byte-for-byte.
       DATABASE_SERVICE_ENV: buildDatabaseServiceEnv(cfg),
       DATABASE_SERVICE_OPTIONS: buildDatabaseServiceOptions(cfg.database_service),
-      DATABASE_URI_STEP: buildDbUriStep(cfg.database_service, cfg.database_port),
+      DATABASE_URI_STEP: buildDbUriStep(cfg.database_service, cfg.database_port, cfg),
       E2E_SETUP_STEP: buildE2eSetupStep(cfg),
       E2E_DEV_SERVER_STEP: buildE2eDevServerStep(cfg),
       E2E_TEST_STEP: buildE2eTestStep(cfg),

@@ -72,7 +72,7 @@ export async function writeSdlcConfig(ctx: InstallContext, plan: InstallPlan): P
     // deprecated and scheduled for removal (see docs/onboarding.md's
     // "Polyglot monorepos" section). Block first-time adoption — converting
     // an existing flat, single-target config into a `targets` array — but
-    // don't break the one already-multi-target consumer (fleet-control)
+    // don't break the one already-multi-target consumer (example-monorepo)
     // still using it: only a config that lacks a real `targets` array today
     // (`existing.targets` unset/empty, as opposed to resolveTargets()'s
     // synthesized single-entry view) counts as first-time adoption here.

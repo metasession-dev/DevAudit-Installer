@@ -9,7 +9,8 @@
 
 RV_DIR="$ROOT/scripts/release-validation"
 # One node and one python consumer: enough to exercise the changes, far cheaper than all of them.
-RV_2B_CONSUMERS="${RV_2B_CONSUMERS:-wawagardenbar-app ThorStack-Backend}"
+# Default: the first of each stack in the local, gitignored consumer list (no names in this repo, #1042).
+RV_2B_CONSUMERS="${RV_2B_CONSUMERS:-$(local_consumers node | head -1) $(local_consumers python | head -1)}"
 # Changed paths that do not ship to consumers (or are covered by their own tests).
 RV_NOT_SHIPPED='^(docs/|tests/|scripts/|\.github/|\.claude/|\.devin/|plugins/|plugin-sdk/|contracts/|cli/(test/|CHANGELOG|README|package|tsconfig|tsup|vitest|\.)|sdlc/(CLAUDE|SKILLS|README|package)|README|CONTRIBUTING|CHANGELOG|LICENSE|INSTRUCTIONS|CLAUDE|AGENTS|GEMINI|package|\.)'
 
@@ -305,6 +306,9 @@ run_layer2b() {
   done <<< "$surfaces"
 
   local spec cname cdir pre list
+  if [ -z "${RV_2B_CONSUMERS// /}" ]; then
+    record installer 2b-clones WARN "no clones: set RV_2B_CONSUMERS or list consumers in $RV_CONSUMERS_FILE"
+  fi
   for spec in $RV_2B_CONSUMERS; do
     cname="2b-$(basename "${spec%.git}")"
     cdir="$WORK_DIR/2b/$cname"

@@ -24,7 +24,7 @@ real, in-flight REQ. Both are opt-in.
 
 ## What happened
 
-`wawagardenbar-app` REQ-095 (issue #603), follow-up PR #606. The merge
+`example-app` REQ-095 (issue #603), follow-up PR #606. The merge
 commit landed on `develop` as:
 
 ```
@@ -132,7 +132,7 @@ way C does.
 
 ## References
 
-- `wawagardenbar-app` REQ-095 / issue #603 / PR #606 — concrete incident:
+- `example-app` REQ-095 / issue #603 / PR #606 — concrete incident:
   merge commit `14de0d3a`, CI run `30251621854` (`Quality Gates`, success)
   attached to housekeeping release `v2026.07.27` instead of tracked release
   `REQ-095`; discovered by direct `compliance_releases` /

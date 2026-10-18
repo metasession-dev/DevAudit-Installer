@@ -120,7 +120,7 @@ while read -r local_ref local_sha remote_ref remote_sha; do
 
     # devaudit-installer#578: a run happened, but that alone doesn't prove it
     # covers THIS push's REQ(s) — a stale, unrelated regression run satisfied
-    # this check on wawagardenbar-app REQ-095 while 0% of its planned
+    # this check on example-app REQ-095 while 0% of its planned
     # Playwright coverage existed. Extract in-scope REQs for the push (same
     # Ref: REQ-XXX lookup as check 3) and require each to be tagged by an
     # actual spec file, regardless of report freshness or sentinel presence;

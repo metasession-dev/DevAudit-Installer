@@ -87,7 +87,7 @@ When editing: `cd cli && npm run build && npm test` (vitest, 40 tests). Surface 
 
 Changes to `sdlc/files/` propagate to **every consumer** on the next sync. Be deliberate:
 
-- Validate against the active consumer (wawagardenbar-app) before tagging a release. The portal (`metasession-dev/devaudit`) is not a consumer per the self-release policy; META-AGENT / META-JOBS are active consumers and META-ATS is paused (see [consuming-projects.md](./docs/consuming-projects.md)).
+- Run the release validation (`scripts/release-validation.sh all`, see `docs/release-validation-plan.md`) against the active consumers before tagging a release. The portal (`metasession-dev/devaudit`) is not a consumer per the self-release policy. Which projects are active is not recorded here (see [consuming-projects.md](./docs/consuming-projects.md)); never name consumers in this repo's docs or code.
 - Use semver for the `sdlc-vX.Y.Z` tag — breaking changes bump major.
 - Document breaking changes in the release notes / `CHANGELOG.md` (TODO if not yet present).
 

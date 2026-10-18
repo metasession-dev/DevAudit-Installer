@@ -14,7 +14,7 @@ Multiple issues have been implemented to strengthen E2E test discipline:
 - **#211** — 18 control gaps across all phases
 - **#212** — Requirements gap classification
 
-Despite all these fixes, a real-world deployment in `wawagardenbar-app` demonstrated that the E2E gate can be silently skipped:
+Despite all these fixes, a real-world deployment in `example-app` demonstrated that the E2E gate can be silently skipped:
 
 1. The `sdlc-implementer` skill (or operator) ran TypeScript, vitest, semgrep, and npm audit
 2. The E2E suite (`npx playwright test`) was **never executed**
@@ -24,7 +24,7 @@ Despite all these fixes, a real-world deployment in `wawagardenbar-app` demonstr
 
 ## Scenarios that break the skill-driven workflow
 
-The wawagardenbar-app deployments (first failure and PR #413) are not isolated incidents. They are instances of a broader pattern: the skill-driven SDLC workflow breaks whenever the native agent must step outside the skill's file-read/write boundary. The following taxonomy maps all observed failure modes.
+The example-app deployments (first failure and PR #413) are not isolated incidents. They are instances of a broader pattern: the skill-driven SDLC workflow breaks whenever the native agent must step outside the skill's file-read/write boundary. The following taxonomy maps all observed failure modes.
 
 ### 1. Environment setup & infrastructure
 
@@ -76,7 +76,7 @@ The wawagardenbar-app deployments (first failure and PR #413) are not isolated i
 - **RTM not updated to `APPROVED - DEPLOYED`** — the native agent treats "PR merged" as "done" and doesn't update the RTM status from `TESTED - PENDING SIGN-OFF`.
 - **Release ticket not moved** — `compliance/pending-releases/RELEASE-TICKET-REQ-XXX.md` is never moved to `compliance/approved-releases/`, so CI continues treating the REQ as in-scope for subsequent releases.
 - **Portal approval not verified** — the DevAudit portal release may remain in `draft` status, causing the portal's release scanner to associate the REQ with subsequent releases.
-- **Observed in wawagardenbar-app** — REQ-083 and REQ-084 were merged to `main` via PR #407, GitHub issues closed, but RTM still says `TESTED - PENDING SIGN-OFF`, release tickets still in `pending-releases/`, portal approval status unknown. This caused the portal to show REQ-083/084 alongside REQ-085 in the current release.
+- **Observed in example-app** — REQ-083 and REQ-084 were merged to `main` via PR #407, GitHub issues closed, but RTM still says `TESTED - PENDING SIGN-OFF`, release tickets still in `pending-releases/`, portal approval status unknown. This caused the portal to show REQ-083/084 alongside REQ-085 in the current release.
 
 This is the same class of gap as the E2E gate problem: the skill's Phase 5 has close-out steps, but nothing enforces that the *skill* drives them vs. the native agent treating the PR merge as completion.
 
@@ -89,7 +89,7 @@ All of these fall into two root causes:
 
 ### The five handoff points where the skill loses control
 
-The `skill` tool is a **stateless instruction injection** — not a persistent sub-agent. When invoked, it returns a markdown document with step-by-step instructions. The native agent reads it and executes the steps. But the skill has no persistent state, no execution monitoring, no re-invoke triggers, and no environment access. The following five handoff points were observed in the wawagardenbar-app deployments where the native agent took over and never returned to the skill:
+The `skill` tool is a **stateless instruction injection** — not a persistent sub-agent. When invoked, it returns a markdown document with step-by-step instructions. The native agent reads it and executes the steps. But the skill has no persistent state, no execution monitoring, no re-invoke triggers, and no environment access. The following five handoff points were observed in the example-app deployments where the native agent took over and never returned to the skill:
 
 **Point 1 — Environment blocker (E2E execution):**
 The skill said "run E2E tests." The native agent tried. MongoDB failed. The skill's instructions don't cover "what to do when MongoDB won't start." The native agent had to solve the environment problem directly. Once solved, it continued executing without re-invoking the skill because there was no signal telling it to go back.
@@ -289,7 +289,7 @@ Combine Options 1 + 2:
 
 ## Skill-invocation enforcement (devaudit-installer#199 follow-up)
 
-A related but distinct gap was identified during the wawagardenbar-app post-mortem: despite #199's mandatory prompt gate, the `sdlc-implementer` skill was never invoked — the operator manually read the SDLC workflow files and executed the steps themselves. This bypassed all skill-level delegation gates (#132) and the E2E gate.
+A related but distinct gap was identified during the example-app post-mortem: despite #199's mandatory prompt gate, the `sdlc-implementer` skill was never invoked — the operator manually read the SDLC workflow files and executed the steps themselves. This bypassed all skill-level delegation gates (#132) and the E2E gate.
 
 #199 enforces the **output** (commits have REQ tags via commitlint + `validate-commits.sh`) but not the **process** (sdlc-implementer skill was actually invoked). The prompt gate is prose-level — it depends on the AI agent reading and complying with a system-prompt instruction. There is no machine-enforced verification that the skill was invoked.
 
@@ -387,9 +387,9 @@ Two additional changes address this:
 - [ ] Test: CI fails when RTM row for the commit's REQ-XXX has no provenance stamp
 - [ ] Test: CI passes when RTM row has `sdlc-implementer@<version>` provenance stamp
 
-## Phase-artifact creation gaps (discovered in wawagardenbar-app PR #413)
+## Phase-artifact creation gaps (discovered in example-app PR #413)
 
-A second real-world deployment in `wawagardenbar-app` (PR #413) revealed three additional gaps that the original six changes do not address. In this deployment, `sdlc-implementer` **was** invoked and drove Phase 1 (planning) and Phase 2 (implementation) correctly. The E2E suite was delegated to `e2e-test-engineer`. The failure occurred later, after an environment debugging detour (MongoDB port conflict, dev server startup, Playwright browser install) forced the native agent to take over hands-on debugging. The native agent then continued through Phase 3 (evidence) and Phase 4 (PR) without re-invoking `sdlc-implementer`. CI Compliance Validation failed with 3 missing files.
+A second real-world deployment in `example-app` (PR #413) revealed three additional gaps that the original six changes do not address. In this deployment, `sdlc-implementer` **was** invoked and drove Phase 1 (planning) and Phase 2 (implementation) correctly. The E2E suite was delegated to `e2e-test-engineer`. The failure occurred later, after an environment debugging detour (MongoDB port conflict, dev server startup, Playwright browser install) forced the native agent to take over hands-on debugging. The native agent then continued through Phase 3 (evidence) and Phase 4 (PR) without re-invoking `sdlc-implementer`. CI Compliance Validation failed with 3 missing files.
 
 ### Gap A: `test-scope.md` and `test-plan.md` are never created by any skill step
 
@@ -573,8 +573,8 @@ This addresses the root cause of the stale pending-releases issue (separate issu
 - `sdlc/files/stacks/node/hooks/pre-push` — existing pre-push hook
 - `sdlc/files/_common/scripts/validate-commits.sh` — CI commit validation (unskippable)
 - `sdlc/ai-rules/INSTRUCTIONS-SDLC.md:24-37` — #199 mandatory prompt gate (prose-level)
-- wawagardenbar-app first deployment failure — E2E suite never run, spec unverified, sdlc-implementer never invoked
-- wawagardenbar-app PR #413 deployment failure — sdlc-implementer invoked for Phase 1–2, native agent took over after MongoDB debugging detour, continued Phase 3–4 without re-invoking skill, CI Compliance Validation failed with 3 missing files (`test-scope.md`, `test-plan.md`, `implementation-plan.md` in wrong location)
-- wawagardenbar-app REQ-083/084 close-out failure — PR #407 merged to main, GitHub issues closed, but RTM still `TESTED - PENDING SIGN-OFF`, release tickets still in `pending-releases/`, portal approval not verified. Native agent treated "PR merged" as done, skipped Phase 5 close-out.
+- example-app first deployment failure — E2E suite never run, spec unverified, sdlc-implementer never invoked
+- example-app PR #413 deployment failure — sdlc-implementer invoked for Phase 1–2, native agent took over after MongoDB debugging detour, continued Phase 3–4 without re-invoking skill, CI Compliance Validation failed with 3 missing files (`test-scope.md`, `test-plan.md`, `implementation-plan.md` in wrong location)
+- example-app REQ-083/084 close-out failure — PR #407 merged to main, GitHub issues closed, but RTM still `TESTED - PENDING SIGN-OFF`, release tickets still in `pending-releases/`, portal approval not verified. Native agent treated "PR merged" as done, skipped Phase 5 close-out.
 - `docs/issues/pending-releases-not-closed-out.md` — separate issue for the stale pending release tickets + cross-REQ commit subject scoping (companion to this issue's Phase 5 close-out gap)
 - Issues #132, #170, #196, #174, #169, #199, #211, #212 — prior E2E/skill gap fixes

@@ -388,7 +388,7 @@ describe('devaudit doctor — host-adapter prerequisites (#843)', () => {
           'e2e-regression.yml.patch': {
             conflict: true,
             detected_at: '2026-10-16T14:41:00.000Z',
-            upstream_issue: 'https://github.com/metasession-dev/wawagardenbar-app/issues/832',
+            upstream_issue: 'https://github.com/example-org/example-app/issues/832',
           },
         },
       }),
@@ -396,7 +396,7 @@ describe('devaudit doctor — host-adapter prerequisites (#843)', () => {
     const result = await execa('node', [BIN, 'doctor'], { cwd: dir, reject: false });
     const output = result.stdout + result.stderr;
     expect(output).toMatch(/patch-conflicts\s+1 consumer patch\(es\) no longer apply cleanly/);
-    expect(output).toContain('e2e-regression.yml.patch (see https://github.com/metasession-dev/wawagardenbar-app/issues/832) since 2026-10-16T14:41:00.000Z');
+    expect(output).toContain('e2e-regression.yml.patch (see https://github.com/example-org/example-app/issues/832) since 2026-10-16T14:41:00.000Z');
     expect(output).toContain('docs/consuming-projects.md#re-rolling-a-conflicting-patch');
   }, 30_000);
 

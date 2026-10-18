@@ -166,7 +166,7 @@ export async function writeManaged(
       state.markTouched(relPath, opts.section);
       // Identical content must still end up with the requested mode: a consumer that
       // committed a synced script as 0644 would otherwise never get it executable
-      // (found by release validation on wawagardenbar-app, #1024). Content is untouched.
+      // (found by release validation on example-app, #1024). Content is untouched.
       if (opts.mode !== undefined && !state.dryRun && process.platform !== 'win32') {
         const current = (await fs.stat(absPath)).mode & 0o777;
         if (current !== (opts.mode & 0o777)) await fs.chmod(absPath, opts.mode);

@@ -140,7 +140,7 @@ jobs:
     runs-on: {{RUNNER}}
 
     # See ci.yml.template's quality-gates job for why this exists (#689
-    # polyglot-monorepo subdir targets, e.g. META-AGENT's mission-control/).
+    # polyglot-monorepo subdir targets, e.g. a consumer's example-web/).
     # scripts/ stays repo-root-relative below (via $GITHUB_WORKSPACE) since
     # register-release-style tooling lives there regardless of target.
     defaults:

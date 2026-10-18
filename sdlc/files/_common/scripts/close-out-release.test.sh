@@ -46,7 +46,7 @@ make_fixture() {
   git config user.name "test"
 
   # Multi-table RTM: legend table first (Status | Description, 2 cols, the
-  # shape that mangled WGB on REQ-048/050), then the main RTM (REQ-ID, …,
+  # shape that mangled a consumer on REQ-048/050), then the main RTM (REQ-ID, …,
   # Status, …, 7 cols).
   cat > compliance/RTM.md <<'EOF'
 # Requirements Traceability Matrix

@@ -5,7 +5,7 @@
 #   ./scripts/submit-for-uat-review.sh <project-slug> <version-prefix>
 #
 # Example:
-#   ./scripts/submit-for-uat-review.sh wawagardenbar-app v2026.05.14
+#   ./scripts/submit-for-uat-review.sh example-app v2026.05.14
 #
 # Required environment:
 #   DEVAUDIT_USER_TOKEN — Personal Access Token (mctok_…) issued from
@@ -37,7 +37,7 @@ VERSION_PREFIX="${2:-}"
 
 if [ -z "$PROJECT_SLUG" ] || [ -z "$VERSION_PREFIX" ]; then
   echo "Usage: $0 <project-slug> <version-prefix>" >&2
-  echo "Example: $0 wawagardenbar-app v2026.05.14" >&2
+  echo "Example: $0 example-app v2026.05.14" >&2
   exit 1
 fi
 

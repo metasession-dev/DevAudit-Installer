@@ -625,7 +625,7 @@ describe('devaudit-sdlc CLI engine', () => {
             '--repo=metasession-dev/example',
             '--once',
             '--release=REQ-090',
-            '--project-slug=wawagardenbar-app',
+            '--project-slug=example-app',
             `--base-url=http://127.0.0.1:${port}`,
           ],
           {

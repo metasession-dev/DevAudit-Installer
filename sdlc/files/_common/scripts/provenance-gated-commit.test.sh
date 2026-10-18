@@ -62,12 +62,12 @@ commit_file "$d" src/a.ts
 commit_file "$d" src/b.ts
 check "all-code range: head is the gated commit" "$(git -C "$d" rev-parse HEAD) code" "$(gated "$d")"
 
-d=$(new_repo thorstack)
+d=$(new_repo example-platform)
 commit_file "$d" src/service.ts
 CODE=$(git -C "$d" rev-parse HEAD)
 commit_file "$d" compliance/evidence/pack.json
 commit_file "$d" compliance/RTM.md
-check "docs-only head over code merge: gated is the code commit (ThorStack #153/#157)" "$CODE code" "$(gated "$d")"
+check "docs-only head over code merge: gated is the code commit (example-platform #153/#157)" "$CODE code" "$(gated "$d")"
 
 d=$(new_repo alldocs)
 commit_file "$d" compliance/a.json

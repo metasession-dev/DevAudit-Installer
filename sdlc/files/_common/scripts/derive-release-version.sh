@@ -81,7 +81,7 @@
 # subject/body carry no bracketed tag or Ref: line — but whose *underlying*,
 # commitlint-enforced commits do — fell all the way through to the bare-date
 # fallback even though every commit in the merge was properly tagged
-# (wawagardenbar-app REQ-095, PR #606: subject had no brackets, body's only
+# (example-app REQ-095, PR #606: subject had no brackets, body's only
 # "REQ-095" mention was unbracketed prose). When HEAD has exactly two
 # parents, scan every commit reachable from the second parent but not the
 # first (the commits this merge actually introduced) for a bracketed tag or

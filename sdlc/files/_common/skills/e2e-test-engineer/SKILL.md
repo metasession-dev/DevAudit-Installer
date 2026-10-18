@@ -359,7 +359,7 @@ If you determined e2e is not needed for this REQ (schema-only, API-only, no UI s
 echo "NOT_NEEDED $(date -u +%Y-%m-%dT%H:%M:%SZ) <reason>" > .e2e-gate-passed
 ```
 
-**Record which REQ IDs this run actually covers (devaudit-installer#578).** A bare presence file only proves *a* run happened, not that it covers *this* REQ's acceptance criteria — a stale, unrelated regression run satisfied the pre-#578 sentinel check on `wawagardenbar-app` REQ-095 while 0% of its planned Playwright coverage had actually been written. After the status line, append one REQ ID per line for every REQ you wrote or verified `tagTest()`/`@requirement` coverage for in this run:
+**Record which REQ IDs this run actually covers (devaudit-installer#578).** A bare presence file only proves *a* run happened, not that it covers *this* REQ's acceptance criteria — a stale, unrelated regression run satisfied the pre-#578 sentinel check on `example-app` REQ-095 while 0% of its planned Playwright coverage had actually been written. After the status line, append one REQ ID per line for every REQ you wrote or verified `tagTest()`/`@requirement` coverage for in this run:
 
 ```bash
 {
@@ -602,7 +602,7 @@ When to deviate:
 
 ### Specs with no page object — transport-layer evidence (devaudit#127)
 
-`evidenceShot` requires a Playwright `page` object. Specs that exercise behaviour at the transport layer — Node `fetch` against HTTP / webhook endpoints, `socket.io-client` connections, direct `MongoClient` queries, gRPC clients — have no `page` and **cannot call `evidenceShot`**. Examples from the wawagardenbar-app regression pack:
+`evidenceShot` requires a Playwright `page` object. Specs that exercise behaviour at the transport layer — Node `fetch` against HTTP / webhook endpoints, `socket.io-client` connections, direct `MongoClient` queries, gRPC clients — have no `page` and **cannot call `evidenceShot`**. Examples from the example-app regression pack:
 
 - `e2e/payments/webhook-signature-rejection.spec.ts` — HMAC-SHA512 verification via Node `fetch`
 - `e2e/realtime/order-status-broadcast.spec.ts` — `socket.io-client` event assertion

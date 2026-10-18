@@ -10,7 +10,7 @@
 
 ## Context
 
-On wawagardenbar-app REQ-109 a required E2E check failed on the release PR (one spec, attempt 1), passed on a re-run with no code change, and the `test-execution-summary.md` still read "PASS (with known unrelated flakes)". The failure was only found at portal UAT approval, about two weeks after the PR opened, and the triage that eventually happened lived in a PR comment and an unmerged branch. The framework had no halt, no required outcome, no required record and no way to record the decision in the portal without merging into the release head (which, for a `develop` to `main` PR, is circular).
+On example-app REQ-109 a required E2E check failed on the release PR (one spec, attempt 1), passed on a re-run with no code change, and the `test-execution-summary.md` still read "PASS (with known unrelated flakes)". The failure was only found at portal UAT approval, about two weeks after the PR opened, and the triage that eventually happened lived in a PR comment and an unmerged branch. The framework had no halt, no required outcome, no required record and no way to record the decision in the portal without merging into the release head (which, for a `develop` to `main` PR, is circular).
 
 Silent acceptance ("known unrelated flakes") must not be possible, and the decision must be recorded where the portal can see it, not only in git.
 

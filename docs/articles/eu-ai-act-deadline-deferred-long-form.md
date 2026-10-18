@@ -44,7 +44,7 @@ That's the live mapping in DevAudit's own compliance framework as of this writin
 
 ## What this looks like on a real release
 
-Talk is cheap; here's a requirement that actually shipped. REQ-098 on the `wgb` project — a dormant-tab write-off feature for bad-debt accounting — was classified HIGH risk and released on August 3, 2026, with 88 evidence artifacts attached.
+Talk is cheap; here's a requirement that actually shipped. REQ-098 on the consumer project — a dormant-tab write-off feature for bad-debt accounting — was classified HIGH risk and released on August 3, 2026, with 88 evidence artifacts attached.
 
 ![REQ-098's evidence trail in the DevAudit portal: 88 artifacts, HIGH risk, audit trail of uploads](images/eu-ai-act-portal-req098-overview.jpg)
 

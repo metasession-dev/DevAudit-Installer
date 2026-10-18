@@ -52,7 +52,7 @@ export interface InstallContext {
    * `writeSdlcConfig` now also refuses `--add-target` outright when the
    * existing config doesn't already have a real `targets` array — no new
    * adoption of this mechanic, only continued use by the one consumer
-   * (`fleet-control`) still on it.
+   * (`example-monorepo`) still on it.
    */
   readonly addTarget: boolean;
   /**
