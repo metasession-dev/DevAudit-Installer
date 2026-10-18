@@ -4,6 +4,8 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+## [1.9.0] — 2026-10-18
+
 ### Upgrade notes
 
 Read these before running `devaudit update` on a project.
