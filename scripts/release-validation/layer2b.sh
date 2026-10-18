@@ -229,7 +229,8 @@ scenario_doctor() { check_doctor "$1" "$2"; }
 scenario_scripts() {
   local target="$1" dir="$2" list="$3" bad="" n=0 f
   while IFS= read -r f; do
-    case "$f" in scripts/*.sh) n=$((n + 1)); bash -n "$dir/$f" 2>/dev/null || bad="$bad $f" ;; esac
+    # A script the installer removed on purpose is in the changed list but not in the clone (#1046).
+    case "$f" in scripts/*.sh) [ -f "$dir/$f" ] || continue; n=$((n + 1)); bash -n "$dir/$f" 2>/dev/null || bad="$bad $f" ;; esac
   done < "$list"
   if [ -z "$bad" ]; then record "$target" "2b:scripts" PASS "$n changed script(s) parse (bash -n)"; else record "$target" "2b:scripts" FAIL "do not parse:$bad"; fi
 }
