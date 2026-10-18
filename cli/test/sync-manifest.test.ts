@@ -216,6 +216,45 @@ describe('sync manifest + writeManaged (devaudit-installer#930)', () => {
     }
   }, 60_000);
 
+  it('a script upstream stopped shipping is removed; consumer-owned and bootstrap-only scripts are kept', async () => {
+    process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
+    const dir = await buildFixture();
+    try {
+      await fs.mkdir(join(dir, 'scripts'), { recursive: true });
+      await syncProject(dir);
+      const scriptsDir = join(dir, 'scripts');
+      const retired = 'reconcile-railway-deployment.sh';
+      await fs.writeFile(join(scriptsDir, retired), '#!/bin/sh\necho old\n');
+      await fs.writeFile(join(scriptsDir, 'retired-and-edited.sh'), '#!/bin/sh\necho edited\n');
+      await fs.writeFile(join(scriptsDir, 'consumer-own.sh'), '#!/bin/sh\necho mine\n');
+      await fs.writeFile(join(scriptsDir, 'bootstrap-only.sh'), '#!/bin/sh\necho legacy\n');
+      const manifest = (await readManifest(dir))!;
+      await writeManifest(dir, {
+        ...manifest,
+        files: {
+          ...manifest.files,
+          [`scripts/${retired}`]: { sha256: sha256('#!/bin/sh\necho old\n'), section: '2d' },
+          'scripts/retired-and-edited.sh': { sha256: sha256('#!/bin/sh\necho original\n'), section: '2d' },
+          'scripts/bootstrap-only.sh': { sha256: sha256('#!/bin/sh\necho legacy\n'), section: 'bootstrap' },
+        },
+      });
+
+      await syncProject(dir);
+
+      const files = await fs.readdir(scriptsDir);
+      expect(files).not.toContain(retired);
+      expect(files).toContain('retired-and-edited.sh');
+      expect(files).toContain('consumer-own.sh');
+      expect(files).toContain('bootstrap-only.sh');
+      expect(files).toContain('reconcile-deployment.sh');
+      const finalManifest = await readManifest(dir);
+      expect(finalManifest?.files[`scripts/${retired}`]).toBeUndefined();
+      expect(finalManifest?.files['scripts/retired-and-edited.sh']?.conflict).toBe(true);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 120_000);
+
   it('a pre-existing, untracked file at a devaudit-managed path is kept as a conflict on first sync (onboarding)', async () => {
     process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
     const dir = await buildFixture();

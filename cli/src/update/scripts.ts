@@ -2,7 +2,8 @@ import { promises as fs } from 'node:fs';
 import { join } from 'node:path';
 import { exists, isDir, listFiles, fileBasename } from '../lib/fs-utils.js';
 import { loadStackAdapter } from '../lib/adapter.js';
-import { writeManaged } from './write-managed.js';
+import { writeManaged, removeManaged } from './write-managed.js';
+import { toManifestKey } from './sync-manifest.js';
 import type { SyncContext, SectionResult } from './types.js';
 
 function isTestScript(name: string): boolean {
@@ -75,5 +76,29 @@ export async function syncScripts(ctx: SyncContext): Promise<SectionResult> {
     filePaths.push(dst);
     if (outcome !== 'conflict') count += 1;
   }
-  return { name: 'scripts', filesSynced: count, message: 'synced to scripts/', filePaths };
+  const removed = await removeStaleScripts(ctx, scriptsDst, new Set(filePaths));
+  const message = removed > 0 ? `synced to scripts/; removed ${removed} stale script(s)` : 'synced to scripts/';
+  return { name: 'scripts', filesSynced: count, message, filePaths };
+}
+
+/**
+ * Remove a script a previous sync wrote that upstream no longer ships (e.g.
+ * `reconcile-railway-deployment.sh`, replaced by `reconcile-deployment.sh` in
+ * #1022). scripts/ is shared with the consumer's own scripts, so only a file
+ * the manifest records under this section ('2d') is a candidate: entries
+ * reconstructed by the first-sync bootstrap ('bootstrap') cover the whole
+ * directory, consumer-owned files included, and are never swept. Removal is
+ * `removeManaged`'s: deleted if unmodified, kept and reported if edited.
+ */
+async function removeStaleScripts(ctx: SyncContext, scriptsDst: string, keep: ReadonlySet<string>): Promise<number> {
+  const state = ctx.managed!;
+  let removed = 0;
+  for (const entry of await fs.readdir(scriptsDst, { withFileTypes: true })) {
+    if (!entry.isFile()) continue;
+    const abs = join(scriptsDst, entry.name);
+    if (keep.has(abs)) continue;
+    if (state.known.get(toManifestKey(state.repoRoot, abs))?.section !== '2d') continue;
+    if ((await removeManaged(state, abs, { section: '2d' })) === 'removed') removed += 1;
+  }
+  return removed;
 }
