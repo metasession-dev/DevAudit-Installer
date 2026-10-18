@@ -368,6 +368,23 @@ for SECSUM in compliance/security-summary-*.md; do
 done
 shopt -u nullglob
 
+# devaudit-installer#1017 -- documented dependency risk acceptances. These are
+# repo-wide (an advisory is not owned by one REQ), referenced from
+# compliance/security/accepted-vulnerabilities.json, and ride the derived
+# release as `accepted_dependency_risk` evidence so approvers can see which
+# advisories the gate waived, why, and until when.
+shopt -s nullglob
+for RISKREC in compliance/security/risk-acceptances/*.md; do
+  [ -f "$RISKREC" ] || continue
+  echo "Uploading dependency risk acceptance: $(basename "$RISKREC")"
+  bash scripts/upload-evidence.sh \
+    ${DEVAUDIT_PROJECT_SLUG} _compliance-docs accepted_dependency_risk "$RISKREC" \
+    --category security ${FLAGS} --release "${DERIVED_RELEASE}" \
+    "${DERIVED_META[@]}" \
+    || echo "Warning: Failed to upload $(basename "$RISKREC")"
+done
+shopt -u nullglob
+
 # Upload release tickets (pending only)
 if [ -d "compliance/pending-releases" ]; then
   for TICKET in compliance/pending-releases/*.md; do
@@ -487,6 +504,11 @@ else
       #       deliberate no-e2e call apart from a genuine coverage gap.
       #       DevAudit-Installer#737.
       #
+      #   - accepted-e2e-failure-<spec>.md → accepted_e2e_failure
+      #       A documented, operator-confirmed acceptance of a failed required
+      #       E2E gate (impact assessment, decision-maker, review date,
+      #       tracking issue). DevAudit-Installer#1016.
+      #
       #   - test-scope.md → test_scope
       #       ISO 29119 §3.3 (Test scope).
       #
@@ -521,6 +543,8 @@ else
           EVTYPE=risk_assessment; EVCAT=planning ;;
         e2e-scope-decision.md)
           EVTYPE=e2e_scope_decision; EVCAT=planning ;;
+        accepted-e2e-failure-*.md)
+          EVTYPE=accepted_e2e_failure; EVCAT=planning ;;
         test-scope.md)
           EVTYPE=test_scope; EVCAT=planning ;;
         test-plan.md)

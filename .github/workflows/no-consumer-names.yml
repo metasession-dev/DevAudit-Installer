@@ -1,0 +1,25 @@
+name: No consumer names
+
+# #1042: this public repository never names consuming projects in its docs or code.
+# The pattern lives in the CONSUMER_NAME_PATTERN repo secret (never committed); without
+# it the check is skipped. Fork PRs get no secrets, so they skip too.
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: No consumer names in tracked files
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check tracked files
+        env:
+          CONSUMER_NAME_PATTERN: ${{ secrets.CONSUMER_NAME_PATTERN }}
+        run: bash scripts/check-no-consumer-names.sh

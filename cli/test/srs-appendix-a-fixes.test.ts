@@ -44,7 +44,7 @@ describe('ci-upload collectFiles (#155)', () => {
   });
 });
 
-// wawagardenbar-app#382 — hung evidence uploads must be bounded.
+// a consumer — hung evidence uploads must be bounded.
 describe('ci-upload upload timeout (#382)', () => {
   it('aborts a hung POST and returns a bounded failure result', async () => {
     const dir = await mktmp('ci-upload-timeout-');

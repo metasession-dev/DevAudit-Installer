@@ -69,7 +69,7 @@ If `sdlc-config.json` already exists in the target, `install` runs non-interacti
 8. **Set the GitHub variable** `DEVAUDIT_BASE_URL`.
 9. **Bootstrap the hook framework** — `pre-commit install` for Python, `npx husky init` for Node.
 10. **Set the default branch** to `integration_branch` (`develop` unless overridden in `sdlc-config.json`) — idempotent, no-op if already correct. GitHub creates every repo with `main` as default; without this, a contributor using GitHub's own UI (new-branch dropdown, "Compare & pull request") lands on `main` instead of `develop`, silently skipping the real Quality Gates workflow (which only triggers on PRs to the integration branch). See devaudit#731. Its sibling key, `release_branch` (`main` unless overridden), is where the tracked-release promotion PR (Step 3's follow-up) targets — override either if your repo uses different branch names.
-11. **Configure branch protection** on both `main` (the release branch) and `develop` (the integration branch) — required status checks: `Compliance Validation`, `DevAudit Release Approval`, `Quality Gates`. Keep third-party hosting checks such as Vercel / Railway / Cloudflare informational unless you intentionally want them to gate merges. (Required-approving-reviews set to 0 by default; raise to 1+ once your team has more than one admin.)
+11. **Configure branch protection** on both `main` (the release branch) and `develop` (the integration branch) — required status checks: `Compliance Validation`, `DevAudit Release Approval`, `Quality Gates`. Keep third-party hosting checks such as Vercel / Railway / Cloudflare informational unless you intentionally want them to gate merges. (Required-approving-reviews set to 0 by default; raise to 1+ once your team has more than one admin.) Every change into `develop`, template syncs included, must run `Quality Gates`: never put a skip-CI tag in a commit message on a PR branch, because GitHub then creates no check run and the PR stays BLOCKED (#1020).
 12. **Sync framework templates** — populates all framework files in the consumer from the templates bundled in the CLI. Includes: SDLC/ stage docs, the canonical `INSTRUCTIONS.md`, the per-agent rule files (`AGENTS.md` for Codex/AGENTS-compatible agents, `CLAUDE.md` for Claude Code, `.cursorrules` for Cursor, `.windsurfrules` for Windsurf, `GEMINI.md` for Gemini CLI), the `.claude/skills/` orchestrator + sibling skills (Claude Code only — the other agents read `INSTRUCTIONS.md` on demand instead of auto-firing), git hooks, scripts, and CI workflows. Equivalent to a `devaudit update` run. **Any LLM-driven agent works** — Copilot, Aider, Continue, etc. read `INSTRUCTIONS.md` directly; the listed agents get a more ergonomic rule-file mechanism on top.
 
 Want a stronger E2E safety net than the default blocking smoke gate? See [`e2e-test-tiers.md`](./e2e-test-tiers.md#opting-into-the-3-tier-regression-gate) for the opt-in 3-tier (`smoke`/`critical`/`regression`) model and its `devaudit update --enable-e2e-regression` flag — most projects don't need it.
@@ -78,14 +78,19 @@ The consumer's working tree is left dirty so the operator can review the diff be
 
 ### Host-adapter prerequisites
 
+**Choosing the host (devaudit-installer#1022).** `devaudit install --host <name>` records `host` in `sdlc-config.json` (interactive runs ask; `--yes` keeps the host already recorded, else `railway`). Re-running `install` never resets a recorded host. Valid names are the adapters under `sdlc/files/hosts/`; an unknown name fails with the list. Optional secret on any host: `DEVAUDIT_PROBE_HEADER`, one full header line (e.g. `x-vercel-protection-bypass: <token>`) that `post-deploy-prod.yml` sends with the independent health probe and smoke checks, for a production origin behind an access gate; unset means unauthenticated probes, as before.
+
+**Already onboarded with the wrong host, or the setup changed later?** Every project onboarded before 1.9.0 has `host: railway`, because `install` used to hardcode it. Run `devaudit doctor`: its `deploy-host` check compares the recorded host with where production really deploys (who created the production GitHub deployments, committed host files) and `devaudit doctor --fix` sets it. Change anything else (production URL secret, probe header, custom deploy settings, runner) with [`devaudit configure`](configure.md), or let the `devaudit-configure` skill walk you through it in Claude Code; then `devaudit update`. See [doctor.md](doctor.md#how-to-use-doctor).
+
 Beyond the secrets `install` sets automatically (step 7 above), your chosen host adapter (`host` in `sdlc-config.json`; each declares its own `required_secrets` and quirks in `sdlc/files/hosts/<host>/adapter.json` — see [`HOST_ADAPTER.md`](../sdlc/HOST_ADAPTER.md)) may need a bit more:
 
 | Host | Extra repo secret(s) | Local/runner tool | Why |
 | --- | --- | --- | --- |
 | `railway` | `RAILWAY_TOKEN` (advisory — only needed if the recovery path is ever used) | `railway` CLI on `PATH` for whoever runs self-hosted-runner jobs | Consumed only by `reconcile-deployment.yml`, the manual recovery workflow for when Railway's `deployment_status` webhook fails to reach GitHub (devaudit-installer#841). Not needed for normal push-to-main CI. |
-| `vercel` | none | none | Vercel's own Git integration handles deploy + status; no reconciliation workflow is generated for this host. |
+| `custom` | none by default; whatever `deploy_secrets` names (cloud credentials, an SSH key) | whatever `deploy_command` calls | Your deploy runs in the synced `deploy-custom.yml`, which records the GitHub deployment the production gate waits for. No webhook to lose, so no reconcile workflow. See [adding-a-host.md](adding-a-host.md#the-custom-host-aws-self-hosted-anything-devaudit-installer1022). |
+| `vercel` | `VERCEL_TOKEN` (advisory — only needed if the recovery path is ever used; plus an optional `VERCEL_TEAM_ID` secret for a team project; the workflow passes both to the lookup) | none (the lookup uses curl + jq against the Vercel REST API) | Consumed only by `reconcile-deployment.yml`, the manual recovery workflow for when Vercel's `deployment_status` event never reaches GitHub (devaudit-installer#1022). Vercel's own Git integration handles deploy + status in normal operation. |
 
-`devaudit doctor`'s `secrets` and `railway-cli` checks (devaudit-installer#843) read the same `adapter.json` data, so they never drift from this table — a `railway`-host consumer missing `RAILWAY_TOKEN` or the CLI sees an advisory warning, and a `vercel` (or any non-Railway) consumer never sees either check fire.
+`devaudit doctor`'s `secrets` and `reconcile-cli` checks (devaudit-installer#843, #1022) read the same `adapter.json` data, so they never drift from this table — a `railway`-host consumer missing `RAILWAY_TOKEN` or the CLI, or a `vercel`-host consumer missing `VERCEL_TOKEN`, sees an advisory warning; `reconcile-cli` stays silent for Vercel because its lookup needs no CLI. The `deploy-host`, `production-url`, `custom-deploy` and `ci-runner` checks (devaudit-installer#1040) go further: they check the recorded host against the repo's real deploys, the production URL secret and an access-gated origin, the `custom` deploy keys, and that the CI runner label exists.
 
 ## Step 3 — Review and ship the onboarding PR
 
@@ -163,7 +168,7 @@ Copy it into `.env` right then — there's no later recovery path. `.env`/`.env.
 | Phase 1 step 3 — create the portal release | `scripts/upload-evidence.sh` | Uploader key (write) |
 | Phase 4/5 — record a UAT execution | `scripts/record-uat-execution.sh` | Uploader key (write) |
 | Post-deploy — report test execution | `scripts/report-test-execution.sh` | Uploader key (write) |
-| Deployment reconciliation | `scripts/reconcile-railway-deployment.sh` (or the equivalent for your host adapter) | Uploader key (write) |
+| Deployment reconciliation | `scripts/reconcile-deployment.sh` (host-neutral; the provider lookup is the host adapter's `lookup-deployment-<host>.sh`) | Uploader key (write) |
 | Defer / resume a release (portal `deferred` state; admin-only) | `devaudit doctor --fix` (your PAT, a typed reason, confirmation), the portal UI session, or `POST /api/releases/[id]/defer` / `/resume` by hand with your own PAT (`DEVAUDIT_USER_TOKEN`) | Human admin PAT or portal session. **Not** the uploader or viewer key, and not CI; `doctor --fix` refuses them with a clear message |
 
 **The design decision (devaudit-installer#845):** these stay operator/CI-only by design — a session running `sdlc-implementer` locally without the uploader key should expect to hand these specific steps to CI's own automatic runs or to the operator, not treat it as a missing-credential bug to work around. A narrower third key (e.g. a "record-only" role that can create releases and record UAT/test executions but never approve one) was considered and rejected for now — it would be new portal-side scope with its own blast-radius analysis, not something to build speculatively ahead of a concrete operator-experience problem it solves. If that changes, revisit here.
@@ -267,18 +272,18 @@ A trace of an early `devaudit install ../EXAMPLE-PYTHON-SERVICE` run (the bash i
   ✓ Host (default):       railway
 
 == 3/12 · Configure ==
-  Project slug [meta-agent]:
+  Project slug [example-app]:
   Python version [3.11]:
   Source dirs (space-sep) [src/ tests/]:
   Working directory [example-python-service]:
   Production URL secret name [META_AGENT_PROD_URL]:
-  Production URL (https://...): https://meta-agent.metasession.co
+  Production URL (https://...): https://app.example.com
 
 == 4/12 · Write sdlc-config.json ==
   ✓ Written to .../EXAMPLE-PYTHON-SERVICE/sdlc-config.json
 
 == 5/12 · Create / find DevAudit project ==
-  ✓ Project 'meta-agent' created (id 4f3a2b1c…)
+  ✓ Project 'example-app' created (id 4f3a2b1c…)
 
 == 6/12 · Issue project API key ==
   ✓ API key issued (will be stored as repo secret DEVAUDIT_API_KEY)
@@ -312,7 +317,7 @@ A trace of an early `devaudit install ../EXAMPLE-PYTHON-SERVICE` run (the bash i
     git status
     git checkout -b feat/sdlc-onboarding
     git add -A
-    git commit -m "feat: onboard meta-agent to Metasession SDLC"
+    git commit -m "feat: onboard example-app to Metasession SDLC"
     git push -u origin feat/sdlc-onboarding
     gh pr create --base main
 ```
@@ -345,7 +350,7 @@ Running devaudit doctor — checking required tools...
   ✓ e2e-regression  not opted in
   ✓ secrets         all required secrets present (DEVAUDIT_API_KEY)
   ✓ pre-push-hook   present (.husky/pre-push)
-  ✓ railway-cli     skipped (reconcile-deployment.yml not present)
+  ✓ reconcile-cli   skipped (reconcile-deployment.yml not present)
 
 All required tools present.
 ```

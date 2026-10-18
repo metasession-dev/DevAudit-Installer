@@ -1,5 +1,8 @@
 # Framework: Suppress housekeeping release noise from automated syncs and bundle changes into the next REQ release
 
+> **Superseded (devaudit-installer#409, #1020).** This is a historical design record, not current behaviour: sync commits no longer use a skip-CI tag (it left the sync PR's required `Quality Gates` check unreported), and normal integration housekeeping registers no portal release. Read `sdlc/files/ci/*.yml.template` and `sdlc/files/_common/scripts/derive-release-version.sh` for what actually happens.
+
+
 > **See also:** deferral of a tracked REQ into the next release (ticket `Release intent: deferred-to-next`, RTM `DEFERRED`, promotion gate) is documented in [Deferring a finished REQ into the next release](../change-workflows.md#deferring-a-finished-req-into-the-next-release) and [ADR-002](../ADR/ADR-002-release-deferral.md). The text below is historical.
 
 **Status:** Proposed / Ready for implementation
@@ -15,7 +18,7 @@ Every push to `develop` that touches files outside `paths-ignore` triggers the `
 
 This means **automated tooling syncs** — `devaudit update`, Dependabot bumps, CI template regeneration — each create a separate housekeeping release on the portal, even though these are not operator-authored releases that warrant independent review and sign-off.
 
-### Evidence (wawagardenbar-app)
+### Evidence (example-app)
 
 | CI Run ID | Workflow | Event | Commit | Result |
 |-----------|----------|-------|--------|--------|
@@ -264,4 +267,4 @@ Gate evidence above covers the full state of develop at CI time, including these
 - `sdlc/files/ci/compliance-evidence.yml.template:148-226` — housekeeping stub auto-generation
 - `docs/release-playbooks/housekeeping-release.md` — housekeeping release playbook
 - `cli/src/install/write-config.ts:6-17` — `NODE_PATHS_IGNORE` / `PYTHON_PATHS_IGNORE` defaults
-- wawagardenbar-app CI runs: 28156639541 (sync push), 28150508465 (scheduled E2E)
+- example-app CI runs: 28156639541 (sync push), 28150508465 (scheduled E2E)

@@ -478,10 +478,13 @@ function classifyPrStatus(pr, checks, portalStatus, watch, options) {
     }
 
     if (failingChecks.length > 0) {
+        const redRequired = requiredFailingChecks(failingChecks, isReleasePr);
         return {
             kind: 'blocked',
             exitCode: 3,
-            summary: `PR #${watch.prNumber} has failing checks that need code fixes: ${failingChecks.map(formatCheckName).join(', ')}.`,
+            summary: redRequired.length > 0
+                ? `PR #${watch.prNumber} has failing REQUIRED release checks: ${redRequired.map(formatCheckName).join(', ')}. This release is blocked until the failure is fixed or accepted with a documented exception (devaudit-installer#1016); do not proceed to UAT or evidence upload with it unresolved.`
+                : `PR #${watch.prNumber} has failing checks that need code fixes: ${failingChecks.map(formatCheckName).join(', ')}.`,
         };
     }
 
@@ -508,6 +511,83 @@ function classifyPrStatus(pr, checks, portalStatus, watch, options) {
             ? `PR #${watch.prNumber} is approved and all required release checks reached terminal success. Ready for merge.`
             : `PR #${watch.prNumber} is approved and all observed checks are green. Ready for merge.`,
     };
+}
+
+// devaudit-installer#1016 (R5) -- a red REQUIRED check on the release PR must be
+// visible within one poll, not discovered at portal UAT approval. The release
+// approval gate has its own retry path, so it is excluded here.
+function requiredFailingChecks(failingChecks, isReleasePr) {
+    if (!isReleasePr) return [];
+    return failingChecks.filter(check =>
+        REQUIRED_RELEASE_CHECKS.includes(String(check.name || '')) && !isReleaseGateCheck(check));
+}
+
+function readGateTimeoutHours() {
+    const config = loadJsonFile(path.join(process.cwd(), 'sdlc-config.json'), {});
+    const value = Number(config && config.phase4 && config.phase4.gate_timeout_hours);
+    return Number.isFinite(value) && value > 0 ? value : 24;
+}
+
+function updateStickyStatus(issue, last, next) {
+    const script = path.join(process.cwd(), 'scripts', 'update-sdlc-status.sh');
+    if (!issue || !fs.existsSync(script)) return;
+    spawnSync('bash', [script, String(issue), last, next], { cwd: process.cwd(), encoding: 'utf8', env: process.env });
+}
+
+function notifyRequiredGateFailure(repo, watch, pr, checks, options) {
+    const failing = checks.filter(check => isFailingState(check.state || check.bucket));
+    const red = requiredFailingChecks(failing, isReleasePromotionPr(pr || {}, options));
+    if (red.length === 0) {
+        delete watch.triageNotified;
+        delete watch.redSince;
+        delete watch.escalatedFor;
+        return;
+    }
+    const issue = options.issue || process.env.ISSUE_NUM || null;
+    const names = red.map(formatCheckName).sort();
+    const key = names.join(' | ');
+    const now = new Date();
+    watch.redSince = watch.redSince || now.toISOString();
+    const links = red.map(check => `- ${formatCheckName(check)}${check.link ? `: ${check.link}` : ''}`).join('\n');
+    const post = (title, extra) => {
+        const body = [
+            `**${title}**`,
+            '',
+            `Required check(s) failing on release PR #${watch.prNumber}:`,
+            links,
+            '',
+            'This release is blocked until one of these is completed:',
+            '1. **Fix** - a `fix/<issue#>-<slug>` PR into the integration branch, then a green re-run on the PR head SHA.',
+            '2. **Accept** - a documented exception: copy `.claude/skills/sdlc-implementer/references/e2e-accepted-failure.md.template` to `compliance/evidence/REQ-XXX/accepted-e2e-failure-<spec>.md`, fill the impact assessment, and record it with `scripts/report-test-execution.sh resolve --resolution-type accepted_exception --remediation-reference <tracking-issue> --record <that file>`. Never automatic: the operator decides.',
+            '',
+            'No merge into the release head is needed to record the triage in the portal.',
+            extra || '',
+        ].join('\n');
+        if (issue) {
+            try {
+                runGh(['issue', 'comment', String(issue), '--repo', repo, '--body', body]);
+            } catch (error) {
+                console.error(`⚠️ Could not comment on issue #${issue}: ${error.message}`);
+            }
+        }
+    };
+    if (watch.triageNotified !== key) {
+        post('Required gate failing on the release PR - fix or accept with a documented exception');
+        updateStickyStatus(
+            issue,
+            `Phase 4 BLOCKED - required check(s) failing on release PR #${watch.prNumber}: ${key}`,
+            'Operator action - fix the failure, or accept it with a documented exception record (impact, owner, review date, tracking issue); sdlc-implementer will not proceed to UAT with it unresolved',
+        );
+        watch.triageNotified = key;
+        console.log(`🚨 Required release check(s) failing: ${key}. Fix or accept with a documented exception.`);
+    }
+    const hours = readGateTimeoutHours();
+    const elapsedHours = (now.getTime() - new Date(watch.redSince).getTime()) / 3600000;
+    if (elapsedHours >= hours && watch.escalatedFor !== key) {
+        post(`Phase 4 BLOCKED ${hours}h - required gate still failing`, `Escalation required: ${key} has been red for ${Math.floor(elapsedHours)}h.`);
+        updateStickyStatus(issue, `Phase 4 BLOCKED ${hours}h - required check(s) still failing: ${key}`, 'Escalation required');
+        watch.escalatedFor = key;
+    }
 }
 
 function performWatchAction(repo, watch, decision) {
@@ -557,6 +637,7 @@ async function watchPullRequest() {
         flakyPatterns: flakyPatterns.length > 0 ? flakyPatterns : DEFAULT_FLAKY_PATTERNS,
         integrationBranch: getOption('integration-branch') || DEFAULT_INTEGRATION_BRANCH,
         releaseBranch: getOption('release-branch') || DEFAULT_RELEASE_BRANCH,
+        issue: getOption('issue'),
     };
 
     let pollsRemaining = once ? 1 : maxPolls;
@@ -580,6 +661,7 @@ async function watchPullRequest() {
         watch.lastPortalStatus = portalStatus || watch.lastPortalStatus || null;
 
         const decision = classifyPrStatus(pr || {}, checks, portalStatus, watch, options);
+        notifyRequiredGateFailure(repo, watch, pr || {}, checks, options);
         if (decision.kind === 'action') {
             try {
                 performWatchAction(repo, watch, decision);

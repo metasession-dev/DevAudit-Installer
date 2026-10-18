@@ -17,7 +17,7 @@ The current DevAudit framework requires **manual operator intervention** to appl
 - **Phase 6 (E2E):** Only application-defects caught — infrastructure failures escape
 - **Post-release:** Production incidents require manual filing
 
-### Current Gaps Observed (wawagardenbar-app Case Study)
+### Current Gaps Observed (example-app Case Study)
 
 | Issue | Type | SDLC Phase | Current Handling | Gap |
 |-------|------|------------|------------------|-----|
@@ -332,7 +332,7 @@ All changes are **P1** to achieve full automatic incident classification across 
 - [ ] Zero manual Framework attribution section additions
 - [ ] All incidents uploaded to portal via `incident-export.yml` → `compliance-evidence.yml`
 
-### Test Scenarios (wawagardenbar-app)
+### Test Scenarios (example-app)
 - [ ] #382 (CI upload timeout) — auto-filed with ISO29119.3.5.4 + SOC2.CC7.2
 - [ ] #352 (E2E shared-state pollution) — auto-filed with ISO29119.3.5.4 + risk register entry for override
 - [ ] #345-347 (Post-merge regressions) — auto-filed with incident label on detection
@@ -351,7 +351,7 @@ All changes are **P1** to achieve full automatic incident classification across 
 ## References
 
 - SRS: REQ-SKILL-E2E-008, REQ-SKILL-RISK-004, REQ-FRAMEWORK-EVIDENCE-006, REQ-FRAMEWORK-VALIDATION-003
-- Case study: wawagardenbar-app issues #382, #352, #345, #346, #347
+- Case study: example-app issues #382, #352, #345, #346, #347
 - Workflow: `e2e-regression.yml` post-merge failure handler
 - Skill: `sdlc/files/_common/skills/e2e-test-engineer/SKILL.md`
 - Governance: `sdlc/files/_common/governance/incident-report.md.template`

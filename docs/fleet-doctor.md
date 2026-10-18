@@ -54,3 +54,7 @@ See [`.claude/skills/fleet-doctor/SKILL.md`](../.claude/skills/fleet-doctor/SKIL
 - [`docs/skills.md`](./skills.md) — the six per-consumer skills this one is deliberately not part of
 - [`docs/consuming-projects.md`](./consuming-projects.md) — the Active consumers table this skill reads
 - [`docs/doctor.md`](./doctor.md) — the full `devaudit doctor` contract, including `suspectedOrigin` and the `--json` shape this skill consumes
+
+## Accepted exceptions (devaudit-installer#1016/#1017)
+
+The per-project `devaudit doctor --json` output carries an `accepted-exceptions` entry under `onboarding`. When it is `ok: false`, the project has an accepted E2E failure or accepted dependency risk past its review date (or with no review date). Classify it as consumer-specific drift: the fix is the consumer's (fix the underlying failure/advisory, or renew the exception with a new record and review date); raise it as Lightweight-path housekeeping or defer it into the consumer's next tracked REQ bundle, never as a framework defect. An overdue exception on a project with an open release PR is release-blocking and belongs on the release PR, not in a housekeeping issue.

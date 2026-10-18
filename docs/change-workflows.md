@@ -63,7 +63,7 @@ A release is keyed by `(project, version)`.
 | Version       | Meaning                                   | Review treatment                                             |
 | ------------- | ----------------------------------------- | ------------------------------------------------------------ |
 | `REQ-XXX`     | Tracked release                           | Active approval envelope with per-REQ evidence and lifecycle |
-| `vYYYY.MM.DD` | Bare-date housekeeping/integration record | Historical CI context by default, not an active full release |
+| `vYYYY.MM.DD` | Standalone housekeeping release (only with a reviewed `STANDALONE-HOUSEKEEPING-vYYYY.MM.DD.json` declaration) | Active release for the standalone exception; normal integration housekeeping has no portal row (#1020) |
 
 A tracked promotion can bundle multiple REQs and/or prior housekeeping work. Each
 absorbed predecessor REQ keeps its own release record (linked as historical
@@ -97,9 +97,12 @@ one release PR, and one portal release.
 | Manifest | The committed `BUNDLED-CHANGES-<core>.{md,json}` lists members as `role: "co_tracked"`. That is a local declaration: `derive-release-version.sh` and CI regeneration read it, but `submit-bundle-manifest.sh` does not send `co_tracked` members to the portal (predecessors and housekeeping are still submitted). |
 | Close-out | The close-out PR releases the members with the core: their tickets move to `approved-releases/`, Status `RELEASED`, a `Released with bundle` backlink, RTM `RELEASED`. Absorbed predecessors are still superseded. |
 
-Limits: declared bundles are supported by the Node CI template only. The Python
-template generates no bundled changes or bundle manifest, so `sdlc-implementer`
-rejects a declared bundle when `stack: python` rather than half-supporting it (#955).
+Python (#995): declared bundles work on `stack: python` as well. When a live
+declared bundle exists the Python CI template registers the run on the bundle's
+single core-REQ release (instead of the date release), generates and submits the
+bundle manifest, and files each member's artifacts against that release; without a
+declared bundle the Python date-based release model is unchanged. Re-run
+`devaudit update` first: a Python project synced before #995 has the old template.
 Also, `feature-e2e.yml` handles a single REQ per
 run, so it skips a multi-REQ bundle PR.
 
@@ -192,3 +195,11 @@ administrative PR. Manual workflow dispatch is fallback; local
 Use portal repair/backfill controls only for real historical gaps. Repairs must
 be idempotent and audit-logged; never invent lineage or bundle membership from
 uncertain history.
+
+## A required gate fails on the release PR
+
+Whatever the release type, a failing required check on the release PR is fixed or accepted with a documented exception before UAT; see [e2e-test-tiers.md](e2e-test-tiers.md#when-a-tier-fails-fix-or-accept-devaudit-installer1016) (devaudit-installer#1016).
+
+## Compliance-record PRs (devaudit-installer#1019)
+
+A documentation-only PR that records evidence for an existing REQ (a triage record, an accepted-exception record, a corrected summary) carries `Compliance-Record: REQ-XXX` instead of `Ref:`/`[REQ-XXX]`. Its documents land on that REQ's release, and CI keeps its head SHA, branch and test executions off it. See [release-lineage-producer-contract.md](release-lineage-producer-contract.md#which-pull-requests-may-produce-a-release-scoped-execution-devaudit-installer1019).

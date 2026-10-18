@@ -175,7 +175,7 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     // A PR authored by the default GITHUB_TOKEN (actor github-actions[bot])
     // has its own pull_request-triggered required checks stuck at
     // action_required, blocking auto-merge until a maintainer manually
-    // approves each pending run — confirmed live on wgb#650 / devaudit#795.
+    // approves each pending run — confirmed live on a consumer / devaudit#795.
     // INSTALLER_DISPATCH_TOKEN opts out of that gate by authenticating as a
     // real, already-trusted account instead; falling back to github.token
     // keeps every consumer who hasn't configured the secret unaffected.
@@ -413,7 +413,7 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     expect(source).toContain("github.event.deployment_status.state == 'success'");
     expect(source).toContain("endsWith(github.event.deployment.environment, '/ production')");
     expect(source).toContain("endsWith(github.event.deployment.environment, '/production')");
-    expect(source).toContain('GIT_SHA: ${{ github.event.deployment.sha || github.sha }}');
+    expect(source).toContain('GIT_SHA: ${{ github.event.deployment.sha || github.event.inputs.deployed_sha || github.sha }}');
   });
 
   it('only fans out E2E JSON to requirements whose tests executed in that result', () => {
@@ -870,5 +870,85 @@ describe('deferred tickets are skipped by every pending-ticket loop (#956 phase 
   it('the helper ships in the synced scripts and is executable shell', () => {
     const helper = commonScript('is-deferred-ticket.sh');
     expect(helper).toContain("grep -qE '^- \\*\\*Release intent:\\*\\*[[:space:]]+deferred-to-next'");
+  });
+});
+
+describe('integration housekeeping registers no portal release (#1020)', () => {
+  const OPT_IN = 'DEVAUDIT_SKIP_INTEGRATION_HOUSEKEEPING=1';
+
+  it('ci.yml and compliance-evidence.yml derive the version with the housekeeping opt-in on every call', () => {
+    const ci = template('ci.yml.template');
+    const ce = template('compliance-evidence.yml.template');
+    expect(ci.split('./scripts/derive-release-version.sh)').length - 1).toBe(1);
+    expect(ci.split(`${OPT_IN} DEVAUDIT_ALLOW_PENDING_TICKET_FALLBACK=1 ./scripts/derive-release-version.sh`).length - 1).toBe(1);
+    // push/dispatch job + workflow_run job
+    expect(ce.split('./scripts/derive-release-version.sh)').length - 1).toBe(2);
+    expect(ce.split(`${OPT_IN} DEVAUDIT_ALLOW_PENDING_TICKET_FALLBACK=1 ./scripts/derive-release-version.sh`).length - 1).toBe(2);
+  });
+
+  it('the node ci.yml upload-evidence job is not run (and never creates a release called "skip") when registration was skipped', () => {
+    const ci = template('ci.yml.template');
+    const job = ci.slice(ci.indexOf('\n  upload-evidence:'));
+    const ifLine = job.split('\n').find((l) => l.trim().startsWith('if: ${{ !cancelled()')) ?? '';
+    expect(ifLine).toContain("needs.register-release.outputs.version != 'skip'");
+  });
+
+  it('release registration steps in register-release stay gated on version != skip', () => {
+    const ci = template('ci.yml.template');
+    const reg = ci.slice(ci.indexOf('\n  register-release:'), ci.indexOf('\n  upload-evidence:'));
+    for (const step of [
+      'Ensure release exists for gate-execution lineage',
+      'Upload standalone housekeeping declaration',
+      'Generate and upload bundled changes',
+    ]) {
+      const from = reg.indexOf(`- name: ${step}`);
+      expect(from, step).toBeGreaterThan(-1);
+      expect(reg.slice(from, from + 200), step).toContain("steps.version.outputs.version != 'skip'");
+    }
+  });
+
+  it('the disabled legacy housekeeping steps are gone from compliance-evidence.yml', () => {
+    const ce = template('compliance-evidence.yml.template');
+    expect(ce).not.toContain('Legacy housekeeping approval path');
+    expect(ce).not.toContain('Legacy housekeeping gate dispatch');
+    expect(ce).not.toContain('if: ${{ false }}');
+  });
+
+  it('derive-release-version.sh documents the rule and no longer claims sync commits skip CI', () => {
+    const script = commonScript('derive-release-version.sh');
+    expect(script).toContain('DEVAUDIT_SKIP_INTEGRATION_HOUSEKEEPING');
+    expect(script).toContain('STANDALONE-HOUSEKEEPING-<version>.json');
+    expect(script).not.toMatch(/include\s+`\[skip ci\]`/);
+    expect(script).not.toContain('no longer trigger CI');
+  });
+});
+
+describe('post-deploy probes can carry an access header (#1022)', () => {
+  const source = template('post-deploy-prod.yml.template');
+
+  it('reads the optional DEVAUDIT_PROBE_HEADER secret once, at job level', () => {
+    expect(source.split('PROBE_HEADER: ${{ secrets.DEVAUDIT_PROBE_HEADER }}').length - 1).toBe(1);
+  });
+
+  it('sends it with the health probe, the smoke check and the header check, and only when set', () => {
+    const probe = source.slice(source.indexOf('Probe production health independently'), source.indexOf('Confirm terminal host deployment success'));
+    expect(probe).toContain('if [ -n "${PROBE_HEADER:-}" ]; then PROBE_ARGS=(-H "$PROBE_HEADER"); fi');
+    expect(probe).toContain('${PROBE_ARGS[@]+"${PROBE_ARGS[@]}"} "${PROD_URL}/"');
+    const smoke = source.slice(source.indexOf('Production smoke tests (read-only)'));
+    expect(smoke).toContain('if [ -n "${PROBE_HEADER:-}" ]; then PROBE_ARGS=(-H "$PROBE_HEADER"); fi');
+    expect(smoke).toContain('curl -s -I ${PROBE_ARGS[@]+"${PROBE_ARGS[@]}"} "${PROD_URL}/"');
+  });
+
+  it('works under set -u with no secret: an empty array expands to nothing', () => {
+    const r = execFileSync('bash', ['-c', 'set -u; PROBE_HEADER=""; PROBE_ARGS=(); if [ -n "${PROBE_HEADER:-}" ]; then PROBE_ARGS=(-H "$PROBE_HEADER"); fi; printf "[%s]" ${PROBE_ARGS[@]+"${PROBE_ARGS[@]}"}'], { encoding: 'utf8' });
+    expect(r).toBe('[]');
+    const withHeader = execFileSync('bash', ['-c', 'set -u; PROBE_HEADER="x-vercel-protection-bypass: tok"; PROBE_ARGS=(); if [ -n "${PROBE_HEADER:-}" ]; then PROBE_ARGS=(-H "$PROBE_HEADER"); fi; printf "[%s]" ${PROBE_ARGS[@]+"${PROBE_ARGS[@]}"}'], { encoding: 'utf8' });
+    expect(withHeader).toBe('[-H][x-vercel-protection-bypass: tok]');
+  });
+
+  it('the Vercel adapter documents the secret instead of telling the operator to disable protection', () => {
+    const adapter = readFileSync(resolve(root, 'sdlc/files/hosts/vercel/adapter.json'), 'utf8');
+    expect(adapter).toContain('DEVAUDIT_PROBE_HEADER');
+    expect(adapter).toContain('x-vercel-protection-bypass');
   });
 });

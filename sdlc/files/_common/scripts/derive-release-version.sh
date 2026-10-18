@@ -13,6 +13,11 @@
 #                                                                    -> REQ-XXX
 #   1. REQ tag in commit subject:     "[REQ-037] feat(kitchen): ..." -> REQ-037
 #   2. Ref in commit body:            "Ref: REQ-037"                 -> REQ-037
+#   2-bis. Compliance-Record trailer: "Compliance-Record: REQ-037"   -> REQ-037
+#                                      (devaudit-installer#1019: same release for the
+#                                      commit's DOCUMENTS, but the PR is classified as
+#                                      document-only, so CI never binds its SHA, branch
+#                                      or test executions to that release)
 #   3. Bracketed tag in commit body:   merge commit whose body is the PR title
 #                                      "... [REQ-037] ..."           -> REQ-037
 #   3-bis. Merge-range scan:          HEAD is a two-parent merge commit and
@@ -39,12 +44,20 @@
 # ticket. The optional fallback below is disabled by default and may be used
 # only for an explicitly reviewed integration exception.
 #
-# Note (DevAudit-Installer#220): `devaudit update` syncs now include
-# `[skip ci]` in their commit message, so they no longer trigger CI
-# at all. The bare-date fallback (step 5) is therefore reached only by
-# human-authored housekeeping commits — the intended use case. Skipped
-# housekeeping changes are bundled into the next REQ release via
-# `generate-bundled-changes.sh` (run by the register-release CI job).
+# Note (DevAudit-Installer#1020): step 5 is reached by any untagged
+# integration commit, including a `devaudit update` template sync (sync
+# commits no longer carry a skip-CI tag: it left the PR's required
+# `Quality Gates` check unreported forever, and #409 had already removed the
+# sign-off path the tag was protecting). Since #409 normal bare-date
+# housekeeping is integration CI history on GitHub, not a portal release
+# awaiting approval; the next tracked REQ release absorbs it through
+# `generate-bundled-changes.sh`. Set DEVAUDIT_SKIP_INTEGRATION_HOUSEKEEPING=1
+# (ci.yml and compliance-evidence.yml do) and step 5 prints nothing --
+# callers translate that to `skip` -- unless a reviewed standalone
+# declaration compliance/standalone-housekeeping/STANDALONE-HOUSEKEEPING-<version>.json
+# exists, in which case the bare-date version is returned and the portal
+# promotes that row to a standalone housekeeping release. Without the
+# variable the behaviour is unchanged for every other caller.
 #
 # Step 4-bis (DevAudit-Installer#95) is the zero-ceremony equivalent:
 # RTM.md is the file the operator already maintains as the source of
@@ -68,7 +81,7 @@
 # subject/body carry no bracketed tag or Ref: line — but whose *underlying*,
 # commitlint-enforced commits do — fell all the way through to the bare-date
 # fallback even though every commit in the merge was properly tagged
-# (wawagardenbar-app REQ-095, PR #606: subject had no brackets, body's only
+# (example-app REQ-095, PR #606: subject had no brackets, body's only
 # "REQ-095" mention was unbracketed prose). When HEAD has exactly two
 # parents, scan every commit reachable from the second parent but not the
 # first (the commits this merge actually introduced) for a bracketed tag or
@@ -125,6 +138,14 @@ if [ -d compliance/pending-releases ]; then
   fi
 fi
 
+# DEVAUDIT_DERIVE_BUNDLE_ONLY=1 (devaudit-installer#995): the Python CI template
+# keeps its date-based release model for ordinary work and only switches to a
+# REQ release when a live declared bundle exists. In that mode the script stops
+# after step 0: it prints the bundle's core REQ, or nothing.
+if [ "${DEVAUDIT_DERIVE_BUNDLE_ONLY:-0}" = "1" ]; then
+  exit 0
+fi
+
 SUBJECT=$(git log -1 --format='%s' 2>/dev/null || echo '')
 BODY=$(git log -1 --format='%b' 2>/dev/null || echo '')
 
@@ -139,6 +160,15 @@ fi
 # (e.g. "target close: REQ-002") from being picked over the real ref.
 if echo "$BODY" | grep -qiE 'Ref:[[:space:]]*REQ-[0-9]+'; then
   echo "$BODY" | grep -ioE 'Ref:[[:space:]]*REQ-[0-9]+' | head -1 | grep -oiE 'REQ-[0-9]+' | tr '[:lower:]' '[:upper:]'
+  exit 0
+fi
+
+# 2-bis. Body: `Compliance-Record: REQ-XXX` (devaudit-installer#1019). A
+# doc-only compliance PR uses this trailer instead of `Ref:` so its documents
+# still land on that REQ's release while classify-pr-attribution.sh keeps its
+# head SHA, branch and test executions off it.
+if echo "$BODY" | grep -qiE '^[[:space:]]*Compliance-Record:[[:space:]]*REQ-[0-9]+'; then
+  echo "$BODY" | grep -ioE '^[[:space:]]*Compliance-Record:[[:space:]]*REQ-[0-9]+' | head -1 | grep -oiE 'REQ-[0-9]+' | tr '[:lower:]' '[:upper:]'
   exit 0
 fi
 
@@ -178,7 +208,7 @@ if [ "$(echo "$PARENTS" | wc -w)" = "2" ]; then
         if echo "$RANGE_BODY" | grep -qE '^Release-Closeout:[[:space:]]*REQ-[0-9]{3,}'; then
           continue
         fi
-        echo "$RANGE_BODY" | grep -ioE '(\[REQ-[0-9]+\]|Ref:[[:space:]]*REQ-[0-9]+)'
+        echo "$RANGE_BODY" | grep -ioE '(\[REQ-[0-9]+\]|Ref:[[:space:]]*REQ-[0-9]+|Compliance-Record:[[:space:]]*REQ-[0-9]+)'
       done \
     | grep -oiE 'REQ-[0-9]+' | tr '[:lower:]' '[:upper:]' | sort -u || true)
   RANGE_REQ_COUNT=$(echo "$RANGE_REQS" | grep -c . || true)
@@ -302,4 +332,15 @@ if echo "$BODY" | grep -qE '^Release-Closeout:[[:space:]]*REQ-[0-9]{3,}'; then
 fi
 
 # 5. Fallback: bare date in UTC
-echo "v$(date -u +%Y.%m.%d)"
+BARE_DATE_VERSION="v$(date -u +%Y.%m.%d)"
+# DevAudit-Installer#1020 -- integration housekeeping registers no portal
+# release. Only a reviewed standalone declaration for this version keeps the
+# bare-date row (opt-in via the variable so other callers are unaffected).
+if [ "${DEVAUDIT_SKIP_INTEGRATION_HOUSEKEEPING:-0}" = "1" ]; then
+  STANDALONE_DECLARATION="${STANDALONE_HOUSEKEEPING_DIR:-compliance/standalone-housekeeping}/STANDALONE-HOUSEKEEPING-${BARE_DATE_VERSION}.json"
+  if [ ! -f "$STANDALONE_DECLARATION" ]; then
+    echo "::notice::Integration housekeeping (${BARE_DATE_VERSION}): no standalone declaration at ${STANDALONE_DECLARATION}, so no portal release is registered; the next tracked release absorbs it." >&2
+    exit 0
+  fi
+fi
+echo "$BARE_DATE_VERSION"

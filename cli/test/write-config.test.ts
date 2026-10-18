@@ -49,19 +49,19 @@ describe('removeSdlcConfigTarget', () => {
 
   it('collapses back to the flat single-target shape when one target remains', async () => {
     const dir = await writeConfig({
-      project_slug: 'thorstack',
+      project_slug: 'example-platform',
       targets: [
         {
           name: 'api',
           stack: 'python',
-          working_directory: 'mission-control-api',
-          devaudit: { project_slug: 'thorstack-api', api_key_secret: 'DEVAUDIT_API_KEY_API' },
+          working_directory: 'example-web-api',
+          devaudit: { project_slug: 'example-api', api_key_secret: 'DEVAUDIT_API_KEY_API' },
         },
         {
           name: 'web',
           stack: 'node',
-          working_directory: 'mission-control',
-          devaudit: { project_slug: 'thorstack-web', api_key_secret: 'DEVAUDIT_API_KEY_WEB' },
+          working_directory: 'example-web',
+          devaudit: { project_slug: 'example-web', api_key_secret: 'DEVAUDIT_API_KEY_WEB' },
         },
       ],
     });
@@ -72,7 +72,7 @@ describe('removeSdlcConfigTarget', () => {
     const config = await readSdlcConfig(dir);
     expect(config).not.toBeNull();
     expect((config as unknown as { targets?: unknown }).targets).toBeUndefined();
-    expect((config as unknown as { project_slug: string }).project_slug).toBe('thorstack-web');
+    expect((config as unknown as { project_slug: string }).project_slug).toBe('example-web');
 
     const targets = resolveTargets(config!);
     expect(targets).toHaveLength(1);
@@ -85,25 +85,25 @@ describe('removeSdlcConfigTarget', () => {
 
   it('keeps the targets array when more than one target remains after removal', async () => {
     const dir = await writeConfig({
-      project_slug: 'thorstack',
+      project_slug: 'example-platform',
       targets: [
         {
           name: 'api',
           stack: 'python',
-          working_directory: 'mission-control-api',
-          devaudit: { project_slug: 'thorstack-api', api_key_secret: 'DEVAUDIT_API_KEY_API' },
+          working_directory: 'example-web-api',
+          devaudit: { project_slug: 'example-api', api_key_secret: 'DEVAUDIT_API_KEY_API' },
         },
         {
           name: 'web',
           stack: 'node',
-          working_directory: 'mission-control',
-          devaudit: { project_slug: 'thorstack-web', api_key_secret: 'DEVAUDIT_API_KEY_WEB' },
+          working_directory: 'example-web',
+          devaudit: { project_slug: 'example-web', api_key_secret: 'DEVAUDIT_API_KEY_WEB' },
         },
         {
           name: 'worker',
           stack: 'python',
-          working_directory: 'mission-control-worker',
-          devaudit: { project_slug: 'thorstack-worker', api_key_secret: 'DEVAUDIT_API_KEY_WORKER' },
+          working_directory: 'example-web-worker',
+          devaudit: { project_slug: 'example-worker', api_key_secret: 'DEVAUDIT_API_KEY_WORKER' },
         },
       ],
     });

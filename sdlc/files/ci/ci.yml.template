@@ -41,8 +41,8 @@ jobs:
     if: ${{ always() && (github.event_name != 'pull_request' || !startsWith(github.head_ref, 'chore/close-out-')) && (github.event_name == 'pull_request' || needs.register-release.result == 'success') }}
     runs-on: {{RUNNER}}
 
-    # `working-directory` lets monorepo / subdir Node projects (e.g. META-AGENT
-    # with mission-control/package.json) run gates from the right place without
+    # `working-directory` lets monorepo / subdir Node projects (e.g. a consumer
+    # with example-web/package.json) run gates from the right place without
     # prefixing every command. Defaults to '.' (repo root) when
     # sdlc-config.json doesn't set working_directory.
     defaults:
@@ -331,7 +331,7 @@ jobs:
 
       # actions/upload-artifact@v7 doesn't honour the job's `working-directory`;
       # paths are workspace-relative. Prefix with WORKING_DIR_PREFIX so artifacts
-      # uploaded from a subdir project (e.g. mission-control/) include the
+      # uploaded from a subdir project (e.g. example-web/) include the
       # subdir in their stored path, matching where the gate steps wrote them.
       - uses: actions/upload-artifact@v7
         if: always()
@@ -404,15 +404,18 @@ jobs:
         id: version
         run: |
           # Release identity is the REQ tag on the latest commit
-          # ([REQ-XXX] in subject, Ref: REQ-XXX in body), with a bare-date
-          # fallback for housekeeping commits. Both this workflow and
-          # compliance-evidence.yml call the same helper so a single
+          # ([REQ-XXX] in subject, Ref: REQ-XXX in body). An untagged
+          # integration commit (housekeeping, template sync) yields a
+          # bare-date version only when a reviewed standalone declaration
+          # exists for it; otherwise it registers no portal release and the
+          # next tracked REQ release absorbs it (#1020). Both this workflow
+          # and compliance-evidence.yml call the same helper so a single
           # feature converges on one release record. See DevAudit #310.
           chmod +x scripts/derive-release-version.sh 2>/dev/null || true
-          VERSION=$(DEVAUDIT_ALLOW_PENDING_TICKET_FALLBACK=1 ./scripts/derive-release-version.sh)
+          VERSION=$(DEVAUDIT_SKIP_INTEGRATION_HOUSEKEEPING=1 DEVAUDIT_ALLOW_PENDING_TICKET_FALLBACK=1 ./scripts/derive-release-version.sh)
           if [ -z "$VERSION" ]; then
             echo "version=skip" >> "$GITHUB_OUTPUT"
-            echo "Release registration skipped: close-out reconciliation detected."
+            echo "Release registration skipped: close-out reconciliation or integration housekeeping (no standalone declaration)."
             exit 0
           fi
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
@@ -618,7 +621,11 @@ jobs:
     # pushes, while a pull request remains an intentionally inapplicable,
     # cleanly skipped job. `always()` caused GitHub to mark this job cancelled
     # when Register Release was correctly skipped on a no-REQ PR (#500).
-    if: ${{ !cancelled() && github.event_name != 'pull_request' && github.ref_name == '{{INTEGRATION_BRANCH}}' && needs.register-release.result == 'success' }}
+    # `version == 'skip'` (close-out reconciliation, or integration housekeeping
+    # with no standalone declaration, #1020) means no release row exists, so
+    # nothing may be uploaded against one (it would create a release named
+    # "skip" via --create-release-if-missing).
+    if: ${{ !cancelled() && github.event_name != 'pull_request' && github.ref_name == '{{INTEGRATION_BRANCH}}' && needs.register-release.result == 'success' && needs.register-release.outputs.version != 'skip' }}
     env:
       DEVAUDIT_BASE_URL_VAR: ${{ vars.DEVAUDIT_BASE_URL }}
       DEVAUDIT_API_KEY: ${{ secrets.{{API_KEY_SECRET}} }}

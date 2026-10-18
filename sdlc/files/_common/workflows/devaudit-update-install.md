@@ -138,11 +138,11 @@ Key files to expect:
 
 ### 5. Hand off to the sdlc-implementer skill
 
-The changes are staged in the working tree. The remaining steps — invoking the SDLC engine for the sentinel, running local gates, creating a feature branch, committing, pushing, opening a PR, monitoring CI, and recording the correct housekeeping release meaning — are all owned by the **sdlc-implementer** skill that was synced into `.claude/skills/` by the install/update.
+The changes are staged in the working tree. The remaining steps — invoking the SDLC engine for the sentinel, running local gates, creating a feature branch, committing, pushing, opening a PR, monitoring CI, and confirming it registers no portal release (#1020) — are all owned by the **sdlc-implementer** skill that was synced into `.claude/skills/` by the install/update.
 
 Invoke the sdlc-implementer skill and tell it:
 
-> **Housekeeping change.** The working tree has uncommitted changes from `devaudit install` (or `devaudit update`). Commit type is `chore:`, no `REQ-XXX`. Use the SDLC lightweight path: invoke the SDLC engine for the sentinel, run local gates, create a `chore/sync-devaudit-sdlc-{version}` branch, commit, push, open a PR targeting `develop`, wait for terminal-green checks on the current PR SHA, then guide merge. This is normal integration housekeeping: it has PR review only, creates no tracked approval release, and is absorbed into the next tracked REQ through bundled-change lineage. A standalone housekeeping release is allowed only when the `sdlc-implementer` standalone-exception contract is explicitly satisfied.
+> **Housekeeping change.** The working tree has uncommitted changes from `devaudit install` (or `devaudit update`). Commit type is `chore:`, no `REQ-XXX`, commit message `chore: sync SDLC templates from DevAudit` with no skip-CI tag of any kind (it would suppress the required `Quality Gates` check). Use the SDLC lightweight path: invoke the SDLC engine for the sentinel, run local gates, create a `chore/sync-devaudit-sdlc-{version}` branch, commit, push, open a PR targeting `develop`, wait for terminal-green checks on the current PR SHA, then guide merge. This is normal integration housekeeping: it has PR review only, creates no tracked approval release, and is absorbed into the next tracked REQ through bundled-change lineage. A standalone housekeeping release is allowed only when the `sdlc-implementer` standalone-exception contract is explicitly satisfied.
 
 The skill will:
 1. Invoke `node SDLC/bin/devaudit-sdlc.cjs --phase=issue --view` to write the `.sdlc-implementer-invoked` sentinel

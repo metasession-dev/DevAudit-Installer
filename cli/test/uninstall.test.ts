@@ -212,7 +212,7 @@ describe('runUninstall', () => {
     const { runUninstall } = await import('../src/uninstall/index.js');
     const dir = await fixtureDir();
     await writeConfig(dir, {
-      project_slug: 'thorstack',
+      project_slug: 'example-platform',
       targets: [
         {
           name: 'fixture-app',
@@ -261,7 +261,7 @@ describe('runUninstall', () => {
     const { runUninstall } = await import('../src/uninstall/index.js');
     const dir = await fixtureDir();
     await writeConfig(dir, {
-      project_slug: 'thorstack',
+      project_slug: 'example-platform',
       targets: [
         {
           name: 'fixture-app',

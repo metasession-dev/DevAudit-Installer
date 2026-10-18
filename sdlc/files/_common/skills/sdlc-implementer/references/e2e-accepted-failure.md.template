@@ -1,0 +1,46 @@
+---
+record_kind: "accepted_e2e_failure"
+req: "REQ-XXX"
+release: "REQ-XXX"
+failing_specs:
+  - "e2e/critical/example.spec.ts"
+ci_run: "https://github.com/<owner>/<repo>/actions/runs/<run-id>"
+head_sha: "<40-char sha the failing run executed>"
+classification: "flake"            # flake | test_bug | app_defect | seed_data_gap
+decision_maker: "REPLACE — name of the person accepting this"
+decided_at: "YYYY-MM-DD"
+review_by: "YYYY-MM-DD"            # must be in the future; doctor flags it once it passes
+tracking_issue: "https://github.com/<owner>/<repo>/issues/<n>"   # label: accepted-e2e-failure
+---
+
+# Accepted E2E failure — REQ-XXX
+
+> **Created by `sdlc-implementer` only after the operator explicitly chose "Accept" in the release-PR triage gate. Never create this automatically. Replace every `REPLACE` / placeholder; `scripts/validate-risk-acceptance-record.sh` rejects an unedited record.**
+
+## Failure
+
+| Spec | Test | CI run / attempt | Error excerpt |
+| --- | --- | --- | --- |
+| REPLACE | REPLACE | REPLACE | REPLACE |
+
+## Evidence of classification
+
+REPLACE — why this is a `flake` / `test_bug` / `app_defect` / `seed_data_gap`: isolated re-runs (counts, warm and cold), logs, whether the code under test changed since it last passed, the passing run id for the same SHA if any.
+
+## Impact assessment
+
+REPLACE — which user journeys and requirements the failing spec covers; data, security and compliance exposure if the behaviour it checks is actually broken; blast radius; likelihood and severity; compensating controls or manual verification performed (what, by whom, when).
+
+## Why this does not block this release
+
+REPLACE — the specific reason, not "known flake". State what would change this decision.
+
+## Remediation
+
+REPLACE — the fix plan held in the tracking issue above, its owner, and the target date. The record is reviewed by `review_by`; if the issue is still open then, the exception expires and must be renewed or fixed.
+
+## Sign-off
+
+| Role | Name | Date |
+| --- | --- | --- |
+| Decision maker | REPLACE | REPLACE |

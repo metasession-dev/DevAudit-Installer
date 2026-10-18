@@ -28,7 +28,7 @@ echo ""
 # prose in commit bodies. A mention like "target close: REQ-002" or
 # "prereq for REQ-034" is a forward-reference, not a requirement under
 # change; scraping the whole body (%B) made CI demand evidence dirs for
-# work that hasn't started (DevAudit: META-JOBS tracker, REQ-002 false
+# work that hasn't started (DevAudit: a consumer tracker, REQ-002 false
 # positive). The RTM-row guard below is a secondary safety net.
 #
 # Requires ≥3 digits so placeholder patterns like `REQ-0XX` don't create
@@ -427,7 +427,7 @@ for REQ in $REQUIREMENTS; do
   # "Non-negotiable, regardless of format" note, devaudit-installer#653). A
   # note with none of these renders fine in the evidence list but fails to
   # parse into structured contributor data, exactly as happened on
-  # wawagardenbar-app REQ-098 and REQ-095. Applies regardless of risk tier,
+  # example-app REQ-098 and REQ-095. Applies regardless of risk tier,
   # since ai-use-note.md is created whenever AI was involved, not just for
   # MEDIUM/HIGH.
   if [ -f "compliance/evidence/$REQ/ai-use-note.md" ] \
@@ -440,7 +440,7 @@ for REQ in $REQUIREMENTS; do
   # verification method for a surface and ship zero of it — a stale,
   # unrelated Playwright run (or a --no-verify bypass of the pre-push hook)
   # would otherwise let this reach Stage 3 evidence compilation unnoticed,
-  # exactly as happened on wawagardenbar-app REQ-095. This is the CI-side
+  # exactly as happened on example-app REQ-095. This is the CI-side
   # mirror of sdlc-implementer Phase 2 step 5b's plan <-> spec cross-check,
   # catching any path that skips the husky hook.
   # A plan carrying `@e2e-deferred: <rationale>` (Implementation_Plan_TEMPLATE.md's

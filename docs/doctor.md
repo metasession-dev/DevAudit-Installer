@@ -6,10 +6,42 @@ The single-repo health check for a DevAudit consumer. Run it locally, in CI, or 
 devaudit doctor          # human-readable
 devaudit doctor --json   # machine-readable — suitable for CI
 devaudit doctor --fleet  # sweep every project you have access to, checked out locally as siblings
-devaudit doctor --fix [--yes] [--reason <text>] [--dry-run]   # propose and apply release-deferral repairs (one project)
+devaudit doctor --fix [--yes] [--reason <text>] [--dry-run]   # propose and apply repairs (one project)
 ```
 
 Implementation: [`cli/src/commands/doctor.ts`](../cli/src/commands/doctor.ts) (single-repo), [`cli/src/commands/fleet.ts`](../cli/src/commands/fleet.ts) (`--fleet`).
+
+## How to use doctor
+
+Run it from the root of a consumer repo (anywhere inside the checkout works).
+
+1. **After `devaudit install` or `devaudit update`, run `devaudit doctor`.** Read the output top to bottom:
+   - `✓` / `✗` lines under the tool check: a `✗` means a required tool is missing (exit `6`); install it and re-run.
+   - `⚠` lines are onboarding, deploy-config and release findings. They never fail plain `doctor`; each says what is wrong and, where it can, which command fixes it.
+   - `skipped (…)` means doctor could not check something (for example `gh` is not authenticated, or no portal key); it is not a pass.
+2. **See what doctor would change, without changing anything:** `devaudit doctor --fix --dry-run`. Every proposal is listed as `planned` (tier A or B) or `reported` (tier C guidance with the exact command to run).
+3. **Apply the fixes:** `devaudit doctor --fix`. Interactively it asks before each change (tier A), and for portal changes it also asks for a reason (tier B). In CI or scripts pass `--yes` (tier A) and `--yes --reason "<why>"` (tier B); anything not authorised stays unapplied and the run exits `8`.
+4. **Change a setting doctor does not fix itself** (production URL secret, custom deploy command, runner, E2E keys, secrets) with [`devaudit configure`](./configure.md), which validates the change and tells you what the next `devaudit update` will regenerate. In Claude Code, the [`devaudit-configure`](./configure.md#the-devaudit-configure-skill) skill walks you through it.
+5. **Regenerate and re-check:** `devaudit update`, then `devaudit doctor` again; the findings you fixed should now pass. Commit on a `fix/<issue#>-<slug>` branch and open a PR.
+
+### Worked example: a repo onboarded with the wrong deploy host
+
+A repo deploys production on Vercel but was onboarded before `install` asked where production deploys, so its `sdlc-config.json` says `host: railway`.
+
+```text
+$ devaudit doctor
+  ⚠ deploy-host     sdlc-config.json says host `railway`, but this repo deploys with vercel (high confidence: 2 recent production deployment(s) created by vercel[bot] (Vercel GitHub app))
+  ⚠ production-url  the latest production deployment (https://….vercel.app) answers 401 to an unauthenticated request, so the post-deploy probe will fail; set DEVAUDIT_PROBE_HEADER (…)
+
+$ devaudit doctor --fix
+  Set host to vercel in sdlc-config.json? › yes
+  ✓ [A] set-config host: applied — sdlc-config.json host: "railway" -> "vercel"; run `devaudit update` to regenerate the workflows; add the repo secret VERCEL_TOKEN: devaudit configure secret VERCEL_TOKEN
+  i [C] add-probe-header DEVAUDIT_PROBE_HEADER: reported — devaudit configure secret DEVAUDIT_PROBE_HEADER
+
+$ devaudit configure secret VERCEL_TOKEN            # paste at gh's masked prompt
+$ devaudit configure secret DEVAUDIT_PROBE_HEADER   # e.g. x-vercel-protection-bypass: <token>
+$ devaudit update && devaudit doctor
+```
 
 ## Exit codes
 
@@ -38,9 +70,15 @@ Skipped entirely (reported as `ok` with a "skipped" detail) when not run inside 
 | `e2e-regression` | `e2e_regression_enabled` in `sdlc-config.json` agrees with whether `playwright.config.ts` actually defines `critical`/`regression` projects — catches either side drifting from the other. |
 | `secrets` | Required GitHub repo secrets are present (`gh secret list`): the configured `api_key_secret` name (default `DEVAUDIT_API_KEY`), the viewer-key secret if configured, and (devaudit-installer#843) the resolved host adapter's own `required_secrets` from its `adapter.json` (e.g. `RAILWAY_TOKEN` for the `railway` host — never reported for a non-Railway consumer). Presence only — `gh secret list` never returns values. `DEVAUDIT_USER_TOKEN` is deliberately not checked here (devaudit-installer#912) — it's never a repo secret; it's the operator's local credential (see `--fleet` below). |
 | `pre-push-hook` | `.husky/pre-push` or `.git/hooks/pre-push` exists — this is what enforces the `sdlc-implementer` sentinel. |
-| `railway-cli` | devaudit-installer#843 — the `railway` CLI is on `PATH`, checked only when `.github/workflows/reconcile-deployment.yml` is actually present in this consumer's synced files (i.e. only for the `railway` host adapter, per #841). Skipped entirely for every other host, so a Vercel (or any non-Railway) consumer never sees a false positive for a tool it will never need. |
+| `reconcile-cli` | devaudit-installer#843/#1022 (named `railway-cli` before #1022) — the CLI the host adapter's `reconcile.required_cli` names (Railway: `railway`) is on `PATH`, checked only when `.github/workflows/reconcile-deployment.yml` is actually present in this consumer's synced files. Skipped when the host has no recovery workflow or its lookup needs no CLI (Vercel: curl + jq), so a consumer never sees a false positive for a tool it will never need. |
 | `commitlint-config-shadowing` | devaudit-installer#942 — a legacy commitlint config (`.commitlintrc*`, `commitlint.config.{js,cjs,ts,cts}`, or a `package.json#commitlint` field) that commitlint's fixed search order loads *before* the managed `commitlint.config.mjs`, silently defeating its `Sdlc-Implementer-Sentinel:` exemption. Skipped when `commitlint.config.mjs` is not synced. |
 | `sync-conflicts` | devaudit-installer#930 — lists every unresolved entry in `.devaudit/sync-manifest.json` with `conflict: true` (a managed file `update` detected as locally modified and left untouched, with the fresh upstream content sitting in a sibling `<path>.devaudit-new`). Non-gating — resolve each by following [sync-conflict-review.md](sync-conflict-review.md). Reports "skipped" if no manifest exists yet (never synced under a devaudit-installer#930-or-later CLI). |
+| `accepted-exceptions` | devaudit-installer#1016/#1017 — lists every open GitHub issue labelled `accepted-e2e-failure` or `accepted-dependency-risk` whose body has no `Review by: YYYY-MM-DD` date or whose review date has passed, and every entry of `compliance/security/accepted-vulnerabilities.json` that has expired or expires within 14 days (the CI dependency gate fails on it again once expired), so a documented exception cannot quietly become permanent. Non-gating. The issue half is skipped when `gh` is missing or unauthenticated; the file half needs no `gh`. |
+| `patch-conflicts` | devaudit-installer#1023 — lists every `.devaudit-patches/*.patch` the last `update` skipped because it no longer applies cleanly (the affected file carries the **unpatched** upstream template), with its linked upstream issue and the date it was first seen, read from the `patches` map in `.devaudit/sync-manifest.json`. Non-gating — re-roll or remove each patch following [consuming-projects.md § Re-rolling a conflicting patch](consuming-projects.md#re-rolling-a-conflicting-patch) and [sync-conflict-review.md](sync-conflict-review.md). Reports "skipped" if no manifest exists yet. |
+| `deploy-host` | devaudit-installer#1040 — the `host` in `sdlc-config.json` matches where production really deploys. Evidence, strongest first: who created the repo's production GitHub deployments (`vercel[bot]`, the Railway app, or a GitHub Actions workflow, which means `custom`), then committed host files (`vercel.json`, `.vercel/`, `railway.json`/`railway.toml`, `fly.toml`, `serverless.yml`, `appspec.yml`, `terraform/`, `k8s/`, `helm/`). A confident mismatch carries a tier A `set-config` proposal (`doctor --fix` sets `host`); mixed evidence is reported without a proposal. What could not be checked (no `gh` access) is listed. |
+| `production-url` | devaudit-installer#1040 — `production_url_secret` is set and that repo secret exists (by name; values are never read). When GitHub records a production deployment URL and it answers `401`/`403`/`407` to an unauthenticated request while `DEVAUDIT_PROBE_HEADER` is absent, it warns that the post-deploy probe will fail and names the secret to add. |
+| `custom-deploy` | devaudit-installer#1040 — host `custom` only (skipped otherwise): `deploy_command` is set, every `deploy_secrets` entry is a valid secret name and exists, `deployed_sha_url` is https, `deploy_trigger` is `push_to_main`, `git_tag` or `manual`. Notes when no `deployed_sha_url` is set (the deploy is then verified by a health check only). |
+| `ci-runner` | devaudit-installer#1040 — the runner CI will use exists. `runner: self-hosted` resolves through the `CI_RUNNER_LABEL` variable (`github-ci`, the default, is GitHub-hosted); any other label, or the resolved one, must be carried by a registered repository runner. Not checked when the runner list is not visible (needs repo admin; organization runners are not listed). |
 
 ### 3. Release closeout drift (non-gating)
 
@@ -71,10 +109,10 @@ Every portal read in `doctor` is read-only (`GET /api/ci/releases/resolve`) and 
 
 ### `--json` shape
 
-`--json` keeps `ok`, `tools`, `releaseCloseoutDrift` and `onboarding` exactly as before and adds (additively):
+`--json` keeps `ok`, `tools`, `releaseCloseoutDrift` and `onboarding` exactly as before (`onboarding` gained `deploy-host`, `production-url`, `custom-deploy` and `ci-runner` at the end, #1040) and adds (additively):
 
 - `deferral` — the seven checks of section 4 (`[]` outside a consumer project).
-- `proposals` — flat list of `{ check, subject, detail, remediation }`, where `remediation` is `{ id, tier, summary, plan[], needsPortal, data? }` (tier `A` local + reversible, `B` portal state change, `C` git history/code; `data` carries the machine-readable parameters `--fix` uses, such as the ticket path and portal release id). Plain `doctor` only describes them.
+- `proposals` — flat list (deploy/CI findings from `onboarding` are appended after the release ones) of `{ check, subject, detail, remediation }`, where `remediation` is `{ id, tier, summary, plan[], needsPortal, data? }` (tier `A` local + reversible, `B` portal state change, `C` git history/code; `data` carries the machine-readable parameters `--fix` uses, such as the ticket path and portal release id). Plain `doctor` only describes them.
 - `fix` — only with `--fix`: `{ dryRun, outcomes[], unapplied }`, one outcome per proposal `{ id, check, subject, tier, status, message, uatApprovalIdsAtDefer? }` with `status` one of `applied`, `unchanged`, `planned`, `unapplied`, `failed`, `reported`.
 
 ## `devaudit doctor --fix`
@@ -83,9 +121,9 @@ Every portal read in `doctor` is read-only (`GET /api/ci/releases/resolve`) and 
 
 | Tier | What | Rule |
 | --- | --- | --- |
-| **A** local + reversible | Ticket `Release intent` field, RTM `DEFERRED` row, `Absorbed predecessor releases` line (D2, D4 when exactly one next ticket exists, D6) | Confirm interactively, or accept with `--yes`. Edits are idempotent: a second run changes nothing. |
+| **A** local + reversible | Ticket `Release intent` field, RTM `DEFERRED` row, `Absorbed predecessor releases` line (D2, D4 when exactly one next ticket exists, D6); `host` in `sdlc-config.json` for a `deploy-host` mismatch (`set-config`, validated exactly like `devaudit configure set`, followed by the secrets and keys the new host still needs) | Confirm interactively, or accept with `--yes`. Edits are idempotent: a second run changes nothing. |
 | **B** portal state change | Defer / resume (D1, D3, D5) | Needs the operator's PAT (`DEVAUDIT_USER_TOKEN` / `devaudit auth login`), a **typed reason** (`--reason` or prompted) **and** explicit confirmation. **Never applied by `--yes` alone**; non-interactively it needs `--yes --reason "<text>"`. Never uses `DEVAUDIT_API_KEY`, `DEVAUDIT_VIEWER_API_KEY` or any CI key: with only those available the action fails with a clear message. |
-| **C** git history / code | Reverting a deferred REQ's commits (D4 alternative); closing out a drifted release (`./scripts/close-out-release.sh <REQ>`) | Never executed; the commands are printed and never count as unapplied. |
+| **C** git history / code, or guidance | Reverting a deferred REQ's commits (D4 alternative); closing out a drifted release (`./scripts/close-out-release.sh <REQ>`); the `devaudit configure` command for a deploy/CI finding (`production-url`, `custom-deploy`, `ci-runner`), including `devaudit configure secret <NAME>` for a missing secret | Never executed; the commands are printed and never count as unapplied. |
 
 - **Interactive** (TTY, `CI` unset, no `--json`): prompts for the resolution (D3: defer / abandon / reopen; abandon and reopen are guidance only), the reason, and a final confirmation.
 - **Non-interactive** (`--json`, no TTY, or `CI` set): never prompts. A proposal the flags do not authorise stays unapplied and the run exits `8`. Tier A needs `--yes`; tier B needs `--yes` **and** `--reason`; D3 defers only with both. A D5 stale deferral is never resumed non-interactively: it needs an interactive choice of resume / extend / abandon (only resume changes the portal).
@@ -126,6 +164,7 @@ See [`plugin-sdk/README.md`](../plugin-sdk/README.md) for the general plugin-aut
 
 ## See also
 
+- [`docs/configure.md`](./configure.md) — `devaudit configure` and the `devaudit-configure` skill: validated changes to `sdlc-config.json` and repo secrets.
 - [`docs/fleet-doctor.md`](./fleet-doctor.md) — Metasession's own automated fleet sweep, built on top of `devaudit doctor --fleet`, adding org-boundary enforcement and automated write actions for its own consumers.
 - [`docs/onboarding.md`](./onboarding.md) — run `devaudit doctor` after `devaudit install` to confirm onboarding actually landed.
 - [`docs/sdlc-framework.md`](./sdlc-framework.md) — how `doctor` fits into verifying the SDLC process is implemented and healthy, not just described.

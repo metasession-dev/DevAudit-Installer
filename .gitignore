@@ -2,3 +2,6 @@ docs/RTM.md
 
 # vitest cache (a results.json was once committed, #998)
 node_modules/
+
+# Release-validation consumer list: local only, consumers are never named in this public repo (#1042)
+scripts/release-validation/consumers.local

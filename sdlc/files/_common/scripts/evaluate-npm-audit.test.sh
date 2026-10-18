@@ -341,4 +341,100 @@ jq -e '
   (.unresolved | map(.advisoryId) | sort) == ["GHSA-coverage-cycle", "GHSA-vitest-cycle"]
 ' "$WORK/dependency-risk-evaluation.json" >/dev/null
 
+
+# --- devaudit-installer#1017: schemaVersion 2 requires a valid acceptance record ---
+write_record() { # <file> <advisory-id> <tracking-issue>
+  mkdir -p "$(dirname "$1")"
+  cat > "$1" <<REC
+---
+record_kind: "accepted_dependency_risk"
+advisory_ids:
+  - "$2"
+package: "postcss"
+severity: "high"
+decision_maker: "A. Reviewer"
+decided_at: "2026-01-01"
+review_by: "2099-01-01"
+remediation_deadline: "2099-01-01"
+tracking_issue: "$3"
+---
+
+# Accepted dependency risk
+
+## Advisories
+
+| Advisory | Severity | Package@version | Dependency path | Introduced by | Fix available |
+| --- | --- | --- | --- | --- | --- |
+| $2 | high | postcss@8.4.31 | node_modules/next/node_modules/postcss | next@16.2.11 | none |
+
+## Reachability and exploitability
+
+Only used by the build-time CSS pipeline; no request-time input reaches it. Checked by tracing the imports.
+
+## Impact assessment
+
+A crafted stylesheet could cause ReDoS in the build only; no production exposure.
+
+## Compensating controls
+
+Build runs in an isolated CI container with no secrets; dependency pinned by the lockfile.
+
+## Remediation
+
+Tracked in the issue; waiting for the upstream next release that bumps postcss.
+
+## Sign-off
+
+| Role | Name | Date |
+| --- | --- | --- |
+| Decision maker | A. Reviewer | 2026-01-01 |
+REC
+}
+
+run_v2() { (cd "$WORK" && bash "$HELPER" --audit dependency-audit.json --lock package-lock.json --exceptions compliance/security/accepted-vulnerabilities.json --output dependency-risk-evaluation.json); }
+expect_v2_success() { if ! run_v2 >/dev/null 2>"$WORK/v2.err"; then echo "Expected v2 evaluation to succeed" >&2; cat "$WORK/v2.err" >&2; exit 1; fi; }
+expect_v2_failure() { # <needle in stderr>
+  if run_v2 >/dev/null 2>"$WORK/v2.err"; then echo "Expected v2 evaluation to fail ($1)" >&2; exit 1; fi
+  grep -Fq -- "$1" "$WORK/v2.err" || { echo "Expected v2 failure to mention: $1" >&2; cat "$WORK/v2.err" >&2; exit 1; }
+}
+make_v2() { # <record-path>
+  write_audit; write_lock; write_exception
+  jq --arg rec "$1" '.schemaVersion = 2 | .exceptions[0].acceptanceRecord = $rec' \
+    "$WORK/compliance/security/accepted-vulnerabilities.json" > "$WORK/changed.json"
+  mv "$WORK/changed.json" "$WORK/compliance/security/accepted-vulnerabilities.json"
+}
+REC=compliance/security/risk-acceptances/GHSA-test-high.md
+ISSUE=https://github.com/example/repo/issues/1
+
+make_v2 "$REC"; write_record "$WORK/$REC" GHSA-test-high "$ISSUE"
+expect_v2_success
+jq -e --arg rec "$REC" '.summary.accepted == 1 and .accepted[0].acceptance.acceptanceRecord == $rec and (.accepted[0].acceptance.acceptanceRecordSha256 | length == 64)' \
+  "$WORK/dependency-risk-evaluation.json" >/dev/null
+
+make_v2 "$REC"; write_record "$WORK/$REC" GHSA-test-high "$ISSUE"
+jq 'del(.exceptions[0].acceptanceRecord)' "$WORK/compliance/security/accepted-vulnerabilities.json" > "$WORK/changed.json"
+mv "$WORK/changed.json" "$WORK/compliance/security/accepted-vulnerabilities.json"
+expect_v2_failure "missing required field(s): acceptanceRecord"
+
+make_v2 "$REC"; rm -f "$WORK/$REC"
+expect_v2_failure "acceptanceRecord does not exist"
+
+make_v2 "$REC"; write_record "$WORK/$REC" GHSA-some-other "$ISSUE"
+expect_v2_failure "does not list advisory GHSA-test-high"
+
+make_v2 "$REC"; write_record "$WORK/$REC" GHSA-test-high https://github.com/example/repo/issues/99
+expect_v2_failure "differs from the record's tracking_issue"
+
+make_v2 "$REC"; write_record "$WORK/$REC" GHSA-test-high "$ISSUE"
+sed -i 's/review_by: "2099-01-01"/review_by: "2020-01-01"/' "$WORK/$REC"
+expect_v2_failure "not in the future"
+
+make_v2 "../outside.md"; write_record "$WORK/$REC" GHSA-test-high "$ISSUE"
+expect_v2_failure "repo-root-relative"
+
+make_v2 "$REC"; write_record "$WORK/$REC" GHSA-test-high "$ISSUE"
+jq '.exceptions[0].expiresAt = "2020-01-01"' "$WORK/compliance/security/accepted-vulnerabilities.json" > "$WORK/changed.json"
+mv "$WORK/changed.json" "$WORK/compliance/security/accepted-vulnerabilities.json"
+expect_v2_failure "is expired on"
+
 echo "evaluate-npm-audit: PASS"

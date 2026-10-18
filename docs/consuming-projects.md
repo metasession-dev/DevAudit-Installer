@@ -302,6 +302,11 @@ files in lexical order:
   the patch against the new upstream template (see below) or remove it if the
   upstream fix supersedes it — until you do, that one file stays unpatched on
   every subsequent sync, not silently reverted back once and forgotten.
+  Since devaudit-installer#1023 the skip is not only a one-time warning: the
+  patch is recorded in `.devaudit/sync-manifest.json` (`patches`) and every
+  later `devaudit doctor` run lists it under the `patch-conflicts` check, with
+  its linked issue and the date it was first seen, until it applies, becomes
+  obsolete, or is removed.
 
 Patch files must use repository-relative paths and must never modify files
 outside the consumer repository. They are an auditable escape hatch, not a

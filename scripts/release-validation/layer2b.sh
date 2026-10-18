@@ -9,7 +9,8 @@
 
 RV_DIR="$ROOT/scripts/release-validation"
 # One node and one python consumer: enough to exercise the changes, far cheaper than all of them.
-RV_2B_CONSUMERS="${RV_2B_CONSUMERS:-wawagardenbar-app ThorStack-Backend}"
+# Default: the first of each stack in the local, gitignored consumer list (no names in this repo, #1042).
+RV_2B_CONSUMERS="${RV_2B_CONSUMERS:-$(local_consumers node | head -1) $(local_consumers python | head -1)}"
 # Changed paths that do not ship to consumers (or are covered by their own tests).
 RV_NOT_SHIPPED='^(docs/|tests/|scripts/|\.github/|\.claude/|\.devin/|plugins/|plugin-sdk/|contracts/|cli/(test/|CHANGELOG|README|package|tsconfig|tsup|vitest|\.)|sdlc/(CLAUDE|SKILLS|README|package)|README|CONTRIBUTING|CHANGELOG|LICENSE|INSTRUCTIONS|CLAUDE|AGENTS|GEMINI|package|\.)'
 
@@ -98,6 +99,66 @@ scenario_approval_gate() {
   fi
 }
 
+# #1020: integration housekeeping registers no portal release unless a standalone
+# declaration exists. Static: the candidate workflows that derive a version opt in.
+# Behavioural: the clone's synced derive-release-version.sh prints nothing for an
+# untagged commit with the opt-in, and the bare-date version once a declaration exists.
+check_housekeeping_skip_rule() { # <target> <dir> <candidate-workflows-root>
+  local target="$1" dir="$2" cand="$3" wf missing="" t derive got
+  for wf in ci.yml compliance-evidence.yml; do
+    [ -f "$cand/.github/workflows/$wf" ] || continue
+    grep -q 'scripts/derive-release-version.sh' "$cand/.github/workflows/$wf" || continue
+    # The Python ci.yml calls the helper only in bundle-only mode (#995): it keeps its date-based releases.
+    grep -q 'DEVAUDIT_DERIVE_BUNDLE_ONLY=1' "$cand/.github/workflows/$wf" && continue
+    grep -q 'DEVAUDIT_SKIP_INTEGRATION_HOUSEKEEPING=1' "$cand/.github/workflows/$wf" || missing="$missing $wf"
+  done
+  if [ -n "$missing" ]; then
+    record "$target" "2b:housekeeping-skip" FAIL "derive the release version without the integration-housekeeping opt-in:$missing"
+    return
+  fi
+  derive="$dir/scripts/derive-release-version.sh"
+  [ -f "$derive" ] || { record "$target" "2b:housekeeping-skip" SKIP "no scripts/derive-release-version.sh in the clone"; return; }
+  t=$(mktemp -d "$WORK_DIR/hk.XXXXXX")
+  (
+    cd "$t" && git init -q -b main && git config user.email t@example.test && git config user.name t \
+      && echo x > f && git add f && git commit -q -m "chore: sync SDLC templates from DevAudit"
+  ) >/dev/null 2>&1
+  got=$(cd "$t" && DEVAUDIT_SKIP_INTEGRATION_HOUSEKEEPING=1 bash "$derive" 2>/dev/null)
+  if [ -n "$got" ]; then
+    record "$target" "2b:housekeeping-skip" FAIL "untagged housekeeping with no declaration derived '$got', expected no release"
+    rm -rf "$t"; return
+  fi
+  mkdir -p "$t/compliance/standalone-housekeeping"
+  echo '{}' > "$t/compliance/standalone-housekeeping/STANDALONE-HOUSEKEEPING-v$(date -u +%Y.%m.%d).json"
+  got=$(cd "$t" && DEVAUDIT_SKIP_INTEGRATION_HOUSEKEEPING=1 bash "$derive" 2>/dev/null)
+  rm -rf "$t"
+  if [ "$got" = "v$(date -u +%Y.%m.%d)" ]; then
+    record "$target" "2b:housekeeping-skip" PASS "untagged housekeeping registers no release; with a standalone declaration it keeps $got"
+  else
+    record "$target" "2b:housekeeping-skip" FAIL "with a standalone declaration derived '$got', expected v$(date -u +%Y.%m.%d)"
+  fi
+}
+
+# devaudit-installer#941: the clone's own Release Close-out workflow, executed step by
+# step against a tracer fixture, a fake gh and a mock portal (the counterpart of the gate).
+_closeout_test() { # <workflow>
+  (cd "$ROOT/cli" && CLOSEOUT_WORKFLOW_FILE="$1" DEVAUDIT_INSTALLER_ROOT="$ROOT" \
+     npx vitest run test/close-out-workflow-behavior.test.ts 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | grep -E 'Tests +[0-9]' | tail -1)
+}
+
+scenario_close_out() {
+  local target="$1" dir="$2" wf out
+  wf=$(ls "$dir"/.github/workflows/close-out-release*.yml 2>/dev/null | head -1)
+  if [ -z "$wf" ]; then record "$target" "2b:close-out" SKIP "no close-out-release workflow in this clone"; return; fi
+  if [ -f "$wf.devaudit-new" ]; then wf="$wf.devaudit-new"; fi
+  out=$(_closeout_test "$wf")
+  if printf '%s' "$out" | grep -q 'failed' || [ -z "$out" ]; then
+    record "$target" "2b:close-out" FAIL "the clone's $(basename "$wf") against a mock portal: ${out:-no result}"
+  else
+    record "$target" "2b:close-out" PASS "the clone's $(basename "$wf") run against a mock portal: $out"
+  fi
+}
+
 scenario_ci_workflows() {
   local target="$1" dir="$2" list="$3" n tmp kept
   n=$(grep -c '^\.github/workflows/' "$list" || true)
@@ -114,6 +175,7 @@ scenario_ci_workflows() {
     if [ -f "$f.devaudit-new" ]; then cp "$f.devaudit-new" "$tmp/.github/workflows/$base"; kept=$((kept + 1)); else cp "$f" "$tmp/.github/workflows/$base"; fi
   done
   check_workflows "$target:candidate" "$tmp"
+  check_housekeeping_skip_rule "$target" "$dir" "$tmp"
   record "$target" "2b:ci-workflows" PASS "$n workflow file(s) changed by the update; $kept kept as the clone's own (conflict) were checked through their upstream .devaudit-new copy"
   rm -rf "$tmp"
 }
@@ -167,7 +229,8 @@ scenario_doctor() { check_doctor "$1" "$2"; }
 scenario_scripts() {
   local target="$1" dir="$2" list="$3" bad="" n=0 f
   while IFS= read -r f; do
-    case "$f" in scripts/*.sh) n=$((n + 1)); bash -n "$dir/$f" 2>/dev/null || bad="$bad $f" ;; esac
+    # A script the installer removed on purpose is in the changed list but not in the clone (#1046).
+    case "$f" in scripts/*.sh) [ -f "$dir/$f" ] || continue; n=$((n + 1)); bash -n "$dir/$f" 2>/dev/null || bad="$bad $f" ;; esac
   done < "$list"
   if [ -z "$bad" ]; then record "$target" "2b:scripts" PASS "$n changed script(s) parse (bash -n)"; else record "$target" "2b:scripts" FAIL "do not parse:$bad"; fi
 }
@@ -244,6 +307,9 @@ run_layer2b() {
   done <<< "$surfaces"
 
   local spec cname cdir pre list
+  if [ -z "${RV_2B_CONSUMERS// /}" ]; then
+    record installer 2b-clones WARN "no clones: set RV_2B_CONSUMERS or list consumers in $RV_CONSUMERS_FILE"
+  fi
   for spec in $RV_2B_CONSUMERS; do
     cname="2b-$(basename "${spec%.git}")"
     cdir="$WORK_DIR/2b/$cname"

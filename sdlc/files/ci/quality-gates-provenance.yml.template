@@ -52,7 +52,7 @@ jobs:
   release-scope-integrity:
     name: Release Scope Integrity
     if: ${{ !startsWith(github.event.pull_request.head.ref, 'hotfix/') && !startsWith(github.event.pull_request.head.ref, 'fix/hotfix-') }}
-    runs-on: ubuntu-latest
+    runs-on: {{RUNNER}}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -73,7 +73,7 @@ jobs:
 
   quality-gates:
     name: Quality Gates
-    runs-on: ubuntu-latest
+    runs-on: {{RUNNER}}
     steps:
       - name: Classify PR path
         id: classify

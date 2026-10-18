@@ -63,6 +63,7 @@ The gate never writes to a consumer repository or to the portal:
 | `versions-aligned` | all 5 packages share one version | no (WARN before the bump) |
 | `vitest` | full `cli` vitest suite | yes |
 | `shell-tests` | every `sdlc/files/_common/scripts/*.test.sh` and `scripts/*.test.sh` | yes |
+| `no-skip-ci-guidance` | no operator-facing guidance (`cli/src`, `sdlc/`, `docs/` outside `issues/` and `articles/`, `README.md`) recommends a skip-CI tag on a commit that goes through a PR: GitHub then runs no workflows, the required `Quality Gates` check is never created and the PR stays BLOCKED (#1020) | yes |
 | `mock-portal-lifecycle` | `tests/release-pipeline-e2e/run.sh` against `mock-portal.mjs` | yes |
 | `pack-install` | `npm pack` the CLI, install the tarball into an empty prefix, `devaudit --version` matches | yes |
 
@@ -107,9 +108,9 @@ Layer 2 proves `update` is safe and idempotent on every consumer, but it runs
 the same generic checks whatever the release changed. Layer 2b asks the
 question a release actually needs answered: **were the things that changed
 exercised, and do they work after the update is applied?** It does not run on
-every consumer; two representative clones (`RV_2B_CONSUMERS`, default
-wawagardenbar-app for node and ThorStack-Backend for python) are enough to
-exercise a change.
+every consumer; two representative clones (`RV_2B_CONSUMERS`, default the
+first node and the first python consumer in the local consumer list) are
+enough to exercise a change.
 
 `scripts/release-validation.sh layer2b` (also the last step of `all`):
 
@@ -131,7 +132,8 @@ exercise a change.
 | Surface | Scenario on the updated clone |
 | --- | --- |
 | `approval-gate` | the **clone's own** `check-release-approval*.yml` and `derive-release-version.sh` run against a mock portal (`release-approval-gate-behavior.test.ts` with `GATE_WORKFLOW_FILE`/`GATE_DERIVE_SCRIPT`): blocks every pre-approval state and `deferred`, passes the approved ones |
-| `ci-workflows` | how many workflows the update changed; all of them are parsed, token-checked and `bash -n` checked |
+| `close-out` | the clone's own `close-out-release.yml` executed step by step against a tracer fixture, a fake `gh` and a mock portal (`cli/test/close-out-workflow-behavior.test.ts`, #941): ticket and RTM reconciliation, idempotency, `pr_opened` then `completed` reports, no report for an unmatched release or an unmerged PR. Test-harness only; no approval or release transition is ever created |
+| `ci-workflows` | how many workflows the update changed; all of them are parsed, token-checked and `bash -n` checked. Also `housekeeping-skip` (#1020): the workflows that derive a release version opt into the integration-housekeeping rule, and the clone's synced `derive-release-version.sh` prints no release for an untagged commit but keeps the bare-date version once a standalone declaration exists |
 | `sync-safety` | edit a synced script locally, commit, run `update` twice: the edit must survive and the upstream copy must be in `.devaudit-new` (#988) |
 | `branch-protection` | section 2k reports no unexpected failure, and the manifest baseline run made no `gh` call (#990) |
 | `deferral` | the deferral scenario (ticket, gate, derive, reconcile) on the real history |
@@ -145,19 +147,21 @@ change: add the surface to `surfaces.tsv` and a `scenario_<surface>` function.
 
 ### Consumers
 
-The consumer list is the active set in [consuming-projects.md](consuming-projects.md):
+Consumers are never named in this repository: it is public (#1042). The list
+lives in `scripts/release-validation/consumers.local`, which is gitignored and
+kept on the operator's machine, one `<repo-name> <node|python>` per line:
 
-| Consumer | Stack | Notes |
-| --- | --- | --- |
-| wawagardenbar-app | node | |
-| META-ATS | node | the Claude GitHub app has no access; run locally |
-| META-JOBS | node | |
-| ThorStack-Frontend | node | |
-| ThorStack-Backend | python | |
-| thorstack-site | node | |
-| fleet-control | python | uses the deprecated polyglot `targets` mechanic |
+```text
+# scripts/release-validation/consumers.local
+some-node-consumer node
+some-python-consumer python
+```
 
-META-TALENT has a local checkout but `metasession-dev/META-TALENT` no longer resolves on GitHub (2026-10-12), so it is not in the list.
+Build it from the projects you can see (`devaudit doctor --fleet`, or the
+portal's project list). `RV_CONSUMERS_FILE` points at another file. `all` with
+no names validates every consumer in the list; a consumer whose repo you cannot
+clone is reported, not fatal. Results and work directories stay local; when you
+paste results on a PR or issue, replace consumer names with generic labels.
 
 ### Fresh-onboard fixtures
 
@@ -181,14 +185,13 @@ derivation, test-execution reporting and close-out.
 ## Running it
 
 ```bash
-# everything (layer 1, every consumer, both fixtures, layer 2b)
-scripts/release-validation.sh all wawagardenbar-app META-ATS META-JOBS \
-  ThorStack-Frontend ThorStack-Backend thorstack-site fleet-control
+# everything (layer 1, every consumer in consumers.local, both fixtures, layer 2b)
+scripts/release-validation.sh all
 
 # one part
 scripts/release-validation.sh layer1
 scripts/release-validation.sh layer2b          # change-driven, two clones
-scripts/release-validation.sh consumer wawagardenbar-app
+scripts/release-validation.sh consumer <repo-name>
 WORK_DIR=/tmp/rv scripts/release-validation.sh fixture node python
 ```
 

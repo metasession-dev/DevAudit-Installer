@@ -228,7 +228,7 @@ assert_exit "validator exits 0 with depth-2 bare-filename reference" 0
 cd "$WORKDIR"
 
 # --- case 6: a future REQ mentioned only in commit prose is ignored ---
-# Regression for the META-JOBS REQ-002 false positive: scraping the whole
+# Regression for the consumer REQ-002 false positive: scraping the whole
 # commit body pulled in `REQ-002` from "target close: REQ-002" and then
 # ERRORed on its missing evidence dir even though REQ-002 hadn't started.
 # Only `[REQ-XXX]` subject tags and `Ref:` lines count as under-change.
@@ -429,7 +429,7 @@ cd "$WORKDIR"
 # YAML frontmatter (ai_contributors:) or a legacy "AI Tool Used: <tool>"
 # line. A note with neither renders fine in the evidence list but fails
 # to parse into structured contributor data — as happened for real on
-# wawagardenbar-app REQ-098 and REQ-095, neither of which had either
+# example-app REQ-098 and REQ-095, neither of which had either
 # marker.
 
 echo "Case 11: prose-only ai-use-note.md triggers a portal-parseability warning"

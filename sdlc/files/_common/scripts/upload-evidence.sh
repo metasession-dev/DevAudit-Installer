@@ -57,7 +57,7 @@
 #                               `testCycleRecordId`.
 #
 # Required environment variables:
-#   DEVAUDIT_BASE_URL  e.g. https://meta-comply-production.up.railway.app
+#   DEVAUDIT_BASE_URL  e.g. https://devaudit.example.com
 #   DEVAUDIT_API_KEY   project-scoped API key (uploader role); format `mc_…`.
 #                         Issue from: Project Settings → API Keys in
 #                         META-COMPLY's web UI.
@@ -71,11 +71,11 @@
 #   #298 — the Portal response body is included in the error output.
 #
 # Examples:
-#   ./scripts/upload-evidence.sh meta-ats REQ-001 screenshot \
+#   ./scripts/upload-evidence.sh example-app REQ-001 screenshot \
 #       compliance/evidence/REQ-001/screenshots/
-#   ./scripts/upload-evidence.sh meta-ats _compliance-docs compliance_document \
+#   ./scripts/upload-evidence.sh example-app _compliance-docs compliance_document \
 #       compliance/RTM.md --git-sha abc123
-#   ./scripts/upload-evidence.sh meta-ats REQ-001 e2e_result \
+#   ./scripts/upload-evidence.sh example-app REQ-001 e2e_result \
 #       playwright-report/ --release v1.0.0 --environment uat \
 #       --category ci_pipeline --create-release-if-missing
 
@@ -94,6 +94,11 @@ FILE_PATH="$4"
 shift 4
 
 GIT_SHA=""
+# devaudit-installer#1019 -- on a pull_request run, a PR that changes no code
+# (documentation / compliance records only) must not bind its head SHA or branch
+# to a release, nor create the release: it uploads the document without them.
+# Default on; --no-attribution-guard or DEVAUDIT_ATTRIBUTION_GUARD=0 disables it.
+ATTRIBUTION_GUARD="${DEVAUDIT_ATTRIBUTION_GUARD:-1}"
 CI_RUN_ID=""
 BRANCH=""
 RELEASE_VERSION=""
@@ -123,6 +128,7 @@ while [ "$#" -gt 0 ]; do
     --branch) BRANCH="$2"; shift 2 ;;
     --release) RELEASE_VERSION="$2"; shift 2 ;;
     --create-release-if-missing) CREATE_RELEASE_IF_MISSING=true; shift ;;
+    --no-attribution-guard) ATTRIBUTION_GUARD=0; shift ;;
     --environment) ENVIRONMENT="$2"; shift 2 ;;
     --category) EVIDENCE_CATEGORY="$2"; shift 2 ;;
     # Descriptive title + conventional-commit change type passed through to
@@ -157,6 +163,18 @@ done
 if [ -n "$ENVIRONMENT" ] && [ -z "$RELEASE_VERSION" ]; then
   echo "Error: --environment requires --release (evidence without a release is orphaned)"
   exit 1
+fi
+
+if [ "$ATTRIBUTION_GUARD" != "0" ] && [ "${GITHUB_EVENT_NAME:-}" = "pull_request" ] \
+   && [ -n "$RELEASE_VERSION" ] && { [ -n "$GIT_SHA" ] || [ -n "$BRANCH" ] || [ "$CREATE_RELEASE_IF_MISSING" = true ]; } \
+   && [ -n "${GITHUB_BASE_REF:-}" ] && [ -f "$(dirname "${BASH_SOURCE[0]}")/classify-pr-attribution.sh" ]; then
+  ATTRIBUTION="$(bash "$(dirname "${BASH_SOURCE[0]}")/classify-pr-attribution.sh" --base "origin/${GITHUB_BASE_REF}" 2>/dev/null || echo attach)"
+  case "$ATTRIBUTION" in
+    skip:*)
+      echo "::warning::This PR changes no code (${ATTRIBUTION#skip:}); uploading to ${RELEASE_VERSION} WITHOUT binding its SHA/branch or creating the release (devaudit-installer#1019). Pass --no-attribution-guard to override."
+      GIT_SHA=""; BRANCH=""; CREATE_RELEASE_IF_MISSING=false
+      ;;
+  esac
 fi
 if [ -n "$RELEASE_VERSION" ] && [ -z "$EVIDENCE_CATEGORY" ]; then
   echo "Error: --category is required when --release is specified (gate validation)"
@@ -644,12 +662,29 @@ for FILE in "${FILES[@]}"; do
         continue
       fi
     fi
-    rm -f "$RESP_HEADERS_FILE"
     break
   done
 
+  # DevAudit-Installer#1018 — a 400 ("Failed to parse body as FormData") or
+  # 413 on the multipart path means the file exceeded a body limit that sits
+  # below PRESIGNED_THRESHOLD_BYTES (reverse proxy / framework). Retrying the
+  # same multipart POST cannot succeed, so fall back to the presigned flow
+  # once (unless it was already the path taken above).
+  if [ "$FILE_SIZE" -lt "$PRESIGNED_THRESHOLD_BYTES" ] && { [ "$HTTP_CODE" = "400" ] || [ "$HTTP_CODE" = "413" ]; }; then
+    echo -n "(multipart HTTP ${HTTP_CODE} at ${FILE_SIZE} bytes, trying presigned fallback) "
+    FALLBACK_RESULT=0
+    upload_presigned "$FILE" || FALLBACK_RESULT=$?
+    if [ "$FALLBACK_RESULT" -eq 0 ]; then
+      rm -f "$RESP_BODY_FILE" "$RESP_HEADERS_FILE"
+      echo "OK (${FILE_SIZE} bytes, presigned R2 upload after multipart HTTP ${HTTP_CODE})"
+      SUCCEEDED=$((SUCCEEDED + 1))
+      TOTAL_SIZE=$((TOTAL_SIZE + FILE_SIZE))
+      continue
+    fi
+  fi
+
   if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
-    rm -f "$RESP_BODY_FILE"
+    rm -f "$RESP_BODY_FILE" "$RESP_HEADERS_FILE"
     if [ "$ATTEMPT" -gt 1 ]; then
       echo "OK (${FILE_SIZE} bytes, attempt ${ATTEMPT}/${MAX_ATTEMPTS})"
     else
@@ -666,7 +701,14 @@ for FILE in "${FILES[@]}"; do
     if [ -s "$RESP_BODY_FILE" ]; then
       echo "  Response: $(head -c 500 "$RESP_BODY_FILE")"
     fi
-    rm -f "$RESP_BODY_FILE"
+    # DevAudit-Installer#1018 — diagnostics so a size/limit failure is
+    # attributable from the log alone: size, upload path, content type of
+    # the part, and the response headers (proxy/server identification).
+    echo "  Diagnostics: file=${FILENAME} size=${FILE_SIZE}B path=multipart evidenceType=${EVIDENCE_TYPE} presigned_threshold=${PRESIGNED_THRESHOLD_BYTES}B"
+    if [ -s "$RESP_HEADERS_FILE" ]; then
+      echo "  Response headers: $(tr -d '\r' < "$RESP_HEADERS_FILE" | grep -iE '^(HTTP/|server:|content-type:|content-length:|via:|x-)' | head -8 | tr '\n' '|')"
+    fi
+    rm -f "$RESP_BODY_FILE" "$RESP_HEADERS_FILE"
     FAILED=$((FAILED + 1))
   fi
 done

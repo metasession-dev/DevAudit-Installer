@@ -38,6 +38,10 @@
 #   --incident-reference <text>    Attached to the cycle row on start|complete
 #   --remediation-reference <text> Attached to the cycle row on start|complete; or on `resolve`, threaded into the resolution record
 #   --resolved-by-cycle-id <uuid>  `resolve` only -- the passing cycle that supersedes this one, if any
+#   --record <path>                `resolve` only -- the documented accepted-exception record
+#                                  (compliance/evidence/REQ-XXX/accepted-e2e-failure-<spec>.md).
+#                                  REQUIRED for --resolution-type accepted_exception, together with
+#                                  --remediation-reference (the tracking issue) -- see below.
 #   --output-file <path>           Writes key=value outputs for callers
 #
 # `resolve` is the self-service path for a failed cycle on an immutable,
@@ -49,11 +53,23 @@
 # reached on their own. Example:
 #
 #   report-test-execution.sh resolve \
-#     --project-slug wgb --release REQ-108 \
+#     --project-slug example-app --release REQ-108 \
 #     --test-cycle-id 77eb11a9-428d-4aaa-8bd7-d3d0550c6f06 \
 #     --resolution-type accepted_exception \
-#     --reason "unrelated pre-existing defect wawagardenbar-app#852" \
-#     --remediation-reference wawagardenbar-app#852
+#     --reason "unrelated pre-existing defect example-org/example-app#852" \
+#     --remediation-reference https://github.com/example-org/example-app/issues/852 \
+#     --record compliance/evidence/REQ-108/accepted-e2e-failure-webhook-idempotency.md
+#
+# devaudit-installer#1016: `accepted_exception` is a documented waiver, never a
+# silent one. It is refused unless --remediation-reference names the tracking
+# issue AND --record points at a record that passes
+# scripts/validate-risk-acceptance-record.sh --kind e2e (impact assessment,
+# decision-maker, a review date in the future, an exact tracking-issue URL).
+# The record path is appended to the reason sent to the portal. Fixing the
+# failure (retry_passed with a verified re-run, incident_remediated) needs
+# neither. Resolving here records triage in the portal directly, so
+# `execution_triage_missing` clears without merging anything into the release
+# head.
 #
 # Output keys:
 #   execution_supported=true
@@ -108,6 +124,9 @@ TEST_CYCLE_ID=""
 RESOLUTION_TYPE=""
 RESOLVED_BY_CYCLE_ID=""
 REASON=""
+RECORD_PATH=""
+# devaudit-installer#1019 -- default on; see classify-pr-attribution.sh.
+ATTRIBUTION_GUARD="${DEVAUDIT_ATTRIBUTION_GUARD:-1}"
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -137,6 +156,8 @@ while [ "$#" -gt 0 ]; do
     --resolution-type) RESOLUTION_TYPE="$2"; shift 2 ;;
     --resolved-by-cycle-id) RESOLVED_BY_CYCLE_ID="$2"; shift 2 ;;
     --reason) REASON="$2"; shift 2 ;;
+    --record) RECORD_PATH="$2"; shift 2 ;;
+    --no-attribution-guard) ATTRIBUTION_GUARD=0; shift ;;
     --output-file) OUTPUT_FILE="$2"; shift 2 ;;
     *) echo "Unknown option: $1"; exit 1 ;;
   esac
@@ -153,6 +174,25 @@ require_arg() {
 require_arg "$PROJECT_SLUG" "--project-slug"
 require_arg "$RELEASE_VERSION" "--release"
 
+# devaudit-installer#1019 -- a pull request that changes no code (documentation
+# / compliance records only) must not record a release-scoped test execution:
+# its head SHA and branch would become the release's "tested" code. start and
+# complete are skipped with a warning; resolve is a deliberate triage action and
+# is unaffected.
+if [ "$MODE" != "resolve" ] && [ "$ATTRIBUTION_GUARD" != "0" ] && [ "${GITHUB_EVENT_NAME:-}" = "pull_request" ] \
+   && [ -n "${GITHUB_BASE_REF:-}" ] && [ -f "$(dirname "${BASH_SOURCE[0]}")/classify-pr-attribution.sh" ]; then
+  ATTRIBUTION="$(bash "$(dirname "${BASH_SOURCE[0]}")/classify-pr-attribution.sh" --base "origin/${GITHUB_BASE_REF}" 2>/dev/null || echo attach)"
+  case "$ATTRIBUTION" in
+    skip:*)
+      echo "::warning::This PR changes no code (${ATTRIBUTION#skip:}); not recording a release-scoped test execution for ${RELEASE_VERSION} (devaudit-installer#1019). Pass --no-attribution-guard to override."
+      if [ -n "$OUTPUT_FILE" ]; then
+        printf 'execution_supported=false\nexecution_skipped_reason=attribution_guard_%s\n' "${ATTRIBUTION#skip:}" > "$OUTPUT_FILE"
+      fi
+      exit 0
+      ;;
+  esac
+fi
+
 if [ "$MODE" = "resolve" ]; then
   require_arg "$TEST_CYCLE_ID" "--test-cycle-id"
   require_arg "$RESOLUTION_TYPE" "--resolution-type"
@@ -164,6 +204,23 @@ if [ "$MODE" = "resolve" ]; then
       exit 1
       ;;
   esac
+  # devaudit-installer#1016 -- accepting a failure requires a documented
+  # exception (impact, decision-maker, review date, tracking issue), checked
+  # before any network call.
+  if [ "$RESOLUTION_TYPE" = "accepted_exception" ]; then
+    require_arg "$REMEDIATION_REFERENCE" "--remediation-reference (the tracking issue for an accepted_exception)"
+    require_arg "$RECORD_PATH" "--record (the accepted-exception record for an accepted_exception)"
+    RECORD_VALIDATOR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/validate-risk-acceptance-record.sh"
+    if [ ! -f "$RECORD_VALIDATOR" ]; then
+      echo "Error: $RECORD_VALIDATOR is missing; run devaudit update to restore the synced scripts." >&2
+      exit 1
+    fi
+    if ! bash "$RECORD_VALIDATOR" --kind e2e "$RECORD_PATH" >&2; then
+      echo "Error: --record failed validation; an accepted_exception needs a complete accepted-exception record." >&2
+      exit 1
+    fi
+    REASON="${REASON} (record: ${RECORD_PATH})"
+  fi
 else
   require_arg "$SDLC_STAGE" "--sdlc-stage"
   require_arg "$ENVIRONMENT" "--environment"

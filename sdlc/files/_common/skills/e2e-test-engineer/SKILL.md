@@ -307,6 +307,8 @@ Then bucket each failure:
 - **Visual diff — intended** — the snapshot changed because the change intentionally changed the UI. Update the baseline and surface it for user approval.
 - **Visual diff — unintended** — a snapshot changed somewhere the change shouldn't have affected. File it as a regression.
 
+**Emit the failure table (devaudit-installer#1016).** For every failure from any execution - local runs and each CI attempt - produce one row for `test-execution-summary.md`'s `## E2E failures & triage` table (`| Spec / check | Source | Classification | Evidence | Disposition | Reference |`, see the Stage 3 blueprint): the spec, its source (`local` or `CI <run id>/<attempt>`), the bucket above, the evidence behind the classification (isolated re-runs warm and cold, logs, whether the code under test changed since it last passed), and a disposition of `Fix`, `Accepted exception` or `Deferral` with its reference. Never write "known unrelated flake" as a disposition. When `sdlc-implementer` invoked you for a release-PR required-gate failure and the operator chose **Accept**, also draft the accepted-exception record from `.claude/skills/sdlc-implementer/references/e2e-accepted-failure.md.template` - failing specs and CI run/SHA, evidence of classification, an honest **impact assessment** (affected journeys and requirements, data/security/compliance exposure, blast radius, likelihood and severity, compensating controls), why it does not block this release, a review date and a tracking issue - and leave the sign-off to the operator. You draft; the operator decides.
+
 **Then check for missed requirements.** For each numbered acceptance criterion from Phase 2, confirm at least one *passing* test covers it. **Classify each missed AC (devaudit-installer#212 Gap 4):**
 
 - **AC not tested** (no test was written) — file a defect as today. The implementation may be correct but untested. This is a testing gap, not a requirements gap.
@@ -357,7 +359,7 @@ If you determined e2e is not needed for this REQ (schema-only, API-only, no UI s
 echo "NOT_NEEDED $(date -u +%Y-%m-%dT%H:%M:%SZ) <reason>" > .e2e-gate-passed
 ```
 
-**Record which REQ IDs this run actually covers (devaudit-installer#578).** A bare presence file only proves *a* run happened, not that it covers *this* REQ's acceptance criteria — a stale, unrelated regression run satisfied the pre-#578 sentinel check on `wawagardenbar-app` REQ-095 while 0% of its planned Playwright coverage had actually been written. After the status line, append one REQ ID per line for every REQ you wrote or verified `tagTest()`/`@requirement` coverage for in this run:
+**Record which REQ IDs this run actually covers (devaudit-installer#578).** A bare presence file only proves *a* run happened, not that it covers *this* REQ's acceptance criteria — a stale, unrelated regression run satisfied the pre-#578 sentinel check on `example-app` REQ-095 while 0% of its planned Playwright coverage had actually been written. After the status line, append one REQ ID per line for every REQ you wrote or verified `tagTest()`/`@requirement` coverage for in this run:
 
 ```bash
 {
@@ -600,7 +602,7 @@ When to deviate:
 
 ### Specs with no page object — transport-layer evidence (devaudit#127)
 
-`evidenceShot` requires a Playwright `page` object. Specs that exercise behaviour at the transport layer — Node `fetch` against HTTP / webhook endpoints, `socket.io-client` connections, direct `MongoClient` queries, gRPC clients — have no `page` and **cannot call `evidenceShot`**. Examples from the wawagardenbar-app regression pack:
+`evidenceShot` requires a Playwright `page` object. Specs that exercise behaviour at the transport layer — Node `fetch` against HTTP / webhook endpoints, `socket.io-client` connections, direct `MongoClient` queries, gRPC clients — have no `page` and **cannot call `evidenceShot`**. Examples from the example-app regression pack:
 
 - `e2e/payments/webhook-signature-rejection.spec.ts` — HMAC-SHA512 verification via Node `fetch`
 - `e2e/realtime/order-status-broadcast.spec.ts` — `socket.io-client` event assertion

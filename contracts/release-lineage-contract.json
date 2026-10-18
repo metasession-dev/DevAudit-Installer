@@ -239,7 +239,7 @@
       },
       "example": {
         "schemaVersion": 1,
-        "idempotencyKey": "github:metasession-dev/wawagardenbar-app:Quality-Gates:12345:attempt:2:stage:2:REQ-093",
+        "idempotencyKey": "github:example-org/example-app:Quality-Gates:12345:attempt:2:stage:2:REQ-093",
         "sourceRelease": "REQ-093",
         "sdlcStage": 2,
         "environment": "ci",
@@ -254,7 +254,7 @@
         "branch": "develop",
         "startedAt": "2026-07-15T08:00:00Z",
         "workflowName": "Quality Gates",
-        "workflowUrl": "https://github.com/metasession-dev/wawagardenbar-app/actions/runs/12345",
+        "workflowUrl": "https://github.com/example-org/example-app/actions/runs/12345",
         "incidentReference": null,
         "outcome": "running"
       }
@@ -420,7 +420,7 @@
       },
       "example": {
         "schemaVersion": 1,
-        "idempotencyKey": "github:metasession-dev/wawagardenbar-app:Quality-Gates:12345:attempt:2:stage:2:REQ-093",
+        "idempotencyKey": "github:example-org/example-app:Quality-Gates:12345:attempt:2:stage:2:REQ-093",
         "sourceRelease": "REQ-093",
         "sdlcStage": 2,
         "environment": "ci",
@@ -436,7 +436,7 @@
         "startedAt": "2026-07-15T08:00:00Z",
         "completedAt": "2026-07-15T08:11:00Z",
         "workflowName": "Quality Gates",
-        "workflowUrl": "https://github.com/metasession-dev/wawagardenbar-app/actions/runs/12345",
+        "workflowUrl": "https://github.com/example-org/example-app/actions/runs/12345",
         "incidentReference": null,
         "outcome": "passed",
         "outcomeReason": null
@@ -449,7 +449,7 @@
       },
       "example": {
         "schemaVersion": 1,
-        "idempotencyKey": "github:metasession-dev/wawagardenbar-app:Quality-Gates:12345:attempt:2:stage:2:REQ-093",
+        "idempotencyKey": "github:example-org/example-app:Quality-Gates:12345:attempt:2:stage:2:REQ-093",
         "sourceRelease": "REQ-093",
         "sdlcStage": 2,
         "environment": "ci",
@@ -463,7 +463,7 @@
         "startedAt": "2026-07-15T08:00:00Z",
         "completedAt": "2026-07-15T08:12:00Z",
         "workflowName": "Quality Gates",
-        "workflowUrl": "https://github.com/metasession-dev/wawagardenbar-app/actions/runs/12345",
+        "workflowUrl": "https://github.com/example-org/example-app/actions/runs/12345",
         "incidentReference": "INC-2026-044",
         "outcome": "failed",
         "outcomeReason": "Late workflow reconciliation after artifact upload failure"
@@ -758,7 +758,7 @@
             "commitFrom": "2655865",
             "commitTo": "40fc7fb",
             "prNumber": 495,
-            "prUrl": "https://github.com/metasession-dev/wawagardenbar-app/pull/495",
+            "prUrl": "https://github.com/example-org/example-app/pull/495",
             "originalTitle": "Housekeeping release before REQ-093",
             "evidenceInheritancePolicy": {
               "mode": "all_eligible",
@@ -779,7 +779,7 @@
         "generator": {
           "name": "devaudit-installer",
           "version": "0.3.13",
-          "repository": "metasession-dev/wawagardenbar-app",
+          "repository": "example-org/example-app",
           "generatedAt": "2026-07-17T10:00:00Z"
         }
       }

@@ -426,6 +426,214 @@ EOF
 EXIT19=$(run_validator "$D19")
 assert_exit "clean, fully-refreshed summary — should pass" 0 "$EXIT19"
 
+
+# --- devaudit-installer#1016: failure integrity -------------------------------
+TRIAGE_OK='## E2E failures & triage
+
+| Spec / check | Source | Classification | Evidence | Disposition | Reference |
+| --- | --- | --- | --- | --- | --- |
+| e2e/critical/webhook-idempotency-replay.spec.ts | CI 36659647566/1 | flake | 5 isolated re-runs pass | Fix | #910 |
+| e2e/critical/dashboard-revenue.spec.ts | local | seed-data gap | seed missing | Accepted exception | compliance/evidence/REQ-020/accepted-e2e-failure-dashboard-revenue.md |
+| e2e/critical/express-order-report.spec.ts | local | test bug | wrong selector | Deferral | https://github.com/acme/app/issues/911 |
+'
+
+assert_output_contains() {
+  local desc="$1" needle="$2"
+  if grep -Fq -- "$needle" /tmp/validate-test-summary-output.txt; then
+    echo "  PASS: $desc"; PASS=$((PASS + 1))
+  else
+    echo "  FAIL: $desc (missing: $needle)"; sed 's/^/    /' /tmp/validate-test-summary-output.txt; FAIL=$((FAIL + 1))
+  fi
+}
+
+# --- Case 20: a failed execution with no triage table — should fail ---
+D20="$WORK/case20"
+make_fixture "$D20" "REQ-020" << 'EOF'
+# Test Execution Summary — REQ-020
+
+## Gate Results
+
+| Gate | Result | Details |
+| ---- | ------ | ------- |
+| E2E Tests | PASS | 286 passed, 3 failed |
+EOF
+EXIT20=$(run_validator "$D20")
+assert_exit "failed execution recorded without a triage table — should fail" 1 "$EXIT20"
+assert_output_contains "names the missing triage table" "E2E failures & triage"
+
+# --- Case 21: 'known unrelated flakes' asserted without evidence — should fail ---
+D21="$WORK/case21"
+make_fixture "$D21" "REQ-021" << 'EOF'
+# Test Execution Summary — REQ-021
+
+## Gate Results
+
+| Gate | Result | Details |
+| ---- | ------ | ------- |
+| E2E Tests | PASS (with known unrelated flakes) | 286 passed, 3 failed |
+EOF
+EXIT21=$(run_validator "$D21")
+assert_exit "'known unrelated flakes' with no triage — should fail" 1 "$EXIT21"
+
+# --- Case 22: failures fully triaged (fix / accepted exception / deferral) — should pass ---
+D22="$WORK/case22"
+make_fixture "$D22" "REQ-020" << EOF
+# Test Execution Summary — REQ-020
+
+## Gate Results
+
+| Gate | Result | Details |
+| ---- | ------ | ------- |
+| E2E Tests | PASS | 286 passed, 3 failed (all triaged below) |
+
+$TRIAGE_OK
+EOF
+EXIT22=$(run_validator "$D22")
+assert_exit "every failure triaged with classification, disposition and reference — should pass" 0 "$EXIT22"
+
+# --- Case 23: invalid classification — should fail ---
+D23="$WORK/case23"
+make_fixture "$D23" "REQ-023" << 'EOF'
+# Test Execution Summary — REQ-023
+
+| Gate | Result | Details |
+| ---- | ------ | ------- |
+| E2E Tests | PASS | 1 failed |
+
+## E2E failures & triage
+
+| Spec / check | Source | Classification | Evidence | Disposition | Reference |
+| --- | --- | --- | --- | --- | --- |
+| e2e/a.spec.ts | CI 1/1 | probably fine | none | Fix | #5 |
+EOF
+EXIT23=$(run_validator "$D23")
+assert_exit "triage row with an invalid classification — should fail" 1 "$EXIT23"
+
+# --- Case 24: accepted exception without a record reference — should fail ---
+D24="$WORK/case24"
+make_fixture "$D24" "REQ-024" << 'EOF'
+# Test Execution Summary — REQ-024
+
+| Gate | Result | Details |
+| ---- | ------ | ------- |
+| E2E Tests | PASS | 1 failed |
+
+## E2E failures & triage
+
+| Spec / check | Source | Classification | Evidence | Disposition | Reference |
+| --- | --- | --- | --- | --- | --- |
+| e2e/a.spec.ts | CI 1/1 | flake | re-ran | Accepted exception | TBD |
+EOF
+EXIT24=$(run_validator "$D24")
+assert_exit "accepted exception with a placeholder reference — should fail" 1 "$EXIT24"
+
+# --- Case 25: row with no disposition (unresolved failure under PASS) — should fail ---
+D25="$WORK/case25"
+make_fixture "$D25" "REQ-025" << 'EOF'
+# Test Execution Summary — REQ-025
+
+| Gate | Result | Details |
+| ---- | ------ | ------- |
+| E2E Tests | PASS | 1 failed |
+
+## E2E failures & triage
+
+| Spec / check | Source | Classification | Evidence | Disposition | Reference |
+| --- | --- | --- | --- | --- | --- |
+| e2e/a.spec.ts | CI 1/1 | flake | re-ran | Unresolved | #5 |
+EOF
+EXIT25=$(run_validator "$D25")
+assert_exit "unresolved failure under a PASS gate — should fail" 1 "$EXIT25"
+
+# --- Case 26: no failures at all and no stamp — passes, with a refresh warning ---
+D26="$WORK/case26"
+make_fixture "$D26" "REQ-026" << 'EOF'
+# Test Execution Summary — REQ-026
+
+| Gate | Result | Details |
+| ---- | ------ | ------- |
+| E2E Tests | PASS | 120 passed, 0 failed |
+EOF
+EXIT26=$(run_validator "$D26")
+assert_exit "no failures, no stamp (grandfathered) — should pass" 0 "$EXIT26"
+assert_output_contains "warns that the CI-as-of stamp is missing" "no 'CI as of:"
+
+# --- Case 27/28/29: new-format ("CI as of") summaries are held to the stricter rules ---
+D27="$WORK/case27"
+make_fixture "$D27" "REQ-027" << 'EOF'
+# Test Execution Summary — REQ-027
+
+CI as of: 36659647566/2 @ 389bf6f0123456789
+
+| Gate | Result | Details |
+| ---- | ------ | ------- |
+| E2E Tests | PASS | 120 passed, 0 failed |
+
+## Test executions
+
+| Source | Kind | Outcome |
+| ------ | ---- | ------- |
+| REQ-027 | e2e | passed |
+EOF
+EXIT27=$(run_validator "$D27")
+assert_exit "stamped summary with a hand-typed executions table — should fail" 1 "$EXIT27"
+assert_output_contains "names the generated-table requirement" "generated-by: render-test-executions.sh"
+
+D28="$WORK/case28"
+make_fixture "$D28" "REQ-028" << 'EOF'
+# Test Execution Summary — REQ-028
+
+CI as of: 36659647566/2 @ 389bf6f0123456789
+
+| Gate | Result | Details |
+| ---- | ------ | ------- |
+| E2E Tests | PASS | 120 passed, 0 failed |
+
+## Test executions
+
+<!-- generated-by: render-test-executions.sh journey-at 2026-10-17T10:00:00Z -->
+| Source | Kind | Outcome |
+| ------ | ---- | ------- |
+| REQ-028 | e2e | passed |
+EOF
+EXIT28=$(run_validator "$D28")
+assert_exit "stamped summary with the generated table — should pass" 0 "$EXIT28"
+
+cd "$D28"
+EXIT28B=0
+DEVAUDIT_PR_HEAD_SHA=aaaaaaaa00000000000000000000000000000000 bash "$HELPER" main > /tmp/validate-test-summary-output.txt 2>&1 || EXIT28B=$?
+assert_exit "stamped summary older than the release PR head — should fail" 1 "$EXIT28B"
+assert_output_contains "tells the author to regenerate" "regenerate the summary"
+cd "$D28"
+EXIT28C=0
+DEVAUDIT_PR_HEAD_SHA=389bf6f0123456789aaaaaaaaaaaaaaaaaaaaaaa bash "$HELPER" main > /tmp/validate-test-summary-output.txt 2>&1 || EXIT28C=$?
+assert_exit "stamp matching the PR head (stamp abbreviated) — should pass" 0 "$EXIT28C"
+
+# --- Case 29: reconciliation against the CI results ---
+PWJSON_FAIL="$WORK/results-fail.json"
+cat > "$PWJSON_FAIL" << 'EOF'
+{"stats":{"unexpected":1},"suites":[{"title":"critical","specs":[{"file":"e2e/critical/webhook-idempotency-replay.spec.ts","ok":false}],"suites":[]}]}
+EOF
+D29="$WORK/case29"
+make_fixture "$D29" "REQ-029" << 'EOF'
+# Test Execution Summary — REQ-029
+
+| Gate | Result | Details |
+| ---- | ------ | ------- |
+| E2E Tests | PASS | 3 failed |
+
+## E2E failures & triage
+
+| Spec / check | Source | Classification | Evidence | Disposition | Reference |
+| --- | --- | --- | --- | --- | --- |
+| e2e/critical/dashboard-revenue.spec.ts | CI 36659647566/1 | flake | re-ran | Fix | #5 |
+EOF
+cd "$D29"
+EXIT29=0
+E2E_RESULTS_JSON="$PWJSON_FAIL" E2E_RUN_ID=36659647566 E2E_RUN_ATTEMPT=1 bash "$HELPER" main > /tmp/validate-test-summary-output.txt 2>&1 || EXIT29=$?
+assert_exit "summary names a different spec than CI failed — should fail" 1 "$EXIT29"
+assert_output_contains "reports the untriaged CI failure" "webhook-idempotency-replay.spec.ts"
+
 echo ""
 echo "=== Summary: $PASS pass / $FAIL fail ==="
 

@@ -7,7 +7,8 @@
   "production_url_secret_key": "production_url_secret",
   "wait_for_deploy": "for i in $(seq 1 30); do HTTP_CODE=$(curl -s -o /dev/null -w \"%{http_code}\" \"${PROD_URL}/\" || echo \"000\"); if [ \"$HTTP_CODE\" -ge 200 ] && [ \"$HTTP_CODE\" -lt 400 ]; then echo \"Production is up (HTTP ${HTTP_CODE})\"; break; fi; echo \"Attempt ${i}/30: HTTP ${HTTP_CODE} — waiting 10s...\"; sleep 10; done",
   "required_secrets": [
-    "DEVAUDIT_API_KEY"
+    "DEVAUDIT_API_KEY",
+    "VERCEL_TOKEN"
   ],
   "config_keys": {
     "required": [
@@ -28,8 +29,17 @@
   "notes": [
     "Vercel's Git integration auto-deploys on push to the production branch (typically main); no explicit deploy step needed in CI.",
     "Production URL is set as a repo secret (name configured per-project via production_url_secret in sdlc-config.json) — Vercel does generate its own *.vercel.app URL per deployment, but consumers almost always want their custom production domain, which the platform doesn't expose in a form CI can discover generically, so `secret` is the right resolution strategy rather than `api_lookup`.",
-    "If the project has Vercel Deployment Protection (password/SSO) enabled on production, the wait_for_deploy curl check will see a 401/407 instead of the app's real status — disable protection on the production environment, or this adapter's health check needs a bypass token added before it's reliable.",
+    "If the project has Vercel Deployment Protection (password/SSO) enabled on production, an unauthenticated health check sees a 401/407 instead of the app's real status. Set the optional repo secret DEVAUDIT_PROBE_HEADER to one full header line, `x-vercel-protection-bypass: <your Protection Bypass for Automation secret>`: post-deploy-prod.yml then sends it with the independent health probe and the smoke checks (devaudit-installer#1022). With no secret set the checks are unauthenticated, as before.",
     "Vercel functions are stateless/ephemeral and don't support a persistent sidecar database container the way Railway's config_keys.optional (database_service/database_image/...) do — consumers on this host should use an external managed database (e.g. Supabase) rather than expect a docker-compose-style DB alongside the app.",
-    "Some Vercel setups gate production releases behind a manual promote or a git-tag-triggered deploy rather than auto-deploying every push to main — if that's the case for a given consumer, override deploy_trigger at the project level rather than assuming this adapter's push_to_main default."
-  ]
+    "Some Vercel setups gate production releases behind a manual promote or a git-tag-triggered deploy rather than auto-deploying every push to main — if that's the case for a given consumer, override deploy_trigger at the project level rather than assuming this adapter's push_to_main default.",
+    "VERCEL_TOKEN is advisory, not needed for normal CI: it is only consumed by reconcile-deployment.yml (the manual recovery workflow for when Vercel's deployment_status webhook fails to reach GitHub). The lookup uses the Vercel REST API with curl and jq, so no CLI is required. Set VERCEL_TOKEN (and VERCEL_TEAM_ID for a team project) before the recovery path is needed (devaudit-installer#1022)."
+  ],
+  "reconcile": {
+    "lookup_script": "lookup-deployment-vercel.sh",
+    "required_cli": null,
+    "secrets": [
+      "VERCEL_TOKEN",
+      "VERCEL_TEAM_ID"
+    ]
+  }
 }

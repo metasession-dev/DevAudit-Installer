@@ -27,8 +27,9 @@
 # table in $WORK_DIR/results.md (paste it on the release PR / umbrella).
 #
 # Usage:
-#   scripts/release-validation.sh all wawagardenbar-app META-ATS ...
-#   scripts/release-validation.sh consumer wawagardenbar-app
+#   scripts/release-validation.sh all                 # every consumer in consumers.local
+#   scripts/release-validation.sh all <name> [<name>...]
+#   scripts/release-validation.sh consumer <name>
 #   WORK_DIR=/tmp/rv scripts/release-validation.sh fixture python
 #
 # Env:
@@ -37,6 +38,9 @@
 #   GITHUB_OWNER    default metasession-dev
 #   SKIP_BUILD=1    reuse an existing cli/dist build
 #   SKIP_LAYER1_TESTS=1  layer1 skips the (slow) vitest/shell suites
+#   RV_CONSUMERS_FILE    consumer list (default scripts/release-validation/consumers.local,
+#                        gitignored: consumers are never named in this public repo, #1042).
+#                        One "<repo-name> <node|python>" per line; '#' comments.
 #
 # Exit: 0 when no check FAILed (WARNs allowed); 1 otherwise; 2 usage error.
 
@@ -65,6 +69,13 @@ record() { # <target> <check> <PASS|WARN|FAIL|SKIP> <detail>
 }
 
 die() { echo "release-validation: $*" >&2; exit 2; }
+
+RV_CONSUMERS_FILE="${RV_CONSUMERS_FILE:-$ROOT/scripts/release-validation/consumers.local}"
+# local_consumers [stack]: repo names from the local consumer list, optionally one stack only.
+local_consumers() {
+  [ -f "$RV_CONSUMERS_FILE" ] || return 0
+  awk -v want="${1:-}" '!/^[[:space:]]*(#|$)/ { if (want == "" || $2 == want) print $1 }' "$RV_CONSUMERS_FILE"
+}
 
 # ---------------------------------------------------------------------------
 # isolation: stub gh, no portal credentials, no push
@@ -451,6 +462,18 @@ EOF
   ) || { record "$name" fixture FAIL "could not create the fixture"; return 0; }
   record "$name" fixture PASS "blank $stack repo, no prior sync"
   validate_dir "$name" "$dir"
+  # devaudit-installer#995: declared-bundle parity in the generated Python ci.yml.
+  if [ "$stack" = python ]; then
+    local ci="$dir/.github/workflows/ci.yml"
+    if [ -f "$ci" ] \
+       && grep -q 'Generate and upload bundled changes (declared bundle)' "$ci" \
+       && grep -q 'DEVAUDIT_DERIVE_BUNDLE_ONLY=1' "$ci" \
+       && grep -q 'resolve-bundle-release.sh' "$ci"; then
+      record "$name" python-bundle-parity PASS "the generated Python ci.yml registers a declared bundle and files members via resolve-bundle-release.sh"
+    else
+      record "$name" python-bundle-parity FAIL "the generated Python ci.yml is missing the declared-bundle steps (#995)"
+    fi
+  fi
 }
 
 run_layer1() {
@@ -468,6 +491,19 @@ run_layer1() {
     [ "$(node -p "require('$ROOT/$p/package.json').version")" = "$v" ] || mismatch="$mismatch $p"
   done
   if [ -z "$mismatch" ]; then record installer versions-aligned PASS "all 5 packages at $v"; else record installer versions-aligned WARN "not at $v:$mismatch (bump happens at release)"; fi
+  # #1020: no operator-facing guidance may tell anyone to put a skip-CI tag on a
+  # commit that goes through a PR (GitHub then runs no workflows, so the required
+  # Quality Gates check is never created). Historical records, tests, the changelog
+  # and the SRS (which describes the rule) are exempt.
+  local skip_hits
+  skip_hits=$(cd "$ROOT" && grep -rnI --include='*.md' --include='*.ts' --include='*.sh' --include='*.yml' --include='*.template' --include='*.json' -e '\[skip ci\]' \
+    cli/src sdlc/files sdlc/src docs README.md .devin 2>/dev/null \
+    | grep -v -e '^docs/issues/' -e '^docs/articles/' -e '\.test\.sh:' -e '^docs/SRS\.md:' || true)
+  if [ -z "$skip_hits" ]; then
+    record installer no-skip-ci-guidance PASS "no operator-facing guidance recommends a skip-CI tag"
+  else
+    record installer no-skip-ci-guidance FAIL "skip-CI tag found: $(printf '%s' "$skip_hits" | head -3 | tr '\n' ' ')"
+  fi
   if [ "${SKIP_LAYER1_TESTS:-0}" != "1" ]; then
     out=$(cd "$ROOT/cli" && npx vitest run 2>&1 | grep -E 'Tests +[0-9]' | tail -1)
     if printf '%s' "$out" | grep -q 'failed'; then record installer vitest FAIL "$out"; else record installer vitest PASS "$out"; fi
@@ -541,7 +577,13 @@ main() {
     layer2b) ensure_build; run_layer2b ;;
     consumer) [ $# -ge 1 ] || die "consumer needs a name"; ensure_build; for c in "$@"; do validate_consumer "$c"; done ;;
     fixture) [ $# -ge 1 ] || die "fixture needs node or python"; ensure_build; for s in "$@"; do validate_fixture "$s"; done ;;
-    all) ensure_build; run_layer1; for c in "$@"; do validate_consumer "$c"; done; validate_fixture node; validate_fixture python; run_layer2b ;;
+    all)
+      ensure_build; run_layer1
+      if [ $# -eq 0 ]; then
+        set -- $(local_consumers)
+        [ $# -gt 0 ] || record installer consumers WARN "no consumers given and no $RV_CONSUMERS_FILE: only layer 1, fixtures and layer 2b ran"
+      fi
+      for c in "$@"; do validate_consumer "$c"; done; validate_fixture node; validate_fixture python; run_layer2b ;;
     *) die "unknown command '$cmd'" ;;
   esac
   summarise

@@ -6,7 +6,7 @@
 
 > Verifying E2E test *quality* (coverage, assertion depth) — this issue is about whether the suite *ran*, not whether it's comprehensive.
 
-`wawagardenbar-app` REQ-095 (issue #603, PR #604) fell exactly into that deferred gap, on the very first HIGH-risk change to land after #226 shipped.
+`example-app` REQ-095 (issue #603, PR #604) fell exactly into that deferred gap, on the very first HIGH-risk change to land after #226 shipped.
 
 ## What happened
 
@@ -55,7 +55,7 @@ Rely on Stage 2 human review to catch missing coverage instead of a machine chec
 
 ## References
 
-- `wawagardenbar-app` REQ-095 / issue #603 / PR #604 — concrete incident
+- `example-app` REQ-095 / issue #603 / PR #604 — concrete incident
 - `docs/issues/e2e-gate-enforcement-gap.md` (installer#226) — prior art, explicitly scoped this out
 - `sdlc/files/stacks/node/hooks/pre-push` — existing E2E evidence check ("2.") and evidence-wiring check ("3.")
 - `sdlc/files/_common/skills/e2e-test-engineer/SKILL.md` — `evidenceShot`/`tagTest` discipline, Phase 5½ wiring validation

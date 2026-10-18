@@ -72,7 +72,7 @@ export async function writeSdlcConfig(ctx: InstallContext, plan: InstallPlan): P
     // deprecated and scheduled for removal (see docs/onboarding.md's
     // "Polyglot monorepos" section). Block first-time adoption — converting
     // an existing flat, single-target config into a `targets` array — but
-    // don't break the one already-multi-target consumer (fleet-control)
+    // don't break the one already-multi-target consumer (example-monorepo)
     // still using it: only a config that lacks a real `targets` array today
     // (`existing.targets` unset/empty, as opposed to resolveTargets()'s
     // synthesized single-entry view) counts as first-time adoption here.
@@ -115,6 +115,11 @@ export async function writeSdlcConfig(ctx: InstallContext, plan: InstallPlan): P
     uat: { enabled: false, url: '', required_risk_classes: ['payment', 'destructive_migration', 'realtime'] },
     approval: { mode: 'dual_actor', auto_low_risk_threshold: 'LOW' },
     production_review: { enabled: true, terminal_status: 'prod_review' },
+    // devaudit-installer#1022: the `custom` host runs your own deploy; seed the keys it reads
+    // so the operator fills in a command instead of discovering them from the docs.
+    ...(plan.host === 'custom'
+      ? { deploy_command: '', deploy_secrets: [], deployed_sha_url: '', deployed_sha_jq: '', deploy_trigger: 'push_to_main' }
+      : {}),
   };
   const wizardOwned: Record<string, unknown> = {
     stack: plan.stack,

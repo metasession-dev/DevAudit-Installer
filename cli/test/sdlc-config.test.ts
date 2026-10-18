@@ -48,17 +48,17 @@ describe('resolveTargets', () => {
       {
         name: 'api',
         stack: 'python',
-        working_directory: 'mission-control-api',
-        devaudit: { project_slug: 'thorstack-api', api_key_secret: 'DEVAUDIT_API_KEY_API' },
+        working_directory: 'example-web-api',
+        devaudit: { project_slug: 'example-api', api_key_secret: 'DEVAUDIT_API_KEY_API' },
       },
       {
         name: 'web',
         stack: 'node',
-        working_directory: 'mission-control',
-        devaudit: { project_slug: 'thorstack-web', api_key_secret: 'DEVAUDIT_API_KEY_WEB' },
+        working_directory: 'example-web',
+        devaudit: { project_slug: 'example-web', api_key_secret: 'DEVAUDIT_API_KEY_WEB' },
       },
     ];
-    const dir = await writeConfig({ project_slug: 'thorstack', targets: targetsInput });
+    const dir = await writeConfig({ project_slug: 'example-platform', targets: targetsInput });
 
     const config = await readSdlcConfig(dir);
     expect(config).not.toBeNull();

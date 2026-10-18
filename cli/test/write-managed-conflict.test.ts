@@ -89,3 +89,25 @@ describe('writeManaged conflict baseline (#988)', () => {
     expect(await fs.readFile(file, 'utf8')).toBe(LOCAL);
   });
 });
+
+describe('identical content still gets the requested mode (#1024 validation finding)', () => {
+  it('chmods a 0644 file whose content already matches a script synced with mode 0755', async () => {
+    if (process.platform === 'win32') return;
+    const { promises: fsp } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const { ManagedSyncState, writeManaged } = await import('../src/update/write-managed.js');
+    const dir = await fsp.mkdtemp(join(tmpdir(), 'cli-mode-'));
+    try {
+      const file = join(dir, 'scripts', 'x.sh');
+      await fsp.mkdir(join(dir, 'scripts'), { recursive: true });
+      await fsp.writeFile(file, '#!/usr/bin/env bash\necho hi\n');
+      await fsp.chmod(file, 0o644);
+      const state = new ManagedSyncState(dir, new Map(), false);
+      expect(await writeManaged(state, file, '#!/usr/bin/env bash\necho hi\n', { section: '2d', mode: 0o755 })).toBe('identical');
+      expect((await fsp.stat(file)).mode & 0o777).toBe(0o755);
+    } finally {
+      await fsp.rm(dir, { recursive: true, force: true });
+    }
+  });
+});

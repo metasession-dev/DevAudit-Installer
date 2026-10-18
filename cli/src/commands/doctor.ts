@@ -2,6 +2,7 @@ import { execa } from 'execa';
 import { resolve } from 'node:path';
 import { promises as fs } from 'node:fs';
 import { logger, isJsonMode, emitJsonResult } from '../lib/logger.js';
+import { runConfigChecks, type ConfigCheckDeps } from './doctor-config.js';
 import { resolveRepoRoot } from '../lib/git-root.js';
 import { discoverPlugins, buildPluginContext, runHook, type LoadedPlugin } from '../lib/plugin/index.js';
 import { resolveInstallerRoot } from '../lib/installer-root.js';
@@ -26,6 +27,8 @@ export interface DoctorOptions {
     /** Test seam: replaces the default prompt/credential/portal wiring. */
     readonly deps?: Partial<FixDeps>;
   };
+  /** Test seam for the #1040 config checks (gh runner, URL probe). */
+  readonly configDeps?: ConfigCheckDeps;
 }
 
 async function checkCommand(name: string, args: readonly string[]): Promise<CheckResult> {
@@ -352,15 +355,16 @@ async function checkE2eRegressionConsistency(): Promise<CheckResult> {
 }
 
 /**
- * devaudit-installer#843 — `reconcile-deployment.yml`'s recovery path shells
- * out to the `railway` CLI (#841), but that workflow is only synced for the
- * `railway` host adapter. Gate this check on the workflow file actually
- * being present in this consumer's synced file set, so a Vercel (or any
- * non-Railway) consumer never sees a false positive for a tool it will never
- * need.
+ * devaudit-installer#843/#1022 — `reconcile-deployment.yml`'s recovery path may
+ * shell out to a host CLI (Railway's `railway`, #841). Which CLI, if any, is
+ * the host adapter's data (`reconcile.required_cli`), not a hardcoded name.
+ * Gated on the workflow file actually being present in this consumer's synced
+ * set, so a host with no recovery workflow, or one whose lookup needs no CLI
+ * (Vercel: curl + jq), never sees a false positive for a tool it will not
+ * need. Named `railway-cli` before #1022.
  */
-async function checkRailwayCliPresent(): Promise<CheckResult> {
-  const name = 'railway-cli';
+async function checkReconcileCliPresent(): Promise<CheckResult> {
+  const name = 'reconcile-cli';
   const consumer = await readConsumerConfig();
   if (!consumer) return { name, ok: true, detail: 'skipped (not a consumer project)', suspectedOrigin: 'unknown' };
   try {
@@ -368,14 +372,25 @@ async function checkRailwayCliPresent(): Promise<CheckResult> {
   } catch {
     return { name, ok: true, detail: 'skipped (reconcile-deployment.yml not present)', suspectedOrigin: 'unknown' };
   }
-  const result = await checkCommand('railway', ['--version']);
+  let requiredCli: string | null | undefined;
+  try {
+    const installerRoot = await resolveInstallerRoot();
+    const { host } = await resolveAdapters(consumer.repoRoot, installerRoot);
+    requiredCli = (await loadHostAdapter(installerRoot, host)).reconcile?.required_cli;
+  } catch {
+    return { name, ok: true, detail: 'skipped (host adapter could not be resolved)', suspectedOrigin: 'unknown' };
+  }
+  if (!requiredCli) {
+    return { name, ok: true, detail: 'skipped (the host adapter\'s reconcile lookup needs no CLI)', suspectedOrigin: 'unknown' };
+  }
+  const result = await checkCommand(requiredCli, ['--version']);
   return result.ok
     ? { name, ok: true, detail: result.detail, suspectedOrigin: 'consumer-drift' }
     : {
         name,
         ok: false,
         detail:
-          "railway CLI not found on PATH — required by reconcile-deployment.yml's recovery workflow " +
+          `${requiredCli} CLI not found on PATH — required by reconcile-deployment.yml's recovery workflow ` +
           '(devaudit-installer#841); install it for whichever user/account runs self-hosted-runner jobs',
         suspectedOrigin: 'consumer-drift',
       };
@@ -416,6 +431,23 @@ const COMMITLINT_SEARCH_ORDER = [
 ] as const;
 
 const MANAGED_COMMITLINT_CONFIG = 'commitlint.config.mjs';
+
+async function configChecksFor(deps?: ConfigCheckDeps): Promise<readonly CheckResult[]> {
+  const consumer = await readConsumerConfig();
+  if (!consumer) return [];
+  try {
+    return await runConfigChecks(consumer.repoRoot, consumer.cfg, deps);
+  } catch (err) {
+    return [
+      {
+        name: 'deploy-host',
+        ok: true,
+        detail: `skipped (${err instanceof Error ? err.message : 'config checks failed'})`,
+        suspectedOrigin: 'unknown',
+      },
+    ];
+  }
+}
 
 async function checkCommitlintConfigShadowing(): Promise<CheckResult> {
   const name = 'commitlint-config-shadowing';
@@ -501,6 +533,148 @@ async function checkSyncConflicts(): Promise<CheckResult> {
   };
 }
 
+/**
+ * devaudit-installer#1023 — surface every `.devaudit-patches/*.patch` the
+ * last sync skipped because it no longer applies cleanly. A skipped patch is
+ * correctly non-fatal (#921/#923), but without this the only trace was a
+ * one-time warning in that run's output, so a consumer-side fix could revert
+ * to the upstream template unnoticed (a consumer). Same shape as
+ * `checkSyncConflicts`: non-gating, reads the persisted sync manifest.
+ */
+async function checkPatchConflicts(): Promise<CheckResult> {
+  const name = 'patch-conflicts';
+  const consumer = await readConsumerConfig();
+  if (!consumer) return { name, ok: true, detail: 'skipped (not a consumer project)', suspectedOrigin: 'unknown' };
+  const { readManifest } = await import('../update/sync-manifest.js');
+  const manifest = await readManifest(consumer.repoRoot);
+  if (!manifest) {
+    return { name, ok: true, detail: 'skipped (no .devaudit/sync-manifest.json yet)', suspectedOrigin: 'unknown' };
+  }
+  const conflicts = Object.entries(manifest.patches ?? {}).filter(([, entry]) => entry.conflict === true);
+  if (conflicts.length === 0) {
+    return { name, ok: true, detail: 'no consumer patches in conflict', suspectedOrigin: 'consumer-drift' };
+  }
+  const described = conflicts.map(([patch, entry]) => {
+    const issue = entry.upstream_issue ? ` (see ${entry.upstream_issue})` : '';
+    return `${patch}${issue} since ${entry.detected_at}`;
+  });
+  return {
+    name,
+    ok: false,
+    detail:
+      `${conflicts.length} consumer patch(es) no longer apply cleanly and are being skipped — the affected file(s) carry the UNPATCHED upstream template: ${described.join('; ')}. ` +
+      'Re-roll or remove each patch: docs/consuming-projects.md#re-rolling-a-conflicting-patch',
+    suspectedOrigin: 'consumer-drift',
+  };
+}
+
+/**
+ * devaudit-installer#1016 / #1017 (R6) -- an accepted E2E failure or
+ * accepted dependency risk is a documented, time-boxed exception, tracked as
+ * an open GitHub issue labelled `accepted-e2e-failure` / `accepted-dependency-risk`
+ * whose body carries `Review by: YYYY-MM-DD`. This flags every one whose review
+ * date has passed (or that has no review date, so it can never expire), so an
+ * exception cannot quietly become permanent. Non-gating, and skipped (not a
+ * failure) when `gh` is unavailable or unauthenticated. The portal-side half of
+ * R6 (unresolved failed regression executions) is read by `fleet-doctor`.
+ */
+const ACCEPTED_EXCEPTION_LABELS = ['accepted-e2e-failure', 'accepted-dependency-risk'] as const;
+
+export function findOverdueExceptions(
+  issues: ReadonlyArray<{ number: number; title?: string; body?: string | null }>,
+  label: string,
+  today: string,
+): string[] {
+  const out: string[] = [];
+  for (const issue of issues) {
+    const m = /review by:\s*(\d{4}-\d{2}-\d{2})/i.exec(issue.body ?? '');
+    if (!m || !m[1]) {
+      out.push(`#${issue.number} (${label}) has no "Review by: YYYY-MM-DD" date, so it can never expire`);
+    } else if (m[1] <= today) {
+      out.push(`#${issue.number} (${label}) review date ${m[1]} has passed`);
+    }
+  }
+  return out;
+}
+
+/**
+ * devaudit-installer#1017 -- entries of compliance/security/accepted-vulnerabilities.json
+ * that have expired (the CI dependency gate fails again on them) or expire
+ * within `windowDays`, so the renewal-or-fix happens before the gate goes red.
+ */
+export function findExpiringDependencyExceptions(
+  doc: unknown,
+  today: string,
+  windowDays = 14,
+): string[] {
+  const out: string[] = [];
+  const exceptions = (doc as { exceptions?: unknown })?.exceptions;
+  if (!Array.isArray(exceptions)) return out;
+  const limit = new Date(`${today}T00:00:00Z`);
+  limit.setUTCDate(limit.getUTCDate() + windowDays);
+  const limitIso = limit.toISOString().slice(0, 10);
+  for (const raw of exceptions) {
+    const item = raw as { advisoryId?: string; package?: string; expiresAt?: string };
+    const id = item.advisoryId ?? 'unknown advisory';
+    const pkg = item.package ? ` (${item.package})` : '';
+    if (typeof item.expiresAt !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(item.expiresAt)) {
+      out.push(`${id}${pkg} has no valid expiresAt`);
+    } else if (item.expiresAt <= today) {
+      out.push(`${id}${pkg} expired on ${item.expiresAt} (the dependency gate fails on it again)`);
+    } else if (item.expiresAt <= limitIso) {
+      out.push(`${id}${pkg} expires on ${item.expiresAt}`);
+    }
+  }
+  return out;
+}
+
+async function checkAcceptedExceptions(): Promise<CheckResult> {
+  const name = 'accepted-exceptions';
+  const consumer = await readConsumerConfig();
+  if (!consumer) return { name, ok: true, detail: 'skipped (not a consumer project)', suspectedOrigin: 'unknown' };
+  const today = new Date().toISOString().slice(0, 10);
+  const overdue: string[] = [];
+  let open = 0;
+  // The repo-owned dependency exceptions file needs no gh at all.
+  try {
+    const fs = await import('node:fs/promises');
+    const raw = await fs.readFile(`${consumer.repoRoot}/compliance/security/accepted-vulnerabilities.json`, 'utf-8');
+    overdue.push(...findExpiringDependencyExceptions(JSON.parse(raw), today).map((m) => `dependency exception ${m}`));
+  } catch {
+    // no file (or unparsable): evaluate-npm-audit.sh reports a malformed file in CI
+  }
+  for (const label of ACCEPTED_EXCEPTION_LABELS) {
+    try {
+      const result = await execa(
+        'gh',
+        ['issue', 'list', '--label', label, '--state', 'open', '--limit', '100', '--json', 'number,title,body'],
+        { cwd: consumer.repoRoot, reject: false },
+      );
+      if (result.exitCode !== 0) {
+        return overdue.length > 0
+          ? { name, ok: false, detail: `${overdue.length} accepted exception(s) overdue for review: ${overdue.join('; ')} (gh issue list unavailable, so labelled tracking issues were not checked)`, suspectedOrigin: 'consumer-drift' }
+          : { name, ok: true, detail: 'skipped (gh issue list failed — not authenticated, or no repo access)', suspectedOrigin: 'unknown' };
+      }
+      const issues = JSON.parse(result.stdout) as Array<{ number: number; title?: string; body?: string | null }>;
+      open += issues.length;
+      overdue.push(...findOverdueExceptions(issues, label, today));
+    } catch {
+      return overdue.length > 0
+        ? { name, ok: false, detail: `${overdue.length} accepted exception(s) overdue for review: ${overdue.join('; ')} (gh issue list unavailable, so labelled tracking issues were not checked)`, suspectedOrigin: 'consumer-drift' }
+        : { name, ok: true, detail: 'skipped (gh issue list unavailable)', suspectedOrigin: 'unknown' };
+    }
+  }
+  if (overdue.length === 0) {
+    return { name, ok: true, detail: open === 0 ? 'no open accepted exceptions' : `${open} open accepted exception(s), none past their review date`, suspectedOrigin: 'consumer-drift' };
+  }
+  return {
+    name,
+    ok: false,
+    detail: `${overdue.length} accepted exception(s) overdue for review: ${overdue.join('; ')} — fix the underlying failure/advisory, or renew the exception with a new record and review date`,
+    suspectedOrigin: 'consumer-drift',
+  };
+}
+
 export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
   const log = logger();
   const jsonMode = isJsonMode();
@@ -538,9 +712,13 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
     await checkE2eRegressionConsistency(),
     await checkRequiredSecretsPresent(),
     await checkPrePushHookPresent(),
-    await checkRailwayCliPresent(),
+    await checkReconcileCliPresent(),
     await checkSyncConflicts(),
+    await checkPatchConflicts(),
+    await checkAcceptedExceptions(),
     await checkCommitlintConfigShadowing(),
+    // devaudit-installer#1040: deploy host, production URL/probe, custom deploy, CI runner.
+    ...(await configChecksFor(options.configDeps)),
   ];
   let onboardingIssues = false;
   for (const check of onboardingChecks) {
@@ -593,6 +771,12 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
         needsPortal: false,
       },
     })),
+    // devaudit-installer#1040 config findings, appended so existing proposal order is unchanged.
+    ...onboardingChecks.flatMap((c) =>
+      (c.findings ?? []).flatMap((f) =>
+        f.remediation ? [{ check: c.name, subject: f.subject, detail: f.detail, remediation: f.remediation }] : [],
+      ),
+    ),
   ];
   let fixReport: FixReport | null = null;
   if (options.fix) {

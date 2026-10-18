@@ -1,5 +1,8 @@
 # When Your CI Creates More Releases Than Your Developers
 
+> **Superseded (devaudit-installer#409, #1020).** This is a historical design record, not current behaviour: sync commits no longer use a skip-CI tag (it left the sync PR's required `Quality Gates` check unreported), and normal integration housekeeping registers no portal release. Read `sdlc/files/ci/*.yml.template` and `sdlc/files/_common/scripts/derive-release-version.sh` for what actually happens.
+
+
 > **Historical case study.** This article documents the pre-#409 housekeeping workflow. Today, normal no-REQ work is integration history and only an explicitly declared standalone exception enters the release approval path.
 
 > **Primary persona:** CTO + Lead Developer
@@ -38,7 +41,7 @@ Every step is correct in isolation. The chain is the problem.
 
 ## A real example
 
-On the wawagardenbar-app project, CI run 28156639541 triggered on a push to `develop` with the commit message `chore: sync DevAudit templates from v0.1.69 to v0.1.70`. The commit touched workflow templates and scripts — files outside the `paths-ignore` list — so `ci.yml` fired. The version deriver hit the bare-date fallback and returned `v2026.06.25`. The portal created a housekeeping release. The compliance workflow auto-generated `RELEASE-TICKET-v2026.06.25.md` and `security-summary-v2026.06.25.md`, then opened `chore/housekeeping-release-v2026.06.25` as a sign-off PR.
+On the example-app project, CI run 28156639541 triggered on a push to `develop` with the commit message `chore: sync DevAudit templates from v0.1.69 to v0.1.70`. The commit touched workflow templates and scripts — files outside the `paths-ignore` list — so `ci.yml` fired. The version deriver hit the bare-date fallback and returned `v2026.06.25`. The portal created a housekeeping release. The compliance workflow auto-generated `RELEASE-TICKET-v2026.06.25.md` and `security-summary-v2026.06.25.md`, then opened `chore/housekeeping-release-v2026.06.25` as a sign-off PR.
 
 Nobody authored this release. An operator ran `devaudit update`, the CLI synced the templates and pushed, and the system did the rest. The release sits on the portal waiting for human sign-off — but there's nothing for the human to review that they didn't already review when they ran `devaudit update`.
 

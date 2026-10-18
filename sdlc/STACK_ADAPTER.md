@@ -82,7 +82,7 @@ For projects where the stack's dependency manifest (e.g. `pyproject.toml`, `pack
 ```json
 {
   "stack": "python",
-  "working_directory": "mission-control-api",
+  "working_directory": "example-web-api",
   "source_dirs": "src/ tests/",
   ...
 }
@@ -91,7 +91,7 @@ For projects where the stack's dependency manifest (e.g. `pyproject.toml`, `pack
 Behaviour when set:
 
 - The Python `ci.yml` template's `quality-gates` job applies `defaults.run.working-directory: <value>` so every `run:` step starts there. `pip install -e ".[dev]"`, `pytest`, `pip-audit`, `python -m build` all resolve correctly.
-- `source_dirs` becomes relative to `working_directory` (e.g. `src/ tests/` resolves to `mission-control-api/src/ mission-control-api/tests/` on disk; ruff/mypy/semgrep see the right files).
+- `source_dirs` becomes relative to `working_directory` (e.g. `src/ tests/` resolves to `example-web-api/src/ example-web-api/tests/` on disk; ruff/mypy/semgrep see the right files).
 - `actions/upload-artifact` paths are workspace-rooted by GHA design and are auto-prefixed with `working_directory/` so the uploaded paths match where the gate steps wrote them.
 - The downstream `upload-evidence` job downloads with `path: .` (workspace root) so file paths round-trip identically.
 
@@ -101,25 +101,25 @@ Currently honoured by: **Python `ci.yml` template** (Phase 4 onwards). The Node 
 
 ## Polyglot monorepos: multiple targets, multiple stacks (#689) — deprecated
 
-> **Deprecated, scheduled for removal.** Not properly supported; `install --add-target` now refuses for any repo without an existing `targets` array, so no new consumer can adopt this. `fleet-control` is the one remaining consumer using it. An adapter author does not need to build or maintain anything new against this mechanic going forward.
+> **Deprecated, scheduled for removal.** Not properly supported; `install --add-target` now refuses for any repo without an existing `targets` array, so no new consumer can adopt this. `example-monorepo` is the one remaining consumer using it. An adapter author does not need to build or maintain anything new against this mechanic going forward.
 
-`working_directory` above scopes a *single* stack adapter within a repo. A polyglot monorepo goes one step further — two (or more) independently-gated stacks in the same repo, e.g. a Node frontend and a Python backend each with their own `sdlc-config.json` target. `sdlc-config.json` supported this via a `targets` array; each entry carries its own `stack`, `working_directory`, `source_dirs`, and `devaudit.project_slug`/`devaudit.api_key_secret`, in the same shape as the flat top-level fields — a real excerpt from `fleet-control`'s current config:
+`working_directory` above scopes a *single* stack adapter within a repo. A polyglot monorepo goes one step further — two (or more) independently-gated stacks in the same repo, e.g. a Node frontend and a Python backend each with their own `sdlc-config.json` target. `sdlc-config.json` supported this via a `targets` array; each entry carries its own `stack`, `working_directory`, `source_dirs`, and `devaudit.project_slug`/`devaudit.api_key_secret`, in the same shape as the flat top-level fields — a real excerpt from `example-monorepo`'s current config:
 
 ```jsonc
 {
   "targets": [
-    { "name": "fleet-control-api", "stack": "python", "working_directory": "fleet-control-api", "devaudit": { "project_slug": "fleet-control-api", "api_key_secret": "FLEET_CONTROL_API_API_KEY" } },
-    { "name": "fleet-control-ui", "stack": "node", "working_directory": "fleet-control-ui", "devaudit": { "project_slug": "fleet-control-ui", "api_key_secret": "FLEET_CONTROL_UI_API_KEY" } }
+    { "name": "example-monorepo-api", "stack": "python", "working_directory": "example-monorepo-api", "devaudit": { "project_slug": "example-monorepo-api", "api_key_secret": "FLEET_CONTROL_API_API_KEY" } },
+    { "name": "example-monorepo-ui", "stack": "node", "working_directory": "example-monorepo-ui", "devaudit": { "project_slug": "example-monorepo-ui", "api_key_secret": "FLEET_CONTROL_UI_API_KEY" } }
   ]
 }
 ```
 
 Two adapter-level details that only matter for this one remaining consumer:
 
-- **CI output namespacing.** `devaudit update` renders each target's `ci.yml` etc. once per `targets[]` entry, with the output filename and internal job/check names suffixed with the target's `name` (e.g. `ci-fleet-control-api.yml`, `Quality Gates (fleet-control-api)`) so two adapters' generated workflows in one repo don't collide. A single-target repo (no `targets` array) sees none of this — output is byte-identical to before #689.
+- **CI output namespacing.** `devaudit update` renders each target's `ci.yml` etc. once per `targets[]` entry, with the output filename and internal job/check names suffixed with the target's `name` (e.g. `ci-example-monorepo-api.yml`, `Quality Gates (example-monorepo-api)`) so two adapters' generated workflows in one repo don't collide. A single-target repo (no `targets` array) sees none of this — output is byte-identical to before #689.
 - **`hook_install_dir` coexistence.** Git resolves exactly one hook file per hook type for the whole repo (`core.hooksPath` is repo-wide, not per-directory) — so a Node target's `husky` (`hook_install_dir: .husky`) and a Python target's `pre-commit` (`hook_install_dir: .git/hooks`, via `core.hooksPath`) can't both own the same physical hook file. `devaudit install`'s hook-bootstrap step handles this: whichever framework bootstraps second delegates into the first's hook file (a `pre-commit run --hook-stage commit "$@"` line appended to `.husky/pre-commit`) rather than silently dropping the other framework's checks.
 
-See [docs/onboarding.md's "Polyglot monorepos" section](../docs/onboarding.md#polyglot-monorepos-multiple-targets-in-one-repo--deprecated) for the deprecation notice and full mechanics, and [docs/consuming-projects.md](../docs/consuming-projects.md) for `fleet-control`'s status as the one remaining consumer.
+See [docs/onboarding.md's "Polyglot monorepos" section](../docs/onboarding.md#polyglot-monorepos-multiple-targets-in-one-repo--deprecated) for the deprecation notice and full mechanics, and [docs/consuming-projects.md](../docs/consuming-projects.md) for `example-monorepo`'s status as the one remaining consumer.
 
 ## Adding a new stack
 
@@ -130,7 +130,7 @@ See the step-by-step walkthrough: **[docs/adding-a-stack.md](../docs/adding-a-st
 3. **Add hooks and scripts** referenced from the manifest. The validator does not check their existence yet; the sync script will fail at the consumer end if a referenced file is missing.
 4. **Author the per-stack `ci.yml.template`** at `sdlc/files/ci/<name>/ci.yml.template`. Stack-agnostic workflows (compliance-validation, check-release-approval, post-deploy-prod, compliance-evidence, ci-status-fallback) are shared at `sdlc/files/ci/` — no per-stack override needed for those.
 5. **Run the validator:** `node scripts/validate-adapter.cjs sdlc/files/stacks/<name>/adapter.json`. Fix any errors before opening a PR.
-6. **First consumer**: validate the adapter against at least one real project before merging. The Python adapter (Phase 4 of #287) was validated against META-AGENT, not against a fresh skeleton.
+6. **First consumer**: validate the adapter against at least one real project before merging. The Python adapter (Phase 4 of #287) was validated against a consumer, not against a fresh skeleton.
 
 ## Evolution
 

@@ -1,0 +1,5 @@
+# Dependency-audit accepted-risk path
+
+> **Historical design record.** Tracked in devaudit-installer#1017; the decision is [ADR-003](../ADR/ADR-003-required-gate-failure-acceptance.md). For current behaviour read `sdlc/files/_common/scripts/evaluate-npm-audit.sh`, `validate-risk-acceptance-record.sh` and `docs/compliance-gates.md`, not this file.
+
+Observed on example-app (2026-10-15): the `Quality Gates` dependency audit failed on a compliance PR with 24 newly disclosed high/critical advisories (one critical in `next`), no code change involved, and the framework gave the operator no guidance on whether to bump or accept. The issue's premise that no expiring-exception mechanism existed was partly stale: `evaluate-npm-audit.sh` and `compliance/security/accepted-vulnerabilities.json` (approver, expiry, reason, remediation issue) already existed but were undocumented, had no impact-assessment record, no doctor visibility, no label and no agent guidance. #1017 adds the record (`schemaVersion` 2 + `acceptanceRecord`), the label, the doctor check, the agent halt and the evidence upload.

@@ -57,7 +57,7 @@
 #                               `testCycleRecordId`.
 #
 # Required environment variables:
-#   DEVAUDIT_BASE_URL  e.g. https://meta-comply-production.up.railway.app
+#   DEVAUDIT_BASE_URL  e.g. https://devaudit.example.com
 #   DEVAUDIT_API_KEY   project-scoped API key (uploader role); format `mc_…`.
 #                         Issue from: Project Settings → API Keys in
 #                         META-COMPLY's web UI.
@@ -71,11 +71,11 @@
 #   #298 — the Portal response body is included in the error output.
 #
 # Examples:
-#   ./scripts/upload-evidence.sh meta-ats REQ-001 screenshot \
+#   ./scripts/upload-evidence.sh example-app REQ-001 screenshot \
 #       compliance/evidence/REQ-001/screenshots/
-#   ./scripts/upload-evidence.sh meta-ats _compliance-docs compliance_document \
+#   ./scripts/upload-evidence.sh example-app _compliance-docs compliance_document \
 #       compliance/RTM.md --git-sha abc123
-#   ./scripts/upload-evidence.sh meta-ats REQ-001 e2e_result \
+#   ./scripts/upload-evidence.sh example-app REQ-001 e2e_result \
 #       playwright-report/ --release v1.0.0 --environment uat \
 #       --category ci_pipeline --create-release-if-missing
 

@@ -119,7 +119,7 @@ make_fixture "$WORK/c6" "chore: bump deps"
 assert_eq "no tag -> bare date $TODAY" "$TODAY" "$(run_helper)"
 
 # Case 7: a prose REQ mention earlier in the body must NOT beat the Ref:
-# line. Regression for the META-JOBS misattribution where "target close:
+# line. Regression for the consumer misattribution where "target close:
 # REQ-002" caused gate evidence to land on a REQ-002 release instead of
 # the real Ref: REQ-001.
 make_fixture "$WORK/c7" "chore(sdlc): accept dep advisories
@@ -208,7 +208,7 @@ RTM
 assert_eq "RTM two IN PROGRESS rows -> bare date $TODAY" "$TODAY" "$(run_helper)"
 
 # Case 15: step-4-bis must ignore legend rows that mention IN PROGRESS
-# inside backticks (the wawagardenbar-app RTM convention) and prose
+# inside backticks (the example-app RTM convention) and prose
 # mentions in description columns.
 make_fixture "$WORK/c15" "chore: devaudit update to 0.1.29"
 mkdir -p compliance
@@ -225,7 +225,7 @@ cat > compliance/RTM.md <<'RTM'
 RTM
 assert_eq "RTM legend + prose mentions -> bare date $TODAY" "$TODAY" "$(run_helper)"
 
-# Case 16: step-4-bis with the real META-JOBS-shaped RTM row (long
+# Case 16: step-4-bis with a real consumer-shaped RTM row (long
 # parenthetical commentary in the status cell). The status cell still
 # starts with `IN PROGRESS` after the pipe.
 make_fixture "$WORK/c16" "chore: devaudit update to 0.1.29"
@@ -484,6 +484,62 @@ cat >> compliance/RTM.md <<'RTM'
 RTM
 GOT=$(DEVAUDIT_ALLOW_PENDING_TICKET_FALLBACK=1 run_helper 2>/dev/null)
 assert_eq "live IN PROGRESS row still wins at step 4-bis -> REQ-404" "REQ-404" "$GOT"
+
+# DevAudit-Installer#1020 -- integration housekeeping registers no portal
+# release unless a reviewed standalone declaration exists for the version.
+# The behaviour is opt-in (DEVAUDIT_SKIP_INTEGRATION_HOUSEKEEPING=1, set by
+# ci.yml and compliance-evidence.yml); every other caller is unchanged.
+make_fixture "$WORK/c20" "chore: sync SDLC templates from DevAudit"
+assert_eq "#1020 untagged housekeeping, opt-in, no declaration -> empty (skip)" "" "$(DEVAUDIT_SKIP_INTEGRATION_HOUSEKEEPING=1 run_helper 2>/dev/null)"
+assert_eq "#1020 untagged housekeeping WITHOUT the opt-in is unchanged -> $TODAY" "$TODAY" "$(run_helper)"
+
+mkdir -p compliance/standalone-housekeeping
+echo '{}' > "compliance/standalone-housekeeping/STANDALONE-HOUSEKEEPING-${TODAY}.json"
+assert_eq "#1020 opt-in WITH a standalone declaration for today -> $TODAY" "$TODAY" "$(DEVAUDIT_SKIP_INTEGRATION_HOUSEKEEPING=1 run_helper 2>/dev/null)"
+
+echo '{}' > "compliance/standalone-housekeeping/STANDALONE-HOUSEKEEPING-v2000.01.01.json"
+rm "compliance/standalone-housekeeping/STANDALONE-HOUSEKEEPING-${TODAY}.json"
+assert_eq "#1020 a declaration for a DIFFERENT date does not keep today's row -> empty" "" "$(DEVAUDIT_SKIP_INTEGRATION_HOUSEKEEPING=1 run_helper 2>/dev/null)"
+
+make_fixture "$WORK/c21" "[REQ-037] feat: tagged work"
+assert_eq "#1020 a REQ-tagged commit is unaffected by the opt-in -> REQ-037" "REQ-037" "$(DEVAUDIT_SKIP_INTEGRATION_HOUSEKEEPING=1 run_helper)"
+
+# devaudit-installer#1019 -- a Compliance-Record trailer attributes the commit's
+# documents to that REQ (like Ref:), a bracketed subject tag still wins over it.
+make_fixture "$WORK/c30" "compliance: record triage
+
+Compliance-Record: REQ-109"
+assert_eq "#1019 Compliance-Record trailer -> REQ-109" "REQ-109" "$(run_helper)"
+
+make_fixture "$WORK/c31" "compliance: record triage
+
+Compliance-Record: req-109"
+assert_eq "#1019 Compliance-Record is case-insensitive -> REQ-109" "REQ-109" "$(run_helper)"
+
+make_fixture "$WORK/c32" "fix: [REQ-037] real work
+
+Compliance-Record: REQ-109"
+assert_eq "#1019 a bracketed subject tag still wins over Compliance-Record -> REQ-037" "REQ-037" "$(run_helper)"
+
+make_fixture "$WORK/c33" "compliance: prose
+
+see Compliance-Record: REQ-109 for context"
+assert_eq "#1019 an indented/in-prose mention is not a trailer line start -> still bare date" "$TODAY" "$(run_helper)"
+
+# devaudit-installer#995 -- bundle-only mode (the Python CI template): after step 0
+# the script stops, so ordinary work keeps its date-based release model.
+make_fixture "$WORK/c40" "feat: [REQ-037] ordinary work"
+assert_eq "#995 bundle-only mode, no declared bundle -> empty (ordinary work unchanged)" "" "$(DEVAUDIT_DERIVE_BUNDLE_ONLY=1 run_helper)"
+assert_eq "#995 without the variable the same commit still derives REQ-037" "REQ-037" "$(run_helper)"
+
+make_fixture "$WORK/c41" "feat: [REQ-038] work on a bundle member"
+mkdir -p compliance/pending-releases
+printf '# Bundled changes\n\n## Co-Tracked Bundle Members\n\n- REQ-038\n' > compliance/pending-releases/BUNDLED-CHANGES-REQ-037.md
+assert_eq "#995 bundle-only mode with a live declared bundle -> the core REQ" "REQ-037" "$(DEVAUDIT_DERIVE_BUNDLE_ONLY=1 run_helper)"
+
+mkdir -p compliance/approved-releases
+echo x > compliance/approved-releases/RELEASE-TICKET-REQ-037.md
+assert_eq "#995 bundle-only mode ignores a stale (archived) declared bundle -> empty" "" "$(DEVAUDIT_DERIVE_BUNDLE_ONLY=1 run_helper)"
 
 echo ""
 echo "=== Summary: $PASS pass / $FAIL fail ==="

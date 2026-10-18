@@ -12,7 +12,7 @@ Only one of the two has any live enforcement mechanism today, and even that one 
 
 ## What happened
 
-`wawagardenbar-app` REQ-095 (HIGH risk, issue #603) had two PRs merged into `develop` — #604 (implementation) and #605 (evidence) — both authored **and** merged by the same account, both with zero GitHub PR reviews:
+`example-app` REQ-095 (HIGH risk, issue #603) had two PRs merged into `develop` — #604 (implementation) and #605 (evidence) — both authored **and** merged by the same account, both with zero GitHub PR reviews:
 
 ```
 gh pr view 604 --json reviews,mergedBy,author
@@ -22,7 +22,7 @@ gh pr view 604 --json reviews,mergedBy,author
 `develop` branch protection confirms why nothing blocked it:
 
 ```
-gh api repos/metasession-dev/wawagardenbar-app/branches/develop/protection
+gh api repos/example-org/example-app/branches/develop/protection
 → required_pull_request_reviews.required_approving_review_count: 0
 ```
 
@@ -77,7 +77,7 @@ Not pursued here — this is real enforcement work (new script, CI wiring, insta
 
 ## References
 
-- `wawagardenbar-app` REQ-095 / issue #603 / PR #604, #605 — both merged with zero reviews, `required_approving_review_count: 0` on `develop`
+- `example-app` REQ-095 / issue #603 / PR #604, #605 — both merged with zero reviews, `required_approving_review_count: 0` on `develop`
 - `DevAudit-Installer/docs/release-playbooks/high-risk-release.md` — Stage 2 review requirement text
 - `cli/src/install/branch-protection.ts`, `cli/src/update/branch-protection.ts` — hardcoded review-count defaults
 - `sdlc/files/sdlc-config.example.json` — `approval.mode: dual_actor` comment, "Stage 3 Step 11" scope

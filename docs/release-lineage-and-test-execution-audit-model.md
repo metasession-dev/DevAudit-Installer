@@ -359,10 +359,17 @@ scripts/report-test-execution.sh resolve \
   --test-cycle-id 77eb11a9-428d-4aaa-8bd7-d3d0550c6f06 \
   --resolution-type accepted_exception \
   --reason "unrelated pre-existing defect example-app#852" \
-  --remediation-reference example-app#852
+  --remediation-reference https://github.com/acme/example-app/issues/852 \
+  --record compliance/evidence/REQ-108/accepted-e2e-failure-webhook-idempotency.md
 ```
 
+Since devaudit-installer#1016, `accepted_exception` is a documented waiver and the script refuses it unless `--remediation-reference` (the tracking issue) **and** `--record` (an accepted-exception record that passes `scripts/validate-risk-acceptance-record.sh --kind e2e`: impact assessment, decision-maker, a future review date, an exact tracking-issue URL) are given; the record path is appended to the reason sent to the portal. `retry_passed` (a verified re-run) and `incident_remediated` (fixed forward) need neither. The record uploads as evidence type `accepted_e2e_failure`.
+
 `--resolution-type` is one of `retry_passed | superseded | accepted_exception | incident_remediated` — the same enum the portal's release-readiness gate already treats as resolving an otherwise-blocking cycle (any non-null `resolution_type` clears it; only `outcome` itself is otherwise interpreted as pending/failed). This is the self-service path for exactly the scenario `devaudit#866`'s investigation converged on: the mechanism already existed portal-side, nothing in CI tooling could reach it.
+
+### Attribution guard (devaudit-installer#1019)
+
+Producers must not record a release-scoped execution, tested SHA or branch from a pull request that changes no code. See the producer contract's [section on which pull requests may produce a release-scoped execution](release-lineage-producer-contract.md#which-pull-requests-may-produce-a-release-scoped-execution-devaudit-installer1019). The portal's current behaviour (existing releases never have their branch overwritten; cycles keep the uploader's own SHA and branch) is recorded there.
 
 ### Bundle manifest contract
 

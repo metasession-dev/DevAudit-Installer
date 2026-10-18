@@ -7,6 +7,7 @@ import { createServer, type Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { setupServer } from 'msw/node';
 import { http, HttpResponse } from 'msw';
+import { findOverdueExceptions, findExpiringDependencyExceptions } from '../src/commands/doctor.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const BIN = resolve(HERE, '..', 'bin', 'devaudit.js');
@@ -348,9 +349,10 @@ describe('devaudit doctor — host-adapter prerequisites (#843)', () => {
       join(dir, 'sdlc-config.json'),
       JSON.stringify({ project_slug: 'fixture', host: 'vercel' }),
     );
-    // devaudit-installer#912: DEVAUDIT_API_KEY alone is now the complete
-    // required set for a vercel consumer — DEVAUDIT_USER_TOKEN isn't a repo secret.
-    const env = await fakeGhOnPath(dir, ['DEVAUDIT_API_KEY']);
+    // devaudit-installer#912: DEVAUDIT_USER_TOKEN isn't a repo secret. Since #1022
+    // the vercel adapter declares VERCEL_TOKEN as an advisory secret (the recovery
+    // workflow's lookup uses it), exactly as railway declares RAILWAY_TOKEN.
+    const env = await fakeGhOnPath(dir, ['DEVAUDIT_API_KEY', 'VERCEL_TOKEN']);
     const result = await execa('node', [BIN, 'doctor'], { cwd: dir, env, reject: false });
     const output = result.stdout + result.stderr;
     expect(output).toContain('all required secrets present');
@@ -358,7 +360,136 @@ describe('devaudit doctor — host-adapter prerequisites (#843)', () => {
     expect(output).not.toContain('DEVAUDIT_USER_TOKEN');
   }, 30_000);
 
-  it('skips the railway-cli check when reconcile-deployment.yml is not present', async () => {
+  it('reports a missing VERCEL_TOKEN for a vercel host consumer (#1022)', async () => {
+    const { mkdtemp, writeFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const dir = await mkdtemp(join(tmpdir(), 'devaudit-doctor-vercel-token-'));
+    await writeFile(join(dir, 'sdlc-config.json'), JSON.stringify({ project_slug: 'fixture', host: 'vercel' }));
+    const env = await fakeGhOnPath(dir, ['DEVAUDIT_API_KEY']);
+    const result = await execa('node', [BIN, 'doctor'], { cwd: dir, env, reject: false });
+    expect(result.stdout + result.stderr).toContain('missing repo secret(s): VERCEL_TOKEN');
+  }, 30_000);
+
+  it('patch-conflicts: reports patches the last sync skipped, with their upstream issue (#1023)', async () => {
+    const { mkdtemp, mkdir, writeFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const dir = await mkdtemp(join(tmpdir(), 'devaudit-doctor-patch-conflicts-'));
+    await writeFile(join(dir, 'sdlc-config.json'), JSON.stringify({ project_slug: 'fixture' }));
+    await mkdir(join(dir, '.devaudit'), { recursive: true });
+    await writeFile(
+      join(dir, '.devaudit', 'sync-manifest.json'),
+      JSON.stringify({
+        version: 1,
+        cli_version: '1.8.0',
+        files: {},
+        patches: {
+          'e2e-regression.yml.patch': {
+            conflict: true,
+            detected_at: '2026-10-16T14:41:00.000Z',
+            upstream_issue: 'https://github.com/example-org/example-app/issues/832',
+          },
+        },
+      }),
+    );
+    const result = await execa('node', [BIN, 'doctor'], { cwd: dir, reject: false });
+    const output = result.stdout + result.stderr;
+    expect(output).toMatch(/patch-conflicts\s+1 consumer patch\(es\) no longer apply cleanly/);
+    expect(output).toContain('e2e-regression.yml.patch (see https://github.com/example-org/example-app/issues/832) since 2026-10-16T14:41:00.000Z');
+    expect(output).toContain('docs/consuming-projects.md#re-rolling-a-conflicting-patch');
+  }, 30_000);
+
+  it('patch-conflicts: is clean when the manifest records none, and skips without a manifest (#1023)', async () => {
+    const { mkdtemp, mkdir, writeFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const dir = await mkdtemp(join(tmpdir(), 'devaudit-doctor-patch-clean-'));
+    await writeFile(join(dir, 'sdlc-config.json'), JSON.stringify({ project_slug: 'fixture' }));
+    const none = await execa('node', [BIN, 'doctor'], { cwd: dir, reject: false });
+    expect(none.stdout + none.stderr).toMatch(/patch-conflicts\s+skipped \(no \.devaudit\/sync-manifest\.json yet\)/);
+    await mkdir(join(dir, '.devaudit'), { recursive: true });
+    await writeFile(join(dir, '.devaudit', 'sync-manifest.json'), JSON.stringify({ version: 1, cli_version: '1.8.0', files: {} }));
+    const clean = await execa('node', [BIN, 'doctor'], { cwd: dir, reject: false });
+    expect(clean.stdout + clean.stderr).toMatch(/patch-conflicts\s+no consumer patches in conflict/);
+  }, 30_000);
+
+  it('findOverdueExceptions flags past, due-today and missing review dates (#1016)', () => {
+    const issues = [
+      { number: 1, body: 'Fix plan.\nReview by: 2026-12-01' },
+      { number: 2, body: 'Review by: 2026-10-01' },
+      { number: 3, body: 'review by: 2026-10-17' },
+      { number: 4, body: 'no date here' },
+      { number: 5, body: null },
+    ];
+    const out = findOverdueExceptions(issues, 'accepted-e2e-failure', '2026-10-17');
+    expect(out).toEqual([
+      '#2 (accepted-e2e-failure) review date 2026-10-01 has passed',
+      '#3 (accepted-e2e-failure) review date 2026-10-17 has passed',
+      '#4 (accepted-e2e-failure) has no "Review by: YYYY-MM-DD" date, so it can never expire',
+      '#5 (accepted-e2e-failure) has no "Review by: YYYY-MM-DD" date, so it can never expire',
+    ]);
+  });
+
+  it('findExpiringDependencyExceptions flags expired, soon-expiring and undated entries (#1017)', () => {
+    const doc = {
+      schemaVersion: 2,
+      exceptions: [
+        { advisoryId: 'GHSA-a', package: 'postcss', expiresAt: '2026-10-01' },
+        { advisoryId: 'GHSA-b', package: 'next', expiresAt: '2026-10-25' },
+        { advisoryId: 'GHSA-c', package: 'lodash', expiresAt: '2027-01-01' },
+        { advisoryId: 'GHSA-d', expiresAt: 'soon' },
+      ],
+    };
+    expect(findExpiringDependencyExceptions(doc, '2026-10-17')).toEqual([
+      'GHSA-a (postcss) expired on 2026-10-01 (the dependency gate fails on it again)',
+      'GHSA-b (next) expires on 2026-10-25',
+      'GHSA-d has no valid expiresAt',
+    ]);
+    expect(findExpiringDependencyExceptions({}, '2026-10-17')).toEqual([]);
+    expect(findExpiringDependencyExceptions(null, '2026-10-17')).toEqual([]);
+  });
+
+  it('accepted-exceptions: reads compliance/security/accepted-vulnerabilities.json without gh (#1017)', async () => {
+    const { mkdtemp, mkdir, writeFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const dir = await mkdtemp(join(tmpdir(), 'devaudit-doctor-depexc-'));
+    await writeFile(join(dir, 'sdlc-config.json'), JSON.stringify({ project_slug: 'fixture' }));
+    await mkdir(join(dir, 'compliance', 'security'), { recursive: true });
+    await writeFile(
+      join(dir, 'compliance', 'security', 'accepted-vulnerabilities.json'),
+      JSON.stringify({ schemaVersion: 2, exceptions: [{ advisoryId: 'GHSA-old', package: 'postcss', expiresAt: '2020-01-01' }] }),
+    );
+    const result = await execa('node', [BIN, 'doctor'], { cwd: dir, env: { ...process.env, PATH: dirname(process.execPath) }, reject: false });
+    const out = result.stdout + result.stderr;
+    expect(out).toMatch(/accepted-exceptions\s+1 accepted exception\(s\) overdue for review/);
+    expect(out).toContain('dependency exception GHSA-old (postcss) expired on 2020-01-01');
+  }, 30_000);
+
+  it('accepted-exceptions: reports overdue exceptions from open labelled issues, skips without gh (#1016)', async () => {
+    const { mkdtemp, mkdir, writeFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const dir = await mkdtemp(join(tmpdir(), 'devaudit-doctor-accepted-'));
+    await writeFile(join(dir, 'sdlc-config.json'), JSON.stringify({ project_slug: 'fixture' }));
+    const binDir = join(dir, 'fake-bin');
+    await mkdir(binDir, { recursive: true });
+    const issues = JSON.stringify([{ number: 910, title: 'Accepted: webhook replay flake', body: 'Review by: 2020-01-01' }]);
+    await writeFile(
+      join(binDir, 'gh'),
+      `#!/usr/bin/env node\nconst a = process.argv.slice(2);\nif (a[0] === 'issue' && a[1] === 'list') {\n  process.stdout.write(a.includes('accepted-e2e-failure') ? ${JSON.stringify(issues)} : '[]');\n  process.exit(0);\n}\nprocess.stdout.write('[]');\nprocess.exit(0);\n`,
+      { mode: 0o755 },
+    );
+    await writeFile(join(binDir, 'gh.cmd'), `@echo off\r\nnode "%~dp0gh" %*\r\n`, { mode: 0o755 });
+    const env = { ...process.env, PATH: `${binDir}${pathDelimiter}${process.env['PATH'] ?? ''}` };
+    const overdue = await execa('node', [BIN, 'doctor'], { cwd: dir, env, reject: false });
+    const out = overdue.stdout + overdue.stderr;
+    expect(out).toMatch(/accepted-exceptions\s+1 accepted exception\(s\) overdue for review/);
+    expect(out).toContain('#910 (accepted-e2e-failure) review date 2020-01-01 has passed');
+  }, 30_000);
+
+  it('skips the reconcile-cli check when reconcile-deployment.yml is not present', async () => {
     const { mkdtemp, writeFile } = await import('node:fs/promises');
     const { tmpdir } = await import('node:os');
     const { join } = await import('node:path');
@@ -366,7 +497,7 @@ describe('devaudit doctor — host-adapter prerequisites (#843)', () => {
     await writeFile(join(dir, 'sdlc-config.json'), JSON.stringify({ project_slug: 'fixture' }));
     const result = await execa('node', [BIN, 'doctor'], { cwd: dir, reject: false });
     const output = result.stdout + result.stderr;
-    expect(output).toMatch(/railway-cli\s+skipped \(reconcile-deployment\.yml not present\)/);
+    expect(output).toMatch(/reconcile-cli\s+skipped \(reconcile-deployment\.yml not present\)/);
   }, 30_000);
 
   it('reports the railway CLI missing when reconcile-deployment.yml is present but railway is not on PATH', async () => {
@@ -380,6 +511,20 @@ describe('devaudit doctor — host-adapter prerequisites (#843)', () => {
     const result = await execa('node', [BIN, 'doctor'], { cwd: dir, env: nodeOnlyEnv(), reject: false });
     const output = result.stdout + result.stderr;
     expect(output).toContain('railway CLI not found on PATH');
+  }, 30_000);
+
+  it('does not look for a CLI when the host adapter\'s reconcile lookup needs none (vercel) (#1022)', async () => {
+    const { mkdtemp, mkdir, writeFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const dir = await mkdtemp(join(tmpdir(), 'devaudit-doctor-reconcile-vercel-'));
+    await writeFile(join(dir, 'sdlc-config.json'), JSON.stringify({ project_slug: 'fixture', host: 'vercel' }));
+    await mkdir(join(dir, '.github', 'workflows'), { recursive: true });
+    await writeFile(join(dir, '.github', 'workflows', 'reconcile-deployment.yml'), 'name: reconcile\n');
+    const result = await execa('node', [BIN, 'doctor'], { cwd: dir, env: nodeOnlyEnv(), reject: false });
+    const output = result.stdout + result.stderr;
+    expect(output).toMatch(/reconcile-cli\s+skipped \(the host adapter's reconcile lookup needs no CLI\)/);
+    expect(output).not.toContain('CLI not found on PATH');
   }, 30_000);
 });
 
@@ -828,7 +973,14 @@ describe('devaudit doctor — D8 releases check + JSON surface (#956)', () => {
     expect(Object.keys(json)).toEqual(expect.arrayContaining(['ok', 'tools', 'releaseCloseoutDrift', 'onboarding']));
     expect(Object.keys(json.releaseCloseoutDrift).sort()).toEqual(['detail', 'name', 'ok']);
     expect(json.tools).toHaveLength(5);
-    expect(json.onboarding).toHaveLength(9);
+    // #1040 appended deploy-host, production-url, custom-deploy and ci-runner (additive).
+    expect(json.onboarding).toHaveLength(15);
+    expect((json.onboarding as Array<{ name: string }>).slice(-4).map((c) => c.name)).toEqual([
+      'deploy-host',
+      'production-url',
+      'custom-deploy',
+      'ci-runner',
+    ]);
     // additive keys
     expect(Array.isArray(json.deferral)).toBe(true);
     expect(json.proposals).toContainEqual(

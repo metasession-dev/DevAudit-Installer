@@ -164,6 +164,13 @@ export async function writeManaged(
     const onDiskHash = sha256(onDisk);
     if (onDiskHash === newHash) {
       state.markTouched(relPath, opts.section);
+      // Identical content must still end up with the requested mode: a consumer that
+      // committed a synced script as 0644 would otherwise never get it executable
+      // (found by release validation on example-app, #1024). Content is untouched.
+      if (opts.mode !== undefined && !state.dryRun && process.platform !== 'win32') {
+        const current = (await fs.stat(absPath)).mode & 0o777;
+        if (current !== (opts.mode & 0o777)) await fs.chmod(absPath, opts.mode);
+      }
       return 'identical';
     }
     // devaudit-installer#988 — a path the previous sync left in conflict is

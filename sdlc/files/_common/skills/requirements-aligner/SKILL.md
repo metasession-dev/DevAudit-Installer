@@ -5,7 +5,7 @@ description: Catch drift between docs/SRS.md (the requirements source-of-truth) 
 
 # Requirements Aligner
 
-Catches the class of drift the wawagardenbar-app REQ-066 cycle surfaced: code, tests, and screenshots shipped across 10 ACs in 6 PRs while `docs/SRS.md` stayed untouched. Seven new SRS items + one stale item were filed retroactively after release. This skill catches them at Stage 1 or Stage 3, before merge.
+Catches the class of drift the example-app REQ-066 cycle surfaced: code, tests, and screenshots shipped across 10 ACs in 6 PRs while `docs/SRS.md` stayed untouched. Seven new SRS items + one stale item were filed retroactively after release. This skill catches them at Stage 1 or Stage 3, before merge.
 
 The skill is **Phase A scope** (per [DevAudit-Installer#119](https://github.com/metasession-dev/DevAudit-Installer/issues/119) review): Stage 1 + Stage 3 hooks only. Stage 2 (commit-time advisory) + Stage 5 (post-release audit) + automatic follow-up issue filing all defer to Phase B/C — the v1 surface is the safest enforcement points.
 
@@ -194,7 +194,7 @@ Per the [#119 review](https://github.com/metasession-dev/DevAudit-Installer/issu
 
 ## References
 
-- [DevAudit-Installer#119](https://github.com/metasession-dev/DevAudit-Installer/issues/119) — the issue this skill closes, with the case study (wawagardenbar-app REQ-066) + the locked Phase A scope.
+- [DevAudit-Installer#119](https://github.com/metasession-dev/DevAudit-Installer/issues/119) — the issue this skill closes, with the case study (example-app REQ-066) + the locked Phase A scope.
 - `sdlc-implementer/SKILL.md` Phase 1 + Phase 3 — the parent-skill invocation contract.
 - `sdlc/files/_common/Implementation_Plan_TEMPLATE.md` — carries the "SRS items proposed/touched" section this skill populates (companion change in this PR).
 - `sdlc/files/_common/3-compile-evidence.md` — the test-scope template gains an SRS-ID cross-reference table (companion change in this PR).

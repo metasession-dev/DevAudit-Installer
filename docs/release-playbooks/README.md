@@ -361,3 +361,7 @@ it as the historical run.
 
 The detailed paths are in the linked playbooks. `sdlc-implementer` is the
 default route for a tracked issue; the manual paths are the fallback.
+
+## Required-gate failure on the release PR (devaudit-installer#1016)
+
+Applies to every release type. A failing required check (E2E first) blocks the release until it is fixed (green re-run on the PR head SHA) or accepted with a documented exception record (impact assessment, decision-maker, future review date, tracking issue) recorded in the portal with `report-test-execution.sh resolve`. The test-execution summary must account for every failure and be regenerated after the release PR's CI reaches a terminal state. See [../e2e-test-tiers.md](../e2e-test-tiers.md#when-a-tier-fails-fix-or-accept-devaudit-installer1016).

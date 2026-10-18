@@ -170,30 +170,124 @@ case_missing_release_fails() {
   rm -rf "$dir"
 }
 
+valid_record() { # <file>
+  cat > "$1" <<'REC'
+---
+record_kind: "accepted_e2e_failure"
+req: "REQ-108"
+release: "REQ-108"
+failing_specs:
+  - "e2e/critical/example.spec.ts"
+ci_run: "https://github.com/acme/app/actions/runs/1"
+head_sha: "389bf6f0000000000000000000000000000000aa"
+classification: "flake"
+decision_maker: "A. Operator"
+decided_at: "2026-10-15"
+review_by: "2099-01-01"
+tracking_issue: "https://github.com/acme/app/issues/852"
+---
+
+## Failure
+
+| Spec | Test | CI run / attempt | Error excerpt |
+| --- | --- | --- | --- |
+| example | t | 1/1 | x |
+
+## Evidence of classification
+
+Re-run five times, all pass.
+
+## Impact assessment
+
+No user-visible journey affected.
+
+## Why this does not block this release
+
+Unrelated to the change.
+
+## Remediation
+
+Tracked in the issue above.
+REC
+}
+
 case_resolve_success() {
   echo "case: resolve calls the cycle-resolution endpoint with the excusing payload"
   local dir out exit_code
   dir=$(mktemp -d)
   make_fixture "$dir"
   out="$dir/out.env"
+  valid_record "$dir/record.md"
   RESOLVE_STATUS=200 \
   RESOLVE_BODY='{"latest":{"id":"release-1","version":"REQ-108"}}' \
   RESOLVE_CYCLE_STATUS=200 \
   RESOLVE_CYCLE_BODY='{"id":"cycle-1","resolution_type":"accepted_exception"}' \
   run_helper "$dir" resolve \
-    --project-slug wgb \
+    --project-slug example-app \
     --release REQ-108 \
     --test-cycle-id cycle-1 \
     --resolution-type accepted_exception \
-    --reason "unrelated pre-existing defect wawagardenbar-app#852" \
-    --remediation-reference wawagardenbar-app#852 \
+    --reason "unrelated pre-existing defect example-org/example-app#852" \
+    --remediation-reference https://github.com/acme/app/issues/852 \
+    --record "$dir/record.md" \
     --output-file "$out" >"$dir/stdout.log" 2>"$dir/stderr.log" && exit_code=0 || exit_code=$?
   if [ "$exit_code" -eq 0 ]; then ok "exit code 0"; else no "expected exit 0"; fi
   assert_contains "called resolve endpoint" "/cycles/cycle-1/resolve" "$dir/curl.log"
   assert_contains "payload has resolutionType" '"resolutionType": "accepted_exception"' "$dir/curl.log"
-  assert_contains "payload has reason" '"reason": "unrelated pre-existing defect wawagardenbar-app#852"' "$dir/curl.log"
-  assert_contains "payload has remediationReference" '"remediationReference": "wawagardenbar-app#852"' "$dir/curl.log"
+  assert_contains "payload has reason referencing the record" '(record: ' "$dir/curl.log"
+  assert_contains "payload has remediationReference" '"remediationReference": "https://github.com/acme/app/issues/852"' "$dir/curl.log"
   assert_contains "outputs resolve endpoint" "execution_endpoint=resolve" "$out"
+  rm -rf "$dir"
+}
+
+case_accepted_exception_requires_tracking_issue_and_record() {
+  echo "case: accepted_exception without --remediation-reference or --record fails before any network call (#1016)"
+  local dir exit_code
+  dir=$(mktemp -d)
+  make_fixture "$dir"
+  valid_record "$dir/record.md"
+  run_helper "$dir" resolve --project-slug example-app --release REQ-108 --test-cycle-id cycle-1 \
+    --resolution-type accepted_exception --reason "flake" --record "$dir/record.md" \
+    >"$dir/stdout.log" 2>"$dir/stderr.log" && exit_code=0 || exit_code=$?
+  if [ "$exit_code" -ne 0 ]; then ok "no tracking issue: non-zero"; else no "expected non-zero without --remediation-reference"; fi
+  assert_contains "error names --remediation-reference" "--remediation-reference" "$dir/stderr.log"
+  run_helper "$dir" resolve --project-slug example-app --release REQ-108 --test-cycle-id cycle-1 \
+    --resolution-type accepted_exception --reason "flake" --remediation-reference https://github.com/acme/app/issues/852 \
+    >"$dir/stdout.log" 2>"$dir/stderr.log" && exit_code=0 || exit_code=$?
+  if [ "$exit_code" -ne 0 ]; then ok "no record: non-zero"; else no "expected non-zero without --record"; fi
+  assert_contains "error names --record" "--record" "$dir/stderr.log"
+  rm -rf "$dir"
+}
+
+case_accepted_exception_rejects_incomplete_record() {
+  echo "case: accepted_exception with an unedited/expired record fails validation (#1016)"
+  local dir exit_code
+  dir=$(mktemp -d)
+  make_fixture "$dir"
+  valid_record "$dir/record.md"
+  sed 's/review_by: "2099-01-01"/review_by: "2020-01-01"/' "$dir/record.md" > "$dir/expired.md"
+  run_helper "$dir" resolve --project-slug example-app --release REQ-108 --test-cycle-id cycle-1 \
+    --resolution-type accepted_exception --reason "flake" --remediation-reference https://github.com/acme/app/issues/852 \
+    --record "$dir/expired.md" >"$dir/stdout.log" 2>"$dir/stderr.log" && exit_code=0 || exit_code=$?
+  if [ "$exit_code" -ne 0 ]; then ok "expired record: non-zero"; else no "expected non-zero for an expired record"; fi
+  assert_contains "error says the review date is not in the future" "not in the future" "$dir/stderr.log"
+  if [ -e "$dir/curl.log" ] && grep -q "/resolve" "$dir/curl.log"; then no "must not call the portal with an invalid record"; else ok "no portal call was made"; fi
+  rm -rf "$dir"
+}
+
+case_retry_passed_needs_no_record() {
+  echo "case: retry_passed (a verified re-run) does not need a record (#1016)"
+  local dir exit_code
+  dir=$(mktemp -d)
+  make_fixture "$dir"
+  RESOLVE_STATUS=200 \
+  RESOLVE_BODY='{"latest":{"id":"release-1","version":"REQ-108"}}' \
+  RESOLVE_CYCLE_STATUS=200 \
+  RESOLVE_CYCLE_BODY='{"id":"cycle-1"}' \
+  run_helper "$dir" resolve --project-slug example-app --release REQ-108 --test-cycle-id cycle-1 \
+    --resolution-type retry_passed --resolved-by-cycle-id cycle-2 --reason "re-run passed on the same SHA" \
+    >"$dir/stdout.log" 2>"$dir/stderr.log" && exit_code=0 || exit_code=$?
+  if [ "$exit_code" -eq 0 ]; then ok "retry_passed succeeds without a record"; else no "expected exit 0"; fi
   rm -rf "$dir"
 }
 
@@ -205,7 +299,7 @@ case_resolve_requires_reason() {
   RESOLVE_STATUS=200 \
   RESOLVE_BODY='{"latest":{"id":"release-1","version":"REQ-108"}}' \
   run_helper "$dir" resolve \
-    --project-slug wgb \
+    --project-slug example-app \
     --release REQ-108 \
     --test-cycle-id cycle-1 \
     --resolution-type accepted_exception \
@@ -221,7 +315,7 @@ case_resolve_rejects_invalid_resolution_type() {
   dir=$(mktemp -d)
   make_fixture "$dir"
   run_helper "$dir" resolve \
-    --project-slug wgb \
+    --project-slug example-app \
     --release REQ-108 \
     --test-cycle-id cycle-1 \
     --resolution-type bogus \
@@ -232,10 +326,49 @@ case_resolve_rejects_invalid_resolution_type() {
   rm -rf "$dir"
 }
 
+case_attribution_guard() {
+  echo "case: a doc-only PR does not record a release-scoped execution; a code PR does (#1019)"
+  local dir out exit_code
+  dir=$(mktemp -d)
+  make_fixture "$dir"
+  ( cd "$dir" && git init -q -b develop && git config user.email t@example.test && git config user.name t && git config commit.gpgsign false \
+    && mkdir -p src compliance && echo a > src/app.ts && git add -A && git commit -q -m "chore: init" \
+    && git update-ref refs/remotes/origin/develop HEAD && git checkout -q -b topic \
+    && echo triage > compliance/triage.md && git add -A && git commit -q -m "compliance: [REQ-109] triage" )
+  out="$dir/out.env"
+  ( cd "$dir" && GITHUB_EVENT_NAME=pull_request GITHUB_BASE_REF=develop \
+    RESOLVE_STATUS=200 RESOLVE_BODY='{"latest":{"id":"release-1","version":"REQ-109"}}' START_STATUS=201 START_BODY='{"id":"cycle-1"}' \
+    run_helper "$dir" start --project-slug example-app --release REQ-109 --sdlc-stage 2 --environment uat --suite-kind e2e \
+      --iteration-key k --iteration-ordinal 1 --idempotency-key github:fixture/repo:e2e:1:1:REQ-109 --commit-sha deadbeef --branch topic --output-file "$out" >"$dir/stdout.log" 2>"$dir/stderr.log" ) && exit_code=0 || exit_code=$?
+  if [ "$exit_code" -eq 0 ]; then ok "doc-only PR: exit 0"; else no "doc-only PR: expected exit 0"; fi
+  if [ -e "$dir/curl.log" ] && grep -q "/cycles/start" "$dir/curl.log"; then no "doc-only PR must not record an execution"; else ok "doc-only PR: no execution recorded"; fi
+  assert_contains "doc-only PR: the skip is a visible warning" "changes no code" "$dir/stdout.log"
+  assert_contains "doc-only PR: the output file says the guard skipped it" "execution_skipped_reason=attribution_guard_doc-only" "$out"
+
+  ( cd "$dir" && echo b >> src/app.ts && git add -A && git commit -q -m "fix: [REQ-109] real change" )
+  rm -f "$dir/curl.log"
+  ( cd "$dir" && GITHUB_EVENT_NAME=pull_request GITHUB_BASE_REF=develop \
+    RESOLVE_STATUS=200 RESOLVE_BODY='{"latest":{"id":"release-1","version":"REQ-109"}}' START_STATUS=201 START_BODY='{"id":"cycle-1"}' \
+    run_helper "$dir" start --project-slug example-app --release REQ-109 --sdlc-stage 2 --environment uat --suite-kind e2e \
+      --iteration-key k --iteration-ordinal 1 --idempotency-key github:fixture/repo:e2e:1:1:REQ-109 --commit-sha deadbeef --branch topic >"$dir/stdout2.log" 2>"$dir/stderr2.log" ) && exit_code=0 || exit_code=$?
+  assert_contains "code PR: the execution is recorded as before" "/cycles/start" "$dir/curl.log"
+  rm -f "$dir/curl.log"
+  ( cd "$dir" && git reset -q --hard HEAD~1 && GITHUB_EVENT_NAME=pull_request GITHUB_BASE_REF=develop \
+    RESOLVE_STATUS=200 RESOLVE_BODY='{"latest":{"id":"release-1","version":"REQ-109"}}' START_STATUS=201 START_BODY='{"id":"cycle-1"}' \
+    run_helper "$dir" start --project-slug example-app --release REQ-109 --sdlc-stage 2 --environment uat --suite-kind e2e \
+      --iteration-key k --iteration-ordinal 1 --idempotency-key github:fixture/repo:e2e:1:1:REQ-109 --commit-sha deadbeef --branch topic --no-attribution-guard >"$dir/stdout3.log" 2>"$dir/stderr3.log" ) && exit_code=0 || exit_code=$?
+  assert_contains "--no-attribution-guard restores the old attribution" "/cycles/start" "$dir/curl.log"
+  rm -rf "$dir"
+}
+
+case_attribution_guard
 case_start_success
 case_complete_reconciles_terminal_conflict
 case_missing_release_fails
 case_resolve_success
+case_accepted_exception_requires_tracking_issue_and_record
+case_accepted_exception_rejects_incomplete_record
+case_retry_passed_needs_no_record
 case_resolve_requires_reason
 case_resolve_rejects_invalid_resolution_type
 

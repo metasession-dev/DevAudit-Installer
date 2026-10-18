@@ -11,6 +11,16 @@ import {
   type LoadedPlugin,
 } from '../lib/plugin/index.js';
 
+/**
+ * Suggested commit message for a template-sync commit. It must never contain a
+ * skip-CI tag: GitHub skips every workflow (pull_request ones included) for a
+ * commit whose message carries one, so the integration branch's required
+ * `Quality Gates` check is never created and the sync PR sits BLOCKED forever
+ * (devaudit-installer#1020; the tag from #220 protected against a sign-off
+ * path that #409 already removed).
+ */
+export const SYNC_COMMIT_MESSAGE = 'chore: sync SDLC templates from DevAudit';
+
 export interface UpdateOptions {
   readonly version?: string;
   readonly paths: readonly string[];
@@ -152,8 +162,8 @@ export async function runUpdate(options: UpdateOptions): Promise<void> {
   log.log('');
   log.log('Next steps for each consuming project:');
   log.log('  1. Review the diff: git diff');
-  log.log("  2. Commit: git add -A && git commit -m 'chore: sync SDLC templates from DevAudit [skip ci]'");
-  log.log('  3. Push to develop');
+  log.log(`  2. Commit: git add -A && git commit -m '${SYNC_COMMIT_MESSAGE}'`);
+  log.log('  3. Open a PR into the integration branch (never add a skip-CI tag: GitHub then runs no workflows, so the required Quality Gates check never reports and the PR stays BLOCKED, #1020)');
   log.log('');
   log.warn('Do NOT auto-commit — review the changes first.');
   if (e2eRegression === 'enable') {

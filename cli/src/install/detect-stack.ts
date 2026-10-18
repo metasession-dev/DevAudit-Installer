@@ -82,7 +82,7 @@ function ok(stack: 'node' | 'python', wd: string): StepResult {
   return {
     step: '2/12 Detect stack',
     status: 'ok',
-    message: `stack=${stack} working_directory=${wd} host=railway`,
-    data: { stack, workingDirectory: wd, host: 'railway' },
+    message: `stack=${stack} working_directory=${wd}`,
+    data: { stack, workingDirectory: wd },
   };
 }

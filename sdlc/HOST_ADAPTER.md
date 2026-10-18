@@ -54,10 +54,10 @@ The schema enforces that `production_url_secret_key` is present iff `production_
 
 | Field              | Type                   | Purpose                                                                                                                                              |
 | ------------------ | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `wait_for_deploy`  | string (shell snippet) | Blocks until the deploy is live and healthy. Embedded into `post-deploy-prod.yml.template` at sync time. Omit for hosts where deploy is synchronous. |
-| `post_deploy_hook` | string (shell snippet) | Runs after a successful deploy — cache warmup, host-specific bookkeeping, additional smoke tests.                                                    |
+| `wait_for_deploy`  | string (shell snippet) | Blocks until the deploy is live and healthy. Reserved: not yet substituted into any template (the post-deploy workflow reacts to the provider's GitHub `deployment_status`; see `docs/adding-a-host.md`). Omit for hosts where deploy is synchronous. |
+| `post_deploy_hook` | string (shell snippet) | Reserved: runs after a successful deploy — cache warmup, host-specific bookkeeping, additional smoke tests. Not yet consumed.                          |
 
-Both snippets run in a `bash -e` step; they can reference `${PROD_URL}` and any `required_env` values.
+Both fields are reserved and documentary today; when consumed they will run in a `bash -e` step with `${PROD_URL}` and any `required_env` values.
 
 ### Required secrets and env
 
@@ -142,3 +142,7 @@ Backward-compatible additions (new optional fields) need:
 3. Existing adapters can stay as they are.
 
 Backward-incompatible changes (renaming or removing required fields, narrowing an enum) need a v1.24.0-level version bump and a migration note for consumers.
+
+## Optional: `reconcile` (devaudit-installer#1022)
+
+`reconcile` declares the host's webhook-loss recovery: `lookup_script` (a `lookup-deployment-<host>.sh` under `sdlc/files/_common/scripts/` printing `{id,status,sha,branch,repo}` for a provider deployment), `required_cli` (a CLI the lookup needs on `PATH`, or `null`) and `secrets` (repo secrets exposed to the lookup). Its presence is what makes `devaudit update` generate `reconcile-deployment.yml` and `devaudit doctor` check `reconcile-cli`; its absence means neither. See [`docs/adding-a-host.md`](../docs/adding-a-host.md#reconcile-optional-webhook-loss-recovery-devaudit-installer1022) for the contract and the table of which adapter fields are actually consumed.

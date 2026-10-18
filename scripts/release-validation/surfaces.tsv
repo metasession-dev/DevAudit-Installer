@@ -1,6 +1,7 @@
 # surface<TAB>extended-regex over repo paths<TAB>what it covers
 # A path can belong to several surfaces. A changed shipped path that matches none is reported as unclassified.
 approval-gate	^sdlc/files/ci/check-release-approval	generated Release Approval Gate workflow
+close-out	^sdlc/files/ci/close-out-(release|completion|reconcile)|^sdlc/files/_common/scripts/close-out	generated Release Close-out workflow (#941)
 ci-workflows	^sdlc/files/ci/|^cli/src/update/ci-templates	generated CI workflows (parse, tokens, bash -n)
 sync-safety	^cli/src/update/(write-managed|manifest-bootstrap|sync-manifest|index|format-sync)	conflict preservation, manifest, baseline run
 branch-protection	^cli/src/(update/branch-protection|update/default-branch|lib/(git-provider|branch-protection))	branch protection and default branch on update
@@ -9,6 +10,6 @@ doctor	^cli/src/commands/doctor|^cli/src/lib/doctor	doctor JSON contract and --f
 scripts	^sdlc/files/(_common|stacks/[^/]+)/(scripts|hooks)/	synced scripts and git hooks
 skills-docs	^sdlc/files/_common/(skills/|[^/]+\.md$|workflows/)|^sdlc/src/blueprints	skills, stage docs, blueprints
 ai-rules	^sdlc/(ai-rules/|STACK_ADAPTER)	AI pointer files and INSTRUCTIONS.md
-adapters	^sdlc/files/(hosts|stacks)/[^/]+/adapter\.json|^sdlc/files/sdlc-config\.example	stack and host adapters, config example
+adapters	^sdlc/files/(hosts|stacks)/[^/]+/adapter\.json|^sdlc/files/(hosts|stacks)/_schema/|^sdlc/(HOST|STACK)_ADAPTER\.md|^sdlc/files/sdlc-config\.example	stack and host adapters, config example
 sdlc-engine	^sdlc/src/(bin|lib)	the synced SDLC CLI engine
 cli-core	^cli/src/	any CLI source: update is idempotent and the changed files are reported

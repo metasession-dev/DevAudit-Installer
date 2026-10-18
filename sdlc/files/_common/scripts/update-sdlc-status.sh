@@ -25,7 +25,7 @@
 #   ./scripts/update-sdlc-status.sh 322 \
 #     "Phase 4 — release PR #455 opened" \
 #     "Operator action — review + merge develop→main when ready" \
-#     --repo metasession-dev/wawagardenbar-app
+#     --repo example-org/example-app
 #
 # Required:
 #   - `gh` CLI authenticated (uses GITHUB_TOKEN or the current `gh auth` session)

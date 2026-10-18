@@ -442,7 +442,7 @@ describe('runInstall — native TS install against a node fixture', () => {
   it('preserves rich sdlc-config fields when re-running --yes on an existing consumer', async () => {
     const { runInstall } = await import('../src/install/index.js');
     const dir = await buildNodeFixture();
-    // Seed a richly customized config — mirrors WGB's shape (runner: self-hosted,
+    // Seed a richly customized config — mirrors a consumer's shape (runner: self-hosted,
     // sast_baseline > 0, mongodb db service, custom build_env, custom prod-url secret)
     const seeded = {
       project_slug: 'fixture-app',
@@ -701,7 +701,7 @@ describe('runInstall — native TS install against a node fixture', () => {
   // `install --add-target` now refuses first-time adoption — a config
   // that doesn't already have a real `targets` array. These fixtures
   // therefore seed one, mirroring the one remaining real-world consumer
-  // (fleet-control) that already uses it, rather than a flat config
+  // (example-monorepo) that already uses it, rather than a flat config
   // converting to `targets` for the first time.
   async function buildPolyglotFixture(): Promise<string> {
     const dir = await buildNodeFixture();
@@ -941,7 +941,7 @@ describe('runInstall — native TS install against a node fixture', () => {
   // target's install ran from *its own* subdirectory (not the repo root),
   // and --add-target for the second target is invoked from a *different*
   // subdirectory. Neither ever pointed `path` at the repo root itself — this
-  // is what `--add-target` looked like in the real ThorStack onboarding that
+  // is what `--add-target` looked like in the real example-platform onboarding that
   // surfaced the bug: `sdlc-config.json` must be found (and appended to) at
   // the git repo root regardless of which target directory install runs
   // from, not just when someone happens to invoke it from the root.
@@ -973,7 +973,7 @@ describe('runInstall — native TS install against a node fixture', () => {
       // service-a so writeSdlcConfig treats this as the *same* target
       // (a rotation) rather than a second, unconfigured one. Also seed a
       // `targets` array up front (mirroring the one remaining real-world
-      // polyglot consumer, fleet-control) since --add-target now refuses
+      // polyglot consumer, example-monorepo) since --add-target now refuses
       // first-time adoption of the deprecated `targets` mechanic.
       await fs.writeFile(
         join(repoDir, 'sdlc-config.json'),

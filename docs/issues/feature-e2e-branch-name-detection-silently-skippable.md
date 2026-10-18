@@ -142,7 +142,7 @@ indistinguishable-from-normal skip.
 
 ## References
 
-- `wawagardenbar-app` REQ-095 / issue #603 / PR #606 — concrete incident: branch
+- `example-app` REQ-095 / issue #603 / PR #606 — concrete incident: branch
   `fix/603-req095-post-merge-regression-fixes` never matched `REQ-[0-9]+`,
   `has_tests=false`, `run-feature-e2e` skipped; only locally-generated,
   already-committed screenshots reached the portal, which could be mistaken for

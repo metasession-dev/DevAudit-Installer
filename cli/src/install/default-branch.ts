@@ -9,7 +9,7 @@ import { readSdlcConfig } from '../lib/sdlc-config.js';
  * (new-branch dropdown, "Compare & pull request" banner, fresh-clone
  * checkout) lands on `main` instead — silently skipping the real Quality
  * Gates workflow, which only triggers on PRs to the integration branch. See
- * devaudit#731 (found onboarding metasession-dev/META-AGENT).
+ * devaudit#731 (found onboarding a consumer).
  */
 export async function configureDefaultBranch(
   ctx: InstallContext,

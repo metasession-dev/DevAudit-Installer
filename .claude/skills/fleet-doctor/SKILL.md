@@ -42,6 +42,7 @@ For each finding, confirm or override `suspectedOrigin` using judgment, not just
 
 - **The same anomaly on every (or most) consumers** → almost certainly `framework` — a template, skill, CLI, or portal defect, not something any one operator did.
 - **One consumer diverging from what every sibling has** (a file present everywhere else, a secret every sibling has that this one lacks, a stale `devaudit_synced_version` while siblings are current) → `consumer-drift`.
+- **Deploy/CI config findings** (`deploy-host`, `production-url`, `custom-deploy`, `ci-runner`, devaudit-installer#1040) are per-repo settings, so they are `consumer-drift` unless every consumer shows the same one. Never fix them from the fleet sweep: the repo's operator runs `devaudit doctor --fix` / `devaudit configure` (or the `devaudit-configure` skill) inside that repo.
 - Before filing anything upstream, search open issues in `devaudit` and `DevAudit-Installer` (`gh issue list --search ...`) to avoid re-filing a duplicate — dedupe onto the existing issue with a comment instead.
 
 ### 3.5 Org boundary — required before any write action
