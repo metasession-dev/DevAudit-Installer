@@ -40,7 +40,7 @@ permissions:
 jobs:
   quality-gates:
     name: Quality Gates
-    runs-on: ubuntu-latest
+    runs-on: {{RUNNER}}
     steps:
       - name: Acknowledge docs/compliance-only commit
         run: |

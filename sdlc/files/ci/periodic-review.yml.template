@@ -32,7 +32,7 @@ permissions:
 jobs:
   generate:
     name: Generate quarterly periodic-review.md
-    runs-on: ubuntu-latest
+    runs-on: {{RUNNER}}
     steps:
       - uses: actions/checkout@v6
         with:
