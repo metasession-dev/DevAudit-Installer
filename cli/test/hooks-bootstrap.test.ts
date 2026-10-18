@@ -164,7 +164,7 @@ describe('bootstrapHooks — husky/pre-commit coexistence (#689/#697)', () => {
   it('Node target in a monorepo subdirectory: relocates .husky/ to the repo root and sets core.hooksPath there', async () => {
     const { bootstrapHooks } = await import('../src/install/hooks-bootstrap.js');
     const repoRoot = await mkdtemp();
-    const projectPath = join(repoRoot, 'mission-control');
+    const projectPath = join(repoRoot, 'example-web');
     await fs.mkdir(projectPath, { recursive: true });
     try {
       const result = await bootstrapHooks(baseCtx(projectPath, repoRoot), basePlan('node'));

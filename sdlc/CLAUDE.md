@@ -87,10 +87,10 @@ Before syncing, publish the new version to npm — run `/release-devaudit` (`.cl
 After updating SDLC templates, sync to consuming projects:
 
 ```bash
-# Pass one path per active consumer. Only WGB is live as of 2026-05-19.
-devaudit update v1.x.0 ../wawagardenbar-app
+# Pass one path per consumer checkout.
+devaudit update v1.x.0 ../<consumer-repo> [../<another-consumer-repo> ...]
 ```
 
 This tags DevAudit, copies all templates (workflow files, AI rules, hooks, scripts, CI templates), and updates tag references in the consuming project's CI workflows. Review the diff in each project before committing.
 
-`mission-control`/`mission-control-api` were originally two subdirectories of one `META-AGENT` repo; the frontend/backend have since split into their own standalone repos (`ThorStack-Frontend`/`ThorStack-Backend` on GitHub, DevAudit slugs unchanged). `fleet-control` **is** an active consumer, using the deprecated polyglot-monorepo `targets` mechanic — see [docs/onboarding.md](../docs/onboarding.md#polyglot-monorepos-multiple-targets-in-one-repo--deprecated). META-ATS's onboarding attempt was stopped/reverted and remains unonboarded — see [docs/consuming-projects.md](../docs/consuming-projects.md) for the current active-consumer list; pass its path to the same command if and when it returns as a live consumer.
+Which projects are onboarded is not recorded in this repo (it is public, and consumers are never named in its docs or code): `devaudit doctor --fleet` or the portal's project list is the source of truth — see [docs/consuming-projects.md](../docs/consuming-projects.md). Polyglot repos onboarded with the deprecated `targets` mechanic are described in [docs/onboarding.md](../docs/onboarding.md#polyglot-monorepos-multiple-targets-in-one-repo--deprecated).

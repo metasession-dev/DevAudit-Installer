@@ -40,6 +40,7 @@ Conventions:
 - **Tests before behaviour changes**. Every behaviour-changing PR adds or updates a vitest case in the same package.
 - **CI matrix is mandatory**: Linux, macOS, Windows on node 22. All three must be green.
 - **One PR per logical change**. Keep PRs reviewable; split refactors from behaviour changes when you can.
+- **No consumer names.** Never name a project that uses DevAudit (a customer repo) in code, comments, tests, fixtures or docs; this repo is public. Use `example-app`, `example-org/example-app` or "a consumer". CI checks it (`scripts/check-no-consumer-names.sh`).
 - **Co-author tags** for AI assistance. Use `Co-Authored-By:` on the commit when an AI tool contributed substantively. The `git log` history shows the current pattern.
 
 ## Branching Strategy — GitFlow

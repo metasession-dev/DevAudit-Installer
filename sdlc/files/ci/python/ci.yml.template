@@ -35,8 +35,8 @@ jobs:
     name: Quality Gates
     runs-on: {{RUNNER}}
 
-    # `working-directory` lets monorepo / subdir Python projects (e.g. META-AGENT
-    # with mission-control-api/pyproject.toml) run gates from the right place
+    # `working-directory` lets monorepo / subdir Python projects (e.g. a consumer
+    # with example-web-api/pyproject.toml) run gates from the right place
     # without prefixing every command. Defaults to '.' (repo root) when
     # sdlc-config.json doesn't set working_directory.
     defaults:
@@ -174,7 +174,7 @@ jobs:
 
       # actions/upload-artifact@v7 doesn't honour the job's `working-directory`;
       # paths are workspace-relative. Prefix with WORKING_DIR_PREFIX so artifacts
-      # uploaded from a subdir project (e.g. mission-control-api/) include the
+      # uploaded from a subdir project (e.g. example-web-api/) include the
       # subdir in their stored path, matching where the gate steps wrote them.
       - uses: actions/upload-artifact@v7
         if: always()
@@ -406,7 +406,7 @@ jobs:
           echo "DEVAUDIT_BASE_URL=${BASE%/}" >> "$GITHUB_ENV"
 
       # Download to workspace root: upload-artifact@v4 preserves the file's
-      # workspace-relative path (e.g. mission-control-api/ci-evidence/sast.json
+      # workspace-relative path (e.g. example-web-api/ci-evidence/sast.json
       # for a subdir project). Downloading with path: '.' restores files to
       # those exact paths so the upload-evidence.sh references below resolve
       # without nesting.

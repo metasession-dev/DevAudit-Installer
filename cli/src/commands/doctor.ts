@@ -538,7 +538,7 @@ async function checkSyncConflicts(): Promise<CheckResult> {
  * last sync skipped because it no longer applies cleanly. A skipped patch is
  * correctly non-fatal (#921/#923), but without this the only trace was a
  * one-time warning in that run's output, so a consumer-side fix could revert
- * to the upstream template unnoticed (wawagardenbar-app#925). Same shape as
+ * to the upstream template unnoticed (a consumer). Same shape as
  * `checkSyncConflicts`: non-gating, reads the persisted sync manifest.
  */
 async function checkPatchConflicts(): Promise<CheckResult> {

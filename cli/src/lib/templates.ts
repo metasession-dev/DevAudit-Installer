@@ -27,7 +27,7 @@ export function substituteTokens(content: string, tokens: TokenMap): string {
  * When the replacement is the empty string, the line is dropped entirely
  * rather than leaving a blank line. Otherwise an empty `{{DATABASE_ENV}}`
  * substitution leaves a stray newline inside `env:` blocks that YAML
- * parsers reject (prettier flagged this on WGB v0.1.34 update).
+ * parsers reject (prettier flagged this on a consumer v0.1.34 update).
  */
 export function substituteBlocks(content: string, blocks: TokenMap): string {
   if (Object.keys(blocks).length === 0) return content;

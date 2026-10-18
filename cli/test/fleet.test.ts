@@ -27,10 +27,10 @@ afterEach(() => {
 describe('repoNameFromUrl', () => {
   it('derives the trailing path segment, stripping .git and trailing slashes', async () => {
     const { repoNameFromUrl } = await import('../src/commands/fleet.js');
-    expect(repoNameFromUrl('https://github.com/metasession-dev/fleet-control.git')).toBe('fleet-control');
-    expect(repoNameFromUrl('https://github.com/metasession-dev/fleet-control')).toBe('fleet-control');
-    expect(repoNameFromUrl('https://github.com/metasession-dev/fleet-control/')).toBe('fleet-control');
-    expect(repoNameFromUrl('git@github.com:metasession-dev/fleet-control.git')).toBe('fleet-control');
+    expect(repoNameFromUrl('https://github.com/example-org/example-monorepo.git')).toBe('example-monorepo');
+    expect(repoNameFromUrl('https://github.com/example-org/example-monorepo')).toBe('example-monorepo');
+    expect(repoNameFromUrl('https://github.com/example-org/example-monorepo/')).toBe('example-monorepo');
+    expect(repoNameFromUrl('git@github.com:example-org/example-monorepo.git')).toBe('example-monorepo');
   });
 
   it('returns null for a URL with no discernible trailing segment', async () => {
@@ -53,14 +53,14 @@ describe('runFleetDoctor', () => {
 
     const workspace = await fs.mkdtemp(join(tmpdir(), 'fleet-doctor-'));
     const baseDir = join(workspace, 'DevAudit-Installer');
-    const siblingRepo = join(workspace, 'fleet-control');
+    const siblingRepo = join(workspace, 'example-monorepo');
     await fs.mkdir(baseDir, { recursive: true });
     await fs.mkdir(siblingRepo, { recursive: true });
 
     server.use(
       http.get(`${BASE_URL}/api/projects`, () =>
         HttpResponse.json([
-          { id: '1', slug: 'fleet-control-api', name: 'fleet-control-api', repo_url: 'https://github.com/metasession-dev/fleet-control.git' },
+          { id: '1', slug: 'example-monorepo-api', name: 'example-monorepo-api', repo_url: 'https://github.com/example-org/example-monorepo.git' },
           { id: '2', slug: 'not-checked-out', name: 'not-checked-out', repo_url: 'https://github.com/metasession-dev/nowhere-to-be-found.git' },
           { id: '3', slug: 'no-repo-url', name: 'no-repo-url', repo_url: null },
         ]),

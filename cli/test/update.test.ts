@@ -241,7 +241,7 @@ describe('syncProject — native TS sync against a fixture', () => {
     );
     expect(projectSetup).toContain('`stop\\|unsubscribe\\|opt-out`');
     expect(projectSetup).toContain('false-positive MD056/MD060 lint errors');
-    // wawagardenbar-app#383: PRs to develop must surface Quality Gates, while
+    // a consumer: PRs to develop must surface Quality Gates, while
     // release registration/evidence upload stay push/dispatch-only side effects.
     expect(ciYml).toContain('pull_request:\n    branches: [develop]');
     expect(ciYml).toContain(
@@ -847,8 +847,8 @@ describe('syncProject — native TS sync against a fixture', () => {
           e2e_project: 'chromium',
           e2e_start_command: 'npm run dev',
           targets: [
-            { name: 'web', ...baseTarget, working_directory: 'mission-control', devaudit: { project_slug: 'thorstack-web' } },
-            { name: 'api', ...baseTarget, stack: 'python', working_directory: 'mission-control-api', devaudit: { project_slug: 'thorstack-api' } },
+            { name: 'web', ...baseTarget, working_directory: 'example-web', devaudit: { project_slug: 'example-web' } },
+            { name: 'api', ...baseTarget, stack: 'python', working_directory: 'example-web-api', devaudit: { project_slug: 'example-api' } },
           ],
         }),
       );
@@ -864,17 +864,17 @@ describe('syncProject — native TS sync against a fixture', () => {
       // consumer's prettier when one is reachable (it rewrites 'x' to "x"), so
       // match either quote instead of depending on the machine's PATH.
       const ignores = (dir: string) => new RegExp(`- ['"]${dir}/\\*\\*['"]`);
-      expect(webCi).toMatch(ignores('mission-control-api'));
-      expect(apiCi).toMatch(ignores('mission-control'));
+      expect(webCi).toMatch(ignores('example-web-api'));
+      expect(apiCi).toMatch(ignores('example-web'));
       // ...but not its own.
-      expect(webCi).not.toMatch(ignores('mission-control'));
-      expect(apiCi).not.toMatch(ignores('mission-control-api'));
+      expect(webCi).not.toMatch(ignores('example-web'));
+      expect(apiCi).not.toMatch(ignores('example-web-api'));
 
       // pull_request gains a matching paths-ignore block (previously absent).
       const prBlock = (dir: string) =>
         new RegExp(`pull_request:\\s*\\n\\s*branches: \\[develop\\]\\s*\\n\\s*paths-ignore:\\s*\\n\\s*- ['"]${dir}/\\*\\*['"]`);
-      expect(webCi).toMatch(prBlock('mission-control-api'));
-      expect(apiCi).toMatch(prBlock('mission-control'));
+      expect(webCi).toMatch(prBlock('example-web-api'));
+      expect(apiCi).toMatch(prBlock('example-web'));
 
       await expectAllWorkflowsValidYaml(dir);
     } finally {
@@ -891,14 +891,14 @@ describe('syncProject — native TS sync against a fixture', () => {
     const repoRoot = await fs.mkdtemp(join(tmpdir(), 'cli-update-reporoot-'));
     try {
       await execa('git', ['init', '-q'], { cwd: repoRoot });
-      const targetDir = join(repoRoot, 'mission-control');
+      const targetDir = join(repoRoot, 'example-web');
       await fs.mkdir(targetDir, { recursive: true });
       // sdlc-config.json lives at the repo root (#689 follow-up), not this
       // target's own directory — see write-config.ts for why.
       await fs.writeFile(
         join(repoRoot, 'sdlc-config.json'),
         JSON.stringify({
-          project_slug: 'mission-control',
+          project_slug: 'example-web',
           stack: 'node',
           host: 'railway',
           node_version: '20',
@@ -1048,7 +1048,7 @@ describe('syncProject — native TS sync against a fixture', () => {
   // Actions' schema validator rejects it outright ("expecting a single
   // ${{...}} expression or mapping value for 'env' section") — a class of
   // break `expectAllWorkflowsValidYaml` can't catch, only found by actually
-  // running actionlint against the onboarded mission-control repo.
+  // running actionlint against the onboarded example-web repo.
   it('does not emit a dangling env: key on the Build Check step when build_env is empty', async () => {
     const dir = await fs.mkdtemp(join(tmpdir(), 'cli-update-emptybuildenv-'));
     try {
@@ -1173,7 +1173,7 @@ describe('syncProject — native TS sync against a fixture', () => {
   // `env:` with nothing after it. js-yaml parses that fine, but GitHub
   // Actions' own schema validator rejects it outright ("Unexpected value
   // ''"), scheduling zero jobs — confirmed via a real `gh workflow run`
-  // dispatch against the onboarded mission-control-api repo, the same class
+  // dispatch against the onboarded example-web-api repo, the same class
   // of break `expectAllWorkflowsValidYaml` alone can't catch.
   it('does not emit a dangling env: key on the Python Quality Gates job when database_env/app_env are empty', async () => {
     const dir = await fs.mkdtemp(join(tmpdir(), 'cli-update-emptypyenv-'));
@@ -1405,7 +1405,7 @@ describe('syncProject — native TS sync against a fixture', () => {
 
       // Simulate a hand-patch made directly to the generated file, with no
       // .devaudit-patches/ capturing it — exactly the scenario that
-      // silently dropped a real fix twice in metasession-dev/META-JOBS.
+      // silently dropped a real fix twice in a consumer.
       const ciPath = join(dir, '.github', 'workflows', 'ci.yml');
       const original = await fs.readFile(ciPath, 'utf-8');
       await fs.writeFile(ciPath, `${original}\n# hand-added customization, no patch file\n`);
@@ -2095,7 +2095,7 @@ describe('syncProject — native TS sync against a fixture', () => {
       const configPath = join(dir, 'sdlc-config.json');
       const config = JSON.parse(await fs.readFile(configPath, 'utf8')) as Record<string, unknown>;
       config['e2e_regression_enabled'] = true;
-      // SHARED set in all three sources — wawagardenbar's real-world shape
+      // SHARED set in all three sources — example-app's real-world shape
       // (MONGODB_DB_NAME needed by both app_env and e2e_env). Precedence:
       // database_env < app_env < e2e_env.
       config['database_env'] = { SHARED: 'from-database-env' };

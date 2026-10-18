@@ -119,7 +119,7 @@ make_fixture "$WORK/c6" "chore: bump deps"
 assert_eq "no tag -> bare date $TODAY" "$TODAY" "$(run_helper)"
 
 # Case 7: a prose REQ mention earlier in the body must NOT beat the Ref:
-# line. Regression for the META-JOBS misattribution where "target close:
+# line. Regression for the consumer misattribution where "target close:
 # REQ-002" caused gate evidence to land on a REQ-002 release instead of
 # the real Ref: REQ-001.
 make_fixture "$WORK/c7" "chore(sdlc): accept dep advisories
@@ -208,7 +208,7 @@ RTM
 assert_eq "RTM two IN PROGRESS rows -> bare date $TODAY" "$TODAY" "$(run_helper)"
 
 # Case 15: step-4-bis must ignore legend rows that mention IN PROGRESS
-# inside backticks (the wawagardenbar-app RTM convention) and prose
+# inside backticks (the example-app RTM convention) and prose
 # mentions in description columns.
 make_fixture "$WORK/c15" "chore: devaudit update to 0.1.29"
 mkdir -p compliance
@@ -225,7 +225,7 @@ cat > compliance/RTM.md <<'RTM'
 RTM
 assert_eq "RTM legend + prose mentions -> bare date $TODAY" "$TODAY" "$(run_helper)"
 
-# Case 16: step-4-bis with the real META-JOBS-shaped RTM row (long
+# Case 16: step-4-bis with a real consumer-shaped RTM row (long
 # parenthetical commentary in the status cell). The status cell still
 # starts with `IN PROGRESS` after the pipe.
 make_fixture "$WORK/c16" "chore: devaudit update to 0.1.29"

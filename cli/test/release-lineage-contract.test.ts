@@ -176,7 +176,7 @@ describe('release-lineage contract (#391)', () => {
   it('validates the canonical idempotency key shape', () => {
     expect(
       isValidReleaseLineageIdempotencyKey(
-        'github:metasession-dev/wawagardenbar-app:Quality-Gates:12345:attempt:2:stage:2:REQ-093',
+        'github:example-org/example-app:Quality-Gates:12345:attempt:2:stage:2:REQ-093',
       ),
     ).toBe(true);
     expect(RELEASE_LINEAGE_IDEMPOTENCY_KEY_PATTERN.test('github:too-short')).toBe(false);

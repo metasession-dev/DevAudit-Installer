@@ -1,6 +1,6 @@
 # Who Can Do What, and With Which Key
 
-> **Scope:** `metasession-dev/DevAudit-Installer` (this repo, public — framework + CLI), `metasession-dev/devaudit` (the portal product, private), and a consumer project running the synced SDLC (e.g. `wawagardenbar-app`).
+> **Scope:** `metasession-dev/DevAudit-Installer` (this repo, public — framework + CLI), `metasession-dev/devaudit` (the portal product, private), and a consumer project running the synced SDLC (e.g. `example-app`).
 > **Status:** Internal reference. Verified against DevAudit-Installer at `v0.3.39` — workflow files, CLI source, and live GitHub/npm state, not general GitHub knowledge. Anything that couldn't be verified programmatically is marked as such rather than guessed. Re-check after any change to `.github/workflows/`, `branch-protection-checks.ts`, or the portal's approval logic.
 
 A map of every actor, credential, and gate across this repo's release pipeline — GitHub's permission system and the DevAudit portal's, and the handful of places they touch.
@@ -125,7 +125,7 @@ Nothing here is a GitHub permission. The portal has its own accounts, its own ro
 
 | Mode | What it enforces | Where it shows up |
 | --- | --- | --- |
-| `dual_actor` | Server-side check: `approver_user_id != release_creator_user_id`. The same person cannot cut and approve a release. | Recommended default; used by the `wgb` project |
+| `dual_actor` | Server-side check: `approver_user_id != release_creator_user_id`. The same person cannot cut and approve a release. | Recommended default; used by the consumer project |
 | `auto_low_risk` | LOW-risk requirements auto-approve once CI evidence is complete. MEDIUM/HIGH still require a human. | Teams that want ceremony proportional to risk |
 | `solo_with_gap` | For genuinely solo developers. Doesn't fake a second reviewer — instead it *refuses to approve* until an explicit risk-register entry documents the control gap, so an auditor sees an acknowledged gap, not a silent bypass. | Solo projects, by design a visible trade-off |
 
@@ -151,7 +151,7 @@ Playbook language elsewhere about an "independent reviewer" at Stage 2 (feature 
 
 ## 7. Worked example: one requirement, start to finish
 
-The same sequence as the diagram above, spelled out — this is what actually happened for a real HIGH-risk requirement on `wgb`.
+The same sequence as the diagram above, spelled out — this is what actually happened for a real HIGH-risk requirement on a consumer.
 
 1. **Developer + AI agent commit and push** — Claude Code implements the requirement; commits carry `Co-Authored-By: Claude Sonnet 5`. No separate AI credential — it's the developer's own git session. *(GitHub · personal git access)*
 2. **CI runs Quality Gates** — lint, typecheck, SAST, dependency audit, E2E — one job, one required status check. *(GitHub · `GITHUB_TOKEN`)*

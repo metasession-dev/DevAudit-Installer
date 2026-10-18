@@ -53,11 +53,11 @@
 # reached on their own. Example:
 #
 #   report-test-execution.sh resolve \
-#     --project-slug wgb --release REQ-108 \
+#     --project-slug example-app --release REQ-108 \
 #     --test-cycle-id 77eb11a9-428d-4aaa-8bd7-d3d0550c6f06 \
 #     --resolution-type accepted_exception \
-#     --reason "unrelated pre-existing defect wawagardenbar-app#852" \
-#     --remediation-reference https://github.com/metasession-dev/wawagardenbar-app/issues/852 \
+#     --reason "unrelated pre-existing defect example-org/example-app#852" \
+#     --remediation-reference https://github.com/example-org/example-app/issues/852 \
 #     --record compliance/evidence/REQ-108/accepted-e2e-failure-webhook-idempotency.md
 #
 # devaudit-installer#1016: `accepted_exception` is a documented waiver, never a

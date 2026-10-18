@@ -18,7 +18,7 @@ Every push to `develop` that touches files outside `paths-ignore` triggers the `
 
 This means **automated tooling syncs** — `devaudit update`, Dependabot bumps, CI template regeneration — each create a separate housekeeping release on the portal, even though these are not operator-authored releases that warrant independent review and sign-off.
 
-### Evidence (wawagardenbar-app)
+### Evidence (example-app)
 
 | CI Run ID | Workflow | Event | Commit | Result |
 |-----------|----------|-------|--------|--------|
@@ -267,4 +267,4 @@ Gate evidence above covers the full state of develop at CI time, including these
 - `sdlc/files/ci/compliance-evidence.yml.template:148-226` — housekeeping stub auto-generation
 - `docs/release-playbooks/housekeeping-release.md` — housekeeping release playbook
 - `cli/src/install/write-config.ts:6-17` — `NODE_PATHS_IGNORE` / `PYTHON_PATHS_IGNORE` defaults
-- wawagardenbar-app CI runs: 28156639541 (sync push), 28150508465 (scheduled E2E)
+- example-app CI runs: 28156639541 (sync push), 28150508465 (scheduled E2E)

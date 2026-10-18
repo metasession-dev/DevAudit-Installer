@@ -291,7 +291,7 @@ echo
 # Test 7: devaudit-installer#600 regression — a predecessor housekeeping
 # commit landing as the very first commit after SINCE_REF, immediately
 # followed (zero gap) by this REQ's own first commit, must still be
-# detected. This mirrors the live wawagardenbar-app REQ-097 failure exactly:
+# detected. This mirrors the live example-app REQ-097 failure exactly:
 # under the old SCAN_FROM="${FIRST_REQ_SHA}^" narrowing, the scan floor
 # landed *on* the housekeeping commit itself, and `git log A..B` excludes
 # `A`, silently dropping it from nonReleaseWorkItems.

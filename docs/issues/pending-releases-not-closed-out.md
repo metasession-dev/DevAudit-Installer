@@ -4,7 +4,7 @@
 
 ## Update (devaudit-installer#786) — Option 1A had a single point of failure
 
-Option 1A below (automated close-out, implemented as the portal's `release-closed` `repository_dispatch` → `close-out-release.yml`) shipped and worked reliably for months. But it is a **single one-shot webhook with no consumer-visible retry** — and on project `wgb`, it silently failed to fire for two consecutive real releases (REQ-102, REQ-030-tracked), reproducing this doc's original failure mode (a pending ticket sitting stale in `compliance/pending-releases/` despite its code being live on `main`) through a **different path**: a missed/failed dispatch, not "the manual step was never performed." See `docs/release-lineage-and-test-execution-audit-model.md` for how the portal-side dispatch reliability gap was addressed, and `close-out-reconcile.yml` (this repo) for the consumer-side fix: a daily scheduled job that cross-checks `compliance/pending-releases/` against `origin/main` and triggers `close-out-release.yml` for anything demonstrably stale, independent of whether any individual dispatch fired. Event-driven automation and periodic reconciliation are complementary — the event-driven path stays fast for the common case; the reconciliation pass is what actually guarantees eventual consistency regardless of why any single dispatch was missed.
+Option 1A below (automated close-out, implemented as the portal's `release-closed` `repository_dispatch` → `close-out-release.yml`) shipped and worked reliably for months. But it is a **single one-shot webhook with no consumer-visible retry** — and on project a consumer, it silently failed to fire for two consecutive real releases (REQ-102, REQ-030-tracked), reproducing this doc's original failure mode (a pending ticket sitting stale in `compliance/pending-releases/` despite its code being live on `main`) through a **different path**: a missed/failed dispatch, not "the manual step was never performed." See `docs/release-lineage-and-test-execution-audit-model.md` for how the portal-side dispatch reliability gap was addressed, and `close-out-reconcile.yml` (this repo) for the consumer-side fix: a daily scheduled job that cross-checks `compliance/pending-releases/` against `origin/main` and triggers `close-out-release.yml` for anything demonstrably stale, independent of whether any individual dispatch fired. Event-driven automation and periodic reconciliation are complementary — the event-driven path stays fast for the common case; the reconciliation pass is what actually guarantees eventual consistency regardless of why any single dispatch was missed.
 
 ## Summary
 
@@ -16,7 +16,7 @@ Two distinct issues cause the DevAudit portal to display out-of-scope REQs (REQ-
 
 ## Observed in
 
-`wawagardenbar-app` — REQ-085 release (PR #413)
+`example-app` — REQ-085 release (PR #413)
 
 The portal release for REQ-085 showed three requirements under "Evidence by requirement": REQ-083, REQ-084, and REQ-085. Only REQ-085 should have been visible.
 
@@ -206,7 +206,7 @@ Modify the portal's commit scanner to skip REQs that already have an approved re
 
 Both are root-cause fixes. Option 1A is machine-enforced (CI step). Option 2A is a skill instruction (prose-level, but the skill authors these commits so it's the right layer).
 
-## Immediate fix (for wawagardenbar-app)
+## Immediate fix (for example-app)
 
 ### Fix 1: Move stale tickets to approved-releases/
 
@@ -256,11 +256,11 @@ If already pushed, the commit cannot be amended without a force-push. The portal
 - DevAudit-Installer #147 — per-REQ glob scoping (the skip check for terminal directories)
 - DevAudit-Installer #192 — skip REQs already in terminal release directories
 - DevAudit-Installer #169 — evidence-completeness gate (may false-positive on stale REQs)
-- wawagardenbar-app commit `33c8443` — `docs: [REQ-083/084] update SRS with order status revert fix and checkout separation` (authored by `sdlc-implementer` during REQ-085 Phase 1 SRS alignment, incorrectly scoped subject)
+- example-app commit `33c8443` — `docs: [REQ-083/084] update SRS with order status revert fix and checkout separation` (authored by `sdlc-implementer` during REQ-085 Phase 1 SRS alignment, incorrectly scoped subject)
 - `sdlc/files/_common/skills/sdlc-implementer/SKILL.md` Phase 1 step 6 — SRS alignment step where the cross-REQ commit was authored (no commit-scoping rule)
 - DevAudit portal commit scanner — parses `REQ-XXX` from commit subjects and bodies within a PR's diff to associate REQs with releases
-- wawagardenbar-app PR #405 — REQ-083 implementation (to develop)
-- wawagardenbar-app PR #406 — REQ-084 implementation (to develop)
-- wawagardenbar-app PR #407 — Release REQ-083 + REQ-084 (to main, merged 2026-06-24 20:59:53Z, close-out skipped)
-- wawagardenbar-app PR #403 — Release REQ-082 (to main, merged, properly closed out to approved-releases/)
-- wawagardenbar-app PR #413 — REQ-085 (current, portal showing out-of-scope REQs)
+- example-app PR #405 — REQ-083 implementation (to develop)
+- example-app PR #406 — REQ-084 implementation (to develop)
+- example-app PR #407 — Release REQ-083 + REQ-084 (to main, merged 2026-06-24 20:59:53Z, close-out skipped)
+- example-app PR #403 — Release REQ-082 (to main, merged, properly closed out to approved-releases/)
+- example-app PR #413 — REQ-085 (current, portal showing out-of-scope REQs)

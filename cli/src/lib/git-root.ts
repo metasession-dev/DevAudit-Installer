@@ -8,7 +8,7 @@ import { execa } from 'execa';
  * never from wherever a particular target's `sdlc-config.json` happens to
  * live. In a single-target repo `cwd` already *is* the repo root, so this is
  * a no-op; in a polyglot monorepo (#689) where a target lives in a
- * subdirectory (e.g. `mission-control/`), writing those paths relative to
+ * subdirectory (e.g. `example-web/`), writing those paths relative to
  * `cwd` instead of the repo root produces files no tool ever reads. See
  * #689 follow-up.
  *

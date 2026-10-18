@@ -88,10 +88,10 @@ When SDLC templates are updated in DevAudit, propagate changes to consuming proj
 
 ```bash
 # From DevAudit root. Pass one path per active consumer.
-devaudit update v1.1.0 ../wawagardenbar-app
+devaudit update v1.1.0 ../<consumer-repo>
 ```
 
-Only `wawagardenbar-app` is an active consumer as of 2026-05-19; META-AGENT / META-ATS / META-JOBS onboarding attempts were reverted (see [docs/consuming-projects.md](../../docs/consuming-projects.md)). The sync command accepts multiple consumer paths when more projects come back online.
+Which projects are onboarded is recorded on the portal, not here (see [docs/consuming-projects.md](../../docs/consuming-projects.md)). The sync command accepts multiple consumer paths.
 
 This:
 1. Tags DevAudit as `sdlc-v1.1.0` and pushes the tag
