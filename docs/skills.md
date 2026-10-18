@@ -1,6 +1,6 @@
 # Skills Overview
 
-DevAudit ships seven AI skills with the SDLC framework, synced into every consumer, plus one operator-only skill that lives in this repo and never syncs anywhere. One synced skill orchestrates the lifecycle; the other six specialize within particular stages.
+DevAudit ships eight AI skills with the SDLC framework, synced into every consumer, plus one operator-only skill that lives in this repo and never syncs anywhere. One synced skill orchestrates the lifecycle; six specialize within particular stages; one (`devaudit-configure`) keeps the repo's DevAudit settings right.
 
 This page is the short reader-facing overview. The full contract for skill structure, sync behavior, triggers, and evolution lives in [`sdlc/SKILLS.md`](../sdlc/SKILLS.md).
 
@@ -15,6 +15,7 @@ This page is the short reader-facing overview. The full contract for skill struc
 | `requirements-aligner` | SRS alignment specialist | 1, 3 | Maintains `docs/SRS.md` and drops per-REQ `srs-alignment.md` traceability evidence |
 | `adr-author` | Architecture-decision specialist | 1, 3 | Maintains `docs/ADR/` and drops per-REQ `architecture-decision.md` evidence |
 | `risk-register-keeper` | Risk-assessment specialist | 1, 3 | Maintains `compliance/risk-register.md` and drops per-REQ `risk-assessment.md` evidence |
+| `devaudit-configure` | Repo-settings guide | 0, and after any `devaudit update` | Uses `devaudit doctor` to find where `sdlc-config.json` disagrees with how the repo really deploys and runs CI, explains the evidence, applies each confirmed change through `devaudit configure` (validated), asks the operator to set secrets through `devaudit configure secret`, regenerates with `devaudit update`, and opens a fix PR. See [`configure.md`](./configure.md#the-devaudit-configure-skill). |
 
 ## Fleet operator (this repo only, never synced)
 
@@ -41,6 +42,7 @@ There are three practical groups:
 | Orchestration | `sdlc-implementer` | Owns workflow routing, checkpoints, and end-to-end lifecycle control |
 | Execution specialists | `e2e-test-engineer`, `e2e-ci-reliability`, `governance-doc-author` | Own bounded procedural work that the orchestrator delegates |
 | SoT-alignment family | `requirements-aligner`, `adr-author`, `risk-register-keeper` | Keep the persistent source-of-truth documents aligned with the change and emit per-REQ traceability artifacts |
+| Repo configuration | `devaudit-configure` | Keeps `sdlc-config.json` (deploy host, production URL, custom deploy, runner, CI keys) in line with the repo, through the validated `devaudit configure` CLI |
 
 ## When to use which skill
 
@@ -48,6 +50,7 @@ There are three practical groups:
 - Use `e2e-test-engineer` when the work involves end-to-end, authenticated-flow, screenshot, or visual-regression testing.
 - Use `e2e-ci-reliability` when a full-regression run fails a different, unrelated spec each time, when isolated reruns of "failing" specs pass clean, or when the regression tier has grown large enough that sharding is worth considering — not for authoring test content. A fix it applies (sharding, warm-up) is made durable via `e2e/ci-reliability/regression-run.sh`, a fixed-path hook `e2e-regression.yml` invokes if present (devaudit-installer#928) — never as a hand-edit or `.devaudit-patches` entry against the generated workflow.
 - Use `governance-doc-author` when a project needs or refreshes governance evidence rather than code.
+- Use `devaudit-configure` when `devaudit doctor` reports a `deploy-host`, `production-url`, `custom-deploy` or `ci-runner` finding, when the project deploys somewhere other than what onboarding recorded (Vercel, AWS, self-hosted), or when a CI setting such as the runner needs to change. It never edits `sdlc-config.json` or workflows by hand and never handles secret values.
 - Use the SoT-alignment family when the requirement changes product requirements, architecture decisions, or risk posture and the persistent documents must stay truthful.
 
 ## `sdlc-implementer` sub-flows worth knowing before they fire

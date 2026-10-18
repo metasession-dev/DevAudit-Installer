@@ -2,6 +2,7 @@ import { execa } from 'execa';
 import { resolve } from 'node:path';
 import { promises as fs } from 'node:fs';
 import { logger, isJsonMode, emitJsonResult } from '../lib/logger.js';
+import { runConfigChecks, type ConfigCheckDeps } from './doctor-config.js';
 import { resolveRepoRoot } from '../lib/git-root.js';
 import { discoverPlugins, buildPluginContext, runHook, type LoadedPlugin } from '../lib/plugin/index.js';
 import { resolveInstallerRoot } from '../lib/installer-root.js';
@@ -26,6 +27,8 @@ export interface DoctorOptions {
     /** Test seam: replaces the default prompt/credential/portal wiring. */
     readonly deps?: Partial<FixDeps>;
   };
+  /** Test seam for the #1040 config checks (gh runner, URL probe). */
+  readonly configDeps?: ConfigCheckDeps;
 }
 
 async function checkCommand(name: string, args: readonly string[]): Promise<CheckResult> {
@@ -429,6 +432,23 @@ const COMMITLINT_SEARCH_ORDER = [
 
 const MANAGED_COMMITLINT_CONFIG = 'commitlint.config.mjs';
 
+async function configChecksFor(deps?: ConfigCheckDeps): Promise<readonly CheckResult[]> {
+  const consumer = await readConsumerConfig();
+  if (!consumer) return [];
+  try {
+    return await runConfigChecks(consumer.repoRoot, consumer.cfg, deps);
+  } catch (err) {
+    return [
+      {
+        name: 'deploy-host',
+        ok: true,
+        detail: `skipped (${err instanceof Error ? err.message : 'config checks failed'})`,
+        suspectedOrigin: 'unknown',
+      },
+    ];
+  }
+}
+
 async function checkCommitlintConfigShadowing(): Promise<CheckResult> {
   const name = 'commitlint-config-shadowing';
   const consumer = await readConsumerConfig();
@@ -697,6 +717,8 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
     await checkPatchConflicts(),
     await checkAcceptedExceptions(),
     await checkCommitlintConfigShadowing(),
+    // devaudit-installer#1040: deploy host, production URL/probe, custom deploy, CI runner.
+    ...(await configChecksFor(options.configDeps)),
   ];
   let onboardingIssues = false;
   for (const check of onboardingChecks) {
@@ -749,6 +771,12 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
         needsPortal: false,
       },
     })),
+    // devaudit-installer#1040 config findings, appended so existing proposal order is unchanged.
+    ...onboardingChecks.flatMap((c) =>
+      (c.findings ?? []).flatMap((f) =>
+        f.remediation ? [{ check: c.name, subject: f.subject, detail: f.detail, remediation: f.remediation }] : [],
+      ),
+    ),
   ];
   let fixReport: FixReport | null = null;
   if (options.fix) {

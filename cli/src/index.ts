@@ -14,6 +14,7 @@ import { runJoinCommand } from './commands/join.js';
 import { runUpdate } from './commands/update.js';
 import { runBootstrapGovernance } from './commands/bootstrap-governance.js';
 import { makeStub } from './commands/stub.js';
+import { runConfigureList, runConfigureGet, runConfigureSet, runConfigureSecret } from './commands/configure.js';
 import { discoverPlugins, registerPluginCommands } from './lib/plugin/index.js';
 import { runPluginList } from './commands/plugin/list.js';
 import { runPluginInstall } from './commands/plugin/install.js';
@@ -299,14 +300,14 @@ export async function main(argv: readonly string[]): Promise<void> {
     });
   program
     .command('doctor')
-    .description('Verify the local install: required tools on PATH (node>=22, git, gh, jq, curl), a release close-out drift check, and onboarding-checklist invariants (SRS/RTM/secrets/pre-push hook). Use --json for machine-readable output (consumed by the fleet-doctor skill).')
+    .description('Verify the local install: required tools on PATH (node>=22, git, gh, jq, curl), a release close-out drift check, and onboarding-checklist invariants (SRS/RTM/secrets/pre-push hook), and whether sdlc-config.json matches the real deploy host, production URL, custom deploy and CI runner setup of the repo. Use --json for machine-readable output (consumed by the fleet-doctor skill).')
     .option(
       '--fleet',
       'Sweep every project your DEVAUDIT_USER_TOKEN can see on the portal, checked out locally as siblings of the current directory, running doctor against each. Read-only — never files issues or changes anything. See docs/doctor.md.',
     )
     .option(
       '--fix',
-      'Propose and (after confirmation) apply fixes for release-deferral findings. Tier A local edits (ticket Release intent, RTM DEFERRED, predecessor lines) are confirmed or accepted with --yes; tier B portal defer/resume needs your PAT (DEVAUDIT_USER_TOKEN), a reason and confirmation (never --yes alone); tier C is printed, never run. Exits 8 when proposals remain unapplied. Not available with --fleet. See docs/doctor.md.',
+      'Propose and (after confirmation) apply fixes for release-deferral findings and a deploy-host mismatch (sets host in sdlc-config.json, tier A). Tier A local edits (ticket Release intent, RTM DEFERRED, predecessor lines) are confirmed or accepted with --yes; tier B portal defer/resume needs your PAT (DEVAUDIT_USER_TOKEN), a reason and confirmation (never --yes alone); tier C is printed, never run. Exits 8 when proposals remain unapplied. Not available with --fleet. See docs/doctor.md.',
     )
     .option('--reason <text>', 'Reason recorded for a portal defer/resume under --fix (required with --yes in non-interactive runs).')
     .action(async (cmdOpts: { fleet?: boolean; fix?: boolean; reason?: string }, cmd: Command) => {
@@ -334,6 +335,47 @@ export async function main(argv: readonly string[]): Promise<void> {
         return;
       }
       await runDoctor();
+    });
+  const configureCmd = program
+    .command('configure')
+    .description(
+      "Read and change this repo's sdlc-config.json with validation: deploy host, production URL secret, custom deploy settings, runner and CI keys. Changes the repo's evidence contradicts need confirmation or --reason. See docs/configure.md.",
+    );
+  configureCmd
+    .command('list')
+    .description('Every key `configure` manages, with its current value (keys for other hosts hidden). --json lists all, with types and allowed values.')
+    .action(async () => {
+      await runConfigureList();
+    });
+  configureCmd
+    .command('get <key>')
+    .description('Show one key: value, meaning, allowed values, and whether the host requires it.')
+    .action(async (key: string) => {
+      await runConfigureGet(key);
+    });
+  configureCmd
+    .command('set <key> <value>')
+    .description(
+      'Validate and set one key. Shows what the next `devaudit update` regenerates and what is still to do. --dry-run writes nothing; --reason records why a value the repo evidence contradicts is right; --yes skips the confirmation for an uncontradicted change.',
+    )
+    .option('--reason <text>', 'Why this repo differs from its evidence (needed non-interactively when the evidence contradicts the value).')
+    .action(async (key: string, value: string, cmdOpts: { reason?: string }, cmd: Command) => {
+      const globals = cmd.optsWithGlobals() as { yes?: boolean; dryRun?: boolean };
+      const code = await runConfigureSet(key, value, {
+        ...(cmdOpts.reason !== undefined ? { reason: cmdOpts.reason } : {}),
+        yes: Boolean(globals.yes),
+        dryRun: Boolean(globals.dryRun),
+      });
+      process.exit(code);
+    });
+  configureCmd
+    .command('secret <name>')
+    .description(
+      "Set a repo secret through `gh secret set <name>`'s masked prompt; devaudit explains what the secret is for and never sees the value. Interactive only.",
+    )
+    .action(async (name: string, _opts: unknown, cmd: Command) => {
+      const globals = cmd.optsWithGlobals() as { dryRun?: boolean };
+      process.exit(await runConfigureSecret(name, { dryRun: Boolean(globals.dryRun) }));
     });
   program
     .command('status [path]')

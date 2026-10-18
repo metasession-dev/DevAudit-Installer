@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import type { Proposal } from '../lib/doctor-types.js';
 import type { StepResult } from '../install/types.js';
 import * as prompts from '../lib/prompt.js';
+import { loadConfigContext, planConfigChange, writeConfigValue } from './configure.js';
 import { readPendingTickets } from '../lib/release-tickets.js';
 import { addPredecessor, clearReleaseIntent, setReleaseIntent, setRtmStatus } from '../lib/ticket-edit.js';
 import {
@@ -190,6 +191,21 @@ export async function runFix(
       }
 
       switch (r.id) {
+        case 'set-config': {
+          // devaudit-installer#1040: same validation as `devaudit configure set`.
+          const key = d['key'] ?? '';
+          const value = d['value'] ?? '';
+          const ctx = await loadConfigContext(deps.repoRoot);
+          const plan = await planConfigChange(ctx, key, value, { detection: null });
+          if (plan.errors.length > 0) { out.push(mk(p, 'failed', plan.errors.join('; '))); break; }
+          if (JSON.stringify(plan.before) === JSON.stringify(plan.after)) { out.push(mk(p, 'unchanged', `${key} is already ${value}`)); break; }
+          const a = await authoriseA(p);
+          if (!a.ok) { out.push(mk(p, 'unapplied', a.why)); break; }
+          await writeConfigValue(ctx, key, plan.after);
+          const next = ['run `devaudit update` to regenerate the workflows', ...plan.followUps];
+          out.push(mk(p, 'applied', `sdlc-config.json ${key}: ${JSON.stringify(plan.before)} -> ${JSON.stringify(plan.after)}; ${next.join('; ')}`));
+          break;
+        }
         case 'mark-ticket-deferred': {
           const a = await authoriseA(p);
           if (!a.ok) { out.push(mk(p, 'unapplied', a.why)); break; }
