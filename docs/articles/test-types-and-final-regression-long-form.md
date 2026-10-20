@@ -24,7 +24,7 @@ Think of it as a funnel. Each layer is slower and wider than the one before, so 
 | **Feature (in-scope) E2E** | On pull requests into the integration branch | The specs tagged with the requirement you are changing pass in a real browser | Minutes |
 | **Smoke E2E** | On every push to the integration branch, inside the `Quality Gates` job | The app boots and the main happy path works | Minutes |
 | **Critical E2E** | On the pull request into the release branch (opt-in) | The must-not-break journeys still work before anything reaches production | 10-15 minutes |
-| **Full regression** | After a successful production deployment (opt-in) | Everything under `e2e/` still works against what was actually deployed | Up to about an hour |
+| **Full regression** | After a successful production deployment (opt-in) | Everything under `e2e/` still works, built from the exact commit that was deployed | Up to about an hour |
 
 Two more checks sit around the funnel rather than inside it. The generated `Quality Gates` job also runs a TypeScript check, a SAST scan and a dependency audit before E2E, and a build after it. After deploy, `post-deploy-prod.yml` runs an independent health probe, confirms the host's deployment reached `success` for the merged commit, and runs a read-only production smoke.
 
@@ -37,7 +37,7 @@ The obvious instinct is to run the whole suite on every pull request. On a real 
 The tiered model splits the job:
 
 - **Before merge**, run the fast layers that are cheap enough to be strict: smoke on the integration branch, critical on the release pull request. These are the "must not break" journeys, kept small on purpose so a red result means something.
-- **After deploy**, run the full regression against the deployed commit. It is deliberately the least time-pressured layer, so it is allowed to be wide. It is the safety net for whatever the critical tier let through, and it tests the real deployed artefact rather than a preview.
+- **After deploy**, run the full regression on the exact commit that was deployed. It starts its own application server on the CI runner at that commit, so it is not a test of the live site; the read-only production smoke and the independent health probe are what touch production. It is deliberately the least time-pressured layer, so it is allowed to be wide. It is the safety net for whatever the critical tier let through, and it still runs against the precise commit that shipped.
 
 The benefit is that velocity and coverage stop fighting. Developers get quick, trustworthy signal on every push, the release gets a focused gate, and the exhaustive check still happens, on the thing customers are actually using.
 

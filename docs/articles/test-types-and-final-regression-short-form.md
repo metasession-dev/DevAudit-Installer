@@ -16,9 +16,9 @@ Here is the model we use in [DevAudit](https://devaudit.ai).
 - Feature E2E on the PR: only the Playwright specs tagged to your requirement
 - Smoke E2E on every push to the integration branch
 - Critical E2E on the PR into main: the must-not-break journeys
-- Full regression after a successful production deploy, against what is actually running
+- Full regression after a successful production deploy, on the exact commit that shipped
 
-Same Playwright, bigger sets of specs. The hour-long suite never queues up behind every merge, and it still runs on the real deployment.
+Same Playwright, bigger sets of specs. The hour-long suite never queues up behind every merge, and it still runs on the commit that shipped.
 
 **A failure is a decision, never a default**
 Nothing is accepted automatically. A failed gate ends in one of three recorded outcomes:
