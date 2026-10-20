@@ -121,3 +121,51 @@ describe('test tier config keys', () => {
     expect(findConfigKey('test_tier_full')!.affects).toContain('.github/workflows/e2e-regression.yml');
   });
 });
+
+describe('test_runner pytest selects the pytest tier workflows (#1060 Phase B)', { timeout: 180_000 }, () => {
+  for (const stack of ['node', 'python'] as const) {
+    it(`${stack}: feature-e2e.yml and e2e-regression.yml run pytest through the tier script`, async () => {
+      const wf = await renderAll(stack, { test_runner: 'pytest', python_version: '3.12' });
+      for (const name of ['feature-e2e.yml', 'e2e-regression.yml']) {
+        const text = wf[name]!;
+        expect(() => yamlLoad(text), name).not.toThrow();
+        expect(text, name).toContain("python-version: '3.12'");
+        expect(text, name).toContain('run-test-tier.sh');
+        expect(text, name).not.toMatch(/playwright|setup-node|npm ci/i);
+        expect(text, name).not.toMatch(/\{\{[A-Z_]+\}\}/);
+      }
+      expect(wf['feature-e2e.yml']).toContain(`${SCRIPT} feature "$REQ_ID"`);
+      expect(wf['feature-e2e.yml']).toContain('feature-e2e-results.xml');
+      expect(wf['feature-e2e.yml']).toContain('grep -rl "$REQ_ID"');
+    });
+
+    it(`${stack}: the regression workflow keeps the names compliance-evidence.yml depends on`, async () => {
+      const reg = (await renderAll(stack, { test_runner: 'pytest' }))['e2e-regression.yml']!;
+      expect(reg).toMatch(/^name: E2E Regression$/m);
+      expect(reg).toContain('name: E2E Regression Suite');
+      expect(reg).toContain('name: e2e-regression-report');
+      expect(reg).toContain('e2e-regression-results*.xml');
+      expect(reg).toContain('e2e-regression-metadata.json');
+      expect(reg).toContain('pull_request:\n    branches: [main]');
+      expect(reg).toContain('deployment_status:');
+      expect(reg).toContain('tier=critical');
+      expect(reg).toContain('tier=full');
+    });
+  }
+
+  it('compliance-evidence.yml uploads the JUnit XML as the e2e_result only for the pytest runner', async () => {
+    const pytest = (await renderAll('python', { test_runner: 'pytest' }))['compliance-evidence.yml']!;
+    expect(pytest).toContain('e2e-artifacts/e2e-regression-results.xml');
+    expect(pytest).toMatch(/fixture-app "\$REQ" e2e_result \\\n\s+e2e-artifacts\/e2e-regression-results\.xml/);
+    for (const stack of ['node', 'python'] as const) {
+      expect((await renderAll(stack))['compliance-evidence.yml'], stack).not.toContain('e2e-regression-results.xml');
+    }
+  });
+
+  it('a python project without test_runner keeps the Node tier workflows; playwright is the same as absent', async () => {
+    const absent = await renderAll('python');
+    expect(absent['feature-e2e.yml']).toContain('setup-node');
+    expect(absent['feature-e2e.yml']).not.toContain('setup-python');
+    expect(await renderAll('python', { test_runner: 'playwright' })).toEqual(absent);
+  });
+});

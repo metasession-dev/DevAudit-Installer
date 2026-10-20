@@ -6,11 +6,13 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ### Upgrade notes
 
+- **`test_runner: pytest`** (#1060) replaces the generated `feature-e2e.yml` and `e2e-regression.yml` with pytest versions (JUnit XML as the `e2e_result`); nothing changes unless you set it. Register the `smoke` and `critical` markers in `pyproject.toml` before opting in.
 - **Postgres consumers:** if `database_env`, `build_env`, `app_env` or `e2e_env` holds a `*_URL` / `*_URI` pointing at `localhost` or `127.0.0.1`, the generated workflows now publish the postgres container on a random host port and export the mapped URL (#1054). The port inside your configured URL is no longer used. Configs without such a key regenerate unchanged.
 - **`e2e-regression.yml`** (when enabled) gains the database-URI, kill-stale-server and self-hosted cleanup steps; expect a diff in the first sync PR.
 
 ### Added
 
+- **pytest tier workflows** (#1060 Phase B) — with `test_runner: pytest`, `devaudit update` generates a pytest `feature-e2e.yml` and `e2e-regression.yml` that run the tiers through `scripts/run-test-tier.sh`, keeping the `E2E Regression` workflow, job and artifact names and the portal check labels. `compliance-evidence.yml` uploads the JUnit XML as the `e2e_result` for these projects.
 - **Test tier commands for any runner** (#1060) — new `sdlc-config.json` keys `test_tier_smoke`, `test_tier_critical`, `test_tier_full`, `test_feature_command` (with a `{REQ}` placeholder) and `test_runner` (`playwright` default, `pytest`), settable with `devaudit configure set`, and a synced `scripts/run-test-tier.sh` that runs the configured command or the runner default. Nothing changes until a key is set: the generated workflows keep their inline Playwright commands. See `docs/e2e-test-tiers.md`.
 
 ### Fixed

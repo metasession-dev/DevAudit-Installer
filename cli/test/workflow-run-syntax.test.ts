@@ -63,5 +63,12 @@ describe('generated workflow run: steps pass bash -n (#987)', () => {
       expect(Object.keys(workflows).length).toBeGreaterThan(5);
       expect(bashProblems(workflows)).toEqual([]);
     }, 120_000);
+
+    it(`${stack} with test_runner pytest: every bash run step parses with no warnings (#1060)`, async () => {
+      const workflows = await renderAll(stack, { test_runner: 'pytest' });
+      expect(workflows['feature-e2e.yml']).toContain('setup-python');
+      expect(workflows['e2e-regression.yml']).toContain('setup-python');
+      expect(bashProblems(workflows)).toEqual([]);
+    }, 120_000);
   }
 });

@@ -86,7 +86,7 @@ devaudit configure set test_tier_smoke "pytest -m smoke"
 devaudit configure set test_feature_command "pytest -k {REQ}"
 ```
 
-Each tier command is a single line of at most 500 characters; `test_feature_command` must contain `{REQ}`. Unset keys keep the runner default. See [e2e-test-tiers.md](e2e-test-tiers.md#tier-commands-for-any-test-runner-1060).
+`test_runner: pytest` also replaces the Playwright `feature-e2e.yml` and `e2e-regression.yml` with pytest ones. Each tier command is a single line of at most 500 characters; `test_feature_command` must contain `{REQ}`. Unset keys keep the runner default. See [e2e-test-tiers.md](e2e-test-tiers.md#tier-commands-for-any-test-runner-1060).
 
 ## The `devaudit-configure` skill
 
