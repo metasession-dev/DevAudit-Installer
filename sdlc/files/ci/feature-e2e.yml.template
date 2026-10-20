@@ -316,8 +316,16 @@ jobs:
           SHOTS=("${SHOT_DIR}"/*.png)
           shopt -u nullglob
           if [ "${#SHOTS[@]}" -eq 0 ]; then
-            echo "::error::No evidenceShot screenshots were captured for ${REQ_ID}."
-            exit 1
+            # devaudit-installer#1067 — a REQ whose tagged specs are all
+            # transport-layer (no Playwright `page`) has nothing to screenshot;
+            # its evidence is the JSON report and test-execution-summary.md
+            # (e2e-test-engineer skill, "Specs with no page object").
+            if bash "$GITHUB_WORKSPACE/scripts/is-transport-layer-req.sh" "$REQ_ID"; then
+              echo "::notice::No screenshots for ${REQ_ID}: every spec tagged with it is transport-layer (no page fixture), so there is nothing to capture. Evidence is the e2e JSON report and test-execution-summary.md."
+            else
+              echo "::error::No evidenceShot screenshots were captured for ${REQ_ID}."
+              exit 1
+            fi
           fi
           for shot in "${SHOTS[@]}"; do
             bash $GITHUB_WORKSPACE/scripts/upload-evidence.sh \

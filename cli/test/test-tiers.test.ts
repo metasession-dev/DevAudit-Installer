@@ -169,3 +169,20 @@ describe('test_runner pytest selects the pytest tier workflows (#1060 Phase B)',
     expect(await renderAll('python', { test_runner: 'playwright' })).toEqual(absent);
   });
 });
+
+describe('feature-e2e.yml screenshot gate (#1067)', { timeout: 180_000 }, () => {
+  it('asks is-transport-layer-req.sh before failing on a REQ with no screenshots', async () => {
+    const wf = (await renderAll('node'))['feature-e2e.yml']!;
+    const ask = wf.indexOf('scripts/is-transport-layer-req.sh" "$REQ_ID"');
+    const fail = wf.indexOf('::error::No evidenceShot screenshots were captured for ${REQ_ID}.');
+    expect(ask).toBeGreaterThan(-1);
+    expect(fail).toBeGreaterThan(ask);
+    expect(wf).toContain('::notice::No screenshots for ${REQ_ID}: every spec tagged with it is transport-layer');
+  });
+
+  it('leaves the pytest feature workflow without a screenshot gate', async () => {
+    const wf = (await renderAll('node', { test_runner: 'pytest' }))['feature-e2e.yml']!;
+    expect(wf).not.toContain('evidenceShot');
+    expect(wf).not.toContain('is-transport-layer-req');
+  });
+});

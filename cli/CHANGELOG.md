@@ -17,6 +17,7 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ### Fixed
 
+- **`feature-e2e.yml` no longer demands a screenshot for a REQ covered only by transport-layer specs** (#1067) — when no `evidenceShot` screenshots exist and every spec tagged with the REQ avoids Playwright's `page` fixture (webhook, API, socket and database specs), the upload step logs a notice instead of failing; the evidence is the JSON report and `test-execution-summary.md`. A REQ with any `page`-using spec keeps the requirement. New synced script `scripts/is-transport-layer-req.sh`.
 - **`feature-e2e.yml` now triggers on the configured `integration_branch`** (#1060) instead of a hardcoded `develop`. Projects on `develop` are unchanged.
 - **Self-hosted E2E jobs no longer inherit state from earlier jobs** (#1054) — `e2e-regression.yml` now has the "Kill stale dev server" step and, for MongoDB, the dynamic-port database URI step that `ci.yml` and `feature-e2e.yml` already had (its `localhost:27017` URI could reach another job's database). The self-hosted "Clean stale .next build output" step is now "Clean stale build and test output", also removes the previous run's result files and server log, and is present in all three E2E workflows. A postgres service gets a random host port when a local URL key is configured, so concurrent jobs cannot collide. Checkout stays `clean: false`.
 

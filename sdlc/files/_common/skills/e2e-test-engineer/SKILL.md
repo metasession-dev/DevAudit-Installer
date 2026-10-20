@@ -617,7 +617,7 @@ Discipline for transport specs:
 - If a transport spec *can* be paired with a thin UI shim that screenshots the user-visible outcome (e.g. an admin dashboard surface that shows the rejected payment as "Failed — signature mismatch"), pair them — that buys back the screenshot evidence at the surface level. Otherwise: transport spec stands alone.
 - The portal's release-detail "screenshots" panel will show zero entries for purely-transport REQs; that's correct. Reviewers cross-reference `test-execution-summary.md` instead.
 
-This is **observation**, not gate-relaxation — these specs satisfy the SDLC evidence requirement; the screenshot mechanism doesn't apply.
+This is **observation**, not gate-relaxation — these specs satisfy the SDLC evidence requirement; the screenshot mechanism doesn't apply. The generated `feature-e2e.yml` agrees: when a REQ has no screenshots it runs `scripts/is-transport-layer-req.sh`, and passes with a notice if every spec tagged `@requirement REQ-XXX` is transport-layer (none uses the `page` fixture). One tagged spec that uses `page` keeps the screenshot requirement for the whole REQ (devaudit-installer#1067).
 
 A `evidenceTrace(reqId, ac, slug, payload)` helper that writes a JSON sidecar (request/response/ledger shape) was considered as a Phase B; deferred until the portal grows a non-PNG evidence type. Today the test-execution-summary already carries the equivalent information at the table level.
 
