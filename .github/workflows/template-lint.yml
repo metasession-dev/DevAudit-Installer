@@ -121,6 +121,11 @@ jobs:
           bash sdlc/files/_common/scripts/submit-bundle-manifest.test.sh
           bash sdlc/files/_common/scripts/close-out-release.test.sh
 
+      - name: Run transport-layer REQ detection tests (devaudit-installer#1067)
+        run: |
+          chmod +x sdlc/files/_common/scripts/is-transport-layer-req.sh
+          bash sdlc/files/_common/scripts/is-transport-layer-req.test.sh
+
       - name: Run test tier script tests (devaudit-installer#1060)
         run: |
           chmod +x sdlc/files/_common/scripts/run-test-tier.sh
