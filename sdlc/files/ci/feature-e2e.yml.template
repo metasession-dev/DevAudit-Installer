@@ -166,6 +166,11 @@ jobs:
           fetch-depth: 0
           # See ci.yml.template's checkout step for why (devaudit-installer#676/#815).
           clean: {{CHECKOUT_CLEAN}}
+
+      - name: Clean stale build and test output (self-hosted only)
+        # See ci.yml.template's step of the same name (devaudit-installer#816/#1054).
+        if: {{STALE_NEXT_CLEANUP_IF}}
+        run: rm -rf .next test-results playwright-report e2e-results.json e2e-auth-results.json e2e-regression-results*.json e2e-regression-metadata.json e2e-server.log .e2e-server.pid
       - uses: actions/setup-node@v6
         with:
           node-version: {{NODE_VERSION}}

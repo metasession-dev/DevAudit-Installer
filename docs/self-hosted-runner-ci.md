@@ -123,6 +123,17 @@ storage, a valid capability declaration, and Linux inotify capacity. Native
 MongoDB, PostgreSQL, Redis, Docker, Railway, and Playwright support are explicit
 capabilities rather than hidden machine assumptions.
 
+## Job isolation
+
+Jobs on a persistent runner share the host, so the generated workflows clean up what they own and nothing more (#1054):
+
+- **Checkout stays `clean: false`** on a self-hosted label, to keep `node_modules` and the skip-install marker (#676/#815). A full clean is not used.
+- **Targeted cleanup.** `ci.yml`, `feature-e2e.yml` and `e2e-regression.yml` start with "Clean stale build and test output (self-hosted only)", which removes `.next`, `test-results`, `playwright-report`, the E2E result JSON files, `e2e-server.log` and `.e2e-server.pid`.
+- **Stale dev server.** All three E2E workflows kill whatever holds `E2E_PORT` and fail loudly if they cannot (#820).
+- **Database.** A MongoDB service, and a postgres service when a local `postgres://` URL key is configured, run on a random host port; the workflow exports the mapped URI. See [e2e-local-db-ci.md](e2e-local-db-ci.md).
+
+Outside DevAudit: the host-wide runner lock lives in the runner host's job-started hook, not in this repository. It currently gives up after its wait limit and lets the job run without the lock (fails open); the fix is a runner-host change tracked outside this repository. Until then, two jobs can overlap under load.
+
 ## Per-machine, per-repository caches
 
 Each machine owns independent caches. Nothing requires another laptop or server

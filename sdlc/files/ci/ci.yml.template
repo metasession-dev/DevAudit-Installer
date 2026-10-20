@@ -77,17 +77,20 @@ jobs:
           # cache entirely (devaudit-installer#676).
           clean: {{CHECKOUT_CLEAN}}
 
-      - name: Clean stale .next build output (self-hosted only)
+      - name: Clean stale build and test output (self-hosted only)
         # A dev-server-writing job killed mid-write (timeout, OOM,
         # cancellation) on a persistent self-hosted runner can leave `.next`
         # torn/corrupted for every subsequent run's TypeScript Check / Build
         # Check, on unrelated PRs. Companion to the `clean: {{CHECKOUT_CLEAN}}`
         # optimization above (devaudit-installer#676/#815), which
         # intentionally preserves node_modules but shouldn't preserve live
-        # scratch state (devaudit-installer#816). No-op on the ephemeral
-        # github-ci path, where nothing persists between runs anyway.
+        # scratch state (devaudit-installer#816). Also removes the previous
+        # run's result files and server log, so a run never reads another
+        # run's evidence (devaudit-installer#1054). Targeted, not a full
+        # clean: node_modules stays. No-op on the ephemeral github-ci path,
+        # where nothing persists between runs anyway.
         if: {{STALE_NEXT_CLEANUP_IF}}
-        run: rm -rf .next
+        run: rm -rf .next test-results playwright-report e2e-results.json e2e-auth-results.json e2e-regression-results*.json e2e-regression-metadata.json e2e-server.log .e2e-server.pid
 
       - name: Validate self-hosted runner prerequisites
         env:

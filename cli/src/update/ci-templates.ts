@@ -519,11 +519,16 @@ const DATABASE_DEFAULT_CONTAINER_PORT: Readonly<Record<string, string>> = {
   postgres: '5432',
 };
 
-function resolveDatabasePort(dbService: string, dbPort: string): string {
+function resolveDatabasePort(dbService: string, dbPort: string, cfg?: SdlcConfig): string {
   if (!dbPort) return dbPort;
   const port = dbPort.trim();
   const containerDefault = DATABASE_DEFAULT_CONTAINER_PORT[dbService];
   if (!containerDefault || !port || port.includes(':')) return dbPort;
+  // devaudit-installer#1054 — a fixed host port is shared state between jobs on
+  // a self-hosted host. When the config points a *_URL / *_URI at a local
+  // postgres, the URI step below re-exports it with the mapped port, so the
+  // host port can be random. Without such a key keep `<port>:5432` unchanged.
+  if (dbService === 'postgres' && cfg && postgresUriEnvEntries(cfg).length > 0) return containerDefault;
   return `${port}:${containerDefault}`;
 }
 
@@ -578,7 +583,45 @@ export function mongoUriEnvNames(cfg: SdlcConfig): readonly string[] {
   return names.size > 0 ? [...names].sort() : ['MONGODB_URI'];
 }
 
+const POSTGRES_LOCAL_URL = /^(postgres(?:ql)?:\/\/(?:[^@/\s]*@)?)(?:localhost|127\.0\.0\.1)(?::\d+)?((?:[/?].*)?)$/;
+
+/**
+ * Every `*_URL` / `*_URI` key in `database_env`, `build_env`, `app_env` or
+ * `e2e_env` whose value is a local postgres URL (`localhost` or `127.0.0.1`,
+ * with or without `user:pass@`), as `[name, prefix, suffix]` where the mapped
+ * host port goes between prefix and suffix. Values from `${{ secrets.* }}` do
+ * not match and keep the fixed port (devaudit-installer#1054).
+ */
+export function postgresUriEnvEntries(cfg: SdlcConfig): readonly (readonly [string, string, string])[] {
+  const found = new Map<string, readonly [string, string, string]>();
+  const raw = cfg as unknown as Record<string, unknown>;
+  for (const block of ['database_env', 'build_env', 'app_env', 'e2e_env']) {
+    const env = raw[block];
+    if (!env || typeof env !== 'object') continue;
+    for (const [key, value] of Object.entries(env as Record<string, unknown>)) {
+      if (!/^[A-Z][A-Z0-9_]*_(URL|URI)$/.test(key) || typeof value !== 'string') continue;
+      const m = POSTGRES_LOCAL_URL.exec(value);
+      if (m) found.set(key, [key, m[1]!, m[2]!]);
+    }
+  }
+  return [...found.values()].sort((a, b) => a[0].localeCompare(b[0]));
+}
+
 function buildDbUriStep(dbService: string, dbPort: string, cfg: SdlcConfig): string {
+  if (dbService === 'postgres') {
+    const entries = postgresUriEnvEntries(cfg);
+    if (entries.length === 0) return '';
+    return [
+      '      - name: Set database URI from dynamic port',
+      '        run: |',
+      `          DB_PORT="\${{ job.services.postgres.ports['5432'] }}"`,
+      ...entries.map(
+        ([name, prefix, suffix]) =>
+          `          echo "${name}=${shellDoubleQuoteSafe(prefix)}localhost:\${DB_PORT}${shellDoubleQuoteSafe(suffix)}" >> "$GITHUB_ENV"`,
+      ),
+      '          echo "Database on port: ${DB_PORT}"',
+    ].join('\n');
+  }
   if (dbService !== 'mongodb') return '';
   return [
     '      - name: Set database URI from dynamic port',
@@ -892,7 +935,7 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
       ACCEPTED_DEP_RISKS: cfg.accepted_dep_risks,
       DATABASE_SERVICE: cfg.database_service,
       DATABASE_IMAGE: cfg.database_image,
-      DATABASE_PORT: resolveDatabasePort(cfg.database_service, cfg.database_port),
+      DATABASE_PORT: resolveDatabasePort(cfg.database_service, cfg.database_port, cfg),
       E2E_PROJECT: cfg.e2e_project,
       E2E_START_COMMAND: cfg.e2e_start_command,
       E2E_REGRESSION_TIMEOUT_MINUTES: String(cfg.e2e_regression_timeout_minutes ?? 55),
