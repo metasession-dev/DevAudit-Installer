@@ -358,6 +358,7 @@ jobs:
             rm -f /tmp/devaudit-extract-e2e-reqs.py
           fi
 
+{{E2E_XML_REQ_FALLBACK}}
           if [ "${#REQS[@]}" -eq 1 ] && echo "$DERIVED_RELEASE" | grep -qE '^v[0-9]{4}\.[0-9]{2}\.[0-9]{2}([.][0-9]+)?$'; then
             echo "E2E upload recovered tracked release ${REQS[0]} from artifact metadata; overriding bare-date release ${DERIVED_RELEASE}."
             DERIVED_RELEASE="${REQS[0]}"
@@ -463,6 +464,7 @@ jobs:
                 REQ_FAILURES=$((REQ_FAILURES + 1))
               fi
             fi
+{{E2E_XML_RESULT_UPLOAD}}
             # 2. The bounded execution metadata makes a timeout distinct
             # from an ordinary failed workflow on the portal.
             if [ -f e2e-artifacts/e2e-regression-metadata.json ]; then

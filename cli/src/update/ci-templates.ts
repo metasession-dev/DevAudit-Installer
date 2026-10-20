@@ -7,6 +7,9 @@ import { loadHostAdapter } from '../lib/adapter.js';
 import { writeManaged, removeManaged } from './write-managed.js';
 import type { SyncContext, SectionResult } from './types.js';
 
+/** Templates that have a `test_runner: pytest` variant under sdlc/files/ci/runners/pytest/ (#1060). */
+const PYTEST_RUNNER_TEMPLATES: ReadonlySet<string> = new Set(['feature-e2e.yml.template', 'e2e-regression.yml.template']);
+
 const CI_TEMPLATES = [
   'ci.yml.template',
   'ci-status-fallback.yml.template',
@@ -300,6 +303,47 @@ function buildE2eRegressionTierCommand(cfg: SdlcConfig): string {
 }
 
 /**
+ * pytest runner only (devaudit-installer#1060): compliance-evidence.yml reads
+ * the regression run's JUnit XML when there is no Playwright JSON. Empty for
+ * every other config, so those workflows regenerate unchanged.
+ */
+function buildE2eXmlReqFallback(cfg: SdlcConfig): string {
+  if (cfg.test_runner !== 'pytest') return '';
+  return [
+    '          if [ "${#REQS[@]}" -eq 0 ] && [ -f e2e-artifacts/e2e-regression-results.xml ]; then',
+    '            while IFS= read -r REQ_ID; do',
+    '              [ -n "$REQ_ID" ] || continue',
+    '              REQS+=("$REQ_ID")',
+    "            done < <(grep -oE 'REQ-[0-9]+' e2e-artifacts/e2e-regression-results.xml | sort -u || true)",
+    '          fi',
+    '',
+  ].join('\n');
+}
+
+function buildE2eXmlResultUpload(cfg: SdlcConfig): string {
+  if (cfg.test_runner !== 'pytest') return '';
+  return [
+    '            # 1b. pytest runner: the JUnit XML is the e2e_result when there is no',
+    '            # Playwright JSON (devaudit-installer#1060).',
+    '            if [ ! -f e2e-artifacts/e2e-regression-results.json ] && [ -f e2e-artifacts/e2e-regression-results.xml ]; then',
+    '              if bash scripts/upload-evidence.sh \\',
+    `                ${cfg.project_slug} "$REQ" e2e_result \\`,
+    '                e2e-artifacts/e2e-regression-results.xml \\',
+    '                --category e2e_result ${FLAGS} --release "${DERIVED_RELEASE}" \\',
+    '                "${LINEAGE_FLAGS[@]}" \\',
+    '                --meta-key "tier=${TIER}"',
+    '              then',
+    '                :',
+    '              else',
+    '                echo "::warning::e2e_result upload failed for ${REQ}"',
+    '                UPLOAD_FAILURES=$((UPLOAD_FAILURES + 1))',
+    '                REQ_FAILURES=$((REQ_FAILURES + 1))',
+    '              fi',
+    '            fi',
+  ].join('\n');
+}
+
+/**
  * Build the blocking "E2E Tests" step. Rebuilt in code so e2e_env can be threaded
  * onto the Playwright process (specs read it to reach the local stack directly).
  * With no e2e_env the output is identical to the previous inline step, comment
@@ -452,6 +496,19 @@ function buildE2eRegressionConcurrency(cfg: SdlcConfig): string {
  */
 function buildFeatureE2eTestStep(cfg: SdlcConfig): string {
   const env = cfg.e2e_env ?? {};
+  if (cfg.test_runner === 'pytest') {
+    // The pytest feature-e2e.yml uploads this JUnit XML as the e2e_result.
+    const pytestLines = [
+      '      - name: Run in-scope E2E',
+      '        env:',
+      '          TEST_JUNIT_XML: ${{ github.workspace }}/feature-e2e-results.xml',
+    ];
+    if (Object.keys(env).length > 0) pytestLines.push(indentEnvBlock({ ...env }, 10));
+    pytestLines.push('        run: |');
+    pytestLines.push('          REQ_ID="${{ needs.detect-req.outputs.req_id }}"');
+    pytestLines.push(`          ${TIER_SCRIPT} feature "$REQ_ID"`);
+    return pytestLines.join('\n');
+  }
   const lines = [
     '      - name: Run in-scope E2E',
     '        env:',
@@ -964,6 +1021,8 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
       RELEASE_BRANCH: cfg.release_branch ?? 'main',
       NODE_VERSION: String(cfg.node_version ?? ''),
       PYTHON_VERSION: String(cfg.python_version ?? ''),
+      // pytest runner workflows (devaudit-installer#1060): any python 3 when none is configured.
+      PYTEST_PYTHON_VERSION: String(cfg.python_version || '3.x'),
       WORKING_DIRECTORY: workingDirectory || '.',
       WORKING_DIR_PREFIX: workingDirPrefix,
       RUNNER: resolveRunner(cfg),
@@ -1063,6 +1122,8 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
       E2E_REGRESSION_JOB_ENV: buildE2eRegressionJobEnv(cfg),
       E2E_REGRESSION_CONCURRENCY: buildE2eRegressionConcurrency(cfg),
       E2E_REGRESSION_SERVER_STEP: buildE2eRegressionServerStep(cfg),
+      E2E_XML_REQ_FALLBACK: buildE2eXmlReqFallback(cfg),
+      E2E_XML_RESULT_UPLOAD: buildE2eXmlResultUpload(cfg),
     };
 
     for (const tmpl of CI_TEMPLATES) {
@@ -1071,8 +1132,13 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
       if (tmpl === 'deploy-custom.yml.template' && deployWorkflow !== tmpl) continue;
       const stackTmpl = join(ctx.installerRoot, 'sdlc', 'files', 'ci', stack, tmpl);
       const defaultTmpl = join(ctx.installerRoot, 'sdlc', 'files', 'ci', tmpl);
+      // devaudit-installer#1060 — the pytest runner has its own tier workflows. They sit
+      // outside the per-stack lookup so a python project is unchanged until it opts in.
+      const runnerTmpl = join(ctx.installerRoot, 'sdlc', 'files', 'ci', 'runners', 'pytest', tmpl);
       let tmplPath: string;
-      if (await exists(stackTmpl)) {
+      if (cfg.test_runner === 'pytest' && PYTEST_RUNNER_TEMPLATES.has(tmpl) && (await exists(runnerTmpl))) {
+        tmplPath = runnerTmpl;
+      } else if (await exists(stackTmpl)) {
         tmplPath = stackTmpl;
       } else if (await exists(defaultTmpl)) {
         tmplPath = defaultTmpl;

@@ -52,7 +52,15 @@ Each tier is a single-line shell command in `sdlc-config.json`, run from `workin
 | `test_feature_command` | the in-scope run in `feature-e2e.yml`; `{REQ}` is replaced with the id | `npx playwright test --grep <REQ>` |
 | `test_runner` | which defaults the script uses: `playwright` or `pytest` | `playwright` |
 
-With `test_runner: pytest` the script defaults to `pytest -m smoke`, `pytest -m "smoke or critical"`, `pytest` and `pytest -k <REQ>`, each writing JUnit XML to `$TEST_JUNIT_XML` (default `junit.xml`). A tier key always wins over the runner default, so `test_tier_smoke: "npx vitest run --project smoke"` works for Jest or Vitest. The generated workflows for pytest (and a Python stack without Playwright) are a later phase of #1060; today these keys change the commands the existing Playwright workflows run.
+With `test_runner: pytest` the script defaults to `pytest -m smoke`, `pytest -m "smoke or critical"`, `pytest` and `pytest -k <REQ>`, each writing JUnit XML to `$TEST_JUNIT_XML` (default `junit.xml`). A tier key always wins over the runner default, so `test_tier_smoke: "npx vitest run --project smoke"` works for Jest or Vitest. ### pytest tier workflows (`test_runner: pytest`)
+
+Setting `test_runner` to `pytest` makes `devaudit update` generate pytest versions of `feature-e2e.yml` and (when `e2e_regression_enabled`) `e2e-regression.yml` instead of the Playwright ones, whatever the stack. They set up Python (`python_version`, else any 3.x), install the project (`pip install -e ".[dev]"` or `requirements.txt`, plus `pytest`), apply `database_*`, `e2e_env` and `e2e_setup_command` as before, and run the tier through `scripts/run-test-tier.sh`. The JUnit XML is the `e2e_result`; there is no dev server, screenshot or HTML report.
+
+- **Names and labels are unchanged.** The workflow is still `E2E Regression`, the job `E2E Regression Suite` and the artifact `e2e-regression-report`, so the portal shows the same `E2E Critical (pre-merge)` and `E2E Regression (post-deploy production)` checks and the same triage rules apply.
+- **Triggers:** critical on a PR into the release branch, the full tier after a successful production deployment or on manual dispatch (`specs` is passed to `pytest`); `feature-e2e.yml` runs the tests whose files under `tests/` mention the branch's `REQ-XXX`.
+- **Markers:** register `smoke` and `critical` in `pyproject.toml` (`[tool.pytest.ini_options] markers = [...]`) and tag tests with them; tag requirements by putting `REQ-XXX` in the test name, a marker or the docstring.
+- **A custom tier command must write JUnit XML to `$TEST_JUNIT_XML`**, or the evidence upload fails.
+- A Python project without `test_runner: pytest` keeps the existing workflows.
 
 A project that sets none of these keys regenerates the same inline Playwright commands as before. Setting `test_tier_critical` or `test_tier_full` replaces only the unscoped command of the regression step; the `e2e/ci-reliability/regression-run.sh` hook, the `workflow_dispatch` spec filter, the 40-minute timeout and the outcome handling stay as they were.
 
