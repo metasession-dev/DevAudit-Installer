@@ -27,6 +27,8 @@ on:
       - 'scripts/action-runtime-contract.test.sh'
       - 'scripts/check-recovery-workflow.test.sh'
       - 'scripts/auto-merge-workflow.test.sh'
+      - 'scripts/verify-auto-merge-checks.sh'
+      - 'scripts/verify-auto-merge-checks.test.sh'
       - '.github/workflows/auto-merge.yml'
       - 'scripts/lint-shell-failure-modes.sh'
       - 'scripts/lint-shell-failure-modes.test.sh'
@@ -50,6 +52,8 @@ on:
       - 'scripts/action-runtime-contract.test.sh'
       - 'scripts/check-recovery-workflow.test.sh'
       - 'scripts/auto-merge-workflow.test.sh'
+      - 'scripts/verify-auto-merge-checks.sh'
+      - 'scripts/verify-auto-merge-checks.test.sh'
       - '.github/workflows/auto-merge.yml'
       - 'scripts/lint-shell-failure-modes.sh'
       - 'scripts/lint-shell-failure-modes.test.sh'
@@ -160,6 +164,7 @@ jobs:
           bash scripts/action-runtime-contract.test.sh
           bash scripts/check-recovery-workflow.test.sh
           bash scripts/auto-merge-workflow.test.sh
+          bash scripts/verify-auto-merge-checks.test.sh
           bash scripts/runner-host/runner-host.test.sh
           bash scripts/lint-shell-failure-modes.test.sh
           bash scripts/release-validation.test.sh

@@ -6,7 +6,18 @@ REPOSITORY="${1:?repository is required}"
 BRANCH="${2:?target branch is required}"
 SHA="${3:?head SHA is required}"
 
-PROTECTION="$(gh api "/repos/${REPOSITORY}/branches/${BRANCH}/protection/required_status_checks" 2>/dev/null || true)"
+# The branch endpoint lists the required checks for any token that can read the
+# repository. The classic protection endpoint needs admin rights and answers 404
+# to the workflow token, which used to make every PR fail closed (#1064); it is
+# kept as a fallback. `gh api` prints an error body to stdout on failure, so
+# only a successful call counts.
+PROTECTION=""
+if BRANCH_JSON="$(gh api "/repos/${REPOSITORY}/branches/${BRANCH}" 2>/dev/null)"; then
+  PROTECTION="$(jq -c '.protection.required_status_checks // empty' <<<"$BRANCH_JSON" 2>/dev/null || true)"
+fi
+if [ -z "$PROTECTION" ] && LEGACY_JSON="$(gh api "/repos/${REPOSITORY}/branches/${BRANCH}/protection/required_status_checks" 2>/dev/null)"; then
+  PROTECTION="$LEGACY_JSON"
+fi
 if [ -z "$PROTECTION" ]; then
   echo "::error::Unable to resolve required checks for ${BRANCH}; refusing auto-merge."
   exit 1
