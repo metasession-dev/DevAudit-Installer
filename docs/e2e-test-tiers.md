@@ -130,6 +130,33 @@ projects: [
 
 The documented layout and the generated workflows assume specs live under `e2e/`. A Playwright `testMatch` glob such as `e2e/**/*.spec.ts` also matches `tests/e2e/playwright/...`, because the pattern is not anchored to the repo root. If you keep a second suite under `tests/e2e/`, set `testDir` explicitly and either anchor the pattern or add a `testIgnore` for the other tree, then check with `npx playwright test --list` that only the specs you expect are picked up.
 
+## Choosing the release gate (#1059)
+
+By default the full regression runs only **after** the production deploy, so a failure in the full pack surfaces once production is live. Best practice is to test the release candidate before it ships and keep the post-deploy run as a safety net. The trade-off is time (the full pack can take about an hour) and long-run flakiness, so the choice is per project:
+
+| Key | Values | Default (today's behaviour) |
+| --- | --- | --- |
+| `release_gate_tier` | `none`, `smoke`, `critical`, `full`: the tier that runs on the PR into the release branch | `critical` when `e2e_regression_enabled` |
+| `post_deploy_full_regression` | `true`, `false`: run the full regression after a successful production deployment | `true` |
+| `scheduled_full_regression` | a five-field cron expression, or empty | off |
+
+Recommended combinations:
+
+- **Strictest:** `release_gate_tier: full` and `post_deploy_full_regression: false`. The release candidate is fully tested before merge and the same commit is not tested twice. Slowest.
+- **Earlier signal:** keep `critical`, add `scheduled_full_regression: "0 3 * * *"` (nightly) and leave the post-deploy run on. Today's behaviour plus an early warning.
+- **No E2E suite yet:** `smoke` or `none`.
+
+Set them with `devaudit configure set release_gate_tier full` (validated; `--dry-run` shows the regenerated workflows). They need `e2e_regression_enabled`; with the workflow disabled they have no effect. With none of the three set nothing changes, and `devaudit update` never changes the gate on its own.
+
+What the keys change in the generated workflows:
+
+- `e2e-regression.yml` triggers: the pull request into the release branch (unless `none`), the post-deploy run (unless switched off) and the schedule; manual dispatch is always available. The run records the tier it executed in `e2e-regression-metadata.json`.
+- `compliance-evidence.yml` reads that tier. The portal checks keep stable, distinct labels: `E2E Smoke (pre-merge)`, `E2E Critical (pre-merge)`, `E2E Full (pre-merge)` (all required) and `E2E Regression (post-deploy production)` (not required). For a project that configured `release_gate_tier` it also reports one run-level check, `e2e-release-gate`, labelled `E2E Release Gate (<tier>)`, with the tier and the head SHA in its details; the same key is reused on every re-run so a later success supersedes an earlier failure.
+- `check-release-approval.yml` sends the configured tier to the portal as `releaseGateTier` on the release PR (only when configured), so the portal can require the gate before approval. An older portal ignores the field; **deploy the portal first**.
+- A **scheduled run is not release evidence.** It runs on the integration branch, is never uploaded to the portal and can neither attach to a release nor raise a triage blocker. A failed scheduled run opens (or comments on) one `bug` issue titled `[scheduled regression] Full E2E failing on <integration branch>`.
+
+The fix, accept or defer rules in [When a tier fails](#when-a-tier-fails-fix-or-accept-devaudit-installer1016) apply unchanged, now to whichever tier runs on the release PR. `E2E Regression Suite` stays a reviewer-verified check, not a GitHub branch-protection context.
+
 ## When a tier fails: fix or accept (devaudit-installer#1016)
 
 A failing **required** check on the release PR (E2E first, then the dependency audit and the other required gates) blocks the release until it is **fixed or accepted with a documented exception**. Nothing at any tier is accepted automatically.

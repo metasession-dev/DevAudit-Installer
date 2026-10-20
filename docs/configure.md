@@ -78,6 +78,17 @@ devaudit configure set runner ubuntu-latest
 
 `runner: self-hosted` means "choose at run time from the `CI_RUNNER_LABEL` variable"; `doctor`'s `ci-runner` check tells you whether a runner with that label is registered.
 
+**Release gate (which E2E tier must pass before merge to the release branch):**
+
+```bash
+devaudit configure set release_gate_tier full --dry-run
+devaudit configure set release_gate_tier full
+devaudit configure set post_deploy_full_regression false
+devaudit configure set scheduled_full_regression "0 3 * * *"
+```
+
+All three need `e2e_regression_enabled`. See [e2e-test-tiers.md](e2e-test-tiers.md#choosing-the-release-gate-1059) for the trade-offs and the recommended combinations.
+
 **Test tier commands (any runner):**
 
 ```bash

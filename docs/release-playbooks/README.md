@@ -192,7 +192,7 @@ configured required checks. The standard set is:
 - `Release Scope Integrity`
 - `Compliance Validation`
 - `DevAudit Release Approval`
-- `E2E Regression Suite`
+- `E2E Regression Suite` (the tier set by `release_gate_tier`: `critical` unless the project configured another; see [e2e-test-tiers.md](../e2e-test-tiers.md#choosing-the-release-gate-1059))
 
 Only `Quality Gates` is a GitHub-native, hard-blocking branch-protection
 required status check — deliberately, not by oversight. It is the only one of
