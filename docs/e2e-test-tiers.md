@@ -29,6 +29,35 @@ The broader three-tier pattern is documented and available as a reference workfl
 - [`docs/e2e-local-db-ci.md`](./e2e-local-db-ci.md) for safe local/disposable backends in CI
 - [`sdlc/files/_common/skills/e2e-test-engineer/references/e2e-regression-3-tier.yml`](../sdlc/files/_common/skills/e2e-test-engineer/references/e2e-regression-3-tier.yml) for the optional smoke/critical/regression split
 
+## Tier commands for any test runner (#1060)
+
+Tiers are about speed and risk; scope is about what changed. They are separate axes, and the same names apply to every runner so each tier keeps one portal label and one set of triage rules.
+
+| Axis | Name | Meaning |
+| --- | --- | --- |
+| Tier | `smoke` | Minutes. The app starts and the core path works |
+| Tier | `critical` | Smoke plus the must-not-break journeys or endpoints (optional: without one, the release gate falls back to smoke) |
+| Tier | `full` | Everything in the integration/E2E suite (the Playwright `regression` project) |
+| Scope | `feature` | Only tests tagged with the branch's requirement (`[REQ-XXX]`) |
+
+Unit tests are not tiered: run the whole unit suite on every PR and locally. Tiering applies to slower suites (E2E, API, integration, contract).
+
+Each tier is a single-line shell command in `sdlc-config.json`, run from `working_directory` by the synced `scripts/run-test-tier.sh`:
+
+| Key | Runs | Unset default (`test_runner: playwright`) |
+| --- | --- | --- |
+| `test_tier_smoke` | the smoke gate in `ci.yml` | `npx playwright test --project=<e2e_project>` |
+| `test_tier_critical` | the critical tier in `e2e-regression.yml` | the `critical` Playwright project, or `smoke` when none is defined |
+| `test_tier_full` | the full tier in `e2e-regression.yml` | the `regression` Playwright project |
+| `test_feature_command` | the in-scope run in `feature-e2e.yml`; `{REQ}` is replaced with the id | `npx playwright test --grep <REQ>` |
+| `test_runner` | which defaults the script uses: `playwright` or `pytest` | `playwright` |
+
+With `test_runner: pytest` the script defaults to `pytest -m smoke`, `pytest -m "smoke or critical"`, `pytest` and `pytest -k <REQ>`, each writing JUnit XML to `$TEST_JUNIT_XML` (default `junit.xml`). A tier key always wins over the runner default, so `test_tier_smoke: "npx vitest run --project smoke"` works for Jest or Vitest. The generated workflows for pytest (and a Python stack without Playwright) are a later phase of #1060; today these keys change the commands the existing Playwright workflows run.
+
+A project that sets none of these keys regenerates the same inline Playwright commands as before. Setting `test_tier_critical` or `test_tier_full` replaces only the unscoped command of the regression step; the `e2e/ci-reliability/regression-run.sh` hook, the `workflow_dispatch` spec filter, the 40-minute timeout and the outcome handling stay as they were.
+
+Set them with `devaudit configure set test_tier_smoke "<command>"` (`--dry-run` shows the regenerated workflows).
+
 ## Opting into the 3-tier regression gate
 
 Most projects don't need this — the blocking smoke gate above is mandatory and on by default. This is an opt-in stronger safety net (a full pack that runs at ~55 minutes), for projects that want pre-merge `critical` protection and/or a post-deploy `regression` sweep on top of smoke.

@@ -50,9 +50,25 @@ const nonNegative = (value: unknown): string | null =>
 const positive = (value: unknown): string | null =>
   typeof value === 'number' && value > 0 ? null : 'must be greater than 0';
 
+/** One shell command for a test tier: single line, at most 500 characters. */
+const shellCommand = (value: unknown): string | null => {
+  if (typeof value !== 'string' || value.trim() === '') return 'must not be empty';
+  if (/[\r\n]/.test(value)) return 'must be a single line';
+  if (value.length > 500) return 'must be at most 500 characters';
+  return null;
+};
+
+const featureCommand = (value: unknown): string | null =>
+  shellCommand(value) ?? (String(value).includes('{REQ}') ? null : 'must contain the {REQ} placeholder');
+
 const ALL_WORKFLOWS = ['.github/workflows/*.yml'];
 const CI = ['.github/workflows/ci.yml'];
 const E2E = ['.github/workflows/ci.yml', '.github/workflows/e2e-regression.yml'];
+const TIERS = [
+  '.github/workflows/ci.yml',
+  '.github/workflows/feature-e2e.yml',
+  '.github/workflows/e2e-regression.yml',
+];
 
 export const CONFIG_KEYS: readonly ConfigKeySpec[] = [
   {
@@ -178,6 +194,41 @@ export const CONFIG_KEYS: readonly ConfigKeySpec[] = [
     type: 'boolean',
     description: 'cancel-in-progress for the fixed e2e concurrency group (default false).',
     affects: ['.github/workflows/e2e-regression.yml'],
+  },
+  {
+    key: 'test_tier_smoke',
+    type: 'string',
+    description: 'Command for the smoke tier, run from the working directory. Unset runs the Playwright project in e2e_project (pytest -m smoke for test_runner pytest).',
+    validate: shellCommand,
+    affects: TIERS,
+  },
+  {
+    key: 'test_tier_critical',
+    type: 'string',
+    description: 'Command for the critical tier (smoke plus must-not-break journeys). Unset runs the critical Playwright project, falling back to smoke.',
+    validate: shellCommand,
+    affects: TIERS,
+  },
+  {
+    key: 'test_tier_full',
+    type: 'string',
+    description: 'Command for the full tier (everything in the integration/E2E suite). Unset runs the regression Playwright project.',
+    validate: shellCommand,
+    affects: TIERS,
+  },
+  {
+    key: 'test_feature_command',
+    type: 'string',
+    description: 'Command for the feature scope (tests tagged with the branch requirement); {REQ} is replaced with the id. Unset greps Playwright specs for the id.',
+    validate: featureCommand,
+    affects: ['.github/workflows/feature-e2e.yml'],
+  },
+  {
+    key: 'test_runner',
+    type: 'string',
+    description: 'Runner the tier defaults come from: playwright (default) or pytest.',
+    enum: ['playwright', 'pytest'],
+    affects: TIERS,
   },
   { key: 'paths_ignore', type: 'string[]', description: 'Paths that do not trigger CI on push.', affects: CI },
 ];

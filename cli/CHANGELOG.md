@@ -9,8 +9,13 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 - **Postgres consumers:** if `database_env`, `build_env`, `app_env` or `e2e_env` holds a `*_URL` / `*_URI` pointing at `localhost` or `127.0.0.1`, the generated workflows now publish the postgres container on a random host port and export the mapped URL (#1054). The port inside your configured URL is no longer used. Configs without such a key regenerate unchanged.
 - **`e2e-regression.yml`** (when enabled) gains the database-URI, kill-stale-server and self-hosted cleanup steps; expect a diff in the first sync PR.
 
+### Added
+
+- **Test tier commands for any runner** (#1060) — new `sdlc-config.json` keys `test_tier_smoke`, `test_tier_critical`, `test_tier_full`, `test_feature_command` (with a `{REQ}` placeholder) and `test_runner` (`playwright` default, `pytest`), settable with `devaudit configure set`, and a synced `scripts/run-test-tier.sh` that runs the configured command or the runner default. Nothing changes until a key is set: the generated workflows keep their inline Playwright commands. See `docs/e2e-test-tiers.md`.
+
 ### Fixed
 
+- **`feature-e2e.yml` now triggers on the configured `integration_branch`** (#1060) instead of a hardcoded `develop`. Projects on `develop` are unchanged.
 - **Self-hosted E2E jobs no longer inherit state from earlier jobs** (#1054) — `e2e-regression.yml` now has the "Kill stale dev server" step and, for MongoDB, the dynamic-port database URI step that `ci.yml` and `feature-e2e.yml` already had (its `localhost:27017` URI could reach another job's database). The self-hosted "Clean stale .next build output" step is now "Clean stale build and test output", also removes the previous run's result files and server log, and is present in all three E2E workflows. A postgres service gets a random host port when a local URL key is configured, so concurrent jobs cannot collide. Checkout stays `clean: false`.
 
 ## [1.9.0] — 2026-10-18

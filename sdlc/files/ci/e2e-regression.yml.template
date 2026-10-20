@@ -255,7 +255,7 @@ jobs:
             STATUS=$?
           else
             echo "::notice::Running project=$PROJECT"
-            timeout --signal=TERM --kill-after=60s 40m npx playwright test --project="$PROJECT" --reporter=json,html
+            timeout --signal=TERM --kill-after=60s 40m {{E2E_REGRESSION_TIER_COMMAND}}
             STATUS=$?
           fi
           if [ "$STATUS" -eq 124 ]; then
