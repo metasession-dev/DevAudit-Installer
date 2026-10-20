@@ -150,6 +150,7 @@ Before the broader thought-leadership and workflow series begins, the **first pu
 | 36                                          | MOFU   | CISO + Compliance Officer   | From Incident to Risk Register: The Closed-Loop Compliance Flow                                                   | Process deep-dive (1800w)            |
 | 37                                          | MOFU   | CISO                        | Fail-Closed: Security Design in the Release Gate — Preventing Shadow Approvals                                    | Security deep-dive (1500w)           |
 | 38                                          | MOFU   | Lead Developer              | The LAST/NEXT Status Sticky: Workflow Navigability for Distributed Teams                                          | UX pattern guide (1500w)             |
+| 39                                          | MOFU   | CTO + Lead Developer        | Six Kinds of Tests, One Safety Net: What Runs When, and What Happens When the Last Gate Fails                     | Technical explainer (~1400w) + short-form|
 
 ---
 
@@ -832,6 +833,24 @@ This is a five-part series that follows a single feature from GitHub issue to pr
 
 ---
 
+#### Article 39: Six Kinds of Tests, One Safety Net
+
+> **Publication note:** Added after launch (devaudit-installer#1055) in response to a recurring question: which tests can stop a release, and what happens when the last one fails.
+
+**Primary persona:** CTO + Lead Developer
+**Goal:** Explain the test layers (commit checks, unit, feature E2E, smoke, critical, full regression, production smoke), when each runs and why the full regression runs after deploy, then show how a failure becomes a recorded fix, accepted exception or deferral that the SDLC enforces.
+**Key points:**
+
+- Same Playwright, progressively larger spec sets: `e2e/smoke/` on every integration push, `e2e/critical/` on the PR to the release branch (opt-in), full regression after a successful production deployment (opt-in)
+- Only `Quality Gates` is a GitHub-required check by design (#264/#270/#432); the portal's `execution_triage_missing` blocker and the agent's `[Blocked]` stop are what hold a release with an unresolved E2E failure
+- The auto-filed `bug, priority:high` issue comes from the post-deploy regression only; it is a prompt to triage and nothing at any tier is accepted automatically
+- Three recorded outcomes: fix (`retry_passed`), accept (`accepted_exception` with record, tracking issue and review date), defer (`Release intent: deferred-to-next`, promotion gate on absorbed predecessors)
+  **DevAudit hook:** `e2e-regression.yml.template`, `sdlc-implementer` step 5a, `report-test-execution.sh resolve`, `devaudit doctor` `accepted-exceptions`.
+  **CTA:** "See the E2E tier model → [docs/e2e-test-tiers.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/e2e-test-tiers.md)"
+  **Cross-links:** [docs/e2e-test-tiers.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/e2e-test-tiers.md) · [docs/release-playbooks/](https://github.com/metasession-dev/DevAudit-Installer/tree/main/docs/release-playbooks) · [Long-form](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/articles/test-types-and-final-regression-long-form.md)
+
+---
+
 ## Publishing cadence
 
 The first four weeks publish **one article per week** to give each piece room to breathe, allow distribution and discussion, learn which positioning resonates, and build trust before increasing cadence. The EU AI Act article (#1) is deferred to W10 pending legal review of its regulatory framing; it was retitled in 2026-08 to reflect the Digital Omnibus deferral of the high-risk deadline to December 2027 (see Article 1 brief).
@@ -1171,6 +1190,18 @@ Each companion post follows this structure:
 **Insight:** `dual_actor` vs `auto_low_risk` vs `solo_with_gap` — each has specific compliance implications. AI involvement raises risk by one level. `periodic-review.yml.template` auto-generates review issues on a configurable cadence for ongoing compliance, not just release-time.
 **Proof point:** `sdlc-config.json` is committed to Git — reviewable in PR diffs, not hidden in a settings UI. Every config decision has an audit trail.
 **CTA:** "Full configuration guide → devaudit.ai/blog/configuring-risk-appetite"
+
+---
+
+#### #39s: Your Last Test Should Run After You Deploy
+
+**Long-form parent:** Article 39 — Six Kinds of Tests, One Safety Net
+**Platform:** LinkedIn, Dev.to
+**Hook:** "Most teams can't answer two questions on release day: which test is allowed to stop a release, and what happens when one fails?"
+**Insight:** Cheap checks first, wide checks last: commit checks, unit, feature E2E, smoke, critical, then the full regression after deploy against what is actually running. A failure is never accepted by default; it ends as a fix, a documented exception with a review date, or a tracked deferral.
+**Proof point:** The portal will not approve a release while a failed run has no recorded resolution, the test summary cannot read PASS with an open failure, and `devaudit doctor` flags stale exceptions.
+**CTA:** "Read the full article → devaudit.ai/blog/test-types-and-final-regression"
+**Source draft:** [short-form](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/articles/test-types-and-final-regression-short-form.md) · hero image `images/test-types-and-final-regression-hero.png`
 
 ---
 
