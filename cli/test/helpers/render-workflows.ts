@@ -9,7 +9,10 @@ import { syncProject } from '../../src/update/index.js';
  * syntax test (#987) and the behavioural gate test (#941). The caller sets
  * DEVAUDIT_INSTALLER_ROOT.
  */
-export async function renderAll(stack: 'node' | 'python'): Promise<Record<string, string>> {
+export async function renderAll(
+  stack: 'node' | 'python',
+  extraConfig: Record<string, unknown> = {},
+): Promise<Record<string, string>> {
   const dir = await fs.mkdtemp(join(tmpdir(), `cli-runsyntax-${stack}-`));
   try {
     await fs.writeFile(
@@ -33,6 +36,7 @@ export async function renderAll(stack: 'node' | 'python'): Promise<Record<string
         e2e_start_command: 'npm run dev',
         e2e_regression_enabled: true,
         paths_ignore: ['SDLC/**', 'compliance/**'],
+        ...extraConfig,
       }),
     );
     if (stack === 'node') {

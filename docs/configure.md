@@ -78,6 +78,16 @@ devaudit configure set runner ubuntu-latest
 
 `runner: self-hosted` means "choose at run time from the `CI_RUNNER_LABEL` variable"; `doctor`'s `ci-runner` check tells you whether a runner with that label is registered.
 
+**Test tier commands (any runner):**
+
+```bash
+devaudit configure set test_runner pytest
+devaudit configure set test_tier_smoke "pytest -m smoke"
+devaudit configure set test_feature_command "pytest -k {REQ}"
+```
+
+Each tier command is a single line of at most 500 characters; `test_feature_command` must contain `{REQ}`. Unset keys keep the runner default. See [e2e-test-tiers.md](e2e-test-tiers.md#tier-commands-for-any-test-runner-1060).
+
 ## The `devaudit-configure` skill
 
 In Claude Code, the [`devaudit-configure`](../sdlc/files/_common/skills/devaudit-configure/SKILL.md) skill (synced into every consumer's `.claude/skills/`) holds the conversation around these commands. Trigger it with phrases like "configure devaudit", "we deploy on Vercel, not Railway", "doctor says the host is wrong", "our prod is behind Vercel protection", "we deploy to AWS", or "change the CI runner".

@@ -134,6 +134,14 @@ interface SdlcConfig {
   readonly e2e_concurrency_group?: string;
   // Only meaningful with e2e_concurrency_group; defaults to false there.
   readonly e2e_concurrency_cancel_in_progress?: boolean;
+  // devaudit-installer#1060 — test tier commands. When none is set the
+  // workflows keep their inline Playwright commands byte-for-byte; when one is
+  // set the matching step calls scripts/run-test-tier.sh.
+  readonly test_tier_smoke?: string;
+  readonly test_tier_critical?: string;
+  readonly test_tier_full?: string;
+  readonly test_feature_command?: string;
+  readonly test_runner?: 'playwright' | 'pytest';
   readonly paths_ignore?: readonly string[];
   /** See #689/#690 — when present, sync runs once per target instead of once for the flat config. */
   readonly targets?: readonly Target[];
@@ -267,6 +275,31 @@ function buildE2eDevServerStep(cfg: SdlcConfig): string {
 }
 
 /**
+ * `scripts/` syncs to the repo root, not the job's working-directory, so the
+ * tier script is reached through $GITHUB_WORKSPACE (devaudit-installer#689).
+ */
+const TIER_SCRIPT = 'bash "$GITHUB_WORKSPACE/scripts/run-test-tier.sh"';
+
+function hasConfigured(value: string | undefined): boolean {
+  return typeof value === 'string' && value.trim() !== '';
+}
+
+/**
+ * The unscoped command of e2e-regression.yml's "E2E Regression Tests" step.
+ * Unchanged (the inline Playwright command) unless `test_tier_critical` or
+ * `test_tier_full` is set; then the script runs the tier, mapping the selected
+ * Playwright project to a tier name (`regression` is `full`, `critical` and the
+ * smoke fallback are `critical`). The hook script, scoped dispatch, timeout and
+ * outcome handling around it stay in the template.
+ */
+function buildE2eRegressionTierCommand(cfg: SdlcConfig): string {
+  if (!hasConfigured(cfg.test_tier_critical) && !hasConfigured(cfg.test_tier_full)) {
+    return 'npx playwright test --project="$PROJECT" --reporter=json,html';
+  }
+  return `${TIER_SCRIPT} "$([ "$PROJECT" = regression ] && echo full || echo critical)"`;
+}
+
+/**
  * Build the blocking "E2E Tests" step. Rebuilt in code so e2e_env can be threaded
  * onto the Playwright process (specs read it to reach the local stack directly).
  * With no e2e_env the output is identical to the previous inline step, comment
@@ -286,7 +319,11 @@ function buildE2eTestStep(cfg: SdlcConfig): string {
     '          PLAYWRIGHT_JSON_OUTPUT_NAME: e2e-results.json',
   ];
   if (Object.keys(env).length > 0) lines.push(indentEnvBlock({ ...env }, 10));
-  lines.push(`        run: npx playwright test --project=${cfg.e2e_project} --reporter=json,html`);
+  lines.push(
+    hasConfigured(cfg.test_tier_smoke)
+      ? `        run: ${TIER_SCRIPT} smoke`
+      : `        run: npx playwright test --project=${cfg.e2e_project} --reporter=json,html`,
+  );
   return lines.join('\n');
 }
 
@@ -424,7 +461,11 @@ function buildFeatureE2eTestStep(cfg: SdlcConfig): string {
   if (Object.keys(env).length > 0) lines.push(indentEnvBlock({ ...env }, 10));
   lines.push('        run: |');
   lines.push('          REQ_ID="${{ needs.detect-req.outputs.req_id }}"');
-  lines.push('          npx playwright test --grep "$REQ_ID" --reporter=json,html');
+  lines.push(
+    hasConfigured(cfg.test_feature_command)
+      ? `          ${TIER_SCRIPT} feature "$REQ_ID"`
+      : '          npx playwright test --grep "$REQ_ID" --reporter=json,html',
+  );
   return lines.join('\n');
 }
 
@@ -937,6 +978,7 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
       DATABASE_IMAGE: cfg.database_image,
       DATABASE_PORT: resolveDatabasePort(cfg.database_service, cfg.database_port, cfg),
       E2E_PROJECT: cfg.e2e_project,
+      E2E_REGRESSION_TIER_COMMAND: buildE2eRegressionTierCommand(cfg),
       E2E_START_COMMAND: cfg.e2e_start_command,
       E2E_REGRESSION_TIMEOUT_MINUTES: String(cfg.e2e_regression_timeout_minutes ?? 55),
       // Leading space so `npm ci{{NPM_CI_FLAGS}}` renders as plain `npm ci`

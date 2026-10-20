@@ -59,6 +59,19 @@ export interface SdlcConfig {
    */
   readonly e2e_concurrency_cancel_in_progress?: boolean;
   /**
+   * Test tier commands (devaudit-installer#1060). Each is a single-line shell
+   * command run from the working directory by `scripts/run-test-tier.sh`;
+   * unset keeps the runner default, which for Playwright is what the
+   * generated workflows ran before these keys existed.
+   */
+  readonly test_tier_smoke?: string;
+  readonly test_tier_critical?: string;
+  readonly test_tier_full?: string;
+  /** Feature-scope command; `{REQ}` is replaced with the requirement id. */
+  readonly test_feature_command?: string;
+  /** Runner the tier defaults come from. Absent means `playwright`. */
+  readonly test_runner?: 'playwright' | 'pytest';
+  /**
    * `devaudit doctor` D5 (#956): a release deferred longer than this many days
    * is flagged for review. Positive integer; default 30 (invalid values fall
    * back to the default and are noted by doctor).

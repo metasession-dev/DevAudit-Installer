@@ -10,7 +10,7 @@ name: Feature In-Scope E2E
 
 on:
   pull_request:
-    branches: [develop]
+    branches: [{{INTEGRATION_BRANCH}}]
 
 jobs:
   detect-req:
@@ -212,7 +212,7 @@ jobs:
       # its spec appears in the list, else `origin=regression`.
       - name: Compute new-spec list for E2E origin tagging
         run: |
-          BASE_REF="${{ github.base_ref || 'develop' }}"
+          BASE_REF="${{ github.base_ref || '{{INTEGRATION_BRANCH}}' }}"
           BASE_SHA=$(git merge-base "origin/${BASE_REF}" HEAD 2>/dev/null || git rev-parse HEAD)
           NEW_SPECS=$(git diff --name-only --diff-filter=A "${BASE_SHA}...HEAD" \
             -- 'tests/e2e/**/*.spec.ts' 'tests/e2e/**/*.spec.tsx' \
