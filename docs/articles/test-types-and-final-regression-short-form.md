@@ -1,4 +1,4 @@
-# Your Last Test Should Run After You Deploy
+# Which Test Gates Your Release? Make It a Decision
 
 **Long-form parent:** Six Kinds of Tests, One Safety Net: What Runs When, and What Happens When the Last Gate Fails
 **Platform:** LinkedIn, Dev.to
@@ -10,15 +10,20 @@ Most teams can't answer two questions on release day: which test is allowed to s
 
 Here is the model we use in [DevAudit](https://devaudit.ai).
 
-**Cheap checks first, wide checks last**
+**Cheap checks first, wide checks later**
 - Commit time: lint, a requirement reference on every commit, a type check
 - Unit tests while you build
-- Feature E2E on the PR: only the Playwright specs tagged to your requirement
-- Smoke E2E on every push to the integration branch
-- Critical E2E on the PR into main: the must-not-break journeys
-- Full regression after a successful production deploy, on the exact commit that shipped
+- Feature tests on the PR: only the tests tagged to your requirement
+- Smoke on every push to the integration branch
+- The release gate on the PR into main: critical by default
+- The full regression: after a successful production deploy by default, or nightly, or as the release gate
 
-Same Playwright, bigger sets of specs. The hour-long suite never queues up behind every merge, and it still runs on the commit that shipped.
+**Pick the gate per project**
+Three settings: which tier runs on the release PR (none, smoke, critical or full), whether the full pack also runs after deploy, and an optional nightly run. The defaults keep today's behaviour.
+
+Full before merge is the strictest and the slowest, since a big pack can take about an hour. Critical plus a nightly run gives an earlier signal. `devaudit doctor` reviews the choice against your real run times; it only proposes, and you change it with `devaudit configure`.
+
+The tier names are the same for Playwright, pytest, Jest and Vitest.
 
 **A failure is a decision, never a default**
 Nothing is accepted automatically. A failed gate ends in one of three recorded outcomes:
@@ -26,11 +31,9 @@ Nothing is accepted automatically. A failed gate ends in one of three recorded o
 2. Accept it: a written exception with an impact assessment, an owner, a review date and a tracking issue
 3. Defer the release: it is parked as "deferred" and a later release has to pick it up on purpose
 
-The portal won't approve a release while a failed run has no recorded resolution. The agent stops and reports it blocked. The test summary can't say PASS while a failure is open. A stale exception gets flagged by `devaudit doctor`.
+The portal won't approve a release while a failed run has no recorded resolution. The agent stops and reports it blocked. A nightly run is not release evidence: a failure opens one issue and blocks nothing.
 
-The auto-filed issue after deploy is a prompt to triage, not an acceptance. It never reverts anything either.
-
-The result: quick feedback on every push, a focused gate on the release, and an audit trail that is simply the work you already did.
+The result: quick feedback on every push, a gate you chose on the release, and an audit trail that is simply the work you already did.
 
 Read the full article → devaudit.ai/blog/test-types-and-final-regression
 
