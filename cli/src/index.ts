@@ -68,6 +68,23 @@ export async function main(argv: readonly string[]): Promise<void> {
       '--host <name>',
       'Deploy host adapter: railway (default), vercel, custom (AWS / self-hosted / anything), or any adapter under sdlc/files/hosts/. Defaults to the host already in sdlc-config.json. See docs/adding-a-host.md.',
     )
+    .option(
+      '--release-gate-tier <tier>',
+      'E2E tier that must pass on the PR into the release branch: none, smoke, critical or full. Omit to keep today\'s behaviour (critical). Needs e2e_regression_enabled. See docs/e2e-test-tiers.md.',
+    )
+    .option(
+      '--post-deploy-full-regression <true|false>',
+      'Run the full regression after a successful production deployment (default true when e2e_regression_enabled).',
+    )
+    .option(
+      '--scheduled-full-regression <cron>',
+      'Cron expression (five fields) for a scheduled full regression on the integration branch, e.g. "0 3 * * *".',
+    )
+    .option('--test-runner <runner>', 'Runner the test tier defaults come from: playwright (default) or pytest.')
+    .option('--test-tier-smoke <command>', 'Command for the smoke tier (single line). Omit to keep the runner default.')
+    .option('--test-tier-critical <command>', 'Command for the critical tier (single line). Omit to keep the runner default.')
+    .option('--test-tier-full <command>', 'Command for the full tier (single line). Omit to keep the runner default.')
+    .option('--test-feature-command <command>', 'Command for the feature scope; {REQ} is replaced with the requirement id.')
     .action(
       async (
         path: string | undefined,
@@ -78,6 +95,14 @@ export async function main(argv: readonly string[]): Promise<void> {
           addTarget?: boolean;
           withViewerKey?: boolean;
           host?: string;
+          releaseGateTier?: string;
+          postDeployFullRegression?: string;
+          scheduledFullRegression?: string;
+          testRunner?: string;
+          testTierSmoke?: string;
+          testTierCritical?: string;
+          testTierFull?: string;
+          testFeatureCommand?: string;
         },
         cmd,
       ) => {
@@ -94,6 +119,16 @@ export async function main(argv: readonly string[]): Promise<void> {
             ? { withViewerKey: Boolean(cmdOpts.withViewerKey) }
             : {}),
           ...(cmdOpts.host !== undefined ? { host: cmdOpts.host } : {}),
+          testOptions: {
+            ...(cmdOpts.releaseGateTier !== undefined ? { release_gate_tier: cmdOpts.releaseGateTier } : {}),
+            ...(cmdOpts.postDeployFullRegression !== undefined ? { post_deploy_full_regression: cmdOpts.postDeployFullRegression } : {}),
+            ...(cmdOpts.scheduledFullRegression !== undefined ? { scheduled_full_regression: cmdOpts.scheduledFullRegression } : {}),
+            ...(cmdOpts.testRunner !== undefined ? { test_runner: cmdOpts.testRunner } : {}),
+            ...(cmdOpts.testTierSmoke !== undefined ? { test_tier_smoke: cmdOpts.testTierSmoke } : {}),
+            ...(cmdOpts.testTierCritical !== undefined ? { test_tier_critical: cmdOpts.testTierCritical } : {}),
+            ...(cmdOpts.testTierFull !== undefined ? { test_tier_full: cmdOpts.testTierFull } : {}),
+            ...(cmdOpts.testFeatureCommand !== undefined ? { test_feature_command: cmdOpts.testFeatureCommand } : {}),
+          },
           ...(globals.dryRun !== undefined ? { dryRun: Boolean(globals.dryRun) } : {}),
           ...(globals.yes !== undefined ? { yes: Boolean(globals.yes) } : {}),
         });
