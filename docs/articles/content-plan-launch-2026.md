@@ -1232,7 +1232,7 @@ Each companion post follows this structure:
 **Insight:** An advisory database is not frozen: a package three levels down gets a new advisory on Tuesday and Monday's green build is red with no code change. That is the audit doing its job, and the process turns the annoyance into a bounded decision: fix it with a bump PR, or accept it with a named advisory, a reachability and impact record, an owner, a tracking issue and an expiry that fails the gate again.
 **Proof point:** The same audit run supports ISO 27001 A.8.28 and A.8.29, GDPR Art. 32 and EU AI Act Art. 15, and the gate outcome sits under SOC 2 CC7.2 in the portal's framework registry; the failed run, the fix and the green re-run are the audit pack. DevAudit produces the evidence; the auditor decides.
 **CTA:** "Read the full article → devaudit.ai/blog/dependency-advisory-mid-feature"
-**Source draft:** [short-form](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/articles/dependency-advisory-mid-feature-short-form.md)
+**Source draft:** [short-form](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/articles/dependency-advisory-mid-feature-short-form.md) · hero image `images/dependency-advisory-mid-feature-hero.png` (SVG source alongside)
 
 ---
 

@@ -1,5 +1,7 @@
 # The Advisory Nobody Asked For: Why a Failing Dependency Audit Mid-Feature Is the Process Working
 
+![A green Monday build, a new advisory on Tuesday and a red push with no code change, then the three outcomes: fix, accept with a record, or prove it, plus the framework clauses the evidence supports](images/dependency-advisory-mid-feature-hero.png)
+
 > **Primary persona:** Lead Developer
 > **Funnel stage:** MOFU — Consideration
 > **Format:** Technical explainer (~1800 words)
