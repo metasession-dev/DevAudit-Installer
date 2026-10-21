@@ -271,6 +271,22 @@ export function findConfigKey(key: string): ConfigKeySpec | undefined {
 }
 
 /**
+ * Parse and validate a raw value for a key exactly as `devaudit configure set`
+ * does (type, allowed values, per-key rules), without the repo-evidence checks.
+ * Used by `devaudit install` flags.
+ */
+export function validateConfigKeyValue(key: string, raw: string): { value?: unknown; error?: string } {
+  const spec = findConfigKey(key);
+  if (!spec) return { error: `unknown key \`${key}\`` };
+  const parsed = parseConfigValue(spec, raw);
+  if (parsed.error !== undefined) return { error: parsed.error };
+  if (spec.enum && !spec.enum.includes(String(parsed.value))) return { error: `must be one of ${spec.enum.join(', ')}` };
+  const problem = spec.validate?.(parsed.value);
+  if (problem) return { error: problem };
+  return { value: parsed.value };
+}
+
+/**
  * Parse a command-line value into the key's type. `string[]` accepts a JSON
  * array or a comma-separated list; `object` needs a JSON object.
  */

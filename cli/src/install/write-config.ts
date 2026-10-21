@@ -147,6 +147,9 @@ export async function writeSdlcConfig(ctx: InstallContext, plan: InstallPlan): P
     ...((existing as unknown as Record<string, unknown> | null) ?? {}),
     ...wizardOwned,
   };
+  // Test tier / release gate keys named by a flag or a confirmed prompt win over
+  // the existing config; keys nobody named are left exactly as they were.
+  if (plan.testConfig) Object.assign(config, plan.testConfig);
   if (isNewTarget && ctx.addTarget) {
     // Keep the other target(s) intact under `targets`; the flat top-level
     // fields above continue to describe *this* (the newest) target, which is

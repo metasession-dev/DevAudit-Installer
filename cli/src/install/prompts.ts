@@ -4,6 +4,8 @@ import type { DetectedStack, InstallContext, InstallPlan } from './types.js';
 import { readSdlcConfig, resolveTargets, type SdlcConfig } from '../lib/sdlc-config.js';
 import { listHosts } from '../lib/adapter.js';
 import { HOST_HINTS, resolveHost } from './hosts.js';
+import { resolveTestConfig, type TestOptions } from './test-config.js';
+import { detectTestRunners } from '../lib/test-runner-detect.js';
 
 const NODE_DEFAULTS = { runtimeVersion: '20', sourceDirs: 'app/ lib/' };
 const PYTHON_DEFAULTS = { runtimeVersion: '3.11', sourceDirs: 'src/ tests/' };
@@ -90,10 +92,22 @@ export async function collectPlan(
   detected: DetectedStack,
 ): Promise<InstallPlan> {
   const defaults = detected.stack === 'node' ? NODE_DEFAULTS : PYTHON_DEFAULTS;
-  if (ctx.nonInteractive) {
-    return planFromConfig(ctx, detected, defaults);
-  }
-  return planFromPrompts(ctx, detected, defaults);
+  const plan = ctx.nonInteractive ? await planFromConfig(ctx, detected, defaults) : await planFromPrompts(ctx, detected, defaults);
+  // devaudit-installer#1059/#1060: test tier and release gate keys. A polyglot
+  // target (--add-target) shares the repo-level config, so it is left alone.
+  if (ctx.addTarget) return plan;
+  const existing = await readSdlcConfig(ctx.repoRoot);
+  const test = await resolveTestConfig({
+    options: (ctx.testOptions ?? {}) as TestOptions,
+    existing: existing as unknown as Record<string, unknown> | null,
+    detection: await detectTestRunners(ctx.repoRoot),
+    interactive: !ctx.nonInteractive,
+  });
+  return {
+    ...plan,
+    ...(Object.keys(test.config).length > 0 ? { testConfig: test.config } : {}),
+    ...(test.notes.length > 0 ? { testNotes: test.notes } : {}),
+  };
 }
 
 async function planFromConfig(

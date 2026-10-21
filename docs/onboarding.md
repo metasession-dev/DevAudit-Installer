@@ -76,6 +76,25 @@ Want a stronger E2E safety net than the default blocking smoke gate? See [`e2e-t
 
 The consumer's working tree is left dirty so the operator can review the diff before committing.
 
+### Test tiers and the release gate
+
+`devaudit install` can record how your tests are tiered and which tier gates a release (devaudit-installer#1059, #1060). Nothing is written unless a flag or an answer names it, so a project that skips this keeps today's behaviour. The same keys can be set any time with `devaudit configure set`.
+
+| Flag | Writes | Notes |
+| --- | --- | --- |
+| `--release-gate-tier <none\|smoke\|critical\|full>` | `release_gate_tier` | The E2E tier that must pass on the PR into the release branch. Needs `e2e_regression_enabled`. |
+| `--post-deploy-full-regression <true\|false>` | `post_deploy_full_regression` | Whether the full regression also runs after the production deploy. |
+| `--scheduled-full-regression <cron>` | `scheduled_full_regression` | Five-field cron for a nightly full run on the integration branch. |
+| `--test-runner <playwright\|pytest>` | `test_runner` | `pytest` selects the pytest tier workflows. |
+| `--test-tier-smoke`, `--test-tier-critical`, `--test-tier-full <command>` | `test_tier_*` | A single-line command per tier. |
+| `--test-feature-command <command>` | `test_feature_command` | Must contain `{REQ}`. |
+
+Values are validated exactly as `devaudit configure set` validates them, and a bad value stops the install before anything is touched.
+
+Interactive runs detect the test runner and propose tiers: Playwright projects are used as they are, a pytest repo is offered the pytest tier workflows, and a Jest or Vitest repo gets editable proposed commands (blank skips a tier). Where `e2e_regression_enabled` is already true the run also asks which tier gates the release PR, with `critical` (today's behaviour) as the default. A flag or an existing key means that question is not asked. `--yes` applies only flags. A gate flag on a project that has not enabled the regression workflow is accepted and takes effect once it does (`devaudit update --enable-e2e-regression`); the install summary says so.
+
+The summary ends with a pointer to `devaudit doctor`, whose `test-tiers` and `e2e-release-gate` checks review the choice later, and to the `e2e-test-engineer` skill for a project with no smoke tests yet.
+
 ### Host-adapter prerequisites
 
 **Choosing the host (devaudit-installer#1022).** `devaudit install --host <name>` records `host` in `sdlc-config.json` (interactive runs ask; `--yes` keeps the host already recorded, else `railway`). Re-running `install` never resets a recorded host. Valid names are the adapters under `sdlc/files/hosts/`; an unknown name fails with the list. Optional secret on any host: `DEVAUDIT_PROBE_HEADER`, one full header line (e.g. `x-vercel-protection-bypass: <token>`) that `post-deploy-prod.yml` sends with the independent health probe and smoke checks, for a production origin behind an access gate; unset means unauthenticated probes, as before.

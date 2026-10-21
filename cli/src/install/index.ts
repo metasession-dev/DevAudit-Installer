@@ -15,6 +15,7 @@ import {
 import { runAuthProbe } from './auth-probe.js';
 import { detectStack } from './detect-stack.js';
 import { collectPlan } from './prompts.js';
+import { parseTestOptions, type TestOptions } from './test-config.js';
 import { writeSdlcConfig } from './write-config.js';
 import { findOrCreateProject } from './project.js';
 import { issueApiKey, issueViewerApiKey } from './api-key.js';
@@ -63,6 +64,8 @@ export interface RunInstallOptions {
   readonly withViewerKey?: boolean;
   /** Deploy host adapter (`railway`, `vercel`, `custom`, ...). See devaudit-installer#1022. */
   readonly host?: string;
+  /** Test tier / release gate flags by config key (devaudit-installer#1059, #1060). */
+  readonly testOptions?: Readonly<Record<string, string>>;
 }
 
 export interface InstallReport {
@@ -79,6 +82,9 @@ export async function runInstall(options: RunInstallOptions): Promise<InstallRep
     throw new Error(`Project path not found: ${projectPath}`);
   }
   const projectName = basename(projectPath);
+  // Reject a bad tier / gate flag before anything is touched.
+  const flagProblems = parseTestOptions((options.testOptions ?? {}) as TestOptions).errors;
+  if (flagProblems.length > 0) throw new Error(flagProblems.join('\n'));
   const auth = await resolveTokenForInstall(options);
   const installerRoot = await resolveInstallerRoot();
   const repoRoot = await resolveRepoRoot(projectPath);
@@ -99,6 +105,7 @@ export async function runInstall(options: RunInstallOptions): Promise<InstallRep
     addTarget: Boolean(options.addTarget),
     withViewerKey: Boolean(options.withViewerKey),
     ...(options.host !== undefined ? { host: options.host } : {}),
+    ...(options.testOptions !== undefined ? { testOptions: options.testOptions } : {}),
   };
   banner(tentativeCtx);
   const steps: StepResult[] = [];
