@@ -155,6 +155,8 @@ What the keys change in the generated workflows:
 - `check-release-approval.yml` sends the configured tier to the portal as `releaseGateTier` on the release PR (only when configured), so the portal can require the gate before approval. An older portal ignores the field; **deploy the portal first**.
 - A **scheduled run is not release evidence.** It runs on the integration branch, is never uploaded to the portal and can neither attach to a release nor raise a triage blocker. A failed scheduled run opens (or comments on) one `bug` issue titled `[scheduled regression] Full E2E failing on <integration branch>`.
 
+`devaudit doctor` reviews the choice through two read-only checks, `e2e-release-gate` and `test-tiers` (see [doctor.md](doctor.md)): it proposes, you decide, and a change goes through `devaudit configure` and a normal PR.
+
 The fix, accept or defer rules in [When a tier fails](#when-a-tier-fails-fix-or-accept-devaudit-installer1016) apply unchanged, now to whichever tier runs on the release PR. `E2E Regression Suite` stays a reviewer-verified check, not a GitHub branch-protection context.
 
 ## When a tier fails: fix or accept (devaudit-installer#1016)
