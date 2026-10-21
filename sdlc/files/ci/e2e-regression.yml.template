@@ -34,13 +34,7 @@ on:
       runner_label:
         description: 'Optional one-run runner label override. Blank uses repository CI_RUNNER_LABEL.'
         required: false
-  # PR-to-main runs the critical tier (smoke + e2e/critical/). Successful
-  # production deployment runs the full regression safety net; manual
-  # dispatch supports intentional operator-triggered full or scoped runs.
-  pull_request:
-    branches: [{{RELEASE_BRANCH}}]
-  deployment_status:
-    types: [created]
+{{E2E_REGRESSION_TRIGGERS}}
 
 concurrency:
 {{E2E_REGRESSION_CONCURRENCY}}
@@ -85,7 +79,7 @@ jobs:
           # which specs were added in this PR/push so evidence shots tag
           # them as `origin: 'feature'` vs accumulating `regression`).
           fetch-depth: 0
-          ref: ${{ github.event.deployment.sha || github.sha }}
+          ref: {{E2E_REGRESSION_CHECKOUT_REF}}
           clean: {{CHECKOUT_CLEAN}}
 
       - name: Clean stale build and test output (self-hosted only)
@@ -178,21 +172,7 @@ jobs:
           set -euo pipefail
           EVENT="${{ github.event_name }}"
           case "$EVENT" in
-            pull_request)
-              if grep -qE "name:\s*['\"]critical['\"]" playwright.config.ts 2>/dev/null; then
-                echo "project=critical" >> "$GITHUB_OUTPUT"
-                echo "Using critical-tier project (smoke + e2e/critical/)"
-              else
-                echo "project=smoke" >> "$GITHUB_OUTPUT"
-                echo "::warning::No 'critical' Playwright project defined; falling back to smoke."
-              fi
-              echo "specs=" >> "$GITHUB_OUTPUT"
-              ;;
-            deployment_status)
-              echo "project=regression" >> "$GITHUB_OUTPUT"
-              echo "specs=" >> "$GITHUB_OUTPUT"
-              echo "Running full regression project"
-              ;;
+{{E2E_REGRESSION_SELECT_CASES}}
             workflow_dispatch)
               echo "project=regression" >> "$GITHUB_OUTPUT"
               echo "specs=${{ github.event.inputs.specs }}" >> "$GITHUB_OUTPUT"
@@ -219,12 +199,13 @@ jobs:
           jq -n \
             --arg targetUrl "http://localhost:{{E2E_PORT}}" \
             --arg project "${{ steps.select.outputs.project }}" \
+{{E2E_REGRESSION_TIER_ARG}}
             --arg specs "${{ steps.select.outputs.specs }}" \
             --arg serverStart "start command (pid ${SERVER_PID:-unknown})" \
             --arg serverStop "kill ${SERVER_PID:-unknown}" \
             --arg startedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             --argjson timeoutMinutes "$TIMEOUT_MINUTES_VALUE" \
-            '{target_url: $targetUrl, project: $project, selected_specs: $specs, test_server_start: $serverStart, test_server_stop: $serverStop, timeout_minutes: $timeoutMinutes, started_at: $startedAt, outcome: "running"}' \
+            '{target_url: $targetUrl, project: $project, {{E2E_REGRESSION_TIER_FIELD}}selected_specs: $specs, test_server_start: $serverStart, test_server_stop: $serverStop, timeout_minutes: $timeoutMinutes, started_at: $startedAt, outcome: "running"}' \
             > e2e-regression-metadata.json
 
       # Extension point (devaudit-installer#928): if the consumer or a
@@ -373,3 +354,4 @@ jobs:
             --title "[hotfix] Post-merge regression on \`${MERGE_SHA_SHORT}\` — full E2E failed" \
             --body "$BODY" \
             --label "bug,priority:high"
+{{E2E_REGRESSION_SCHEDULE_ISSUE_STEP}}

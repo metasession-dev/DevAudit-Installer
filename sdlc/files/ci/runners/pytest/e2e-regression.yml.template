@@ -38,13 +38,7 @@ on:
       runner_label:
         description: 'Optional one-run runner label override. Blank uses repository CI_RUNNER_LABEL.'
         required: false
-  # PR-to-main runs the critical tier (smoke + e2e/critical/). Successful
-  # production deployment runs the full regression safety net; manual
-  # dispatch supports intentional operator-triggered full or scoped runs.
-  pull_request:
-    branches: [{{RELEASE_BRANCH}}]
-  deployment_status:
-    types: [created]
+{{E2E_REGRESSION_TRIGGERS}}
 
 concurrency:
 {{E2E_REGRESSION_CONCURRENCY}}
@@ -86,7 +80,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-          ref: ${{ github.event.deployment.sha || github.sha }}
+          ref: {{E2E_REGRESSION_CHECKOUT_REF}}
           clean: {{CHECKOUT_CLEAN}}
 
       - name: Clean stale test output (self-hosted only)
@@ -119,10 +113,10 @@ jobs:
           set -euo pipefail
           case "${{ github.event_name }}" in
             pull_request)
-              echo "tier=critical" >> "$GITHUB_OUTPUT"
+              echo "tier={{E2E_PR_TIER}}" >> "$GITHUB_OUTPUT"
               echo "specs=" >> "$GITHUB_OUTPUT"
               ;;
-            deployment_status)
+            deployment_status|schedule)
               echo "tier=full" >> "$GITHUB_OUTPUT"
               echo "specs=" >> "$GITHUB_OUTPUT"
               echo "Running the full tier"
@@ -144,10 +138,11 @@ jobs:
           set -euo pipefail
           jq -n \
             --arg project "$TIER" \
+            --arg tier "$TIER" \
             --arg specs "$SPECS" \
             --arg startedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             --argjson timeoutMinutes 40 \
-            '{target_url: "", project: $project, selected_specs: $specs, test_server_start: "none", test_server_stop: "none", timeout_minutes: $timeoutMinutes, started_at: $startedAt, outcome: "running"}' \
+            '{target_url: "", project: $project, tier: $tier, selected_specs: $specs, test_server_start: "none", test_server_stop: "none", timeout_minutes: $timeoutMinutes, started_at: $startedAt, outcome: "running"}' \
             > "$GITHUB_WORKSPACE/e2e-regression-metadata.json"
 
       - name: E2E Regression Tests
@@ -261,3 +256,4 @@ jobs:
             --title "[hotfix] Post-merge regression on \`${MERGE_SHA_SHORT}\` — full E2E failed" \
             --body "$BODY" \
             --label "bug,priority:high"
+{{E2E_REGRESSION_SCHEDULE_ISSUE_STEP}}

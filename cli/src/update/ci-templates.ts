@@ -145,6 +145,10 @@ interface SdlcConfig {
   readonly test_tier_full?: string;
   readonly test_feature_command?: string;
   readonly test_runner?: 'playwright' | 'pytest';
+  // devaudit-installer#1059 — release gate. All three absent = today's workflows.
+  readonly release_gate_tier?: 'none' | 'smoke' | 'critical' | 'full';
+  readonly post_deploy_full_regression?: boolean;
+  readonly scheduled_full_regression?: string;
   readonly paths_ignore?: readonly string[];
   /** See #689/#690 — when present, sync runs once per target instead of once for the flat config. */
   readonly targets?: readonly Target[];
@@ -287,6 +291,181 @@ function hasConfigured(value: string | undefined): boolean {
   return typeof value === 'string' && value.trim() !== '';
 }
 
+type ReleaseGateTier = 'none' | 'smoke' | 'critical' | 'full';
+
+const RELEASE_GATE_TIERS: readonly string[] = ['none', 'smoke', 'critical', 'full'];
+
+/** The release gate written in the config, or undefined when absent or not a valid tier. */
+function configuredReleaseGate(cfg: SdlcConfig): ReleaseGateTier | undefined {
+  const value = cfg.release_gate_tier;
+  return typeof value === 'string' && RELEASE_GATE_TIERS.includes(value) ? value : undefined;
+}
+
+/** The tier that runs on the PR into the release branch: the configured one, else critical. */
+function effectiveReleaseGate(cfg: SdlcConfig): ReleaseGateTier {
+  return configuredReleaseGate(cfg) ?? 'critical';
+}
+
+/** The cron expression for the scheduled full regression, or '' (off or not a valid expression). */
+function scheduledRegressionCron(cfg: SdlcConfig): string {
+  const cron = (cfg.scheduled_full_regression ?? '').trim();
+  return /^[^'"\r\n]+$/.test(cron) && /^\S+(\s+\S+){4}$/.test(cron) ? cron : '';
+}
+
+/**
+ * True when none of the three release-gate keys is configured: the e2e-regression
+ * workflow then renders exactly what it did before they existed.
+ */
+function usesDefaultReleaseGate(cfg: SdlcConfig): boolean {
+  return (
+    configuredReleaseGate(cfg) === undefined &&
+    cfg.post_deploy_full_regression === undefined &&
+    scheduledRegressionCron(cfg) === ''
+  );
+}
+
+/**
+ * The `on:` triggers of e2e-regression.yml after `workflow_dispatch`
+ * (devaudit-installer#1059): the PR into the release branch when the gate is not
+ * `none`, the post-deploy run unless `post_deploy_full_regression` is false, and a
+ * schedule when `scheduled_full_regression` is set. All keys absent = the original text.
+ */
+function buildE2eRegressionTriggers(cfg: SdlcConfig): string {
+  const releaseBranch = cfg.release_branch ?? 'main';
+  if (usesDefaultReleaseGate(cfg)) {
+    return [
+      '  # PR-to-main runs the critical tier (smoke + e2e/critical/). Successful',
+      '  # production deployment runs the full regression safety net; manual',
+      '  # dispatch supports intentional operator-triggered full or scoped runs.',
+      '  pull_request:',
+      `    branches: [${releaseBranch}]`,
+      '  deployment_status:',
+      '    types: [created]',
+    ].join('\n');
+  }
+  const gate = effectiveReleaseGate(cfg);
+  const cron = scheduledRegressionCron(cfg);
+  const lines = [
+    '  # Triggers follow sdlc-config.json: release_gate_tier runs on the PR into the',
+    '  # release branch, post_deploy_full_regression after a successful production',
+    '  # deployment, scheduled_full_regression on a schedule; manual dispatch always.',
+  ];
+  if (gate !== 'none') lines.push('  pull_request:', `    branches: [${releaseBranch}]`);
+  if (cfg.post_deploy_full_regression !== false) lines.push('  deployment_status:', '    types: [created]');
+  if (cron) lines.push('  schedule:', `    - cron: '${cron}'`);
+  return lines.join('\n');
+}
+
+/** The checkout ref of e2e-regression.yml: a scheduled run tests the integration branch. */
+function buildE2eRegressionCheckoutRef(cfg: SdlcConfig): string {
+  const cron = scheduledRegressionCron(cfg);
+  if (!cron) return '${{ github.event.deployment.sha || github.sha }}';
+  return `\${{ github.event.deployment.sha || (github.event_name == 'schedule' && '${cfg.integration_branch ?? 'develop'}') || github.sha }}`;
+}
+
+/**
+ * The `pull_request` and `deployment_status` branches of the "Determine E2E project
+ * + spec selector" case. With no release-gate key it is the original text. With one,
+ * the PR branch follows the gate, a scheduled run is the full tier, and every branch
+ * also outputs the `tier` it ran, which the metadata records for compliance-evidence.
+ */
+function buildE2eRegressionSelectCases(cfg: SdlcConfig): string {
+  if (usesDefaultReleaseGate(cfg)) {
+    return [
+      '            pull_request)',
+      '              if grep -qE "name:\\s*[\'\\"]critical[\'\\"]" playwright.config.ts 2>/dev/null; then',
+      '                echo "project=critical" >> "$GITHUB_OUTPUT"',
+      '                echo "Using critical-tier project (smoke + e2e/critical/)"',
+      '              else',
+      '                echo "project=smoke" >> "$GITHUB_OUTPUT"',
+      '                echo "::warning::No \'critical\' Playwright project defined; falling back to smoke."',
+      '              fi',
+      '              echo "specs=" >> "$GITHUB_OUTPUT"',
+      '              ;;',
+      '            deployment_status)',
+      '              echo "project=regression" >> "$GITHUB_OUTPUT"',
+      '              echo "specs=" >> "$GITHUB_OUTPUT"',
+      '              echo "Running full regression project"',
+      '              ;;',
+    ].join('\n');
+  }
+  const gate = effectiveReleaseGate(cfg);
+  const pr: string[] = ['            pull_request)'];
+  if (gate === 'smoke') {
+    pr.push(`              echo "project=${cfg.e2e_project}" >> "$GITHUB_OUTPUT"`, '              echo "Using the smoke tier"');
+  } else if (gate === 'full') {
+    pr.push('              echo "project=regression" >> "$GITHUB_OUTPUT"', '              echo "Using the full tier"');
+  } else {
+    pr.push(
+      '              if grep -qE "name:\\s*[\'\\"]critical[\'\\"]" playwright.config.ts 2>/dev/null; then',
+      '                echo "project=critical" >> "$GITHUB_OUTPUT"',
+      '                echo "Using critical-tier project (smoke + e2e/critical/)"',
+      '              else',
+      '                echo "project=smoke" >> "$GITHUB_OUTPUT"',
+      '                echo "::warning::No \'critical\' Playwright project defined; falling back to smoke."',
+      '              fi',
+    );
+  }
+  pr.push(`              echo "tier=${gate}" >> "$GITHUB_OUTPUT"`, '              echo "specs=" >> "$GITHUB_OUTPUT"', '              ;;');
+  return [
+    ...pr,
+    '            deployment_status|schedule)',
+    '              echo "project=regression" >> "$GITHUB_OUTPUT"',
+    '              echo "tier=full" >> "$GITHUB_OUTPUT"',
+    '              echo "specs=" >> "$GITHUB_OUTPUT"',
+    '              echo "Running full regression project"',
+    '              ;;',
+  ].join('\n');
+}
+
+/** The `tier` argument of the execution-metadata jq call; empty with no release-gate key. */
+function buildE2eRegressionTierArg(cfg: SdlcConfig): string {
+  if (usesDefaultReleaseGate(cfg)) return '';
+  return `            --arg tier "\${{ steps.select.outputs.tier || 'full' }}" \\`;
+}
+
+function buildE2eRegressionTierField(cfg: SdlcConfig): string {
+  return usesDefaultReleaseGate(cfg) ? '' : 'tier: $tier, ';
+}
+
+/**
+ * Opens (or updates) one `bug` issue when a scheduled full regression fails, so the
+ * early signal is not lost. A scheduled run is never uploaded to the portal
+ * (compliance-evidence.yml), so this is its only report. Empty without a schedule.
+ */
+function buildE2eRegressionScheduleIssueStep(cfg: SdlcConfig): string {
+  if (!scheduledRegressionCron(cfg)) return '';
+  const branch = cfg.integration_branch ?? 'develop';
+  return [
+    '',
+    '      - name: Open or update an issue on scheduled regression failure',
+    "        if: failure() && github.event_name == 'schedule'",
+    '        env:',
+    '          GH_TOKEN: ${{ github.token }}',
+    '        run: |',
+    '          set -euo pipefail',
+    '          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"',
+    `          TITLE="[scheduled regression] Full E2E failing on ${branch}"`,
+    '          BODY="The scheduled full regression failed on commit ${GITHUB_SHA:0:7}. Run: ${RUN_URL}. It is not release evidence and does not block an approval; fix it or record why it is accepted."',
+    '          EXISTING=$(gh issue list --state open --label bug --search "\\"$TITLE\\" in:title" --json number,title --jq ".[] | select(.title == \\"$TITLE\\") | .number" | head -n1 || true)',
+    '          if [ -n "$EXISTING" ]; then',
+    '            gh issue comment "$EXISTING" --body "$BODY"',
+    '          else',
+    '            gh issue create --title "$TITLE" --body "$BODY" --label bug',
+    '          fi',
+  ].join('\n');
+}
+
+/**
+ * The `releaseGateTier` field added to the release-PR PATCH in
+ * check-release-approval.yml (devaudit-installer#1059). Sent only when the gate is
+ * configured, so existing consumers' workflows and portal behaviour are unchanged.
+ */
+function buildReleaseGatePatchField(cfg: SdlcConfig): string {
+  const gate = configuredReleaseGate(cfg);
+  return gate ? `,\\"releaseGateTier\\":\\"${gate}\\"` : '';
+}
+
 /**
  * The unscoped command of e2e-regression.yml's "E2E Regression Tests" step.
  * Unchanged (the inline Playwright command) unless `test_tier_critical` or
@@ -299,7 +478,8 @@ function buildE2eRegressionTierCommand(cfg: SdlcConfig): string {
   if (!hasConfigured(cfg.test_tier_critical) && !hasConfigured(cfg.test_tier_full)) {
     return 'npx playwright test --project="$PROJECT" --reporter=json,html';
   }
-  return `${TIER_SCRIPT} "$([ "$PROJECT" = regression ] && echo full || echo critical)"`;
+  const prTier = effectiveReleaseGate(cfg) === 'smoke' ? 'smoke' : 'critical';
+  return `${TIER_SCRIPT} "$([ "$PROJECT" = regression ] && echo full || echo ${prTier})"`;
 }
 
 /**
@@ -1038,6 +1218,10 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
       DATABASE_PORT: resolveDatabasePort(cfg.database_service, cfg.database_port, cfg),
       E2E_PROJECT: cfg.e2e_project,
       E2E_REGRESSION_TIER_COMMAND: buildE2eRegressionTierCommand(cfg),
+      E2E_REGRESSION_CHECKOUT_REF: buildE2eRegressionCheckoutRef(cfg),
+      E2E_REGRESSION_TIER_FIELD: buildE2eRegressionTierField(cfg),
+      E2E_PR_TIER: effectiveReleaseGate(cfg),
+      RELEASE_GATE_PATCH_FIELD: buildReleaseGatePatchField(cfg),
       E2E_START_COMMAND: cfg.e2e_start_command,
       E2E_REGRESSION_TIMEOUT_MINUTES: String(cfg.e2e_regression_timeout_minutes ?? 55),
       // Leading space so `npm ci{{NPM_CI_FLAGS}}` renders as plain `npm ci`
@@ -1123,6 +1307,10 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
       E2E_REGRESSION_CONCURRENCY: buildE2eRegressionConcurrency(cfg),
       E2E_REGRESSION_SERVER_STEP: buildE2eRegressionServerStep(cfg),
       E2E_XML_REQ_FALLBACK: buildE2eXmlReqFallback(cfg),
+      E2E_REGRESSION_TRIGGERS: buildE2eRegressionTriggers(cfg),
+      E2E_REGRESSION_SELECT_CASES: buildE2eRegressionSelectCases(cfg),
+      E2E_REGRESSION_TIER_ARG: buildE2eRegressionTierArg(cfg),
+      E2E_REGRESSION_SCHEDULE_ISSUE_STEP: buildE2eRegressionScheduleIssueStep(cfg),
       E2E_XML_RESULT_UPLOAD: buildE2eXmlResultUpload(cfg),
     };
 

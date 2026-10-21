@@ -74,6 +74,8 @@
   "test_tier_full": "",
   "test_feature_command": "",
 
+  "_comment_release_gate": "Optional (devaudit-installer#1059). Which E2E tier runs on the PR into the release branch: none, smoke, critical or full. These keys are deliberately not listed below: leave them unset to keep today's behaviour (critical, plus the full regression after the production deploy), and add one only to change it. Choose full to test the release candidate before it ships (slower, the full pack can take about an hour); then set post_deploy_full_regression to false to avoid testing the same commit twice. scheduled_full_regression is a cron expression (e.g. \"0 3 * * *\") that runs the full regression on the integration branch; scheduled runs are not release evidence. Needs e2e_regression_enabled. Change these with `devaudit configure set`; devaudit doctor reviews the choice. See docs/e2e-test-tiers.md.",
+
   "paths_ignore": [
     ".github/workflows/**",
     "SDLC/**",

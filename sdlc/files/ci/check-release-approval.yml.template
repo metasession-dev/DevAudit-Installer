@@ -20,7 +20,7 @@ name: Release Approval Gate
 
 on:
   pull_request:
-    branches: [main]
+    branches: [{{RELEASE_BRANCH}}]
   workflow_dispatch:
     inputs:
       runner_label:
@@ -250,7 +250,7 @@ jobs:
             -X PATCH "${BASE}/api/ci/releases/${RELEASE_ID}" \
             -H "Authorization: Bearer ${DEVAUDIT_API_KEY}" \
             -H "Content-Type: application/json" \
-            -d "{\"prInfo\":{\"url\":\"${PR_URL}\",\"number\":${PR_NUMBER}}}"
+            -d "{\"prInfo\":{\"url\":\"${PR_URL}\",\"number\":${PR_NUMBER}}{{RELEASE_GATE_PATCH_FIELD}}}"
           echo "Linked PR #${PR_NUMBER} to release ${RELEASE_ID}"
 
       - name: Post release link on PR
