@@ -289,7 +289,7 @@ describe('devaudit install flags', () => {
 describe('runInstallCommand forwards the options', () => {
   it('passes --host and the test flags to runInstall (--host used to be dropped)', async () => {
     vi.resetModules();
-    const runInstall = vi.fn(async () => ({ project: 'x', projectPath: '.', dryRun: false, steps: [] }));
+    const runInstall = vi.fn(async (_options: Record<string, unknown>) => ({ project: 'x', projectPath: '.', dryRun: false, steps: [] }));
     vi.doMock('../src/install/index.js', () => ({ runInstall }));
     const { runInstallCommand } = await import('../src/commands/install.js');
     await runInstallCommand({ path: '.', host: 'vercel', testOptions: { release_gate_tier: 'full' } });
