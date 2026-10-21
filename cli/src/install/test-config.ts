@@ -70,7 +70,7 @@ export function proposeTestTiers(detection: TestRunnerDetection): TestTierPropos
         test_tier_smoke: 'npx vitest run smoke',
         test_tier_critical: 'npx vitest run smoke critical',
         test_tier_full: 'npx vitest run',
-        test_feature_command: 'npx vitest run -t {REQ}',
+        test_feature_command: 'npx vitest run -t "{REQ}]"',
       },
     };
   }
@@ -82,7 +82,7 @@ export function proposeTestTiers(detection: TestRunnerDetection): TestTierPropos
         test_tier_smoke: 'npx jest --testPathPattern smoke',
         test_tier_critical: 'npx jest --testPathPattern "smoke|critical"',
         test_tier_full: 'npx jest',
-        test_feature_command: 'npx jest -t {REQ}',
+        test_feature_command: 'npx jest -t "{REQ}]"',
       },
     };
   }

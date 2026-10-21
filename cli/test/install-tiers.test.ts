@@ -86,7 +86,7 @@ describe('parseTestOptions', () => {
       scheduled_full_regression: '0 3 * * *',
       test_runner: 'pytest',
       test_tier_smoke: 'pytest -m smoke',
-      test_feature_command: 'pytest -k {REQ}',
+      test_feature_command: 'make feature REQ={REQ}',
     });
     expect(ok.errors).toEqual([]);
     expect(ok.config).toEqual({
@@ -95,7 +95,7 @@ describe('parseTestOptions', () => {
       scheduled_full_regression: '0 3 * * *',
       test_runner: 'pytest',
       test_tier_smoke: 'pytest -m smoke',
-      test_feature_command: 'pytest -k {REQ}',
+      test_feature_command: 'make feature REQ={REQ}',
     });
     const bad = parseTestOptions({
       release_gate_tier: 'everything',
@@ -121,7 +121,7 @@ describe('proposeTestTiers', () => {
     expect(proposeTestTiers(none)).toBeNull();
     expect(proposeTestTiers({ ...none, playwright: true, pytest: true })).toMatchObject({ runner: 'playwright', config: {} });
     expect(proposeTestTiers({ ...none, pytest: true })).toMatchObject({ runner: 'pytest', config: { test_runner: 'pytest' } });
-    expect(proposeTestTiers({ ...none, jest: true })!.config).toMatchObject({ test_tier_smoke: 'npx jest --testPathPattern smoke', test_tier_full: 'npx jest', test_feature_command: 'npx jest -t {REQ}' });
+    expect(proposeTestTiers({ ...none, jest: true })!.config).toMatchObject({ test_tier_smoke: 'npx jest --testPathPattern smoke', test_tier_full: 'npx jest', test_feature_command: 'npx jest -t "{REQ}]"' });
     expect(proposeTestTiers({ ...none, jest: true, vitest: true })!.runner).toBe('vitest');
   });
 });
@@ -171,7 +171,7 @@ describe('resolveTestConfig', () => {
     expect(r.config).toEqual({
       test_tier_smoke: 'npx jest --testPathPattern smoke',
       test_tier_full: 'npx jest --testPathPattern "smoke|critical|api"',
-      test_feature_command: 'npx jest -t {REQ}',
+      test_feature_command: 'npx jest -t "{REQ}]"',
     });
     // a key from a flag or the config suppresses the whole proposal (the operator already decided)
     const quiet = asker();

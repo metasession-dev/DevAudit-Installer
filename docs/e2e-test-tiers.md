@@ -52,7 +52,11 @@ Each tier is a single-line shell command in `sdlc-config.json`, run from `workin
 | `test_feature_command` | the in-scope run in `feature-e2e.yml`; `{REQ}` is replaced with the id | `npx playwright test --grep <REQ>` |
 | `test_runner` | which defaults the script uses: `playwright` or `pytest` | `playwright` |
 
-With `test_runner: pytest` the script defaults to `pytest -m smoke`, `pytest -m "smoke or critical"`, `pytest` and `pytest -k <REQ>`, each writing JUnit XML to `$TEST_JUNIT_XML` (default `junit.xml`). A tier key always wins over the runner default, so `test_tier_smoke: "npx vitest run --project smoke"` works for Jest or Vitest. ### pytest tier workflows (`test_runner: pytest`)
+With `test_runner: pytest` the script defaults to `pytest -m smoke`, `pytest -m "smoke or critical"` and `pytest`, each writing JUnit XML to `$TEST_JUNIT_XML` (default `junit.xml`). A tier key always wins over the runner default, so `test_tier_smoke: "npx vitest run --project smoke"` works for Jest or Vitest. For the pytest **feature scope** the script runs the test files under `tests/` that mention the requirement id anywhere (title, docstring, comment or marker), with an exact-id match (`REQ-11` does not select `REQ-111`); a requirement that no file mentions is an error, never a silent full run. It does not use `pytest -k`, which only sees test, class and marker names and can never match `REQ-042`.
+
+Jest and Vitest have no built-in default. `devaudit install` proposes editable commands for a detected Jest or Vitest repo, and the `e2e-test-engineer` skill's `references/tiers-per-runner.md` shows the directory convention and the `[REQ-XXX]` title tag each tier command relies on.
+
+### pytest tier workflows (`test_runner: pytest`)
 
 Setting `test_runner` to `pytest` makes `devaudit update` generate pytest versions of `feature-e2e.yml` and (when `e2e_regression_enabled`) `e2e-regression.yml` instead of the Playwright ones, whatever the stack. They set up Python (`python_version`, else any 3.x), install the project (`pip install -e ".[dev]"` or `requirements.txt`, plus `pytest`), apply `database_*`, `e2e_env` and `e2e_setup_command` as before, and run the tier through `scripts/run-test-tier.sh`. The JUnit XML is the `e2e_result`; there is no dev server, screenshot or HTML report.
 

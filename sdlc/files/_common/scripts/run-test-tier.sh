@@ -12,7 +12,9 @@
 #            test_tier_smoke / test_tier_critical / test_tier_full
 #                                shell command for that tier
 #            test_feature_command shell command for the feature scope; {REQ}
-#                                is replaced with the requirement id
+#                                is replaced with the requirement id. The pytest
+#                                default runs the test files under tests/ that
+#                                mention the id (pytest -k cannot see docstrings)
 #            test_runner          playwright (default) | pytest; picks the
 #                                default when the tier's own key is unset
 #            e2e_project          Playwright project of the smoke tier
@@ -98,7 +100,22 @@ default_command() {
     pytest:smoke) echo "pytest -m smoke --junit-xml=$JUNIT" ;;
     pytest:critical) echo "pytest -m \"smoke or critical\" --junit-xml=$JUNIT" ;;
     pytest:full) echo "pytest --junit-xml=$JUNIT" ;;
-    pytest:feature) echo "pytest -k \"{REQ}\" --junit-xml=$JUNIT" ;;
+    pytest:feature)
+      # `pytest -k` matches test, class and marker names, never docstrings or
+      # comments, and a Python name cannot hold "REQ-042", so it would select
+      # nothing. Run the test files that mention the requirement id instead
+      # (the id must end there: REQ-11 does not match REQ-111). No match is an
+      # error, never a silent full run.
+      local files f quoted=""
+      files="$(grep -rlE "${REQ}([^0-9A-Za-z]|\$)" --include='*.py' tests 2>/dev/null | LC_ALL=C sort || true)"
+      if [ -z "$files" ]; then
+        echo "::error::No pytest file under tests/ mentions ${REQ}" >&2
+        echo "exit 5"
+        return
+      fi
+      while IFS= read -r f; do quoted="${quoted}$(printf '%q ' "$f")"; done <<<"$files"
+      echo "pytest ${quoted}--junit-xml=$JUNIT"
+      ;;
     *) die "unknown test_runner '$RUNNER' (expected playwright or pytest)" ;;
   esac
 }
