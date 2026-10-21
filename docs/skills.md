@@ -9,7 +9,7 @@ This page is the short reader-facing overview. The full contract for skill struc
 | Skill | Role | Primary stage(s) | What it produces |
 | --- | --- | --- | --- |
 | `sdlc-implementer` | Orchestrator | 1-5 | Drives the tracked SDLC path end to end, including phase routing, evidence checkpoints, PR readiness, and resume/watch behavior |
-| `e2e-test-engineer` | E2E and visual specialist | 2 | Maintains the end-to-end test pack, proves acceptance criteria, captures per-AC evidence shots, and helps classify failures |
+| `e2e-test-engineer` | E2E and visual specialist | 2 | Maintains the end-to-end and API/integration test pack (Playwright, pytest, Jest, Vitest) in smoke / critical / full tiers, proves acceptance criteria, captures per-AC evidence shots, and helps classify failures |
 | `e2e-ci-reliability` | E2E suite reliability specialist | 2, 4 | Diagnoses long-run E2E suite flake (accumulated degradation vs. cold-compile vs. host ceiling) as distinct from application defects, and applies sharding, warm-up, or capacity fixes |
 | `governance-doc-author` | Governance-document specialist | 1-3 | Authors or refreshes governance artifacts such as ROPA, DPIA, AI disclosure, incident response, and periodic review docs |
 | `requirements-aligner` | SRS alignment specialist | 1, 3 | Maintains `docs/SRS.md` and drops per-REQ `srs-alignment.md` traceability evidence |

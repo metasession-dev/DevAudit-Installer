@@ -69,7 +69,24 @@ P='{"test_runner":"pytest"}'
 assert_eq "smoke" "pytest -m smoke --junit-xml=junit.xml" "$(run_dry "$P" smoke)"
 assert_eq "critical" 'pytest -m "smoke or critical" --junit-xml=junit.xml' "$(run_dry "$P" critical)"
 assert_eq "full" "pytest --junit-xml=junit.xml" "$(run_dry "$P" full)"
-assert_eq "feature" 'pytest -k "REQ-042" --junit-xml=junit.xml' "$(run_dry "$P" feature REQ-042)"
+# the pytest feature scope runs the files that mention the id, wherever in the file
+fdir="$WORK/pyfeature"
+mkdir -p "$fdir/tests/api"
+printf '%s' "$P" > "$fdir/sdlc-config.json"
+printf '# [REQ-042][AC1] health endpoint answers 200\ndef test_health(): pass\n' > "$fdir/tests/api/test_health.py"
+printf '# covers REQ-0421 only\ndef test_other(): pass\n' > "$fdir/tests/test_other.py"
+printf '# REQ-042\ndef test_two(): pass\n' > "$fdir/tests/test_two.py"
+printf '# REQ-042\n' > "$fdir/tests/notes.txt"
+assert_eq "feature runs the files that mention the id (not REQ-0421, not non-python files)" \
+  "pytest tests/api/test_health.py tests/test_two.py --junit-xml=junit.xml" \
+  "$(cd "$fdir" && GITHUB_WORKSPACE="$fdir" RUN_TEST_TIER_DRY_RUN=1 bash "$HELPER" feature REQ-042 2>/dev/null)"
+assert_eq "REQ-04 does not match REQ-042 or REQ-0421" "exit 5" \
+  "$(cd "$fdir" && GITHUB_WORKSPACE="$fdir" RUN_TEST_TIER_DRY_RUN=1 bash "$HELPER" feature REQ-04 2>/dev/null)"
+assert_eq "no match is exit 5, never a full run" "5" \
+  "$(cd "$fdir" && GITHUB_WORKSPACE="$fdir" bash "$HELPER" feature REQ-999 >/dev/null 2>&1; echo $?)"
+printf '# REQ-042\n' > "$fdir/tests/test with space.py"
+assert_eq "a path with a space is quoted" "pytest tests/api/test_health.py tests/test\\ with\\ space.py tests/test_two.py --junit-xml=junit.xml" \
+  "$(cd "$fdir" && GITHUB_WORKSPACE="$fdir" RUN_TEST_TIER_DRY_RUN=1 bash "$HELPER" feature REQ-042 2>/dev/null)"
 dir="$WORK/junit"
 mkdir -p "$dir"
 printf '%s' "$P" > "$dir/sdlc-config.json"
