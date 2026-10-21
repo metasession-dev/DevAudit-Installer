@@ -319,6 +319,10 @@ async function checkE2eRegressionConsistency(): Promise<CheckResult> {
   const consumer = await readConsumerConfig();
   if (!consumer) return { name, ok: true, detail: 'skipped (not a consumer project)' };
   const enabled = consumer.cfg['e2e_regression_enabled'] === true;
+  // The pytest runner has no Playwright projects: its tiers are markers (devaudit-installer#1060).
+  if (consumer.cfg['test_runner'] === 'pytest') {
+    return { name, ok: true, detail: enabled ? 'pytest runner: tiers are pytest markers, checked by test-tiers' : 'not opted in' };
+  }
   let playwrightConfig = '';
   try {
     playwrightConfig = await fs.readFile(`${consumer.repoRoot}/playwright.config.ts`, 'utf-8');

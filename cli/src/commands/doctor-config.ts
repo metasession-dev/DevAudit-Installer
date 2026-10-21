@@ -1,6 +1,7 @@
 import type { CheckResult, Finding } from '../lib/doctor-types.js';
 import { detectDeployHost, describeDetection, defaultGh, type DeployDetection, type GhRunner } from '../lib/deploy-detect.js';
 import { SECRET_NAME } from '../lib/repo-config-keys.js';
+import { e2eReleaseGateCheck, testTiersCheck, type CommandRunner } from './doctor-tiers.js';
 
 /**
  * devaudit-installer#1040 — doctor checks for a consumer's deploy and CI
@@ -16,6 +17,8 @@ export interface ConfigCheckDeps {
   /** HEAD request status for a URL, or null when unreachable (test seam). */
   readonly probe?: (url: string) => Promise<number | null>;
   readonly detection?: DeployDetection;
+  /** Runs a collect-only test command (test seam for the `test-tiers` check). */
+  readonly run?: CommandRunner;
 }
 
 export const PROBE_HEADER_SECRET = 'DEVAUDIT_PROBE_HEADER';
@@ -63,6 +66,9 @@ export async function runConfigChecks(
     await productionUrlCheck(cfg, secrets, detection, probe),
     customDeployCheck(host, cfg, secrets),
     await ciRunnerCheck(repoRoot, cfg, gh),
+    // devaudit-installer#1059/#1060: the release gate and the test tiers. Appended so existing order is unchanged.
+    await e2eReleaseGateCheck(repoRoot, cfg, gh),
+    await testTiersCheck(repoRoot, cfg, gh, deps.run),
   ];
 }
 
