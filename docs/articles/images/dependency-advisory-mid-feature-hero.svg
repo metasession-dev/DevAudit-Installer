@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" font-family="'Helvetica Neue', Arial, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#0B1220"/><stop offset="100%" stop-color="#141E33"/></linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#5B8DEF"/><stop offset="100%" stop-color="#7FD1C8"/></linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1E293F" stroke-width="1"/></pattern>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect width="1200" height="630" fill="url(#grid)" opacity="0.5"/>
+  <text x="80" y="88" fill="#7FD1C8" font-size="22" letter-spacing="4" font-weight="600">DEVAUDIT.AI &#8226; SECURITY</text>
+  <rect x="80" y="108" width="120" height="4" fill="url(#accent)"/>
+  <text x="80" y="190" fill="#F5F7FA" font-size="50" font-weight="800">The advisory</text>
+  <text x="80" y="250" fill="url(#accent)" font-size="50" font-weight="800">nobody asked for.</text>
+  <text x="80" y="296" fill="#94A3B8" font-size="22" font-weight="500">A red dependency audit mid-feature is</text>
+  <text x="80" y="326" fill="#94A3B8" font-size="22" font-weight="500">the process working, not a chore.</text>
+  <rect x="80" y="352" width="400" height="34" rx="6" fill="#1E293F" stroke="#334155"/>
+  <text x="96" y="375" fill="#F5F7FA" font-size="18" font-weight="700">Monday</text>
+  <text x="220" y="375" fill="#64748B" font-size="17">build is green</text>
+  <rect x="80" y="392" width="400" height="34" rx="6" fill="#1E293F" stroke="#334155"/>
+  <text x="96" y="415" fill="#F5F7FA" font-size="18" font-weight="700">Tuesday</text>
+  <text x="220" y="415" fill="#64748B" font-size="17">advisory published</text>
+  <rect x="80" y="432" width="400" height="34" rx="6" fill="#1E293F" stroke="#F87171" stroke-width="2"/>
+  <text x="96" y="455" fill="#F87171" font-size="18" font-weight="700">Your push</text>
+  <text x="220" y="455" fill="#CBD5E1" font-size="17">audit fails, no code change</text>
+  <text x="80" y="508" fill="#94A3B8" font-size="16" font-weight="600" letter-spacing="2">EVIDENCE FOR</text>
+  <rect x="80" y="518" width="250" height="34" rx="6" fill="#141E33" stroke="#334155"/>
+  <text x="96" y="541" fill="#CBD5E1" font-size="16">ISO 27001 A.8.28 &#183; A.8.29</text>
+  <rect x="342" y="518" width="136" height="34" rx="6" fill="#141E33" stroke="#334155"/>
+  <text x="358" y="541" fill="#CBD5E1" font-size="16">GDPR Art. 32</text>
+  <rect x="80" y="558" width="180" height="34" rx="6" fill="#141E33" stroke="#334155"/>
+  <text x="96" y="581" fill="#CBD5E1" font-size="16">EU AI Act Art. 15</text>
+  <rect x="272" y="558" width="128" height="34" rx="6" fill="#141E33" stroke="#334155"/>
+  <text x="288" y="581" fill="#CBD5E1" font-size="16">SOC 2 CC7.2</text>
+  <text x="800" y="368" fill="#94A3B8" font-size="20" font-weight="600" letter-spacing="2">WHAT HAPPENS NEXT</text>
+  <rect x="800" y="385" width="320" height="62" rx="8" fill="#141E33" stroke="#7FD1C8" stroke-width="2"/>
+  <text x="818" y="412" fill="#7FD1C8" font-size="22" font-weight="800">FIX</text>
+  <text x="818" y="435" fill="#CBD5E1" font-size="16">bump PR, the audit goes green</text>
+  <rect x="800" y="457" width="320" height="62" rx="8" fill="#141E33" stroke="#5B8DEF" stroke-width="2"/>
+  <text x="818" y="484" fill="#5B8DEF" font-size="22" font-weight="800">ACCEPT</text>
+  <text x="818" y="507" fill="#CBD5E1" font-size="16">record, owner, expiry date</text>
+  <rect x="800" y="529" width="320" height="62" rx="8" fill="#141E33" stroke="#F5B642" stroke-width="2"/>
+  <text x="818" y="556" fill="#F5B642" font-size="22" font-weight="800">PROVE</text>
+  <text x="818" y="579" fill="#CBD5E1" font-size="16">the failed run, the fix, the re-run</text>
+  <circle cx="1080" cy="120" r="120" fill="none" stroke="url(#accent)" stroke-width="2" opacity="0.35"/>
+  <circle cx="1080" cy="120" r="80" fill="none" stroke="url(#accent)" stroke-width="2" opacity="0.25"/>
+</svg>

@@ -151,6 +151,7 @@ Before the broader thought-leadership and workflow series begins, the **first pu
 | 37                                          | MOFU   | CISO                        | Fail-Closed: Security Design in the Release Gate — Preventing Shadow Approvals                                    | Security deep-dive (1500w)           |
 | 38                                          | MOFU   | Lead Developer              | The LAST/NEXT Status Sticky: Workflow Navigability for Distributed Teams                                          | UX pattern guide (1500w)             |
 | 39                                          | MOFU   | CTO + Lead Developer        | Six Kinds of Tests, One Safety Net: What Runs When, and What Happens When the Last Gate Fails                     | Technical explainer (~1800w) + short-form|
+| 40                                          | MOFU   | Lead Developer              | The Advisory Nobody Asked For: Why a Failing Dependency Audit Mid-Feature Is the Process Working                  | Technical explainer (~1800w) + short-form |
 
 ---
 
@@ -850,6 +851,25 @@ This is a five-part series that follows a single feature from GitHub issue to pr
   **CTA:** "See the E2E tier model → [docs/e2e-test-tiers.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/e2e-test-tiers.md)"
   **Cross-links:** [docs/e2e-test-tiers.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/e2e-test-tiers.md) · [docs/release-playbooks/](https://github.com/metasession-dev/DevAudit-Installer/tree/main/docs/release-playbooks) · [Long-form](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/articles/test-types-and-final-regression-long-form.md)
 
+#### Article 40: The Advisory Nobody Asked For
+
+> **Publication note:** Added after launch (devaudit-installer#1075), drawn from a real case in DevAudit's own portal work: a feature PR's dependency audit failed on advisories published after the last green run.
+
+**Primary persona:** Lead Developer (CISO + Compliance Officer get the clause table as a callout)
+**Goal:** Show that a failing dependency audit in the middle of a feature is an annoying distraction and a satisfying catch, walk the exact fix-or-accept path, and connect it to the framework clauses the same evidence supports.
+**Key points:**
+
+- Advisory data changes without a code change: the generated audit "fails on any unaccepted `high`/`critical` advisory, including ones disclosed after the last push with no code change" (docs/compliance-gates.md)
+- The real case: four new advisories (one high, three moderate) on two transitive packages failed a feature PR's audit; none were in code the PR touched; the fix is a separate dependency PR with pinned overrides
+- What the gate does: `npm audit --json`, then `evaluate-npm-audit.sh` resolves npm's transitive graph to concrete advisories, evaluates each high/critical one against the installed lockfile path and writes `dependency-risk-evaluation.json` (ID, severity, package, installed version, path, introduced-by)
+- Fix (bump PR, classified by the real semver bump, land it first) or accept; acceptance only when no compatible fix exists, no package-name allowlists, one entry per advisory and path, a validated risk-acceptance record (reachability, impact, compensating controls, decision-maker, future review date), a tracking issue with a `Review by` date, an `expiresAt` that fails the gate again, `devaudit doctor` warning 14 days ahead, uploaded as `accepted_dependency_risk` evidence
+- The gate is layered: local gates while implementing, `Quality Gates` on every PR and integration push, a provenance check on the release PR, a quarterly dependency deep audit
+- AI angle: the Test Policy names fabricated, outdated or vulnerable packages and requires the same SAST and dependency gates for AI-generated code; the gate does not care who added the package
+- Clause table from the portal's framework registry: ISO 27001 A.8.28 and A.8.29, GDPR Art. 32, EU AI Act Art. 15, SOC 2 CC7.2 (gate outcome manifest) and CC8.1 (four-eyes approval). Say plainly: not a certification, not a scanner; DevAudit produces the evidence and the auditor decides
+  **DevAudit hook:** `ci.yml.template` Gate 3, `evaluate-npm-audit.sh`, `validate-risk-acceptance-record.sh`, `sdlc-implementer` step 5a, `devaudit doctor` `accepted-exceptions`, the /compliance framework matrix.
+  **CTA:** "See what the framework maps to → [devaudit.ai/compliance](https://devaudit.ai/compliance)"
+  **Cross-links:** [docs/compliance-gates.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/compliance-gates.md) · [docs/release-playbooks/](https://github.com/metasession-dev/DevAudit-Installer/tree/main/docs/release-playbooks) · [Long-form](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/articles/dependency-advisory-mid-feature-long-form.md)
+
 ---
 
 ## Publishing cadence
@@ -1204,6 +1224,16 @@ Each companion post follows this structure:
 **CTA:** "Read the full article → devaudit.ai/blog/test-types-and-final-regression"
 **Source draft:** [short-form](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/articles/test-types-and-final-regression-short-form.md) · hero image `images/test-types-and-final-regression-hero.png`
 
+#### #40s: The Advisory Nobody Asked For
+
+**Long-form parent:** Article 40 — The Advisory Nobody Asked For
+**Platform:** LinkedIn, Dev.to
+**Hook:** "You are two-thirds through a feature and CI goes red on the dependency audit. You did not touch a dependency."
+**Insight:** An advisory database is not frozen: a package three levels down gets a new advisory on Tuesday and Monday's green build is red with no code change. That is the audit doing its job, and the process turns the annoyance into a bounded decision: fix it with a bump PR, or accept it with a named advisory, a reachability and impact record, an owner, a tracking issue and an expiry that fails the gate again.
+**Proof point:** The same audit run supports ISO 27001 A.8.28 and A.8.29, GDPR Art. 32 and EU AI Act Art. 15, and the gate outcome sits under SOC 2 CC7.2 in the portal's framework registry; the failed run, the fix and the green re-run are the audit pack. DevAudit produces the evidence; the auditor decides.
+**CTA:** "Read the full article → devaudit.ai/blog/dependency-advisory-mid-feature"
+**Source draft:** [short-form](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/articles/dependency-advisory-mid-feature-short-form.md) · hero image `images/dependency-advisory-mid-feature-hero.png` (SVG source alongside)
+
 ---
 
 ## SEO keyword targets
@@ -1215,6 +1245,7 @@ Each companion post follows this structure:
 | Agentic SDLC          | agentic sdlc, ai coding agent governance, ai software development lifecycle                     | #2, #24, #25 |
 | Compliance automation | automated evidence collection ci/cd, compliance automation developer, audit evidence automation | #8, #14, #26 |
 | DevAudit specific     | devaudit, devaudit.ai, devaudit install, devaudit vs, compliance evidence portal                | #9, #12, #13 |
+| Dependency security   | dependency audit ci, npm audit compliance, vulnerable dependency evidence, iso 27001 secure coding evidence | #40          |
 
 ---
 
@@ -1230,6 +1261,7 @@ Every article ends with one primary CTA that routes to a devaudit.ai page. This 
 | #5, #12, #15       | [devaudit.ai/onboarding](https://devaudit.ai/onboarding)     | Decision-stage → book a conversation                   |
 | #9                 | [devaudit.ai/auth/sign-in](https://devaudit.ai/auth/sign-in) | Ready to start → issue a token now                     |
 | #14, #26           | [devaudit.ai/compliance](https://devaudit.ai/compliance)     | Auditor-adjacent → see what the portal shows           |
+| #40                | [devaudit.ai/compliance](https://devaudit.ai/compliance)     | Clause-curious → see what the audit evidence maps to   |
 | #16–#20            | [devaudit.ai/sdlc](https://devaudit.ai/sdlc)                 | Workflow-interested → read the full manifesto          |
 | #21, #22, #23, #24 | [devaudit.ai/sdlc](https://devaudit.ai/sdlc)                 | Thought-leadership → understand the product philosophy |
 | #25, #27, #28      | [devaudit.ai/onboarding](https://devaudit.ai/onboarding)     | Role-specific → start the adoption conversation        |
