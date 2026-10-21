@@ -224,7 +224,7 @@ and probe result; inspect provider logs and fix forward before retrying.
 
 Generated production deployment-status workflows accept exact `production` or
 `prod` environments and qualified provider labels ending in `/ production` or
-`/production`, for example `Wawa Garden Bar / production`. UAT, staging,
+`/production`, for example `Example App / production`. UAT, staging,
 preview, and failed deployment statuses must not create production evidence.
 
 A consumer-enabled post-merge regression must also reach a terminal successful
