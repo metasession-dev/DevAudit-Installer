@@ -2,6 +2,9 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
+import { promises as fs } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { load as yamlLoad } from 'js-yaml';
 import { renderAll } from './helpers/render-workflows.js';
 import { findConfigKey, parseConfigValue } from '../src/lib/repo-config-keys.js';
@@ -59,7 +62,7 @@ describe('release gate: no key set is the same as before', { timeout: 180_000 },
     expect(reg).toContain('            deployment_status)\n              echo "project=regression"');
     expect(reg).not.toMatch(/tier: \$tier|steps\.select\.outputs\.tier|schedule/);
     expect(wf['check-release-approval.yml']).toContain('pull_request:\n    branches: [main]');
-    expect(wf['check-release-approval.yml']).toContain('\\"number\\":${PR_NUMBER}}}"');
+    expect(wf['check-release-approval.yml']).toContain('\\"number\\":${PR_NUMBER},\\"headSha\\":\\"${PR_HEAD_SHA}\\"}}"');
     expect(wf['check-release-approval.yml']).not.toContain('releaseGateTier');
   });
 
@@ -79,7 +82,7 @@ describe('release gate: triggers and selector follow the keys', { timeout: 180_0
     expect(reg).toContain('echo "tier=full" >> "$GITHUB_OUTPUT"');
     expect(reg).toContain('--arg tier "${{ steps.select.outputs.tier || \'full\' }}"');
     expect(reg).toContain('project: $project, tier: $tier, selected_specs');
-    expect(wf['check-release-approval.yml']).toContain('\\"number\\":${PR_NUMBER}},\\"releaseGateTier\\":\\"full\\"}"');
+    expect(wf['check-release-approval.yml']).toContain('\\"headSha\\":\\"${PR_HEAD_SHA}\\"},\\"releaseGateTier\\":\\"full\\"}"');
   });
 
   it('release_gate_tier smoke runs the e2e_project; critical keeps the critical-or-smoke fallback', async () => {
@@ -226,5 +229,62 @@ describe('release gate config keys', () => {
       '.github/workflows/check-release-approval.yml',
     ]);
     expect(findConfigKey('scheduled_full_regression')!.affects).toEqual(['.github/workflows/e2e-regression.yml']);
+  });
+});
+
+describe('the PR head SHA reaches the portal (#1074)', { timeout: 180_000 }, () => {
+  /** Runs the rendered "Link PR to release" step with a curl stub and returns the JSON body it would have sent. */
+  async function linkPrBody(workflow: string): Promise<Record<string, unknown>> {
+    const wf = yamlLoad(workflow) as Workflow;
+    const step = Object.values(wf.jobs ?? {})
+      .flatMap((job) => job.steps ?? [])
+      .find((candidate) => candidate.name === 'Link PR to release');
+    expect(step?.run).toBeTruthy();
+    const values: Record<string, string> = {
+      'steps.release.outputs.release_id': 'rel-1',
+      'github.event.pull_request.html_url': 'https://github.example/o/r/pull/42',
+      'github.event.pull_request.number': '42',
+      'github.event.pull_request.head.sha': 'cac618845d7dc92bfbc60f3f779175d737afb895',
+    };
+    const script = step!.run!.replace(/\$\{\{\s*([^}]+?)\s*\}\}/g, (_m, key: string) => {
+      if (!(key in values)) throw new Error(`the step reads an unexpected expression: ${key}`);
+      return values[key]!;
+    });
+    const dir = await fs.mkdtemp(join(tmpdir(), 'cli-link-pr-'));
+    try {
+      await fs.writeFile(join(dir, 'curl'), '#!/bin/sh\nwhile [ "$#" -gt 0 ]; do [ "$1" = "-d" ] && printf %s "$2" > "$OUT"; shift; done\n', { mode: 0o755 });
+      const out = join(dir, 'body.json');
+      const r = spawnSync('bash', ['-c', script], {
+        encoding: 'utf8',
+        env: { PATH: `${dir}:${process.env['PATH']}`, OUT: out, BASE: 'https://portal.example', DEVAUDIT_API_KEY: 'k' },
+      });
+      expect(r.status, r.stderr).toBe(0);
+      return JSON.parse(await fs.readFile(out, 'utf8')) as Record<string, unknown>;
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }
+
+  it('sends prInfo.headSha, the PR head and never the merge commit, with valid JSON', async () => {
+    const body = await linkPrBody((await renderAll('node'))['check-release-approval.yml']!);
+    expect(body).toEqual({
+      prInfo: { url: 'https://github.example/o/r/pull/42', number: 42, headSha: 'cac618845d7dc92bfbc60f3f779175d737afb895' },
+    });
+  });
+
+  it('adds releaseGateTier beside prInfo when a gate is configured', async () => {
+    const body = await linkPrBody((await renderAll('node', { release_gate_tier: 'full' }))['check-release-approval.yml']!);
+    expect(body['releaseGateTier']).toBe('full');
+    expect((body['prInfo'] as Record<string, unknown>)['headSha']).toBe('cac618845d7dc92bfbc60f3f779175d737afb895');
+  });
+
+  it('reads the head from the pull_request payload only, not GITHUB_SHA or github.sha', async () => {
+    const wf = (await renderAll('node'))['check-release-approval.yml']!;
+    const start = wf.indexOf('name: Link PR to release');
+    const step = wf.slice(start, wf.indexOf('name: Post release link on PR'));
+    // comments may mention GITHUB_SHA to explain why it is not used; only the code counts
+    const code = step.split('\n').filter((line) => !line.trim().startsWith('#')).join('\n');
+    expect(code).toContain('${{ github.event.pull_request.head.sha }}');
+    expect(code).not.toMatch(/GITHUB_SHA|github\.sha/);
   });
 });

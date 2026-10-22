@@ -246,11 +246,14 @@ jobs:
           RELEASE_ID="${{ steps.release.outputs.release_id }}"
           PR_URL="${{ github.event.pull_request.html_url }}"
           PR_NUMBER="${{ github.event.pull_request.number }}"
+          # The PR head commit, not GITHUB_SHA (the synthetic merge commit on pull_request events).
+          # The portal compares it with the commit the release gate ran on (#1074).
+          PR_HEAD_SHA="${{ github.event.pull_request.head.sha }}"
           curl -s -o /dev/null -w "PR link: HTTP %{http_code}\n" \
             -X PATCH "${BASE}/api/ci/releases/${RELEASE_ID}" \
             -H "Authorization: Bearer ${DEVAUDIT_API_KEY}" \
             -H "Content-Type: application/json" \
-            -d "{\"prInfo\":{\"url\":\"${PR_URL}\",\"number\":${PR_NUMBER}}{{RELEASE_GATE_PATCH_FIELD}}}"
+            -d "{\"prInfo\":{\"url\":\"${PR_URL}\",\"number\":${PR_NUMBER},\"headSha\":\"${PR_HEAD_SHA}\"}{{RELEASE_GATE_PATCH_FIELD}}}"
           echo "Linked PR #${PR_NUMBER} to release ${RELEASE_ID}"
 
       - name: Post release link on PR
