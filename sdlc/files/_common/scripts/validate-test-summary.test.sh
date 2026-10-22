@@ -634,6 +634,71 @@ E2E_RESULTS_JSON="$PWJSON_FAIL" E2E_RUN_ID=36659647566 E2E_RUN_ATTEMPT=1 bash "$
 assert_exit "summary names a different spec than CI failed — should fail" 1 "$EXIT29"
 assert_output_contains "reports the untriaged CI failure" "webhook-idempotency-replay.spec.ts"
 
+# --- #1081: the SDLC's own deferred vocabulary is not a gate state ---
+D30="$WORK/case30"
+make_fixture "$D30" "REQ-030" << 'EOF'
+# Test Execution Summary — REQ-030
+
+## Test design
+
+**Layers planned:** unit
+**Layers covered:** unit ✓
+
+E2E: @e2e-deferred: static pages only, no UI-facing behaviour to drive.
+Risks: @risk-deferred: LOW risk, none worth registering.
+Release intent: deferred-to-next is NOT set for this requirement.
+
+## Gate Results
+
+| Gate             | Result   | Details              |
+| ---------------- | -------- | -------------------- |
+| TypeScript       | PASS     | 0 errors             |
+| Unit Tests       | PASS     | 42 passed            |
+
+**Final assessment:** All gates passed.
+EOF
+EXIT30=$(run_validator "$D30")
+assert_exit "@e2e-deferred, @risk-deferred and deferred-to-next are not gate states (#1081) — should pass" 0 "$EXIT30"
+
+D31="$WORK/case31"
+make_fixture "$D31" "REQ-031" << 'EOF'
+# Test Execution Summary — REQ-031
+
+**Layers covered:** unit ✓, e2e ✓
+
+E2E: @e2e-deferred: no UI.
+The smoke tier is deferred.
+
+## Gate Results
+
+| Gate             | Result   | Details              |
+| ---------------- | -------- | -------------------- |
+| Unit Tests       | PASS     | 42 passed            |
+
+**Final assessment:** All gates passed.
+EOF
+EXIT31=$(run_validator "$D31")
+assert_exit "an exempt tag does not hide a bare 'deferred' on another line (#1081) — should fail" 1 "$EXIT31"
+assert_output_contains "reports the offending line" "The smoke tier is deferred."
+if grep -Fq -- "E2E: @e2e-deferred: no UI." /tmp/validate-test-summary-output.txt; then
+  echo "  FAIL: does not report the exempt tag line"; FAIL=$((FAIL + 1))
+else
+  echo "  PASS: does not report the exempt tag line"; PASS=$((PASS + 1))
+fi
+
+D32="$WORK/case32"
+make_fixture "$D32" "REQ-032" << 'EOF'
+# Test Execution Summary — REQ-032
+
+**Layers covered:** unit ✓
+
+Gate Results: E2E: DEFERRED  (upper case) and @RISK-DEFERRED is exempt.
+
+**Final assessment:** All gates passed.
+EOF
+EXIT32=$(run_validator "$D32")
+assert_exit "a bare upper-case DEFERRED still fails (#1081) — should fail" 1 "$EXIT32"
+
 echo ""
 echo "=== Summary: $PASS pass / $FAIL fail ==="
 
