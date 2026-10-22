@@ -610,7 +610,7 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
    - `compliance/evidence/REQ-XXX/test-execution-summary.md`
    - `compliance/evidence/REQ-XXX/security-summary.md`
    - `compliance/pending-releases/RELEASE-TICKET-REQ-XXX.md`
-   - `compliance/evidence/REQ-XXX/implementation-plan.md` when the REQ risk class requires it
+   - `compliance/evidence/REQ-XXX/implementation-plan.md` (copied for every risk class: the portal's release checklist wants a plan for every requirement; CI also uploads `compliance/plans/REQ-XXX/implementation-plan.md` if no copy is there, #1080)
    - any already-mandatory AI artefacts required by the risk/usage rules
    - if `compliance/pending-releases/BUNDLED-CHANGES-REQ-XXX.md` exists, regenerate the paired JSON manifest too and keep both aligned with the current approval scope
    - if `compliance/pending-releases/BUNDLED-CHANGES-REQ-XXX.md` exists, the canonical artefacts must carry the bundle narrative too:
@@ -665,7 +665,7 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
    cp compliance/plans/REQ-XXX/implementation-plan.md compliance/evidence/REQ-XXX/implementation-plan.md
    ```
 
-   This ensures the pre-push hook's compliance validator check passes. The plan directory retains the original for in-flight reference; the evidence directory has the copy for CI validation and audit.
+   This ensures the pre-push hook's compliance validator check passes. The plan directory retains the original for in-flight reference; the evidence directory has the copy for CI validation and audit. Do this for **every** risk class, not only MEDIUM/HIGH: the validator only *requires* the plan for MEDIUM/HIGH, but the portal's release checklist shows "Implementation plan present" as missing for any requirement that has none (devaudit-installer#1080). As a safety net `upload-compliance-documents.sh` uploads the plan from `compliance/plans/` when the evidence folder has no copy.
 
 6. **Upload each artefact to the portal** — retry each upload up to 3 times with backoff (5s, 15s, 45s). If an upload still fails after 3 retries, mark it in the RTM as `UPLOAD_FAILED` and surface a warning. Do not mark the RTM as verified for failed uploads. On `resume REQ-XXX`, re-attempt failed uploads before proceeding to Phase 4.
    ```bash
