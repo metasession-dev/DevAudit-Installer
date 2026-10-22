@@ -381,6 +381,89 @@ UPLOAD_TEST_LOG="$D9/upload.log" PATH="$D9/bin:$PATH" GITHUB_EVENT_NAME=push \
   --git-sha deadbeef --branch topic --category test_report > "$D9/stdout.log" 2>&1
 assert_contains "non-PR events are never guarded" 'FORM:releaseBranch=topic' "$D9/upload.log"
 
+# DevAudit-Installer#1082 — sentinel trailer discovery: a window wider than 50
+# commits, preference for the upload's own requirement, and a visible diagnostic.
+# make_trailer_history <dir> <trailer-value> <filler-commits-after-it>: the first
+# commit carries the REQ-091 trailer, `filler` commits without one follow it.
+make_trailer_history() {
+  local dir="$1" value="$2" filler="$3" i
+  rm -rf "$dir"
+  mkdir -p "$dir/bin"
+  cd "$dir"
+  git init -q --initial-branch=main
+  git config user.email "test@example.com"
+  git config user.name "test"
+  echo "evidence" > evidence.txt
+  git add evidence.txt
+  git commit -q -F - <<EOF
+fix: the sdlc-implementer commit
+
+Ref: REQ-091
+Sdlc-Implementer-Sentinel: ${value}
+EOF
+  for ((i = 0; i < filler; i++)); do
+    git commit -q --allow-empty -m "chore: filler ${i}"
+  done
+  cp "$D2/bin/curl" "$dir/bin/curl"
+}
+
+run_sentinel_upload() {
+  local dir="$1" req="$2"
+  cd "$dir"
+  : > "$dir/upload.log"
+  UPLOAD_TEST_LOG="$dir/upload.log" PATH="$dir/bin:$PATH" \
+    bash "$HELPER" fixture-project "$req" test_report evidence.txt \
+    --release v2026.07.13 --environment uat --category test_report --change-type fix \
+    > "$dir/stdout.log" 2>&1
+}
+
+D10="$WORK/case10-deep-history"
+make_trailer_history "$D10" '[{"currentPhase":"2","initializedBy":"skill","status":"active"}]' 120
+run_sentinel_upload "$D10" REQ-091
+assert_contains "a trailer 120 commits back is still found (was lost beyond 50)" \
+  'FORM:sentinelContent=[{"currentPhase":"2","initializedBy":"skill","status":"active"}]' "$D10/upload.log"
+assert_contains "the diagnostic names the commit the trailer came from" 'sentinel: trailer from commit ' "$D10/stdout.log"
+
+D11="$WORK/case11-scan-limit"
+make_trailer_history "$D11" '[{"currentPhase":"2","initializedBy":"skill","status":"active"}]' 30
+cd "$D11"; : > "$D11/upload.log"
+UPLOAD_TEST_LOG="$D11/upload.log" PATH="$D11/bin:$PATH" SENTINEL_SCAN_LIMIT=10 \
+  bash "$HELPER" fixture-project REQ-091 test_report evidence.txt \
+  --release v2026.07.13 --environment uat --category test_report --change-type fix > "$D11/stdout.log" 2>&1
+assert_not_contains "SENTINEL_SCAN_LIMIT narrows the scan" 'FORM:sentinelContent=' "$D11/upload.log"
+assert_contains "no trailer: the diagnostic says so, with the scan size" 'sentinel: none found (change type fix, scanned up to 10 commits' "$D11/stdout.log"
+
+D12="$WORK/case12-prefers-own-req"
+make_trailer_history "$D12" '[{"currentPhase":"2","initializedBy":"skill","status":"active","who":"own"}]' 0
+cd "$D12"
+git commit -q --allow-empty -F - <<'EOF'
+fix: another requirement, newer
+
+Ref: REQ-222
+Sdlc-Implementer-Sentinel: [{"currentPhase":"3","initializedBy":"skill","status":"active","who":"other"}]
+EOF
+run_sentinel_upload "$D12" REQ-091
+assert_contains "the trailer on the upload's own requirement wins over a newer one" '"who":"own"' "$D12/upload.log"
+assert_not_contains "the other requirement's trailer is not used" '"who":"other"' "$D12/upload.log"
+
+D13="$WORK/case13-falls-back-to-newest"
+make_trailer_history "$D13" '[{"currentPhase":"2","initializedBy":"skill","status":"active","who":"only"}]' 3
+run_sentinel_upload "$D13" REQ-777
+assert_contains "no trailer mentions this requirement: the newest trailer is used" '"who":"only"' "$D13/upload.log"
+
+D14="$WORK/case14-malformed"
+make_trailer_history "$D14" 'not-json' 0
+run_sentinel_upload "$D14" REQ-091
+assert_contains "a malformed sentinel is still forwarded" 'FORM:sentinelContent=not-json' "$D14/upload.log"
+if command -v jq >/dev/null 2>&1; then
+  assert_contains "a malformed sentinel is flagged" '::warning::sentinel from trailer from commit' "$D14/stdout.log"
+fi
+
+D15="$WORK/case15-legacy-invoked"
+make_trailer_history "$D15" 'INVOKED' 0
+run_sentinel_upload "$D15" REQ-091
+assert_not_contains "the legacy plain INVOKED marker is not flagged" '::warning::sentinel' "$D15/stdout.log"
+
 echo ""
 echo "=== upload-evidence.test.sh: $PASS passed, $FAIL failed ==="
 if [ "$FAIL" -gt 0 ]; then
