@@ -105,14 +105,14 @@ describe('doctor --fix: plain doctor stays read-only', () => {
   }, 30_000);
 });
 
-describe('doctor --fix: tier A (local edits)', () => {
+describe('doctor --fix: an undeclared portal deferral is a decision (#1083)', () => {
   it('without --yes and without a TTY: nothing applied, exit 8, files untouched', async () => {
     const dir = await d2Fixture();
     const before = await read(dir, TICKET);
     const r = await doctor(dir, ['--fix', '--json'], await env({ DEVAUDIT_VIEWER_API_KEY: 'v' }));
     expect(r.exitCode).toBe(8);
     expect(r.json!.fix!.unapplied).toBe(1);
-    expect(r.json!.fix!.outcomes[0]).toMatchObject({ id: 'mark-ticket-deferred', tier: 'A', status: 'unapplied' });
+    expect(r.json!.fix!.outcomes[0]).toMatchObject({ id: 'resolve-undeclared-deferral', tier: 'B', status: 'unapplied' });
     expect(await read(dir, TICKET)).toBe(before);
   }, 30_000);
 
@@ -124,22 +124,17 @@ describe('doctor --fix: tier A (local edits)', () => {
     expect(await read(dir, TICKET)).not.toContain('Release intent');
   }, 30_000);
 
-  it('--yes applies the ticket field and RTM DEFERRED; a second run changes nothing', async () => {
+  it('--yes with --reason never records or resumes it: the decision is interactive only', async () => {
     const dir = await d2Fixture();
-    const e = await env({ DEVAUDIT_VIEWER_API_KEY: 'v' });
-    const r1 = await doctor(dir, ['--fix', '--yes', '--json'], e);
-    expect(r1.exitCode).toBe(0);
-    expect(r1.json!.fix!.outcomes[0]).toMatchObject({ status: 'applied' });
-    const t1 = await read(dir, TICKET);
-    const rtm1 = await read(dir, 'compliance/RTM.md');
-    expect(t1).toContain('- **Release intent:** deferred-to-next — vendor outage');
-    expect(rtm1).toContain('| REQ-040 | thing | DEFERRED |');
-    const r2 = await doctor(dir, ['--fix', '--yes', '--json'], e);
-    expect(r2.exitCode).toBe(0);
-    expect(r2.json!.proposals.filter((p) => p.remediation.id === 'mark-ticket-deferred')).toEqual([]);
-    expect(await read(dir, TICKET)).toBe(t1);
-    expect(await read(dir, 'compliance/RTM.md')).toBe(rtm1);
-    expect(hits).toEqual([]); // tier A never touches the portal
+    const ticket = await read(dir, TICKET);
+    const rtm = await read(dir, 'compliance/RTM.md');
+    const r = await doctor(dir, ['--fix', '--yes', '--reason', 'tidy up', '--json'], await env({ DEVAUDIT_USER_TOKEN: PAT, DEVAUDIT_VIEWER_API_KEY: 'v' }));
+    expect(r.exitCode).toBe(8);
+    expect(r.json!.fix!.outcomes[0]).toMatchObject({ id: 'resolve-undeclared-deferral', status: 'unapplied' });
+    expect(r.json!.fix!.outcomes[0]!.message).toMatch(/interactive decision/);
+    expect(await read(dir, TICKET)).toBe(ticket);
+    expect(await read(dir, 'compliance/RTM.md')).toBe(rtm);
+    expect(hits).toEqual([]); // nothing recorded, and the portal was never called
   }, 60_000);
 
   it('--dry-run prints planned steps, changes nothing, exits 0', async () => {
@@ -383,6 +378,53 @@ describe('runFix interactive behaviour', () => {
     expect(calls[0]!.verb).toBe('resume');
     expect(await fsp.readFile(join(d.repoRoot, 'compliance/pending-releases/RELEASE-TICKET-REQ-5.md'), 'utf-8')).not.toContain('Release intent');
     expect(await fsp.readFile(join(d.repoRoot, 'compliance/RTM.md'), 'utf-8')).toContain('TESTED - PENDING SIGN-OFF');
+  });
+
+  const undeclared = { version: 'REQ-9', releaseId: 'r9', ticketPath: 'compliance/pending-releases/RELEASE-TICKET-REQ-9.md', reason: 'vendor outage' };
+
+  it('undeclared portal deferral, decision "record": writes the ticket and RTM, never calls the portal (#1083)', async () => {
+    const d = await deps({ ask: asks({ select: async () => 'record' }) });
+    await writeTicket(d.repoRoot, 'REQ-9', {});
+    await writeRtm(d.repoRoot, { 'REQ-9': 'TESTED - PENDING SIGN-OFF' });
+    const r = await runFix([prop('resolve-undeclared-deferral', 'B', undeclared)], d, base0);
+    expect(r.outcomes[0]).toMatchObject({ status: 'applied' });
+    expect(await fsp.readFile(join(d.repoRoot, undeclared.ticketPath), 'utf-8')).toContain('deferred-to-next — vendor outage');
+    expect(await fsp.readFile(join(d.repoRoot, 'compliance/RTM.md'), 'utf-8')).toContain('DEFERRED');
+    expect(calls).toEqual([]);
+  });
+
+  it('undeclared portal deferral, decision "resume": resumes the portal release and leaves the repo undeclared (#1083)', async () => {
+    const d = await deps({ ask: asks({ select: async () => 'resume' }) });
+    const file = await writeTicket(d.repoRoot, 'REQ-9', {});
+    await writeRtm(d.repoRoot, { 'REQ-9': 'TESTED - PENDING SIGN-OFF' });
+    const before = await fsp.readFile(file, 'utf-8');
+    const r = await runFix([prop('resolve-undeclared-deferral', 'B', undeclared)], d, base0);
+    expect(r.outcomes[0]).toMatchObject({ status: 'applied' });
+    expect(r.outcomes[0]!.message).toContain('portal release resumed');
+    expect(calls).toEqual([{ verb: 'resume', reason: 'typed reason' }]);
+    expect(await fsp.readFile(file, 'utf-8')).toBe(before); // nothing recorded in the repo
+    expect(await fsp.readFile(join(d.repoRoot, 'compliance/RTM.md'), 'utf-8')).not.toContain('DEFERRED');
+  });
+
+  it('undeclared portal deferral, decision "leave": changes nothing and stays unapplied (#1083)', async () => {
+    const d = await deps({ ask: asks({ select: async () => 'leave' }) });
+    const file = await writeTicket(d.repoRoot, 'REQ-9', {});
+    const before = await fsp.readFile(file, 'utf-8');
+    const r = await runFix([prop('resolve-undeclared-deferral', 'B', undeclared)], d, base0);
+    expect(r.outcomes[0]).toMatchObject({ status: 'unapplied' });
+    expect(r.unapplied).toBe(1);
+    expect(calls).toEqual([]);
+    expect(await fsp.readFile(file, 'utf-8')).toBe(before);
+  });
+
+  it('undeclared portal deferral is never decided non-interactively, even with --yes --reason (#1083)', async () => {
+    const ni = asks({ nonInteractiveReason: () => 'CI is set', select: async () => { throw new Error('no prompt'); } });
+    const d = await deps({ ask: ni });
+    await writeTicket(d.repoRoot, 'REQ-9', {});
+    const r = await runFix([prop('resolve-undeclared-deferral', 'B', undeclared)], d, { ...base0, yes: true, reason: 'r' });
+    expect(r.outcomes[0]).toMatchObject({ status: 'unapplied' });
+    expect(r.outcomes[0]!.message).toMatch(/interactive decision/);
+    expect(calls).toEqual([]);
   });
 
   it('list-deferred-predecessor needs exactly one next ticket', async () => {
