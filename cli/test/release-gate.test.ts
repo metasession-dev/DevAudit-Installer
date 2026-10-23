@@ -117,6 +117,9 @@ describe('release gate: triggers and selector follow the keys', { timeout: 180_0
     expect(reg).toContain("if: failure() && github.event_name == 'schedule'");
     expect(reg).toContain('[scheduled regression] Full E2E failing on next');
     expect(reg).toContain('--label bug');
+    // names the tested integration-branch commit, not GITHUB_SHA (the default branch head on a schedule)
+    expect(reg).toContain('failed on commit ${TESTED_SHA}');
+    expect(reg).not.toContain('${GITHUB_SHA:0:7}');
     expect((await renderAll('node'))['e2e-regression.yml']).not.toContain('scheduled regression');
   });
 
@@ -150,6 +153,13 @@ describe('release gate: triggers and selector follow the keys', { timeout: 180_0
     expect(reg).toContain('deployment_status|schedule)');
     expect(reg).toContain('project: $project, tier: $tier, selected_specs');
     expect(triggers(reg)).toContain('schedule');
+    expect(bashProblems(reg)).toEqual([]);
+  });
+
+  it('the pytest regression workflow records no tier without a configured gate, so no e2e-release-gate check is reported', async () => {
+    const reg = (await renderAll('node', { test_runner: 'pytest' }))['e2e-regression.yml']!;
+    expect(reg).toContain('project: $project, selected_specs');
+    expect(reg).not.toContain('tier: $tier');
     expect(bashProblems(reg)).toEqual([]);
   });
 });

@@ -61,7 +61,7 @@ Jest and Vitest have no built-in default. `devaudit install` proposes editable c
 Setting `test_runner` to `pytest` makes `devaudit update` generate pytest versions of `feature-e2e.yml` and (when `e2e_regression_enabled`) `e2e-regression.yml` instead of the Playwright ones, whatever the stack. They set up Python (`python_version`, else any 3.x), install the project (`pip install -e ".[dev]"` or `requirements.txt`, plus `pytest`), apply `database_*`, `e2e_env` and `e2e_setup_command` as before, and run the tier through `scripts/run-test-tier.sh`. The JUnit XML is the `e2e_result`; there is no dev server, screenshot or HTML report.
 
 - **Names and labels are unchanged.** The workflow is still `E2E Regression`, the job `E2E Regression Suite` and the artifact `e2e-regression-report`, so the portal shows the same `E2E Critical (pre-merge)` and `E2E Regression (post-deploy production)` checks and the same triage rules apply.
-- **Triggers:** critical on a PR into the release branch, the full tier after a successful production deployment or on manual dispatch (`specs` is passed to `pytest`); `feature-e2e.yml` runs the tests whose files under `tests/` mention the branch's `REQ-XXX`.
+- **Triggers:** the `release_gate_tier` tier (default critical) on a PR into the release branch, the full tier after a successful production deployment, on the `scheduled_full_regression` schedule or on manual dispatch (`specs` is passed to `pytest`); `feature-e2e.yml` runs the tests whose files under `tests/` mention the branch's `REQ-XXX`.
 - **Markers:** register `smoke` and `critical` in `pyproject.toml` (`[tool.pytest.ini_options] markers = [...]`) and tag tests with them; tag requirements by putting `REQ-XXX` in the test name, a marker or the docstring.
 - **A custom tier command must write JUnit XML to `$TEST_JUNIT_XML`**, or the evidence upload fails.
 - A Python project without `test_runner: pytest` keeps the existing workflows.
@@ -160,6 +160,20 @@ What the keys change in the generated workflows:
 - A **scheduled run is not release evidence.** It runs on the integration branch, is never uploaded to the portal and can neither attach to a release nor raise a triage blocker. A failed scheduled run opens (or comments on) one `bug` issue titled `[scheduled regression] Full E2E failing on <integration branch>`.
 
 `devaudit doctor` reviews the choice through two read-only checks, `e2e-release-gate` and `test-tiers` (see [doctor.md](doctor.md)): it proposes, you decide, and a change goes through `devaudit configure` and a normal PR.
+
+#### Worked example: moving the full regression before merge
+
+```bash
+devaudit doctor                                    # e2e-release-gate: "median E2E Regression run is 14 min: the full tier is affordable before merge"
+git switch -c fix/<issue#>-release-gate-full develop
+devaudit configure set release_gate_tier full --dry-run     # validation, the three workflows it regenerates
+devaudit configure set release_gate_tier full
+devaudit configure set post_deploy_full_regression false    # doctor's note: otherwise the same commit is tested twice
+devaudit update                                    # regenerates e2e-regression.yml, compliance-evidence.yml, check-release-approval.yml
+devaudit doctor                                    # e2e-release-gate is clean; test-tiers still resolves the full tier
+```
+
+Commit the config and the regenerated workflows on that branch and open a PR to the integration branch; the next release PR runs the full tier and the portal requires its `E2E Release Gate (full)` check on the PR head. The `devaudit-configure` skill walks through the same steps in Claude Code. If doctor says a tier collects no tests, that is work for the `e2e-test-engineer` skill, not a setting.
 
 The fix, accept or defer rules in [When a tier fails](#when-a-tier-fails-fix-or-accept-devaudit-installer1016) apply unchanged, now to whichever tier runs on the release PR. `E2E Regression Suite` stays a reviewer-verified check, not a GitHub branch-protection context.
 

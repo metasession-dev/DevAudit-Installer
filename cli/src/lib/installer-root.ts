@@ -9,8 +9,7 @@ import { promises as fs } from 'node:fs';
  *   1. `DEVAUDIT_INSTALLER_ROOT` — explicit override (e.g. developing against a
  *      checkout that isn't the bundled snapshot).
  *   2. The package's own bundled snapshot — when installed from npm, the
- *      published tarball ships `sdlc/` (and `scripts/upload-evidence.sh`)
- *      alongside `dist/`. See `tools/bundle-templates.mjs`, run on `prepack`.
+ *      published tarball ships `sdlc/` alongside `dist/`. See `tools/bundle-templates.mjs`, run on `prepack`.
  *      `dist/index.js` → `..` is the package root.
  *   3. The DevAudit-Installer repo root — running from a source checkout
  *      (`cli/dist/index.js` → `../..`), where the canonical `sdlc/` lives.

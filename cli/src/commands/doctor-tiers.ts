@@ -40,6 +40,56 @@ type Gate = 'none' | Tier;
 const GATES: readonly string[] = ['none', 'smoke', 'critical', 'full'];
 const DEFAULT_TIMEOUT_MINUTES = 55;
 
+/**
+ * The e2e-regression.yml test command runs under a fixed `timeout ... 40m` inside the
+ * job (devaudit-installer#928). Only a Playwright project with the
+ * e2e/ci-reliability/regression-run.sh hook runs under the job budget instead.
+ */
+const TEST_COMMAND_TIMEOUT_MINUTES = 40;
+
+interface RegressionTimeLimit {
+  readonly minutes: number;
+  /** `test`: the fixed 40-minute limit binds, which e2e_regression_timeout_minutes cannot raise. */
+  readonly boundBy: 'test' | 'job';
+}
+
+async function regressionTimeLimit(repoRoot: string, cfg: Record<string, unknown>): Promise<RegressionTimeLimit> {
+  const raw = cfg['e2e_regression_timeout_minutes'];
+  const job = typeof raw === 'number' && raw > 0 ? raw : DEFAULT_TIMEOUT_MINUTES;
+  const hook =
+    str(cfg, 'test_runner') !== 'pytest' &&
+    (await fs.access(join(repoRoot, str(cfg, 'working_directory') || '.', 'e2e', 'ci-reliability', 'regression-run.sh')).then(
+      () => true,
+      () => false,
+    ));
+  if (hook || job <= TEST_COMMAND_TIMEOUT_MINUTES) return { minutes: job, boundBy: 'job' };
+  return { minutes: TEST_COMMAND_TIMEOUT_MINUTES, boundBy: 'test' };
+}
+
+/** The finding for a median run time above the limit that actually stops the run. */
+function regressionTimeFinding(prefix: string, runCount: number, med: number, limit: RegressionTimeLimit, tierWord: string): Finding {
+  const base = `${prefix}the median of the last ${runCount} E2E Regression runs is ${fmt(med)}`;
+  if (limit.boundBy === 'job') {
+    return {
+      subject: 'e2e_regression_timeout_minutes',
+      detail: `${base}, above the ${limit.minutes}-minute job timeout`,
+      remediation: guidance('raise-regression-budget', `Give the ${tierWord} tier a budget it fits in`, [
+        `devaudit configure set e2e_regression_timeout_minutes ${Math.ceil(med * 1.25)}`,
+        'or shard the pack: e2e-test-engineer Phase 6, e2e/ci-reliability/regression-run.sh',
+      ]),
+    };
+  }
+  return {
+    subject: 'e2e_regression_timeout_minutes',
+    detail: `${base}, above the ${limit.minutes}-minute limit on the test command (the run time includes setup)`,
+    remediation: guidance('fit-regression-test-limit', `Fit the ${tierWord} tier into the ${limit.minutes}-minute test limit`, [
+      `raising e2e_regression_timeout_minutes does not help: the test command runs under a fixed ${limit.minutes}-minute timeout`,
+      'shard the pack with e2e/ci-reliability/regression-run.sh (e2e-test-engineer Phase 6), which runs under e2e_regression_timeout_minutes instead (Playwright only)',
+      'or move slow tests out of this tier',
+    ]),
+  };
+}
+
 const guidance = (id: string, summary: string, plan: string[]): NonNullable<Finding['remediation']> => ({
   id,
   tier: 'C',
@@ -166,15 +216,10 @@ export async function e2eReleaseGateCheck(
   if (runs === null) {
     notes.push('recent E2E Regression runs are not visible (gh unavailable): duration and schedule checks skipped');
   } else {
-    const budget = typeof cfg['e2e_regression_timeout_minutes'] === 'number' && (cfg['e2e_regression_timeout_minutes'] as number) > 0 ? (cfg['e2e_regression_timeout_minutes'] as number) : DEFAULT_TIMEOUT_MINUTES;
+    const limit = await regressionTimeLimit(repoRoot, cfg);
     const med = runs.length >= 3 ? median(runs.map((r) => r.minutes)) : null;
-    if (med !== null && gate === 'full' && med > budget) {
-      const detail = `release_gate_tier is full but the median of the last ${runs.length} E2E Regression runs is ${fmt(med)}, above the ${budget}-minute job timeout`;
-      findings.push({
-        subject: 'e2e_regression_timeout_minutes',
-        detail,
-        remediation: guidance('raise-regression-budget', 'Give the full tier a budget it fits in', [`devaudit configure set e2e_regression_timeout_minutes ${Math.ceil(med * 1.25)}`, 'or shard the pack: e2e-test-engineer Phase 6, e2e/ci-reliability/regression-run.sh']),
-      });
+    if (med !== null && gate === 'full' && med > limit.minutes) {
+      findings.push(regressionTimeFinding('release_gate_tier is full but ', runs.length, med, limit, 'full'));
     }
     if (cron) {
       const weekAgo = now() - 7 * 24 * 3600 * 1000;
@@ -382,17 +427,10 @@ export async function testTiersCheck(
   // A tier's recent duration against its budget; the full release gate reports this itself.
   if (enabled && str(cfg, 'release_gate_tier') !== 'full') {
     const runs = await recentRegressionRuns(repoRoot, gh);
-    const budget = typeof cfg['e2e_regression_timeout_minutes'] === 'number' && (cfg['e2e_regression_timeout_minutes'] as number) > 0 ? (cfg['e2e_regression_timeout_minutes'] as number) : DEFAULT_TIMEOUT_MINUTES;
+    const limit = await regressionTimeLimit(repoRoot, cfg);
     if (runs !== null && runs.length >= 3) {
       const med = median(runs.map((r) => r.minutes));
-      if (med > budget) {
-        const detail = `the median of the last ${runs.length} E2E Regression runs is ${fmt(med)}, above the ${budget}-minute job timeout`;
-        findings.push({
-          subject: 'e2e_regression_timeout_minutes',
-          detail,
-          remediation: guidance('raise-regression-budget', 'Give the regression tier a budget it fits in', [`devaudit configure set e2e_regression_timeout_minutes ${Math.ceil(med * 1.25)}`, 'or shard the pack: e2e-test-engineer Phase 6']),
-        });
-      }
+      if (med > limit.minutes) findings.push(regressionTimeFinding('', runs.length, med, limit, 'regression'));
     }
   }
 

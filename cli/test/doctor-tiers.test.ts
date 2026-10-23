@@ -109,16 +109,31 @@ describe('e2e-release-gate', () => {
     expect((await e2eReleaseGateCheck(dir, { ...cfg, post_deploy_full_regression: false }, gh(null), () => NOW)).detail).not.toMatch(/same commit twice/);
   });
 
-  it('flags a full gate whose recent runs are longer than the job timeout', async () => {
-    const dir = await repo({ 'playwright.config.ts': PW_ALL });
+  it('flags a full gate whose recent runs are longer than the job timeout (regression-run.sh hook)', async () => {
+    const dir = await repo({ 'playwright.config.ts': PW_ALL, 'e2e/ci-reliability/regression-run.sh': '#!/usr/bin/env bash\n' });
     const cfg = { e2e_regression_enabled: true, release_gate_tier: 'full' };
     const slow = await e2eReleaseGateCheck(dir, cfg, gh(times(5, 70)), () => NOW);
     expect(slow.ok).toBe(false);
-    expect(slow.findings![0]!.detail).toMatch(/median of the last 5 .* 70 min, above the 55-minute/);
+    expect(slow.findings![0]!.detail).toMatch(/median of the last 5 .* 70 min, above the 55-minute job timeout/);
     expect(slow.findings![0]!.remediation!.plan[0]).toBe('devaudit configure set e2e_regression_timeout_minutes 88');
     expect((await e2eReleaseGateCheck(dir, { ...cfg, e2e_regression_timeout_minutes: 90 }, gh(times(5, 70)), () => NOW)).ok).toBe(true);
     // runs that did not finish, or were cancelled, are ignored
     expect((await e2eReleaseGateCheck(dir, cfg, gh([...times(5, 70, { conclusion: 'cancelled' }), ...times(5, 70, { status: 'in_progress' })]), () => NOW)).ok).toBe(true);
+  });
+
+  it('without the hook the fixed 40-minute test limit binds, and raising the job timeout is not offered (#1082 review)', async () => {
+    const dir = await repo({ 'playwright.config.ts': PW_ALL });
+    const cfg = { e2e_regression_enabled: true, release_gate_tier: 'full', e2e_regression_timeout_minutes: 90 };
+    const slow = await e2eReleaseGateCheck(dir, cfg, gh(times(5, 45)), () => NOW);
+    expect(slow.ok).toBe(false);
+    expect(slow.findings![0]!.detail).toMatch(/45 min, above the 40-minute limit on the test command/);
+    expect(slow.findings![0]!.remediation!.id).toBe('fit-regression-test-limit');
+    expect(slow.findings![0]!.remediation!.plan.join(' ')).not.toMatch(/configure set e2e_regression_timeout_minutes/);
+    // pytest has no hook: the hook file does not lift the limit there
+    const py = await repo({ 'pytest.ini': '[pytest]\n', 'e2e/ci-reliability/regression-run.sh': '#!/usr/bin/env bash\n' });
+    const pyRes = await e2eReleaseGateCheck(py, { ...cfg, test_runner: 'pytest', test_tier_full: 'pytest' }, gh(times(5, 45)), () => NOW);
+    expect(pyRes.findings?.some((f) => f.remediation?.id === 'fit-regression-test-limit')).toBe(true);
+    expect((await e2eReleaseGateCheck(dir, cfg, gh(times(5, 30)), () => NOW)).findings ?? []).toEqual([]);
   });
 
   it('reports a schedule that has not produced a run in a week', async () => {

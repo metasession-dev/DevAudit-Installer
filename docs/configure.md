@@ -4,7 +4,7 @@ Change a consumer repo's DevAudit settings (`sdlc-config.json`) and repo secrets
 
 Use it when the repo's real setup differs from what onboarding recorded: production deploys on Vercel, AWS or your own servers rather than Railway; the production URL secret changed; production sits behind an access gate; CI should run on a different runner; an E2E setting needs adjusting.
 
-Run [`devaudit doctor`](./doctor.md) first: its `deploy-host`, `production-url`, `custom-deploy` and `ci-runner` checks tell you what disagrees with the repo and which `configure` command fixes it.
+Run [`devaudit doctor`](./doctor.md) first: its `deploy-host`, `production-url`, `custom-deploy` and `ci-runner` checks tell you what disagrees with the repo and which `configure` command fixes it, and its `e2e-release-gate` and `test-tiers` checks review the release gate and the test tiers (proposals only; you choose and apply them with `configure set`).
 
 ```bash
 devaudit configure list [--json]                      # keys configure manages, current values, what the host requires

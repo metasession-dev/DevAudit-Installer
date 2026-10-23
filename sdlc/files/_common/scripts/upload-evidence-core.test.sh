@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# upload-evidence.test.sh — Tests for upload-evidence.sh's central
-# stub guard (devaudit#133).
+# upload-evidence-core.test.sh — Tests for upload-evidence.sh's central
+# stub guard (devaudit#133). Moved here from the repo-root scripts/ with the
+# script itself (devaudit-installer#1082): this directory holds the only copy.
 #
 # Hermetic: each case writes a temp file, runs the uploader with
 # DEVAUDIT_BASE_URL pointing at an unreachable host so any real curl
@@ -8,7 +9,7 @@
 # stub-only runs return 0 cleanly; the run-with-non-stub path is
 # checked separately by stubbing curl via PATH.
 #
-# Usage: ./scripts/upload-evidence.test.sh
+# Usage: bash sdlc/files/_common/scripts/upload-evidence-core.test.sh
 
 set -euo pipefail
 

@@ -10,24 +10,15 @@ function isTestScript(name: string): boolean {
   return name.endsWith('.test.sh');
 }
 
-// The top-level scripts/upload-evidence.sh (this repo's own root, copied
-// separately below) is the canonical source and always wins — a stale
-// _common/scripts/ copy of the same filename exists too (historical
-// duplication) and would otherwise be written to the same destination
-// path twice in one sync, immediately before its own canonical overwrite.
-// That's harmless for a plain overwrite, but breaks manifest classification
-// (devaudit-installer#930): the second `writeManaged` call would see the
-// *first* call's just-written bytes as if they were a foreign local edit
-// and falsely report a conflict, every single sync.
-function isSuperseded(name: string): boolean {
-  return name === 'upload-evidence.sh';
-}
-
 /**
- * Section 2d: Scripts. Three sources merged into the consumer's scripts/:
- *   - _common/scripts/*.sh (excluding *.test.sh)
+ * Section 2d: Scripts. Two sources merged into the consumer's scripts/:
+ *   - _common/scripts/*.sh (excluding *.test.sh), upload-evidence.sh included
  *   - stacks/<stack>/scripts/* (per adapter's stack_scripts list)
- *   - the top-level scripts/upload-evidence.sh from this repo
+ *
+ * devaudit-installer#1082 — upload-evidence.sh used to come from a second,
+ * repo-root copy that "superseded" the _common one. Every fix since #775 went
+ * into _common only, so consumers silently kept the stale copy. There is now
+ * one copy, in _common/scripts/, tested where it lives.
  *
  * Skipped if the consumer has no scripts/ directory.
  */
@@ -45,7 +36,7 @@ export async function syncScripts(ctx: SyncContext): Promise<SectionResult> {
   const filePaths: string[] = [];
   const commonScriptsSrc = join(ctx.installerRoot, 'sdlc', 'files', '_common', 'scripts');
   if (await isDir(commonScriptsSrc)) {
-    const candidates = await listFiles(commonScriptsSrc, (n) => n.endsWith('.sh') && !isTestScript(n) && !isSuperseded(n));
+    const candidates = await listFiles(commonScriptsSrc, (n) => n.endsWith('.sh') && !isTestScript(n));
     for (const src of candidates) {
       const dst = join(scriptsDst, fileBasename(src));
       const content = await fs.readFile(src);
@@ -67,14 +58,6 @@ export async function syncScripts(ctx: SyncContext): Promise<SectionResult> {
         if (outcome !== 'conflict') count += 1;
       }
     }
-  }
-  const uploadEvidence = join(ctx.installerRoot, 'scripts', 'upload-evidence.sh');
-  if (await exists(uploadEvidence)) {
-    const dst = join(scriptsDst, 'upload-evidence.sh');
-    const content = await fs.readFile(uploadEvidence);
-    const outcome = await writeManaged(ctx.managed!, dst, content, { section: '2d', mode: 0o755 });
-    filePaths.push(dst);
-    if (outcome !== 'conflict') count += 1;
   }
   const removed = await removeStaleScripts(ctx, scriptsDst, new Set(filePaths));
   const message = removed > 0 ? `synced to scripts/; removed ${removed} stale script(s)` : 'synced to scripts/';
