@@ -4,8 +4,11 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+## [1.10.0] — 2026-10-23
+
 ### Upgrade notes
 
+- **`scripts/upload-evidence.sh` changes in your first sync PR** (#1082): earlier versions synced an outdated copy of this script, so fixes made since devaudit#775 (the sentinel trailer fallback, upload failure diagnostics, the no-code PR attribution guard) never reached you. You now get the maintained one; the diff is large and expected. CI-uploaded evidence for tracked changes can now carry sentinel provenance, so releases that were previously recorded as unverified for that reason should stop being.
 - **`devaudit doctor --json` proposal change** (#1083): the `deferred-ticket-sync` (D2) proposal is now `resolve-undeclared-deferral`, tier `B` (was `mark-ticket-deferred`, tier `A`). Anything that reads `proposals[].remediation.id` or applied tier A fixes by id must use the new id; `--fix --yes` no longer applies it.
 - **PR head SHA** (#1074): `check-release-approval.yml` now sends the pull request's head commit as `prInfo.headSha` on every push to a release PR (always, with or without a configured gate), so the portal can mark a release gate that ran on an earlier commit as stale. **Deploy the portal first**, with both its release-gate and head-SHA migrations; an older portal may not accept the field.
 - **Release gate** (#1059): nothing changes unless you set `release_gate_tier`, `post_deploy_full_regression` or `scheduled_full_regression`. Setting `release_gate_tier` also sends it to the portal and reports an `e2e-release-gate` check, so **deploy the portal first**. `compliance-evidence.yml` gains the tier handling and the scheduled-run skip in every project; `check-release-approval.yml` now triggers on your configured release branch instead of a hardcoded `main` (same for `main`).
