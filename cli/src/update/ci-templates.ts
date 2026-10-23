@@ -245,7 +245,7 @@ function renderEnvBareBlock(env: Record<string, string>): string {
 function buildE2eSetupStep(cfg: SdlcConfig): string {
   const cmd = (cfg.e2e_setup_command ?? '').trim();
   if (!cmd) return '';
-  const env = cfg.e2e_env ?? {};
+  const env = stepEnv(cfg, cfg.e2e_env ?? {});
   const lines = ['      - name: E2E setup'];
   if (Object.keys(env).length > 0) lines.push('        env:', indentEnvBlock({ ...env }, 10));
   if (cmd.includes('\n')) {
@@ -265,7 +265,7 @@ function buildE2eSetupStep(cfg: SdlcConfig): string {
  * stack. With no e2e_env the output is identical to the previous inline step.
  */
 function buildE2eDevServerStep(cfg: SdlcConfig): string {
-  const env = cfg.e2e_env ?? {};
+  const env = stepEnv(cfg, cfg.e2e_env ?? {});
   const lines = ['      - name: Start dev server'];
   if (Object.keys(env).length > 0) lines.push('        env:', indentEnvBlock({ ...env }, 10));
   // e2e_start_command is '' on every fresh install (no prompt collects it —
@@ -530,7 +530,7 @@ function buildE2eXmlResultUpload(cfg: SdlcConfig): string {
  * and all.
  */
 function buildE2eTestStep(cfg: SdlcConfig): string {
-  const env = cfg.e2e_env ?? {};
+  const env = stepEnv(cfg, cfg.e2e_env ?? {});
   const lines = [
     '      - name: E2E Tests',
     '        env:',
@@ -563,7 +563,7 @@ function buildAuthenticatedE2eStep(cfg: SdlcConfig): string {
   const projects = cfg.e2e_projects ?? [];
   const seed = (cfg.e2e_seed_command ?? '').trim();
   if (projects.length === 0 && !seed) return '';
-  const env = cfg.e2e_env ?? {};
+  const env = stepEnv(cfg, cfg.e2e_env ?? {});
   const envBlock = Object.keys(env).length > 0 ? indentEnvBlock({ ...env }, 10) : '';
   const lines: string[] = [];
   if (seed) {
@@ -675,7 +675,7 @@ function buildE2eRegressionConcurrency(cfg: SdlcConfig): string {
  * variable is populated from the detect-req job output at runtime.
  */
 function buildFeatureE2eTestStep(cfg: SdlcConfig): string {
-  const env = cfg.e2e_env ?? {};
+  const env = stepEnv(cfg, cfg.e2e_env ?? {});
   if (cfg.test_runner === 'pytest') {
     // The pytest feature-e2e.yml uploads this JUnit XML as the e2e_result.
     const pytestLines = [
@@ -883,6 +883,20 @@ export function postgresUriEnvEntries(cfg: SdlcConfig): readonly (readonly [stri
     }
   }
   return [...found.values()].sort((a, b) => a[0].localeCompare(b[0]));
+}
+
+/**
+ * A step-level `env:` map without the local postgres URLs that the "Set database URI
+ * from dynamic port" step re-exports through $GITHUB_ENV (devaudit-installer#1054).
+ * Step-level env wins over $GITHUB_ENV, so leaving the configured value on a step
+ * would point it at the fixed port the service no longer publishes (or at another
+ * job's database on a shared self-hosted host). That step always runs first.
+ */
+function stepEnv(cfg: SdlcConfig, env: Readonly<Record<string, string>>): Record<string, string> {
+  if (cfg.database_service !== 'postgres') return { ...env };
+  const remapped = new Set(postgresUriEnvEntries(cfg).map(([name]) => name));
+  if (remapped.size === 0) return { ...env };
+  return Object.fromEntries(Object.entries(env).filter(([key, value]) => !(remapped.has(key) && POSTGRES_LOCAL_URL.test(value))));
 }
 
 function buildDbUriStep(dbService: string, dbPort: string, cfg: SdlcConfig): string {
@@ -1283,8 +1297,8 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
       // must supply its own header, and only when there's something to put
       // under it, or `env:` with nothing after is invalid YAML.
       BUILD_ENV:
-        cfg.build_env && Object.keys(cfg.build_env).length > 0
-          ? `        env:\n${indentEnvBlock({ ...cfg.build_env }, 10)}`
+        Object.keys(stepEnv(cfg, cfg.build_env ?? {})).length > 0
+          ? `        env:\n${indentEnvBlock(stepEnv(cfg, cfg.build_env ?? {}), 10)}`
           : '',
       // Same shape as BUILD_ENV: the TypeScript Check step has no hardcoded
       // env: block above it, so this supplies its own header and only

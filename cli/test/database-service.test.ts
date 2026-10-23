@@ -180,6 +180,24 @@ describe('database service container generation (#963)', { timeout: 120_000 }, (
       expect(files['ci.yml']).toContain('echo "DATABASE_URL=postgres://localhost:${DB_PORT}/meta_agent" >> "$GITHUB_ENV"');
     });
 
+    it('drops the fixed-port URL from step-level e2e_env / build_env so the mapped one applies', async () => {
+      const url = 'postgresql://postgres:postgres@localhost:5434/meta_agent';
+      const files = await render('node', {
+        ...ISSUE_CONFIG,
+        e2e_project: 'chromium',
+        e2e_start_command: 'npm run dev',
+        e2e_env: { DATABASE_URL: url, E2E_FLAG: '1' },
+        build_env: { DATABASE_URL: url },
+      });
+      for (const name of ['ci.yml', 'feature-e2e.yml']) {
+        const body = files[name]!;
+        expect(body).toContain('echo "DATABASE_URL=postgresql://postgres:postgres@localhost:${DB_PORT}/meta_agent" >> "$GITHUB_ENV"');
+        // the only remaining copy of the fixed-port URL is job-level (6 spaces), which $GITHUB_ENV overrides
+        expect(body).not.toMatch(/^ {10}DATABASE_URL: postgresql:\/\/postgres:postgres@localhost:5434/m);
+        expect(body).toMatch(/^ {10}E2E_FLAG: 1$/m);
+      }
+    });
+
     it('keeps <port>:5432 and emits no URI step when no localhost URL key exists', async () => {
       const files = await render('python', ISSUE_CONFIG);
       expect(servicesOf(files['ci.yml']!)['postgres']!.ports).toEqual(['5434:5432']);
