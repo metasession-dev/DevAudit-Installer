@@ -4,7 +4,7 @@ Change a consumer repo's DevAudit settings (`sdlc-config.json`) and repo secrets
 
 Use it when the repo's real setup differs from what onboarding recorded: production deploys on Vercel, AWS or your own servers rather than Railway; the production URL secret changed; production sits behind an access gate; CI should run on a different runner; an E2E setting needs adjusting.
 
-Run [`devaudit doctor`](./doctor.md) first: its `deploy-host`, `production-url`, `custom-deploy` and `ci-runner` checks tell you what disagrees with the repo and which `configure` command fixes it.
+Run [`devaudit doctor`](./doctor.md) first: its `deploy-host`, `production-url`, `custom-deploy` and `ci-runner` checks tell you what disagrees with the repo and which `configure` command fixes it, and its `e2e-release-gate` and `test-tiers` checks review the release gate and the test tiers (proposals only; you choose and apply them with `configure set`).
 
 ```bash
 devaudit configure list [--json]                      # keys configure manages, current values, what the host requires
@@ -77,6 +77,27 @@ devaudit configure set runner ubuntu-latest
 ```
 
 `runner: self-hosted` means "choose at run time from the `CI_RUNNER_LABEL` variable"; `doctor`'s `ci-runner` check tells you whether a runner with that label is registered.
+
+**Release gate (which E2E tier must pass before merge to the release branch):**
+
+```bash
+devaudit configure set release_gate_tier full --dry-run
+devaudit configure set release_gate_tier full
+devaudit configure set post_deploy_full_regression false
+devaudit configure set scheduled_full_regression "0 3 * * *"
+```
+
+All three need `e2e_regression_enabled`. See [e2e-test-tiers.md](e2e-test-tiers.md#choosing-the-release-gate-1059) for the trade-offs and the recommended combinations.
+
+**Test tier commands (any runner):**
+
+```bash
+devaudit configure set test_runner pytest
+devaudit configure set test_tier_smoke "pytest -m smoke"
+devaudit configure set test_feature_command 'npx jest -t "{REQ}]"'
+```
+
+`test_runner: pytest` also replaces the Playwright `feature-e2e.yml` and `e2e-regression.yml` with pytest ones. Each tier command is a single line of at most 500 characters; `test_feature_command` must contain `{REQ}`. Unset keys keep the runner default. See [e2e-test-tiers.md](e2e-test-tiers.md#tier-commands-for-any-test-runner-1060).
 
 ## The `devaudit-configure` skill
 

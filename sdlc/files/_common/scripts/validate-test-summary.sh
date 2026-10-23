@@ -84,12 +84,17 @@ for REQ in $REQUIREMENTS; do
 
   echo "  OK: test-execution-summary.md exists"
 
-  # Check 1: Reject "deferred" (case-insensitive) anywhere in the file
-  if grep -qi 'deferred' "$SUMMARY"; then
+  # Check 1: Reject "deferred" (case-insensitive) as a gate state. The SDLC's own vocabulary
+  # is exempt (devaudit-installer#1081): the @e2e-deferred / @risk-deferred plan annotations
+  # and the release intent value deferred-to-next legitimately appear in a summary. awk, not
+  # sed's I flag, so this behaves the same with GNU and BSD tools.
+  DEFERRED_LINES="$(awk '{ l = tolower($0); gsub(/@e2e-deferred|@risk-deferred|deferred-to-next/, "", l); if (l ~ /deferred/) printf "%d:%s\n", NR, $0 }' "$SUMMARY")"
+  if [ -n "$DEFERRED_LINES" ]; then
     echo "  ERROR: 'deferred' found in $SUMMARY — 'Deferred to CI' is not a valid gate state (devaudit-installer#238, #240)."
     echo "         E2E gate results must be: PASS, FAIL, NOT_NEEDED (with reason), or SKIPPED (with operator-approved rationale)."
+    echo "         (@e2e-deferred, @risk-deferred and deferred-to-next are allowed.)"
     echo "         Offending lines:"
-    grep -in 'deferred' "$SUMMARY" | sed 's/^/           /'
+    printf '%s\n' "$DEFERRED_LINES" | sed 's/^/           /'
     EXIT_CODE=1
   fi
 

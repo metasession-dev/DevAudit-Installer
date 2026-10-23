@@ -240,6 +240,13 @@ jobs:
 
       - name: Upload E2E Regression evidence to DevAudit
         if: steps.resolve.outputs.skip != 'true' && steps.version.outputs.version != 'skip'
+        env:
+          E2E_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          E2E_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          E2E_RUN_ID: ${{ github.event.workflow_run.id }}
+          E2E_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}
+          E2E_RUN_STARTED_AT: ${{ github.event.workflow_run.run_started_at }}
+          E2E_RUN_UPDATED_AT: ${{ github.event.workflow_run.updated_at }}
         run: |
           set -euo pipefail
           chmod +x scripts/report-test-execution.sh scripts/report-release-check.sh 2>/dev/null || true
@@ -256,32 +263,29 @@ jobs:
             deployment_status)  TIER=regression; STAGE=5; E2E_ENVIRONMENT=production ;;
             *)                  TIER="${PRIOR_EVENT}"; STAGE="" ;;
           esac
-          # devaudit-installer#787 — the two tiers are otherwise
-          # indistinguishable everywhere a human looks: same workflow name,
-          # same job name, same check label. A human looking at a
-          # develop→main PR sees a "regression"-tier check as structurally
-          # guaranteed absent/skipped (production doesn't exist yet) with
-          # no way to tell "fine, hasn't run yet" from "something's wrong" —
-          # both would otherwise render under the identical "E2E Regression"
-          # label. Give each tier its own label instead.
+
+          # devaudit-installer#1059 — a scheduled run is not release evidence: it
+          # stays GitHub CI only. A pre-merge run with a configured release gate
+          # records its tier in the metadata (e2e-release-gate.sh resolve).
+          if [ "$PRIOR_EVENT" = "schedule" ]; then
+            echo "Scheduled E2E run: preserved as GitHub historical CI without portal approval evidence."
+            exit 0
+          fi
+          read -r TIER META_TIER < <(bash scripts/e2e-release-gate.sh resolve "$PRIOR_EVENT" "$TIER" e2e-artifacts/e2e-regression-metadata.json)
+          # devaudit-installer#787 — each tier gets its own check label.
           case "$TIER" in
+            smoke)      TIER_LABEL="E2E Smoke (pre-merge)" ;;
             critical)   TIER_LABEL="E2E Critical (pre-merge)" ;;
+            full)       TIER_LABEL="E2E Full (pre-merge)" ;;
             regression) TIER_LABEL="E2E Regression (post-deploy production)" ;;
             *)          TIER_LABEL="E2E Regression" ;;
           esac
 
-          # devaudit-installer#798 — the post-deploy regression tier is
-          # structurally incapable of completing before a release's UAT
-          # approval (it can't run until *after* a production deployment,
-          # which can't happen until UAT is approved) but was reported as a
-          # blocking required check anyway (report-release-check.sh's
-          # REQUIRED default is "true" and this call never overrode it) —
-          # deadlocking every release's UAT approval on a check that is, by
-          # this project's own 3-tier E2E gating model, explicitly the
-          # non-blocking Should/Could tier. Only the pre-merge critical tier
-          # blocks; the post-deploy regression tier is evidence, not a gate.
+          # devaudit-installer#798 — the post-deploy tier cannot finish before UAT
+          # approval, so it is evidence, not a gate; the pre-merge tiers are required.
           case "$TIER" in
             critical)   CHECK_REQUIRED=true ;;
+            smoke|full) CHECK_REQUIRED=true ;;
             regression) CHECK_REQUIRED=false ;;
             *)          CHECK_REQUIRED=true ;;
           esac
@@ -358,6 +362,7 @@ jobs:
             rm -f /tmp/devaudit-extract-e2e-reqs.py
           fi
 
+{{E2E_XML_REQ_FALLBACK}}
           if [ "${#REQS[@]}" -eq 1 ] && echo "$DERIVED_RELEASE" | grep -qE '^v[0-9]{4}\.[0-9]{2}\.[0-9]{2}([.][0-9]+)?$'; then
             echo "E2E upload recovered tracked release ${REQS[0]} from artifact metadata; overriding bare-date release ${DERIVED_RELEASE}."
             DERIVED_RELEASE="${REQS[0]}"
@@ -463,6 +468,7 @@ jobs:
                 REQ_FAILURES=$((REQ_FAILURES + 1))
               fi
             fi
+{{E2E_XML_RESULT_UPLOAD}}
             # 2. The bounded execution metadata makes a timeout distinct
             # from an ordinary failed workflow on the portal.
             if [ -f e2e-artifacts/e2e-regression-metadata.json ]; then
@@ -564,6 +570,12 @@ jobs:
               --completed-at "${{ github.event.workflow_run.updated_at }}" \
               --details-json "$CHECK_DETAILS"
           done
+
+          # devaudit-installer#1059 — only a run with a recorded gate tier (a
+          # configured release_gate_tier) reports the run-level release check.
+          if [ -n "$META_TIER" ]; then
+            bash scripts/e2e-release-gate.sh report {{PROJECT_SLUG}} "${DERIVED_RELEASE}" "$META_TIER" "$PRIOR_BRANCH" "${EXECUTION_OUTCOME:-}"
+          fi
 
           # Per-spec failure screenshots from test-results/ are NOT
           # uploaded: Playwright names them `test-failed-1.png` /

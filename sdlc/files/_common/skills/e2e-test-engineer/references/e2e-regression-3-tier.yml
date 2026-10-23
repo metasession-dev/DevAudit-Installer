@@ -1,18 +1,24 @@
 # Reference: three-tier E2E gating workflow (devaudit#152 follow-up, v0.1.53)
 #
-# Copy this into your consumer-owned .github/workflows/e2e-regression.yml
-# to adopt the 3-tier model: smoke (every develop push, fast) / critical
-# (consumer-enabled release PR, ~10-15 min target) / regression after a
-# successful production deployment status (or manual dispatch).
+# The framework GENERATES .github/workflows/e2e-regression.yml for you when
+# sdlc-config.json sets e2e_regression_enabled (`devaudit update
+# --enable-e2e-regression`); do not copy this file over it. Which tier runs on
+# the release PR, whether the full regression also runs after the production
+# deploy, and an optional schedule are the release_gate_tier,
+# post_deploy_full_regression and scheduled_full_regression keys (see
+# docs/e2e-test-tiers.md). With test_runner "pytest" a pytest variant is
+# generated instead.
 #
-# The framework does NOT sync this file automatically — your consumer
-# owns its e2e-regression.yml. Apply the patterns below to your own
-# file; keep any consumer-specific env / matrix / runner customisations.
+# This file is a readable example of the shape, for understanding what the
+# generated workflow does or for a project that hand-writes its own. If you do,
+# keep any project-specific env / matrix / runner customisations.
 #
-# Tier definitions:
+# Tier definitions (the same names for every runner; see
+# references/tiers-per-runner.md):
 #   - smoke   — runs on develop push via ci.yml (no change here)
 #   - critical — Playwright project that selects e2e/smoke/ + e2e/critical/
-#   - regression — Playwright project that selects all e2e/**/*.spec.ts
+#   - regression — Playwright project that selects all e2e/**/*.spec.ts (the
+#                  `full` tier)
 #
 # devaudit-installer#787 — this workflow's own `name:`/job name stay
 # "E2E Regression" for both tiers (renaming risks breaking a consumer's
@@ -33,9 +39,13 @@ name: E2E Regression
 
 on:
   pull_request:
-    branches: [main] # critical-tier gate before merge
+    branches: [main] # critical-tier gate before merge (release_gate_tier)
   deployment_status:
     types: [created] # full regression only after successful production deploy
+  # Optional (scheduled_full_regression): a nightly full run on the integration
+  # branch. The selector below already routes it to the regression project.
+  # schedule:
+  #   - cron: '0 3 * * *'
   workflow_dispatch:
     inputs:
       specs:
@@ -55,7 +65,7 @@ concurrency:
 
 jobs:
   e2e:
-    name: E2E Regression Tests
+    name: E2E Regression Suite # the generated job name; portal checks key on it
     if: >-
       github.event_name != 'deployment_status' ||
       (github.event.deployment_status.state == 'success' &&

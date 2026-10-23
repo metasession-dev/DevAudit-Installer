@@ -175,6 +175,29 @@ export async function runFix(
   const approvalNote = (ids: readonly string[]): string =>
     ids.length > 0 ? ` (portal audit uat_approval_ids_at_defer: ${ids.join(', ')})` : '';
 
+  /**
+   * Resume the portal release, then undo the local deferral. Shared by the stale-deferral
+   * decision (D5) and the undeclared-deferral decision (D2, #1083). Resume returns the
+   * release to draft; it does not restore the UAT approvals the defer superseded.
+   */
+  const resumeAndClean = async (p: Proposal, d: Readonly<Record<string, string>>): Promise<FixOutcome> => {
+    const g = await authoriseB(p, 'resuming');
+    if (!g.reason) return mk(p, 'unapplied', g.why);
+    const c = await portalCall(p, 'resume', g.reason);
+    if ('failed' in c) return mk(p, 'failed', c.failed);
+    // Resume returns the portal release to draft. The ticket field is the
+    // sole declaration, so clear it (else D1 would re-propose deferring).
+    // The RTM row goes back to TESTED - PENDING SIGN-OFF: only a finished
+    // REQ (Phase 3 sets that status) can have its release PR closed and
+    // be deferred, so that is the status it had before (#984).
+    const notes = ['portal release resumed (back to draft)'];
+    const ticket = d['ticketPath'] ? join(deps.repoRoot, d['ticketPath']) : null;
+    if (ticket && (await editFile(ticket, clearReleaseIntent)) === 'changed') notes.push(`${d['ticketPath']}: Release intent removed`);
+    const rtm = await editFile(join(deps.repoRoot, 'compliance', 'RTM.md'), (cur) => setRtmStatus(cur, d['version'] ?? p.subject, 'TESTED - PENDING SIGN-OFF', 'DEFERRED'));
+    if (rtm === 'changed') notes.push(`compliance/RTM.md: ${d['version']} DEFERRED -> TESTED - PENDING SIGN-OFF`);
+    return mk(p, 'applied', notes.join('; '));
+  };
+
   for (const p of proposals) {
     const r = p.remediation;
     const d = r.data ?? {};
@@ -206,11 +229,27 @@ export async function runFix(
           out.push(mk(p, 'applied', `sdlc-config.json ${key}: ${JSON.stringify(plan.before)} -> ${JSON.stringify(plan.after)}; ${next.join('; ')}`));
           break;
         }
-        case 'mark-ticket-deferred': {
-          const a = await authoriseA(p);
-          if (!a.ok) { out.push(mk(p, 'unapplied', a.why)); break; }
-          const done = await markDeferredLocally(deps.repoRoot, d['version'] ?? p.subject, d['ticketPath'] ?? '', d['reason'] ?? '');
-          out.push(done.length > 0 ? mk(p, 'applied', done.join('; ')) : mk(p, 'unchanged', 'ticket and RTM already marked deferred'));
+        case 'resolve-undeclared-deferral': {
+          // #1083 — a portal deferral that no ticket declares may be a mistake. Recording it in
+          // the repo would make a mistake permanent, so it is a decision, never a default:
+          // `--yes` (even with `--reason`) given for another proposal must not decide it.
+          if (nonInteractive) {
+            out.push(mk(p, 'unapplied', `an undeclared portal deferral needs an interactive decision (record / resume / leave; ${nonInteractive})`));
+            break;
+          }
+          const decision = await ask.select(`${p.subject}: ${p.detail}. What now?`, [
+            { value: 'record', label: 'Record: the deferral was intended (ticket Release intent + RTM DEFERRED)' },
+            { value: 'resume', label: 'Resume: the deferral was a mistake (portal back to draft; superseded UAT approvals are not restored)' },
+            { value: 'leave', label: 'Leave it as it is' },
+          ], { json });
+          if (decision === 'record') {
+            const done = await markDeferredLocally(deps.repoRoot, d['version'] ?? p.subject, d['ticketPath'] ?? '', d['reason'] ?? '');
+            out.push(done.length > 0 ? mk(p, 'applied', done.join('; ')) : mk(p, 'unchanged', 'ticket and RTM already marked deferred'));
+          } else if (decision === 'resume') {
+            out.push(await resumeAndClean(p, d));
+          } else {
+            out.push(mk(p, 'unapplied', 'no change: the portal release stays deferred and the ticket stays undeclared'));
+          }
           break;
         }
         case 'fix-absorbed-predecessors': {
@@ -270,21 +309,7 @@ export async function runFix(
                 : 'no decision taken'));
             break;
           }
-          const g = await authoriseB(p, 'resuming');
-          if (!g.reason) { out.push(mk(p, 'unapplied', g.why)); break; }
-          const c = await portalCall(p, 'resume', g.reason);
-          if ('failed' in c) { out.push(mk(p, 'failed', c.failed)); break; }
-          // Resume returns the portal release to draft. The ticket field is the
-          // sole declaration, so clear it (else D1 would re-propose deferring).
-          // The RTM row goes back to TESTED - PENDING SIGN-OFF: only a finished
-          // REQ (Phase 3 sets that status) can have its release PR closed and
-          // be deferred, so that is the status it had before (#984).
-          const notes = ['portal release resumed (back to draft)'];
-          const ticket = d['ticketPath'] ? join(deps.repoRoot, d['ticketPath']) : null;
-          if (ticket && (await editFile(ticket, clearReleaseIntent)) === 'changed') notes.push(`${d['ticketPath']}: Release intent removed`);
-          const rtm = await editFile(join(deps.repoRoot, 'compliance', 'RTM.md'), (cur) => setRtmStatus(cur, d['version'] ?? p.subject, 'TESTED - PENDING SIGN-OFF', 'DEFERRED'));
-          if (rtm === 'changed') notes.push(`compliance/RTM.md: ${d['version']} DEFERRED -> TESTED - PENDING SIGN-OFF`);
-          out.push(mk(p, 'applied', notes.join('; ')));
+          out.push(await resumeAndClean(p, d));
           break;
         }
         case 'resolve-closed-release-pr': {

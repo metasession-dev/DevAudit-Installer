@@ -158,6 +158,81 @@ describe('database service container generation (#963)', { timeout: 120_000 }, (
     expect(svc.ports).toEqual([27017]);
   });
 
+  // devaudit-installer#1054 — a postgres URL pointing at localhost gets the mapped host port.
+  describe('postgres dynamic host port (#1054)', () => {
+    const withUrl = (url: string) => ({
+      ...ISSUE_CONFIG,
+      database_env: { ...ISSUE_CONFIG.database_env, DATABASE_URL: url },
+    });
+
+    it('renders a bare container port and exports the mapped port when a localhost *_URL key exists', async () => {
+      const files = await render('python', withUrl('postgresql://postgres:postgres@localhost:5434/meta_agent'));
+      expect(servicesOf(files['ci.yml']!)['postgres']!.ports).toEqual([5432]);
+      expect(files['ci.yml']).toContain("DB_PORT=\"${{ job.services.postgres.ports['5432'] }}\"");
+      expect(files['ci.yml']).toContain(
+        'echo "DATABASE_URL=postgresql://postgres:postgres@localhost:${DB_PORT}/meta_agent" >> "$GITHUB_ENV"',
+      );
+    });
+
+    it('detects 127.0.0.1 and a URL without credentials', async () => {
+      const files = await render('python', withUrl('postgres://127.0.0.1:5434/meta_agent'));
+      expect(servicesOf(files['ci.yml']!)['postgres']!.ports).toEqual([5432]);
+      expect(files['ci.yml']).toContain('echo "DATABASE_URL=postgres://localhost:${DB_PORT}/meta_agent" >> "$GITHUB_ENV"');
+    });
+
+    it('drops the fixed-port URL from step-level e2e_env / build_env so the mapped one applies', async () => {
+      const url = 'postgresql://postgres:postgres@localhost:5434/meta_agent';
+      const files = await render('node', {
+        ...ISSUE_CONFIG,
+        e2e_project: 'chromium',
+        e2e_start_command: 'npm run dev',
+        e2e_env: { DATABASE_URL: url, E2E_FLAG: '1' },
+        build_env: { DATABASE_URL: url },
+      });
+      for (const name of ['ci.yml', 'feature-e2e.yml']) {
+        const body = files[name]!;
+        expect(body).toContain('echo "DATABASE_URL=postgresql://postgres:postgres@localhost:${DB_PORT}/meta_agent" >> "$GITHUB_ENV"');
+        // the only remaining copy of the fixed-port URL is job-level (6 spaces), which $GITHUB_ENV overrides
+        expect(body).not.toMatch(/^ {10}DATABASE_URL: postgresql:\/\/postgres:postgres@localhost:5434/m);
+        expect(body).toMatch(/^ {10}E2E_FLAG: 1$/m);
+      }
+    });
+
+    it('keeps <port>:5432 and emits no URI step when no localhost URL key exists', async () => {
+      const files = await render('python', ISSUE_CONFIG);
+      expect(servicesOf(files['ci.yml']!)['postgres']!.ports).toEqual(['5434:5432']);
+      expect(files['ci.yml']).not.toContain('Set database URI from dynamic port');
+    });
+
+    it('keeps the fixed port for a URL that is not local or comes from a secret', async () => {
+      const files = await render('python', withUrl('${{ secrets.DATABASE_URL }}'));
+      expect(servicesOf(files['ci.yml']!)['postgres']!.ports).toEqual(['5434:5432']);
+    });
+
+    it('adds the URI step and the kill/cleanup steps to e2e-regression (node, MongoDB)', async () => {
+      const files = await render('node', {
+        database_service: 'mongodb',
+        database_image: 'mongo:7',
+        database_port: '27017',
+        database_env: { MONGODB_URI: 'mongodb://localhost:27017' },
+        e2e_regression_enabled: true,
+      });
+      const wf = files['e2e-regression.yml']!;
+      expect(wf).toContain('Set database URI from dynamic port');
+      expect(wf).toContain('name: Kill stale dev server');
+      expect(wf.indexOf('Set database URI from dynamic port')).toBeLessThan(wf.indexOf('name: Kill stale dev server'));
+      expect(wf.indexOf('name: Kill stale dev server')).toBeLessThan(wf.indexOf('name: Start dev server'));
+      for (const f of ['ci.yml', 'feature-e2e.yml', 'e2e-regression.yml']) {
+        expect(files[f], f).toContain('Clean stale build and test output (self-hosted only)');
+        expect(files[f], f).toMatch(/run: rm -rf \.next test-results playwright-report .*\.e2e-server\.pid/);
+        // devaudit-installer#1088 — shard output a sharded regression leaves behind, by exact name:
+        // a broad `test-results*` could remove a tracked directory.
+        expect(files[f], f).toMatch(/run: rm -rf .* test-results-shard-\* playwright-report-shard-\*$/m);
+        expect(files[f], f).not.toMatch(/rm -rf .* (test-results|playwright-report)\*/);
+      }
+    });
+  });
+
   it('emits no services block and no residual tokens when no database is configured', async () => {
     const files = await render('node', {});
     for (const [name, content] of Object.entries(files)) {

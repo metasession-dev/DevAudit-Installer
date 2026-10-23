@@ -64,6 +64,18 @@
   "_comment_e2e_concurrency_cancel_in_progress": "Optional. Only used when e2e_concurrency_group is set; default false. Set true to restore cancel-in-progress with the fixed group (cancels the running run when a newer one starts - risky mid-mutation on a shared backend).",
   "e2e_concurrency_cancel_in_progress": false,
 
+  "_comment_e2e_regression_timeout_minutes": "Optional. Job timeout in minutes for e2e-regression.yml (default 55). Raise it if the full regression legitimately takes longer; a hook script cannot raise the job-level ceiling.",
+  "e2e_regression_timeout_minutes": 55,
+
+  "_comment_test_tiers": "Optional (devaudit-installer#1060). Test tiers use the same names for every runner: smoke (minutes, the app starts and the core path works), critical (smoke plus must-not-break journeys), full (everything in the integration/E2E suite), and the feature scope (tests tagged with the branch's requirement). Each test_tier_* is a single-line shell command run from working_directory by scripts/run-test-tier.sh; test_feature_command takes a {REQ} placeholder. Leave a key unset to keep the runner default: for Playwright the existing smoke/critical/regression projects, for test_runner pytest `pytest -m smoke`, `pytest -m \"smoke or critical\"`, `pytest` and pytest on the test files that mention the id. Unit tests are not tiered. See docs/e2e-test-tiers.md.",
+  "test_runner": "playwright",
+  "test_tier_smoke": "",
+  "test_tier_critical": "",
+  "test_tier_full": "",
+  "test_feature_command": "",
+
+  "_comment_release_gate": "Optional (devaudit-installer#1059). Which E2E tier runs on the PR into the release branch: none, smoke, critical or full. These keys are deliberately not listed below: leave them unset to keep today's behaviour (critical, plus the full regression after the production deploy), and add one only to change it. Choose full to test the release candidate before it ships (slower, the full pack can take about an hour); then set post_deploy_full_regression to false to avoid testing the same commit twice. scheduled_full_regression is a cron expression (e.g. \"0 3 * * *\") that runs the full regression on the integration branch; scheduled runs are not release evidence. Needs e2e_regression_enabled. Change these with `devaudit configure set`; devaudit doctor reviews the choice. See docs/e2e-test-tiers.md.",
+
   "paths_ignore": [
     ".github/workflows/**",
     "SDLC/**",

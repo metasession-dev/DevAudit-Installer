@@ -1,6 +1,6 @@
 ---
 name: e2e-test-engineer
-description: Maintain or bootstrap a project's end-to-end and visual regression test pack. Use when the user wants to add, update, or retire e2e or visual tests for a feature, ticket, issue, or PR — OR when no e2e suite exists yet and one needs setting up using best practices for the detected stack. Covers deriving the scenarios a change needs, matching the project's conventions, removing obsolete tests (only after confirmation), running the suite, and filing defects for failures or missed acceptance criteria. Trigger on phrases like "add e2e tests for [ticket]", "update the test pack", "what tests do we need for this issue", "are any tests obsolete", "run the e2e tests and file issues", "add visual regression coverage", "set up e2e tests for this project", or "bootstrap an e2e suite". Framework-agnostic (Playwright, Cypress, Selenium, etc.) and tracker-agnostic (GitHub, Jira, Linear, etc.). Do NOT use for unit, component, or API-only tests, or performance tests.
+description: Maintain or bootstrap a project's end-to-end and visual regression test pack. Use when the user wants to add, update, or retire e2e or visual tests for a feature, ticket, issue, or PR — OR when no e2e suite exists yet and one needs setting up using best practices for the detected stack. Covers deriving the scenarios a change needs, matching the project's conventions, removing obsolete tests (only after confirmation), running the suite, and filing defects for failures or missed acceptance criteria. Trigger on phrases like "add e2e tests for [ticket]", "update the test pack", "what tests do we need for this issue", "are any tests obsolete", "run the e2e tests and file issues", "add visual regression coverage", "set up e2e tests for this project", or "bootstrap an e2e suite". Also covers API, integration and contract suites (Playwright request tests, pytest, Jest, Vitest) with the same smoke / critical / full tiers and requirement tagging on every runner. Framework-agnostic (Playwright, Cypress, Selenium, pytest, Jest, Vitest, etc.) and tracker-agnostic (GitHub, Jira, Linear, etc.). Do NOT use for unit or component tests (they are not tiered: run the whole unit suite on every PR) or performance tests.
 ---
 
 # E2E Test Engineer
@@ -11,19 +11,20 @@ Maintain or bootstrap a project's e2e and visual regression test suite. Given an
 
 **In scope**
 - End-to-end tests (UI-driven, user-flow level) in any framework.
+- API, integration and contract tests that run against a started service, in any runner (Playwright `request`, pytest, Jest, Vitest), organised in the same smoke / critical / full tiers and tagged with the same `REQ-XXX` ids. See `references/tiers-per-runner.md`.
 - Visual regression tests in any tool.
 - Maintaining an existing test pack — adding, updating, retiring tests.
 - Bootstrapping a new e2e suite when none exists, including framework selection, structure, configuration, a starter smoke test, and (optionally) CI integration.
 
 **Out of scope**
-- Unit, component, or API-only tests.
+- Unit and component tests. They are fast by definition and are not tiered: the whole unit suite runs on every PR and locally. (API and integration suites that need a running service are in scope, above.)
 - Performance, load, or accessibility audits, unless the project's e2e pack already includes them — in which case follow its lead.
 
-**Transport-layer specs that live in `e2e/`** (Node `fetch` against webhooks, `MongoClient` queries, `socket.io-client` assertions) ARE in scope — they exercise the deployed system end-to-end, just at the transport boundary rather than the UI. Their evidence form is `test-execution-summary.md`, not `evidenceShot` (see *Specs with no page object* below). The "API-only tests" exclusion above means **unit-level** API contract tests that exercise a route handler in isolation, not transport-boundary integration tests against the running system.
+**Transport-layer specs that live in `e2e/`** (Node `fetch` against webhooks, `MongoClient` queries, `socket.io-client` assertions) ARE in scope — they exercise the deployed system end-to-end, just at the transport boundary rather than the UI. Their evidence form is `test-execution-summary.md`, not `evidenceShot` (see *Specs with no page object* below). A route handler exercised in isolation, without the running system, is a unit test and stays out of scope; a test that calls the running service is in scope.
 
 ## The workflow
 
-Six phases. Don't skip them and don't reorder — each one feeds the next. Communicate progress as you go; long silent phases feel like the skill has stalled.
+Seven phases, plus the conditional bootstrap (1b) and the evidence-wiring check (5½). Don't skip them and don't reorder — each one feeds the next. Communicate progress as you go; long silent phases feel like the skill has stalled.
 
 ### Phase 1 — Orient
 
@@ -154,6 +155,22 @@ Decision tree, applied per scenario:
 3. **Should/Could priority, edge case, advanced flow?** → regression (file under `e2e/<area>/`, not under `e2e/smoke/` or `e2e/critical/`).
 
 When you can't decide between critical and regression, default to **regression** — promoting a spec from regression → critical later is cheap (move the file); demoting in the other direction is rarely needed but equally cheap. The cost of putting a Should spec in critical is everyone waiting longer on every PR-to-main for a low-value signal.
+
+#### The same tiers on every runner (devaudit-installer#1060)
+
+The tier names are not Playwright-specific. A project on pytest, Jest or Vitest, or one whose E2E coverage is API-level, has the same three tiers and the same `feature` scope, selected by the commands in `sdlc-config.json` (`test_tier_smoke`, `test_tier_critical`, `test_tier_full`, `test_feature_command`; unset keys use the runner default). Classify each new test with the decision tree above, then place it so the project's tier command selects it:
+
+| Runner | smoke | critical | full | feature scope |
+| --- | --- | --- | --- | --- |
+| Playwright | `e2e/smoke/` (project `smoke`) | `e2e/critical/` (project `critical`, includes smoke) | all of `e2e/` (project `regression`) | `--grep REQ-XXX` |
+| pytest | `@pytest.mark.smoke` | `@pytest.mark.critical` (run with smoke) | everything | the files under `tests/` that mention `REQ-XXX` |
+| Jest / Vitest | the project's smoke path or project | the critical path or project (with smoke) | everything | `-t "REQ-XXX]"` on the `[REQ-XXX]` title |
+
+- **Tag every test with its requirement**, in the form the runner's feature scope reads: `[REQ-XXX][ACn]` in the title (Playwright, Jest, Vitest) and the id once per file for pytest (title, docstring, comment or marker). Without the tag the feature scope cannot select the test and `devaudit doctor` reports the file.
+- **Register pytest markers** in `pyproject.toml`; an unregistered `smoke` or `critical` marker warns and fails under `--strict-markers`.
+- **`critical` is optional.** A project may keep two tiers; `devaudit configure set release_gate_tier smoke` says so explicitly and `devaudit doctor` accepts it. Do not rename or remove an existing `critical` tier: consumer configs and portal labels depend on it.
+- **Evidence form.** Playwright writes the JSON report; pytest writes JUnit XML to `$TEST_JUNIT_XML`. Tests with no `page` object have no screenshots (see *Specs with no page object*).
+- If the project has no tier commands yet, `references/tiers-per-runner.md` has the configuration and a copy-paste example per runner. Never create a smoke test without a requirement and an approved plan; hand the tier configuration to `devaudit configure`.
 
 Record the tier choice in the eventual `test-execution-summary.md` § *Test design* (devaudit#50) — Layers covered should name which tier each new spec landed in. Reviewers verify the tier choice is defensible during the WAIT CHECKPOINT.
 
@@ -617,7 +634,7 @@ Discipline for transport specs:
 - If a transport spec *can* be paired with a thin UI shim that screenshots the user-visible outcome (e.g. an admin dashboard surface that shows the rejected payment as "Failed — signature mismatch"), pair them — that buys back the screenshot evidence at the surface level. Otherwise: transport spec stands alone.
 - The portal's release-detail "screenshots" panel will show zero entries for purely-transport REQs; that's correct. Reviewers cross-reference `test-execution-summary.md` instead.
 
-This is **observation**, not gate-relaxation — these specs satisfy the SDLC evidence requirement; the screenshot mechanism doesn't apply.
+This is **observation**, not gate-relaxation — these specs satisfy the SDLC evidence requirement; the screenshot mechanism doesn't apply. The generated `feature-e2e.yml` agrees: when a REQ has no screenshots it runs `scripts/is-transport-layer-req.sh`, and passes with a notice if every spec tagged `@requirement REQ-XXX` is transport-layer (none uses the `page` fixture). One tagged spec that uses `page` keeps the screenshot requirement for the whole REQ (devaudit-installer#1067).
 
 A `evidenceTrace(reqId, ac, slug, payload)` helper that writes a JSON sidecar (request/response/ledger shape) was considered as a Phase B; deferred until the portal grows a non-PNG evidence type. Today the test-execution-summary already carries the equivalent information at the table level.
 

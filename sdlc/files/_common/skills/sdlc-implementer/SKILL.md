@@ -610,7 +610,7 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
    - `compliance/evidence/REQ-XXX/test-execution-summary.md`
    - `compliance/evidence/REQ-XXX/security-summary.md`
    - `compliance/pending-releases/RELEASE-TICKET-REQ-XXX.md`
-   - `compliance/evidence/REQ-XXX/implementation-plan.md` when the REQ risk class requires it
+   - `compliance/evidence/REQ-XXX/implementation-plan.md` (copied for every risk class: the portal's release checklist wants a plan for every requirement; CI also uploads `compliance/plans/REQ-XXX/implementation-plan.md` if no copy is there, #1080)
    - any already-mandatory AI artefacts required by the risk/usage rules
    - if `compliance/pending-releases/BUNDLED-CHANGES-REQ-XXX.md` exists, regenerate the paired JSON manifest too and keep both aligned with the current approval scope
    - if `compliance/pending-releases/BUNDLED-CHANGES-REQ-XXX.md` exists, the canonical artefacts must carry the bundle narrative too:
@@ -665,7 +665,7 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
    cp compliance/plans/REQ-XXX/implementation-plan.md compliance/evidence/REQ-XXX/implementation-plan.md
    ```
 
-   This ensures the pre-push hook's compliance validator check passes. The plan directory retains the original for in-flight reference; the evidence directory has the copy for CI validation and audit.
+   This ensures the pre-push hook's compliance validator check passes. The plan directory retains the original for in-flight reference; the evidence directory has the copy for CI validation and audit. Do this for **every** risk class, not only MEDIUM/HIGH: the validator only *requires* the plan for MEDIUM/HIGH, but the portal's release checklist shows "Implementation plan present" as missing for any requirement that has none (devaudit-installer#1080). As a safety net `upload-compliance-documents.sh` uploads the plan from `compliance/plans/` when the evidence folder has no copy.
 
 6. **Upload each artefact to the portal** — retry each upload up to 3 times with backoff (5s, 15s, 45s). If an upload still fails after 3 retries, mark it in the RTM as `UPLOAD_FAILED` and surface a warning. Do not mark the RTM as verified for failed uploads. On `resume REQ-XXX`, re-attempt failed uploads before proceeding to Phase 4.
    ```bash
@@ -733,7 +733,7 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
 
    The watcher persists retry state in `.sdlc-pr-watch.json`, polls `gh pr view` + `gh pr checks`, re-runs likely flaky workflows automatically, and re-runs the Release Approval Gate when the portal is already approved but GitHub has not converged yet. For a release PR (`$INTEGRATION_BRANCH -> $RELEASE_BRANCH`), it must not call the PR green until the full required release check set has reached terminal success: `Quality Gates`, `Release Scope Integrity`, `Compliance Validation`, `DevAudit Release Approval`, and `E2E Regression Suite`. Use `--once` when you only need a single classification pass.
 
-5a. **Required-gate failure triage (devaudit-installer#1016, R1/R3).** If any required check on the release PR is failing - `E2E Regression Suite` first, then `Quality Gates` (including the dependency audit), `Release Scope Integrity`, `Compliance Validation` - do **not** proceed to UAT, evidence upload or the Phase 4 hand-off. The watcher (`--watch-pr`) already comments on the issue and updates the sticky within one poll of a red required check; act on it now:
+5a. **Required-gate failure triage (devaudit-installer#1016, R1/R3).** If any required check on the release PR is failing - `E2E Regression Suite` first (the tier on the release PR is the project's `release_gate_tier`: critical by default, smoke or full when configured), then `Quality Gates` (including the dependency audit), `Release Scope Integrity`, `Compliance Validation` - do **not** proceed to UAT, evidence upload or the Phase 4 hand-off. The watcher (`--watch-pr`) already comments on the issue and updates the sticky within one poll of a red required check; act on it now:
 
    - End the turn **`[Blocked]`**. List every failed spec/step with its error excerpt and run URL (`gh run view <id> --log-failed`, or the `e2e-regression-results.json` artifact), and state: *"This release is blocked until one of the two paths below is completed."*
    - Delegate classification to `e2e-test-engineer` Phase 6 (flake / test bug / application defect / seed-data gap): `Skill(name: "e2e-test-engineer", args: "Phase 6 triage - release PR required-gate failure for REQ-XXX. Failed: <specs + run URL>. Classify each, produce the E2E failures & triage rows, and draft the accepted-exception record only if the operator chooses Accept.")`.

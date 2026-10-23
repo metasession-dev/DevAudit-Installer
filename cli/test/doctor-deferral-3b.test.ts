@@ -116,12 +116,15 @@ describe('D2 deferred-ticket-sync', () => {
     await writeTicket(dir, 'REQ-040');
     const r = await checkPortalDeferredNotInTicket(await ctxFor(dir));
     expect(r.ok).toBe(false);
+    // #1083 — an undeclared portal deferral may be a mistake, so it is a decision (record / resume / leave).
     expect(r.findings?.[0]?.remediation).toMatchObject({
-      id: 'mark-ticket-deferred',
-      tier: 'A',
-      needsPortal: false,
-      data: { version: 'REQ-040', ticketPath: 'compliance/pending-releases/RELEASE-TICKET-REQ-040.md', reason: 'blocked by vendor' },
+      id: 'resolve-undeclared-deferral',
+      tier: 'B',
+      needsPortal: true,
+      data: { version: 'REQ-040', releaseId: 'r40', ticketPath: 'compliance/pending-releases/RELEASE-TICKET-REQ-040.md', reason: 'blocked by vendor' },
     });
+    expect(r.findings?.[0]?.detail).toMatch(/if it was a mistake/);
+    expect(r.findings?.[0]?.remediation?.plan.join(' ')).toMatch(/resume \(the deferral was a mistake\).*not restored/);
   });
 
   it('negatives: ticket already marked, portal not deferred, no key', async () => {

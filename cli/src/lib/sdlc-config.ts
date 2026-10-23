@@ -59,6 +59,28 @@ export interface SdlcConfig {
    */
   readonly e2e_concurrency_cancel_in_progress?: boolean;
   /**
+   * Test tier commands (devaudit-installer#1060). Each is a single-line shell
+   * command run from the working directory by `scripts/run-test-tier.sh`;
+   * unset keeps the runner default, which for Playwright is what the
+   * generated workflows ran before these keys existed.
+   */
+  readonly test_tier_smoke?: string;
+  readonly test_tier_critical?: string;
+  readonly test_tier_full?: string;
+  /** Feature-scope command; `{REQ}` is replaced with the requirement id. */
+  readonly test_feature_command?: string;
+  /** Runner the tier defaults come from. Absent means `playwright`. */
+  readonly test_runner?: 'playwright' | 'pytest';
+  /**
+   * Release gate (devaudit-installer#1059): the E2E tier that runs on the PR into
+   * the release branch. Absent resolves to `critical` when `e2e_regression_enabled`.
+   */
+  readonly release_gate_tier?: 'none' | 'smoke' | 'critical' | 'full';
+  /** Run the full regression after a successful production deployment (absent = true). */
+  readonly post_deploy_full_regression?: boolean;
+  /** Cron expression for a scheduled full regression on the integration branch; empty = off. */
+  readonly scheduled_full_regression?: string;
+  /**
    * `devaudit doctor` D5 (#956): a release deferred longer than this many days
    * is flagged for review. Positive integer; default 30 (invalid values fall
    * back to the default and are noted by doctor).

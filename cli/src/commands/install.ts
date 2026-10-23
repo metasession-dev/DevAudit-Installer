@@ -25,6 +25,10 @@ export interface InstallOptions {
    * Never grants upload or approval rights. See devaudit-installer#867.
    */
   readonly withViewerKey?: boolean;
+  /** Deploy host adapter (`--host`). Was accepted by the CLI but never forwarded before #1059. */
+  readonly host?: string;
+  /** Test tier / release gate flags by `sdlc-config.json` key (devaudit-installer#1059, #1060). */
+  readonly testOptions?: Readonly<Record<string, string>>;
 }
 
 export async function runInstallCommand(options: InstallOptions): Promise<void> {
@@ -41,6 +45,8 @@ export async function runInstallCommand(options: InstallOptions): Promise<void> 
         : {}),
       ...(options.addTarget !== undefined ? { addTarget: options.addTarget } : {}),
       ...(options.withViewerKey !== undefined ? { withViewerKey: options.withViewerKey } : {}),
+      ...(options.host !== undefined ? { host: options.host } : {}),
+      ...(options.testOptions !== undefined && Object.keys(options.testOptions).length > 0 ? { testOptions: options.testOptions } : {}),
     });
   } catch (err) {
     log.error((err as Error).message);

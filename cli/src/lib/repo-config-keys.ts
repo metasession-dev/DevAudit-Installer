@@ -50,9 +50,38 @@ const nonNegative = (value: unknown): string | null =>
 const positive = (value: unknown): string | null =>
   typeof value === 'number' && value > 0 ? null : 'must be greater than 0';
 
+/** One shell command for a test tier: single line, at most 500 characters. */
+const shellCommand = (value: unknown): string | null => {
+  if (typeof value !== 'string' || value.trim() === '') return 'must not be empty';
+  if (/[\r\n]/.test(value)) return 'must be a single line';
+  if (value.length > 500) return 'must be at most 500 characters';
+  return null;
+};
+
+/** Five space-separated cron fields, or empty to turn the schedule off. */
+const cronOrEmpty = (value: unknown): string | null => {
+  if (typeof value !== 'string') return 'must be a cron expression';
+  if (value.trim() === '') return null;
+  if (/['"\r\n]/.test(value)) return 'must not contain quotes or line breaks';
+  return /^\S+(\s+\S+){4}$/.test(value.trim()) ? null : 'must be a cron expression with five space-separated fields, e.g. "0 3 * * *"';
+};
+
+const featureCommand = (value: unknown): string | null =>
+  shellCommand(value) ?? (String(value).includes('{REQ}') ? null : 'must contain the {REQ} placeholder');
+
 const ALL_WORKFLOWS = ['.github/workflows/*.yml'];
 const CI = ['.github/workflows/ci.yml'];
 const E2E = ['.github/workflows/ci.yml', '.github/workflows/e2e-regression.yml'];
+const RELEASE_GATE = [
+  '.github/workflows/e2e-regression.yml',
+  '.github/workflows/compliance-evidence.yml',
+  '.github/workflows/check-release-approval.yml',
+];
+const TIERS = [
+  '.github/workflows/ci.yml',
+  '.github/workflows/feature-e2e.yml',
+  '.github/workflows/e2e-regression.yml',
+];
 
 export const CONFIG_KEYS: readonly ConfigKeySpec[] = [
   {
@@ -179,11 +208,82 @@ export const CONFIG_KEYS: readonly ConfigKeySpec[] = [
     description: 'cancel-in-progress for the fixed e2e concurrency group (default false).',
     affects: ['.github/workflows/e2e-regression.yml'],
   },
+  {
+    key: 'test_tier_smoke',
+    type: 'string',
+    description: 'Command for the smoke tier, run from the working directory. Unset runs the Playwright project in e2e_project (pytest -m smoke for test_runner pytest).',
+    validate: shellCommand,
+    affects: TIERS,
+  },
+  {
+    key: 'test_tier_critical',
+    type: 'string',
+    description: 'Command for the critical tier (smoke plus must-not-break journeys). Unset runs the critical Playwright project, falling back to smoke.',
+    validate: shellCommand,
+    affects: TIERS,
+  },
+  {
+    key: 'test_tier_full',
+    type: 'string',
+    description: 'Command for the full tier (everything in the integration/E2E suite). Unset runs the regression Playwright project.',
+    validate: shellCommand,
+    affects: TIERS,
+  },
+  {
+    key: 'test_feature_command',
+    type: 'string',
+    description: 'Command for the feature scope (tests tagged with the branch requirement); {REQ} is replaced with the id. Unset greps Playwright specs for the id.',
+    validate: featureCommand,
+    affects: ['.github/workflows/feature-e2e.yml'],
+  },
+  {
+    key: 'test_runner',
+    type: 'string',
+    description: 'Runner the tier defaults come from: playwright (default) or pytest.',
+    enum: ['playwright', 'pytest'],
+    affects: TIERS,
+  },
+  {
+    key: 'release_gate_tier',
+    type: 'string',
+    description: 'E2E tier that must pass on the PR into the release branch: none, smoke, critical or full. Unset keeps critical when e2e_regression_enabled. Setting it also reports the gate to the portal.',
+    enum: ['none', 'smoke', 'critical', 'full'],
+    affects: RELEASE_GATE,
+  },
+  {
+    key: 'post_deploy_full_regression',
+    type: 'boolean',
+    description: 'Run the full regression after a successful production deployment (default true when e2e_regression_enabled).',
+    affects: ['.github/workflows/e2e-regression.yml'],
+  },
+  {
+    key: 'scheduled_full_regression',
+    type: 'string',
+    description: 'Cron expression (five fields) that runs the full regression on the integration branch; empty for no schedule. A scheduled run is not release evidence and never blocks approval.',
+    validate: cronOrEmpty,
+    affects: ['.github/workflows/e2e-regression.yml'],
+  },
   { key: 'paths_ignore', type: 'string[]', description: 'Paths that do not trigger CI on push.', affects: CI },
 ];
 
 export function findConfigKey(key: string): ConfigKeySpec | undefined {
   return CONFIG_KEYS.find((spec) => spec.key === key);
+}
+
+/**
+ * Parse and validate a raw value for a key exactly as `devaudit configure set`
+ * does (type, allowed values, per-key rules), without the repo-evidence checks.
+ * Used by `devaudit install` flags.
+ */
+export function validateConfigKeyValue(key: string, raw: string): { value?: unknown; error?: string } {
+  const spec = findConfigKey(key);
+  if (!spec) return { error: `unknown key \`${key}\`` };
+  const parsed = parseConfigValue(spec, raw);
+  if (parsed.error !== undefined) return { error: parsed.error };
+  if (spec.enum && !spec.enum.includes(String(parsed.value))) return { error: `must be one of ${spec.enum.join(', ')}` };
+  const problem = spec.validate?.(parsed.value);
+  if (problem) return { error: problem };
+  return { value: parsed.value };
 }
 
 /**

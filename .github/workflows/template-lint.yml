@@ -27,6 +27,8 @@ on:
       - 'scripts/action-runtime-contract.test.sh'
       - 'scripts/check-recovery-workflow.test.sh'
       - 'scripts/auto-merge-workflow.test.sh'
+      - 'scripts/verify-auto-merge-checks.sh'
+      - 'scripts/verify-auto-merge-checks.test.sh'
       - '.github/workflows/auto-merge.yml'
       - 'scripts/lint-shell-failure-modes.sh'
       - 'scripts/lint-shell-failure-modes.test.sh'
@@ -50,6 +52,8 @@ on:
       - 'scripts/action-runtime-contract.test.sh'
       - 'scripts/check-recovery-workflow.test.sh'
       - 'scripts/auto-merge-workflow.test.sh'
+      - 'scripts/verify-auto-merge-checks.sh'
+      - 'scripts/verify-auto-merge-checks.test.sh'
       - '.github/workflows/auto-merge.yml'
       - 'scripts/lint-shell-failure-modes.sh'
       - 'scripts/lint-shell-failure-modes.test.sh'
@@ -117,6 +121,22 @@ jobs:
           bash sdlc/files/_common/scripts/submit-bundle-manifest.test.sh
           bash sdlc/files/_common/scripts/close-out-release.test.sh
 
+      - name: Run release gate script tests (devaudit-installer#1059)
+        run: |
+          chmod +x sdlc/files/_common/scripts/e2e-release-gate.sh
+          chmod +x sdlc/files/_common/scripts/report-release-check.sh
+          bash sdlc/files/_common/scripts/e2e-release-gate.test.sh
+
+      - name: Run transport-layer REQ detection tests (devaudit-installer#1067)
+        run: |
+          chmod +x sdlc/files/_common/scripts/is-transport-layer-req.sh
+          bash sdlc/files/_common/scripts/is-transport-layer-req.test.sh
+
+      - name: Run test tier script tests (devaudit-installer#1060)
+        run: |
+          chmod +x sdlc/files/_common/scripts/run-test-tier.sh
+          bash sdlc/files/_common/scripts/run-test-tier.test.sh
+
       - name: Run evidence upload tests (devaudit-installer#1018)
         run: |
           chmod +x sdlc/files/_common/scripts/upload-evidence.sh
@@ -124,7 +144,13 @@ jobs:
           chmod +x sdlc/files/_common/scripts/classify-pr-attribution.sh
           bash sdlc/files/_common/scripts/classify-pr-attribution.test.sh
           bash sdlc/files/_common/scripts/upload-evidence.test.sh
+          bash sdlc/files/_common/scripts/upload-evidence-core.test.sh
           bash sdlc/files/_common/scripts/playwright-report-evidence.test.sh
+
+      - name: Run compliance document upload tests (devaudit-installer#1080)
+        run: |
+          chmod +x sdlc/files/_common/scripts/upload-compliance-documents.sh
+          bash sdlc/files/_common/scripts/upload-compliance-documents.test.sh
 
       - name: Run required-gate triage tests (devaudit-installer#1016)
         run: |
@@ -155,6 +181,7 @@ jobs:
           bash scripts/action-runtime-contract.test.sh
           bash scripts/check-recovery-workflow.test.sh
           bash scripts/auto-merge-workflow.test.sh
+          bash scripts/verify-auto-merge-checks.test.sh
           bash scripts/runner-host/runner-host.test.sh
           bash scripts/lint-shell-failure-modes.test.sh
           bash scripts/release-validation.test.sh

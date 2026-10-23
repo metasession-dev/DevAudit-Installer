@@ -192,7 +192,7 @@ configured required checks. The standard set is:
 - `Release Scope Integrity`
 - `Compliance Validation`
 - `DevAudit Release Approval`
-- `E2E Regression Suite`
+- `E2E Regression Suite` (the tier set by `release_gate_tier`: `critical` unless the project configured another; see [e2e-test-tiers.md](../e2e-test-tiers.md#choosing-the-release-gate-1059))
 
 Only `Quality Gates` is a GitHub-native, hard-blocking branch-protection
 required status check — deliberately, not by oversight. It is the only one of
@@ -224,7 +224,7 @@ and probe result; inspect provider logs and fix forward before retrying.
 
 Generated production deployment-status workflows accept exact `production` or
 `prod` environments and qualified provider labels ending in `/ production` or
-`/production`, for example `Wawa Garden Bar / production`. UAT, staging,
+`/production`, for example `Example App / production`. UAT, staging,
 preview, and failed deployment statuses must not create production evidence.
 
 A consumer-enabled post-merge regression must also reach a terminal successful

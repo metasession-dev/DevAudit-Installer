@@ -397,19 +397,28 @@ export async function checkPortalDeferredNotInTicket(ctx: DeferralContext): Prom
       }
       if (lookup.kind !== 'found' || lookup.release.status !== 'deferred') continue;
       const reason = lookup.release.deferredReason?.trim() || 'deferred on the portal';
+      // devaudit-installer#1083 — a portal deferral nobody declared in the repo may be a
+      // mistake (a wrong click). Recording it in the ticket would make the mistake permanent
+      // and trip the promotion deferral gate, so this is a decision, never a default.
       findings.push({
         subject: t.version,
-        detail: `${t.version}: the portal release is deferred but the ticket has no "Release intent: deferred-to-next" (the ticket field is the sole declaration)`,
+        detail: `${t.version}: the portal release is deferred but the ticket has no "Release intent: deferred-to-next" (the ticket field is the sole declaration) — record the deferral in the ticket if it was intended, or resume the portal release if it was a mistake`,
         remediation: {
-          id: 'mark-ticket-deferred',
-          tier: 'A',
-          summary: `Mark ${t.version} deferred locally (ticket Release intent + RTM DEFERRED)`,
+          id: 'resolve-undeclared-deferral',
+          tier: 'B',
+          summary: `Decide whether the portal deferral of ${t.version} was intended`,
           plan: [
-            `write "- **Release intent:** deferred-to-next — ${reason}" into ${relTicketPath(t)}`,
-            `set the ${t.version} RTM row status to DEFERRED`,
+            `record (the deferral was intended): write "- **Release intent:** deferred-to-next — ${reason}" into ${relTicketPath(t)} and set the ${t.version} RTM row to DEFERRED`,
+            `resume (the deferral was a mistake): POST /api/releases/${lookup.release.id ?? '<id>'}/resume (admin PAT, typed reason); the release returns to draft and the UAT approvals the defer superseded are not restored`,
+            'leave: change nothing',
           ],
-          needsPortal: false,
-          data: { version: t.version, ticketPath: relTicketPath(t), reason },
+          needsPortal: true,
+          data: {
+            version: t.version,
+            ticketPath: relTicketPath(t),
+            reason,
+            ...(lookup.release.id ? { releaseId: lookup.release.id } : {}),
+          },
         },
       });
     }

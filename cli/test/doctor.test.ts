@@ -973,13 +973,16 @@ describe('devaudit doctor — D8 releases check + JSON surface (#956)', () => {
     expect(Object.keys(json)).toEqual(expect.arrayContaining(['ok', 'tools', 'releaseCloseoutDrift', 'onboarding']));
     expect(Object.keys(json.releaseCloseoutDrift).sort()).toEqual(['detail', 'name', 'ok']);
     expect(json.tools).toHaveLength(5);
-    // #1040 appended deploy-host, production-url, custom-deploy and ci-runner (additive).
-    expect(json.onboarding).toHaveLength(15);
-    expect((json.onboarding as Array<{ name: string }>).slice(-4).map((c) => c.name)).toEqual([
+    // #1040 appended deploy-host, production-url, custom-deploy and ci-runner (additive);
+    // #1059/#1060 appended e2e-release-gate and test-tiers after them.
+    expect(json.onboarding).toHaveLength(17);
+    expect((json.onboarding as Array<{ name: string }>).slice(-6).map((c) => c.name)).toEqual([
       'deploy-host',
       'production-url',
       'custom-deploy',
       'ci-runner',
+      'e2e-release-gate',
+      'test-tiers',
     ]);
     // additive keys
     expect(Array.isArray(json.deferral)).toBe(true);

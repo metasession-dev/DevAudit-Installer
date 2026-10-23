@@ -51,10 +51,15 @@ export function doneReport(ctx: InstallContext, plan: InstallPlan): StepResult {
         '    evidence or approve a release.',
       ]
     : [];
+  const testLines = [
+    ...(plan.testNotes ?? []).map((n) => `  ${n}`),
+    ...(plan.testConfig ? [`  Test tier settings written: ${Object.keys(plan.testConfig).join(', ')}.`] : []),
+  ];
   const lines = [
     '',
     `  ${ctx.projectName} is onboarded.`,
     ...viewerKeyLines,
+    ...(testLines.length > 0 ? ['', ...testLines] : []),
     '',
     '  Next steps:',
     `    cd ${ctx.projectPath}`,
@@ -68,6 +73,10 @@ export function doneReport(ctx: InstallContext, plan: InstallPlan): StepResult {
     // already assumed develop as the working branch; this brings the two in
     // sync.
     '    gh pr create --base develop',
+    '',
+    '  Review your test tiers any time with `devaudit doctor` (the test-tiers and',
+    '    e2e-release-gate checks); if there is no smoke tier yet, the e2e-test-engineer',
+    '    skill scaffolds one.',
     '',
     '  After the PR merges:',
     '    - Push a compliance/ doc to develop so compliance-evidence.yml',

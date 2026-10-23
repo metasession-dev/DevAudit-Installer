@@ -469,7 +469,16 @@ else
     else
       REQ_META_ARGS=""
     fi
-    for ARTIFACT in "$REQ_DIR"*.md; do
+    # devaudit-installer#1080 — the portal's release checklist wants implementation-plan.md for
+    # EVERY requirement, but the plan is authored under compliance/plans/ and was only copied
+    # into the evidence folder for MEDIUM/HIGH risk, so a LOW-risk REQ never uploaded one. Upload
+    # it from compliance/plans/ when the evidence folder has no copy (a copy there wins).
+    PLAN_FALLBACK=""
+    if [ ! -f "${REQ_DIR}implementation-plan.md" ] && [ -f "compliance/plans/${REQ_ID}/implementation-plan.md" ]; then
+      PLAN_FALLBACK="compliance/plans/${REQ_ID}/implementation-plan.md"
+    fi
+    # shellcheck disable=SC2086 -- PLAN_FALLBACK is a repo path without spaces, or empty
+    for ARTIFACT in "$REQ_DIR"*.md $PLAN_FALLBACK; do
       [ -f "$ARTIFACT" ] || continue
       # Per-REQ basename → (evidence_type, evidence_category) routing.
       # Every SDLC-expected artifact has an explicit case with a

@@ -70,6 +70,12 @@ export interface InstallContext {
    */
   readonly host?: string;
   /**
+   * Test tier / release gate flags by `sdlc-config.json` key (devaudit-installer#1059,
+   * #1060). Raw strings, validated like `devaudit configure set`; absent keys are
+   * never written.
+   */
+  readonly testOptions?: Readonly<Record<string, string>>;
+  /**
    * Set to `'developer'` only AFTER the orchestrator's mode-detection runs
    * (between step 6 and step 7); the steps that run before that point (1–6)
    * see `'operator'` and proceed as usual. The destructive steps (7, 9) and
@@ -110,6 +116,13 @@ export interface InstallPlan {
    */
   viewerApiKeySecretName?: string;
   viewerApiKey?: string;
+  /**
+   * Test tier / release gate keys to write (from flags or confirmed prompts).
+   * Empty or absent means: leave the existing config and today's defaults alone.
+   */
+  testConfig?: Record<string, unknown>;
+  /** Things to tell the operator about the test tier choices (printed in the summary). */
+  testNotes?: readonly string[];
 }
 
 export interface DetectedStack {
