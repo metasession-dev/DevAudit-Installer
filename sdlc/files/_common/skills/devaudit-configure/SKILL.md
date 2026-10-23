@@ -1,16 +1,17 @@
 ---
 name: devaudit-configure
-description: Walk the operator through checking and changing this repo's DevAudit settings in `sdlc-config.json` — where production deploys (railway, vercel, custom for AWS/self-hosted), the production URL secret and access-gated probe header, custom deploy settings (deploy_command, deploy_secrets, deployed_sha_url, deploy_trigger), and runner/CI keys — using `devaudit doctor` to find what disagrees with the repo's real setup and `devaudit configure` to validate and apply each change, then regenerating the workflows with `devaudit update` on a fix branch. Use when the operator says "configure devaudit", "we deploy on Vercel, not Railway", "doctor says the host is wrong", "set up the production URL", "our prod is behind Vercel protection", "we deploy to AWS / our own servers", "change the CI runner", "check our devaudit config", or after adopting a new devaudit version. Do NOT use for implementing a tracked change (that's `sdlc-implementer`), for editing generated workflows by hand (they are overwritten on sync), or for handling secret values (the operator types them into `devaudit configure secret`).
-version: 1.0.0
+description: Walk the operator through checking and changing this repo's DevAudit settings in `sdlc-config.json` — where production deploys (railway, vercel, custom for AWS/self-hosted), the production URL secret and access-gated probe header, custom deploy settings (deploy_command, deploy_secrets, deployed_sha_url, deploy_trigger), runner/CI keys, and the E2E test tiers and release gate (release_gate_tier, post_deploy_full_regression, scheduled_full_regression, test_runner, test_tier_*, test_feature_command) — using `devaudit doctor` to find what disagrees with the repo's real setup and `devaudit configure` to validate and apply each change, then regenerating the workflows with `devaudit update` on a fix branch. Use when the operator says "configure devaudit", "we deploy on Vercel, not Railway", "doctor says the host is wrong", "set up the production URL", "our prod is behind Vercel protection", "we deploy to AWS / our own servers", "change the CI runner", "which tests gate the release", "run the full regression before merge", "set up our test tiers", "doctor says the release gate is too slow", "check our devaudit config", or after adopting a new devaudit version. Do NOT use for implementing a tracked change (that's `sdlc-implementer`), for editing generated workflows by hand (they are overwritten on sync), or for handling secret values (the operator types them into `devaudit configure secret`).
+version: 1.1.0
 tags:
   - configuration
   - onboarding
   - deploy
+  - testing
 ---
 
 # DevAudit Configure
 
-Helps the operator get this repo's `sdlc-config.json` right for how the project really deploys and runs CI, one validated change at a time. The CLI does the detection, validation and writing; this skill holds the conversation, explains the evidence, and makes sure each change makes sense before it is applied (devaudit-installer#1040).
+Helps the operator get this repo's `sdlc-config.json` right for how the project really deploys, runs CI and gates releases on its tests, one validated change at a time. The CLI does the detection, validation and writing; this skill holds the conversation, explains the evidence, and makes sure each change makes sense before it is applied (devaudit-installer#1040).
 
 ## Hard rules
 
@@ -29,7 +30,7 @@ devaudit doctor --json > /tmp/devaudit-doctor.json
 devaudit configure list --json
 ```
 
-From the doctor JSON, read the `onboarding` entries named `deploy-host`, `production-url`, `custom-deploy` and `ci-runner`, plus `secrets` and `reconcile-cli`. From `configure list`, read the current values, which keys the host requires (`requiredByHost`) and which apply to this host (`applies`).
+From the doctor JSON, read the `onboarding` entries named `deploy-host`, `production-url`, `custom-deploy` and `ci-runner`, plus `secrets` and `reconcile-cli`, and the test entries `e2e-release-gate` and `test-tiers` (devaudit-installer#1059, #1060). From `configure list`, read the current values, which keys the host requires (`requiredByHost`) and which apply to this host (`applies`).
 
 ### 2. Explain what you found, in plain terms
 
@@ -38,12 +39,21 @@ Summarise for the operator, for example:
 - *"sdlc-config.json says production deploys on Railway, but the last production deployments were created by the Vercel GitHub app, and there is a `vercel.json`. Doctor suggests switching the host to vercel."*
 - *"Production answers 401 to an unauthenticated request, so the post-deploy health probe will fail unless `DEVAUDIT_PROBE_HEADER` is set."*
 - *"The runner label `build-box-ci` has no registered repository runner; jobs will queue unless an organization runner carries it."*
+- *"The release PR runs the critical tier. Your full regression has a median of 14 minutes, so running it before merge is affordable (`release_gate_tier full`); then the post-deploy run tests the same commit twice and can be switched off."*
+- *"The smoke tier collects zero tests, so the release gate proves nothing yet. That needs tests, not a setting: the `e2e-test-engineer` skill writes them."*
 
 Say what each finding means for the release gates, and what doctor could not check (it lists them, e.g. when `gh` has no access).
 
 ### 3. Ask what they want to change
 
-Offer the doctor-suggested changes first, then ask whether there is anything else (prod URL, custom deploy command, runner, E2E keys). If the operator wants something the evidence contradicts (e.g. keep `host: railway` while Vercel deploys), ask why; that reason is recorded with the change.
+Offer the doctor-suggested changes first, then ask whether there is anything else (prod URL, custom deploy command, runner, E2E keys).
+
+For the test tiers and the release gate, doctor only proposes (tier C guidance: `--fix` never applies them); the operator decides and each change goes through `configure set`. The trade-offs and recommended combinations are in `docs/e2e-test-tiers.md` ("Choosing the release gate"). Points to raise:
+
+- The gate keys need `e2e_regression_enabled` (`devaudit update --enable-e2e-regression`); without it they have no effect.
+- Setting `release_gate_tier` makes the portal require an `E2E Release Gate (<tier>)` check that passed on the PR's current head before approval. A gate that ran on an earlier push counts as stale, so the operator re-runs it after a late push.
+- A scheduled full regression (`scheduled_full_regression`) is an early signal only. It is never release evidence; a failure opens one `bug` issue.
+- An empty or missing tier is a test gap, not a configuration gap: hand it to the `e2e-test-engineer` skill rather than pointing a tier at an unrelated command. If the operator wants something the evidence contradicts (e.g. keep `host: railway` while Vercel deploys), ask why; that reason is recorded with the change.
 
 For a move to `custom` (AWS, self-hosted, Fly.io, Kubernetes, any deploy script), collect: the deploy command, the secrets it needs, whether the app exposes its running commit SHA (for `deployed_sha_url`), and when it should deploy (`push_to_main`, `git_tag` or `manual`). See `docs/adding-a-host.md` in the DevAudit-Installer repo for the custom-host contract.
 

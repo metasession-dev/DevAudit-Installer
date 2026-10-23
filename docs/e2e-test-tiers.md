@@ -161,6 +161,20 @@ What the keys change in the generated workflows:
 
 `devaudit doctor` reviews the choice through two read-only checks, `e2e-release-gate` and `test-tiers` (see [doctor.md](doctor.md)): it proposes, you decide, and a change goes through `devaudit configure` and a normal PR.
 
+#### Worked example: moving the full regression before merge
+
+```bash
+devaudit doctor                                    # e2e-release-gate: "median E2E Regression run is 14 min: the full tier is affordable before merge"
+git switch -c fix/<issue#>-release-gate-full develop
+devaudit configure set release_gate_tier full --dry-run     # validation, the three workflows it regenerates
+devaudit configure set release_gate_tier full
+devaudit configure set post_deploy_full_regression false    # doctor's note: otherwise the same commit is tested twice
+devaudit update                                    # regenerates e2e-regression.yml, compliance-evidence.yml, check-release-approval.yml
+devaudit doctor                                    # e2e-release-gate is clean; test-tiers still resolves the full tier
+```
+
+Commit the config and the regenerated workflows on that branch and open a PR to the integration branch; the next release PR runs the full tier and the portal requires its `E2E Release Gate (full)` check on the PR head. The `devaudit-configure` skill walks through the same steps in Claude Code. If doctor says a tier collects no tests, that is work for the `e2e-test-engineer` skill, not a setting.
+
 The fix, accept or defer rules in [When a tier fails](#when-a-tier-fails-fix-or-accept-devaudit-installer1016) apply unchanged, now to whichever tier runs on the release PR. `E2E Regression Suite` stays a reviewer-verified check, not a GitHub branch-protection context.
 
 ## When a tier fails: fix or accept (devaudit-installer#1016)
