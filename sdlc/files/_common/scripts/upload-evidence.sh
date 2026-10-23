@@ -272,29 +272,68 @@ is_tracked_change_type() {
 # message (trailer included) into the merge commit body.
 detect_sentinel_git_trailer() {
   local target="$1"
-  # `|| true` — under `set -o pipefail`, `grep -m1` finding no match (the
-  # common case: no trailer, genuinely untracked, or already covered by
-  # the local file) makes the whole pipeline exit non-zero, which would
-  # otherwise abort the entire upload script via `set -e`.
-  git log "$target" -n 50 --format='%B%x00' 2>/dev/null \
-    | tr '\0' '\n' \
-    | grep -m1 '^Sdlc-Implementer-Sentinel:' \
-    | sed -E 's/^Sdlc-Implementer-Sentinel:[[:space:]]*//' || true
+  # devaudit-installer#1082 — a 50-commit window silently lost the trailer on a long-lived
+  # branch (many commits after the one sdlc-implementer made), and "newest trailer wins" could
+  # attribute another requirement's phase history to this upload. Scan SENTINEL_SCAN_LIMIT
+  # commits (default 500) and prefer the newest trailer on a commit that mentions this
+  # upload's requirement id, else the newest trailer. Prints "<sha><TAB><value>", or nothing.
+  # `|| true` — under `set -o pipefail` a scan that finds nothing (the common case: no
+  # trailer, genuinely untracked, or already covered by the local file) must not abort the
+  # whole upload script via `set -e`.
+  git log "$target" -n "${SENTINEL_SCAN_LIMIT:-500}" --format='%x01%H%n%B' 2>/dev/null \
+    | awk -v req="$REQUIREMENT_ID" '
+        BEGIN { RS = "\001"; FS = "\n" }
+        NF {
+          for (i = 2; i <= NF; i++) {
+            if ($i ~ /^Sdlc-Implementer-Sentinel:/) {
+              v = $i; sub(/^Sdlc-Implementer-Sentinel:[ \t]*/, "", v)
+              if (first == "") first = $1 "\t" v
+              if (req != "" && matched == "" && index($0, req)) matched = $1 "\t" v
+              break
+            }
+          }
+        }
+        END { if (matched != "") print matched; else if (first != "") print first }' || true
+}
+
+# Warn when the sentinel is not what the portal expects (a JSON array/object of phase history,
+# or the legacy plain "INVOKED" marker): the portal stores anything it cannot parse as
+# unverified, which blocks approval, and the cause is invisible from the upload side.
+check_sentinel_shape() {
+  local value="$1" source="$2"
+  [ "$value" = "INVOKED" ] && return 0
+  command -v jq >/dev/null 2>&1 || return 0
+  if ! printf '%s' "$value" | jq -e 'type == "array" or type == "object"' >/dev/null 2>&1; then
+    echo "::warning::sentinel from ${source} is not a JSON array/object of phase history; the portal may record this upload as unverified."
+  fi
 }
 
 resolve_sentinel_context() {
   if ! is_tracked_change_type "$CHANGE_TYPE"; then
     return 0
   fi
+  local source=""
   if [ -f ".sdlc-implementer-invoked" ]; then
     SENTINEL_CONTENT=$(cat .sdlc-implementer-invoked)
+    source="local file"
   fi
   local git_target="HEAD"
   if [ -n "$GIT_SHA" ]; then
     git_target="$GIT_SHA"
   fi
   if [ -z "$SENTINEL_CONTENT" ]; then
-    SENTINEL_CONTENT=$(detect_sentinel_git_trailer "$git_target")
+    local found
+    found=$(detect_sentinel_git_trailer "$git_target")
+    if [ -n "$found" ]; then
+      SENTINEL_CONTENT="${found#*$'\t'}"
+      source="trailer from commit ${found%%$'\t'*}"
+    fi
+  fi
+  if [ -n "$SENTINEL_CONTENT" ]; then
+    echo "sentinel: ${source} (change type ${CHANGE_TYPE})"
+    check_sentinel_shape "$SENTINEL_CONTENT" "$source"
+  else
+    echo "sentinel: none found (change type ${CHANGE_TYPE}, scanned up to ${SENTINEL_SCAN_LIMIT:-500} commits from ${git_target}); the portal will record this upload as unverified"
   fi
   COMMIT_TIMESTAMP=$(git show -s --format=%cI "$git_target" 2>/dev/null || true)
 }

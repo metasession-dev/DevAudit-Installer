@@ -210,6 +210,6 @@ How the team will know the REQ is correct in production:
 
 ## Upload path
 
-This file lives at `compliance/plans/REQ-XXX/implementation-plan.md` and is uploaded automatically on the next push to `develop` via `compliance-evidence.yml`. The portal's framework-coverage matrix flips ISO 29119 §3.4, ISO 27001 A.8.25, GDPR Art. 25, and EU AI Act Art. 11 to COVERED for this REQ once the upload lands.
+This file lives at `compliance/plans/REQ-XXX/implementation-plan.md`. At Phase 3 the `sdlc-implementer` skill copies it to `compliance/evidence/REQ-XXX/implementation-plan.md` (every risk class), and the next push to `develop` uploads it via `compliance-evidence.yml`. If no copy is in the evidence folder, `upload-compliance-documents.sh` uploads this file from `compliance/plans/` instead (devaudit-installer#1080). The portal's framework-coverage matrix flips ISO 29119 §3.4, ISO 27001 A.8.25, GDPR Art. 25, and EU AI Act Art. 11 to COVERED for this REQ once the upload lands.
 
 Verify the upload at `https://devaudit.ai/projects/<slug>/releases/REQ-XXX` — the "Evidence by requirement" list should show this plan tagged with `category=planning`.
