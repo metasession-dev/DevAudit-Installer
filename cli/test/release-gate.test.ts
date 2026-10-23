@@ -152,6 +152,13 @@ describe('release gate: triggers and selector follow the keys', { timeout: 180_0
     expect(triggers(reg)).toContain('schedule');
     expect(bashProblems(reg)).toEqual([]);
   });
+
+  it('the pytest regression workflow records no tier without a configured gate, so no e2e-release-gate check is reported', async () => {
+    const reg = (await renderAll('node', { test_runner: 'pytest' }))['e2e-regression.yml']!;
+    expect(reg).toContain('project: $project, selected_specs');
+    expect(reg).not.toContain('tier: $tier');
+    expect(bashProblems(reg)).toEqual([]);
+  });
 });
 
 describe('release gate: tier recording, labels and the release check', { timeout: 180_000 }, () => {

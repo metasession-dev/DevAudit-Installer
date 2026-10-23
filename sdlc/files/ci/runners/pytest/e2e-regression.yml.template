@@ -142,7 +142,7 @@ jobs:
             --arg specs "$SPECS" \
             --arg startedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             --argjson timeoutMinutes 40 \
-            '{target_url: "", project: $project, tier: $tier, selected_specs: $specs, test_server_start: "none", test_server_stop: "none", timeout_minutes: $timeoutMinutes, started_at: $startedAt, outcome: "running"}' \
+            '{target_url: "", project: $project, {{E2E_REGRESSION_TIER_FIELD}}selected_specs: $specs, test_server_start: "none", test_server_stop: "none", timeout_minutes: $timeoutMinutes, started_at: $startedAt, outcome: "running"}' \
             > "$GITHUB_WORKSPACE/e2e-regression-metadata.json"
 
       - name: E2E Regression Tests
