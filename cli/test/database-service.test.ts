@@ -225,6 +225,10 @@ describe('database service container generation (#963)', { timeout: 120_000 }, (
       for (const f of ['ci.yml', 'feature-e2e.yml', 'e2e-regression.yml']) {
         expect(files[f], f).toContain('Clean stale build and test output (self-hosted only)');
         expect(files[f], f).toMatch(/run: rm -rf \.next test-results playwright-report .*\.e2e-server\.pid/);
+        // devaudit-installer#1088 — shard output a sharded regression leaves behind, by exact name:
+        // a broad `test-results*` could remove a tracked directory.
+        expect(files[f], f).toMatch(/run: rm -rf .* test-results-shard-\* playwright-report-shard-\*$/m);
+        expect(files[f], f).not.toMatch(/rm -rf .* (test-results|playwright-report)\*/);
       }
     });
   });

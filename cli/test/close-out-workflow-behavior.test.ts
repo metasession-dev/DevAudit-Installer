@@ -307,6 +307,66 @@ describe('generated Release Close-out workflow, run against a mock portal (#941)
     }
   });
 
+  // devaudit-installer#1088 — a self-hosted runner keeps untracked E2E output between jobs
+  // (checkout clean: false). Close-out writes only under compliance/, so that output must
+  // neither make an empty close-out look like work nor be committed into the close-out PR.
+  const strayShardOutput = async (dir: string) => {
+    await fs.mkdir(join(dir, 'playwright-report-shard-1'), { recursive: true });
+    await fs.writeFile(join(dir, 'playwright-report-shard-1', 'index.html'), '<html></html>');
+    await fs.mkdir(join(dir, 'test-results-shard-1'), { recursive: true });
+    await fs.writeFile(join(dir, 'test-results-shard-1', 'trace.zip'), 'x');
+  };
+  const git = (dir: string, ...a: string[]) => spawnSync('git', a, { cwd: dir, encoding: 'utf8' });
+
+  it('stray untracked E2E output alone is not a close-out: nothing changed, no PR (#1088)', async () => {
+    reset();
+    const fx = await makeFixture();
+    try {
+      const event = { release: REQ };
+      await runStep(fx, 'Resolve inputs', event);
+      await runStep(fx, 'Run close-out', event);
+      git(fx.dir, 'add', '-A');
+      git(fx.dir, '-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit', '-q', '-m', 'chore: close out');
+      await strayShardOutput(fx.dir);
+      fx.outputs['closeout'] = {};
+      expect(await runStep(fx, 'Run close-out', event)).toBe(0);
+      expect(fx.outputs['closeout']?.['changed']).toBe('false');
+      expect(fx.transcript.text).toContain('Nothing to close out');
+    } finally {
+      await fs.rm(fx.dir, { recursive: true, force: true });
+      await fs.rm(fx.aux, { recursive: true, force: true });
+    }
+  });
+
+  it('the close-out commit holds only compliance/ changes, never stray E2E output (#1088)', async () => {
+    reset();
+    const fx = await makeFixture();
+    try {
+      const bare = join(fx.aux, 'origin.git');
+      git(fx.dir, 'init', '-q', '--bare', bare);
+      git(fx.dir, 'remote', 'add', 'origin', bare);
+      await strayShardOutput(fx.dir);
+      const event = { release: REQ };
+      await runStep(fx, 'Resolve inputs', event);
+      expect(await runStep(fx, 'Run close-out', event)).toBe(0);
+      expect(fx.outputs['closeout']?.['changed']).toBe('true');
+      fx.outputs['merge'] = { merged: 'false' };
+      expect(await runStep(fx, 'Open close-out PR', event)).toBe(0);
+
+      const files = git(fx.dir, 'show', '--name-only', '--format=', 'HEAD').stdout.split('\n').filter(Boolean);
+      expect(files.length).toBeGreaterThan(0);
+      expect(files.every((f) => f.startsWith('compliance/'))).toBe(true);
+      expect(files).toContain(`compliance/approved-releases/RELEASE-TICKET-${REQ}.md`);
+      // the stray output is still just sitting there, untracked and uncommitted
+      const status = git(fx.dir, 'status', '--porcelain').stdout;
+      expect(status).toContain('?? playwright-report-shard-1/');
+      expect(status).toContain('?? test-results-shard-1/');
+    } finally {
+      await fs.rm(fx.dir, { recursive: true, force: true });
+      await fs.rm(fx.aux, { recursive: true, force: true });
+    }
+  });
+
   it('does not report a PR that the portal cannot match to this REQ (no silent wrong-release POST)', async () => {
     reset();
     portalRelease = { id: RELEASE_ID, version: 'REQ-999' };

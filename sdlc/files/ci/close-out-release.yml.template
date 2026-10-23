@@ -116,7 +116,12 @@ jobs:
           ARGS="${{ steps.in.outputs.req }}"
           [ -n "${{ steps.in.outputs.pr }}" ] && ARGS="${ARGS} --release-pr ${{ steps.in.outputs.pr }}"
           bash scripts/close-out-release.sh ${ARGS}
-          if [ -n "$(git status --porcelain)" ]; then
+          # devaudit-installer#1088 — the close-out only writes under compliance/. On a
+          # self-hosted runner (checkout clean: false) untracked E2E output from earlier
+          # jobs (playwright-report-shard-*/, test-results-shard-*/) is still in the
+          # workspace; counting it made an empty close-out look like work, and staging it
+          # broke the pre-commit hook.
+          if [ -n "$(git status --porcelain -- compliance)" ]; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "changed=false" >> "$GITHUB_OUTPUT"
@@ -171,7 +176,7 @@ jobs:
           git config user.name "devaudit-bot"
           git config user.email "devaudit-bot@users.noreply.github.com"
           git checkout -b "$BRANCH"
-          git add -A
+          git add -A -- compliance
           # Build the close-out marker
           MARKER=$(closeout_marker "${REQ}" 2>/dev/null || echo "Release-Closeout: ${REQ}")
           git commit -m "docs(compliance): close out ${REQ} release — sync main + reconcile (RELEASED)
