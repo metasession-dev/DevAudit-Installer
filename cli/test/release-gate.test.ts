@@ -117,6 +117,9 @@ describe('release gate: triggers and selector follow the keys', { timeout: 180_0
     expect(reg).toContain("if: failure() && github.event_name == 'schedule'");
     expect(reg).toContain('[scheduled regression] Full E2E failing on next');
     expect(reg).toContain('--label bug');
+    // names the tested integration-branch commit, not GITHUB_SHA (the default branch head on a schedule)
+    expect(reg).toContain('failed on commit ${TESTED_SHA}');
+    expect(reg).not.toContain('${GITHUB_SHA:0:7}');
     expect((await renderAll('node'))['e2e-regression.yml']).not.toContain('scheduled regression');
   });
 

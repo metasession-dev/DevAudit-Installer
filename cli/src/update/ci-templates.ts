@@ -446,7 +446,9 @@ function buildE2eRegressionScheduleIssueStep(cfg: SdlcConfig): string {
     '          set -euo pipefail',
     '          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"',
     `          TITLE="[scheduled regression] Full E2E failing on ${branch}"`,
-    '          BODY="The scheduled full regression failed on commit ${GITHUB_SHA:0:7}. Run: ${RUN_URL}. It is not release evidence and does not block an approval; fix it or record why it is accepted."',
+    // GITHUB_SHA is the default branch head on a schedule event; the tested commit is the checkout.
+    '          TESTED_SHA="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"',
+    '          BODY="The scheduled full regression failed on commit ${TESTED_SHA}. Run: ${RUN_URL}. It is not release evidence and does not block an approval; fix it or record why it is accepted."',
     '          EXISTING=$(gh issue list --state open --label bug --search "\\"$TITLE\\" in:title" --json number,title --jq ".[] | select(.title == \\"$TITLE\\") | .number" | head -n1 || true)',
     '          if [ -n "$EXISTING" ]; then',
     '            gh issue comment "$EXISTING" --body "$BODY"',
