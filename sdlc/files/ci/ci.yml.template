@@ -90,7 +90,7 @@ jobs:
         # clean: node_modules stays. No-op on the ephemeral github-ci path,
         # where nothing persists between runs anyway.
         if: {{STALE_NEXT_CLEANUP_IF}}
-        run: rm -rf .next test-results playwright-report e2e-results.json e2e-auth-results.json e2e-regression-results*.json e2e-regression-metadata.json e2e-server.log .e2e-server.pid
+        run: rm -rf .next test-results playwright-report e2e-results.json e2e-auth-results.json e2e-regression-results*.json e2e-regression-metadata.json e2e-server.log .e2e-server.pid test-results-shard-* playwright-report-shard-*
 
       - name: Validate self-hosted runner prerequisites
         env:
