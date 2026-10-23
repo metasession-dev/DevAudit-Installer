@@ -144,6 +144,7 @@ jobs:
           chmod +x sdlc/files/_common/scripts/classify-pr-attribution.sh
           bash sdlc/files/_common/scripts/classify-pr-attribution.test.sh
           bash sdlc/files/_common/scripts/upload-evidence.test.sh
+          bash sdlc/files/_common/scripts/upload-evidence-core.test.sh
           bash sdlc/files/_common/scripts/playwright-report-evidence.test.sh
 
       - name: Run compliance document upload tests (devaudit-installer#1080)

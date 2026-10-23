@@ -2,8 +2,8 @@
 // tarball is self-contained — the CLI no longer needs a DevAudit-Installer
 // checkout at runtime (see src/lib/installer-root.ts).
 //
-// Runs on `prepack` (npm pack / npm publish). The copied `sdlc/` and `scripts/`
-// directories are git-ignored snapshots, regenerated from the repo root each
+// Runs on `prepack` (npm pack / npm publish). The copied `sdlc/` directory is a
+// git-ignored snapshot, regenerated from the repo root each
 // time the package is packed.
 import { promises as fs } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -26,5 +26,7 @@ async function bundle(srcRel, destRel) {
 }
 
 await bundle('sdlc', 'sdlc');
-await bundle('scripts/upload-evidence.sh', 'scripts/upload-evidence.sh');
+// devaudit-installer#1082 — upload-evidence.sh ships inside sdlc/files/_common/scripts/;
+// the old repo-root copy bundled here was stale and is gone. Remove a leftover snapshot.
+await fs.rm(resolve(cliRoot, 'scripts'), { recursive: true, force: true });
 console.log('template bundle complete');

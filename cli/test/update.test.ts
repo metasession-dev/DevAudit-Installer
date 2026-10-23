@@ -205,6 +205,10 @@ describe('syncProject — native TS sync against a fixture', () => {
     expect(await fs.stat(join(fixtureDir, '.prettierrc.json'))).toBeTruthy();
     // Section 2d — scripts
     expect(await fs.stat(join(fixtureDir, 'scripts', 'upload-evidence.sh'))).toBeTruthy();
+    // devaudit-installer#1082 — the consumer gets exactly the tested _common copy.
+    expect(await fs.readFile(join(fixtureDir, 'scripts', 'upload-evidence.sh'), 'utf-8')).toBe(
+      await fs.readFile(join(INSTALLER_ROOT, 'sdlc', 'files', '_common', 'scripts', 'upload-evidence.sh'), 'utf-8'),
+    );
     expect(await fs.stat(join(fixtureDir, 'scripts', 'report-test-execution.sh'))).toBeTruthy();
     expect(await fs.stat(join(fixtureDir, 'scripts', 'record-uat-execution.sh'))).toBeTruthy();
     expect(await fs.stat(join(fixtureDir, 'scripts', 'render-test-executions.sh'))).toBeTruthy();
