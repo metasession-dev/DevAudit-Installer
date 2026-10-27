@@ -203,6 +203,24 @@ async function checkRtmInitialized(): Promise<CheckResult> {
  * login still attributes UAT-submission actions — it's just never expected
  * to exist as a repo secret, so its absence is no longer a "gap" here.
  */
+/**
+ * devaudit-installer#1099 WP5 — information only (never a gap): agent sessions started from a
+ * shell that exports `DEVAUDIT_USER_TOKEN` inherit the personal access token. Reports the
+ * variable name, never the value.
+ */
+function checkPatInEnvironment(env: NodeJS.ProcessEnv = process.env): CheckResult[] {
+  if (!env['DEVAUDIT_USER_TOKEN']) return [];
+  return [
+    {
+      name: 'pat-env',
+      ok: true,
+      detail:
+        'DEVAUDIT_USER_TOKEN is set in the environment: agent sessions started from this shell inherit it. Prefer `devaudit auth login` (cached login) and unset the variable',
+      suspectedOrigin: 'unknown',
+    },
+  ];
+}
+
 async function checkRequiredSecretsPresent(): Promise<CheckResult> {
   const name = 'secrets';
   const consumer = await readConsumerConfig();
@@ -723,6 +741,8 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
     await checkCommitlintConfigShadowing(),
     // devaudit-installer#1040: deploy host, production URL/probe, custom deploy, CI runner.
     ...(await configChecksFor(options.configDeps)),
+    // devaudit-installer#1099 WP5: informational, only when the variable is set.
+    ...checkPatInEnvironment(),
   ];
   let onboardingIssues = false;
   for (const check of onboardingChecks) {

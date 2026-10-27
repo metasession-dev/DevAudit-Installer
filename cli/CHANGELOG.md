@@ -4,6 +4,18 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+### Upgrade notes
+
+- **`devaudit doctor --fix` portal changes (defer, resume) are interactive-only** (#1099): they need a terminal, a typed reason and a confirmation. `--yes --reason` no longer applies them in scripts or CI (they stay `unapplied`, exit `8`); `--yes` still applies tier A repairs. Use the portal UI for portal-side defer and resume until the portal accepts a personal access token there.
+
+### Added
+
+- **`doctor` notes `DEVAUDIT_USER_TOKEN` in the environment** (#1099) — a `pat-env` information line (name only, never the value), because agent sessions started from that shell inherit the personal access token. Prefer `devaudit auth login`.
+
+### Fixed
+
+- **`doctor --fix` could report a redirected defer/resume as applied** (#1099) — the portal answers a personal access token on its session-only release routes with a redirect to the HTML sign-in page, and the client followed it and treated the 200 as success. The client now sends `redirect: 'manual'` and treats a redirect, a non-JSON reply or a 2xx without the portal's `status` as an error: "this portal route does not accept a personal access token; use the portal UI".
+
 ## [1.10.0] — 2026-10-23
 
 ### Upgrade notes
