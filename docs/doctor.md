@@ -108,7 +108,7 @@ D1, D2 and D5 need the portal (viewer key is enough) and report `skipped (…)` 
 
 ### Portal reads use the viewer key
 
-Every portal read in `doctor` is read-only (`GET /api/ci/releases/resolve`) and uses `DEVAUDIT_VIEWER_API_KEY` from the environment or the repo-root `.env`, falling back to `DEVAUDIT_API_KEY`. Issue the viewer key with `devaudit install --with-viewer-key`. Key values are never printed. With neither key set, portal-backed checks report `skipped`.
+Every portal read in `doctor` is read-only (`GET /api/ci/releases/resolve`) and uses your viewer key, looked up as `DEVAUDIT_VIEWER_API_KEY` in the environment, then `~/.config/devaudit/viewer-keys.json`, then the legacy repo-root `.env`. There is no fallback to `DEVAUDIT_API_KEY`: the uploader key is CI-only. `devaudit install` and `devaudit join` issue and save your viewer key (see [`credentials.md`](./credentials.md)). Key values are never printed. With no viewer key, portal-backed checks report `skipped`.
 
 ### `--json` shape
 

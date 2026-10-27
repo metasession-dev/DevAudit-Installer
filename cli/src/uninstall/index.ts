@@ -8,6 +8,7 @@ import { DevAuditClient, DevAuditApiError } from '../lib/devaudit-api.js';
 import { readSdlcConfig, resolveTargets, type Target } from '../lib/sdlc-config.js';
 import { removeSdlcConfigTarget } from '../install/write-config.js';
 import type { StepResult } from '../install/types.js';
+import { getStoredViewerKey, removeViewerKey } from '../lib/viewer-keys.js';
 
 export interface RunUninstallOptions {
   readonly path?: string;
@@ -81,6 +82,7 @@ export async function runUninstall(options: RunUninstallOptions): Promise<Uninst
   }
 
   const steps: StepResult[] = [];
+  steps.push(await record(log, revokeOwnViewerKeyStep({ token, baseUrl }, projectSlug, Boolean(options.dryRun))));
   steps.push(
     await record(log, revokeApiKeyStep({ token, baseUrl }, projectSlug, Boolean(options.dryRun))),
   );
@@ -131,6 +133,47 @@ function selectTarget(targets: readonly Target[], requested: string | undefined)
     throw new Error('sdlc-config.json has no targets configured.');
   }
   return only;
+}
+
+/**
+ * devaudit-installer#1099 — revoke the person's own viewer key (found by the name saved with it)
+ * and remove it from `viewer-keys.json`. The local entry is removed even when the portal cannot
+ * be reached: this repo is being disconnected, and a key kept on disk would be a stray credential.
+ */
+async function revokeOwnViewerKeyStep(
+  auth: { token: string; baseUrl: string },
+  projectSlug: string,
+  dryRun: boolean,
+): Promise<StepResult> {
+  const step = '1a/3 Revoke your viewer key';
+  const stored = await getStoredViewerKey(auth.baseUrl, projectSlug);
+  if (dryRun) {
+    return {
+      step,
+      status: 'planned',
+      message: stored ? `would revoke '${stored.name}' and remove it from the CLI config folder` : 'no viewer key is saved on this machine for this project',
+    };
+  }
+  if (!stored) return { step, status: 'ok', message: 'no viewer key is saved on this machine for this project' };
+  let note = '';
+  try {
+    const client = new DevAuditClient({ token: auth.token, baseUrl: auth.baseUrl });
+    const project = await client.getProjectBySlug(projectSlug);
+    if (project) {
+      const mine = (await client.listApiKeys(project.id)).filter((k) => k.name === stored.name && k.revoked_at === null);
+      for (const key of mine) {
+        // eslint-disable-next-line no-await-in-loop
+        await client.revokeApiKey(project.id, key.id);
+      }
+      note = mine.length > 0 ? `revoked '${stored.name}'` : `'${stored.name}' was already revoked`;
+    } else {
+      note = 'project no longer exists on the portal';
+    }
+  } catch (err) {
+    note = `could not revoke on the portal (${err instanceof DevAuditApiError ? `HTTP ${err.status}` : 'unreachable'}); revoke '${stored.name}' from the portal key list`;
+  }
+  await removeViewerKey(auth.baseUrl, projectSlug);
+  return { step, status: note.startsWith('could not') ? 'warn' : 'ok', message: `${note}; removed from the CLI config folder` };
 }
 
 async function revokeApiKeyStep(

@@ -4,6 +4,7 @@ import { execa } from 'execa';
 import { resolveToken } from './auth.js';
 import type { CheckResult, Finding } from './doctor-types.js';
 import { resolveRepoRoot } from './git-root.js';
+import { getStoredViewerKey } from './viewer-keys.js';
 import { logger } from './logger.js';
 
 /**
@@ -53,6 +54,8 @@ export interface CredentialsDeps {
   readonly env: NodeJS.ProcessEnv;
   /** Contents of a repo-root file, or null when absent. */
   readonly readRepoFile: (name: string) => Promise<string | null>;
+  /** The key saved in `viewer-keys.json` for this base URL and project, or null. */
+  readonly readStoredViewerKey?: (baseUrl: string, slug: string) => Promise<string | null>;
   /** Tracked files that contain any of the literal values or a `dak_` key; names only. */
   readonly trackedFilesWithKeys: (values: readonly string[]) => Promise<readonly string[]>;
   /** `GET /api/ci/releases/resolve?projectSlug=<slug>&versionPrefix=REQ-` with the viewer key. */
@@ -97,6 +100,7 @@ export async function defaultCredentialsDeps(repoRoot: string, cfg: Record<strin
     cfg,
     env: process.env,
     readRepoFile: async (name) => fs.readFile(join(repoRoot, name), 'utf-8').catch(() => null),
+    readStoredViewerKey: async (baseUrl, slug) => (await getStoredViewerKey(baseUrl, slug))?.key ?? null,
     trackedFilesWithKeys: async (values) => {
       try {
         // Patterns go through stdin so a key value never appears in argv.
@@ -165,8 +169,10 @@ export async function buildCredentialsReport(deps: CredentialsDeps): Promise<Cre
   // ---- viewer key ---------------------------------------------------------
   const envViewer = deps.env['DEVAUDIT_VIEWER_API_KEY'];
   const dotenvViewer = parseDotenv(dotenv, 'DEVAUDIT_VIEWER_API_KEY');
-  const viewerValue = envViewer || dotenvViewer || null;
-  const viewerSource = envViewer ? 'env' : dotenvViewer ? '.env' : null;
+  const storedViewer = slug && baseUrl && deps.readStoredViewerKey ? await deps.readStoredViewerKey(baseUrl, slug) : null;
+  // Lookup order: env, then viewer-keys.json, then the legacy repo-root .env.
+  const viewerValue = envViewer || storedViewer || dotenvViewer || null;
+  const viewerSource = envViewer ? 'env' : storedViewer ? 'file' : dotenvViewer ? '.env' : null;
   let viewerKey: CredentialEntry;
   if (!viewerValue) {
     viewerKey = { status: 'absent', source: null, project, expiresAt: null, note: 'no viewer key found' };
@@ -209,7 +215,7 @@ export async function buildCredentialsReport(deps: CredentialsDeps): Promise<Cre
 }
 
 const FIX_PAT = 'Portal Settings -> Tokens -> Create token, then run `devaudit auth login`';
-const FIX_VIEWER = 'Set DEVAUDIT_VIEWER_API_KEY to your own viewer key (portal project settings -> API keys, role viewer)';
+const FIX_VIEWER = 'Save your own viewer key with `devaudit auth viewer-key set` (or export DEVAUDIT_VIEWER_API_KEY); `devaudit install` and `devaudit join` issue one for you';
 
 /** The `credentials` onboarding check: non-gating, findings carry tier C guidance. */
 export function credentialsCheck(report: CredentialsReport): CheckResult & { readonly credentials: CredentialsReport } {
@@ -223,7 +229,7 @@ export function credentialsCheck(report: CredentialsReport): CheckResult & { rea
   }
   if (viewerKey.status === 'absent') add('provide-viewer-key', 'Provide your viewer key', FIX_VIEWER, 'viewer key: none found');
   else if (viewerKey.status === 'invalid') add('replace-viewer-key', 'Replace the viewer key', FIX_VIEWER, `viewer key ${viewerKey.note}`);
-  else if (viewerKey.status === 'warn') add('move-viewer-key', 'Move the viewer key out of .env', 'Export DEVAUDIT_VIEWER_API_KEY in your shell profile and remove the line from .env', `viewer key ${viewerKey.note}`);
+  else if (viewerKey.status === 'warn') add('move-viewer-key', 'Move the viewer key out of .env', 'Run `devaudit auth viewer-key set` with this key, then remove the DEVAUDIT_VIEWER_API_KEY line from .env', `viewer key ${viewerKey.note}`);
   if (pat.status === 'invalid') add('renew-pat', 'Renew your personal access token', FIX_PAT, `personal access token ${pat.note}`);
 
   const notes = [

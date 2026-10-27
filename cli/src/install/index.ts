@@ -56,12 +56,10 @@ export interface RunInstallOptions {
    * target. See #689 / #691.
    */
   readonly addTarget?: boolean;
-  /**
-   * Also issue a read-only, viewer-role API key (`DEVAUDIT_VIEWER_API_KEY`)
-   * alongside the default uploader key, for read-back queries (e.g. from
-   * `sdlc-implementer` or a CI status check). See devaudit-installer#867.
-   */
-  readonly withViewerKey?: boolean;
+  /** Issue the person's own viewer key (default true; `--no-viewer-key` passes false). #1099 */
+  readonly viewerKey?: boolean;
+  /** Print the viewer key once at the end (`--print-viewer-key`). */
+  readonly printViewerKey?: boolean;
   /** Deploy host adapter (`railway`, `vercel`, `custom`, ...). See devaudit-installer#1022. */
   readonly host?: string;
   /** Test tier / release gate flags by config key (devaudit-installer#1059, #1060). */
@@ -103,7 +101,8 @@ export async function runInstall(options: RunInstallOptions): Promise<InstallRep
     nonInteractive: Boolean(options.nonInteractive),
     installMode: 'operator',
     addTarget: Boolean(options.addTarget),
-    withViewerKey: Boolean(options.withViewerKey),
+    issueViewerKey: options.viewerKey !== false,
+    printViewerKey: Boolean(options.printViewerKey),
     ...(options.host !== undefined ? { host: options.host } : {}),
     ...(options.testOptions !== undefined ? { testOptions: options.testOptions } : {}),
   };

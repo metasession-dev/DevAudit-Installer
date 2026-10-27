@@ -33,22 +33,15 @@ export function doneReport(ctx: InstallContext, plan: InstallPlan): StepResult {
     };
   }
   const branch = 'feat/sdlc-onboarding';
-  // devaudit-installer#945 — the raw value only ever exists here, inside the
-  // CLI process; GitHub repo secrets are write-only and can never be read
-  // back afterward. Print it exactly once, with an explicit "won't be shown
-  // again" warning, and give the literal .env instruction so the documented
-  // "safe to export locally" claim is actually actionable.
+  // devaudit-installer#1099 — the viewer key is per person, saved in the CLI config folder
+  // (never the repo, a repo secret or .env). The value is shown only on request.
   const viewerKeyLines = plan.viewerApiKey
     ? [
         '',
-        `  ⚠ ${plan.viewerApiKeySecretName} (read-only, safe to persist locally) — shown once, will not be shown again:`,
-        `    ${plan.viewerApiKey}`,
-        '',
-        `  Add it to this project's .env now: echo "${plan.viewerApiKeySecretName}=${plan.viewerApiKey}" >> .env`,
-        "    (.env is gitignored by DevAudit's sentinel entries -- devaudit-installer#945.)",
-        '  Safe to export locally for an agent (e.g. sdlc-implementer) to query release/',
-        '    check/cycle status -- it can only reach the read-back endpoints, never upload',
-        '    evidence or approve a release.',
+        '  Your viewer key (read-only) is saved in the DevAudit config folder.',
+        ...(ctx.printViewerKey
+          ? [`  ⚠ Shown once because of --print-viewer-key:`, `    ${plan.viewerApiKey}`]
+          : ['  It is not printed; pass --print-viewer-key to see it once.']),
       ]
     : [];
   const testLines = [

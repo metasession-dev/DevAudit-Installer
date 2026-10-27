@@ -58,11 +58,10 @@ If `sdlc-config.json` already exists in the target, `install` runs non-interacti
 3. **Configure** — interactive prompts for the remaining values (project slug, runtime version, source dirs, working directory, production URL secret name + value).
 4. **Write `sdlc-config.json`** in the consumer's directory. This file is the per-consumer source of truth that `devaudit update` leaves alone; see [`sdlc-config.json`: what it is, why `update` leaves it alone, how parameters get in](consuming-projects.md#sdlc-configjson-what-it-is-why-update-leaves-it-alone-how-parameters-get-in) for how values the wizard did not ask about get in later.
 5. **Create the DevAudit project** (idempotent — skips if a project with this slug already belongs to the operator).
-6. **Issue a project-scoped API key** named `Onboarding-issued` (idempotent — won't re-issue if one already exists; will warn). This key carries the `uploader` role — write access to evidence upload and release status for this one project — and is consumed **only by CI**; never export it locally, never hand it to an agent (see [`permissions-and-tokens-reference.md`](./articles/permissions-and-tokens-reference.md) for why).
-   - **Optional:** pass `--with-viewer-key` to also issue a second, read-only `viewer`-role key (`Onboarding-issued (viewer)`), stored as `DEVAUDIT_VIEWER_API_KEY`. A viewer key can only reach the portal's read-back endpoints (`GET .../checks`, `GET .../cycles`) — never upload evidence or approve a release — so, unlike the uploader key, it's safe to persist locally for an agent (e.g. `sdlc-implementer`) to query release/check/cycle status. The raw value is printed to the terminal once, at mint time (devaudit-installer#945) — see "Opting into the read-only viewer key" below for how to capture it. Off by default; existing installs are unaffected. See devaudit#867.
+6. **Issue a project-scoped API key** named `Onboarding-issued` (idempotent — won't re-issue if one already exists; will warn). This key carries the `uploader` role — write access to evidence upload and release status for this one project — and is consumed **only by CI**; never export it locally, never hand it to an agent (see [`permissions-and-tokens-reference.md`](./credentials.md) for why).
+   - **Your own viewer key** is issued by default (`viewer:<your email>:<hostname>`, read-only) and saved in the DevAudit config folder, never in the repo or a repo secret. Opt out with `--no-viewer-key`; see [`credentials.md`](./credentials.md).
 7. **Set GitHub secrets** via `gh secret set`:
    - `DEVAUDIT_API_KEY` (the just-issued uploader key)
-   - `DEVAUDIT_VIEWER_API_KEY` (only if `--with-viewer-key` was passed)
    - The production URL secret (e.g. `META_AGENT_PROD_URL`)
 
    (`DEVAUDIT_USER_TOKEN` — the PAT itself — is **not** written as a repo secret; devaudit-installer#912 removed that, since nothing in generated CI ever consumed it. It stays exactly where Step 2 put it: your local `devaudit auth login` cache or exported env var.)
@@ -161,50 +160,11 @@ See [`governance-templates.md`](./governance-templates.md) for the per-framework
 
 From the next requirement onward, use the **Requirement** issue template instead of SRS Bootstrap again — `requirements-aligner` takes over incremental maintenance automatically (advisory at Stage 1, blocking at Stage 3, per `sdlc-config.json`'s `requirements_aligner` defaults).
 
-## Opting into the read-only viewer key
+## Your viewer key and the other credentials
 
-`DEVAUDIT_API_KEY` — the key `install` issues by default (Step 2, item 6) — carries the `uploader` role: it can upload evidence and mutate release state for this one project. It's meant for **CI only**, set as a repo secret and never exported to a local shell or handed to an AI coding agent — a leaked uploader key can forge evidence or approve a release on your behalf.
+`DEVAUDIT_API_KEY`, the key `install` issues for CI, is the uploader key: **CI only**, never exported locally and never handed to an agent. Reads of portal state use your own **viewer key**, issued by default by `install` and `join` and saved in `~/.config/devaudit/viewer-keys.json`. The full model (who holds which credential, where it lives, lookup order, rotate and revoke, what to do when someone leaves) is in [`credentials.md`](./credentials.md).
 
-`DEVAUDIT_VIEWER_API_KEY` (devaudit#867) is the safe alternative: a second, project-scoped key with the `viewer` role, which can only reach the portal's read-back endpoints (`GET .../checks`, `GET .../cycles`, release lookup) — it can never upload evidence or approve anything. That's what makes it the one credential in this system safe to persist locally or hand to an agent. `sdlc-implementer` (devaudit-installer#876) now prefers it automatically for Phase 5's portal-state read whenever `sdlc-config.json` has one configured, falling back to the uploader key otherwise — see [`permissions-and-tokens-reference.md`](./articles/permissions-and-tokens-reference.md) for the full credential model.
-
-**Capturing the raw value (devaudit-installer#945).** GitHub repo secrets are write-only — nothing, including `gh secret list`, can read one back after it's set. So `install` prints the raw value to the terminal exactly once, immediately after it's minted, with an explicit "won't be shown again" warning and the literal command to persist it:
-
-```
-⚠ DEVAUDIT_VIEWER_API_KEY (read-only, safe to persist locally) — shown once, will not be shown again:
-  <raw-value>
-
-Add it to this project's .env now: echo "DEVAUDIT_VIEWER_API_KEY=<raw-value>" >> .env
-```
-
-Copy it into `.env` right then — there's no later recovery path. `.env`/`.env.local` are unconditionally gitignored by DevAudit's sentinel entries, so this can't land in a commit. If you miss it, there's no "show me again" command by design (same reasoning as a cloud provider's one-time access-key display); recover by revoking the key in the portal UI and re-running `devaudit install --force-team-config --with-viewer-key`, which mints a fresh one and prints it the same way.
-
-**What it covers.** Phase 5's "read portal state" lookup, and any other read-only status check you point it at — nothing more.
-
-**What it doesn't cover — the write-side gap.** Every `sdlc-implementer` step below still writes, and no key (viewer or uploader) currently ships with a "hand this to an agent safely" story for writes — the viewer key structurally can't do them, and the uploader key is the same one CI uses, never meant to leave CI secrets:
-
-| Step | Script | Needs |
-| --- | --- | --- |
-| Phase 1 step 3 — create the portal release | `scripts/upload-evidence.sh` | Uploader key (write) |
-| Phase 4/5 — record a UAT execution | `scripts/record-uat-execution.sh` | Uploader key (write) |
-| Post-deploy — report test execution | `scripts/report-test-execution.sh` | Uploader key (write) |
-| Deployment reconciliation | `scripts/reconcile-deployment.sh` (host-neutral; the provider lookup is the host adapter's `lookup-deployment-<host>.sh`) | Uploader key (write) |
-| Defer / resume a release (portal `deferred` state; admin-only) | `devaudit doctor --fix` (your PAT, a typed reason, confirmation), the portal UI session, or `POST /api/releases/[id]/defer` / `/resume` by hand with your own PAT (`DEVAUDIT_USER_TOKEN`) | Human admin PAT or portal session. **Not** the uploader or viewer key, and not CI; `doctor --fix` refuses them with a clear message |
-
-**The design decision (devaudit-installer#845):** these stay operator/CI-only by design — a session running `sdlc-implementer` locally without the uploader key should expect to hand these specific steps to CI's own automatic runs or to the operator, not treat it as a missing-credential bug to work around. A narrower third key (e.g. a "record-only" role that can create releases and record UAT/test executions but never approve one) was considered and rejected for now — it would be new portal-side scope with its own blast-radius analysis, not something to build speculatively ahead of a concrete operator-experience problem it solves. If that changes, revisit here.
-
-**At fresh install**, pass the flag to issue both keys in one step:
-
-```bash
-devaudit install ../path/to/new-consumer --with-viewer-key
-```
-
-**Retrofitting onto an already-onboarded consumer** — the actual gap this section exists for — needs `--force-team-config` too, since issuing a new repo secret is one of the operator-mode-only steps that plain `install` skips once a project is fully onboarded (see Step 2's mode-detection notice):
-
-```bash
-devaudit install --force-team-config --with-viewer-key
-```
-
-This is idempotent — it warns and leaves the existing key alone if one was already issued, rather than reissuing it. `--force-team-config` on its own also re-affirms every other team-shared config (repo secrets, branch protection) beyond just the viewer key, so only reach for it here when retrofitting the viewer key is actually what you want — not as a routine re-run.
+Retrofitting a project that was onboarded before the viewer key was per person: run `devaudit join` (or `devaudit auth viewer-key set` if you already have a key).
 
 ## Polyglot monorepos (multiple targets in one repo) — deprecated
 
@@ -402,5 +362,5 @@ That's a warning, not a tool-gate failure (exit code stays `0` unless a *require
 - [adding-a-stack.md](./adding-a-stack.md) / [adding-a-host.md](./adding-a-host.md) — adding new stacks or hosts.
 - [consuming-projects.md](./consuming-projects.md) — which consumers are polyglot-monorepo (`targets`, deprecated) vs single-target.
 - [consuming-projects.md#offboarding-a-project](./consuming-projects.md#offboarding-a-project) — removing a project: `devaudit uninstall` reverses the steps this doc walks through.
-- [`articles/permissions-and-tokens-reference.md`](./articles/permissions-and-tokens-reference.md) — every credential this flow issues, including the optional viewer key, and what's at risk if each leaks.
+- [`articles/permissions-and-tokens-reference.md`](./credentials.md) — every credential this flow issues, including the optional viewer key, and what's at risk if each leaks.
 - [devaudit#867](https://github.com/metasession-dev/devaudit/issues/867) — the umbrella issue for the viewer-key + read-back API + fleet-doctor work referenced above.
