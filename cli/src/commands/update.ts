@@ -4,6 +4,7 @@ import { syncAll } from '../update/index.js';
 import { logger } from '../lib/logger.js';
 import { resolveRepoRoot } from '../lib/git-root.js';
 import { readSdlcConfig } from '../lib/sdlc-config.js';
+import { credentialsBlockFor } from '../lib/credentials-check.js';
 import {
   discoverPlugins,
   buildPluginContext,
@@ -166,6 +167,13 @@ export async function runUpdate(options: UpdateOptions): Promise<void> {
   log.log('  3. Open a PR into the integration branch (never add a skip-CI tag: GitHub then runs no workflows, so the required Quality Gates check never reports and the PR stays BLOCKED, #1020)');
   log.log('');
   log.warn('Do NOT auto-commit — review the changes first.');
+  // devaudit-installer#1099 WP4 — read-only; skipped in CI.
+  const roots = await Promise.all(options.paths.map((p) => resolveRepoRoot(resolve(p))));
+  const credLines = await credentialsBlockFor(roots);
+  if (credLines.length > 0) {
+    log.log('');
+    for (const l of credLines) log.log(l);
+  }
   if (e2eRegression === 'enable') {
     log.log('');
     log.log('E2E regression tier enabled (devaudit-installer#876):');

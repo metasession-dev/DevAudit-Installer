@@ -10,6 +10,12 @@ import { loadHostAdapter } from '../lib/adapter.js';
 import { resolveAdapters } from '../update/resolve-adapters.js';
 import type { CheckResult, Proposal } from '../lib/doctor-types.js';
 import { resolvePortalReadKey, resolveReleaseByPrefix } from '../lib/releases-api.js';
+import {
+  buildCredentialsReport,
+  credentialsCheck,
+  defaultCredentialsDeps,
+  type CredentialsDeps,
+} from '../lib/credentials-check.js';
 import { buildDeferralContext, runDeferralChecks } from './doctor-deferral.js';
 import { FIX_EXIT_UNAPPLIED, runFix, type FixDeps, type FixReport } from './doctor-fix.js';
 import { commitsInRange, refExists, reqHasCommits } from '../lib/req-commits.js';
@@ -29,6 +35,8 @@ export interface DoctorOptions {
   };
   /** Test seam for the #1040 config checks (gh runner, URL probe). */
   readonly configDeps?: ConfigCheckDeps;
+  /** Test seam for the #1099 `credentials` check (no network in tests). */
+  readonly credentialsDeps?: CredentialsDeps;
 }
 
 async function checkCommand(name: string, args: readonly string[]): Promise<CheckResult> {
@@ -221,6 +229,18 @@ function checkPatInEnvironment(env: NodeJS.ProcessEnv = process.env): CheckResul
   ];
 }
 
+async function checkCredentials(deps?: CredentialsDeps): Promise<CheckResult> {
+  const name = 'credentials';
+  const consumer = await readConsumerConfig();
+  if (!consumer) return { name, ok: true, detail: 'skipped (not a consumer project)', suspectedOrigin: 'unknown' };
+  try {
+    const d = deps ?? (await defaultCredentialsDeps(consumer.repoRoot, consumer.cfg));
+    return credentialsCheck(await buildCredentialsReport(d));
+  } catch {
+    return { name, ok: true, detail: 'skipped (unexpected error reading local state)', suspectedOrigin: 'unknown' };
+  }
+}
+
 async function checkRequiredSecretsPresent(): Promise<CheckResult> {
   const name = 'secrets';
   const consumer = await readConsumerConfig();
@@ -230,7 +250,6 @@ async function checkRequiredSecretsPresent(): Promise<CheckResult> {
     viewer_api_key_secret?: string;
   };
   const required = [devaudit.api_key_secret ?? 'DEVAUDIT_API_KEY'];
-  if (devaudit.viewer_api_key_secret) required.push(devaudit.viewer_api_key_secret);
 
   // devaudit-installer#843 — fold in the resolved host adapter's own
   // required_secrets (e.g. RAILWAY_TOKEN) instead of a second, separate
@@ -269,8 +288,18 @@ async function checkRequiredSecretsPresent(): Promise<CheckResult> {
   }
 
   const missing = required.filter((r) => !secretNames.includes(r));
+  // devaudit-installer#1099 WP3: no CI workflow reads a viewer-key repo secret; one that still exists is unused.
+  const unused = devaudit.viewer_api_key_secret && secretNames.includes(devaudit.viewer_api_key_secret) ? devaudit.viewer_api_key_secret : null;
+  const unusedFindings = unused
+    ? [{
+        subject: unused,
+        detail: `repo secret ${unused} is unused (the viewer key is per person, kept locally)`,
+        remediation: { id: 'remove-unused-viewer-secret', tier: 'C' as const, summary: `Remove the unused repo secret ${unused}`, plan: [`gh secret delete ${unused}`], needsPortal: false },
+      }]
+    : [];
+  const unusedNote = unused ? `; unused and removable: ${unused}` : '';
   return missing.length === 0
-    ? { name, ok: true, detail: `all required secrets present (${required.join(', ')})`, suspectedOrigin: 'consumer-drift' }
+    ? { name, ok: true, detail: `all required secrets present (${required.join(', ')})${unusedNote}`, suspectedOrigin: 'consumer-drift', ...(unusedFindings.length > 0 ? { findings: unusedFindings } : {}) }
     : {
         name,
         ok: false,
@@ -743,6 +772,8 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
     ...(await configChecksFor(options.configDeps)),
     // devaudit-installer#1099 WP5: informational, only when the variable is set.
     ...checkPatInEnvironment(),
+    // devaudit-installer#1099 WP4: uploader / viewer key / PAT, names and statuses only.
+    await checkCredentials(options.credentialsDeps),
   ];
   let onboardingIssues = false;
   for (const check of onboardingChecks) {

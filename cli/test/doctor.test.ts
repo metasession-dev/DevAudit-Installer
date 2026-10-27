@@ -198,6 +198,32 @@ describe('devaudit doctor — onboarding-checklist invariants (#867)', () => {
     // and must not crash the process.
   }, 30_000);
 
+  it('secrets no longer requires a viewer-key repo secret; an existing one is reported unused and removable (#1099)', async () => {
+    const { mkdtemp, writeFile, chmod } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const dir = await mkdtemp(join(tmpdir(), 'devaudit-doctor-viewer-secret-'));
+    const bin = await mkdtemp(join(tmpdir(), 'devaudit-fake-gh-'));
+    const gh = join(bin, 'gh');
+    await writeFile(gh, '#!/bin/sh\nif [ "$1" = "secret" ]; then echo \'[{"name":"DEVAUDIT_API_KEY"},{"name":"RAILWAY_TOKEN"},{"name":"DEVAUDIT_VIEWER_API_KEY"}]\'; exit 0; fi\nexit 1\n');
+    await chmod(gh, 0o755);
+    const run = async (cfg: object) => {
+      await writeFile(join(dir, 'sdlc-config.json'), JSON.stringify(cfg));
+      const r = await execa('node', [BIN, '--json', 'doctor'], { cwd: dir, reject: false, env: { PATH: `${bin}:${process.env['PATH']}` } });
+      return JSON.parse(r.stdout) as { onboarding: Array<{ name: string; ok: boolean; detail: string }>; proposals: Array<{ remediation: { id: string; tier: string } }> };
+    };
+    const without = await run({ project_slug: 'fixture' });
+    expect(without.onboarding.find((c) => c.name === 'secrets')?.detail).toMatch(/all required secrets present/);
+    const withSecret = await run({ project_slug: 'fixture', devaudit: { viewer_api_key_secret: 'DEVAUDIT_VIEWER_API_KEY' } });
+    const secrets = withSecret.onboarding.find((c) => c.name === 'secrets')!;
+    expect(secrets.ok).toBe(true);
+    expect(secrets.detail).toMatch(/unused and removable: DEVAUDIT_VIEWER_API_KEY/);
+    expect(withSecret.proposals.find((p) => p.remediation.id === 'remove-unused-viewer-secret')?.remediation.tier).toBe('C');
+    // Not required either: absent from the repo means no gap.
+    const gone = await run({ project_slug: 'fixture', devaudit: { viewer_api_key_secret: 'SOMETHING_ELSE' } });
+    expect(gone.onboarding.find((c) => c.name === 'secrets')?.ok).toBe(true);
+  }, 60_000);
+
   it('--json emits a structured report including the new checks, tagged with a suspectedOrigin', async () => {
     const { mkdtemp, mkdir, writeFile } = await import('node:fs/promises');
     const { tmpdir } = await import('node:os');
@@ -975,14 +1001,16 @@ describe('devaudit doctor — D8 releases check + JSON surface (#956)', () => {
     expect(json.tools).toHaveLength(5);
     // #1040 appended deploy-host, production-url, custom-deploy and ci-runner (additive);
     // #1059/#1060 appended e2e-release-gate and test-tiers after them.
-    expect(json.onboarding).toHaveLength(17);
-    expect((json.onboarding as Array<{ name: string }>).slice(-6).map((c) => c.name)).toEqual([
+    // #1099 WP4 appended `credentials` (and `pat-env` only when DEVAUDIT_USER_TOKEN is set).
+    expect(json.onboarding).toHaveLength(18);
+    expect((json.onboarding as Array<{ name: string }>).slice(-7).map((c) => c.name)).toEqual([
       'deploy-host',
       'production-url',
       'custom-deploy',
       'ci-runner',
       'e2e-release-gate',
       'test-tiers',
+      'credentials',
     ]);
     // additive keys
     expect(Array.isArray(json.deferral)).toBe(true);

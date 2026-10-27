@@ -1,5 +1,6 @@
 import { runInstall } from '../install/index.js';
 import { logger } from '../lib/logger.js';
+import { printCredentialsBlock } from '../lib/credentials-check.js';
 
 export interface InstallOptions {
   readonly path?: string;
@@ -48,6 +49,7 @@ export async function runInstallCommand(options: InstallOptions): Promise<void> 
       ...(options.host !== undefined ? { host: options.host } : {}),
       ...(options.testOptions !== undefined && Object.keys(options.testOptions).length > 0 ? { testOptions: options.testOptions } : {}),
     });
+    if (!options.dryRun) await printCredentialsBlock(options.path);
   } catch (err) {
     log.error((err as Error).message);
     process.exit(1);
