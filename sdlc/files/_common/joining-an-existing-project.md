@@ -182,8 +182,9 @@ The synced CI gates expect a specific environment. Here's what you need locally 
 
 | Surface | CI | Local (your machine) |
 | --- | --- | --- |
-| Personal identity | not a CI secret — CI never authenticates as a human (devaudit-installer#912) | `~/.config/devaudit/auth.json` (yours) — `devaudit auth login`; needed locally only to submit a release for UAT review under your own identity |
-| Project API key | `secrets.DEVAUDIT_API_KEY` | Usually unset locally — only needed if you're testing `devaudit push` against the live portal; ask the operator if you need to debug it |
+| Personal identity | not a CI secret — CI never authenticates as a human (devaudit-installer#912) | `~/.config/devaudit/auth.json` (yours) — `devaudit auth login`; needed locally only for `devaudit install` / `join`, issuing your own viewer key, and defer/resume through `devaudit doctor --fix`. Agents never use it |
+| Project API key (uploader) | `secrets.DEVAUDIT_API_KEY` | **Never set locally.** It is CI-only: CI uploads evidence with `scripts/upload-evidence.sh`. Nothing you or an agent does locally needs it |
+| Viewer key (yours, read-only) | not a CI secret | `~/.config/devaudit/viewer-keys.json`, issued for you by `devaudit install` / `devaudit join`; read by `devaudit release status` and `devaudit doctor` |
 | Portal URL | `vars.DEVAUDIT_BASE_URL` | `~/.config/devaudit/auth.json` (set by `auth login`) or `$DEVAUDIT_BASE_URL` env |
 | GitHub auth | `${{ github.token }}` (auto, repo mutations) | `gh auth login` |
 | Node | matrix-pinned to project's `node_version` | nvm / volta / whatever — `devaudit doctor` checks ≥ 22 |

@@ -111,17 +111,7 @@ Re-run the test suite that the change affected. Capture new artefacts:
 - New unit coverage (if unit tests changed)
 - New screenshots (if UI behaviour changed)
 
-Upload via `devaudit push` **with `--iteration N`** so the portal records this evidence as iteration-tagged:
-
-```bash
-devaudit push <slug> REQ-XXX <type> <file> \
-  --release "<version>" \
-  --environment uat --category testing \
-  --iteration N \
-  --git-sha "$(git rev-parse HEAD)"
-```
-
-(If the `--iteration` flag doesn't exist on the consumer's `devaudit` CLI version, fall back to encoding the iteration into the filename: `compliance/evidence/REQ-XXX/YYYY-MM-DD_iter-N_<artefact>`. The portal renders it the same way.)
+Commit the new artefacts under `compliance/evidence/REQ-XXX/`. They reach the portal through CI like any other evidence (the `Compliance Evidence Upload` workflow runs on the compliance commit); this skill uploads nothing, and `devaudit push` has no `--iteration` or `--category testing` option. Record the iteration number in `test-execution-summary.md`, and encode it in the filename so each iteration's artefacts stay distinguishable: `compliance/evidence/REQ-XXX/YYYY-MM-DD_iter-N_<artefact>`.
 
 **Existing evidence stays.** Iteration N adds; it does not replace. The audit trail wants to see what each iteration's evidence looked like.
 

@@ -1,6 +1,6 @@
 # `devaudit push`
 
-Upload an evidence file to a DevAudit project/release. This is the CLI port of `scripts/upload-evidence.sh` — the same call CI's generated workflows make on every push, and what `sdlc-implementer` and the E2E skills invoke under the hood to record test executions, gate results, and other evidence. Most operators never call it directly; this reference is for anyone writing a custom CI step, debugging a generated workflow, or scripting evidence upload outside the standard templates.
+Upload an evidence file to a DevAudit project/release. This is the CLI port of `scripts/upload-evidence.sh` — the same call CI's generated workflows make on every push, and the call CI makes to record test executions, gate results, and other evidence. **It needs the uploader key (`DEVAUDIT_API_KEY`), which is CI-only: use it from CI or automation, never from a person's or an agent's local session, and `sdlc-implementer` no longer calls it** (evidence reaches the portal through the `Compliance Evidence Upload` workflow). Most operators never call it directly; this reference is for anyone writing a custom CI step, debugging a generated workflow, or scripting evidence upload outside the standard templates.
 
 ## Usage
 

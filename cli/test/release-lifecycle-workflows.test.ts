@@ -727,6 +727,32 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     expect(skill).toContain('devaudit release check');
   });
 
+  it('the sdlc-implementer skill makes no portal write and never holds the uploader key or PAT (#1099)', () => {
+    const dir = join(root, 'sdlc', 'files', '_common', 'skills', 'sdlc-implementer');
+    const skill = readFileSync(join(dir, 'SKILL.md'), 'utf-8');
+    const loop = readFileSync(join(dir, 'references', 'change-request-loop.md'), 'utf-8');
+    const constraints = readFileSync(join(dir, 'references', 'compliance-constraints.md'), 'utf-8');
+    const callGraph = readFileSync(join(dir, 'references', 'call-graph.md'), 'utf-8');
+    // No instruction to upload, create a release, or record triage from the session.
+    for (const text of [skill, loop, constraints, callGraph]) {
+      expect(text).not.toMatch(/^\s*devaudit push /m);
+      expect(text).not.toContain('--create-release-if-missing --environment');
+      expect(text).not.toContain('report-test-execution.sh resolve --');
+      expect(text).not.toContain('falls back to the uploader key');
+    }
+    expect(skill).not.toContain('bash scripts/upload-evidence.sh {{PROJECT_SLUG}}');
+    // Phase 0 states the model and carries the canonical per-step table.
+    expect(skill).toContain('an agent holds neither the uploader key nor the PAT');
+    expect(skill).toContain('Who does what, step by step.');
+    expect(skill).toContain('Never run `devaudit install`, `join`, `auth`, `doctor --fix` or `doctor --fleet`.');
+    // Evidence reaches the portal through CI; state is read with release status.
+    expect(skill).toContain('`Compliance Evidence Upload`');
+    expect(skill).toContain('gh run list --workflow \"Compliance Evidence Upload\" --commit <sha>');
+    expect(skill).toContain('devaudit release status --json');
+    expect(skill).toContain('Resolving a failed execution is a portal action by a **project admin**');
+    expect(skill).toContain('pending metasession-dev/devaudit#918');
+  });
+
   it('uploads the project-level Test Summary Report without attaching it to any release (devaudit-installer#621)', () => {
     const source = template('ci.yml.template');
     const uploadBlockStart = source.indexOf('if [ -f "compliance/test-summary-report.md" ]; then');
