@@ -150,7 +150,7 @@ Two distinct credentials exist; conflating them is what causes the silent-CI-tok
 
 | Credential | Format | Where it lives | Who it identifies | Used by |
 | --- | --- | --- | --- | --- |
-| **Personal PAT** | `mctok_…` | `~/.config/devaudit/auth.json` (per developer) | You (the user) | Your local CLI commands, and — for whoever holds the operator's PAT specifically — UAT-submission attribution via `scripts/submit-for-uat-review.sh`, and an admin's manual portal defer/resume of a release (admin-only; never the API/viewer keys or CI) |
+| **Personal PAT** | `mctok_…` | `~/.config/devaudit/auth.json` (per developer) | You (the user) | Your local CLI commands, and — for whoever holds the operator's PAT specifically — an admin's manual portal defer/resume of a release (admin-only; never the API/viewer keys or CI) |
 | **Project API key** | `dak_…` | Repo secret `DEVAUDIT_API_KEY` | The project | CI's `devaudit push` calls |
 | **GitHub workflow token** | `${{ github.token }}` | Issued automatically per workflow run | The GitHub Actions workflow | CI's GitHub repo mutations (checkout, branch push, PR, issue, comment, label, check-run updates) |
 
