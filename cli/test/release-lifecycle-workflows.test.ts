@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -717,19 +717,14 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     expect(source).toContain('semantic_id: \\"INC-');
   });
 
-  it('keeps UAT submission distinct from explicit Stage 4 execution recording', () => {
-    const submit = commonScript('submit-for-uat-review.sh');
-    const record = commonScript('record-uat-execution.sh');
-    expect(submit).toContain('Submission only moves the release into review; it does not claim UAT passed.');
-    expect(submit).toContain('./scripts/record-uat-execution.sh');
-    expect(record).toContain('--sdlc-stage 4');
-    expect(record).toContain('--environment uat');
-    expect(record).toContain('--suite-kind uat');
-    expect(record).toContain('--provider manual_uat');
-    expect(record).toContain('manual-uat:${PROJECT_SLUG}:${RELEASE_VERSION}:${EXECUTION_ID}');
-    expect(record).toContain('executor=${EXECUTOR}; tested_sha=${TESTED_SHA}');
-    expect(record).toContain('"$REPORT_TEST_EXECUTION" start');
-    expect(record).toContain('"$REPORT_TEST_EXECUTION" complete');
+  it('retires the UAT scripts: recording and submitting UAT are portal actions (#1099)', () => {
+    for (const name of ['record-uat-execution.sh', 'record-uat-execution.test.sh', 'submit-for-uat-review.sh']) {
+      expect(existsSync(join(root, 'sdlc', 'files', '_common', 'scripts', name))).toBe(false);
+    }
+    const skill = readFileSync(join(root, 'sdlc', 'files', '_common', 'skills', 'sdlc-implementer', 'SKILL.md'), 'utf-8');
+    expect(skill).not.toContain('record-uat-execution');
+    expect(skill).not.toContain('submit-for-uat-review');
+    expect(skill).toContain('devaudit release check');
   });
 
   it('uploads the project-level Test Summary Report without attaching it to any release (devaudit-installer#621)', () => {

@@ -6,10 +6,16 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ### Upgrade notes
 
+- **Two UAT scripts disappear from `scripts/` in your next sync PR** (#1099): `record-uat-execution.sh` (and its test) and `submit-for-uat-review.sh`. Record UAT and submit for UAT review in the portal; run `devaudit release check` first. Anything of yours that calls the scripts must change.
 - **`devaudit doctor --fix` portal changes (defer, resume) are interactive-only** (#1099): they need a terminal, a typed reason and a confirmation. `--yes --reason` no longer applies them in scripts or CI (they stay `unapplied`, exit `8`); `--yes` still applies tier A repairs. Use the portal UI for portal-side defer and resume until the portal accepts a personal access token there.
+
+### Removed
+
+- **`scripts/record-uat-execution.sh`, `scripts/record-uat-execution.test.sh` and `scripts/submit-for-uat-review.sh`** (#1099) — both helpers needed the CI-only uploader key (`DEVAUDIT_API_KEY`) on a person's machine. Recording UAT and clicking Submit for UAT review are portal actions under your own login (release page). The next `devaudit update` removes the three files from `scripts/` when you have not edited them (an edited copy is kept and flagged as a sync conflict).
 
 ### Added
 
+- **`devaudit release check [version] [--json]`** (#1099) — the read-only readiness check that replaces the submit script's checks: clean working tree, integration branch equal to origin, CI green on its head, the release ticket exists, and the portal release is `draft` (read with your viewer key). Exits non-zero until everything passes and prints the fix for each failure. The sdlc-implementer Phase 4 handoff and the release playbooks use it.
 - **`doctor` notes `DEVAUDIT_USER_TOKEN` in the environment** (#1099) — a `pat-env` information line (name only, never the value), because agent sessions started from that shell inherit the personal access token. Prefer `devaudit auth login`.
 
 ### Fixed

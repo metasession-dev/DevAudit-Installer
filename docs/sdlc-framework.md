@@ -32,7 +32,6 @@ sdlc/
 │   │   └── scripts/                          # Universal compliance helpers
 │   │       ├── validate-compliance-artifacts.sh
 │   │       ├── validate-commits.sh
-│   │       ├── submit-for-uat-review.sh
 │   │       ├── derive-release-version.sh
 │   │       └── close-out-release.sh          # Reconcile ticket on release (#60)
 │   ├── ci/                                   # CI workflow templates
