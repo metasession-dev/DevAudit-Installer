@@ -63,6 +63,8 @@ You will need:
 DEVAUDIT_USER_TOKEN=your_token_here npx @metasession.co/devaudit-cli install --yes
 ```
 
+`install --yes` (and `update`, `join`) ends with a read-only **Credentials** block that reports, by name and status only, whether an uploader key is on this machine (it should not be: it is CI-only), whether your own viewer key works, and whether your PAT is valid. `install` also issues your own read-only viewer key and saves it in `~/.config/devaudit/viewer-keys.json`; pass `--no-viewer-key` to skip it. See `docs/credentials.md`.
+
 For interactive mode (prompts for stack, host, etc.):
 
 ```bash
