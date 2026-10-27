@@ -342,9 +342,9 @@ export async function main(argv: readonly string[]): Promise<void> {
     )
     .option(
       '--fix',
-      'Propose and (after confirmation) apply fixes for release-deferral findings and a deploy-host mismatch (sets host in sdlc-config.json, tier A). Tier A local edits (ticket Release intent, RTM DEFERRED, predecessor lines) are confirmed or accepted with --yes; tier B portal defer/resume needs your PAT (DEVAUDIT_USER_TOKEN), a reason and confirmation (never --yes alone); tier C is printed, never run. Exits 8 when proposals remain unapplied. Not available with --fleet. See docs/doctor.md.',
+      'Propose and (after confirmation) apply fixes for release-deferral findings and a deploy-host mismatch (sets host in sdlc-config.json, tier A). Tier A local edits (ticket Release intent, RTM DEFERRED, predecessor lines) are confirmed or accepted with --yes; tier B portal defer/resume is interactive-only: it needs your PAT (DEVAUDIT_USER_TOKEN), a typed reason and a confirmation at a terminal, and --yes never authorises it; tier C is printed, never run. Exits 8 when proposals remain unapplied. Not available with --fleet. See docs/doctor.md.',
     )
-    .option('--reason <text>', 'Reason recorded for a portal defer/resume under --fix (required with --yes in non-interactive runs).')
+    .option('--reason <text>', 'Reason for a portal defer/resume under --fix (skips the reason prompt; the terminal confirmation is still required).')
     .action(async (cmdOpts: { fleet?: boolean; fix?: boolean; reason?: string }, cmd: Command) => {
       const globals = cmd.optsWithGlobals() as { yes?: boolean; dryRun?: boolean };
       if (cmdOpts.fleet && (cmdOpts.fix || cmdOpts.reason !== undefined)) {

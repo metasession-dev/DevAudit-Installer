@@ -139,7 +139,8 @@ export async function runFix(
     if (nonInteractive) {
       return { reason: null, why: `portal changes need an interactive terminal and a typed confirmation (${nonInteractive}); run \`devaudit doctor --fix\` at a terminal or use the portal UI` };
     }
-    const reason = (await ask.input(`Reason for ${verb} ${p.subject}`, { json }))?.trim() || null;
+    // `--reason` supplies the text; the terminal confirmation below is still required.
+    const reason = opts.reason?.trim() || (await ask.input(`Reason for ${verb} ${p.subject}`, { json }))?.trim() || null;
     if (!reason) return { reason: null, why: 'needs a typed reason' };
     const answer = await ask.confirm(`${p.remediation.summary}, with reason "${reason}"?`, { json });
     return answer === true ? { reason, why: '' } : { reason: null, why: answer === false ? 'declined' : 'not confirmed' };
