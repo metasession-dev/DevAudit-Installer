@@ -46,7 +46,7 @@ These were previously planned as atomic skills but were deprioritised. The orche
 | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | `risk-classifier`              | Phase 1 step 2 — orchestrator reads `Test_Policy.md` directly and classifies risk, emitting the signals it used.                          |
 | `commit-message-author`        | Phase 2 step 7 — orchestrator generates the Conventional Commits message from the staged diff + branch name + RTM entry.                  |
-| `compliance-evidence-author`   | Phase 3 — orchestrator drives the test pack, organises artefacts, uploads via `devaudit push`, updates the RTM.                           |
+| `compliance-evidence-author`   | Phase 3 — orchestrator drives the test pack, organises artefacts, commits them (CI uploads them), updates the RTM.                           |
 | `sast-triager`                 | Phase 2 step 5 — `semgrep` runs as one of the gates; the orchestrator surfaces findings to the human at Phase 1 plan or halts in Phase 2. |
 | `release-ticket-author`        | Phase 4 step 1 — orchestrator drafts the PR body directly from the SDLC PR template + plan.                                               |
 

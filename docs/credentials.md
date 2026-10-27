@@ -11,6 +11,23 @@ Current reference for the four credentials DevAudit uses and where each one live
 
 The portal enforces the split: every `/api/ci/*` route accepts API keys only, and a PAT is accepted only on `/api/projects`, `/api/projects/{id}/api-keys` and `/api/releases/{id}/submit-review`. The other release actions are session-only today, and a PAT sent to one of them is redirected to the HTML sign-in page rather than answered with 401 (the CLI reports that as "this portal route does not accept a personal access token; use the portal UI").
 
+## Who does what, step by step
+
+Reproduced from Phase 0 of the `sdlc-implementer` skill, which holds the canonical copy.
+
+| Step | Who does it |
+| --- | --- |
+| Create the portal release (Phase 1) | CI: the first feature-PR E2E run (`feature-e2e.yml`), or the first push to the integration branch (`ci.yml` register-release) |
+| Upload evidence (Phase 3) | CI: `Compliance Evidence Upload` on the compliance commit |
+| Read portal state; check readiness (Phases 3-5) | Agent, with the viewer key: `devaudit release status`, `devaudit release check` |
+| Submit for UAT review; record UAT; approve or request changes (Phase 4) | A person, in the portal UI under their own login |
+| Resolve a failed test execution (Phases 4-5) | A project admin, in the portal UI (pending metasession-dev/devaudit#918) |
+| Report test executions; reconcile the deployment (Phase 5) | CI |
+| Approve Production; Mark as Released (Phase 5) | A person, in the portal UI |
+| Close-out PR (Phase 5) | CI opens it; reviewed and merged as Phase 5 says |
+| Defer or resume a release | A person: `devaudit doctor --fix` (their PAT, at a terminal) or the portal UI. Never the agent |
+| Install, join, issue a viewer key | A person, with their PAT |
+
 ## The viewer key
 
 A viewer key is read-only and personal: one key per person, per project, per machine, named `viewer:<your email>:<hostname>` (the email is `git config user.email`). The portal records the creator.
