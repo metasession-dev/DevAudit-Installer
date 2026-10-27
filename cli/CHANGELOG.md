@@ -8,6 +8,7 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 - **Two UAT scripts disappear from `scripts/` in your next sync PR** (#1099): `record-uat-execution.sh` (and its test) and `submit-for-uat-review.sh`. Record UAT and submit for UAT review in the portal; run `devaudit release check` first. Anything of yours that calls the scripts must change.
 - **`devaudit doctor --fix` portal changes (defer, resume) are interactive-only** (#1099): they need a terminal, a typed reason and a confirmation. `--yes --reason` no longer applies them in scripts or CI (they stay `unapplied`, exit `8`); `--yes` still applies tier A repairs. Use the portal UI for portal-side defer and resume until the portal accepts a personal access token there.
+- **New `Credentials` output** (#1099): `devaudit doctor` gains a `credentials` entry (the onboarding list grows by one) and `update`/`install`/`join` end with a read-only Credentials block. Anything that counts `onboarding` entries must allow for it. A leftover viewer-key repo secret is now reported as unused rather than required.
 
 ### Removed
 
@@ -15,8 +16,14 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ### Added
 
+- **`devaudit doctor` `credentials` check** (#1099) — what this machine holds, by name and status, never a value (`--json`: `credentials: { uploaderKey, viewerKey, pat }`). Warns when the CI-only uploader key (`DEVAUDIT_API_KEY`) is set in the environment, in `.env` / `.env.local` or in a tracked file; checks the viewer key authenticates for this project (and flags one found only in `.env`); validates the personal access token and project membership **only at an interactive terminal** (a non-interactive run never sends the PAT). Findings are tier C guidance. Portal calls time out after 5 s and an unreachable portal is "not checked", never a failure.
+- **A read-only Credentials block after `devaudit update`, `install` and `join`** (#1099) — the same check, once per invocation (one line per project for a multi-path `update`), no prompts or writes, skipped in CI.
 - **`devaudit release check [version] [--json]`** (#1099) — the read-only readiness check that replaces the submit script's checks: clean working tree, integration branch equal to origin, CI green on its head, the release ticket exists, and the portal release is `draft` (read with your viewer key). Exits non-zero until everything passes and prints the fix for each failure. The sdlc-implementer Phase 4 handoff and the release playbooks use it.
 - **`doctor` notes `DEVAUDIT_USER_TOKEN` in the environment** (#1099) — a `pat-env` information line (name only, never the value), because agent sessions started from that shell inherit the personal access token. Prefer `devaudit auth login`.
+
+### Changed
+
+- **`doctor` `secrets` no longer requires a viewer-key repo secret** (#1099) — no CI workflow reads one. An existing secret is reported as unused and removable (`gh secret delete`, tier C).
 
 ### Fixed
 

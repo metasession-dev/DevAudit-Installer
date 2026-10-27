@@ -3,6 +3,7 @@ import { runInstall } from '../install/index.js';
 import { isFile } from '../lib/fs-utils.js';
 import { resolveRepoRoot } from '../lib/git-root.js';
 import { logger } from '../lib/logger.js';
+import { printCredentialsBlock } from '../lib/credentials-check.js';
 
 export interface JoinOptions {
   readonly path?: string;
@@ -51,6 +52,7 @@ export async function runJoinCommand(options: JoinOptions): Promise<void> {
       ...(options.dryRun !== undefined ? { dryRun: options.dryRun } : {}),
       ...(options.yes !== undefined ? { nonInteractive: options.yes } : {}),
     });
+    if (!options.dryRun) await printCredentialsBlock(options.path);
   } catch (err) {
     log.error((err as Error).message);
     process.exit(1);
