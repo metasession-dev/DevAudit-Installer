@@ -3,6 +3,7 @@ import { configureLogger } from './lib/logger.js';
 import { CLI_VERSION } from './lib/version.js';
 import { runDoctor } from './commands/doctor.js';
 import { runFleetDoctor } from './commands/fleet.js';
+import { runReleaseCheck } from './commands/release-check.js';
 import { runAuthLogin } from './commands/auth/login.js';
 import { runAuthLogout } from './commands/auth/logout.js';
 import { runAuthStatus } from './commands/auth/status.js';
@@ -370,6 +371,14 @@ export async function main(argv: readonly string[]): Promise<void> {
         return;
       }
       await runDoctor();
+    });
+  const releaseCmd = program.command('release').description('Read-only release readiness (no portal writes)');
+  releaseCmd
+    .command('check [version]')
+    .description('Check the release is ready to submit for UAT review: clean working tree, integration branch up to date with origin, CI green on its head, the release ticket exists, and the portal release is draft (read with your viewer key; never the PAT). Prints each result with the fix; exits 0 only when ready. Submitting stays a portal action.')
+    .action(async (version: string | undefined, _opts: unknown, cmd: Command) => {
+      const globals = cmd.optsWithGlobals() as { json?: boolean };
+      process.exit(await runReleaseCheck({ ...(version ? { version } : {}), json: Boolean(globals.json) }));
     });
   const configureCmd = program
     .command('configure')

@@ -210,7 +210,9 @@ describe('syncProject — native TS sync against a fixture', () => {
       await fs.readFile(join(INSTALLER_ROOT, 'sdlc', 'files', '_common', 'scripts', 'upload-evidence.sh'), 'utf-8'),
     );
     expect(await fs.stat(join(fixtureDir, 'scripts', 'report-test-execution.sh'))).toBeTruthy();
-    expect(await fs.stat(join(fixtureDir, 'scripts', 'record-uat-execution.sh'))).toBeTruthy();
+    // devaudit-installer#1099 — UAT is recorded and submitted in the portal; the scripts are retired.
+    await expect(fs.stat(join(fixtureDir, 'scripts', 'record-uat-execution.sh'))).rejects.toThrow();
+    await expect(fs.stat(join(fixtureDir, 'scripts', 'submit-for-uat-review.sh'))).rejects.toThrow();
     expect(await fs.stat(join(fixtureDir, 'scripts', 'render-test-executions.sh'))).toBeTruthy();
     expect(await fs.stat(join(fixtureDir, 'scripts', 'validate-compliance-artifacts.sh'))).toBeTruthy();
     expect(await fs.stat(join(fixtureDir, 'scripts', 'generate-bundled-changes.sh'))).toBeTruthy();

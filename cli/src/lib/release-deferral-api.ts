@@ -4,8 +4,8 @@ import { resolveToken } from './auth.js';
  * devaudit-installer#956 phase 3b — portal defer/resume client (ADMIN-ONLY).
  *
  * Authenticated by a human personal access token (PAT) ONLY, sent as
- * `X-DevAudit-Token` (the same header scheme `submit-for-uat-review.sh` uses
- * for `POST /api/releases/<id>/submit-review`). It is never given
+ * `X-DevAudit-Token` (the header scheme the portal's
+ * `POST /api/releases/<id>/submit-review` accepts a PAT with). It is never given
  * `DEVAUDIT_API_KEY`, `DEVAUDIT_VIEWER_API_KEY` or any CI key; if the only
  * credential at hand is one of those, `resolveDeferralCredential` throws a
  * `DeferralCredentialError`. No secret is ever included in an error message.

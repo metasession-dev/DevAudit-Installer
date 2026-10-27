@@ -185,7 +185,6 @@ Copy it into `.env` right then — there's no later recovery path. `.env`/`.env.
 | Step | Script | Needs |
 | --- | --- | --- |
 | Phase 1 step 3 — create the portal release | `scripts/upload-evidence.sh` | Uploader key (write) |
-| Phase 4/5 — record a UAT execution | `scripts/record-uat-execution.sh` | Uploader key (write) |
 | Post-deploy — report test execution | `scripts/report-test-execution.sh` | Uploader key (write) |
 | Deployment reconciliation | `scripts/reconcile-deployment.sh` (host-neutral; the provider lookup is the host adapter's `lookup-deployment-<host>.sh`) | Uploader key (write) |
 | Defer / resume a release (portal `deferred` state; admin-only) | `devaudit doctor --fix` (your PAT, a typed reason, confirmation), the portal UI session, or `POST /api/releases/[id]/defer` / `/resume` by hand with your own PAT (`DEVAUDIT_USER_TOKEN`) | Human admin PAT or portal session. **Not** the uploader or viewer key, and not CI; `doctor --fix` refuses them with a clear message |
