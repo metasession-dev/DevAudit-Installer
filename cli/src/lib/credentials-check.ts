@@ -215,21 +215,30 @@ export async function buildCredentialsReport(deps: CredentialsDeps): Promise<Cre
 }
 
 const FIX_PAT = 'Portal Settings -> Tokens -> Create token, then run `devaudit auth login`';
-const FIX_VIEWER = 'Save your own viewer key with `devaudit auth viewer-key set` (or export DEVAUDIT_VIEWER_API_KEY); `devaudit install` and `devaudit join` issue one for you';
 
 /** The `credentials` onboarding check: non-gating, findings carry tier C guidance. */
 export function credentialsCheck(report: CredentialsReport): CheckResult & { readonly credentials: CredentialsReport } {
   const findings: Finding[] = [];
-  const add = (id: string, summary: string, plan: string, detail: string): void => {
-    findings.push({ subject: id, detail, remediation: { id, tier: 'C', summary, plan: [plan], needsPortal: false } });
+  const add = (id: string, summary: string, plan: string, detail: string, tier: 'A' | 'B' | 'C' = 'C', data?: Record<string, string>): void => {
+    findings.push({
+      subject: id,
+      detail,
+      remediation: { id, tier, summary, plan: [plan], needsPortal: tier === 'B', ...(data ? { data } : {}) },
+    });
   };
+  const slug = report.viewerKey.project ?? '';
   const { uploaderKey, viewerKey, pat } = report;
   if (uploaderKey.status === 'warn') {
     add('remove-local-uploader-key', 'Remove the uploader key from this machine', 'Delete it from the places listed; if it was ever committed or shared, revoke it in the portal, issue a replacement and run `devaudit configure secret DEVAUDIT_API_KEY`', `uploader key (CI-only) ${uploaderKey.note}`);
   }
-  if (viewerKey.status === 'absent') add('provide-viewer-key', 'Provide your viewer key', FIX_VIEWER, 'viewer key: none found');
-  else if (viewerKey.status === 'invalid') add('replace-viewer-key', 'Replace the viewer key', FIX_VIEWER, `viewer key ${viewerKey.note}`);
-  else if (viewerKey.status === 'warn') add('move-viewer-key', 'Move the viewer key out of .env', 'Run `devaudit auth viewer-key set` with this key, then remove the DEVAUDIT_VIEWER_API_KEY line from .env', `viewer key ${viewerKey.note}`);
+  // Tier B (portal): issue your own named viewer key with your PAT. Tier A (local): move one out of .env.
+  if (viewerKey.status === 'absent') {
+    add('issue-viewer-key', 'Issue your own viewer key and save it', 'Issue a viewer key named for you with your PAT and save it in the CLI config folder', 'viewer key: none found', 'B', { slug, invalid: 'false' });
+  } else if (viewerKey.status === 'invalid') {
+    add('issue-viewer-key', 'Replace the invalid viewer key', 'Issue a new viewer key named for you with your PAT, save it, and offer to revoke the old one', `viewer key ${viewerKey.note}`, 'B', { slug, invalid: 'true' });
+  } else if (viewerKey.status === 'warn') {
+    add('move-viewer-key', 'Move the viewer key out of .env into the CLI config folder', 'Save the key to viewer-keys.json and remove the DEVAUDIT_VIEWER_API_KEY line from .env', `viewer key ${viewerKey.note}`, 'A', { slug });
+  }
   if (pat.status === 'invalid') add('renew-pat', 'Renew your personal access token', FIX_PAT, `personal access token ${pat.note}`);
 
   const notes = [

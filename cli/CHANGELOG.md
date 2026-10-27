@@ -17,6 +17,7 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ### Added
 
+- **`doctor --fix` repairs a missing, invalid or legacy viewer key** (#1099) — tier B `issue-viewer-key` (at a terminal, with your PAT, a typed reason and a confirmation: issues your own named key and saves it; a live key of that name is replaced only after a second confirmation) and tier A `move-viewer-key` (moves a key found only in `.env` into `viewer-keys.json` and removes its `.env` line after confirmation). Both were guidance before.
 - **`devaudit release status [version] [--json]`** (#1099) — read-only release status, required checks and test executions, read with your viewer key. JSON shape in `docs/credentials.md`.
 - **`devaudit auth viewer-key set [--project <slug>]`** (#1099) — save a viewer key you received another way, from a masked prompt. `devaudit auth status` also lists which projects have a viewer key saved here (never the value).
 - **`devaudit uninstall` revokes your own viewer key** (#1099) and removes it from `viewer-keys.json`, before revoking the project's keys.

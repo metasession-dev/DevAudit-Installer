@@ -33,7 +33,8 @@ There is no fallback to `DEVAUDIT_API_KEY`: the uploader key is CI-only.
 
 ### Rotate, revoke, leave
 
-- **Rotate:** revoke your key in the portal's project key list, delete your entry (or run `devaudit uninstall`), then `devaudit join`.
+- **Missing or invalid?** `devaudit doctor` reports it and `devaudit doctor --fix` repairs it: at a terminal it issues a new key under your own name with your PAT (typed reason and confirmation) and, if a live key of that name already exists, offers to revoke and replace it. A key left in `.env` is moved into `viewer-keys.json` and its `.env` line removed.
+- **Rotate:** revoke your key in the portal's project key list, delete your entry (or run `devaudit uninstall`), then `devaudit join` or `devaudit doctor --fix`.
 - **`devaudit uninstall`** revokes your own viewer key (found by the name saved with it) and removes it from `viewer-keys.json`, in addition to revoking the project's keys.
 - **When someone leaves:** a project admin removes their project grant and revokes their viewer keys from the portal key list; they revoke their own PAT.
 

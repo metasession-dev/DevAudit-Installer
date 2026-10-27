@@ -32,6 +32,8 @@ beforeAll(async () => {
       res.setHeader('content-type', 'application/json');
       if (req.method === 'GET' && u.pathname === '/api/ci/releases/resolve') {
         readTokens.push(req.headers['x-devaudit-token'] as string | undefined);
+        // The `credentials` check probes with `versionPrefix=REQ-`: a known project answers 200.
+        if (u.searchParams.get('versionPrefix') === 'REQ-') { res.end(JSON.stringify({ latest: null })); return; }
         const l = releases[u.searchParams.get('versionPrefix') ?? ''];
         if (!l) { res.statusCode = 404; res.end(); return; }
         res.end(JSON.stringify({ latest: l }));
@@ -456,5 +458,122 @@ describe('real client error mapping through the fix path', () => {
     expect(new DeferralApiError('forbidden', 'm', 403).kind).toBe('forbidden');
     expect(typeof deferRelease).toBe('function');
     expect(typeof resumeRelease).toBe('function');
+  });
+});
+
+// ---- viewer-key repairs (#1099 WP3b) ----------------------------------------
+
+describe('runFix: viewer-key repairs', () => {
+  const VKEY = 'viewer-secret-from-dotenv';
+  type IssueFn = NonNullable<FixDeps['issueViewerKey']>;
+  const calls: Array<{ revokeExisting: boolean; slug: string; name: string }> = [];
+  beforeEach(async () => {
+    calls.length = 0;
+    await fsp.rm(process.env['DEVAUDIT_VIEWER_KEYS_FILE']!, { force: true });
+  });
+
+  const viewerDeps = async (over: Partial<FixDeps> = {}): Promise<FixDeps> => ({
+    repoRoot: await fixtureRepo(cfg()),
+    baseUrl: base,
+    credential: async () => ({ token: PAT, baseUrl: base, source: 'env' }),
+    viewerKeyName: async () => 'viewer:me@example.test:laptop',
+    issueViewerKey: (async (o) => (calls.push({ revokeExisting: o.revokeExisting, slug: o.slug, name: o.name }), { kind: 'issued', revoked: o.revokeExisting })) as IssueFn,
+    ...over,
+  });
+  const base0 = { yes: false, dryRun: false, json: false };
+  const stored = async () => (await import('../src/lib/viewer-keys.js')).getStoredViewerKey(base, 'fixture');
+
+  describe('tier A: move-viewer-key', () => {
+    const p = prop('move-viewer-key', 'A', { slug: 'fixture' });
+    const writeEnv = (d: FixDeps) => fsp.writeFile(join(d.repoRoot, '.env'), `OTHER=1\nDEVAUDIT_VIEWER_API_KEY=${VKEY}\nKEEP=yes\n`);
+
+    it('saves the key, removes only its .env line, and is idempotent', async () => {
+      const d = await viewerDeps();
+      await writeEnv(d);
+      const r = await runFix([p], { ...d, ask: asks() }, base0);
+      expect(r.outcomes[0]).toMatchObject({ status: 'applied' });
+      expect(r.outcomes[0]!.message).not.toContain(VKEY);
+      expect((await stored())?.key).toBe(VKEY);
+      expect(await fsp.readFile(join(d.repoRoot, '.env'), 'utf-8')).toBe('OTHER=1\nKEEP=yes\n');
+      const again = await runFix([p], { ...d, ask: asks() }, base0);
+      expect(again.outcomes[0]).toMatchObject({ status: 'unchanged' });
+    });
+
+    it('a declined confirmation changes nothing', async () => {
+      const d = await viewerDeps();
+      await writeEnv(d);
+      const r = await runFix([p], { ...d, ask: asks({ confirm: async () => false }) }, base0);
+      expect(r.outcomes[0]).toMatchObject({ status: 'unapplied' });
+      expect(await stored()).toBeNull();
+      expect(await fsp.readFile(join(d.repoRoot, '.env'), 'utf-8')).toContain(VKEY);
+    });
+
+    it('non-interactively needs --yes, like every tier A repair', async () => {
+      const d = await viewerDeps();
+      await writeEnv(d);
+      const ni = asks({ nonInteractiveReason: () => 'no TTY', confirm: async () => null });
+      expect((await runFix([p], { ...d, ask: ni }, base0)).outcomes[0]!.status).toBe('unapplied');
+      expect((await runFix([p], { ...d, ask: ni }, { ...base0, yes: true })).outcomes[0]!.status).toBe('applied');
+    });
+
+    it('--dry-run plans and writes nothing', async () => {
+      const d = await viewerDeps();
+      await writeEnv(d);
+      const r = await runFix([p], { ...d, ask: asks() }, { ...base0, dryRun: true });
+      expect(r.outcomes[0]).toMatchObject({ status: 'planned' });
+      expect(await stored()).toBeNull();
+    });
+  });
+
+  describe('tier B: issue-viewer-key', () => {
+    const p = prop('issue-viewer-key', 'B', { slug: 'fixture', invalid: 'false' });
+
+    it("issues the key under the person's own name after a typed reason and a confirmation", async () => {
+      const d = await viewerDeps();
+      const r = await runFix([p], { ...d, ask: asks() }, base0);
+      expect(r.outcomes[0]).toMatchObject({ status: 'applied' });
+      expect(r.outcomes[0]!.message).toContain("issued 'viewer:me@example.test:laptop'");
+      expect(r.outcomes[0]!.message).toContain('reason: typed reason');
+      expect(calls).toEqual([{ revokeExisting: false, slug: 'fixture', name: 'viewer:me@example.test:laptop' }]);
+    });
+
+    it('is interactive-only: --yes --reason never issue a key non-interactively', async () => {
+      const d = await viewerDeps();
+      const ni = asks({ nonInteractiveReason: () => 'no TTY', input: async () => null, confirm: async () => null });
+      const r = await runFix([p], { ...d, ask: ni }, { ...base0, yes: true, reason: 'r' });
+      expect(r.outcomes[0]).toMatchObject({ status: 'unapplied' });
+      expect(calls).toEqual([]);
+    });
+
+    it('a live key of that name is only replaced after a second confirmation', async () => {
+      const exists: IssueFn = async (o) => (calls.push({ revokeExisting: o.revokeExisting, slug: o.slug, name: o.name }), o.revokeExisting ? { kind: 'issued', revoked: true } : { kind: 'exists-live' });
+      let confirms = 0;
+      const yesThenNo = asks({ confirm: async () => (confirms += 1) === 1 });
+      const declined = await runFix([p], { ...(await viewerDeps({ issueViewerKey: exists })), ask: yesThenNo }, base0);
+      expect(declined.outcomes[0]).toMatchObject({ status: 'unapplied' });
+      expect(calls.map((c) => c.revokeExisting)).toEqual([false]);
+      calls.length = 0;
+      const accepted = await runFix([p], { ...(await viewerDeps({ issueViewerKey: exists })), ask: asks() }, base0);
+      expect(accepted.outcomes[0]).toMatchObject({ status: 'applied' });
+      expect(accepted.outcomes[0]!.message).toContain('revoked the previous key');
+      expect(calls.map((c) => c.revokeExisting)).toEqual([false, true]);
+    });
+
+    it('reports a 403 as failed with the ask-an-admin message, and a missing PAT as failed', async () => {
+      const { DevAuditApiError } = await import('../src/lib/devaudit-api.js');
+      const refused: IssueFn = async () => { throw new DevAuditApiError('x', 403, ''); };
+      const r = await runFix([p], { ...(await viewerDeps({ issueViewerKey: refused })), ask: asks() }, base0);
+      expect(r.outcomes[0]).toMatchObject({ status: 'failed', message: expect.stringContaining('ask a project admin') });
+      const noPat = async () => { throw new DeferralCredentialError('No personal access token available.'); };
+      const r2 = await runFix([p], { ...(await viewerDeps({ credential: noPat })), ask: asks() }, base0);
+      expect(r2.outcomes[0]).toMatchObject({ status: 'failed' });
+      expect(r.unapplied).toBe(1);
+    });
+
+    it('an unknown project is a failed outcome', async () => {
+      const gone: IssueFn = async () => ({ kind: 'project-not-found' });
+      const r = await runFix([p], { ...(await viewerDeps({ issueViewerKey: gone })), ask: asks() }, base0);
+      expect(r.outcomes[0]).toMatchObject({ status: 'failed', message: expect.stringContaining('not found') });
+    });
   });
 });
