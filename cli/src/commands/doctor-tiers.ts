@@ -4,6 +4,14 @@ import { execa } from 'execa';
 import type { CheckResult, Finding } from '../lib/doctor-types.js';
 import type { GhRunner } from '../lib/deploy-detect.js';
 import { detectTestRunners, playwrightProjectNames } from '../lib/test-runner-detect.js';
+import {
+  acCoverageForReq,
+  activeRtmReqs,
+  parsePlaywrightList,
+  planAcs,
+  preApprovalProjects,
+  type ReqCoverage,
+} from '../lib/ac-coverage.js';
 
 /**
  * devaudit-installer#1059 / #1060 — two read-only, non-gating doctor checks that
@@ -29,6 +37,16 @@ export const defaultRun: CommandRunner = async (command, cwd) => {
   try {
     const r = await execa(command, { cwd, shell: true, reject: false, timeout: 60_000 });
     return { exitCode: r.exitCode ?? 1, stdout: `${r.stdout}\n${r.stderr}` };
+  } catch {
+    return { exitCode: 1, stdout: '' };
+  }
+};
+
+/** Like `defaultRun` but stdout only, for output that is parsed as JSON. */
+export const defaultListRun: CommandRunner = async (command, cwd) => {
+  try {
+    const r = await execa(command, { cwd, shell: true, reject: false, timeout: 120_000 });
+    return { exitCode: r.exitCode ?? 1, stdout: r.stdout };
   } catch {
     return { exitCode: 1, stdout: '' };
   }
@@ -314,7 +332,7 @@ export async function testTiersCheck(
   cfg: Record<string, unknown>,
   gh: GhRunner,
   run: CommandRunner = defaultRun,
-): Promise<CheckResult> {
+): Promise<CheckResult & { readonly acCoverage?: readonly ReqCoverage[] }> {
   const name = 'test-tiers';
   const detection = await detectTestRunners(repoRoot);
   const keys = (['smoke', 'critical', 'full'] as const).filter((t) => str(cfg, `test_tier_${t}`) !== '');
@@ -424,6 +442,47 @@ export async function testTiersCheck(
     if (uncovered.length > 0) notes.push(`${uncovered.length} RTM requirement(s) have no test in any tier (heuristic): ${uncovered.slice(0, 5).join(', ')}${uncovered.length > 5 ? ', ...' : ''}`);
   }
 
+  // devaudit-installer#1096 — per-AC coverage for the requirements still in flight: reported, never blocking.
+  let acCoverage: ReqCoverage[] | undefined;
+  if (runner === 'playwright') {
+    const withAcs: Array<{ req: string; acs: number[] }> = [];
+    for (const req of activeRtmReqs(rtm)) {
+      const acs = await planAcs(repoRoot, req);
+      if (acs.length > 0) withAcs.push({ req, acs });
+    }
+    if (withAcs.length > 0) {
+      const listed = parsePlaywrightList((await (run === defaultRun ? defaultListRun : run)('npx playwright test --list --reporter=json', repoRoot)).stdout);
+      if (listed === null) {
+        notes.push('AC coverage not checked (`playwright test --list --reporter=json` gave no readable output)');
+      } else {
+        const preApproval = preApprovalProjects(cfg, projects);
+        acCoverage = [];
+        for (const { req, acs } of withAcs) {
+          const cov = await acCoverageForReq(repoRoot, req, acs, listed, preApproval);
+          acCoverage.push(cov);
+          for (const r of cov.results) {
+            if (r.status === 'covered') continue;
+            if (r.status === 'covered-not-rerun') {
+              notes.push(`${req} ${r.detail}`);
+              continue;
+            }
+            findings.push({
+              subject: `${req} AC${r.ac}`,
+              detail: r.detail,
+              remediation: guidance(`ac-coverage-${req}-ac${r.ac}`, `Cover ${req} AC${r.ac} with a test`, [
+                `add or retitle a test as [${req}][AC${r.ac}] (it then runs at feature-PR time and counts as tested)`,
+                'or raise the release gate: devaudit configure set release_gate_tier full',
+                'or mark the AC not applicable on the portal with a reason (project admin; the existing flow in the sdlc-implementer skill, Phase 4)',
+              ]),
+            });
+          }
+        }
+      }
+    }
+  } else if (runner === 'pytest') {
+    notes.push('AC coverage not checked (runner: pytest)');
+  }
+
   // A tier's recent duration against its budget; the full release gate reports this itself.
   if (enabled && str(cfg, 'release_gate_tier') !== 'full') {
     const runs = await recentRegressionRuns(repoRoot, gh);
@@ -436,5 +495,12 @@ export async function testTiersCheck(
 
   const resolved = probes.map((p) => `${p.tier} ${p.count === null ? '?' : p.count}`).join(', ');
   const detail = [`runner ${runner ?? 'custom'}: ${resolved || 'no tiers collected'}`, ...findings.map((f) => f.detail), ...notes].join('; ');
-  return { name, ok: findings.length === 0, detail, suspectedOrigin: 'consumer-drift', ...(findings.length > 0 ? { findings } : {}) };
+  return {
+    name,
+    ok: findings.length === 0,
+    detail,
+    suspectedOrigin: 'consumer-drift',
+    ...(findings.length > 0 ? { findings } : {}),
+    ...(acCoverage ? { acCoverage } : {}),
+  };
 }
