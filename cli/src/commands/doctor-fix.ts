@@ -5,6 +5,11 @@ import type { StepResult } from '../install/types.js';
 import * as prompts from '../lib/prompt.js';
 import { loadConfigContext, planConfigChange, writeConfigValue } from './configure.js';
 import { readPendingTickets } from '../lib/release-tickets.js';
+import { DevAuditApiError } from '../lib/devaudit-api.js';
+import { parseDotenv } from '../lib/credentials-check.js';
+import { issueOwnViewerKey } from '../lib/viewer-key-issue.js';
+import { VIEWER_KEYS_FILE } from '../lib/paths.js';
+import { saveViewerKey, viewerKeyName } from '../lib/viewer-keys.js';
 import { addPredecessor, clearReleaseIntent, setReleaseIntent, setRtmStatus } from '../lib/ticket-edit.js';
 import {
   DeferralApiError,
@@ -73,6 +78,9 @@ export interface FixDeps {
   readonly ask?: Pick<typeof prompts, 'confirm' | 'input' | 'select' | 'nonInteractiveReason'>;
   /** Tier C: lists commit subjects for a REQ in develop but not main. */
   readonly commitsFor?: (req: string) => Promise<string[]>;
+  /** Test seams for the viewer-key repairs (#1099 WP3b). */
+  readonly issueViewerKey?: typeof issueOwnViewerKey;
+  readonly viewerKeyName?: (cwd: string) => Promise<string>;
 }
 
 async function readText(path: string): Promise<string | null> {
@@ -223,6 +231,56 @@ export async function runFix(
           await writeConfigValue(ctx, key, plan.after);
           const next = ['run `devaudit update` to regenerate the workflows', ...plan.followUps];
           out.push(mk(p, 'applied', `sdlc-config.json ${key}: ${JSON.stringify(plan.before)} -> ${JSON.stringify(plan.after)}; ${next.join('; ')}`));
+          break;
+        }
+        case 'move-viewer-key': {
+          // #1099 WP3b (tier A): a viewer key found only in .env moves to the CLI config folder. The
+          // .env line is removed after confirmation; nothing else in .env is touched.
+          const envPath = join(deps.repoRoot, '.env');
+          const content = await readText(envPath);
+          const value = content === null ? null : parseDotenv(content, 'DEVAUDIT_VIEWER_API_KEY');
+          if (content === null || !value) { out.push(mk(p, 'unchanged', 'no DEVAUDIT_VIEWER_API_KEY in .env')); break; }
+          const slug = d['slug'] ?? '';
+          if (!slug || !deps.baseUrl) { out.push(mk(p, 'failed', 'no project slug / base_url in sdlc-config.json to save the key under')); break; }
+          const a = await authoriseA(p);
+          if (!a.ok) { out.push(mk(p, 'unapplied', a.why)); break; }
+          await saveViewerKey(deps.baseUrl, slug, { key: value, name: await (deps.viewerKeyName ?? viewerKeyName)(deps.repoRoot), createdAt: new Date().toISOString() });
+          const kept = content.split(/\r?\n/).filter((l) => !/^\s*(?:export\s+)?DEVAUDIT_VIEWER_API_KEY\s*=/.test(l));
+          await fs.writeFile(envPath, kept.join('\n'));
+          out.push(mk(p, 'applied', `viewer key saved to ${VIEWER_KEYS_FILE} and its line removed from .env`));
+          break;
+        }
+        case 'issue-viewer-key': {
+          // #1099 WP3b (tier B): the person's own named viewer key, issued with their PAT. Interactive
+          // terminal, typed reason and confirmation like every tier B change.
+          const g = await authoriseB(p, 'issuing a viewer key for');
+          if (!g.reason) { out.push(mk(p, 'unapplied', g.why)); break; }
+          const slug = d['slug'] ?? '';
+          if (!slug) { out.push(mk(p, 'failed', 'no project slug in sdlc-config.json')); break; }
+          try {
+            const cred = await (deps.credential ?? resolveDeferralCredential)();
+            const baseUrl = deps.baseUrl || cred.baseUrl;
+            const name = await (deps.viewerKeyName ?? viewerKeyName)(deps.repoRoot);
+            const issue = deps.issueViewerKey ?? issueOwnViewerKey;
+            let res = await issue({ baseUrl, token: cred.token, slug, name, revokeExisting: false });
+            if (res.kind === 'exists-live') {
+              const revoke = await ask.confirm(`A live portal key named '${name}' exists but is not usable on this machine (its value cannot be recovered). Revoke it and issue a new one?`, { json });
+              if (revoke !== true) { out.push(mk(p, 'unapplied', `a live key '${name}' exists; revoke it in the portal or confirm replacing it`)); break; }
+              res = await issue({ baseUrl, token: cred.token, slug, name, revokeExisting: true });
+            }
+            if (res.kind === 'project-not-found') { out.push(mk(p, 'failed', `project '${slug}' was not found on the portal for this token`)); break; }
+            if (res.kind !== 'issued') { out.push(mk(p, 'failed', 'could not issue the viewer key')); break; }
+            out.push(mk(p, 'applied', `issued '${name}'${res.revoked ? ' (revoked the previous key of that name)' : ''} and saved to ${VIEWER_KEYS_FILE}; reason: ${g.reason}`));
+          } catch (err) {
+            if (err instanceof DeferralCredentialError) { out.push(mk(p, 'failed', err.message)); break; }
+            if (err instanceof DevAuditApiError) {
+              out.push(mk(p, 'failed', err.status === 403
+                ? 'the portal refused to issue a viewer key (403): ask a project admin, or retry after the portal update'
+                : `the portal rejected the request (HTTP ${err.status})`));
+              break;
+            }
+            throw err;
+          }
           break;
         }
         case 'resolve-undeclared-deferral': {

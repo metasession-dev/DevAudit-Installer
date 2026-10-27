@@ -49,7 +49,8 @@ describe('credentials check (#1099 WP4)', () => {
     const r = await buildCredentialsReport(d);
     expect(r.viewerKey.status).toBe('absent');
     expect(d.calls).not.toContain('viewer');
-    expect(credentialsCheck(r).findings?.[0]?.remediation?.id).toBe('provide-viewer-key');
+    // Tier B (portal): issue your own named key with your PAT.
+    expect(credentialsCheck(r).findings?.[0]?.remediation).toMatchObject({ id: 'issue-viewer-key', tier: 'B', needsPortal: true, data: { slug: 'example-app', invalid: 'false' } });
   });
 
   it.each([
@@ -61,12 +62,14 @@ describe('credentials check (#1099 WP4)', () => {
     expect(r.viewerKey.status).toBe('invalid');
     expect(r.viewerKey.note).toMatch(re);
     expect(credentialsCheck(r).ok).toBe(false);
+    expect(credentialsCheck(r).findings?.[0]?.remediation).toMatchObject({ id: 'issue-viewer-key', tier: 'B', data: { invalid: 'true' } });
   });
 
   it('a viewer key only in .env is a legacy warning', async () => {
     const r = await buildCredentialsReport(deps({ files: { '.env': `DEVAUDIT_VIEWER_API_KEY=${VIEWER}\n` } }));
     expect(r.viewerKey).toMatchObject({ status: 'warn', source: '.env' });
-    expect(credentialsCheck(r).findings?.[0]?.remediation?.id).toBe('move-viewer-key');
+    // Tier A (local): move it out of .env.
+    expect(credentialsCheck(r).findings?.[0]?.remediation).toMatchObject({ id: 'move-viewer-key', tier: 'A', needsPortal: false, data: { slug: 'example-app' } });
   });
 
   it('an uploader key in the environment, .env, .env.local or a tracked file is a finding that names where, not the value', async () => {
