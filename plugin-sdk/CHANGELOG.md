@@ -4,6 +4,10 @@ All notable changes to `@metasession.co/devaudit-plugin-sdk` are documented here
 
 ## [Unreleased]
 
+### Added
+
+- **`PluginContext.getPersonalAuth()`** (devaudit-installer#1100) — an optional, read-only accessor for the person's CLI-resolved personal access token and portal URL (`{ token, baseUrl } | null`, resolved like `devaudit auth status`), and the `PluginPersonalAuth` type. Plugins no longer need users to export `DEVAUDIT_USER_TOKEN`. It is optional in the type because CLIs older than this change do not provide it; the next release is a minor version.
+
 ## [0.1.73] — 2026-06-26
 
 Version bump in lockstep with `@metasession.co/devaudit-cli@0.1.73`. No source changes.

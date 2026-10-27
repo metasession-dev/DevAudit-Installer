@@ -9,7 +9,7 @@ export async function list(ctx: PluginContext, args: readonly string[]): Promise
     return;
   }
   const sdlcBaseUrl = (ctx.sdlcConfig['devaudit'] as { base_url?: string } | undefined)?.base_url;
-  const { token, baseUrl } = resolveAuth(sdlcBaseUrl);
+  const { token, baseUrl } = await resolveAuth(ctx, sdlcBaseUrl);
   const api = new EvidenceApi({ token, baseUrl });
   const summaries = await api.listRequirements(projectSlug);
   if (summaries.length === 0) {

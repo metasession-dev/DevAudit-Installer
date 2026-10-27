@@ -1,3 +1,4 @@
+import { resolveToken } from '../auth.js';
 import type {
   PluginContext,
   PluginEvent,
@@ -26,6 +27,12 @@ export async function buildPluginContext(opts: BuildPluginContextOptions): Promi
     sdlcConfig,
     logger: pluginLogger(),
     apiVersion: '1',
+    // devaudit-installer#1100: plugins get the person's PAT from the CLI instead of asking the
+    // user to export DEVAUDIT_USER_TOKEN. Same resolution as `devaudit auth status`.
+    getPersonalAuth: async () => {
+      const resolved = await resolveToken();
+      return resolved ? { token: resolved.token, baseUrl: resolved.baseUrl } : null;
+    },
     emit: (event) => {
       opts.events?.push(event);
     },

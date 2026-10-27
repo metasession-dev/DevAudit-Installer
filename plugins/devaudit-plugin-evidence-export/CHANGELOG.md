@@ -4,6 +4,10 @@ All notable changes to `@metasession.co/devaudit-plugin-evidence-export` are doc
 
 ## [Unreleased]
 
+### Changed
+
+- **The plugin gets the PAT from the CLI** (devaudit-installer#1100) via the SDK's `ctx.getPersonalAuth()`, so users no longer `export DEVAUDIT_USER_TOKEN=$(jq ... auth.json)`; `devaudit auth login` is enough. Falls back to `DEVAUDIT_USER_TOKEN` on a CLI without the accessor. `onDoctor` warns only when neither is available, the README Auth section and the error text no longer tell users to export the token, and the token is never logged or written.
+
 ## [0.1.73] — 2026-06-26
 
 Version bump in lockstep with `@metasession.co/devaudit-cli@0.1.73`. No source changes.
