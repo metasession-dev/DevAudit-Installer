@@ -198,7 +198,8 @@ describe('devaudit doctor — onboarding-checklist invariants (#867)', () => {
     // and must not crash the process.
   }, 30_000);
 
-  it('secrets no longer requires a viewer-key repo secret; an existing one is reported unused and removable (#1099)', async () => {
+  // The fake `gh` below is a POSIX shell script, which Windows cannot execute as `gh`.
+  it.skipIf(process.platform === 'win32')('secrets no longer requires a viewer-key repo secret; an existing one is reported unused and removable (#1099)', async () => {
     const { mkdtemp, writeFile, chmod } = await import('node:fs/promises');
     const { tmpdir } = await import('node:os');
     const { join } = await import('node:path');
