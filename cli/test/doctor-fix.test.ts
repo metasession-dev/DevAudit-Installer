@@ -276,6 +276,16 @@ describe('runFix interactive behaviour', () => {
     expect(calls).toEqual([]);
   });
 
+  it('tier B: --reason supplies the text without a prompt, but the confirmation is still asked', async () => {
+    const p = prop('defer-portal-release', 'B', { releaseId: 'r1' });
+    let confirmed = 0;
+    const ask = asks({ input: async () => { throw new Error('must not prompt for the reason'); }, confirm: async () => (confirmed += 1, true) });
+    const r = await runFix([p], await deps({ ask }), { ...base0, reason: 'flag reason' });
+    expect(r.outcomes[0]).toMatchObject({ status: 'applied' });
+    expect(confirmed).toBe(1);
+    expect(calls).toEqual([{ verb: 'defer', reason: 'flag reason' }]);
+  });
+
   it.each([
     ['unauthenticated', 401], ['forbidden', 403], ['conflict', 409], ['invalid', 422], ['unsupported-auth', 302],
   ] as const)('tier B: a portal %s error is a failed outcome, never applied', async (kind, status) => {
