@@ -1,6 +1,7 @@
 export type {
   Plugin,
   PluginContext,
+  PluginPersonalAuth,
   PluginLogger,
   PluginSdlcConfigView,
   PluginEvent,

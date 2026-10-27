@@ -165,6 +165,25 @@ describe('runHook (error isolation)', () => {
   });
 });
 
+describe('buildPluginContext personal auth (#1100)', () => {
+  it('getPersonalAuth resolves like `auth status`: DEVAUDIT_USER_TOKEN first, else null', async () => {
+    const dir = await buildPluginsRoot();
+    const before = { token: process.env['DEVAUDIT_USER_TOKEN'], base: process.env['DEVAUDIT_BASE_URL'], xdg: process.env['XDG_CONFIG_HOME'] };
+    try {
+      const ctx = await buildPluginContext({ projectPath: dir });
+      expect(typeof ctx.getPersonalAuth).toBe('function');
+      process.env['DEVAUDIT_USER_TOKEN'] = 'mctok_fixture_for_plugin';
+      process.env['DEVAUDIT_BASE_URL'] = 'https://portal.example';
+      expect(await ctx.getPersonalAuth!()).toEqual({ token: 'mctok_fixture_for_plugin', baseUrl: 'https://portal.example' });
+    } finally {
+      for (const [k, v] of [['DEVAUDIT_USER_TOKEN', before.token], ['DEVAUDIT_BASE_URL', before.base], ['XDG_CONFIG_HOME', before.xdg]] as const) {
+        if (v === undefined) delete process.env[k]; else process.env[k] = v;
+      }
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe('registerPluginCommands', () => {
   it('adds a plugin subcommand group with one command', async () => {
     const dir = await buildPluginsRoot();

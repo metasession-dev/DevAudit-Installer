@@ -73,7 +73,8 @@ export default plugin;
 | Export | Purpose |
 |---|---|
 | `Plugin` | The object a plugin's main module default-exports |
-| `PluginContext` | What the CLI passes to hooks and commands at runtime |
+| `PluginContext` | What the CLI passes to hooks and commands at runtime. Includes `getPersonalAuth()`, a read-only accessor for the person's CLI-resolved `{ token, baseUrl }` (or `null`); absent on older CLIs, so a plugin that must run there falls back to its own environment variable. Treat the token as a secret: never log or write it |
+| `PluginPersonalAuth` | The `{ token, baseUrl }` shape `getPersonalAuth()` returns |
 | `PluginManifest` | The `devaudit` field shape inside a plugin's `package.json` |
 | `LifecycleHookName` | Union of supported hook names |
 | `CommandContribution` | Shape of an entry in `manifest.devaudit.commands` |
