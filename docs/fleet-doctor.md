@@ -16,7 +16,7 @@ Not part of the six skills `devaudit update` syncs into a consumer (see [`docs/s
 
 ## What it reads
 
-- `devaudit doctor --fleet --json`, run from this repo with Metasession's own operator `DEVAUDIT_USER_TOKEN` — does discovery (every project the token's account can see on the portal) and collection (`devaudit doctor --json` against each one found checked out locally) in one command. Each check carries a first-pass `suspectedOrigin: 'framework' | 'consumer-drift' | 'unknown'` (devaudit-installer#867).
+- `devaudit doctor --fleet --json > fleet.json`, **run by the operator** from this repo with their own `devaudit auth login` session (the agent never runs it or holds the personal access token, #1099) and read by the skill from `fleet.json` — does discovery (every project the token's account can see on the portal) and collection (`devaudit doctor --json` against each one found checked out locally) in one command. Each check carries a first-pass `suspectedOrigin: 'framework' | 'consumer-drift' | 'unknown'` (devaudit-installer#867).
 - [`docs/consuming-projects.md`](./consuming-projects.md)'s **Active consumers** table remains the human-readable reference for which consumers exist and their polyglot-monorepo status, but is no longer what this skill parses to decide what to sweep — that's now `--fleet`'s own portal-backed discovery.
 
 ## What it decides

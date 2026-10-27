@@ -7,6 +7,7 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 ### Upgrade notes
 
 - **Two UAT scripts disappear from `scripts/` in your next sync PR** (#1099): `record-uat-execution.sh` (and its test) and `submit-for-uat-review.sh`. Record UAT and submit for UAT review in the portal; run `devaudit release check` first. Anything of yours that calls the scripts must change.
+- **`devaudit doctor --fix` portal changes (defer, resume) are interactive-only** (#1099): they need a terminal, a typed reason and a confirmation. `--yes --reason` no longer applies them in scripts or CI (they stay `unapplied`, exit `8`); `--yes` still applies tier A repairs. Use the portal UI for portal-side defer and resume until the portal accepts a personal access token there.
 
 ### Removed
 
@@ -15,6 +16,11 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 ### Added
 
 - **`devaudit release check [version] [--json]`** (#1099) — the read-only readiness check that replaces the submit script's checks: clean working tree, integration branch equal to origin, CI green on its head, the release ticket exists, and the portal release is `draft` (read with your viewer key). Exits non-zero until everything passes and prints the fix for each failure. The sdlc-implementer Phase 4 handoff and the release playbooks use it.
+- **`doctor` notes `DEVAUDIT_USER_TOKEN` in the environment** (#1099) — a `pat-env` information line (name only, never the value), because agent sessions started from that shell inherit the personal access token. Prefer `devaudit auth login`.
+
+### Fixed
+
+- **`doctor --fix` could report a redirected defer/resume as applied** (#1099) — the portal answers a personal access token on its session-only release routes with a redirect to the HTML sign-in page, and the client followed it and treated the 200 as success. The client now sends `redirect: 'manual'` and treats a redirect, a non-JSON reply or a 2xx without the portal's `status` as an error: "this portal route does not accept a personal access token; use the portal UI".
 
 ## [1.10.0] — 2026-10-23
 

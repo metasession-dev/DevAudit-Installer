@@ -23,9 +23,10 @@ import {
  *  - A  local + reversible repo edits (ticket field, RTM row, predecessor
  *       line). Applied after a confirmation, or with `--yes`.
  *  - B  portal state change (defer/resume). Needs the operator's PAT, a typed
- *       reason (`--reason` or prompted) AND an explicit confirmation: never
- *       applied by `--yes` alone; non-interactive runs need BOTH `--yes` and
- *       `--reason`. Never uses API/viewer keys (see release-deferral-api.ts).
+ *       reason AND an explicit confirmation at an interactive terminal: `--yes`
+ *       never authorises it and there is no non-interactive path (#1099 WP5);
+ *       use the portal UI instead. Never uses API/viewer keys (see
+ *       release-deferral-api.ts).
  *  - C  git history / code: never executed, commands are printed.
  *
  * Non-interactive (`--json`, no TTY, `CI`): never prompts; a proposal that the
@@ -133,19 +134,14 @@ export async function runFix(
     };
   };
 
-  /** Tier B gate: reason + explicit confirmation. Returns the reason on success. */
+  /** Tier B gate: typed reason + explicit confirmation, interactive terminal only. */
   const authoriseB = async (p: Proposal, verb: string): Promise<{ reason: string | null; why: string }> => {
-    let reason = opts.reason?.trim() || null;
-    if (!reason) {
-      reason = await ask.input(`Reason for ${verb} ${p.subject}`, { json });
-    }
-    if (!reason) {
-      return { reason: null, why: `needs a typed reason (${nonInteractive ?? 'none given'}; pass --reason "<text>")` };
-    }
     if (nonInteractive) {
-      return opts.yes ? { reason, why: '' } : { reason: null, why: `${nonInteractive}: portal changes need both --yes and --reason` };
+      return { reason: null, why: `portal changes need an interactive terminal and a typed confirmation (${nonInteractive}); run \`devaudit doctor --fix\` at a terminal or use the portal UI` };
     }
-    if (opts.yes) return { reason, why: '' };
+    // `--reason` supplies the text; the terminal confirmation below is still required.
+    const reason = opts.reason?.trim() || (await ask.input(`Reason for ${verb} ${p.subject}`, { json }))?.trim() || null;
+    if (!reason) return { reason: null, why: 'needs a typed reason' };
     const answer = await ask.confirm(`${p.remediation.summary}, with reason "${reason}"?`, { json });
     return answer === true ? { reason, why: '' } : { reason: null, why: answer === false ? 'declined' : 'not confirmed' };
   };
@@ -314,8 +310,7 @@ export async function runFix(
         }
         case 'resolve-closed-release-pr': {
           let choice: string | null = null;
-          if (nonInteractive) choice = opts.yes && opts.reason ? 'defer' : null;
-          else choice = await ask.select(`${p.subject}: release PR #${d['prNumber']} was closed unmerged. What now?`, [
+          if (!nonInteractive) choice = await ask.select(`${p.subject}: release PR #${d['prNumber']} was closed unmerged. What now?`, [
             { value: 'defer', label: 'Defer to the next release (ticket field + portal defer)' },
             { value: 'abandon', label: 'Abandon (guidance only)' },
             { value: 'reopen', label: `Reopen PR #${d['prNumber']} (guidance only)` },
@@ -327,7 +322,7 @@ export async function runFix(
             break;
           }
           if (choice !== 'defer') {
-            out.push(mk(p, 'unapplied', `needs a decision (${nonInteractive ?? 'cancelled'}); with --yes --reason "<text>" it defers`));
+            out.push(mk(p, 'unapplied', `needs a decision (${nonInteractive ?? 'cancelled'}); portal changes are interactive-only`));
             break;
           }
           const g = await authoriseB(p, 'deferring');
