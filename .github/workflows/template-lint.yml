@@ -132,6 +132,11 @@ jobs:
           chmod +x sdlc/files/_common/scripts/is-transport-layer-req.sh
           bash sdlc/files/_common/scripts/is-transport-layer-req.test.sh
 
+      - name: Run REQ title tag check tests (devaudit-installer#1095)
+        run: |
+          chmod +x sdlc/files/_common/scripts/check-req-title-tags.sh
+          bash sdlc/files/_common/scripts/check-req-title-tags.test.sh
+
       - name: Run test tier script tests (devaudit-installer#1060)
         run: |
           chmod +x sdlc/files/_common/scripts/run-test-tier.sh
