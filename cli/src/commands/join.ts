@@ -11,6 +11,9 @@ export interface JoinOptions {
   readonly baseUrl?: string;
   readonly dryRun?: boolean;
   readonly yes?: boolean;
+  /** Issue your own viewer key (default true; `--no-viewer-key` passes false). */
+  readonly viewerKey?: boolean;
+  readonly printViewerKey?: boolean;
 }
 
 /**
@@ -51,6 +54,8 @@ export async function runJoinCommand(options: JoinOptions): Promise<void> {
       ...(options.baseUrl !== undefined ? { baseUrl: options.baseUrl } : {}),
       ...(options.dryRun !== undefined ? { dryRun: options.dryRun } : {}),
       ...(options.yes !== undefined ? { nonInteractive: options.yes } : {}),
+      ...(options.viewerKey !== undefined ? { viewerKey: options.viewerKey } : {}),
+      ...(options.printViewerKey !== undefined ? { printViewerKey: options.printViewerKey } : {}),
     });
     if (!options.dryRun) await printCredentialsBlock(options.path);
   } catch (err) {

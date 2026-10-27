@@ -20,11 +20,11 @@ export interface InstallOptions {
    * target. See #689 / #691.
    */
   readonly addTarget?: boolean;
-  /**
-   * Also issue a read-only, viewer-role API key (`DEVAUDIT_VIEWER_API_KEY`)
-   * for agent/CI read-back queries against release/check/cycle state.
-   * Never grants upload or approval rights. See devaudit-installer#867.
-   */
+  /** Issue the person's own viewer key (default true; `--no-viewer-key` passes false). #1099 */
+  readonly viewerKey?: boolean;
+  /** Print the viewer key once at the end (`--print-viewer-key`). */
+  readonly printViewerKey?: boolean;
+  /** Deprecated no-op: the viewer key is issued by default now. */
   readonly withViewerKey?: boolean;
   /** Deploy host adapter (`--host`). Was accepted by the CLI but never forwarded before #1059. */
   readonly host?: string;
@@ -45,7 +45,8 @@ export async function runInstallCommand(options: InstallOptions): Promise<void> 
         ? { forceTeamConfig: options.forceTeamConfig }
         : {}),
       ...(options.addTarget !== undefined ? { addTarget: options.addTarget } : {}),
-      ...(options.withViewerKey !== undefined ? { withViewerKey: options.withViewerKey } : {}),
+      ...(options.viewerKey !== undefined ? { viewerKey: options.viewerKey } : {}),
+      ...(options.printViewerKey !== undefined ? { printViewerKey: options.printViewerKey } : {}),
       ...(options.host !== undefined ? { host: options.host } : {}),
       ...(options.testOptions !== undefined && Object.keys(options.testOptions).length > 0 ? { testOptions: options.testOptions } : {}),
     });

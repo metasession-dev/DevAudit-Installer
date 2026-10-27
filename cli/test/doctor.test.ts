@@ -833,7 +833,7 @@ describe('devaudit doctor — portal-backed checks (#956, msw)', () => {
     expect(JSON.stringify(r)).not.toContain('viewer-secret');
   }, 30_000);
 
-  it('D3 falls back to DEVAUDIT_API_KEY when no viewer key is set', async () => {
+  it('D3 never falls back to the uploader key DEVAUDIT_API_KEY (#1099: CI-only)', async () => {
     process.env['DEVAUDIT_API_KEY'] = 'api-secret';
     const seen: string[] = [];
     server.use(releases({ 'REQ-030': 'uat_approved' }, seen));
@@ -841,8 +841,8 @@ describe('devaudit doctor — portal-backed checks (#956, msw)', () => {
     await writeTicket(dir, 'REQ-030', { pr: 'https://github.com/o/r/pull/42' });
     const { checkClosedReleasePr, buildDeferralContext } = await import('../src/commands/doctor-deferral.js');
     const r = await checkClosedReleasePr(await buildDeferralContext(dir, cfg, ghPr('CLOSED')));
-    expect(r.ok).toBe(false);
-    expect(seen).toEqual(['Bearer api-secret']);
+    // The closed PR is still reported from local state; the portal is never read with the uploader key.
+    expect(seen).toEqual([]);
   }, 30_000);
 
   it('D3 negatives: merged PR, declared intent, portal released, PR still open', async () => {
@@ -1026,7 +1026,7 @@ describe('devaudit doctor — D8 releases check + JSON surface (#956)', () => {
   it('D8 negative: portal release not released -> clean, no proposal', async () => {
     const dir = await fixtureRepo({ project_slug: 'fixture', devaudit: { project_slug: 'fixture', base_url: baseUrl } });
     await writeTicket(dir, 'REQ-061', {});
-    const { json } = await doctorJson(dir, cleanEnv({ DEVAUDIT_API_KEY: 'k' }));
+    const { json } = await doctorJson(dir, cleanEnv({ DEVAUDIT_VIEWER_API_KEY: 'k' }));
     expect(json.releaseCloseoutDrift.ok).toBe(true);
     expect(json.releaseCloseoutDrift.detail).toContain('none released on the portal');
     expect(json.proposals.filter((p) => p.check === 'releases')).toEqual([]);

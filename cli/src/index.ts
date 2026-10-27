@@ -3,6 +3,8 @@ import { configureLogger } from './lib/logger.js';
 import { CLI_VERSION } from './lib/version.js';
 import { runDoctor } from './commands/doctor.js';
 import { runFleetDoctor } from './commands/fleet.js';
+import { runReleaseStatus } from './commands/release-status.js';
+import { runViewerKeySet } from './commands/auth/viewer-key.js';
 import { runReleaseCheck } from './commands/release-check.js';
 import { runAuthLogin } from './commands/auth/login.js';
 import { runAuthLogout } from './commands/auth/logout.js';
@@ -61,10 +63,9 @@ export async function main(argv: readonly string[]): Promise<void> {
       '--add-target',
       'DEPRECATED, scheduled for removal: append this install as a new target in an already-configured (polyglot monorepo) repo. Refuses for any repo that does not already have a `targets` array — no new adoption. See docs/onboarding.md#polyglot-monorepos-multiple-targets-in-one-repo--deprecated.',
     )
-    .option(
-      '--with-viewer-key',
-      'Also issue a read-only viewer-role API key (DEVAUDIT_VIEWER_API_KEY) for agent/CI read-back queries against release/check/cycle state. Never grants upload or approval rights. See #867.',
-    )
+    .option('--no-viewer-key', 'Do not issue your own read-only viewer key (it is issued by default and saved to ~/.config/devaudit/viewer-keys.json, never to the repo or a repo secret).')
+    .option('--print-viewer-key', 'Print the viewer key once at the end of the run (never printed otherwise).')
+    .option('--with-viewer-key', 'DEPRECATED no-op: the viewer key is issued by default now.')
     .option(
       '--host <name>',
       'Deploy host adapter: railway (default), vercel, custom (AWS / self-hosted / anything), or any adapter under sdlc/files/hosts/. Defaults to the host already in sdlc-config.json. See docs/adding-a-host.md.',
@@ -94,6 +95,8 @@ export async function main(argv: readonly string[]): Promise<void> {
           baseUrl?: string;
           forceTeamConfig?: boolean;
           addTarget?: boolean;
+          viewerKey?: boolean;
+          printViewerKey?: boolean;
           withViewerKey?: boolean;
           host?: string;
           releaseGateTier?: string;
@@ -116,8 +119,10 @@ export async function main(argv: readonly string[]): Promise<void> {
             ? { forceTeamConfig: Boolean(cmdOpts.forceTeamConfig) }
             : {}),
           ...(cmdOpts.addTarget !== undefined ? { addTarget: Boolean(cmdOpts.addTarget) } : {}),
-          ...(cmdOpts.withViewerKey !== undefined
-            ? { withViewerKey: Boolean(cmdOpts.withViewerKey) }
+          ...(cmdOpts.viewerKey === false ? { viewerKey: false } : {}),
+          ...(cmdOpts.printViewerKey ? { printViewerKey: true } : {}),
+          ...(cmdOpts.withViewerKey
+            ? { withViewerKey: true }
             : {}),
           ...(cmdOpts.host !== undefined ? { host: cmdOpts.host } : {}),
           testOptions: {
@@ -182,12 +187,16 @@ export async function main(argv: readonly string[]): Promise<void> {
       '--base-url <url>',
       'override portal URL (defaults to DEVAUDIT_BASE_URL env or production)',
     )
-    .action(async (path: string | undefined, cmdOpts: { token?: string; baseUrl?: string }, cmd) => {
+    .option('--no-viewer-key', 'Do not issue your own read-only viewer key.')
+    .option('--print-viewer-key', 'Print the viewer key once at the end of the run (never printed otherwise).')
+    .action(async (path: string | undefined, cmdOpts: { token?: string; baseUrl?: string; viewerKey?: boolean; printViewerKey?: boolean }, cmd) => {
       const globals = cmd.optsWithGlobals();
       await runJoinCommand({
         ...(path !== undefined ? { path } : {}),
         ...(cmdOpts.token !== undefined ? { token: cmdOpts.token } : {}),
         ...(cmdOpts.baseUrl !== undefined ? { baseUrl: cmdOpts.baseUrl } : {}),
+        ...(cmdOpts.viewerKey === false ? { viewerKey: false } : {}),
+        ...(cmdOpts.printViewerKey ? { printViewerKey: true } : {}),
         ...(globals.dryRun !== undefined ? { dryRun: Boolean(globals.dryRun) } : {}),
         ...(globals.yes !== undefined ? { yes: Boolean(globals.yes) } : {}),
       });
@@ -372,13 +381,20 @@ export async function main(argv: readonly string[]): Promise<void> {
       }
       await runDoctor();
     });
-  const releaseCmd = program.command('release').description('Read-only release readiness (no portal writes)');
+  const releaseCmd = program.command('release').description('Release readiness and state (read-only; no portal writes)');
   releaseCmd
     .command('check [version]')
     .description('Check the release is ready to submit for UAT review: clean working tree, integration branch up to date with origin, CI green on its head, the release ticket exists, and the portal release is draft (read with your viewer key; never the PAT). Prints each result with the fix; exits 0 only when ready. Submitting stays a portal action.')
     .action(async (version: string | undefined, _opts: unknown, cmd: Command) => {
       const globals = cmd.optsWithGlobals() as { json?: boolean };
       process.exit(await runReleaseCheck({ ...(version ? { version } : {}), json: Boolean(globals.json) }));
+    });
+  releaseCmd
+    .command('status [version]')
+    .description('Release status, required checks and test executions for a release, read with your viewer key (never the PAT or the uploader key). --json is the stable shape documented in docs/credentials.md.')
+    .action(async (version: string | undefined, _opts: unknown, cmd: Command) => {
+      const globals = cmd.optsWithGlobals() as { json?: boolean };
+      process.exit(await runReleaseStatus({ ...(version ? { version } : {}), json: Boolean(globals.json) }));
     });
   const configureCmd = program
     .command('configure')
@@ -445,6 +461,14 @@ export async function main(argv: readonly string[]): Promise<void> {
     .description('Sign in via PAT paste; stores token in ~/.config/devaudit/auth.json')
     .action(async (opts: { token?: string; baseUrl?: string }) => {
       await runAuthLogin({ token: opts.token, baseUrl: opts.baseUrl });
+    });
+  const viewerKeyCmd = authCmd.command('viewer-key').description('Your own read-only viewer key (saved in the CLI config folder)');
+  viewerKeyCmd
+    .command('set')
+    .option('--project <slug>', 'project slug (defaults to the one in sdlc-config.json)')
+    .description('Save a viewer key you received another way, from a masked prompt (never printed, never in the repo)')
+    .action(async (opts: { project?: string }) => {
+      process.exit(await runViewerKeySet({ ...(opts.project ? { project: opts.project } : {}) }));
     });
   authCmd
     .command('logout')

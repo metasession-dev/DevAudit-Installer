@@ -151,7 +151,8 @@ Two distinct credentials exist; conflating them is what causes the silent-CI-tok
 | Credential | Format | Where it lives | Who it identifies | Used by |
 | --- | --- | --- | --- | --- |
 | **Personal PAT** | `mctok_…` | `~/.config/devaudit/auth.json` (per developer) | You (the user) | Your local CLI commands, and — for whoever holds the operator's PAT specifically — an admin's manual portal defer/resume of a release (admin-only; never the API/viewer keys or CI) |
-| **Project API key** | `dak_…` | Repo secret `DEVAUDIT_API_KEY` | The project | CI's `devaudit push` calls |
+| **Viewer key** | `dak_…` (read-only) | `~/.config/devaudit/viewer-keys.json` (per developer; issued for you by `devaudit join`) | You, by name (`viewer:<email>:<hostname>`) | Reading portal state through `devaudit` commands (`release status`, `doctor`); never a repo secret |
+| **Project API key** | `dak_…` | Repo secret `DEVAUDIT_API_KEY` | The project | CI's `scripts/upload-evidence.sh` calls. CI-only: never set it locally |
 | **GitHub workflow token** | `${{ github.token }}` | Issued automatically per workflow run | The GitHub Actions workflow | CI's GitHub repo mutations (checkout, branch push, PR, issue, comment, label, check-run updates) |
 
 **`DEVAUDIT_USER_TOKEN` is never a repo secret** (devaudit-installer#912 — `install` stopped writing it as one; nothing in generated CI ever consumed it that way). It's a personal credential that stays on each developer's own machine (`~/.config/devaudit/auth.json` via `devaudit auth login`, or an exported env var) — the same "Personal PAT" row above. The one place it matters whose PAT it is: submitting a release for UAT review is attributed to whichever developer's PAT ran that command locally, so **use your own PAT for that action, not a shared or copied one** (the same goes for an admin deferring or resuming a release on the portal, which is also done with a personal PAT or portal session) — the same principle the old "never paste your personal PAT into a repo secret" warning was protecting, just enforced by there being no repo secret to paste it into at all anymore.
@@ -166,7 +167,7 @@ If `devaudit auth status` shows the wrong user, run `devaudit auth logout && dev
 - writing `sdlc-config.json`,
 - creating the portal project (if absent),
 - issuing a new project API key (if absent),
-- writing repo secrets (`DEVAUDIT_API_KEY`, optionally a viewer key, the production-URL secret) and the `DEVAUDIT_BASE_URL` variable,
+- writing repo secrets (`DEVAUDIT_API_KEY`, the production-URL secret) and the `DEVAUDIT_BASE_URL` variable,
 - applying branch protection rules.
 
 A second dev running it — if the developer-mode safety net below doesn't engage — re-runs all of that as if onboarding the project fresh: it can re-issue and overwrite the team's `DEVAUDIT_API_KEY`, breaking every other developer's and CI's existing credential, and it rewrites branch protection rules.

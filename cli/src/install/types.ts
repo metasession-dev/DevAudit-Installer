@@ -56,14 +56,14 @@ export interface InstallContext {
    */
   readonly addTarget: boolean;
   /**
-   * Also issue a second, read-only, project-scoped `viewer`-role API key
-   * alongside the default `uploader` one (devaudit-installer#867). Off by
-   * default — the uploader key remains the only credential `install` issues
-   * unless this is set. Safe to hand to an agent/CI process for read-back
-   * queries (release/check/cycle status) because a viewer key can never
-   * reach a mutating endpoint.
+   * Issue the person's own read-only, project-scoped `viewer`-role API key and
+   * save it to `~/.config/devaudit/viewer-keys.json` (devaudit-installer#1099).
+   * On by default; `--no-viewer-key` opts out. Never written to the repo or a
+   * repo secret, and never granted upload or approval rights.
    */
-  readonly withViewerKey: boolean;
+  readonly issueViewerKey: boolean;
+  /** Print the viewer key once at the end of the run (`--print-viewer-key`). */
+  readonly printViewerKey: boolean;
   /**
    * Host adapter requested with `--host` (devaudit-installer#1022). Undefined
    * means: keep the host already in `sdlc-config.json`, else the default.
@@ -108,11 +108,10 @@ export interface InstallPlan {
   projectId?: string;
   apiKey?: string;
   /**
-   * Name of the GitHub repo secret a viewer-role key is (or would be) stored
-   * under. Set whenever `withViewerKey` is on for this run, or when an
-   * earlier run already configured one — same collision-avoidance rule as
-   * `apiKeySecretName` for polyglot-monorepo targets. Undefined means no
-   * viewer key is configured for this target.
+   * A viewer-key repo secret name already recorded in `sdlc-config.json`
+   * (`viewer_api_key_secret`). Only carried through so an existing value is
+   * not dropped on a rewrite: no new one is created and nothing writes the
+   * secret (#1099; no CI workflow reads it).
    */
   viewerApiKeySecretName?: string;
   viewerApiKey?: string;

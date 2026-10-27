@@ -1,43 +1,35 @@
 import { promises as fs } from 'node:fs';
+import { resolveViewerKey, type ViewerKeySource } from './viewer-keys.js';
 
 /**
  * devaudit-installer#956 — READ-ONLY portal helpers for `devaudit doctor`.
  * Nothing here mutates the portal. Reads use the viewer key
- * (`DEVAUDIT_VIEWER_API_KEY`), falling back to `DEVAUDIT_API_KEY`. Key values
+ * (see `resolvePortalReadKey`). Key values
  * are never logged or returned in any message.
  */
 
 export interface PortalKey {
   readonly key: string;
-  readonly source: 'DEVAUDIT_VIEWER_API_KEY' | 'DEVAUDIT_API_KEY';
+  readonly source: ViewerKeySource;
 }
 
-/** Parse the value of `name` out of a dotenv-style file; null when absent. */
-function readDotenvValue(content: string, name: string): string | null {
-  for (const raw of content.split(/\r?\n/)) {
-    const m = raw.match(/^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/);
-    if (!m || m[1] !== name) continue;
-    let value = m[2] ?? '';
-    if (/^(["']).*\1$/.test(value)) value = value.slice(1, -1);
-    else value = value.replace(/\s+#.*$/, '');
-    return value.length > 0 ? value : null;
-  }
-  return null;
-}
-
+/**
+ * The viewer key for this repo's project: `DEVAUDIT_VIEWER_API_KEY`, then the
+ * config-folder `viewer-keys.json`, then the legacy repo-root `.env`. There is
+ * no fallback to the uploader key `DEVAUDIT_API_KEY` (#1099): it is CI-only.
+ */
 export async function resolvePortalReadKey(repoRoot: string): Promise<PortalKey | null> {
-  let dotenv = '';
+  let baseUrl = '';
+  let slug = '';
   try {
-    dotenv = await fs.readFile(`${repoRoot}/.env`, 'utf-8');
+    const cfg = JSON.parse(await fs.readFile(`${repoRoot}/sdlc-config.json`, 'utf-8')) as Record<string, unknown>;
+    const d = (cfg['devaudit'] ?? {}) as { project_slug?: string; base_url?: string };
+    baseUrl = d.base_url ?? '';
+    slug = d.project_slug ?? (cfg['project_slug'] as string | undefined) ?? '';
   } catch {
-    // no .env — env vars only
+    // no readable config: env and .env still apply
   }
-  for (const source of ['DEVAUDIT_VIEWER_API_KEY', 'DEVAUDIT_API_KEY'] as const) {
-    const fromEnv = process.env[source];
-    const key = fromEnv && fromEnv.length > 0 ? fromEnv : readDotenvValue(dotenv, source);
-    if (key) return { key, source };
-  }
-  return null;
+  return resolveViewerKey({ repoRoot, baseUrl, slug });
 }
 
 export interface PortalRelease {

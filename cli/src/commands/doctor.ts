@@ -93,13 +93,13 @@ async function checkReleaseCloseoutDrift(): Promise<{ result: CheckResult; drift
 
   const slug = cfg.devaudit?.project_slug ?? cfg.project_slug;
   const base = (cfg.devaudit?.base_url ?? '').replace(/\/$/, '');
-  // Read-only portal access: viewer key preferred, API key as fallback (#956).
+  // Read-only portal access: the viewer key only, never the uploader key (#956, #1099).
   const key = await resolvePortalReadKey(repoRoot);
   if (!slug || !base || !key) {
     return done({
       name,
       ok: true,
-      detail: `${reqs.length} pending ticket(s); portal drift check skipped (set DEVAUDIT_VIEWER_API_KEY or DEVAUDIT_API_KEY + devaudit.base_url)`,
+      detail: `${reqs.length} pending ticket(s); portal drift check skipped (no viewer key: set DEVAUDIT_VIEWER_API_KEY or run 'devaudit auth viewer-key set'; needs devaudit.base_url)`,
     });
   }
 
