@@ -1,22 +1,14 @@
 ---
-description: Full release pipeline — verify, bump if needed, build, publish all 5 packages to npm, create GitHub release, confirm consumers can install.
+description: Release DevAudit — prepare, validate, promote, publish all 5 packages to npm and create the GitHub release, then close out. Follows docs/devaudit-release-procedure.md.
 ---
 
-Run the full DevAudit-Installer release pipeline documented in `.devin/workflows/devaudit-build-release.md`. Read that file first, then execute it step by step in this repo:
+Run the DevAudit-Installer release by following [`docs/devaudit-release-procedure.md`](../../docs/devaudit-release-procedure.md). Read it first and execute it phase by phase; it is the only copy of the procedure.
 
-0. **Release validation** — the candidate passed [`docs/release-validation-plan.md`](../../docs/release-validation-plan.md) (`scripts/release-validation.sh all <consumers...>`, no `FAIL`) and its `results.md` is on the release PR. If it was not run, stop and run it first.
-1. **Verify prerequisites** — the release-ready commit is already merged to `main`, `Enforce GitFlow` is green on `main`, and there's no outstanding `backmerge/* -> develop` PR waiting. If any of these aren't true, stop and report what's blocking instead of proceeding.
-2. **Verify version alignment** across all 5 `package.json` files (`plugin-sdk`, `cli`, `sdlc`, `plugins/devaudit-plugin-prisma`, `plugins/devaudit-plugin-evidence-export`).
-3. **Check npm registry state** — if the current version is already published, compute the suggested next patch version and ask the user to confirm the target version before bumping (never pick a minor/major bump unilaterally).
-4. **If a bump is needed**, follow this repo's established convention: branch `hotfix/<version>-release-bump` from `main`, bump all 5 `package.json` files (+ run `npm install` in each package to sync `package-lock.json`), commit as `chore: bump all packages to <version> for release`, push, open a `hotfix/* -> main` PR, wait for CI green, then merge. After merging, check whether GitHub Actions auto-opens a `backmerge/* -> develop` PR and merge that too before continuing (this repo's Hotfix Back-Merge automation handles this).
-5. **Build all 4 buildable packages locally** (`plugin-sdk`, `cli`, `plugins/devaudit-plugin-prisma`, `plugins/devaudit-plugin-evidence-export`) to catch breakages before tagging.
-6. **Verify CLI bundle integrity** (`npm run bundle:templates` in `cli/`, then confirm `sdlc/bin`, blueprints, `upload-evidence.sh`, `sdlc/files`, and skills are all present).
-7. **Run the CLI test suite** (`npm test` in `cli/`) — fix any failures before proceeding.
-8. **Verify `.github/workflows/release.yml`** has a publish step for all 5 packages including `devaudit-sdlc`.
-9. **Cut and push the release tag** (`v<version>`) from `main` — this is the step that actually triggers `release.yml` and publishes to npm. Confirm the target version with the user one more time immediately before this step if it wasn't already confirmed in step 3, since npm publishes are immutable.
-10. **Monitor the release workflow run** to completion (`gh run watch`), and if anything fails, check `gh run view --log-failed` and diagnose before retrying.
-11. **Post-release verification** — confirm the GitHub release exists and all 5 packages show the expected version on the npm registry.
-12. **Verify consumer install works** — `npm install @metasession.co/devaudit-cli@<version>` into a scratch temp dir, then `npx devaudit --version` / `--help`, then clean up.
-13. **Report the result**: what shipped, the GitHub release URL, and remind that consumers update via `npx @metasession.co/devaudit-cli update`.
+How to use it from here:
 
-Throughout: never push a version bump directly to `main` — always through the PR flow described in the workflow doc's "Branch policy for release bumps" section. Never skip the local build/test/bundle-integrity checks to save time — they exist because the release workflow fails at the same steps, just later and more expensively (after tagging).
+- **Start at any phase**, but first check the "done when" of every earlier phase. If one does not hold, stop and report which instead of proceeding.
+- **Say which state this repository is in** (onboarded or not, by the test at the top of the procedure) and apply only that state's lines.
+- **Ask for explicit confirmation before the tag**: it must name the version **and** the commit SHA. Never pick a minor or major version unilaterally. A version, once on npm, can never be replaced.
+- **Never** push a version bump or any change directly to `main`, approve a release yourself, or bump the version to get past a verify timeout (re-run the failed job instead).
+- **Stop and report** when the procedure says to stop (a missing prerequisite, a failed gate, an incomplete validation result) rather than working around it.
+- Do not attach `results.md` to a public pull request: it names consumers. Report counts.
