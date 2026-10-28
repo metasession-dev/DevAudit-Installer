@@ -1,4 +1,4 @@
-import { DevAuditApiError, DevAuditClient } from '../lib/devaudit-api.js';
+import { DevAuditApiError, DevAuditClient, isActiveApiKey, viewerKeyRefusal } from '../lib/devaudit-api.js';
 import { VIEWER_KEYS_FILE } from '../lib/paths.js';
 import { getStoredViewerKey, saveViewerKey, viewerKeyName } from '../lib/viewer-keys.js';
 import type { InstallContext, InstallPlan, StepResult } from './types.js';
@@ -52,9 +52,9 @@ export async function issueApiKey(ctx: InstallContext, plan: InstallPlan): Promi
  * a repo secret or `.env`, and the value is printed only with
  * `--print-viewer-key`.
  *
- * A failure here never fails the run: a non-admin teammate's issue request is
- * refused (403) until the portal lets members issue their own viewer keys
- * (metasession-dev/devaudit#921).
+ * A failure here never fails the run. Members may issue their own viewer keys
+ * (metasession-dev/devaudit#921); a refusal (403: the five-key cap or no access,
+ * 409: a live key of that name) is reported with the portal's own reason.
  */
 export async function issueViewerApiKey(
   ctx: InstallContext,
@@ -82,7 +82,7 @@ export async function issueViewerApiKey(
   const client = new DevAuditClient({ token: ctx.token, baseUrl: ctx.baseUrl });
   try {
     const existing = await client.listApiKeys(plan.projectId);
-    if (existing.find((k) => k.name === name && k.revoked_at === null)) {
+    if (existing.find((k) => k.name === name && isActiveApiKey(k))) {
       return {
         step,
         status: 'warn',
@@ -98,12 +98,8 @@ export async function issueViewerApiKey(
     plan.viewerApiKey = issued.plainTextKey;
     return { step, status: 'ok', message: `issued '${name}' and saved to ${VIEWER_KEYS_FILE}` };
   } catch (err) {
-    if (err instanceof DevAuditApiError && err.status === 403) {
-      return {
-        step,
-        status: 'warn',
-        message: 'the portal refused to issue a viewer key (403): ask a project admin, or rerun after the portal update',
-      };
+    if (err instanceof DevAuditApiError && (err.status === 403 || err.status === 409)) {
+      return { step, status: 'warn', message: viewerKeyRefusal(err, name) };
     }
     return {
       step,

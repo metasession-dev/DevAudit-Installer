@@ -29,6 +29,22 @@ export interface ApiKeySummary {
   readonly id: string;
   readonly name: string;
   readonly revoked_at: string | null;
+  /** ISO timestamp, or null/absent for a key that never expires. */
+  readonly expires_at?: string | null;
+}
+
+/**
+ * metasession-dev/devaudit#921 — the key list includes revoked and expired
+ * keys, so "a live key with this name" means not revoked and not past its
+ * `expires_at`.
+ */
+export function isActiveApiKey(key: ApiKeySummary, now: Date = new Date()): boolean {
+  if (key.revoked_at !== null) return false;
+  if (key.expires_at) {
+    const t = Date.parse(key.expires_at);
+    if (!Number.isNaN(t) && t <= now.getTime()) return false;
+  }
+  return true;
 }
 
 export class DevAuditApiError extends Error {
@@ -40,6 +56,29 @@ export class DevAuditApiError extends Error {
     super(message);
     this.name = 'DevAuditApiError';
   }
+
+  /** The portal's JSON `{ "error": "..." }` text, or null when the body has none. */
+  get portalMessage(): string | null {
+    try {
+      const parsed = JSON.parse(this.body) as { error?: unknown };
+      return typeof parsed.error === 'string' && parsed.error.trim() !== '' ? parsed.error.trim() : null;
+    } catch {
+      return null;
+    }
+  }
+}
+
+/**
+ * Plain-language reason a viewer-key request was refused. Since
+ * metasession-dev/devaudit#921 a member may issue their own viewer key, so a
+ * 403 means the five-active-key cap or no access to the project (the portal's
+ * message says which); on an older portal it means "admins only".
+ */
+export function viewerKeyRefusal(err: DevAuditApiError, name: string): string {
+  const said = err.portalMessage;
+  if (err.status === 409) return `a live key named '${name}' already exists on the portal (409)${said ? `: ${said}` : ''}`;
+  if (err.status === 403) return `the portal refused to issue a viewer key (403): ${said ?? 'check your access to this project with a project admin'}`;
+  return `the portal rejected the request (HTTP ${err.status})${said ? `: ${said}` : ''}`;
 }
 
 export class DevAuditClient {

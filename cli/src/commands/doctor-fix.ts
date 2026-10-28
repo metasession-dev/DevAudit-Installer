@@ -5,7 +5,7 @@ import type { StepResult } from '../install/types.js';
 import * as prompts from '../lib/prompt.js';
 import { loadConfigContext, planConfigChange, writeConfigValue } from './configure.js';
 import { readPendingTickets } from '../lib/release-tickets.js';
-import { DevAuditApiError } from '../lib/devaudit-api.js';
+import { DevAuditApiError, viewerKeyRefusal } from '../lib/devaudit-api.js';
 import { parseDotenv } from '../lib/credentials-check.js';
 import { issueOwnViewerKey } from '../lib/viewer-key-issue.js';
 import { VIEWER_KEYS_FILE } from '../lib/paths.js';
@@ -257,10 +257,11 @@ export async function runFix(
           if (!g.reason) { out.push(mk(p, 'unapplied', g.why)); break; }
           const slug = d['slug'] ?? '';
           if (!slug) { out.push(mk(p, 'failed', 'no project slug in sdlc-config.json')); break; }
+          let name = '';
           try {
             const cred = await (deps.credential ?? resolveDeferralCredential)();
             const baseUrl = deps.baseUrl || cred.baseUrl;
-            const name = await (deps.viewerKeyName ?? viewerKeyName)(deps.repoRoot);
+            name = await (deps.viewerKeyName ?? viewerKeyName)(deps.repoRoot);
             const issue = deps.issueViewerKey ?? issueOwnViewerKey;
             let res = await issue({ baseUrl, token: cred.token, slug, name, revokeExisting: false });
             if (res.kind === 'exists-live') {
@@ -274,9 +275,7 @@ export async function runFix(
           } catch (err) {
             if (err instanceof DeferralCredentialError) { out.push(mk(p, 'failed', err.message)); break; }
             if (err instanceof DevAuditApiError) {
-              out.push(mk(p, 'failed', err.status === 403
-                ? 'the portal refused to issue a viewer key (403): ask a project admin, or retry after the portal update'
-                : `the portal rejected the request (HTTP ${err.status})`));
+              out.push(mk(p, 'failed', viewerKeyRefusal(err, name)));
               break;
             }
             throw err;

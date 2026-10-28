@@ -133,6 +133,51 @@ describe('credentials check (#1099 WP4)', () => {
       expect(member.pat.status).toBe('ok');
     });
 
+    describe('expiry (GET /api/auth/token, metasession-dev/devaudit#922)', () => {
+      const now = new Date('2026-11-01T12:00:00Z');
+      const meta = (expiresAt: string | null) => async () => ({ status: 200, expiresAt });
+
+      it('warns within 14 days, with a tier C renew-pat proposal', async () => {
+        const r = await buildCredentialsReport(deps({ resolvePat: pat, probePatToken: meta('2026-11-10T00:00:00Z') }), now);
+        expect(r.pat).toMatchObject({ status: 'warn', expiresAt: '2026-11-10T00:00:00Z' });
+        expect(r.pat.note).toMatch(/expires on 2026-11-10 \(in 9 days\)/);
+        const renew = credentialsCheck(r).findings?.find((f) => f.remediation?.id === 'renew-pat');
+        expect(renew?.remediation).toMatchObject({ tier: 'C', summary: expect.stringContaining('before it expires') });
+      });
+
+      it('is ok outside the window, and DEVAUDIT_PAT_EXPIRY_WARN_DAYS widens it', async () => {
+        const later = meta('2026-12-15T00:00:00Z');
+        const ok = await buildCredentialsReport(deps({ resolvePat: pat, probePatToken: later }), now);
+        expect(ok.pat).toMatchObject({ status: 'ok', note: expect.stringContaining('expires on 2026-12-15') });
+        const wide = await buildCredentialsReport(deps({ resolvePat: pat, probePatToken: later, env: { DEVAUDIT_PAT_EXPIRY_WARN_DAYS: '60' } }), now);
+        expect(wide.pat.status).toBe('warn');
+        const junk = await buildCredentialsReport(deps({ resolvePat: pat, probePatToken: later, env: { DEVAUDIT_PAT_EXPIRY_WARN_DAYS: 'soon' } }), now);
+        expect(junk.pat.status).toBe('ok');
+      });
+
+      it('a token with no expiry is ok; an expired one is invalid', async () => {
+        const none = await buildCredentialsReport(deps({ resolvePat: pat, probePatToken: meta(null) }), now);
+        expect(none.pat).toMatchObject({ status: 'ok', expiresAt: null, note: expect.stringContaining('expiry: none set') });
+        const gone = await buildCredentialsReport(deps({ resolvePat: pat, probePatToken: meta('2026-10-01T00:00:00Z') }), now);
+        expect(gone.pat).toMatchObject({ status: 'invalid', note: expect.stringContaining('expired on 2026-10-01') });
+      });
+
+      it('a portal without the route (404) or unreachable leaves "expiry: not available"', async () => {
+        for (const probePatToken of [async () => ({ status: 404 }), async () => ({ failure: 'timeout' as const })]) {
+          const r = await buildCredentialsReport(deps({ resolvePat: pat, probePatToken }), now);
+          expect(r.pat).toMatchObject({ status: 'ok', expiresAt: null, note: expect.stringContaining('expiry: not available') });
+        }
+      });
+
+      it('is never asked from a non-interactive run, nor for a rejected token', async () => {
+        let asked = 0;
+        const counting = async () => (asked += 1, { status: 200, expiresAt: '2026-11-02T00:00:00Z' });
+        await buildCredentialsReport(deps({ resolvePat: pat, probePatToken: counting, interactive: false }), now);
+        await buildCredentialsReport(deps({ resolvePat: pat, probePatToken: counting, probePat: async () => ({ status: 401 }) }), now);
+        expect(asked).toBe(0);
+      });
+    });
+
     it('an absent PAT is not a warning on its own', async () => {
       const r = await buildCredentialsReport(deps({ env: { DEVAUDIT_VIEWER_API_KEY: VIEWER } }));
       expect(r.pat.status).toBe('absent');

@@ -369,12 +369,36 @@ describe('runInstall — native TS install against a node fixture', () => {
       }
     }, 60_000);
 
-    it('a refused request (403) is a warning, never a failed install', async () => {
+    it('an expired or revoked key with the same name does not block issuing a new one (#921 lists both)', async () => {
+      const { runInstall } = await import('../src/install/index.js');
+      const { viewerKeyName, getStoredViewerKey } = await import('../src/lib/viewer-keys.js');
+      const name = await viewerKeyName();
+      server.use(http.get(`${BASE_URL}/api/projects/:id/api-keys`, () => HttpResponse.json([
+        { id: 'old-expired', name, revoked_at: null, expires_at: '2020-01-01T00:00:00Z' },
+        { id: 'old-revoked', name, revoked_at: '2026-01-01T00:00:00Z', expires_at: null },
+      ])));
+      const dir = await buildNodeFixture();
+      await fs.writeFile(join(dir, 'sdlc-config.json'), cfgJson);
+      try {
+        const report = await runInstall({ path: dir, dryRun: false, nonInteractive: true, provider: makeFakeProvider() });
+        expect(stepByStart(report, '6b/')?.status).toBe('ok');
+        expect((await getStoredViewerKey(BASE_URL, 'fixture-app'))?.key).toBe('dak_test_plain');
+      } finally {
+        await fs.rm(dir, { recursive: true, force: true });
+      }
+    }, 60_000);
+
+    it.each([
+      // metasession-dev/devaudit#921: a 403 for a viewer key is the five-key cap or no access; the portal's own reason is shown.
+      [403, { error: 'You already have 5 active keys; revoke one first' }, /\(403\): You already have 5 active keys/],
+      [403, {}, /\(403\): check your access to this project with a project admin/],
+      [409, { error: 'You already have an active key with this name' }, /already exists on the portal \(409\)/],
+    ])('a refused request (%i) is a warning with the reason, never a failed install', async (status, body, re) => {
       const { runInstall } = await import('../src/install/index.js');
       server.use(
         http.post(`${BASE_URL}/api/projects/:id/api-keys`, async ({ request }) => {
-          const body = (await request.json()) as { role?: string };
-          if (body.role === 'viewer') return HttpResponse.json({ error: 'forbidden' }, { status: 403 });
+          const req = (await request.json()) as { role?: string };
+          if (req.role === 'viewer') return HttpResponse.json(body, { status });
           return HttpResponse.json({ id: 'key-1', name: 'Onboarding-issued', plainTextKey: 'dak_test_plain' }, { status: 201 });
         }),
       );
@@ -384,7 +408,7 @@ describe('runInstall — native TS install against a node fixture', () => {
         const report = await runInstall({ path: dir, dryRun: false, nonInteractive: true, provider: makeFakeProvider() });
         const six = stepByStart(report, '6b/');
         expect(six?.status).toBe('warn');
-        expect(six?.message).toMatch(/ask a project admin/);
+        expect(six?.message).toMatch(re);
       } finally {
         await fs.rm(dir, { recursive: true, force: true });
       }

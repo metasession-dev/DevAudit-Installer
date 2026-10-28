@@ -126,8 +126,8 @@ the repo, not only in the closed PR:
    `devaudit doctor --fix` (their own PAT, a typed reason and confirmation) or **manually** with
    `POST /api/releases/[id]/defer` (and `/resume`), authenticated by a personal access
    token (`DEVAUDIT_USER_TOKEN` or the `devaudit auth login` cache; the portal's defer and
-   resume routes are session-only today, so use the portal UI until the portal accepts a
-   PAT there, metasession-dev/devaudit#923) or a portal session. It is admin-only: CI, API and viewer keys cannot do it and the CI status
+   resume routes accept a PAT since metasession-dev/devaudit#923; an older portal answers
+   a PAT with a sign-in redirect, and `doctor --fix` then says to use the portal UI) or a portal session. It is admin-only: CI, API and viewer keys cannot do it and the CI status
    PATCH cannot set it. Allowed from `draft`, `uat_review`, `uat_rejected` and
    `uat_approved`; resume returns to `draft`. If the portal release is not deferred it
    stays at its current state (for example `uat_approved` with a closed PR) until the
