@@ -21,7 +21,7 @@ afterAll(() => server.close());
 afterEach(() => {
   server.resetHandlers();
   delete process.env['DEVAUDIT_VIEWER_API_KEY'];
-  delete process.env['DEVAUDIT_API_KEY'];
+  delete process.env['DEVAUDIT_VIEWER_API_KEY'];
 });
 
 type Latest = Record<string, unknown>;
@@ -94,7 +94,7 @@ describe('D1 deferred-portal-sync', () => {
     await writeTicket(dir, 'REQ-030', { intent: 'deferred-to-next — x' });
     const r = await checkDeferredTicketNotOnPortal(await ctxFor(dir));
     expect(r.ok).toBe(true);
-    expect(r.detail).toMatch(/^skipped \(no DEVAUDIT_VIEWER_API_KEY/);
+    expect(r.detail).toMatch(/^skipped \(no viewer key/);
   });
 
   it('notes an unreachable portal instead of failing', async () => {
@@ -110,7 +110,7 @@ describe('D1 deferred-portal-sync', () => {
 
 describe('D2 deferred-ticket-sync', () => {
   it('flags a portal-deferred release whose ticket is not marked, carrying the portal reason', async () => {
-    process.env['DEVAUDIT_API_KEY'] = 'k';
+    process.env['DEVAUDIT_VIEWER_API_KEY'] = 'k';
     server.use(portal({ 'REQ-040': { id: 'r40', status: 'deferred', deferredReason: 'blocked by vendor' } }));
     const dir = await fixtureRepo(cfg);
     await writeTicket(dir, 'REQ-040');
@@ -128,7 +128,7 @@ describe('D2 deferred-ticket-sync', () => {
   });
 
   it('negatives: ticket already marked, portal not deferred, no key', async () => {
-    process.env['DEVAUDIT_API_KEY'] = 'k';
+    process.env['DEVAUDIT_VIEWER_API_KEY'] = 'k';
     const dir = await fixtureRepo(cfg);
     await writeTicket(dir, 'REQ-040', { intent: 'deferred-to-next — x' });
     server.use(portal({ 'REQ-040': { id: 'r', status: 'deferred' } }));
@@ -137,7 +137,7 @@ describe('D2 deferred-ticket-sync', () => {
     await writeTicket(d2, 'REQ-041');
     server.use(portal({ 'REQ-041': { id: 'r', status: 'draft' } }));
     expect((await checkPortalDeferredNotInTicket(await ctxFor(d2))).ok).toBe(true);
-    delete process.env['DEVAUDIT_API_KEY'];
+    delete process.env['DEVAUDIT_VIEWER_API_KEY'];
     expect((await checkPortalDeferredNotInTicket(await ctxFor(d2))).detail).toMatch(/^skipped/);
   });
 });
@@ -146,7 +146,7 @@ describe('D5 deferral-age', () => {
   const deferred = (over: Latest) => ({ id: 'r50', status: 'deferred', deferredAt: '2026-09-01T00:00:00Z', ...over });
 
   it('flags a deferral older than the default 30 days', async () => {
-    process.env['DEVAUDIT_API_KEY'] = 'k';
+    process.env['DEVAUDIT_VIEWER_API_KEY'] = 'k';
     server.use(portal({ 'REQ-050': deferred({}) }));
     const dir = await fixtureRepo(cfg);
     await writeTicket(dir, 'REQ-050', { intent: 'deferred-to-next — x' });
@@ -157,7 +157,7 @@ describe('D5 deferral-age', () => {
   });
 
   it('honours deferral_max_age_days from sdlc-config.json', async () => {
-    process.env['DEVAUDIT_API_KEY'] = 'k';
+    process.env['DEVAUDIT_VIEWER_API_KEY'] = 'k';
     server.use(portal({ 'REQ-050': deferred({}) }));
     const c = { ...cfg, deferral_max_age_days: 90 };
     const dir = await fixtureRepo(c);
@@ -166,7 +166,7 @@ describe('D5 deferral-age', () => {
   });
 
   it('notes an invalid setting and falls back to 30', async () => {
-    process.env['DEVAUDIT_API_KEY'] = 'k';
+    process.env['DEVAUDIT_VIEWER_API_KEY'] = 'k';
     server.use(portal({ 'REQ-050': deferred({ deferredAt: '2026-10-10T00:00:00Z' }) }));
     const c = { ...cfg, deferral_max_age_days: -5 };
     const dir = await fixtureRepo(c);
@@ -177,7 +177,7 @@ describe('D5 deferral-age', () => {
   });
 
   it('flags a release past its review-by date even when young', async () => {
-    process.env['DEVAUDIT_API_KEY'] = 'k';
+    process.env['DEVAUDIT_VIEWER_API_KEY'] = 'k';
     server.use(portal({ 'REQ-050': deferred({ deferredAt: '2026-10-10T00:00:00Z', deferredUntil: '2026-10-11' }) }));
     const dir = await fixtureRepo(cfg);
     await writeTicket(dir, 'REQ-050', { intent: 'deferred-to-next — x' });
@@ -187,12 +187,12 @@ describe('D5 deferral-age', () => {
   });
 
   it('is clean for a fresh deferral and skips without a key', async () => {
-    process.env['DEVAUDIT_API_KEY'] = 'k';
+    process.env['DEVAUDIT_VIEWER_API_KEY'] = 'k';
     server.use(portal({ 'REQ-050': deferred({ deferredAt: '2026-10-10T00:00:00Z', deferredUntil: '2027-01-01' }) }));
     const dir = await fixtureRepo(cfg);
     await writeTicket(dir, 'REQ-050', { intent: 'deferred-to-next — x' });
     expect((await checkStaleDeferrals(await ctxFor(dir))).ok).toBe(true);
-    delete process.env['DEVAUDIT_API_KEY'];
+    delete process.env['DEVAUDIT_VIEWER_API_KEY'];
     expect((await checkStaleDeferrals(await ctxFor(dir))).detail).toMatch(/^skipped/);
   });
 });

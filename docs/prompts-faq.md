@@ -7,9 +7,9 @@ A quick-reference for the range of prompts (natural-language, for an AI agent) a
 | I want to... | Run |
 | --- | --- |
 | Onboard a brand-new consumer project | `devaudit install ../path/to/new-consumer` |
-| Onboard it with a safe, read-only key an agent can hold locally | `devaudit install ../path/to/new-consumer --with-viewer-key` |
+| Onboard a project (your own read-only viewer key is issued and saved locally by default; `--no-viewer-key` opts out) | `devaudit install ../path/to/new-consumer` |
 | Join an already-onboarded project as a second developer | `devaudit join` |
-| Retrofit the viewer key onto an already-onboarded project | `devaudit install --force-team-config --with-viewer-key` |
+| Get your own viewer key on an already-onboarded project | `devaudit join` (or `devaudit auth viewer-key set` for a key you received another way) |
 | Disconnect a repo from DevAudit entirely | `devaudit uninstall` |
 
 See [`onboarding.md`](onboarding.md) for the full walkthrough.

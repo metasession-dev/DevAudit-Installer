@@ -48,7 +48,7 @@ async function ctxFor(config: Record<string, unknown> | null, extra: Partial<Ins
     nonInteractive: true,
     installMode: 'operator',
     addTarget: false,
-    withViewerKey: false,
+    issueViewerKey: false, printViewerKey: false,
     ...extra,
   };
 }

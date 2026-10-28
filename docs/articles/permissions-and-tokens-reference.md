@@ -1,5 +1,7 @@
 # Who Can Do What, and With Which Key
 
+> **Superseded by [`docs/credentials.md`](../credentials.md) (devaudit-installer#1099).** This is a historical design record, not current behaviour: the uploader key is CI-only, each person has their own named viewer key kept in the CLI config folder (never a repo secret), agents never use the PAT, and `devaudit push`, `record-uat-execution.sh` and `submit-for-uat-review.sh` are no longer something a person or an agent runs locally. Read `credentials.md` for the current model.
+
 > **Scope:** `metasession-dev/DevAudit-Installer` (this repo, public — framework + CLI), `metasession-dev/devaudit` (the portal product, private), and a consumer project running the synced SDLC (e.g. `example-app`).
 > **Status:** Internal reference. Verified against DevAudit-Installer at `v0.3.39` — workflow files, CLI source, and live GitHub/npm state, not general GitHub knowledge. Anything that couldn't be verified programmatically is marked as such rather than guessed. Re-check after any change to `.github/workflows/`, `branch-protection-checks.ts`, or the portal's approval logic.
 

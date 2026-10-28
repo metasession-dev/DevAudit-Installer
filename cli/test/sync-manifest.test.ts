@@ -255,6 +255,36 @@ describe('sync manifest + writeManaged (devaudit-installer#930)', () => {
     }
   }, 120_000);
 
+  it('the retired UAT scripts are removed from a consumer that has them; an edited copy is kept (#1099)', async () => {
+    process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
+    const dir = await buildFixture();
+    try {
+      await fs.mkdir(join(dir, 'scripts'), { recursive: true });
+      await syncProject(dir);
+      const scriptsDir = join(dir, 'scripts');
+      const retired = ['record-uat-execution.sh', 'record-uat-execution.test.sh', 'submit-for-uat-review.sh'];
+      const manifest = (await readManifest(dir))!;
+      const files = { ...manifest.files };
+      for (const name of retired) {
+        await fs.writeFile(join(scriptsDir, name), `#!/bin/sh\necho ${name}\n`);
+        files[`scripts/${name}`] = { sha256: sha256(`#!/bin/sh\necho ${name}\n`), section: '2d' };
+      }
+      // The consumer edited one of them: it must be kept and flagged, never deleted.
+      await fs.writeFile(join(scriptsDir, 'submit-for-uat-review.sh'), '#!/bin/sh\necho my edit\n');
+      await writeManifest(dir, { ...manifest, files });
+
+      await syncProject(dir);
+
+      const left = await fs.readdir(scriptsDir);
+      expect(left).not.toContain('record-uat-execution.sh');
+      expect(left).not.toContain('record-uat-execution.test.sh');
+      expect(left).toContain('submit-for-uat-review.sh');
+      expect((await readManifest(dir))?.files['scripts/submit-for-uat-review.sh']?.conflict).toBe(true);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 120_000);
+
   it('a pre-existing, untracked file at a devaudit-managed path is kept as a conflict on first sync (onboarding)', async () => {
     process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
     const dir = await buildFixture();

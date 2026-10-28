@@ -166,7 +166,8 @@ The tier names are not Playwright-specific. A project on pytest, Jest or Vitest,
 | pytest | `@pytest.mark.smoke` | `@pytest.mark.critical` (run with smoke) | everything | the files under `tests/` that mention `REQ-XXX` |
 | Jest / Vitest | the project's smoke path or project | the critical path or project (with smoke) | everything | `-t "REQ-XXX]"` on the `[REQ-XXX]` title |
 
-- **Tag every test with its requirement**, in the form the runner's feature scope reads: `[REQ-XXX][ACn]` in the title (Playwright, Jest, Vitest) and the id once per file for pytest (title, docstring, comment or marker). Without the tag the feature scope cannot select the test and `devaudit doctor` reports the file.
+- **Tag every test with its requirement**, in the form the runner's feature scope reads. Playwright: the single rule under *Tag every test with its REQ and AC* below (the id in the title or a describe **and** `tagTest()`). Jest and Vitest: `[REQ-XXX][ACn]` in the title. pytest: the id once per file (title, docstring, comment or marker). Without the tag the feature scope cannot select the test and `devaudit doctor` reports the file.
+- **Tests for Must ACs belong in a project that runs on the release PR** (by default `e2e/critical/`, the `critical` project), not only in `regression`: the portal reads a test as covering an AC only from a result, and results exist before approval from the feature-PR run (every project, selected by the title), the smoke run on the integration branch and the release-PR gate tier. An AC that has only a screenshot reads "untested" on the portal; `devaudit doctor` (`test-tiers`) reports each AC with no test titled `[REQ-XXX][ACn]` (devaudit-installer#1096).
 - **Register pytest markers** in `pyproject.toml`; an unregistered `smoke` or `critical` marker warns and fails under `--strict-markers`.
 - **`critical` is optional.** A project may keep two tiers; `devaudit configure set release_gate_tier smoke` says so explicitly and `devaudit doctor` accepts it. Do not rename or remove an existing `critical` tier: consumer configs and portal labels depend on it.
 - **Evidence form.** Playwright writes the JSON report; pytest writes JUnit XML to `$TEST_JUNIT_XML`. Tests with no `page` object have no screenshots (see *Specs with no page object*).
@@ -208,26 +209,29 @@ Write the tests in the project's existing style.
 - **Read 2–3 nearby tests before writing.** Fastest way to absorb conventions you wouldn't have noticed otherwise.
 - **Check `references/common-patterns.md` before writing role-based locators** for component-library UI (shadcn/ui, Radix, MUI, etc.). A short appendix of known framework × library gotchas — `CardTitle` is a `<div>` not a heading; Radix `<Select>` renders two `role="combobox"` nodes; Next.js `<Link>` clicks don't fire network requests — saves a round-trip through a failing selector each time.
 
-#### Tag every test with its REQ and AC (devaudit-installer#196)
+#### Tag every test with its REQ and AC (devaudit-installer#196, #1095)
 
-Every test spec covering an in-scope REQ **must** call `tagTest()` at the top of the test body, before any assertions or interactions:
+One rule, both parts required for every Playwright test covering an in-scope REQ:
+
+1. **The title (or an enclosing `describe`) contains `[REQ-XXX]`**, and `[ACn]` where the test proves a specific AC. The feature-PR run selects tests with `npx playwright test --grep REQ-XXX`, and `--grep` matches the test title including enclosing `describe` titles. It never matches annotations, so a test without the id in its title is silently left out of the feature run while its siblings read as tested.
+2. **The body calls `tagTest('REQ-XXX', n)`** at the top, before any assertions or interactions. This pushes the annotation the DevAudit portal joins on to map results to acceptance criteria.
 
 ```ts
 import { tagTest } from './helpers/test-tags';
 
-test('verification code submit', async ({ page }) => {
-  tagTest('REQ-083', 1);  // REQ-083, acceptance criterion 1
-  // ... test body
+test.describe('[REQ-083] verification', () => {
+  test('[REQ-083][AC1] verification code submit', async ({ page }) => {
+    tagTest('REQ-083', 1);  // REQ-083, acceptance criterion 1
+    // ... test body
+  });
 });
 ```
 
-For tests covering multiple ACs, pass an array: `tagTest('REQ-083', [1, 2])`.
+For tests covering multiple ACs, pass an array: `tagTest('REQ-083', [1, 2])` and put each `[ACn]` in the title. For transport-layer specs (no `page` object) the rule is identical: `tagTest` only touches `test.info()`. The id is matched exactly: `[REQ-11]` does not satisfy `REQ-111`. Build titles from literal text: a title assembled at run time (a variable, a concatenation) cannot be checked statically, so put the id in a literal part.
 
-For transport-layer specs (no `page` object), `tagTest` works identically — it only touches `test.info()`, no Playwright `page` required.
+**Why both are mandatory:** without `tagTest()` the portal's per-REQ approval card (`ReqApprovalCard`) shows "no tests in report tagged with this REQ" even though the test ran and passed (#196); without the title id the test never runs at feature-PR time (#1095). A third option does not exist today: the portal parser does not read Playwright's static `tag`s.
 
-**Why this is mandatory:** The DevAudit portal's per-REQ approval card (`ReqApprovalCard`) joins test results with screenshots by acceptance criteria using `test.info().annotations`. Without `tagTest()`, every REQ shows "no tests in report tagged with this REQ" even though the test ran and passed — defeating the AC-by-AC breakdown that reviewers rely on (#196).
-
-The helper is synced to `e2e/helpers/test-tags.ts` by `devaudit update` alongside `evidence.ts`. Do not inline annotation logic — use the helper so the annotation format stays consistent with what the portal parser expects.
+The helper is synced to `e2e/helpers/test-tags.ts` by `devaudit update` alongside `evidence.ts`. Do not inline annotation logic — use the helper so the annotation format stays consistent with what the portal parser expects. `scripts/check-req-title-tags.sh` enforces part 1 (Phase 5½).
 
 For **visual regression** specifically:
 - New tests need baseline images. Generate them, but **do not auto-approve** — surface them for the user to verify before they're committed.
@@ -253,6 +257,8 @@ Before running the suite (Phase 6), verify that the evidence traceability wiring
    ```
 
    Also verify the import is present: `import { tagTest } from './helpers/test-tags'` (or the correct relative path from the spec's location to `e2e/helpers/test-tags.ts`).
+
+   **Check the title carries the id (devaudit-installer#1095).** `tagTest()` alone does not make the feature run select the test. Run `bash scripts/check-req-title-tags.sh --req REQ-XXX` (it lists every `tagTest('REQ-XXX', n)` whose test title and enclosing describes lack the id, as `file:line: ...`). **Do not proceed to Phase 6 while it reports offenders**: add `[REQ-XXX]` (and `[ACn]`) to the title or a describe, exactly as for a missing `tagTest()` call above. It parses titles statically; a dynamically built title is reported, so move the id into a literal part.
 
 4. **Check release and execution provenance.** Before handing the work back to `sdlc-implementer`, identify the tracked `REQ-XXX`, the source branch SHA, and the expected SDLC stage/test execution for the run. The CI evidence upload must retain those values so the portal can show the result in the correct numbered execution for the release that produced it.
    - A passing local run is not portal evidence by itself. Report it as local verification and let the configured CI workflow upload the resulting report and screenshots.
@@ -629,7 +635,7 @@ These specs are still E2E (they exercise the deployed system end-to-end at the t
 
 Discipline for transport specs:
 
-- Name the asserted behaviour in the test title using the same `[REQ-XXX][ACn]` bracket convention UI specs use. Reviewers grep on that.
+- Name the asserted behaviour in the test title using the same `[REQ-XXX][ACn]` bracket convention UI specs use, and call `tagTest()` (the rule under *Tag every test with its REQ and AC*). Reviewers grep on the title, and the feature run selects by it.
 - The `test-execution-summary.md` table row should describe what the spec verified in operator-facing terms ("signature mismatch returns 401; payment row unchanged"), not in TypeScript-spec terms ("`expect(response.status).toBe(401)`").
 - If a transport spec *can* be paired with a thin UI shim that screenshots the user-visible outcome (e.g. an admin dashboard surface that shows the rejected payment as "Failed — signature mismatch"), pair them — that buys back the screenshot evidence at the surface level. Otherwise: transport spec stands alone.
 - The portal's release-detail "screenshots" panel will show zero entries for purely-transport REQs; that's correct. Reviewers cross-reference `test-execution-summary.md` instead.

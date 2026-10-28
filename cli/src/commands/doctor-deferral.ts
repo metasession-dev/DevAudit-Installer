@@ -64,7 +64,7 @@ export async function buildDeferralContext(
   let portal: PortalReadContext | null = null;
   let portalNote = '';
   if (!slug || !base) portalNote = 'no devaudit.project_slug/base_url in sdlc-config.json';
-  else if (!key) portalNote = 'no DEVAUDIT_VIEWER_API_KEY (or DEVAUDIT_API_KEY) in env/.env';
+  else if (!key) portalNote = 'no viewer key (set DEVAUDIT_VIEWER_API_KEY or run `devaudit auth viewer-key set`)';
   else portal = { baseUrl: base, projectSlug: slug, apiKey: key.key };
   const age = readDeferralMaxAgeDays(cfg);
   return {
@@ -77,7 +77,7 @@ export async function buildDeferralContext(
       runGh ??
       (async (args) => {
         try {
-          const r = await execa('gh', [...args], { cwd: repoRoot, reject: false });
+          const r = await execa('gh', [...args], { cwd: repoRoot, reject: false, timeout: 20_000 });
           return { exitCode: r.exitCode ?? 1, stdout: r.stdout };
         } catch {
           return null;

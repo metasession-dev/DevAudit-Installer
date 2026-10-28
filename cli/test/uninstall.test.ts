@@ -143,6 +143,42 @@ describe('runUninstall', () => {
     }
   });
 
+  it('revokes your own viewer key by its saved name and removes it from the CLI config folder (#1099)', async () => {
+    const { runUninstall } = await import('../src/uninstall/index.js');
+    const { saveViewerKey, getStoredViewerKey } = await import('../src/lib/viewer-keys.js');
+    await saveViewerKey(BASE_URL, 'fixture-app', { key: 'my-viewer-secret', name: 'viewer:me@example.com:laptop', createdAt: '2026-10-27T00:00:00Z' });
+    await saveViewerKey(BASE_URL, 'other-project', { key: 'other-secret', name: 'viewer:me@example.com:laptop', createdAt: '2026-10-27T00:00:00Z' });
+    server.use(
+      http.get(`${BASE_URL}/api/projects/proj-1/api-keys`, () =>
+        HttpResponse.json([
+          { id: 'key-1', name: 'Onboarding-issued', revoked_at: null },
+          { id: 'key-mine', name: 'viewer:me@example.com:laptop', revoked_at: null },
+          { id: 'key-theirs', name: 'viewer:colleague@example.com:desk', revoked_at: null },
+        ]),
+      ),
+      http.delete(`${BASE_URL}/api/projects/proj-1/api-keys/:id`, ({ params }) => {
+        revokedKeyIds.push(String(params['id']));
+        return HttpResponse.json({ id: params['id'] });
+      }),
+    );
+    const dir = await fixtureDir();
+    await writeConfig(dir, { project_slug: 'fixture-app', stack: 'node', working_directory: '.', devaudit: { base_url: BASE_URL, project_slug: 'fixture-app', api_key_secret: 'DEVAUDIT_API_KEY' } });
+    try {
+      const report = await runUninstall({ path: dir, token: 't', nonInteractive: true, provider: makeFakeProvider() });
+      const own = report.steps.find((s) => s.step.includes('Revoke your viewer key'));
+      expect(own?.status).toBe('ok');
+      expect(own?.message).toContain("revoked 'viewer:me@example.com:laptop'");
+      expect(own?.message).not.toContain('my-viewer-secret');
+      // The person's own key is revoked first, by name; a colleague's is not singled out.
+      expect(revokedKeyIds[0]).toBe('key-mine');
+      expect(await getStoredViewerKey(BASE_URL, 'fixture-app')).toBeNull();
+      // Another project's saved key is untouched.
+      expect((await getStoredViewerKey(BASE_URL, 'other-project'))?.key).toBe('other-secret');
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it('treats an already-deleted portal project as a successful no-op key revoke', async () => {
     server.use(http.get(`${BASE_URL}/api/projects`, () => HttpResponse.json([])));
     const { runUninstall } = await import('../src/uninstall/index.js');

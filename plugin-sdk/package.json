@@ -1,6 +1,6 @@
 {
   "name": "@metasession.co/devaudit-plugin-sdk",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "description": "DevAudit CLI plugin contract — interfaces, manifest schema, and lifecycle hooks that DevAudit plugins compile against.",
   "type": "module",
   "main": "./dist/index.js",
@@ -41,5 +41,8 @@
     "url": "https://github.com/metasession-dev/DevAudit-Installer",
     "directory": "plugin-sdk"
   },
-  "license": "Apache-2.0"
+  "license": "Apache-2.0",
+  "overrides": {
+    "esbuild": "^0.28.1"
+  }
 }

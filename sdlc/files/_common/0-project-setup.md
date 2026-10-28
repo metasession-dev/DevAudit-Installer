@@ -30,6 +30,8 @@ devaudit auth login                            # paste your PAT (issued at https
 devaudit install ../path/to/this-project
 ```
 
+`install` also issues your own read-only viewer key (saved in `~/.config/devaudit/viewer-keys.json`, never in the repo) and ends with a Credentials block that reports what this machine holds. The project API key it sets is CI-only: never export it locally.
+
 The CLI ships the framework templates inside the package, so no DevAudit-Installer checkout is needed. If `sdlc-config.json` already exists in the target, `install` runs non-interactively from it and preserves your customisations (`app_env`, `build_env`, `e2e_*`, etc.). See [`docs/onboarding.md` in DevAudit-Installer](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/onboarding.md) for the full walkthrough.
 
 > **Version checks use npm, not GitHub releases.** The CLI is published to npm as `@metasession.co/devaudit-cli`. Check your installed version with `devaudit --version` and the latest published version with `npm view @metasession.co/devaudit-cli version`. Upgrade with `npm install -g @metasession.co/devaudit-cli@latest`. The `npx @metasession.co/devaudit-cli@latest` invocation always pulls the latest from npm — no global install needed for one-off or CI use.

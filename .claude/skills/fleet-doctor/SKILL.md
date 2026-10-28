@@ -28,13 +28,13 @@ Not "called by" `sdlc-implementer` in the direction that might be assumed — th
 
 ### 1. Discover + 2. Per-consumer check
 
-Both steps are now one command (devaudit-installer#861) — run from this repo with Metasession's own operator `DEVAUDIT_USER_TOKEN` set:
+Both steps are one command (devaudit-installer#861). **The agent must not run `devaudit doctor --fleet` itself:** it needs the operator's personal access token, and agents never hold or use the PAT (#1099). Ask the operator to run, from this repo, with their own `devaudit auth login` session:
 
 ```bash
-devaudit doctor --fleet --json
+devaudit doctor --fleet --json > fleet.json
 ```
 
-(or `npx @metasession.co/devaudit-cli@latest doctor --fleet --json` if not globally installed). This discovers every project the operator token's account can see on the portal (org membership / access grants — enforced portal-side, not by this command), resolves each to a local sibling checkout (`../<repo-name>`, skipped and noted — not failed — if not present on disk), and runs `devaudit doctor --json` against each one found. The result is the same structured per-consumer report as before — tool preflight, release close-out drift, onboarding-checklist checks — each still tagged with a first-pass `suspectedOrigin: 'framework' | 'consumer-drift' | 'unknown'` (devaudit-installer#867), aggregated across every consumer. `docs/consuming-projects.md`'s Active consumers table is no longer what this step reads — it's a human-readable reference now, not the discovery source. Collect every non-`unknown`, non-`ok` finding across all consumers before moving to classification — don't act consumer-by-consumer, since cross-consumer comparison is exactly what step 3 needs.
+(or `npx @metasession.co/devaudit-cli@latest doctor --fleet --json > fleet.json` if not globally installed), then read `fleet.json`. Do not ask the operator to paste the token or export it into the agent's environment. The command discovers every project the operator token's account can see on the portal (org membership / access grants — enforced portal-side, not by this command), resolves each to a local sibling checkout (`../<repo-name>`, skipped and noted — not failed — if not present on disk), and runs `devaudit doctor --json` against each one found. The result is the same structured per-consumer report as before — tool preflight, release close-out drift, onboarding-checklist checks — each still tagged with a first-pass `suspectedOrigin: 'framework' | 'consumer-drift' | 'unknown'` (devaudit-installer#867), aggregated across every consumer. `docs/consuming-projects.md`'s Active consumers table is no longer what this step reads — it's a human-readable reference now, not the discovery source. Collect every non-`unknown`, non-`ok` finding across all consumers before moving to classification — don't act consumer-by-consumer, since cross-consumer comparison is exactly what step 3 needs.
 
 ### 3. Classify
 

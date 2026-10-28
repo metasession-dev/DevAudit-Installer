@@ -74,11 +74,12 @@ Regression Suite`. Do not merge while any is queued, running, stale, skipped
 unexpectedly, or failed.
 
 The reviewer must record the actual UAT execution before approving the portal
-release. `scripts/submit-for-uat-review.sh` only moves the release into review;
-after UAT is performed, run `scripts/record-uat-execution.sh` with the tested
-SHA/build, reviewer identity, checklist/evidence references, and truthful
-outcome. A failed UAT execution needs a remediation reference and returns to the
-change-request loop. A passed Stage 4 execution is required before UAT approval.
+release. "Submit for UAT review" in the portal only moves the release into
+review; after UAT is performed, record it on the release page under your own
+login with the tested SHA/build, checklist/evidence references, and a truthful
+outcome (`devaudit release check` confirms readiness before you submit). A failed
+UAT needs a remediation reference and returns to the change-request loop. A
+recorded passing UAT is required before UAT approval.
 
 ### Stage 5: production and close-out
 

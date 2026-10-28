@@ -167,15 +167,8 @@ Goal: every test result + report + screenshot lands on the portal under REQ-XXX 
    ├── 2026-MM-DD_unit-coverage/             # vitest coverage HTML
    └── 2026-MM-DD_screenshots/*.png          # failing/edge-case shots if applicable
    ```
-3. **Upload to the portal** via the CLI:
-   ```bash
-   devaudit push <project-slug> REQ-XXX e2e_result compliance/evidence/REQ-XXX/2026-MM-DD_e2e-results.json \
-     --release "v$(date +%Y.%m.%d)" --create-release-if-missing \
-     --environment uat --category testing \
-     --git-sha "$(git rev-parse HEAD)" --branch "$(git rev-parse --abbrev-ref HEAD)"
-   ```
-   Repeat per evidence type (`screenshot`, `test_report`, `audit_log`, `compliance_document`, `manual_upload`).
-4. **Verify uploads** at `https://devaudit.ai/projects/<slug>/requirements/REQ-XXX`. Every entry should render.
+3. **Evidence reaches the portal through CI.** Commit the artefacts under `compliance/evidence/REQ-XXX/`; when the compliance commit reaches the integration branch, the `Compliance Evidence Upload` workflow uploads them (evidence types include `e2e_result`, `screenshot`, `test_report`, `audit_log`, `compliance_document`, `manual_upload`). Nothing is uploaded from a local session: the uploader key is CI-only.
+4. **Verify uploads** once that run is green: `devaudit release status` (or the release page at `https://devaudit.ai/projects/<slug>/requirements/REQ-XXX`). Every entry should render.
 5. **Update `compliance/RTM.md`** with the portal links for each evidence row.
 
 CI also uploads evidence automatically on `develop` push (via the `ci.yml.template` workflow synced from DevAudit-Installer). Manual stage 3 uploads from your laptop are a belt-and-braces complement, mostly useful when you want to attach evidence the automated workflow doesn't produce (manual sign-off PDFs, threat models, etc.).
@@ -280,15 +273,9 @@ Compile evidence for REQ-{REQ_ID} per SDLC stage 3 (compile-evidence):
    - npx vitest run --coverage
 2. Organise artefacts under compliance/evidence/REQ-{REQ_ID}/ with the date-prefixed
    naming convention (YYYY-MM-DD_<artefact>).
-3. Upload each artefact to the portal via:
-
-   devaudit push {PROJECT_SLUG} REQ-{REQ_ID} <evidence-type> <file> \
-     --release "v$(date +%Y.%m.%d)" --create-release-if-missing \
-     --environment uat --category testing \
-     --git-sha "$(git rev-parse HEAD)" \
-     --branch "$(git rev-parse --abbrev-ref HEAD)"
-
-   evidence-type is one of: screenshot, e2e_result, test_report, audit_log,
+3. Commit the artefacts. They reach the portal through CI (the Compliance Evidence
+   Upload workflow runs on the compliance commit); do not upload from the session.
+   Evidence types CI uploads: screenshot, e2e_result, test_report, audit_log,
    compliance_document, manual_upload.
 4. Verify uploads landed at
    https://devaudit.ai/projects/{PROJECT_SLUG}/requirements/REQ-{REQ_ID}
@@ -414,8 +401,7 @@ The sample prompts in this doc are a stopgap that lets us run the SDLC manually 
 
 | Symptom                                              | Likely cause                                     | Fix                                                                                                                                                        |
 | ---------------------------------------------------- | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `devaudit push` returns 401                          | Token expired or wrong account                   | `devaudit auth status` → `devaudit auth login` if needed                                                                                                   |
-| `devaudit push` returns 403                          | Project key missing or wrong                     | Verify `DEVAUDIT_API_KEY` is set; re-issue from the portal `/settings/api-keys` if rotated                                                                 |
+| CI upload step returns 401 / 403                     | Project key missing, wrong or rotated in the repo secret | An admin re-issues the key in the portal and sets it with `devaudit configure secret DEVAUDIT_API_KEY`; never export it locally |
 | `gh pr checks` shows `DevAudit Release Approval` red | UAT review not granted or release not registered | Visit `https://devaudit.ai/projects/<slug>/releases/<version>` → request approval; if release missing, `ci.yml` registers it on `develop` push |
 | Production smoke flaky on the same test repeatedly   | Test flake, not a real defect                    | File the flake as a separate issue tagged `flaky-test`; do NOT mark the release failed                                                                     |
 | Forgot to add `Ref: REQ-XXX` to commits              | RTM traceability gap                             | Amend the commit (if local) or add a follow-up commit with the trailer; CI's compliance-validation workflow will flag it on PR                             |

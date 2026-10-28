@@ -32,12 +32,73 @@ describe('devaudit --version', () => {
 
 describe('devaudit doctor', () => {
   it('runs without crashing (exit code 0 or 6 depending on environment)', async () => {
-    const result = await execa('node', [BIN, 'doctor'], { reject: false });
+    const started = Date.now();
+    const result = await execa('node', [BIN, 'doctor'], { reject: false, env: { DEVAUDIT_DOCTOR_TIMING: '1' } });
+    // The per-check timing lines (devaudit-installer#1089) land in the CI log, so a slow Windows
+    // run shows which check or child process took the time.
+    console.log(`doctor took ${Date.now() - started}ms\n${result.stderr.split('\n').filter((l) => l.startsWith('[doctor-timing]')).join('\n')}`);
     // Pass if all tools are present (0); also acceptable in CI if something's
     // missing — we exit 6 with a clear diagnostic.
     expect([0, 6]).toContain(result.exitCode);
     expect(result.stdout + result.stderr).toContain('node');
   }, 30_000);
+
+  it('DEVAUDIT_DOCTOR_TIMING prints per-check timing on stderr only, never on stdout or in --json (#1089)', async () => {
+    const plain = await execa('node', [BIN, '--json', 'doctor'], { reject: false });
+    const timed = await execa('node', [BIN, '--json', 'doctor'], { reject: false, env: { DEVAUDIT_DOCTOR_TIMING: '1' } });
+    expect(plain.stderr).not.toContain('[doctor-timing]');
+    const lines = timed.stderr.split('\n').filter((l) => l.startsWith('[doctor-timing]'));
+    expect(lines.length).toBeGreaterThanOrEqual(8);
+    expect(lines.every((l) => /^\[doctor-timing\] [\w:-]+: \d+ms$/.test(l))).toBe(true);
+    expect(lines.some((l) => l.includes('tool:gh'))).toBe(true);
+    // stdout is still a single valid JSON document.
+    expect(() => JSON.parse(timed.stdout)).not.toThrow();
+  }, 60_000);
+
+  it('agent-permissions: reports the recommended rules from a temporary home, informational and read-only (#1098)', async () => {
+    const { mkdtemp, mkdir, writeFile, readFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const { claudeCodeSettingsSnippet } = await import('../src/lib/agent-permissions.js');
+    const repo = await mkdtemp(join(tmpdir(), 'devaudit-doctor-agentperm-'));
+    await writeFile(join(repo, 'sdlc-config.json'), JSON.stringify({ project_slug: 'fixture' }));
+    const home = await mkdtemp(join(tmpdir(), 'devaudit-doctor-home-'));
+    const doctorIn = async (h: string) => {
+      const r = await execa('node', [BIN, '--json', 'doctor'], { cwd: repo, reject: false, env: { HOME: h, USERPROFILE: h } });
+      const j = JSON.parse(r.stdout) as { onboarding: Array<{ name: string; ok: boolean; detail: string }>; proposals: Array<{ check: string; remediation: { id: string; tier: string } }> };
+      return { entry: j.onboarding.find((c) => c.name === 'agent-permissions')!, proposals: j.proposals };
+    };
+
+    const none = await doctorIn(home);
+    expect(none.entry.ok).toBe(true); // informational: never a gap
+    expect(none.entry.detail).toMatch(/no Claude Code settings file found/);
+    expect(none.entry.detail).toMatch(/other agents: not checked/);
+    expect(none.proposals.find((p) => p.remediation.id === 'add-agent-permission-rules')?.remediation.tier).toBe('C');
+
+    await mkdir(join(home, '.claude'), { recursive: true });
+    const settingsPath = join(home, '.claude', 'settings.json');
+    await writeFile(settingsPath, JSON.stringify(claudeCodeSettingsSnippet()));
+    const before = await readFile(settingsPath, 'utf-8');
+    const full = await doctorIn(home);
+    expect(full.entry.ok).toBe(true);
+    expect(full.entry.detail).toMatch(/all 27 recommended deny rules present/);
+    expect(full.proposals.some((p) => p.remediation.id === 'add-agent-permission-rules')).toBe(false);
+    // Read-only: doctor never edits the settings it inspects.
+    expect(await readFile(settingsPath, 'utf-8')).toBe(before);
+
+    await writeFile(settingsPath, JSON.stringify({ permissions: { deny: ['Read(~/.config/devaudit/**)'] } }));
+    const partial = await doctorIn(home);
+    expect(partial.entry.detail).toMatch(/1 of 27 recommended deny rules present; missing: pat-commands, credential-store/);
+  }, 90_000);
+
+  it('runs against stubbed gh and npm, so no test waits on the network (#1089)', async () => {
+    const gh = await execa('gh', ['--version'], { reject: false });
+    expect(gh.stdout).toContain('devaudit test stub');
+    expect((await execa('gh', ['secret', 'list'], { reject: false })).exitCode).toBe(1);
+    const npm = await execa('npm', ['install', '--save-dev', 'left-pad'], { reject: false });
+    expect(npm.exitCode).toBe(1);
+    expect(npm.stderr).toMatch(/npm is disabled in the CLI tests/);
+  });
 
   it('reports release close-out drift check (skips gracefully without portal creds)', async () => {
     const { mkdtemp, mkdir, writeFile } = await import('node:fs/promises');
@@ -197,6 +258,33 @@ describe('devaudit doctor — onboarding-checklist invariants (#867)', () => {
     // missing secrets; both are 'ok: true'-shaped for the onboarding summary
     // and must not crash the process.
   }, 30_000);
+
+  // The fake `gh` below is a POSIX shell script, which Windows cannot execute as `gh`.
+  it.skipIf(process.platform === 'win32')('secrets no longer requires a viewer-key repo secret; an existing one is reported unused and removable (#1099)', async () => {
+    const { mkdtemp, writeFile, chmod } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const dir = await mkdtemp(join(tmpdir(), 'devaudit-doctor-viewer-secret-'));
+    const bin = await mkdtemp(join(tmpdir(), 'devaudit-fake-gh-'));
+    const gh = join(bin, 'gh');
+    await writeFile(gh, '#!/bin/sh\nif [ "$1" = "secret" ]; then echo \'[{"name":"DEVAUDIT_API_KEY"},{"name":"RAILWAY_TOKEN"},{"name":"DEVAUDIT_VIEWER_API_KEY"}]\'; exit 0; fi\nexit 1\n');
+    await chmod(gh, 0o755);
+    const run = async (cfg: object) => {
+      await writeFile(join(dir, 'sdlc-config.json'), JSON.stringify(cfg));
+      const r = await execa('node', [BIN, '--json', 'doctor'], { cwd: dir, reject: false, env: { PATH: `${bin}:${process.env['PATH']}` } });
+      return JSON.parse(r.stdout) as { onboarding: Array<{ name: string; ok: boolean; detail: string }>; proposals: Array<{ remediation: { id: string; tier: string } }> };
+    };
+    const without = await run({ project_slug: 'fixture' });
+    expect(without.onboarding.find((c) => c.name === 'secrets')?.detail).toMatch(/all required secrets present/);
+    const withSecret = await run({ project_slug: 'fixture', devaudit: { viewer_api_key_secret: 'DEVAUDIT_VIEWER_API_KEY' } });
+    const secrets = withSecret.onboarding.find((c) => c.name === 'secrets')!;
+    expect(secrets.ok).toBe(true);
+    expect(secrets.detail).toMatch(/unused and removable: DEVAUDIT_VIEWER_API_KEY/);
+    expect(withSecret.proposals.find((p) => p.remediation.id === 'remove-unused-viewer-secret')?.remediation.tier).toBe('C');
+    // Not required either: absent from the repo means no gap.
+    const gone = await run({ project_slug: 'fixture', devaudit: { viewer_api_key_secret: 'SOMETHING_ELSE' } });
+    expect(gone.onboarding.find((c) => c.name === 'secrets')?.ok).toBe(true);
+  }, 60_000);
 
   it('--json emits a structured report including the new checks, tagged with a suspectedOrigin', async () => {
     const { mkdtemp, mkdir, writeFile } = await import('node:fs/promises');
@@ -807,7 +895,7 @@ describe('devaudit doctor — portal-backed checks (#956, msw)', () => {
     expect(JSON.stringify(r)).not.toContain('viewer-secret');
   }, 30_000);
 
-  it('D3 falls back to DEVAUDIT_API_KEY when no viewer key is set', async () => {
+  it('D3 never falls back to the uploader key DEVAUDIT_API_KEY (#1099: CI-only)', async () => {
     process.env['DEVAUDIT_API_KEY'] = 'api-secret';
     const seen: string[] = [];
     server.use(releases({ 'REQ-030': 'uat_approved' }, seen));
@@ -815,8 +903,8 @@ describe('devaudit doctor — portal-backed checks (#956, msw)', () => {
     await writeTicket(dir, 'REQ-030', { pr: 'https://github.com/o/r/pull/42' });
     const { checkClosedReleasePr, buildDeferralContext } = await import('../src/commands/doctor-deferral.js');
     const r = await checkClosedReleasePr(await buildDeferralContext(dir, cfg, ghPr('CLOSED')));
-    expect(r.ok).toBe(false);
-    expect(seen).toEqual(['Bearer api-secret']);
+    // The closed PR is still reported from local state; the portal is never read with the uploader key.
+    expect(seen).toEqual([]);
   }, 30_000);
 
   it('D3 negatives: merged PR, declared intent, portal released, PR still open', async () => {
@@ -975,14 +1063,17 @@ describe('devaudit doctor — D8 releases check + JSON surface (#956)', () => {
     expect(json.tools).toHaveLength(5);
     // #1040 appended deploy-host, production-url, custom-deploy and ci-runner (additive);
     // #1059/#1060 appended e2e-release-gate and test-tiers after them.
-    expect(json.onboarding).toHaveLength(17);
-    expect((json.onboarding as Array<{ name: string }>).slice(-6).map((c) => c.name)).toEqual([
+    // #1099 WP4 appended `credentials` (and `pat-env` only when DEVAUDIT_USER_TOKEN is set).
+    expect(json.onboarding).toHaveLength(19);
+    expect((json.onboarding as Array<{ name: string }>).slice(-8).map((c) => c.name)).toEqual([
       'deploy-host',
       'production-url',
       'custom-deploy',
       'ci-runner',
       'e2e-release-gate',
       'test-tiers',
+      'credentials',
+      'agent-permissions',
     ]);
     // additive keys
     expect(Array.isArray(json.deferral)).toBe(true);
@@ -998,7 +1089,7 @@ describe('devaudit doctor — D8 releases check + JSON surface (#956)', () => {
   it('D8 negative: portal release not released -> clean, no proposal', async () => {
     const dir = await fixtureRepo({ project_slug: 'fixture', devaudit: { project_slug: 'fixture', base_url: baseUrl } });
     await writeTicket(dir, 'REQ-061', {});
-    const { json } = await doctorJson(dir, cleanEnv({ DEVAUDIT_API_KEY: 'k' }));
+    const { json } = await doctorJson(dir, cleanEnv({ DEVAUDIT_VIEWER_API_KEY: 'k' }));
     expect(json.releaseCloseoutDrift.ok).toBe(true);
     expect(json.releaseCloseoutDrift.detail).toContain('none released on the portal');
     expect(json.proposals.filter((p) => p.check === 'releases')).toEqual([]);

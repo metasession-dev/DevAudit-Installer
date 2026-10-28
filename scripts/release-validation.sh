@@ -9,6 +9,7 @@
 #   consumer <name>   an ISOLATED clone of metasession-dev/<name> (or a path)
 #   fixture <stack>   a fresh fixture repo (node | python) with no prior sync
 #   all [names...]    layer1, every named consumer, both fixtures, layer2b
+#   all --no-consumers   the same without consumers (an incomplete result, on request)
 #
 # SAFETY (consumer repos are read-only):
 #   - every consumer is cloned into $WORK_DIR; the real checkout under
@@ -41,6 +42,14 @@
 #   RV_CONSUMERS_FILE    consumer list (default scripts/release-validation/consumers.local,
 #                        gitignored: consumers are never named in this public repo, #1042).
 #                        One "<repo-name> <node|python>" per line; '#' comments.
+#                        The file only exists in the MAIN checkout: from a git worktree set
+#                        RV_CONSUMERS_FILE=<main checkout>/scripts/release-validation/consumers.local.
+#                        `all` with no names and no consumers file FAILS (unless --no-consumers):
+#                        a result without consumer and layer-2b clone rows is incomplete (#1091).
+#
+# Layer 1 keeps the full vitest output in $WORK_DIR/vitest.log and every failing shell test's output
+# in $WORK_DIR/shell-tests/, and lists the failing test names in results.md (#1091). A layer-1 FAIL
+# does not stop the run: the consumer layers still run and everything is reported.
 #
 # Exit: 0 when no check FAILed (WARNs allowed); 1 otherwise; 2 usage error.
 
@@ -476,6 +485,13 @@ EOF
   fi
 }
 
+# failing_test_names <vitest-log>: the "file > suite > test" of every failed test, ANSI codes removed.
+failing_test_names() {
+  sed -E 's/\x1b\[[0-9;]*m//g' "$1" 2>/dev/null | grep -E '^ *FAIL ' | sed -E 's/^ *FAIL +//' | sort -u
+}
+
+FAILING="$WORK_DIR/failing-tests.txt"
+
 run_layer1() {
   echo ""
   echo "== layer 1: installer automated checks ($ROOT)"
@@ -505,14 +521,43 @@ run_layer1() {
     record installer no-skip-ci-guidance FAIL "skip-CI tag found: $(printf '%s' "$skip_hits" | head -3 | tr '\n' ' ')"
   fi
   if [ "${SKIP_LAYER1_TESTS:-0}" != "1" ]; then
-    out=$(cd "$ROOT/cli" && npx vitest run 2>&1 | grep -E 'Tests +[0-9]' | tail -1)
-    if printf '%s' "$out" | grep -q 'failed'; then record installer vitest FAIL "$out"; else record installer vitest PASS "$out"; fi
-    local failed="" n=0
+    # CI type-checks the test files too (tsconfig.test.json): so does the gate.
+    if ( cd "$ROOT/cli" && npx tsc --noEmit -p tsconfig.test.json >"$WORK_DIR/test-typecheck.log" 2>&1 ); then
+      record installer test-typecheck PASS "cli tsc -p tsconfig.test.json clean"
+    else
+      record installer test-typecheck FAIL "test files do not type-check (see $WORK_DIR/test-typecheck.log)"
+    fi
+    # vitest from cli/, whole output kept: a summary line alone cannot say which test failed (#1091).
+    local vlog="$WORK_DIR/vitest.log" names
+    ( cd "$ROOT/cli" && npx vitest run ) > "$vlog" 2>&1
+    out=$(sed -E 's/\x1b\[[0-9;]*m//g' "$vlog" | grep -E 'Tests +[0-9]' | tail -1)
+    names=$(failing_test_names "$vlog")
+    if [ -z "$out" ]; then
+      record installer vitest FAIL "vitest printed no summary line (see $vlog)"
+    elif ! sed -E 's/\x1b\[[0-9;]*m//g' "$vlog" | grep -E '^ *RUN ' | head -1 | grep -q '/cli'; then
+      record installer vitest FAIL "vitest did not run from cli/ (see $vlog)"
+    elif printf '%s' "$out" | grep -q 'failed'; then
+      record installer vitest FAIL "$out; failing: $(printf '%s' "$names" | head -10 | tr '\n' ';') (log: $vlog)"
+    else
+      record installer vitest PASS "$out"
+    fi
+    [ -z "$names" ] || printf '%s\n' "$names" | sed 's/^/vitest: /' >> "$FAILING"
+    local failed="" n=0 base
+    mkdir -p "$WORK_DIR/shell-tests"
     for t in "$ROOT"/sdlc/files/_common/scripts/*.test.sh "$ROOT"/scripts/*.test.sh; do
       n=$((n + 1))
-      ( cd "$ROOT" && timeout 600 bash "$t" >/dev/null 2>&1 ) || failed="$failed $(basename "$t")"
+      base=$(basename "$t")
+      if ! ( cd "$ROOT" && timeout 600 bash "$t" ) > "$WORK_DIR/shell-tests/$base.log" 2>&1; then
+        failed="$failed $base"
+        printf 'shell: %s\n' "$base" >> "$FAILING"
+      fi
     done
-    if [ -z "$failed" ]; then record installer shell-tests PASS "$n shell test files"; else record installer shell-tests FAIL "failed:$failed"; fi
+    if [ -z "$failed" ]; then record installer shell-tests PASS "$n shell test files"; else record installer shell-tests FAIL "failed:$failed (output: $WORK_DIR/shell-tests/)"; fi
+    if ( cd "$ROOT" && node scripts/validate-adapter.cjs --all >"$WORK_DIR/validate-adapter.log" 2>&1 ); then
+      record installer adapters PASS "validate-adapter.cjs --all"
+    else
+      record installer adapters FAIL "validate-adapter.cjs --all failed (see $WORK_DIR/validate-adapter.log)"
+    fi
   else
     record installer vitest SKIP "SKIP_LAYER1_TESTS=1"
   fi
@@ -544,6 +589,29 @@ run_layer1() {
   else
     record installer pack-install FAIL "npm pack or install failed"
   fi
+  # Every tarball holds what it must and nothing it must not (#1091 D24). The plugins need their
+  # dist/ first, as release.yml builds them.
+  local p built=1
+  for p in plugins/devaudit-plugin-prisma plugins/devaudit-plugin-evidence-export; do
+    if [ ! -d "$ROOT/$p/dist" ]; then
+      ( cd "$ROOT/$p" && npm install --legacy-peer-deps >/dev/null 2>&1 && npm run build >/dev/null 2>&1 ) || built=0
+    fi
+  done
+  if [ "$built" = 0 ]; then
+    record installer package-contents FAIL "a plugin could not be built, so its tarball cannot be checked"
+  elif out=$(bash "$ROOT/scripts/check-package-contents.sh" 2>&1); then
+    record installer package-contents PASS "$(printf '%s\n' "$out" | tail -1)"
+  else
+    record installer package-contents FAIL "$(printf '%s\n' "$out" | grep -E 'FAIL|forbidden' | head -3 | tr '\n' ' ')"
+  fi
+  # Installs and builds above can rewrite lockfiles; the validated commit must stay as it was.
+  local drift
+  drift=$(git -C "$ROOT" diff --name-only -- '*package-lock.json' 2>/dev/null | tr '\n' ' ')
+  if [ -n "$drift" ]; then
+    # shellcheck disable=SC2086
+    git -C "$ROOT" checkout -- $drift
+    record installer lockfiles-restored PASS "layer 1 rewrote $drift; restored"
+  fi
 }
 
 summarise() {
@@ -554,6 +622,9 @@ summarise() {
       printf '| %s | %s | %s | %s |\n' "$t" "$c" "$r" "${d//|/\\|}"
     done < "$RESULTS"
   } > "$WORK_DIR/results.md"
+  if [ -s "$FAILING" ]; then
+    { echo ""; echo "## Failing tests"; echo ""; sed 's/^/- /' "$FAILING"; } >> "$WORK_DIR/results.md"
+  fi
   local fails warns
   fails=$(awk -F'\t' '$3=="FAIL"' "$RESULTS" | wc -l | tr -d ' ')
   warns=$(awk -F'\t' '$3=="WARN"' "$RESULTS" | wc -l | tr -d ' ')
@@ -569,7 +640,7 @@ main() {
   command -v jq >/dev/null || die "jq is required"
   command -v python3 >/dev/null || die "python3 is required"
   python3 -c 'import yaml' 2>/dev/null || die "python3 PyYAML is required"
-  [ $# -ge 1 ] || die "usage: $0 {layer1|layer2b|consumer <name>|fixture <node|python>|all [names...]}"
+  [ $# -ge 1 ] || die "usage: $0 {layer1|layer2b|consumer <name>|fixture <node|python>|all [names...|--no-consumers]}"
   make_stub_gh
   local cmd="$1"; shift
   case "$cmd" in
@@ -578,12 +649,19 @@ main() {
     consumer) [ $# -ge 1 ] || die "consumer needs a name"; ensure_build; for c in "$@"; do validate_consumer "$c"; done ;;
     fixture) [ $# -ge 1 ] || die "fixture needs node or python"; ensure_build; for s in "$@"; do validate_fixture "$s"; done ;;
     all)
+      local no_consumers=0 names=() a
+      for a in "$@"; do
+        if [ "$a" = "--no-consumers" ]; then no_consumers=1; else names+=("$a"); fi
+      done
       ensure_build; run_layer1
-      if [ $# -eq 0 ]; then
-        set -- $(local_consumers)
-        [ $# -gt 0 ] || record installer consumers WARN "no consumers given and no $RV_CONSUMERS_FILE: only layer 1, fixtures and layer 2b ran"
+      if [ "$no_consumers" = 1 ]; then
+        record installer consumers SKIP "--no-consumers: consumer layers skipped on request; this result is incomplete for a release"
+      elif [ ${#names[@]} -eq 0 ]; then
+        mapfile -t names < <(local_consumers)
+        [ ${#names[@]} -gt 0 ] || record installer consumers FAIL "no consumers given and none in $RV_CONSUMERS_FILE: from a worktree set RV_CONSUMERS_FILE=<main checkout>/scripts/release-validation/consumers.local, pass names, or --no-consumers; a result without consumer rows is incomplete"
       fi
-      for c in "$@"; do validate_consumer "$c"; done; validate_fixture node; validate_fixture python; run_layer2b ;;
+      for c in ${names[@]+"${names[@]}"}; do validate_consumer "$c"; done
+      validate_fixture node; validate_fixture python; run_layer2b ;;
     *) die "unknown command '$cmd'" ;;
   esac
   summarise

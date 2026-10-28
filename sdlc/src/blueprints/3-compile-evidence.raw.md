@@ -795,32 +795,9 @@ This is the **four-eyes release approval gate**. It has two transitions:
 
 #### Step 11a — Submit for UAT review
 
-Two paths; do whichever fits the project's workflow:
+Open the release in DevAudit and click **Submit for UAT Review** (a portal action under your own login). URL shape: `https://[DEVAUDIT_BASE_URL]/projects/[PROJECT_SLUG]/releases/[releaseId]` — posted as a comment on the develop branch by CI (look at the latest run of `Release Approval Gate` or `Compliance Evidence Upload`).
 
-**Manual.** Open the release in DevAudit and click **Submit for UAT Review**. URL shape: `https://[DEVAUDIT_BASE_URL]/projects/[PROJECT_SLUG]/releases/[releaseId]` — posted as a comment on the develop branch by CI (look at the latest run of `Release Approval Gate` or `Compliance Evidence Upload`).
-
-**Scripted.** Run the bundled script (synced from META-COMPLY into every consuming project under `scripts/`):
-
-```bash
-./scripts/submit-for-uat-review.sh [PROJECT_SLUG] v2026.MM.DD
-```
-
-The script:
-
-1. Checks the working tree is clean and develop is up-to-date with origin.
-2. Checks a `RELEASE-TICKET-*.md` exists in `compliance/pending-releases/`.
-3. Checks CI gates are green on the current develop HEAD (via `gh run list`).
-4. Resolves the release id from DevAudit using `DEVAUDIT_API_KEY` (existing).
-5. Submits with `DEVAUDIT_USER_TOKEN` (Personal Access Token issued from `/settings/tokens` in DevAudit). The submission carries the issuing user's identity, so `isOwnRelease` keeps holding for Step 11b under `dual_actor`. The same PAT is also the credential for an admin's manual portal defer/resume of a release (admin-only; never `DEVAUDIT_API_KEY`, the viewer key or CI).
-6. Idempotent — if the release is already in `uat_review` (or later), exits 0 with a note rather than failing.
-
-Required environment variables for the scripted path:
-
-| Var | What it is | Where to set |
-| --- | --- | --- |
-| `DEVAUDIT_USER_TOKEN` | Personal Access Token (`mctok_…`) attributed to the running user | Issue at `/settings/tokens`; export locally or cache via `devaudit auth login` — **never a repo secret** (devaudit-installer#912: this script runs locally, never from CI, so there's nothing for a repo secret to serve here) |
-| `DEVAUDIT_API_KEY` | Project-scoped API key (existing) | Already set for evidence uploads |
-| `DEVAUDIT_BASE_URL` | DevAudit URL | Resolved by CI templates; locally read from `sdlc-config.json devaudit.base_url` |
+Before clicking, run `devaudit release check`. It is read-only (viewer key, never the PAT) and confirms: the working tree is clean, develop is up to date with origin, CI is green on the develop HEAD, a `RELEASE-TICKET-*.md` exists in `compliance/pending-releases/`, and the portal release is `draft` (a release already in `uat_review` or later is reported as already submitted). It prints each result with the fix and exits non-zero until all pass. The former `submit-for-uat-review.sh` helper was retired (devaudit-installer#1099) because it needed the CI-only uploader key.
 
 #### Step 11b — Approve
 

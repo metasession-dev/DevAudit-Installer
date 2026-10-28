@@ -7,7 +7,7 @@ import { promises as fsp } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { runFix, type FixDeps } from '../src/commands/doctor-fix.js';
 import type { Proposal } from '../src/lib/doctor-types.js';
-import { DeferralApiError, deferRelease, resumeRelease } from '../src/lib/release-deferral-api.js';
+import { DeferralApiError, DeferralCredentialError, deferRelease, resumeRelease } from '../src/lib/release-deferral-api.js';
 import { fixtureRepo, writeRtm, writeTicket } from './helpers-doctor-fixture.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -18,6 +18,7 @@ interface Hit { path: string; method: string; token: string | undefined; auth: s
 let srv: Server;
 let base = '';
 let hits: Hit[] = [];
+let readTokens: Array<string | undefined> = [];
 let releases: Record<string, Record<string, unknown>> = {};
 let postStatus = 200;
 let postJson: Record<string, unknown> = { status: 'deferred', uatApprovalIdsAtDefer: ['appr-1'] };
@@ -30,6 +31,9 @@ beforeAll(async () => {
       const u = new URL(req.url ?? '/', 'http://x');
       res.setHeader('content-type', 'application/json');
       if (req.method === 'GET' && u.pathname === '/api/ci/releases/resolve') {
+        readTokens.push(req.headers['x-devaudit-token'] as string | undefined);
+        // The `credentials` check probes with `versionPrefix=REQ-`: a known project answers 200.
+        if (u.searchParams.get('versionPrefix') === 'REQ-') { res.end(JSON.stringify({ latest: null })); return; }
         const l = releases[u.searchParams.get('versionPrefix') ?? ''];
         if (!l) { res.statusCode = 404; res.end(); return; }
         res.end(JSON.stringify({ latest: l }));
@@ -52,6 +56,7 @@ beforeAll(async () => {
 afterAll(() => new Promise<void>((r) => srv.close(() => r())));
 beforeEach(() => {
   hits = [];
+  readTokens = [];
   releases = {};
   postStatus = 200;
   postJson = { status: 'deferred', uatApprovalIdsAtDefer: ['appr-1'] };
@@ -101,6 +106,13 @@ describe('doctor --fix: plain doctor stays read-only', () => {
     expect(r.json!.fix).toBeUndefined();
     expect(r.json!.proposals.some((p) => p.remediation.id === 'defer-portal-release')).toBe(true);
     expect(hits).toEqual([]);
+    // Read-only runs use the viewer key only: the PAT never reaches the portal (#1099 WP5).
+    expect(readTokens.length).toBeGreaterThan(0);
+    expect(readTokens.every((t) => t === undefined)).toBe(true);
+    // The PAT in the environment is reported by name, never by value.
+    const note = (r.json as unknown as { onboarding: Array<{ name: string; detail: string }> }).onboarding.find((c) => c.name === 'pat-env');
+    expect(note?.detail).toMatch(/DEVAUDIT_USER_TOKEN is set/);
+    expect(r.out + r.err).not.toContain(PAT);
     expect(await read(dir, 'compliance/pending-releases/RELEASE-TICKET-REQ-041.md')).toBe(before);
   }, 30_000);
 });
@@ -153,13 +165,23 @@ describe('doctor --fix: an undeclared portal deferral is a decision (#1083)', ()
 });
 
 describe('doctor --fix: tier B (portal defer)', () => {
-  it('--yes alone (no reason) never defers', async () => {
+  it('--yes alone never defers: portal changes are interactive-only (#1099 WP5)', async () => {
     const dir = await d1Fixture();
     const r = await doctor(dir, ['--fix', '--yes', '--json'], await env({ DEVAUDIT_USER_TOKEN: PAT, DEVAUDIT_VIEWER_API_KEY: 'v' }));
     expect(r.exitCode).toBe(8);
     expect(r.json!.fix!.outcomes[0]).toMatchObject({ id: 'defer-portal-release', tier: 'B', status: 'unapplied' });
-    expect(r.json!.fix!.outcomes[0]!.message).toMatch(/--reason/);
+    expect(r.json!.fix!.outcomes[0]!.message).toMatch(/interactive terminal/);
     expect(hits).toEqual([]);
+  }, 30_000);
+
+  it('--yes --reason no longer defers non-interactively', async () => {
+    const dir = await d1Fixture();
+    const r = await doctor(dir, ['--fix', '--yes', '--reason', 'waiting on vendor', '--json'], await env({ DEVAUDIT_USER_TOKEN: PAT, DEVAUDIT_VIEWER_API_KEY: 'viewer-secret' }));
+    expect(r.exitCode).toBe(8);
+    expect(r.json!.fix!.outcomes[0]).toMatchObject({ status: 'unapplied' });
+    expect(hits).toEqual([]);
+    expect(r.out + r.err).not.toContain(PAT);
+    expect(r.out + r.err).not.toContain('viewer-secret');
   }, 30_000);
 
   it('--reason without --yes (non-interactive) never defers', async () => {
@@ -167,44 +189,6 @@ describe('doctor --fix: tier B (portal defer)', () => {
     const r = await doctor(dir, ['--fix', '--reason', 'why', '--json'], await env({ DEVAUDIT_USER_TOKEN: PAT, DEVAUDIT_VIEWER_API_KEY: 'v' }));
     expect(r.exitCode).toBe(8);
     expect(hits).toEqual([]);
-  }, 30_000);
-
-  it('--yes --reason defers with the PAT header only, and surfaces the audit approval ids', async () => {
-    const dir = await d1Fixture();
-    const r = await doctor(dir, ['--fix', '--yes', '--reason', 'waiting on vendor', '--json'], await env({ DEVAUDIT_USER_TOKEN: PAT, DEVAUDIT_VIEWER_API_KEY: 'viewer-secret' }));
-    expect(r.exitCode).toBe(0);
-    expect(hits).toHaveLength(1);
-    expect(hits[0]).toMatchObject({ path: '/api/releases/rel-41/defer', method: 'POST', token: PAT, body: { reason: 'waiting on vendor' } });
-    expect(hits[0]!.auth).toBeUndefined();
-    expect(r.json!.fix!.outcomes[0]).toMatchObject({ status: 'applied', uatApprovalIdsAtDefer: ['appr-1'] });
-    expect(r.json!.fix!.outcomes[0]!.message).toContain('uat_approval_ids_at_defer: appr-1');
-    expect(r.out + r.err).not.toContain(PAT);
-    expect(r.out + r.err).not.toContain('viewer-secret');
-  }, 30_000);
-
-  it('refuses when only API/viewer keys exist (no PAT); never calls the portal, never prints the keys', async () => {
-    const dir = await d1Fixture();
-    const r = await doctor(dir, ['--fix', '--yes', '--reason', 'x', '--json'], await env({ DEVAUDIT_API_KEY: 'api-secret', DEVAUDIT_VIEWER_API_KEY: 'viewer-secret' }));
-    expect(r.exitCode).toBe(8);
-    expect(r.json!.fix!.outcomes[0]).toMatchObject({ status: 'failed' });
-    expect(r.json!.fix!.outcomes[0]!.message).toMatch(/personal access token/);
-    expect(hits).toEqual([]);
-    expect(r.out + r.err).not.toContain('api-secret');
-    expect(r.out + r.err).not.toContain('viewer-secret');
-  }, 30_000);
-
-  it.each([
-    [403, /not a portal admin/],
-    [409, /409/],
-    [422, /422/],
-  ])('reports a portal %i as a failed (unapplied) outcome and exits 8', async (status, re) => {
-    postStatus = status;
-    postJson = { error: 'nope' };
-    const dir = await d1Fixture();
-    const r = await doctor(dir, ['--fix', '--yes', '--reason', 'x', '--json'], await env({ DEVAUDIT_USER_TOKEN: PAT, DEVAUDIT_VIEWER_API_KEY: 'v' }));
-    expect(r.exitCode).toBe(8);
-    expect(r.json!.fix!.outcomes[0]).toMatchObject({ status: 'failed' });
-    expect(r.json!.fix!.outcomes[0]!.message).toMatch(re);
   }, 30_000);
 });
 
@@ -287,11 +271,39 @@ describe('runFix interactive behaviour', () => {
     expect(calls).toEqual([]);
   });
 
-  it('tier B: --reason + --yes skip the prompts', async () => {
+  it('tier B: --yes and --reason never skip the typed reason or the confirmation', async () => {
     const p = prop('defer-portal-release', 'B', { releaseId: 'r1' });
-    const r = await runFix([p], await deps({ ask: asks({ confirm: async () => { throw new Error('no'); }, input: async () => { throw new Error('no'); } }) }), { ...base0, yes: true, reason: 'flag reason' });
+    const r = await runFix([p], await deps({ ask: asks({ confirm: async () => false }) }), { ...base0, yes: true, reason: 'flag reason' });
+    expect(r.outcomes[0]).toMatchObject({ status: 'unapplied', message: 'declined' });
+    expect(calls).toEqual([]);
+  });
+
+  it('tier B: --reason supplies the text without a prompt, but the confirmation is still asked', async () => {
+    const p = prop('defer-portal-release', 'B', { releaseId: 'r1' });
+    let confirmed = 0;
+    const ask = asks({ input: async () => { throw new Error('must not prompt for the reason'); }, confirm: async () => (confirmed += 1, true) });
+    const r = await runFix([p], await deps({ ask }), { ...base0, reason: 'flag reason' });
     expect(r.outcomes[0]).toMatchObject({ status: 'applied' });
+    expect(confirmed).toBe(1);
     expect(calls).toEqual([{ verb: 'defer', reason: 'flag reason' }]);
+  });
+
+  it.each([
+    ['unauthenticated', 401], ['forbidden', 403], ['conflict', 409], ['invalid', 422], ['unsupported-auth', 302],
+  ] as const)('tier B: a portal %s error is a failed outcome, never applied', async (kind, status) => {
+    const p = prop('defer-portal-release', 'B', { releaseId: 'r1' });
+    const defer = async () => { throw new DeferralApiError(kind, `portal said ${status}`, status); };
+    const r = await runFix([p], await deps({ ask: asks(), defer }), base0);
+    expect(r.outcomes[0]).toMatchObject({ status: 'failed', message: `portal said ${status}` });
+    expect(r.unapplied).toBe(1);
+  });
+
+  it('tier B: only API/viewer keys available -> failed, portal never called', async () => {
+    const p = prop('defer-portal-release', 'B', { releaseId: 'r1' });
+    const credential = async () => { throw new DeferralCredentialError('No personal access token available.'); };
+    const r = await runFix([p], await deps({ ask: asks(), credential }), base0);
+    expect(r.outcomes[0]).toMatchObject({ status: 'failed' });
+    expect(calls).toEqual([]);
   });
 
   it('tier A: declined confirmation leaves the file untouched', async () => {
@@ -332,7 +344,7 @@ describe('runFix interactive behaviour', () => {
     expect(calls).toEqual([{ verb: 'defer', reason: 'typed reason' }]);
   });
 
-  it('D3 non-interactive needs both --yes and --reason', async () => {
+  it('D3 is never decided non-interactively, even with --yes --reason (#1099 WP5)', async () => {
     const ni = asks({ nonInteractiveReason: () => 'no TTY', select: async () => null, input: async () => null, confirm: async () => null });
     const d = await deps({ ask: ni });
     await writeTicket(d.repoRoot, 'REQ-3', {});
@@ -340,7 +352,8 @@ describe('runFix interactive behaviour', () => {
     expect((await runFix([p], d, { ...base0, yes: true })).outcomes[0]!.status).toBe('unapplied');
     expect((await runFix([p], d, { ...base0, reason: 'r' })).outcomes[0]!.status).toBe('unapplied');
     expect(calls).toEqual([]);
-    expect((await runFix([p], d, { ...base0, yes: true, reason: 'r' })).outcomes[0]!.status).toBe('applied');
+    expect((await runFix([p], d, { ...base0, yes: true, reason: 'r' })).outcomes[0]!.status).toBe('unapplied');
+    expect(calls).toEqual([]);
   });
 
   it('stale deferral is never resumed non-interactively, even with --yes --reason (#984)', async () => {
@@ -445,5 +458,122 @@ describe('real client error mapping through the fix path', () => {
     expect(new DeferralApiError('forbidden', 'm', 403).kind).toBe('forbidden');
     expect(typeof deferRelease).toBe('function');
     expect(typeof resumeRelease).toBe('function');
+  });
+});
+
+// ---- viewer-key repairs (#1099 WP3b) ----------------------------------------
+
+describe('runFix: viewer-key repairs', () => {
+  const VKEY = 'viewer-secret-from-dotenv';
+  type IssueFn = NonNullable<FixDeps['issueViewerKey']>;
+  const calls: Array<{ revokeExisting: boolean; slug: string; name: string }> = [];
+  beforeEach(async () => {
+    calls.length = 0;
+    await fsp.rm(process.env['DEVAUDIT_VIEWER_KEYS_FILE']!, { force: true });
+  });
+
+  const viewerDeps = async (over: Partial<FixDeps> = {}): Promise<FixDeps> => ({
+    repoRoot: await fixtureRepo(cfg()),
+    baseUrl: base,
+    credential: async () => ({ token: PAT, baseUrl: base, source: 'env' }),
+    viewerKeyName: async () => 'viewer:me@example.test:laptop',
+    issueViewerKey: (async (o) => (calls.push({ revokeExisting: o.revokeExisting, slug: o.slug, name: o.name }), { kind: 'issued', revoked: o.revokeExisting })) as IssueFn,
+    ...over,
+  });
+  const base0 = { yes: false, dryRun: false, json: false };
+  const stored = async () => (await import('../src/lib/viewer-keys.js')).getStoredViewerKey(base, 'fixture');
+
+  describe('tier A: move-viewer-key', () => {
+    const p = prop('move-viewer-key', 'A', { slug: 'fixture' });
+    const writeEnv = (d: FixDeps) => fsp.writeFile(join(d.repoRoot, '.env'), `OTHER=1\nDEVAUDIT_VIEWER_API_KEY=${VKEY}\nKEEP=yes\n`);
+
+    it('saves the key, removes only its .env line, and is idempotent', async () => {
+      const d = await viewerDeps();
+      await writeEnv(d);
+      const r = await runFix([p], { ...d, ask: asks() }, base0);
+      expect(r.outcomes[0]).toMatchObject({ status: 'applied' });
+      expect(r.outcomes[0]!.message).not.toContain(VKEY);
+      expect((await stored())?.key).toBe(VKEY);
+      expect(await fsp.readFile(join(d.repoRoot, '.env'), 'utf-8')).toBe('OTHER=1\nKEEP=yes\n');
+      const again = await runFix([p], { ...d, ask: asks() }, base0);
+      expect(again.outcomes[0]).toMatchObject({ status: 'unchanged' });
+    });
+
+    it('a declined confirmation changes nothing', async () => {
+      const d = await viewerDeps();
+      await writeEnv(d);
+      const r = await runFix([p], { ...d, ask: asks({ confirm: async () => false }) }, base0);
+      expect(r.outcomes[0]).toMatchObject({ status: 'unapplied' });
+      expect(await stored()).toBeNull();
+      expect(await fsp.readFile(join(d.repoRoot, '.env'), 'utf-8')).toContain(VKEY);
+    });
+
+    it('non-interactively needs --yes, like every tier A repair', async () => {
+      const d = await viewerDeps();
+      await writeEnv(d);
+      const ni = asks({ nonInteractiveReason: () => 'no TTY', confirm: async () => null });
+      expect((await runFix([p], { ...d, ask: ni }, base0)).outcomes[0]!.status).toBe('unapplied');
+      expect((await runFix([p], { ...d, ask: ni }, { ...base0, yes: true })).outcomes[0]!.status).toBe('applied');
+    });
+
+    it('--dry-run plans and writes nothing', async () => {
+      const d = await viewerDeps();
+      await writeEnv(d);
+      const r = await runFix([p], { ...d, ask: asks() }, { ...base0, dryRun: true });
+      expect(r.outcomes[0]).toMatchObject({ status: 'planned' });
+      expect(await stored()).toBeNull();
+    });
+  });
+
+  describe('tier B: issue-viewer-key', () => {
+    const p = prop('issue-viewer-key', 'B', { slug: 'fixture', invalid: 'false' });
+
+    it("issues the key under the person's own name after a typed reason and a confirmation", async () => {
+      const d = await viewerDeps();
+      const r = await runFix([p], { ...d, ask: asks() }, base0);
+      expect(r.outcomes[0]).toMatchObject({ status: 'applied' });
+      expect(r.outcomes[0]!.message).toContain("issued 'viewer:me@example.test:laptop'");
+      expect(r.outcomes[0]!.message).toContain('reason: typed reason');
+      expect(calls).toEqual([{ revokeExisting: false, slug: 'fixture', name: 'viewer:me@example.test:laptop' }]);
+    });
+
+    it('is interactive-only: --yes --reason never issue a key non-interactively', async () => {
+      const d = await viewerDeps();
+      const ni = asks({ nonInteractiveReason: () => 'no TTY', input: async () => null, confirm: async () => null });
+      const r = await runFix([p], { ...d, ask: ni }, { ...base0, yes: true, reason: 'r' });
+      expect(r.outcomes[0]).toMatchObject({ status: 'unapplied' });
+      expect(calls).toEqual([]);
+    });
+
+    it('a live key of that name is only replaced after a second confirmation', async () => {
+      const exists: IssueFn = async (o) => (calls.push({ revokeExisting: o.revokeExisting, slug: o.slug, name: o.name }), o.revokeExisting ? { kind: 'issued', revoked: true } : { kind: 'exists-live' });
+      let confirms = 0;
+      const yesThenNo = asks({ confirm: async () => (confirms += 1) === 1 });
+      const declined = await runFix([p], { ...(await viewerDeps({ issueViewerKey: exists })), ask: yesThenNo }, base0);
+      expect(declined.outcomes[0]).toMatchObject({ status: 'unapplied' });
+      expect(calls.map((c) => c.revokeExisting)).toEqual([false]);
+      calls.length = 0;
+      const accepted = await runFix([p], { ...(await viewerDeps({ issueViewerKey: exists })), ask: asks() }, base0);
+      expect(accepted.outcomes[0]).toMatchObject({ status: 'applied' });
+      expect(accepted.outcomes[0]!.message).toContain('revoked the previous key');
+      expect(calls.map((c) => c.revokeExisting)).toEqual([false, true]);
+    });
+
+    it("reports a 403 as failed with the portal's reason, and a missing PAT as failed", async () => {
+      const { DevAuditApiError } = await import('../src/lib/devaudit-api.js');
+      const refused: IssueFn = async () => { throw new DevAuditApiError('x', 403, JSON.stringify({ error: 'Project access required' })); };
+      const r = await runFix([p], { ...(await viewerDeps({ issueViewerKey: refused })), ask: asks() }, base0);
+      expect(r.outcomes[0]).toMatchObject({ status: 'failed', message: expect.stringContaining('(403): Project access required') });
+      const noPat = async () => { throw new DeferralCredentialError('No personal access token available.'); };
+      const r2 = await runFix([p], { ...(await viewerDeps({ credential: noPat })), ask: asks() }, base0);
+      expect(r2.outcomes[0]).toMatchObject({ status: 'failed' });
+      expect(r.unapplied).toBe(1);
+    });
+
+    it('an unknown project is a failed outcome', async () => {
+      const gone: IssueFn = async () => ({ kind: 'project-not-found' });
+      const r = await runFix([p], { ...(await viewerDeps({ issueViewerKey: gone })), ask: asks() }, base0);
+      expect(r.outcomes[0]).toMatchObject({ status: 'failed', message: expect.stringContaining('not found') });
+    });
   });
 });

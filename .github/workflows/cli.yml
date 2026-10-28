@@ -6,7 +6,8 @@ on:
     paths:
       - 'cli/**'
       - 'plugin-sdk/**'
-      - 'sdlc/files/ci/**'
+      - 'sdlc/files/**'
+      - 'sdlc/src/**'
       - 'contracts/evidence-types.json'
       - '.github/workflows/cli.yml'
   pull_request:
@@ -57,7 +58,7 @@ jobs:
           echo "Changed files between $BASE_SHA and $HEAD_SHA:"
           printf '%s\n' "$CHANGED"
 
-          if printf '%s\n' "$CHANGED" | grep -Eq '^(cli/|plugin-sdk/|sdlc/files/ci/|contracts/evidence-types\.json$|\.github/workflows/cli\.yml$)'; then
+          if printf '%s\n' "$CHANGED" | grep -Eq '^(cli/|plugin-sdk/|sdlc/files/|sdlc/src/|contracts/evidence-types\.json$|\.github/workflows/cli\.yml$)'; then
             echo "run_tests=true" >> "$GITHUB_OUTPUT"
             echo "reason=relevant-files-changed" >> "$GITHUB_OUTPUT"
           else
@@ -98,3 +99,31 @@ jobs:
         run: |
           echo "No CLI test-surface changes detected."
           echo "Marking required Test check green for docs-only or unrelated PR."
+
+  # devaudit-installer#1091 D24 — every tarball holds what it must and nothing it must not. Runs only
+  # on a pull request into main (the promotion PR), so it is just another green check there. It builds
+  # the five packages the way release.yml does and then runs scripts/check-package-contents.sh.
+  package-contents:
+    name: Package contents
+    if: github.event_name == 'pull_request' && github.base_ref == 'main'
+    runs-on: ${{ vars.CI_RUNNER_LABEL == 'github-ci' && 'ubuntu-latest' || vars.CI_RUNNER_LABEL || 'ubuntu-latest' }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - name: plugin-sdk — install + build
+        working-directory: plugin-sdk
+        run: |
+          npm install --legacy-peer-deps
+          npm run build
+      - name: Plugins — install + build
+        run: |
+          for p in plugins/devaudit-plugin-prisma plugins/devaudit-plugin-evidence-export; do
+            (cd "$p" && npm install --legacy-peer-deps && npm run build)
+          done
+      - name: cli — install (prepack builds and bundles it)
+        working-directory: cli
+        run: npm install --legacy-peer-deps
+      - name: Check package contents
+        run: bash scripts/check-package-contents.sh

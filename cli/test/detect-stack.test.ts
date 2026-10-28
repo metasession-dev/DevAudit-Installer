@@ -17,7 +17,7 @@ function baseCtx(overrides: Partial<InstallContext>): InstallContext {
     dryRun: false,
     nonInteractive: true,
     addTarget: false,
-    withViewerKey: false,
+    issueViewerKey: false, printViewerKey: false,
     installMode: 'operator',
     ...overrides,
   };

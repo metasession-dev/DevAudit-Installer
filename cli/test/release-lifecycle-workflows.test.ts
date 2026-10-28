@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -717,19 +717,40 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     expect(source).toContain('semantic_id: \\"INC-');
   });
 
-  it('keeps UAT submission distinct from explicit Stage 4 execution recording', () => {
-    const submit = commonScript('submit-for-uat-review.sh');
-    const record = commonScript('record-uat-execution.sh');
-    expect(submit).toContain('Submission only moves the release into review; it does not claim UAT passed.');
-    expect(submit).toContain('./scripts/record-uat-execution.sh');
-    expect(record).toContain('--sdlc-stage 4');
-    expect(record).toContain('--environment uat');
-    expect(record).toContain('--suite-kind uat');
-    expect(record).toContain('--provider manual_uat');
-    expect(record).toContain('manual-uat:${PROJECT_SLUG}:${RELEASE_VERSION}:${EXECUTION_ID}');
-    expect(record).toContain('executor=${EXECUTOR}; tested_sha=${TESTED_SHA}');
-    expect(record).toContain('"$REPORT_TEST_EXECUTION" start');
-    expect(record).toContain('"$REPORT_TEST_EXECUTION" complete');
+  it('retires the UAT scripts: recording and submitting UAT are portal actions (#1099)', () => {
+    for (const name of ['record-uat-execution.sh', 'record-uat-execution.test.sh', 'submit-for-uat-review.sh']) {
+      expect(existsSync(join(root, 'sdlc', 'files', '_common', 'scripts', name))).toBe(false);
+    }
+    const skill = readFileSync(join(root, 'sdlc', 'files', '_common', 'skills', 'sdlc-implementer', 'SKILL.md'), 'utf-8');
+    expect(skill).not.toContain('record-uat-execution');
+    expect(skill).not.toContain('submit-for-uat-review');
+    expect(skill).toContain('devaudit release check');
+  });
+
+  it('the sdlc-implementer skill makes no portal write and never holds the uploader key or PAT (#1099)', () => {
+    const dir = join(root, 'sdlc', 'files', '_common', 'skills', 'sdlc-implementer');
+    const skill = readFileSync(join(dir, 'SKILL.md'), 'utf-8');
+    const loop = readFileSync(join(dir, 'references', 'change-request-loop.md'), 'utf-8');
+    const constraints = readFileSync(join(dir, 'references', 'compliance-constraints.md'), 'utf-8');
+    const callGraph = readFileSync(join(dir, 'references', 'call-graph.md'), 'utf-8');
+    // No instruction to upload, create a release, or record triage from the session.
+    for (const text of [skill, loop, constraints, callGraph]) {
+      expect(text).not.toMatch(/^\s*devaudit push /m);
+      expect(text).not.toContain('--create-release-if-missing --environment');
+      expect(text).not.toContain('report-test-execution.sh resolve --');
+      expect(text).not.toContain('falls back to the uploader key');
+    }
+    expect(skill).not.toContain('bash scripts/upload-evidence.sh {{PROJECT_SLUG}}');
+    // Phase 0 states the model and carries the canonical per-step table.
+    expect(skill).toContain('an agent holds neither the uploader key nor the PAT');
+    expect(skill).toContain('Who does what, step by step.');
+    expect(skill).toContain('Never run `devaudit install`, `join`, `auth`, `doctor --fix` or `doctor --fleet`.');
+    // Evidence reaches the portal through CI; state is read with release status.
+    expect(skill).toContain('`Compliance Evidence Upload`');
+    expect(skill).toContain('gh run list --workflow \"Compliance Evidence Upload\" --commit <sha>');
+    expect(skill).toContain('devaudit release status --json');
+    expect(skill).toContain('Resolving a failed execution is a portal action by a **project admin**');
+    expect(skill).toContain('pending metasession-dev/devaudit#918');
   });
 
   it('uploads the project-level Test Summary Report without attaching it to any release (devaudit-installer#621)', () => {

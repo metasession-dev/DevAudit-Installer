@@ -10,6 +10,14 @@ import { loadHostAdapter } from '../lib/adapter.js';
 import { resolveAdapters } from '../update/resolve-adapters.js';
 import type { CheckResult, Proposal } from '../lib/doctor-types.js';
 import { resolvePortalReadKey, resolveReleaseByPrefix } from '../lib/releases-api.js';
+import {
+  buildCredentialsReport,
+  credentialsCheck,
+  defaultCredentialsDeps,
+  type CredentialsDeps,
+} from '../lib/credentials-check.js';
+import { makeTimer } from '../lib/timing.js';
+import { agentPermissionsReport, type AgentPermissionsDeps } from '../lib/agent-permissions.js';
 import { buildDeferralContext, runDeferralChecks } from './doctor-deferral.js';
 import { FIX_EXIT_UNAPPLIED, runFix, type FixDeps, type FixReport } from './doctor-fix.js';
 import { commitsInRange, refExists, reqHasCommits } from '../lib/req-commits.js';
@@ -29,11 +37,26 @@ export interface DoctorOptions {
   };
   /** Test seam for the #1040 config checks (gh runner, URL probe). */
   readonly configDeps?: ConfigCheckDeps;
+  /** Test seam for the #1099 `credentials` check (no network in tests). */
+  readonly credentialsDeps?: CredentialsDeps;
+  /** Test seam for the #1098 `agent-permissions` check (no reads of the real home in tests). */
+  readonly agentPermissionsDeps?: Partial<AgentPermissionsDeps>;
 }
+
+/**
+ * `DEVAUDIT_DOCTOR_TIMING=1` prints one `[doctor-timing] <check>: <ms>ms` line per check on stderr
+ * (devaudit-installer#1089): where a slow run spends its time.
+ */
+const timed = makeTimer('DEVAUDIT_DOCTOR_TIMING', 'doctor-timing');
+
+/** Every child process doctor starts is bounded: a hang reports "timed out", never blocks the run. */
+const TOOL_TIMEOUT_MS = 15_000;
+const GH_TIMEOUT_MS = 20_000;
 
 async function checkCommand(name: string, args: readonly string[]): Promise<CheckResult> {
   try {
-    const result = await execa(name, args, { reject: false });
+    const result = await execa(name, args, { reject: false, timeout: TOOL_TIMEOUT_MS });
+    if (result.timedOut) return { name, ok: false, detail: `timed out after ${TOOL_TIMEOUT_MS / 1000}s` };
     const ok = result.exitCode === 0;
     const firstLine = result.stdout.split('\n')[0] ?? '';
     return { name, ok, detail: ok ? firstLine : `exited ${result.exitCode}` };
@@ -85,13 +108,13 @@ async function checkReleaseCloseoutDrift(): Promise<{ result: CheckResult; drift
 
   const slug = cfg.devaudit?.project_slug ?? cfg.project_slug;
   const base = (cfg.devaudit?.base_url ?? '').replace(/\/$/, '');
-  // Read-only portal access: viewer key preferred, API key as fallback (#956).
+  // Read-only portal access: the viewer key only, never the uploader key (#956, #1099).
   const key = await resolvePortalReadKey(repoRoot);
   if (!slug || !base || !key) {
     return done({
       name,
       ok: true,
-      detail: `${reqs.length} pending ticket(s); portal drift check skipped (set DEVAUDIT_VIEWER_API_KEY or DEVAUDIT_API_KEY + devaudit.base_url)`,
+      detail: `${reqs.length} pending ticket(s); portal drift check skipped (no viewer key: set DEVAUDIT_VIEWER_API_KEY or run 'devaudit auth viewer-key set'; needs devaudit.base_url)`,
     });
   }
 
@@ -203,6 +226,75 @@ async function checkRtmInitialized(): Promise<CheckResult> {
  * login still attributes UAT-submission actions — it's just never expected
  * to exist as a repo secret, so its absence is no longer a "gap" here.
  */
+/**
+ * devaudit-installer#1099 WP5 — information only (never a gap): agent sessions started from a
+ * shell that exports `DEVAUDIT_USER_TOKEN` inherit the personal access token. Reports the
+ * variable name, never the value.
+ */
+function checkPatInEnvironment(env: NodeJS.ProcessEnv = process.env): CheckResult[] {
+  if (!env['DEVAUDIT_USER_TOKEN']) return [];
+  return [
+    {
+      name: 'pat-env',
+      ok: true,
+      detail:
+        'DEVAUDIT_USER_TOKEN is set in the environment: agent sessions started from this shell inherit it. Prefer `devaudit auth login` (cached login) and unset the variable',
+      suspectedOrigin: 'unknown',
+    },
+  ];
+}
+
+/**
+ * devaudit-installer#1098 — layer 4 of the credential model, recommended and informational: are the
+ * Claude Code deny rules that keep an agent session away from the PAT present? Reads settings files
+ * only; the installer never writes a user's agent settings. Never fails the run (`ok` stays true).
+ */
+async function checkAgentPermissions(deps?: Partial<AgentPermissionsDeps>): Promise<CheckResult> {
+  const name = 'agent-permissions';
+  const consumer = await readConsumerConfig();
+  if (!consumer) return { name, ok: true, detail: 'skipped (not a consumer project)', suspectedOrigin: 'unknown' };
+  try {
+    const r = await agentPermissionsReport({ repoRoot: consumer.repoRoot, ...deps });
+    if (r.missingGroups.length === 0) {
+      return { name, ok: true, detail: `Claude Code: all ${r.total} recommended deny rules present (PAT commands, credential store); other agents: not checked`, suspectedOrigin: 'unknown' };
+    }
+    const where = r.files.length === 0 ? 'no Claude Code settings file found' : `${r.present} of ${r.total} recommended deny rules present; missing: ${r.missingGroups.join(', ')}`;
+    return {
+      name,
+      ok: true,
+      detail: `Claude Code: ${where} (recommended, not required: keeps agent sessions away from your PAT; see docs/agent-permissions.md); other agents: not checked`,
+      suspectedOrigin: 'unknown',
+      findings: [
+        {
+          subject: 'agent-permissions',
+          detail: `recommended agent deny rules are missing (${r.missingGroups.join(', ')})`,
+          remediation: {
+            id: 'add-agent-permission-rules',
+            tier: 'C',
+            summary: 'Add the recommended agent permission rules',
+            plan: ['copy the snippet from docs/agent-permissions.md into .claude/settings.json (this project) or ~/.claude/settings.json (all your projects); devaudit never edits your agent settings'],
+            needsPortal: false,
+          },
+        },
+      ],
+    };
+  } catch {
+    return { name, ok: true, detail: 'skipped (unexpected error reading local state)', suspectedOrigin: 'unknown' };
+  }
+}
+
+async function checkCredentials(deps?: CredentialsDeps): Promise<CheckResult> {
+  const name = 'credentials';
+  const consumer = await readConsumerConfig();
+  if (!consumer) return { name, ok: true, detail: 'skipped (not a consumer project)', suspectedOrigin: 'unknown' };
+  try {
+    const d = deps ?? (await defaultCredentialsDeps(consumer.repoRoot, consumer.cfg));
+    return credentialsCheck(await buildCredentialsReport(d));
+  } catch {
+    return { name, ok: true, detail: 'skipped (unexpected error reading local state)', suspectedOrigin: 'unknown' };
+  }
+}
+
 async function checkRequiredSecretsPresent(): Promise<CheckResult> {
   const name = 'secrets';
   const consumer = await readConsumerConfig();
@@ -212,7 +304,6 @@ async function checkRequiredSecretsPresent(): Promise<CheckResult> {
     viewer_api_key_secret?: string;
   };
   const required = [devaudit.api_key_secret ?? 'DEVAUDIT_API_KEY'];
-  if (devaudit.viewer_api_key_secret) required.push(devaudit.viewer_api_key_secret);
 
   // devaudit-installer#843 — fold in the resolved host adapter's own
   // required_secrets (e.g. RAILWAY_TOKEN) instead of a second, separate
@@ -236,6 +327,7 @@ async function checkRequiredSecretsPresent(): Promise<CheckResult> {
     const result = await execa('gh', ['secret', 'list', '--json', 'name'], {
       cwd: consumer.repoRoot,
       reject: false,
+      timeout: GH_TIMEOUT_MS,
     });
     if (result.exitCode !== 0) {
       return {
@@ -251,8 +343,18 @@ async function checkRequiredSecretsPresent(): Promise<CheckResult> {
   }
 
   const missing = required.filter((r) => !secretNames.includes(r));
+  // devaudit-installer#1099 WP3: no CI workflow reads a viewer-key repo secret; one that still exists is unused.
+  const unused = devaudit.viewer_api_key_secret && secretNames.includes(devaudit.viewer_api_key_secret) ? devaudit.viewer_api_key_secret : null;
+  const unusedFindings = unused
+    ? [{
+        subject: unused,
+        detail: `repo secret ${unused} is unused (the viewer key is per person, kept locally)`,
+        remediation: { id: 'remove-unused-viewer-secret', tier: 'C' as const, summary: `Remove the unused repo secret ${unused}`, plan: [`gh secret delete ${unused}`], needsPortal: false },
+      }]
+    : [];
+  const unusedNote = unused ? `; unused and removable: ${unused}` : '';
   return missing.length === 0
-    ? { name, ok: true, detail: `all required secrets present (${required.join(', ')})`, suspectedOrigin: 'consumer-drift' }
+    ? { name, ok: true, detail: `all required secrets present (${required.join(', ')})${unusedNote}`, suspectedOrigin: 'consumer-drift', ...(unusedFindings.length > 0 ? { findings: unusedFindings } : {}) }
     : {
         name,
         ok: false,
@@ -652,7 +754,7 @@ async function checkAcceptedExceptions(): Promise<CheckResult> {
       const result = await execa(
         'gh',
         ['issue', 'list', '--label', label, '--state', 'open', '--limit', '100', '--json', 'number,title,body'],
-        { cwd: consumer.repoRoot, reject: false },
+        { cwd: consumer.repoRoot, reject: false, timeout: GH_TIMEOUT_MS },
       );
       if (result.exitCode !== 0) {
         return overdue.length > 0
@@ -683,13 +785,15 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
   const log = logger();
   const jsonMode = isJsonMode();
   if (!jsonMode) log.info('Running devaudit doctor — checking required tools...\n');
-  const checks: readonly CheckResult[] = [
-    await checkNodeVersion(),
-    await checkCommand('git', ['--version']),
-    await checkCommand('gh', ['--version']),
-    await checkCommand('jq', ['--version']),
-    await checkCommand('curl', ['--version']),
-  ];
+  // The five tool probes are independent child processes: run them together (process spawn is
+  // slow on a loaded Windows runner), report them in the usual order.
+  const checks: readonly CheckResult[] = await Promise.all([
+    timed('tool:node', () => checkNodeVersion()),
+    timed('tool:git', () => checkCommand('git', ['--version'])),
+    timed('tool:gh', () => checkCommand('gh', ['--version'])),
+    timed('tool:jq', () => checkCommand('jq', ['--version'])),
+    timed('tool:curl', () => checkCommand('curl', ['--version'])),
+  ]);
   let allOk = true;
   for (const check of checks) {
     if (!check.ok) allOk = false;
@@ -699,7 +803,7 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
     }
   }
   // Reconciliation safety-net — reported but does not gate the tool check (#60).
-  const { result: closeout, drifted: closeoutDrifted } = await checkReleaseCloseoutDrift();
+  const { result: closeout, drifted: closeoutDrifted } = await timed('closeout-drift', () => checkReleaseCloseoutDrift());
   if (!jsonMode) {
     const closeoutMarker = closeout.ok ? '✓' : '⚠';
     log.log(`  ${closeoutMarker} ${closeout.name.padEnd(8)} ${closeout.detail}`);
@@ -710,19 +814,25 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
   // Onboarding-checklist invariants — same non-gating shape as the
   // close-out check above (devaudit-installer#826, extended #867).
   const onboardingChecks: readonly CheckResult[] = [
-    await checkSrsBootstrapped(),
-    await checkRtmInitialized(),
-    await checkSemgrepAvailable(),
-    await checkE2eRegressionConsistency(),
-    await checkRequiredSecretsPresent(),
-    await checkPrePushHookPresent(),
-    await checkReconcileCliPresent(),
-    await checkSyncConflicts(),
-    await checkPatchConflicts(),
-    await checkAcceptedExceptions(),
-    await checkCommitlintConfigShadowing(),
+    await timed('srs', () => checkSrsBootstrapped()),
+    await timed('rtm', () => checkRtmInitialized()),
+    await timed('semgrep', () => checkSemgrepAvailable()),
+    await timed('e2e-regression', () => checkE2eRegressionConsistency()),
+    await timed('secrets', () => checkRequiredSecretsPresent()),
+    await timed('pre-push-hook', () => checkPrePushHookPresent()),
+    await timed('reconcile-cli', () => checkReconcileCliPresent()),
+    await timed('sync-conflicts', () => checkSyncConflicts()),
+    await timed('patch-conflicts', () => checkPatchConflicts()),
+    await timed('accepted-exceptions', () => checkAcceptedExceptions()),
+    await timed('commitlint-config-shadowing', () => checkCommitlintConfigShadowing()),
     // devaudit-installer#1040: deploy host, production URL/probe, custom deploy, CI runner.
-    ...(await configChecksFor(options.configDeps)),
+    ...(await timed('config-checks', () => configChecksFor(options.configDeps))),
+    // devaudit-installer#1099 WP5: informational, only when the variable is set.
+    ...checkPatInEnvironment(),
+    // devaudit-installer#1099 WP4: uploader / viewer key / PAT, names and statuses only.
+    await timed('credentials', () => checkCredentials(options.credentialsDeps)),
+    // devaudit-installer#1098: recommended agent deny rules, informational.
+    await timed('agent-permissions', () => checkAgentPermissions(options.agentPermissionsDeps)),
   ];
   let onboardingIssues = false;
   for (const check of onboardingChecks) {

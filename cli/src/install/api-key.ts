@@ -1,4 +1,6 @@
-import { DevAuditClient } from '../lib/devaudit-api.js';
+import { DevAuditApiError, DevAuditClient, isActiveApiKey, viewerKeyRefusal } from '../lib/devaudit-api.js';
+import { VIEWER_KEYS_FILE } from '../lib/paths.js';
+import { getStoredViewerKey, saveViewerKey, viewerKeyName } from '../lib/viewer-keys.js';
 import type { InstallContext, InstallPlan, StepResult } from './types.js';
 
 const KEY_NAME = 'Onboarding-issued';
@@ -41,57 +43,68 @@ export async function issueApiKey(ctx: InstallContext, plan: InstallPlan): Promi
   };
 }
 
-const VIEWER_KEY_NAME = 'Onboarding-issued (viewer)';
-
 /**
- * devaudit-installer#867 — a second, read-only, project-scoped API key,
- * issued only when the operator opts in via `--with-viewer-key`. Never
- * granted upload or approval rights: the portal's viewer role can only
- * reach the read-back endpoints (GET .../checks, GET .../cycles), so
- * handing this key to an agent or CI status check doesn't blur audit
- * attribution the way the uploader key would.
+ * devaudit-installer#1099 — the person's own viewer key: read-only,
+ * project-scoped, named `viewer:<user email>:<hostname>` (the portal needs a
+ * non-empty name and records the creator). Issued by default for both the
+ * operator (`install`) and a teammate (`join`) with their own PAT, then saved
+ * to `~/.config/devaudit/viewer-keys.json`. It is never written to the repo,
+ * a repo secret or `.env`, and the value is printed only with
+ * `--print-viewer-key`.
+ *
+ * A failure here never fails the run. Members may issue their own viewer keys
+ * (metasession-dev/devaudit#921); a refusal (403: the five-key cap or no access,
+ * 409: a live key of that name) is reported with the portal's own reason.
  */
 export async function issueViewerApiKey(
   ctx: InstallContext,
   plan: InstallPlan,
+  deps: { readonly save?: typeof saveViewerKey; readonly name?: () => Promise<string> } = {},
 ): Promise<StepResult> {
-  const step = "6b/12 Issue viewer-role API key";
-  if (!plan.viewerApiKeySecretName) {
-    return { step, status: 'skipped', message: 'not requested (pass --with-viewer-key to enable)' };
+  const step = '6b/12 Issue your viewer key';
+  if (!ctx.issueViewerKey) {
+    return { step, status: 'skipped', message: 'skipped (--no-viewer-key)' };
   }
-  if (ctx.installMode === 'developer') {
-    return {
-      step,
-      status: 'skipped',
-      message:
-        "developer mode — leaving the project's viewer-role API key untouched (the team key is already configured by the project operator).",
-    };
-  }
+  const name = await (deps.name ?? (() => viewerKeyName(ctx.repoRoot)))();
   if (ctx.dryRun) {
     return {
       step,
       status: 'planned',
-      message: `would issue a viewer-role API key named '${VIEWER_KEY_NAME}' on project '${plan.projectSlug}' (if not already present)`,
+      message: `would issue a viewer-role API key named '${name}' on project '${plan.projectSlug}' and save it to the CLI config folder`,
     };
   }
   if (!plan.projectId) {
     throw new Error('projectId missing from plan — step 5 must run before step 6b.');
   }
+  if (await getStoredViewerKey(ctx.baseUrl, plan.projectSlug)) {
+    return { step, status: 'ok', message: 'a viewer key for this project is already saved on this machine; left unchanged' };
+  }
   const client = new DevAuditClient({ token: ctx.token, baseUrl: ctx.baseUrl });
-  const existing = await client.listApiKeys(plan.projectId);
-  const live = existing.find((k) => k.name === VIEWER_KEY_NAME && k.revoked_at === null);
-  if (live) {
+  try {
+    const existing = await client.listApiKeys(plan.projectId);
+    if (existing.find((k) => k.name === name && isActiveApiKey(k))) {
+      return {
+        step,
+        status: 'warn',
+        message: `a live key named '${name}' exists but is not saved on this machine — revoke it in the portal and rerun, or save it with \`devaudit auth viewer-key set\``,
+      };
+    }
+    const issued = await client.issueApiKey(plan.projectId, name, 'viewer');
+    await (deps.save ?? saveViewerKey)(ctx.baseUrl, plan.projectSlug, {
+      key: issued.plainTextKey,
+      name,
+      createdAt: new Date().toISOString(),
+    });
+    plan.viewerApiKey = issued.plainTextKey;
+    return { step, status: 'ok', message: `issued '${name}' and saved to ${VIEWER_KEYS_FILE}` };
+  } catch (err) {
+    if (err instanceof DevAuditApiError && (err.status === 403 || err.status === 409)) {
+      return { step, status: 'warn', message: viewerKeyRefusal(err, name) };
+    }
     return {
       step,
       status: 'warn',
-      message: `'${VIEWER_KEY_NAME}' API key already exists — revoke it in the portal and re-run, or set ${plan.viewerApiKeySecretName} manually`,
+      message: `could not issue a viewer key (${err instanceof Error ? err.message : 'unknown error'}); rerun \`devaudit install\` or save one with \`devaudit auth viewer-key set\``,
     };
   }
-  const issued = await client.issueApiKey(plan.projectId, VIEWER_KEY_NAME, 'viewer');
-  plan.viewerApiKey = issued.plainTextKey;
-  return {
-    step,
-    status: 'ok',
-    message: `issued (will be stored as repo secret ${plan.viewerApiKeySecretName})`,
-  };
 }

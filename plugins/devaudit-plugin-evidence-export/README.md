@@ -13,17 +13,13 @@ The plugin writes a **directory tree**, not a `.zip`. If you want an archive, `z
 
 ### Lifecycle hooks
 
-- `onDoctor` — confirms `DEVAUDIT_USER_TOKEN` is set (or warns if not), so `devaudit doctor` flags the misconfiguration before someone tries to bundle.
+- `onDoctor` — confirms a personal access token is available to the plugin (from the CLI, or the legacy `DEVAUDIT_USER_TOKEN`) and warns if neither is, so `devaudit doctor` flags the misconfiguration before someone tries to bundle.
 
 ## Auth
 
-The plugin reads `DEVAUDIT_USER_TOKEN` from the environment. It deliberately does **not** read `~/.config/devaudit/auth.json` directly — that file is the CLI's domain. To use this plugin from a fresh shell:
+The plugin gets your personal access token **from the CLI**: run `devaudit auth login` once and `list` / `bundle` just work. You do not export the token into your shell, which matters because every agent session started from that shell would inherit it (`devaudit doctor` warns when `DEVAUDIT_USER_TOKEN` is set).
 
-```sh
-export DEVAUDIT_USER_TOKEN=$(jq -r '.token' ~/.config/devaudit/auth.json)
-```
-
-(Future enhancement: surface a helper from the SDK so plugins don't need to know about auth.json file layout.)
+Under the hood the plugin calls `ctx.getPersonalAuth()` from `@metasession.co/devaudit-plugin-sdk` (the CLI resolves it exactly like `devaudit auth status`: `DEVAUDIT_USER_TOKEN`, then the `auth login` cache). On a CLI too old to provide the accessor, the plugin falls back to `DEVAUDIT_USER_TOKEN`. The plugin never logs or writes the token.
 
 ## Manifest format (v0)
 

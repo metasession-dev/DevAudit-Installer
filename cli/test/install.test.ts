@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, afterEach, beforeEach, vi } from 'vitest';
 import { promises as fs } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -275,126 +275,145 @@ describe('runInstall — native TS install against a node fixture', () => {
     }
   }, 60_000);
 
-  // devaudit-installer#867: --with-viewer-key mints a second, read-only key
-  // alongside the default uploader key, stored under its own secret name.
-  it('--with-viewer-key issues a viewer-role key and stores it under its own secret', async () => {
-    const { runInstall } = await import('../src/install/index.js');
-    const dir = await buildNodeFixture();
-    await fs.writeFile(
-      join(dir, 'sdlc-config.json'),
-      JSON.stringify({ project_slug: 'fixture-app', stack: 'node', host: 'railway', node_version: '20' }),
-    );
-    try {
-      const report = await runInstall({
-        path: dir,
-        dryRun: false,
-        nonInteractive: true,
-        provider: makeFakeProvider(),
-        withViewerKey: true,
-      });
-      const stepByStart = (s: string) => report.steps.find((x) => x.step.startsWith(s));
-      expect(stepByStart('6b/')?.status).toBe('ok');
-      const written = JSON.parse(await fs.readFile(join(dir, 'sdlc-config.json'), 'utf-8'));
-      expect(written.devaudit?.viewer_api_key_secret).toBe('DEVAUDIT_VIEWER_API_KEY');
-      const secretCalls = providerCalls.filter((c) => c.method === 'setSecret');
-      const secretNames = secretCalls.map((c) => c.args[0]);
-      expect(secretNames).toContain('DEVAUDIT_VIEWER_API_KEY');
-      expect(secretNames).toContain('DEVAUDIT_API_KEY');
-      // devaudit-installer#945 — the raw value only ever exists transiently
-      // inside the CLI process (GitHub secrets are write-only), so the done
-      // report must print it exactly once, with a "won't be shown again"
-      // warning and the literal .env instruction. The mock api-keys POST
-      // endpoint (line 112-113 above) always returns 'dak_test_plain'.
-      const doneStep = report.steps.find((x) => x.step.startsWith('12/'));
-      expect(doneStep?.message).toContain('dak_test_plain');
-      expect(doneStep?.message).toContain('shown once, will not be shown again');
-      expect(doneStep?.message).toContain('echo "DEVAUDIT_VIEWER_API_KEY=dak_test_plain" >> .env');
-    } finally {
-      await fs.rm(dir, { recursive: true, force: true });
-    }
-  }, 60_000);
+  // devaudit-installer#1099: the viewer key is the person's own, issued by default, saved in the
+  // CLI config folder, never a repo secret or .env.
+  describe('per-person viewer key (#1099)', () => {
+    const cfgJson = JSON.stringify({ project_slug: 'fixture-app', stack: 'node', host: 'railway', node_version: '20' });
+    const stepByStart = (report: { steps: readonly { step: string; status: string; message?: string }[] }, s: string) =>
+      report.steps.find((x) => x.step.startsWith(s));
+    const keysFile = () => process.env['DEVAUDIT_VIEWER_KEYS_FILE']!;
 
-  it('--with-viewer-key: re-running against an already-existing viewer key does not reveal a value', async () => {
-    server.use(
-      http.get(`${BASE_URL}/api/projects/:id/api-keys`, () =>
-        HttpResponse.json([{ id: 'key-viewer', name: 'Onboarding-issued (viewer)', revoked_at: null }]),
-      ),
-    );
-    const { runInstall } = await import('../src/install/index.js');
-    const dir = await buildNodeFixture();
-    await fs.writeFile(
-      join(dir, 'sdlc-config.json'),
-      JSON.stringify({ project_slug: 'fixture-app', stack: 'node', host: 'railway', node_version: '20' }),
-    );
-    try {
-      const report = await runInstall({
-        path: dir,
-        dryRun: false,
-        nonInteractive: true,
-        provider: makeFakeProvider(),
-        withViewerKey: true,
-      });
-      const stepByStart = (s: string) => report.steps.find((x) => x.step.startsWith(s));
-      expect(stepByStart('6b/')?.status).toBe('warn');
-      const doneStep = report.steps.find((x) => x.step.startsWith('12/'));
-      expect(doneStep?.message).not.toContain('shown once, will not be shown again');
-    } finally {
-      await fs.rm(dir, { recursive: true, force: true });
-    }
-  }, 60_000);
+    beforeEach(async () => {
+      await fs.rm(keysFile(), { force: true });
+    });
 
-  it('without --with-viewer-key, no viewer key is issued or configured', async () => {
-    const { runInstall } = await import('../src/install/index.js');
-    const dir = await buildNodeFixture();
-    await fs.writeFile(
-      join(dir, 'sdlc-config.json'),
-      JSON.stringify({ project_slug: 'fixture-app', stack: 'node', host: 'railway', node_version: '20' }),
-    );
-    try {
-      const report = await runInstall({
-        path: dir,
-        dryRun: false,
-        nonInteractive: true,
-        provider: makeFakeProvider(),
-      });
-      const stepByStart = (s: string) => report.steps.find((x) => x.step.startsWith(s));
-      expect(stepByStart('6b/')?.status).toBe('skipped');
-      const written = JSON.parse(await fs.readFile(join(dir, 'sdlc-config.json'), 'utf-8'));
-      expect(written.devaudit?.viewer_api_key_secret).toBeUndefined();
-      const secretCalls = providerCalls.filter((c) => c.method === 'setSecret');
-      const secretNames = secretCalls.map((c) => c.args[0]);
-      expect(secretNames).not.toContain('DEVAUDIT_VIEWER_API_KEY');
-    } finally {
-      await fs.rm(dir, { recursive: true, force: true });
-    }
-  }, 60_000);
+    it('is issued by default, saved with owner-only permissions, and is not a repo secret or in the config', async () => {
+      const { runInstall } = await import('../src/install/index.js');
+      const { viewerKeyName } = await import('../src/lib/viewer-keys.js');
+      const dir = await buildNodeFixture();
+      await fs.writeFile(join(dir, 'sdlc-config.json'), cfgJson);
+      try {
+        const report = await runInstall({ path: dir, dryRun: false, nonInteractive: true, provider: makeFakeProvider() });
+        expect(stepByStart(report, '6b/')?.status).toBe('ok');
+        const store = JSON.parse(await fs.readFile(keysFile(), 'utf-8'));
+        const entry = store[BASE_URL]?.['fixture-app'];
+        expect(entry).toMatchObject({ key: 'dak_test_plain', name: await viewerKeyName() });
+        expect(entry.name).toMatch(/^viewer:.+:.+$/);
+        if (process.platform !== 'win32') expect((await fs.stat(keysFile())).mode & 0o777).toBe(0o600);
+        const written = JSON.parse(await fs.readFile(join(dir, 'sdlc-config.json'), 'utf-8'));
+        expect(written.devaudit?.viewer_api_key_secret).toBeUndefined();
+        const secretNames = providerCalls.filter((c) => c.method === 'setSecret').map((c) => c.args[0]);
+        expect(secretNames).not.toContain('DEVAUDIT_VIEWER_API_KEY');
+        expect(secretNames).toContain('DEVAUDIT_API_KEY');
+        // The value is never printed unless asked for.
+        expect(stepByStart(report, '12/')?.message).not.toContain('dak_test_plain');
+        expect(await fs.readFile(join(dir, '.env'), 'utf-8').catch(() => '')).not.toContain('dak_test_plain');
+      } finally {
+        await fs.rm(dir, { recursive: true, force: true });
+      }
+    }, 60_000);
 
-  it('--with-viewer-key warns and skips if a viewer key already exists', async () => {
-    server.use(
-      http.get(`${BASE_URL}/api/projects/:id/api-keys`, () =>
-        HttpResponse.json([{ id: 'key-viewer', name: 'Onboarding-issued (viewer)', revoked_at: null }]),
-      ),
-    );
-    const { runInstall } = await import('../src/install/index.js');
-    const dir = await buildNodeFixture();
-    await fs.writeFile(
-      join(dir, 'sdlc-config.json'),
-      JSON.stringify({ project_slug: 'fixture-app', stack: 'node', host: 'railway', node_version: '20' }),
-    );
-    try {
-      const report = await runInstall({
-        path: dir,
-        dryRun: false,
-        nonInteractive: true,
-        provider: makeFakeProvider(),
-        withViewerKey: true,
-      });
-      const stepByStart = (s: string) => report.steps.find((x) => x.step.startsWith(s));
-      expect(stepByStart('6b/')?.status).toBe('warn');
-    } finally {
-      await fs.rm(dir, { recursive: true, force: true });
-    }
-  }, 60_000);
+    it('--print-viewer-key shows the value once', async () => {
+      const { runInstall } = await import('../src/install/index.js');
+      const dir = await buildNodeFixture();
+      await fs.writeFile(join(dir, 'sdlc-config.json'), cfgJson);
+      try {
+        const report = await runInstall({ path: dir, dryRun: false, nonInteractive: true, provider: makeFakeProvider(), printViewerKey: true });
+        expect(stepByStart(report, '12/')?.message).toContain('dak_test_plain');
+      } finally {
+        await fs.rm(dir, { recursive: true, force: true });
+      }
+    }, 60_000);
+
+    it('--no-viewer-key issues nothing', async () => {
+      const { runInstall } = await import('../src/install/index.js');
+      const dir = await buildNodeFixture();
+      await fs.writeFile(join(dir, 'sdlc-config.json'), cfgJson);
+      try {
+        const report = await runInstall({ path: dir, dryRun: false, nonInteractive: true, provider: makeFakeProvider(), viewerKey: false });
+        expect(stepByStart(report, '6b/')?.status).toBe('skipped');
+        await expect(fs.stat(keysFile())).rejects.toThrow();
+      } finally {
+        await fs.rm(dir, { recursive: true, force: true });
+      }
+    }, 60_000);
+
+    it('a rerun with the key already saved leaves it unchanged', async () => {
+      const { runInstall } = await import('../src/install/index.js');
+      const { saveViewerKey, getStoredViewerKey } = await import('../src/lib/viewer-keys.js');
+      await saveViewerKey(BASE_URL, 'fixture-app', { key: 'saved-key', name: 'viewer:me:host', createdAt: '2026-01-01T00:00:00Z' });
+      const dir = await buildNodeFixture();
+      await fs.writeFile(join(dir, 'sdlc-config.json'), cfgJson);
+      try {
+        const report = await runInstall({ path: dir, dryRun: false, nonInteractive: true, provider: makeFakeProvider() });
+        expect(stepByStart(report, '6b/')?.status).toBe('ok');
+        expect((await getStoredViewerKey(BASE_URL, 'fixture-app'))?.key).toBe('saved-key');
+      } finally {
+        await fs.rm(dir, { recursive: true, force: true });
+      }
+    }, 60_000);
+
+    it('warns when this person already has a live key that is not saved here; nothing is revealed', async () => {
+      const { runInstall } = await import('../src/install/index.js');
+      const { viewerKeyName } = await import('../src/lib/viewer-keys.js');
+      const name = await viewerKeyName();
+      server.use(http.get(`${BASE_URL}/api/projects/:id/api-keys`, () => HttpResponse.json([{ id: 'key-viewer', name, revoked_at: null }])));
+      const dir = await buildNodeFixture();
+      await fs.writeFile(join(dir, 'sdlc-config.json'), cfgJson);
+      try {
+        const report = await runInstall({ path: dir, dryRun: false, nonInteractive: true, provider: makeFakeProvider() });
+        expect(stepByStart(report, '6b/')?.status).toBe('warn');
+        await expect(fs.stat(keysFile())).rejects.toThrow();
+      } finally {
+        await fs.rm(dir, { recursive: true, force: true });
+      }
+    }, 60_000);
+
+    it('an expired or revoked key with the same name does not block issuing a new one (#921 lists both)', async () => {
+      const { runInstall } = await import('../src/install/index.js');
+      const { viewerKeyName, getStoredViewerKey } = await import('../src/lib/viewer-keys.js');
+      const name = await viewerKeyName();
+      server.use(http.get(`${BASE_URL}/api/projects/:id/api-keys`, () => HttpResponse.json([
+        { id: 'old-expired', name, revoked_at: null, expires_at: '2020-01-01T00:00:00Z' },
+        { id: 'old-revoked', name, revoked_at: '2026-01-01T00:00:00Z', expires_at: null },
+      ])));
+      const dir = await buildNodeFixture();
+      await fs.writeFile(join(dir, 'sdlc-config.json'), cfgJson);
+      try {
+        const report = await runInstall({ path: dir, dryRun: false, nonInteractive: true, provider: makeFakeProvider() });
+        expect(stepByStart(report, '6b/')?.status).toBe('ok');
+        expect((await getStoredViewerKey(BASE_URL, 'fixture-app'))?.key).toBe('dak_test_plain');
+      } finally {
+        await fs.rm(dir, { recursive: true, force: true });
+      }
+    }, 60_000);
+
+    it.each([
+      // metasession-dev/devaudit#921: a 403 for a viewer key is the five-key cap or no access; the portal's own reason is shown.
+      [403, { error: 'You already have 5 active keys; revoke one first' }, /\(403\): You already have 5 active keys/],
+      [403, {}, /\(403\): check your access to this project with a project admin/],
+      [409, { error: 'You already have an active key with this name' }, /already exists on the portal \(409\)/],
+    ])('a refused request (%i) is a warning with the reason, never a failed install', async (status, body, re) => {
+      const { runInstall } = await import('../src/install/index.js');
+      server.use(
+        http.post(`${BASE_URL}/api/projects/:id/api-keys`, async ({ request }) => {
+          const req = (await request.json()) as { role?: string };
+          if (req.role === 'viewer') return HttpResponse.json(body, { status });
+          return HttpResponse.json({ id: 'key-1', name: 'Onboarding-issued', plainTextKey: 'dak_test_plain' }, { status: 201 });
+        }),
+      );
+      const dir = await buildNodeFixture();
+      await fs.writeFile(join(dir, 'sdlc-config.json'), cfgJson);
+      try {
+        const report = await runInstall({ path: dir, dryRun: false, nonInteractive: true, provider: makeFakeProvider() });
+        const six = stepByStart(report, '6b/');
+        expect(six?.status).toBe('warn');
+        expect(six?.message).toMatch(re);
+      } finally {
+        await fs.rm(dir, { recursive: true, force: true });
+      }
+    }, 60_000);
+  });
 
   // devaudit#731 regression: branch protection must key off the config's own
   // release_branch, not the GitHub-reported default branch. Before this fix,

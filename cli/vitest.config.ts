@@ -9,6 +9,7 @@ export default defineConfig({
     testTimeout: 30_000,
     include: ['test/**/*.test.ts'],
     globalSetup: ['test/global-setup.ts'],
+    setupFiles: ['test/setup-viewer-keys.ts', 'test/setup-hermetic-env.ts'],
     coverage: {
       reporter: ['text', 'html'],
       include: ['src/**/*.ts'],

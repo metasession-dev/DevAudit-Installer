@@ -16,7 +16,7 @@ interface LoggerCapture {
   readonly debug: string[];
 }
 
-function makeCtx(events: PluginEvent[] = []): { ctx: PluginContext; capture: LoggerCapture } {
+function makeCtx(events: PluginEvent[] = [], auth?: () => Promise<{ token: string; baseUrl: string } | null>): { ctx: PluginContext; capture: LoggerCapture } {
   const capture: LoggerCapture = { info: [], warn: [], error: [], debug: [] };
   const ctx: PluginContext = {
     projectPath: '/tmp',
@@ -29,6 +29,7 @@ function makeCtx(events: PluginEvent[] = []): { ctx: PluginContext; capture: Log
     },
     apiVersion: '1',
     emit: (e) => events.push(e),
+    ...(auth ? { getPersonalAuth: auth } : {}),
   };
   return { ctx, capture };
 }
@@ -98,15 +99,46 @@ describe('list command', () => {
     expect(capture.error[0]).toMatch(/Usage:/);
   });
 
-  it('errors clearly when DEVAUDIT_USER_TOKEN is missing', async () => {
+  it('errors clearly when no token is available from the CLI or the environment', async () => {
     delete process.env['DEVAUDIT_USER_TOKEN'];
     try {
       const { list } = await import('../src/commands/list.js');
-      const { ctx } = makeCtx();
-      await expect(list(ctx, ['fixture'])).rejects.toThrow(/DEVAUDIT_USER_TOKEN/);
+      const { ctx } = makeCtx([], async () => null);
+      await expect(list(ctx, ['fixture'])).rejects.toThrow(/devaudit auth login/);
+      // No accessor (an older CLI) and no env var: same message.
+      const { ctx: old } = makeCtx();
+      await expect(list(old, ['fixture'])).rejects.toThrow(/devaudit auth login/);
     } finally {
       process.env['DEVAUDIT_USER_TOKEN'] = 'mctok_test_fixture';
     }
+  });
+
+  it('uses the CLI-provided token and never needs DEVAUDIT_USER_TOKEN (#1100)', async () => {
+    delete process.env['DEVAUDIT_USER_TOKEN'];
+    try {
+      const seen: Array<string | null> = [];
+      server.use(
+        http.get(`${BASE_URL}/api/evidence`, ({ request }) => {
+          seen.push(request.headers.get('x-devaudit-token') ?? request.headers.get('authorization'));
+          return HttpResponse.json([{ requirement_id: 'REQ-001', evidence_count: 1, latest_upload: null }]);
+        }),
+      );
+      const { list } = await import('../src/commands/list.js');
+      const { ctx, capture } = makeCtx([], async () => ({ token: 'mctok_from_cli', baseUrl: BASE_URL }));
+      await list(ctx, ['fixture']);
+      expect(seen.length).toBe(1);
+      expect(String(seen[0])).toContain('mctok_from_cli');
+      // The token is never logged.
+      expect(JSON.stringify(capture)).not.toContain('mctok_from_cli');
+    } finally {
+      process.env['DEVAUDIT_USER_TOKEN'] = 'mctok_test_fixture';
+    }
+  });
+
+  it('falls back to DEVAUDIT_USER_TOKEN when the CLI has no accessor', async () => {
+    const { resolveAuth } = await import('../src/util/token.js');
+    const { ctx } = makeCtx();
+    await expect(resolveAuth(ctx, BASE_URL)).resolves.toMatchObject({ token: 'mctok_test_fixture', baseUrl: BASE_URL });
   });
 
   it('surfaces portal 401s', async () => {
@@ -172,13 +204,18 @@ describe('bundle command', () => {
 });
 
 describe('onDoctor hook', () => {
-  it('warns when token is missing', async () => {
+  it('warns only when neither the CLI nor the environment has a token', async () => {
     delete process.env['DEVAUDIT_USER_TOKEN'];
     try {
       const { onDoctor } = await import('../src/hooks/on-doctor.js');
-      const { ctx, capture } = makeCtx();
+      const { ctx, capture } = makeCtx([], async () => null);
       await onDoctor(ctx);
-      expect(capture.warn[0]).toMatch(/not set/);
+      expect(capture.warn[0]).toMatch(/no personal access token/);
+      // The CLI has a token and the env var is unset: no warning.
+      const { ctx: ctx2, capture: capture2 } = makeCtx([], async () => ({ token: 't', baseUrl: BASE_URL }));
+      await onDoctor(ctx2);
+      expect(capture2.warn).toEqual([]);
+      expect(capture2.info[0]).toMatch(/available/);
     } finally {
       process.env['DEVAUDIT_USER_TOKEN'] = 'mctok_test_fixture';
     }
@@ -188,6 +225,6 @@ describe('onDoctor hook', () => {
     const { onDoctor } = await import('../src/hooks/on-doctor.js');
     const { ctx, capture } = makeCtx();
     await onDoctor(ctx);
-    expect(capture.info[0]).toMatch(/present/);
+    expect(capture.info[0]).toMatch(/available/);
   });
 });

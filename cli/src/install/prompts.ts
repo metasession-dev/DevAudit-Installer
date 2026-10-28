@@ -11,7 +11,6 @@ const NODE_DEFAULTS = { runtimeVersion: '20', sourceDirs: 'app/ lib/' };
 const PYTHON_DEFAULTS = { runtimeVersion: '3.11', sourceDirs: 'src/ tests/' };
 
 const DEFAULT_API_KEY_SECRET = 'DEVAUDIT_API_KEY';
-const DEFAULT_VIEWER_API_KEY_SECRET = 'DEVAUDIT_VIEWER_API_KEY';
 
 function defaultSlug(projectName: string): string {
   return projectName
@@ -48,43 +47,18 @@ function existingApiKeySecretNames(cfg: SdlcConfig | null): Set<string> {
   );
 }
 
-/** Same collision-avoidance rule as `apiKeySecretNameFor`, for the viewer key. */
-function viewerApiKeySecretNameFor(slug: string, takenNames: ReadonlySet<string>): string {
-  const base = slug.toUpperCase().replace(/-/g, '_') + '_VIEWER_API_KEY';
-  if (!takenNames.has(base)) return base;
-  let n = 2;
-  while (takenNames.has(`${base}_${n}`)) n += 1;
-  return `${base}_${n}`;
-}
-
-function existingViewerApiKeySecretNames(cfg: SdlcConfig | null): Set<string> {
-  if (!cfg) return new Set();
-  return new Set(
-    resolveTargets(cfg)
-      .map((t) => t.devaudit?.viewer_api_key_secret)
-      .filter((name): name is string => Boolean(name)),
-  );
-}
-
 /**
- * Resolve the viewer-key secret name for this plan, or `undefined` if no
- * viewer key is (or should be) configured for this target. A viewer key
- * stays configured across re-runs once issued (mirrors `apiKeySecretName`'s
- * persistence), even on a run that doesn't pass `--with-viewer-key` again.
+ * A viewer-key repo secret name already in `sdlc-config.json` is carried
+ * through so a rewrite does not drop it; none is ever created (#1099: the
+ * viewer key is per person and lives in the CLI config folder).
  */
 function resolveViewerApiKeySecretName(
-  ctx: InstallContext,
-  slug: string,
-  existing: SdlcConfig | null,
+  _ctx: InstallContext,
+  _slug: string,
+  _existing: SdlcConfig | null,
   existingSingleTargetSecret?: string,
 ): string | undefined {
-  if (ctx.addTarget) {
-    const taken = existingViewerApiKeySecretNames(existing);
-    if (!ctx.withViewerKey && taken.size === 0) return undefined;
-    return viewerApiKeySecretNameFor(slug, taken);
-  }
-  if (existingSingleTargetSecret) return existingSingleTargetSecret;
-  return ctx.withViewerKey ? DEFAULT_VIEWER_API_KEY_SECRET : undefined;
+  return existingSingleTargetSecret;
 }
 
 export async function collectPlan(

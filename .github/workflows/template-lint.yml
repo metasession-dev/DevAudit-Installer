@@ -23,6 +23,11 @@ on:
       - 'docs/release-playbooks/**'
       - 'docs/change-workflows.md'
       - 'scripts/release-playbook-contract.test.sh'
+      - 'scripts/release-procedure-contract.test.sh'
+      - 'docs/devaudit-release-procedure.md'
+      - 'docs/release-validation-plan.md'
+      - '.claude/commands/release-devaudit.md'
+      - '.devin/workflows/devaudit-build-release.md'
       - 'scripts/release-routing-contract.test.sh'
       - 'scripts/action-runtime-contract.test.sh'
       - 'scripts/check-recovery-workflow.test.sh'
@@ -34,6 +39,8 @@ on:
       - 'scripts/lint-shell-failure-modes.test.sh'
       - 'scripts/release-validation.sh'
       - 'scripts/release-validation.test.sh'
+      - 'scripts/check-package-contents.sh'
+      - 'scripts/check-package-contents.test.sh'
       - 'scripts/runner-host/**'
       - 'tests/release-pipeline-e2e/**'
       - '.github/workflows/template-lint.yml'
@@ -48,6 +55,11 @@ on:
       - 'docs/release-playbooks/**'
       - 'docs/change-workflows.md'
       - 'scripts/release-playbook-contract.test.sh'
+      - 'scripts/release-procedure-contract.test.sh'
+      - 'docs/devaudit-release-procedure.md'
+      - 'docs/release-validation-plan.md'
+      - '.claude/commands/release-devaudit.md'
+      - '.devin/workflows/devaudit-build-release.md'
       - 'scripts/release-routing-contract.test.sh'
       - 'scripts/action-runtime-contract.test.sh'
       - 'scripts/check-recovery-workflow.test.sh'
@@ -59,6 +71,8 @@ on:
       - 'scripts/lint-shell-failure-modes.test.sh'
       - 'scripts/release-validation.sh'
       - 'scripts/release-validation.test.sh'
+      - 'scripts/check-package-contents.sh'
+      - 'scripts/check-package-contents.test.sh'
       - 'scripts/runner-host/**'
       - 'tests/release-pipeline-e2e/**'
       - '.github/workflows/template-lint.yml'
@@ -132,6 +146,11 @@ jobs:
           chmod +x sdlc/files/_common/scripts/is-transport-layer-req.sh
           bash sdlc/files/_common/scripts/is-transport-layer-req.test.sh
 
+      - name: Run REQ title tag check tests (devaudit-installer#1095)
+        run: |
+          chmod +x sdlc/files/_common/scripts/check-req-title-tags.sh
+          bash sdlc/files/_common/scripts/check-req-title-tags.test.sh
+
       - name: Run test tier script tests (devaudit-installer#1060)
         run: |
           chmod +x sdlc/files/_common/scripts/run-test-tier.sh
@@ -185,6 +204,8 @@ jobs:
           bash scripts/runner-host/runner-host.test.sh
           bash scripts/lint-shell-failure-modes.test.sh
           bash scripts/release-validation.test.sh
+          bash scripts/check-package-contents.test.sh
+          bash scripts/release-procedure-contract.test.sh
           bash scripts/lint-shell-failure-modes.sh sdlc/files
 
       - name: Run extract-release-metadata tests

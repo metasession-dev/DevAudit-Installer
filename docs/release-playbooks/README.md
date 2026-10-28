@@ -288,26 +288,18 @@ The repository record uses this shape:
 
 Submitting a release for UAT review is not the same thing as executing or
 passing UAT. For every tracked release, the reviewer must complete the UAT
-activity and record a first-class Stage 4 execution before clicking approve.
-Use the generated helper:
+activity and record it in the portal before clicking approve. Recording UAT,
+submitting for UAT review, approving and marking released are portal actions
+done by a person under their own login, on the release page
+(`<base_url>/projects/<slug>/releases/<id>`). They are not scripts: the
+`record-uat-execution.sh` and `submit-for-uat-review.sh` helpers were retired
+(devaudit-installer#1099) because they needed the CI-only uploader key.
 
-```bash
-./scripts/record-uat-execution.sh \
-  --project-slug <project-slug> \
-  --release REQ-XXX \
-  --outcome passed \
-  --executor "<reviewer identity>" \
-  --tested-sha <sha-under-review> \
-  --checklist-ref "<uat checklist or portal note>" \
-  --evidence-ref "<supporting evidence path or URL>"
-```
-
-Use `--outcome failed --remediation-ref <issue-or-pr>` when UAT finds a defect
-or missing acceptance criterion. The command records a deterministic
-`sdlcStage=4`, `environment=uat`, `suiteKind=uat` lifecycle pair through
-`scripts/report-test-execution.sh`; rerunning the same execution updates the same
-record instead of creating duplicate passed rows. UAT approval is allowed only
-after a successful Stage 4 UAT execution exists for the release under review.
+Before submitting, `devaudit release check` confirms the working tree, the
+integration branch, CI on its head, the release ticket and the portal state
+(read-only, with your viewer key). Record a failed UAT with a remediation
+reference (an issue or PR) and return to the change-request loop. UAT approval is
+allowed only after UAT has been recorded for the release under review.
 
 When full regression is triggered by a successful production
 `deployment_status`, its evidence importer must record it as Stage 5 production

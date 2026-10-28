@@ -82,7 +82,7 @@ This repository uses a **GitFlow** branching model. AI agents (Claude Code, Curs
 
 ## Syncing Templates to Consuming Projects
 
-Before syncing, publish the new version to npm — run `/release-devaudit` (`.claude/commands/release-devaudit.md`), which drives the full verify/build/publish pipeline.
+Before syncing, publish the new version to npm — run `/release-devaudit` (`.claude/commands/release-devaudit.md`), which follows the canonical procedure in [docs/devaudit-release-procedure.md](../docs/devaudit-release-procedure.md).
 
 After updating SDLC templates, sync to consuming projects:
 

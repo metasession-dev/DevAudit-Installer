@@ -73,6 +73,26 @@ describe('deferRelease / resumeRelease', () => {
     expect(err.message).not.toContain(PAT);
   });
 
+  it('treats a sign-in redirect as "route does not accept a PAT", never success (#1099 WP5)', async () => {
+    server.use(http.post(`${BASE}/api/releases/:id/defer`, () => HttpResponse.redirect(`${BASE}/auth/sign-in`, 307)));
+    const err = await deferRelease(ctx, 'rel-1', { reason: 'x' }).catch((e) => e);
+    expect(err).toBeInstanceOf(DeferralApiError);
+    expect(err.kind).toBe('unsupported-auth');
+    expect(err.message).toMatch(/does not accept a personal access token; use the portal UI/);
+  });
+
+  it('treats a 2xx HTML body as unsupported-auth', async () => {
+    server.use(http.post(`${BASE}/api/releases/:id/resume`, () => new HttpResponse('<html>Sign in</html>', { status: 200, headers: { 'content-type': 'text/html' } })));
+    const err = await resumeRelease(ctx, 'rel-1').catch((e) => e);
+    expect(err.kind).toBe('unsupported-auth');
+  });
+
+  it('treats a 2xx JSON body without `status` as unsupported-auth', async () => {
+    stub('defer', 200, { ok: true });
+    const err = await deferRelease(ctx, 'rel-1', { reason: 'x' }).catch((e) => e);
+    expect(err.kind).toBe('unsupported-auth');
+  });
+
   it('times out', async () => {
     server.use(http.post(`${BASE}/api/releases/:id/defer`, async () => new Promise(() => {})));
     const err = await deferRelease({ ...ctx, timeoutMs: 50 }, 'r', { reason: 'x' }).catch((e) => e);

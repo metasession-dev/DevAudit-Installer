@@ -116,6 +116,20 @@ So if `e2e_env` carries credentials for a shared or real backend, in `e2e-regres
 
 When `e2e_env` carries real credentials, your Playwright `globalSetup` / `globalTeardown` (including legacy ones written when E2E only ever ran against a disposable local stack) run against **that backend**. In one consumer this meant a legacy global setup that created an admin user with a known password and a global teardown that deleted organisations by name, both of which would have executed against the real service. Before enabling, read your global setup and teardown, and guard or remove anything that creates privileged users, resets data, or deletes by name. Prefer a disposable backend (see [`e2e-local-db-ci.md`](./e2e-local-db-ci.md)).
 
+### Which runs count before approval
+
+The portal marks an acceptance criterion "tested" only from Playwright JSON results (`e2e_result` / `test_report`) whose test is tagged to that AC. Screenshots alone leave it "untested". Three runs upload results before a release is approved:
+
+1. **The feature-PR run** (`feature-e2e.yml`): `npx playwright test --grep "<REQ>"` with no `--project`, so every Playwright project runs, `regression` included; the title selects the test (next section). Results are uploaded as `e2e_result`.
+2. **The smoke run on the integration-branch push** (`ci.yml`): the `e2e_project` only.
+3. **The release-PR gate tier** (`e2e-regression.yml`): `critical` by default, per `release_gate_tier`.
+
+`devaudit doctor` (`test-tiers`) now reads each in-flight requirement's plan (`## 1. Goal + acceptance criteria`, `AC<n>` rows; `@e2e-deferred` rows skipped), lists the project tests with `playwright test --list --reporter=json` and reports per AC: **covered**; **screenshot-but-no-test** (a `compliance/evidence/<REQ>/screenshots/<REQ>-AC<n>-*.png` but no test titled `[REQ-XXX][ACn]`); **no-test**; or **covered, not re-run on the release PR** (information: its only test is in a project outside the smoke and release-gate projects). The first two are tier C findings with three options: add or retitle a test, raise the gate (`devaudit configure set release_gate_tier full`), or mark the AC not applicable on the portal with a reason. The check is static and local (no portal call, no PAT), never blocks a release, and is skipped for non-Playwright runners. The `sdlc-implementer` skill lists the findings in the Phase 4 handoff.
+
+### Tagging for the feature run: the title carries the id
+
+The feature-PR run selects tests with `--grep REQ-XXX`, which matches the **test title** (including enclosing `describe` titles), never an annotation. So every Playwright test covering a requirement needs both: `[REQ-XXX]` (and `[ACn]` where it proves an AC) in the title or a describe, **and** `tagTest('REQ-XXX', n)` in the body (the portal's join key). A test with only the annotation is silently left out of the feature run. `scripts/check-req-title-tags.sh [--req REQ-XXX]` reports every `tagTest()` call whose test and describes lack the id (`file:line: ...`, exit 1); the `e2e-test-engineer` skill runs it in Phase 5½ and does not continue while it reports offenders. It parses titles statically, so titles built at run time are not supported, and `REQ-11` does not satisfy `REQ-111`. Running whole spec files instead is possible through `test_feature_command` and is not the default.
+
 ### `feature-e2e.yml` runs every Playwright project
 
 `feature-e2e.yml` runs `npx playwright test --grep "$REQ_ID"` with **no `--project` flag**, so every project defined in your `playwright.config.ts` runs there, not only the one named in `e2e_project`. (`ci.yml` passes `--project=<e2e_project>`; `e2e-regression.yml` passes the tier's project.) A project that must not run in that workflow, for example a destructive `regression` project or one that needs a backend the feature job does not have, needs a guard in the config. `GITHUB_WORKFLOW` holds the workflow's `name:`, which is `Feature In-Scope E2E` for this workflow:

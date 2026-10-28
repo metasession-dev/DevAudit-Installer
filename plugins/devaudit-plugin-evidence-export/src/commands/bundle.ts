@@ -71,7 +71,7 @@ export async function bundle(ctx: PluginContext, args: readonly string[]): Promi
     return;
   }
   const sdlcBaseUrl = (ctx.sdlcConfig['devaudit'] as { base_url?: string } | undefined)?.base_url;
-  const { token, baseUrl } = resolveAuth(sdlcBaseUrl);
+  const { token, baseUrl } = await resolveAuth(ctx, sdlcBaseUrl);
   const api = new EvidenceApi({ token, baseUrl });
   await fs.mkdir(parsed.outputDir, { recursive: true });
   const summaries = await api.listRequirements(parsed.projectSlug);

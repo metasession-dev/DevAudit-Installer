@@ -14,10 +14,19 @@ it.
 
 ## When to run it
 
-- On the release candidate: `develop` at the commit you intend to promote,
-  with every PR for the release merged.
+[`devaudit-release-procedure.md`](./devaudit-release-procedure.md) says where this
+sits in a release (Phase 2). In short:
+
+- On the release candidate: `develop` at the commit you intend to promote, **after**
+  the version bump, with every PR for the release merged. It takes about 20 minutes.
 - Again after any fix merged in response to a finding.
-- Not needed for a docs-only release, but run layer 1 anyway.
+
+| Release type | Run |
+| --- | --- |
+| Minor or major | `all` (every consumer, fixtures, 2b) |
+| Patch from `develop` | `all` (consumers update either way) |
+| Docs-only | `layer1` |
+| Hotfix from `main` | `layer1`, `layer2b` and at least one consumer, with the reason recorded on the pull request |
 
 ## Who runs it and where
 
@@ -60,12 +69,18 @@ The gate never writes to a consumer repository or to the portal:
 | Check | What | Blocks the release |
 | --- | --- | --- |
 | `typecheck` | `cli` `tsc --noEmit` | yes |
+| `test-typecheck` | `cli` `tsc --noEmit -p tsconfig.test.json` (CI type-checks the test files too) | yes |
 | `versions-aligned` | all 5 packages share one version | no (WARN before the bump) |
-| `vitest` | full `cli` vitest suite | yes |
-| `shell-tests` | every `sdlc/files/_common/scripts/*.test.sh` and `scripts/*.test.sh` | yes |
+| `vitest` | full `cli` vitest suite, run from `cli/`; the whole output is kept in `$WORK_DIR/vitest.log` and the failing test names are listed in the record and in `results.md` | yes |
+| `shell-tests` | every `sdlc/files/_common/scripts/*.test.sh` and `scripts/*.test.sh`; each one's output is kept in `$WORK_DIR/shell-tests/` | yes |
+| `adapters` | `node scripts/validate-adapter.cjs --all` | yes |
 | `no-skip-ci-guidance` | no operator-facing guidance (`cli/src`, `sdlc/`, `docs/` outside `issues/` and `articles/`, `README.md`) recommends a skip-CI tag on a commit that goes through a PR: GitHub then runs no workflows, the required `Quality Gates` check is never created and the PR stays BLOCKED (#1020) | yes |
 | `mock-portal-lifecycle` | `tests/release-pipeline-e2e/run.sh` against `mock-portal.mjs` | yes |
 | `pack-install` | `npm pack` the CLI, install the tarball into an empty prefix, `devaudit --version` matches | yes |
+| `package-contents` | `scripts/check-package-contents.sh`: each of the five tarballs holds its `main` / `bin` / `types` entries and README, the CLI also `dist/`, the SDLC engine, the upload script, at least 6 blueprints and 9 skills, and none holds an env or `*.local` file. It replaces the hand-rolled bundle check | yes |
+| `lockfiles-restored` | any lockfile layer 1 rewrote (installs, builds) is restored, so the validated commit is unchanged | no (reported, always PASS) |
+
+A layer-1 failure does **not** stop the run: the consumer layers still run and everything is reported, but the overall result fails.
 
 Layer 1 has no tolerated failures: every check must pass. (`cli` tests that spawn `dist/` rebuild it first when `src/` is newer, so a stale local build cannot fail them.)
 
@@ -160,8 +175,19 @@ some-python-consumer python
 Build it from the projects you can see (`devaudit doctor --fleet`, or the
 portal's project list). `RV_CONSUMERS_FILE` points at another file. `all` with
 no names validates every consumer in the list; a consumer whose repo you cannot
-clone is reported, not fatal. Results and work directories stay local; when you
-paste results on a PR or issue, replace consumer names with generic labels.
+clone is reported, not fatal.
+
+**From a linked worktree the file is invisible**, because it is gitignored and
+lives only in the main checkout. Set
+`RV_CONSUMERS_FILE=<main checkout>/scripts/release-validation/consumers.local`.
+`all` with no names and no consumers file **fails** (`installer consumers FAIL`),
+unless you pass `--no-consumers` to skip consumers on purpose (a `SKIP` row; the
+result is then incomplete for a release). A result without consumer and layer-2b
+clone rows is incomplete whatever its exit code says.
+
+Results and work directories stay local. `results.md` names consumers, so
+**never attach it to a public pull request or issue**: report counts only (PASS / WARN /
+FAIL per layer, number of consumers) and replace consumer names with generic labels.
 
 ### Fresh-onboard fixtures
 
@@ -187,6 +213,8 @@ derivation, test-execution reporting and close-out.
 ```bash
 # everything (layer 1, every consumer in consumers.local, both fixtures, layer 2b)
 scripts/release-validation.sh all
+# the same without consumers, on purpose (an incomplete result)
+scripts/release-validation.sh all --no-consumers
 
 # one part
 scripts/release-validation.sh layer1
@@ -210,6 +238,12 @@ Paste `results.md` on the release PR (or the release umbrella issue) with:
 
 A release is ready when no check fails. A `WARN` needs a written
 disposition, not a fix.
+
+**Classify each FAIL as installer-owned or consumer-owned** by checking whether the
+template involved changed since the last release tag. Consumer-owned stale files
+that `update` keeps as conflicts (`*.devaudit-new`) are not installer defects.
+**Re-clone before concluding on a deferral-gate FAIL**: a snapshot goes stale when the
+consumer closes out in the meantime.
 
 ## Blocking vs advisory
 
