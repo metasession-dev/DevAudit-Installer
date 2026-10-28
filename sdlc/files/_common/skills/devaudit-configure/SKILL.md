@@ -94,8 +94,13 @@ Check that the findings you fixed now pass and nothing new appeared. Review the 
 
 Commit `sdlc-config.json` and the regenerated files on the fix branch, with a message that names the change and, for a contradicted value, the reason. Open a PR to the integration branch listing: what changed, the evidence, the secrets the operator added (names only), and the doctor result after the change.
 
+### 8. Mention the agent permission rules, once
+
+If `devaudit doctor` reports `agent-permissions` as missing rules, tell the operator in one sentence that `docs/agent-permissions.md` has the recommended rules that keep agent sessions away from their personal access token, and that adding them is their choice. Never edit their agent settings (`.claude/settings.json`, `~/.claude/settings.json`) yourself and never write the credential folder rules for them.
+
 ## What this skill does not do
 
 - Change portal state, releases or approvals.
+- Edit the operator's agent permission settings.
 - Set environment variables or settings in the hosting provider (Vercel, Railway, AWS); it tells the operator what the gates need from them.
 - Change keys `configure` does not manage. `devaudit configure get <key>` says whether a key is managed; `e2e_regression_enabled` is changed with `devaudit update --enable-e2e-regression` / `--disable-e2e-regression`.
