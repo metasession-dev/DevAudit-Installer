@@ -11,6 +11,10 @@ Current reference for the four credentials DevAudit uses and where each one live
 
 The portal enforces the split: every `/api/ci/*` route accepts API keys only, and a PAT is accepted only on `/api/projects`, `/api/projects/{id}/api-keys` and `/api/releases/{id}/submit-review`. The other release actions are session-only today, and a PAT sent to one of them is redirected to the HTML sign-in page rather than answered with 401 (the CLI reports that as "this portal route does not accept a personal access token; use the portal UI").
 
+## Keeping agent sessions away from the PAT (recommended)
+
+The skill text, the interactive-only `doctor --fix` and the `doctor` warning are the first three layers. The fourth, recommended and not required, is a set of agent permission rules that refuse the PAT commands and reads of this credential folder even if a skill is ignored or a prompt is injected: [`agent-permissions.md`](./agent-permissions.md) has the copy-paste Claude Code rules (tested on a real agent), what the other agents document, and the limits. It is defence in depth, not a sandbox; `devaudit doctor` only reports whether the rules are present.
+
 ## Who does what, step by step
 
 Reproduced from Phase 0 of the `sdlc-implementer` skill, which holds the canonical copy.

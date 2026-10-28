@@ -17,6 +17,7 @@ import {
   type CredentialsDeps,
 } from '../lib/credentials-check.js';
 import { makeTimer } from '../lib/timing.js';
+import { agentPermissionsReport, type AgentPermissionsDeps } from '../lib/agent-permissions.js';
 import { buildDeferralContext, runDeferralChecks } from './doctor-deferral.js';
 import { FIX_EXIT_UNAPPLIED, runFix, type FixDeps, type FixReport } from './doctor-fix.js';
 import { commitsInRange, refExists, reqHasCommits } from '../lib/req-commits.js';
@@ -38,6 +39,8 @@ export interface DoctorOptions {
   readonly configDeps?: ConfigCheckDeps;
   /** Test seam for the #1099 `credentials` check (no network in tests). */
   readonly credentialsDeps?: CredentialsDeps;
+  /** Test seam for the #1098 `agent-permissions` check (no reads of the real home in tests). */
+  readonly agentPermissionsDeps?: Partial<AgentPermissionsDeps>;
 }
 
 /**
@@ -239,6 +242,45 @@ function checkPatInEnvironment(env: NodeJS.ProcessEnv = process.env): CheckResul
       suspectedOrigin: 'unknown',
     },
   ];
+}
+
+/**
+ * devaudit-installer#1098 — layer 4 of the credential model, recommended and informational: are the
+ * Claude Code deny rules that keep an agent session away from the PAT present? Reads settings files
+ * only; the installer never writes a user's agent settings. Never fails the run (`ok` stays true).
+ */
+async function checkAgentPermissions(deps?: Partial<AgentPermissionsDeps>): Promise<CheckResult> {
+  const name = 'agent-permissions';
+  const consumer = await readConsumerConfig();
+  if (!consumer) return { name, ok: true, detail: 'skipped (not a consumer project)', suspectedOrigin: 'unknown' };
+  try {
+    const r = await agentPermissionsReport({ repoRoot: consumer.repoRoot, ...deps });
+    if (r.missingGroups.length === 0) {
+      return { name, ok: true, detail: `Claude Code: all ${r.total} recommended deny rules present (PAT commands, credential store); other agents: not checked`, suspectedOrigin: 'unknown' };
+    }
+    const where = r.files.length === 0 ? 'no Claude Code settings file found' : `${r.present} of ${r.total} recommended deny rules present; missing: ${r.missingGroups.join(', ')}`;
+    return {
+      name,
+      ok: true,
+      detail: `Claude Code: ${where} (recommended, not required: keeps agent sessions away from your PAT; see docs/agent-permissions.md); other agents: not checked`,
+      suspectedOrigin: 'unknown',
+      findings: [
+        {
+          subject: 'agent-permissions',
+          detail: `recommended agent deny rules are missing (${r.missingGroups.join(', ')})`,
+          remediation: {
+            id: 'add-agent-permission-rules',
+            tier: 'C',
+            summary: 'Add the recommended agent permission rules',
+            plan: ['copy the snippet from docs/agent-permissions.md into .claude/settings.json (this project) or ~/.claude/settings.json (all your projects); devaudit never edits your agent settings'],
+            needsPortal: false,
+          },
+        },
+      ],
+    };
+  } catch {
+    return { name, ok: true, detail: 'skipped (unexpected error reading local state)', suspectedOrigin: 'unknown' };
+  }
 }
 
 async function checkCredentials(deps?: CredentialsDeps): Promise<CheckResult> {
@@ -789,6 +831,8 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
     ...checkPatInEnvironment(),
     // devaudit-installer#1099 WP4: uploader / viewer key / PAT, names and statuses only.
     await timed('credentials', () => checkCredentials(options.credentialsDeps)),
+    // devaudit-installer#1098: recommended agent deny rules, informational.
+    await timed('agent-permissions', () => checkAgentPermissions(options.agentPermissionsDeps)),
   ];
   let onboardingIssues = false;
   for (const check of onboardingChecks) {

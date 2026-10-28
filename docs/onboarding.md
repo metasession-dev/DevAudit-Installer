@@ -162,7 +162,7 @@ From the next requirement onward, use the **Requirement** issue template instead
 
 ## Your viewer key and the other credentials
 
-`DEVAUDIT_API_KEY`, the key `install` issues for CI, is the uploader key: **CI only**, never exported locally and never handed to an agent. Reads of portal state use your own **viewer key**, issued by default by `install` and `join` and saved in `~/.config/devaudit/viewer-keys.json`. The full model (who holds which credential, where it lives, lookup order, rotate and revoke, what to do when someone leaves) is in [`credentials.md`](./credentials.md).
+`DEVAUDIT_API_KEY`, the key `install` issues for CI, is the uploader key: **CI only**, never exported locally and never handed to an agent. Reads of portal state use your own **viewer key**, issued by default by `install` and `join` and saved in `~/.config/devaudit/viewer-keys.json`. The full model (who holds which credential, where it lives, lookup order, rotate and revoke, what to do when someone leaves) is in [`credentials.md`](./credentials.md). If AI coding agents work in this project, also add the recommended permission rules that keep their sessions away from your PAT: [`agent-permissions.md`](./agent-permissions.md) (optional; `devaudit doctor` tells you whether they are in place).
 
 Retrofitting a project that was onboarded before the viewer key was per person: run `devaudit join` (or `devaudit auth viewer-key set` if you already have a key).
 

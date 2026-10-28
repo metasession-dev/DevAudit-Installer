@@ -55,6 +55,42 @@ describe('devaudit doctor', () => {
     expect(() => JSON.parse(timed.stdout)).not.toThrow();
   }, 60_000);
 
+  it('agent-permissions: reports the recommended rules from a temporary home, informational and read-only (#1098)', async () => {
+    const { mkdtemp, mkdir, writeFile, readFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const { claudeCodeSettingsSnippet } = await import('../src/lib/agent-permissions.js');
+    const repo = await mkdtemp(join(tmpdir(), 'devaudit-doctor-agentperm-'));
+    await writeFile(join(repo, 'sdlc-config.json'), JSON.stringify({ project_slug: 'fixture' }));
+    const home = await mkdtemp(join(tmpdir(), 'devaudit-doctor-home-'));
+    const doctorIn = async (h: string) => {
+      const r = await execa('node', [BIN, '--json', 'doctor'], { cwd: repo, reject: false, env: { HOME: h, USERPROFILE: h } });
+      const j = JSON.parse(r.stdout) as { onboarding: Array<{ name: string; ok: boolean; detail: string }>; proposals: Array<{ check: string; remediation: { id: string; tier: string } }> };
+      return { entry: j.onboarding.find((c) => c.name === 'agent-permissions')!, proposals: j.proposals };
+    };
+
+    const none = await doctorIn(home);
+    expect(none.entry.ok).toBe(true); // informational: never a gap
+    expect(none.entry.detail).toMatch(/no Claude Code settings file found/);
+    expect(none.entry.detail).toMatch(/other agents: not checked/);
+    expect(none.proposals.find((p) => p.remediation.id === 'add-agent-permission-rules')?.remediation.tier).toBe('C');
+
+    await mkdir(join(home, '.claude'), { recursive: true });
+    const settingsPath = join(home, '.claude', 'settings.json');
+    await writeFile(settingsPath, JSON.stringify(claudeCodeSettingsSnippet()));
+    const before = await readFile(settingsPath, 'utf-8');
+    const full = await doctorIn(home);
+    expect(full.entry.ok).toBe(true);
+    expect(full.entry.detail).toMatch(/all 27 recommended deny rules present/);
+    expect(full.proposals.some((p) => p.remediation.id === 'add-agent-permission-rules')).toBe(false);
+    // Read-only: doctor never edits the settings it inspects.
+    expect(await readFile(settingsPath, 'utf-8')).toBe(before);
+
+    await writeFile(settingsPath, JSON.stringify({ permissions: { deny: ['Read(~/.config/devaudit/**)'] } }));
+    const partial = await doctorIn(home);
+    expect(partial.entry.detail).toMatch(/1 of 27 recommended deny rules present; missing: pat-commands, credential-store/);
+  }, 90_000);
+
   it('runs against stubbed gh and npm, so no test waits on the network (#1089)', async () => {
     const gh = await execa('gh', ['--version'], { reject: false });
     expect(gh.stdout).toContain('devaudit test stub');
@@ -1028,8 +1064,8 @@ describe('devaudit doctor — D8 releases check + JSON surface (#956)', () => {
     // #1040 appended deploy-host, production-url, custom-deploy and ci-runner (additive);
     // #1059/#1060 appended e2e-release-gate and test-tiers after them.
     // #1099 WP4 appended `credentials` (and `pat-env` only when DEVAUDIT_USER_TOKEN is set).
-    expect(json.onboarding).toHaveLength(18);
-    expect((json.onboarding as Array<{ name: string }>).slice(-7).map((c) => c.name)).toEqual([
+    expect(json.onboarding).toHaveLength(19);
+    expect((json.onboarding as Array<{ name: string }>).slice(-8).map((c) => c.name)).toEqual([
       'deploy-host',
       'production-url',
       'custom-deploy',
@@ -1037,6 +1073,7 @@ describe('devaudit doctor — D8 releases check + JSON surface (#956)', () => {
       'e2e-release-gate',
       'test-tiers',
       'credentials',
+      'agent-permissions',
     ]);
     // additive keys
     expect(Array.isArray(json.deferral)).toBe(true);
