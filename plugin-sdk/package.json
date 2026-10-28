@@ -41,5 +41,8 @@
     "url": "https://github.com/metasession-dev/DevAudit-Installer",
     "directory": "plugin-sdk"
   },
-  "license": "Apache-2.0"
+  "license": "Apache-2.0",
+  "overrides": {
+    "esbuild": "^0.28.1"
+  }
 }
