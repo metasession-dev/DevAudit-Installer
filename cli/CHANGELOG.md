@@ -39,6 +39,7 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ### Fixed
 
+- **`doctor` no longer waits on an unbounded child process** (#1089) — the tool probes, `gh` and `git` calls on its path now time out (15-30 s; portal calls 5 s) and report "timed out" / "not checked"; the five tool probes run together. `DEVAUDIT_DOCTOR_TIMING=1` and `DEVAUDIT_UPDATE_TIMING=1` print per-step timing on stderr to find a slow step. The Windows CI timeouts in `doctor`, `update` and `custom-host` tests came from tests waiting on a real `gh` and, for `custom-host`, a real `npm install` against the registry (its fixture declared no devDependencies); the test environment is now hermetic.
 - **`doctor --fix` could report a redirected defer/resume as applied** (#1099) — the portal answers a personal access token on its session-only release routes with a redirect to the HTML sign-in page, and the client followed it and treated the 200 as success. The client now sends `redirect: 'manual'` and treats a redirect, a non-JSON reply or a 2xx without the portal's `status` as an error: "this portal route does not accept a personal access token; use the portal UI".
 
 ## [1.10.0] — 2026-10-23

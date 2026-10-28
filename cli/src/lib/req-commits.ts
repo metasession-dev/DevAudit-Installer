@@ -18,7 +18,7 @@ export interface CommitMessage {
 }
 
 async function gitOk(repoRoot: string, args: readonly string[]): Promise<string | null> {
-  const res = await execa('git', [...args], { cwd: repoRoot, reject: false });
+  const res = await execa('git', [...args], { cwd: repoRoot, reject: false, timeout: 30_000 });
   return res.exitCode === 0 ? res.stdout.trim() : null;
 }
 
@@ -49,7 +49,7 @@ export async function commitsInRange(
   until: string,
 ): Promise<readonly CommitMessage[]> {
   const range = since ? `${since}..${until}` : until;
-  const res = await execa('git', ['log', range, '--format=%x1e%s%x1f%b'], { cwd: repoRoot, reject: false });
+  const res = await execa('git', ['log', range, '--format=%x1e%s%x1f%b'], { cwd: repoRoot, reject: false, timeout: 30_000 });
   if (res.exitCode !== 0) return [];
   return res.stdout
     .split('\x1e')

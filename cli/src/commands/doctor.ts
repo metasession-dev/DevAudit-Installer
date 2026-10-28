@@ -16,6 +16,7 @@ import {
   defaultCredentialsDeps,
   type CredentialsDeps,
 } from '../lib/credentials-check.js';
+import { makeTimer } from '../lib/timing.js';
 import { buildDeferralContext, runDeferralChecks } from './doctor-deferral.js';
 import { FIX_EXIT_UNAPPLIED, runFix, type FixDeps, type FixReport } from './doctor-fix.js';
 import { commitsInRange, refExists, reqHasCommits } from '../lib/req-commits.js';
@@ -39,9 +40,20 @@ export interface DoctorOptions {
   readonly credentialsDeps?: CredentialsDeps;
 }
 
+/**
+ * `DEVAUDIT_DOCTOR_TIMING=1` prints one `[doctor-timing] <check>: <ms>ms` line per check on stderr
+ * (devaudit-installer#1089): where a slow run spends its time.
+ */
+const timed = makeTimer('DEVAUDIT_DOCTOR_TIMING', 'doctor-timing');
+
+/** Every child process doctor starts is bounded: a hang reports "timed out", never blocks the run. */
+const TOOL_TIMEOUT_MS = 15_000;
+const GH_TIMEOUT_MS = 20_000;
+
 async function checkCommand(name: string, args: readonly string[]): Promise<CheckResult> {
   try {
-    const result = await execa(name, args, { reject: false });
+    const result = await execa(name, args, { reject: false, timeout: TOOL_TIMEOUT_MS });
+    if (result.timedOut) return { name, ok: false, detail: `timed out after ${TOOL_TIMEOUT_MS / 1000}s` };
     const ok = result.exitCode === 0;
     const firstLine = result.stdout.split('\n')[0] ?? '';
     return { name, ok, detail: ok ? firstLine : `exited ${result.exitCode}` };
@@ -273,6 +285,7 @@ async function checkRequiredSecretsPresent(): Promise<CheckResult> {
     const result = await execa('gh', ['secret', 'list', '--json', 'name'], {
       cwd: consumer.repoRoot,
       reject: false,
+      timeout: GH_TIMEOUT_MS,
     });
     if (result.exitCode !== 0) {
       return {
@@ -699,7 +712,7 @@ async function checkAcceptedExceptions(): Promise<CheckResult> {
       const result = await execa(
         'gh',
         ['issue', 'list', '--label', label, '--state', 'open', '--limit', '100', '--json', 'number,title,body'],
-        { cwd: consumer.repoRoot, reject: false },
+        { cwd: consumer.repoRoot, reject: false, timeout: GH_TIMEOUT_MS },
       );
       if (result.exitCode !== 0) {
         return overdue.length > 0
@@ -730,13 +743,15 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
   const log = logger();
   const jsonMode = isJsonMode();
   if (!jsonMode) log.info('Running devaudit doctor — checking required tools...\n');
-  const checks: readonly CheckResult[] = [
-    await checkNodeVersion(),
-    await checkCommand('git', ['--version']),
-    await checkCommand('gh', ['--version']),
-    await checkCommand('jq', ['--version']),
-    await checkCommand('curl', ['--version']),
-  ];
+  // The five tool probes are independent child processes: run them together (process spawn is
+  // slow on a loaded Windows runner), report them in the usual order.
+  const checks: readonly CheckResult[] = await Promise.all([
+    timed('tool:node', () => checkNodeVersion()),
+    timed('tool:git', () => checkCommand('git', ['--version'])),
+    timed('tool:gh', () => checkCommand('gh', ['--version'])),
+    timed('tool:jq', () => checkCommand('jq', ['--version'])),
+    timed('tool:curl', () => checkCommand('curl', ['--version'])),
+  ]);
   let allOk = true;
   for (const check of checks) {
     if (!check.ok) allOk = false;
@@ -746,7 +761,7 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
     }
   }
   // Reconciliation safety-net — reported but does not gate the tool check (#60).
-  const { result: closeout, drifted: closeoutDrifted } = await checkReleaseCloseoutDrift();
+  const { result: closeout, drifted: closeoutDrifted } = await timed('closeout-drift', () => checkReleaseCloseoutDrift());
   if (!jsonMode) {
     const closeoutMarker = closeout.ok ? '✓' : '⚠';
     log.log(`  ${closeoutMarker} ${closeout.name.padEnd(8)} ${closeout.detail}`);
@@ -757,23 +772,23 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
   // Onboarding-checklist invariants — same non-gating shape as the
   // close-out check above (devaudit-installer#826, extended #867).
   const onboardingChecks: readonly CheckResult[] = [
-    await checkSrsBootstrapped(),
-    await checkRtmInitialized(),
-    await checkSemgrepAvailable(),
-    await checkE2eRegressionConsistency(),
-    await checkRequiredSecretsPresent(),
-    await checkPrePushHookPresent(),
-    await checkReconcileCliPresent(),
-    await checkSyncConflicts(),
-    await checkPatchConflicts(),
-    await checkAcceptedExceptions(),
-    await checkCommitlintConfigShadowing(),
+    await timed('srs', () => checkSrsBootstrapped()),
+    await timed('rtm', () => checkRtmInitialized()),
+    await timed('semgrep', () => checkSemgrepAvailable()),
+    await timed('e2e-regression', () => checkE2eRegressionConsistency()),
+    await timed('secrets', () => checkRequiredSecretsPresent()),
+    await timed('pre-push-hook', () => checkPrePushHookPresent()),
+    await timed('reconcile-cli', () => checkReconcileCliPresent()),
+    await timed('sync-conflicts', () => checkSyncConflicts()),
+    await timed('patch-conflicts', () => checkPatchConflicts()),
+    await timed('accepted-exceptions', () => checkAcceptedExceptions()),
+    await timed('commitlint-config-shadowing', () => checkCommitlintConfigShadowing()),
     // devaudit-installer#1040: deploy host, production URL/probe, custom deploy, CI runner.
-    ...(await configChecksFor(options.configDeps)),
+    ...(await timed('config-checks', () => configChecksFor(options.configDeps))),
     // devaudit-installer#1099 WP5: informational, only when the variable is set.
     ...checkPatInEnvironment(),
     // devaudit-installer#1099 WP4: uploader / viewer key / PAT, names and statuses only.
-    await checkCredentials(options.credentialsDeps),
+    await timed('credentials', () => checkCredentials(options.credentialsDeps)),
   ];
   let onboardingIssues = false;
   for (const check of onboardingChecks) {

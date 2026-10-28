@@ -33,6 +33,8 @@ cd DevAudit-Installer
 ( cd plugins/devaudit-plugin-evidence-export && npm install --legacy-peer-deps && npm test )
 ```
 
+The CLI tests are hermetic (devaudit-installer#1089): `cli/test/setup-hermetic-env.ts` puts a stub `gh` (answers `--version`, fails everything else at once) and a failing `npm` first on `PATH` for every test worker and removes GitHub and DevAudit credentials from the environment, so no test waits on the network or a real `gh`. A sync fixture therefore has to declare the node stack's devDependencies (use `nodeStackPackageJson()` from `cli/test/helpers-node-stack.ts`); otherwise the sync's `npm install` fails the test at once instead of hanging on the registry. A test that needs its own `gh` puts a stub earlier on `PATH`. `DEVAUDIT_DOCTOR_TIMING=1` and `DEVAUDIT_UPDATE_TIMING=1` print per-step timing on stderr when a test is slow.
+
 Conventions:
 
 - **Conventional commits**: `feat(cli): …`, `fix(plugin-sdk): …`, `chore(docs): …`. The same scopes that appear in `git log` already.

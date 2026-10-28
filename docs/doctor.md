@@ -58,6 +58,10 @@ Onboarding-checklist gaps, release-closeout drift and release-deferral findings 
 
 `node` (>=22), `git`, `gh`, `jq`, `curl`. This is the only group that sets exit code `6` on failure.
 
+### Bounded child processes and timing (devaudit-installer#1089)
+
+Every child process `doctor` starts is bounded: the tool probes (`git`, `gh`, `jq`, `curl` `--version`) time out after 15 s, `gh` calls after 20 s, `git` calls after 15-30 s, the `credentials` portal calls after 5 s. A timeout is reported as "timed out" or "not checked", never a hang. The five tool probes run together. To see where a slow run spends its time (a loaded Windows runner, a slow `gh`), set `DEVAUDIT_DOCTOR_TIMING=1`: one `[doctor-timing] <check>: <ms>ms` line per check goes to **stderr** (stdout and `--json` are untouched). `devaudit update` has the same switch, `DEVAUDIT_UPDATE_TIMING=1`, with one line per sync section.
+
 ### 2. Onboarding-checklist invariants (non-gating, consumer projects only)
 
 Skipped entirely (reported as `ok` with a "skipped" detail) when not run inside a consumer project (no `sdlc-config.json` at the repo root).

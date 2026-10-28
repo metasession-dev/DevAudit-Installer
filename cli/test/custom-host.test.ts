@@ -6,6 +6,8 @@ import { fileURLToPath } from 'node:url';
 import { load as yamlLoad } from 'js-yaml';
 import { syncProject } from '../src/update/index.js';
 
+import { nodeStackPackageJson } from './helpers-node-stack.js';
+
 // devaudit-installer#1022 part C -- the `custom` host (AWS / self-hosted / any script).
 const HERE = dirname(fileURLToPath(import.meta.url));
 const INSTALLER_ROOT = resolve(HERE, '..', '..');
@@ -14,7 +16,8 @@ async function fixture(extra: Record<string, unknown>): Promise<string> {
   const dir = await fs.mkdtemp(join(tmpdir(), 'cli-custom-host-'));
   await fs.mkdir(join(dir, 'scripts'), { recursive: true });
   await fs.mkdir(join(dir, '.github', 'workflows'), { recursive: true });
-  await fs.writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'fixture', version: '0.0.0' }));
+  // Declares the stack devDependencies, so the sync runs no `npm install` (#1089).
+  await fs.writeFile(join(dir, 'package.json'), nodeStackPackageJson('fixture'));
   await fs.writeFile(
     join(dir, 'sdlc-config.json'),
     JSON.stringify({
