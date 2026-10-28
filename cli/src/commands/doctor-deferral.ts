@@ -77,7 +77,7 @@ export async function buildDeferralContext(
       runGh ??
       (async (args) => {
         try {
-          const r = await execa('gh', [...args], { cwd: repoRoot, reject: false });
+          const r = await execa('gh', [...args], { cwd: repoRoot, reject: false, timeout: 20_000 });
           return { exitCode: r.exitCode ?? 1, stdout: r.stdout };
         } catch {
           return null;

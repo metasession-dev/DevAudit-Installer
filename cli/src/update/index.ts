@@ -1,3 +1,4 @@
+import { makeTimer } from '../lib/timing.js';
 import { ensureIssueTemplateLabels } from "./issue-labels.js";
 import { basename, resolve } from "node:path";
 import { isDir } from "../lib/fs-utils.js";
@@ -49,6 +50,9 @@ const SECTION_RUNNERS: ReadonlyArray<{
   { key: "2j-i", run: verifyDefaultBranch },
   { key: "2k", run: verifyBranchProtection },
 ];
+
+/** `DEVAUDIT_UPDATE_TIMING=1` prints one `[update-timing] <section>: <ms>ms` line per section on stderr (devaudit-installer#1089). */
+const timed = makeTimer('DEVAUDIT_UPDATE_TIMING', 'update-timing');
 
 export interface SyncProjectOptions {
   /** Preview mode: classify and report writes/conflicts/removals, write nothing. */
@@ -111,7 +115,7 @@ export async function syncProject(projectPath: string, options: SyncProjectOptio
   const sectionWarnings: string[] = [];
   let total = 0;
   for (const { key, run } of SECTION_RUNNERS) {
-    const result = await run(ctx);
+    const result = await timed(`section ${key}`, () => run(ctx));
     sections.push(result);
     total += result.filesSynced;
     if (result.skipped) {

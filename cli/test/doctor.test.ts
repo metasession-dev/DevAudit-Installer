@@ -32,12 +32,37 @@ describe('devaudit --version', () => {
 
 describe('devaudit doctor', () => {
   it('runs without crashing (exit code 0 or 6 depending on environment)', async () => {
-    const result = await execa('node', [BIN, 'doctor'], { reject: false });
+    const started = Date.now();
+    const result = await execa('node', [BIN, 'doctor'], { reject: false, env: { DEVAUDIT_DOCTOR_TIMING: '1' } });
+    // The per-check timing lines (devaudit-installer#1089) land in the CI log, so a slow Windows
+    // run shows which check or child process took the time.
+    console.log(`doctor took ${Date.now() - started}ms\n${result.stderr.split('\n').filter((l) => l.startsWith('[doctor-timing]')).join('\n')}`);
     // Pass if all tools are present (0); also acceptable in CI if something's
     // missing — we exit 6 with a clear diagnostic.
     expect([0, 6]).toContain(result.exitCode);
     expect(result.stdout + result.stderr).toContain('node');
   }, 30_000);
+
+  it('DEVAUDIT_DOCTOR_TIMING prints per-check timing on stderr only, never on stdout or in --json (#1089)', async () => {
+    const plain = await execa('node', [BIN, '--json', 'doctor'], { reject: false });
+    const timed = await execa('node', [BIN, '--json', 'doctor'], { reject: false, env: { DEVAUDIT_DOCTOR_TIMING: '1' } });
+    expect(plain.stderr).not.toContain('[doctor-timing]');
+    const lines = timed.stderr.split('\n').filter((l) => l.startsWith('[doctor-timing]'));
+    expect(lines.length).toBeGreaterThanOrEqual(8);
+    expect(lines.every((l) => /^\[doctor-timing\] [\w:-]+: \d+ms$/.test(l))).toBe(true);
+    expect(lines.some((l) => l.includes('tool:gh'))).toBe(true);
+    // stdout is still a single valid JSON document.
+    expect(() => JSON.parse(timed.stdout)).not.toThrow();
+  }, 60_000);
+
+  it('runs against stubbed gh and npm, so no test waits on the network (#1089)', async () => {
+    const gh = await execa('gh', ['--version'], { reject: false });
+    expect(gh.stdout).toContain('devaudit test stub');
+    expect((await execa('gh', ['secret', 'list'], { reject: false })).exitCode).toBe(1);
+    const npm = await execa('npm', ['install', '--save-dev', 'left-pad'], { reject: false });
+    expect(npm.exitCode).toBe(1);
+    expect(npm.stderr).toMatch(/npm is disabled in the CLI tests/);
+  });
 
   it('reports release close-out drift check (skips gracefully without portal creds)', async () => {
     const { mkdtemp, mkdir, writeFile } = await import('node:fs/promises');

@@ -126,7 +126,7 @@ export async function resolveViewerKey(q: ViewerLookup): Promise<ResolvedViewerK
 export async function viewerKeyName(cwd: string = process.cwd()): Promise<string> {
   let email = '';
   try {
-    const r = await execa('git', ['config', 'user.email'], { cwd, reject: false });
+    const r = await execa('git', ['config', 'user.email'], { cwd, reject: false, timeout: 10_000 });
     if (r.exitCode === 0) email = r.stdout.trim();
   } catch {
     // git unavailable

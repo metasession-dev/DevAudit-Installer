@@ -105,7 +105,7 @@ export async function defaultCredentialsDeps(repoRoot: string, cfg: Record<strin
       try {
         // Patterns go through stdin so a key value never appears in argv.
         const patterns = ['dak_[A-Za-z0-9_-]{16,}', ...values.map(escapeRegex)].join('\n');
-        const r = await execa('git', ['grep', '-I', '-l', '-E', '-f', '-'], { cwd: repoRoot, reject: false, input: patterns });
+        const r = await execa('git', ['grep', '-I', '-l', '-E', '-f', '-'], { cwd: repoRoot, reject: false, input: patterns, timeout: 15_000 });
         if (r.exitCode !== 0) return [];
         return r.stdout.split('\n').filter((l) => l.length > 0);
       } catch {

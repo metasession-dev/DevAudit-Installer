@@ -171,7 +171,16 @@ describe('syncProject — native TS sync against a fixture', () => {
   });
 
   it('runs end-to-end and emits expected files', async () => {
-    const report = await syncProject(fixtureDir);
+    // Per-section timing lines (devaudit-installer#1089) land in the CI log: a slow Windows run
+    // shows which sync section took the time.
+    const before = process.env['DEVAUDIT_UPDATE_TIMING'];
+    process.env['DEVAUDIT_UPDATE_TIMING'] = '1';
+    let report: Awaited<ReturnType<typeof syncProject>>;
+    try {
+      report = await syncProject(fixtureDir);
+    } finally {
+      if (before === undefined) delete process.env['DEVAUDIT_UPDATE_TIMING']; else process.env['DEVAUDIT_UPDATE_TIMING'] = before;
+    }
     expect(report.project).toBe(basename(fixtureDir));
     expect(report.stack).toBe('node');
     expect(report.host).toBe('railway');

@@ -16,7 +16,7 @@ import { execa } from 'execa';
  * isn't on PATH) — same behaviour as before this existed.
  */
 export async function resolveRepoRoot(cwd: string): Promise<string> {
-  const res = await execa('git', ['rev-parse', '--show-toplevel'], { cwd, reject: false });
+  const res = await execa('git', ['rev-parse', '--show-toplevel'], { cwd, reject: false, timeout: 15_000 });
   if (res.exitCode === 0 && res.stdout.trim().length > 0) {
     return res.stdout.trim();
   }
