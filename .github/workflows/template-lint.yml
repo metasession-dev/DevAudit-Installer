@@ -34,6 +34,8 @@ on:
       - 'scripts/lint-shell-failure-modes.test.sh'
       - 'scripts/release-validation.sh'
       - 'scripts/release-validation.test.sh'
+      - 'scripts/check-package-contents.sh'
+      - 'scripts/check-package-contents.test.sh'
       - 'scripts/runner-host/**'
       - 'tests/release-pipeline-e2e/**'
       - '.github/workflows/template-lint.yml'
@@ -59,6 +61,8 @@ on:
       - 'scripts/lint-shell-failure-modes.test.sh'
       - 'scripts/release-validation.sh'
       - 'scripts/release-validation.test.sh'
+      - 'scripts/check-package-contents.sh'
+      - 'scripts/check-package-contents.test.sh'
       - 'scripts/runner-host/**'
       - 'tests/release-pipeline-e2e/**'
       - '.github/workflows/template-lint.yml'
@@ -190,6 +194,7 @@ jobs:
           bash scripts/runner-host/runner-host.test.sh
           bash scripts/lint-shell-failure-modes.test.sh
           bash scripts/release-validation.test.sh
+          bash scripts/check-package-contents.test.sh
           bash scripts/lint-shell-failure-modes.sh sdlc/files
 
       - name: Run extract-release-metadata tests

@@ -17,6 +17,12 @@ jobs:
   publish:
     name: Publish 5 packages to npmjs.org + create GitHub Release
     runs-on: ubuntu-latest
+    env:
+      # npm can show a version's metadata minutes before its tarball URL answers (1.10.0: more than
+      # five minutes), so the verifier waits up to 10 minutes per package (devaudit-installer#1091).
+      # The job is resumable: re-running it skips every package already on npm.
+      NPM_PUBLICATION_VERIFY_ATTEMPTS: '40'
+      NPM_PUBLICATION_VERIFY_INTERVAL_SECONDS: '15'
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v7
