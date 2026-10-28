@@ -60,7 +60,8 @@ describe('recommended Claude Code deny rules', () => {
 });
 
 describe('docs/agent-permissions.md carries exactly the rules the code defines', () => {
-  const doc = readFileSync(join(ROOT, 'docs', 'agent-permissions.md'), 'utf-8');
+  // A Windows checkout may hold CRLF line endings; the snippet is matched on LF.
+  const doc = readFileSync(join(ROOT, 'docs', 'agent-permissions.md'), 'utf-8').replace(/\r\n/g, '\n');
 
   it('has the ready-to-paste snippet, equal to claudeCodeSettingsSnippet()', () => {
     const blocks = [...doc.matchAll(/```json\n([\s\S]*?)\n```/g)].map((m) => m[1] as string);
