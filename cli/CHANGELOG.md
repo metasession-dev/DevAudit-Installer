@@ -4,6 +4,8 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+## [1.11.0] — 2026-10-28
+
 ### Upgrade notes
 
 - **One E2E tagging rule; the skill now refuses annotation-only tests** (#1095): every Playwright test covering a requirement needs `[REQ-XXX]` (and `[ACn]`) in its title or an enclosing `describe`, **and** `tagTest('REQ-XXX', n)` in the body. The feature run selects tests with `--grep`, which reads titles, so a test tagged only by annotation never ran at feature-PR time. The `e2e-test-engineer` skill runs the new `scripts/check-req-title-tags.sh` in Phase 5½ and stops on offenders; existing annotation-only tests are reported there and need the id in their title.
