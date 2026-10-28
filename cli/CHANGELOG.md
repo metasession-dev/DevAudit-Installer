@@ -36,6 +36,7 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 - **`doctor` `secrets` no longer requires a viewer-key repo secret** (#1099) — no CI workflow reads one. An existing secret is reported as unused and removable (`gh secret delete`, tier C).
 - **Docs and synced guides match the credential model** (#1099): the update/install workflow and `0-project-setup.md` mention the viewer key and the Credentials block; `docs/change-workflows.md` no longer calls the PAT "used for UAT submission"; the historical permissions article is marked superseded by `docs/credentials.md`.
+- **Release tooling, for maintainers** (#1091) — `scripts/release-validation.sh all` now fails when it finds no consumers file and no names (pass `--no-consumers` to skip consumers on purpose; from a linked worktree set `RV_CONSUMERS_FILE` to the main checkout's `consumers.local`), keeps the full vitest output and the output of every failing shell test, lists failing test names in `results.md`, type-checks the test files, runs `validate-adapter.cjs --all`, and restores any lockfile that layer 1 rewrote. A layer-1 failure never stops the consumer layers. The new `scripts/check-package-contents.sh` (also a `Package contents` check on pull requests into `main`) fails when a tarball lacks a required path or contains an env or `*.local` file. `release.yml` waits up to 10 minutes per package for npm to serve the tarball, and `cli.yml` now runs the CLI tests for changes under `sdlc/files/` and `sdlc/src/`.
 
 ### Fixed
 
