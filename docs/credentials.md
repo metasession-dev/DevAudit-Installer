@@ -38,7 +38,7 @@ A viewer key is read-only and personal: one key per person, per project, per mac
 
 - **Issued by default** by `devaudit install` and `devaudit join`, with your own PAT, and saved to `viewer-keys.json` (mode `0600`, written atomically). Opt out with `--no-viewer-key`. The value is printed only with `--print-viewer-key`. `--with-viewer-key` is a deprecated no-op.
 - **Not a repo secret.** No CI workflow reads a viewer key, so `install` no longer writes one and no longer adds `viewer_api_key_secret` to `sdlc-config.json`. An existing value is read without error and `devaudit doctor` reports its repo secret as unused and removable.
-- **If the portal refuses** to issue it (403: a non-admin teammate, until metasession-dev/devaudit#921 lets members issue their own), `join` prints "ask a project admin, or rerun after the portal update" and carries on.
+- **If the portal refuses** to issue it, `join` prints the portal's own reason and carries on. Since metasession-dev/devaudit#921 any member may issue their own viewer key, so a 403 means the five-active-key cap (revoke one in the portal) or no access to the project; a portal without #921 refuses non-admins with 403. A 409 means a live key of that name already exists. An expired or revoked key of the same name does not block a new one.
 - **Received another way?** `devaudit auth viewer-key set [--project <slug>]` saves it from a masked prompt.
 - **Which keys are saved here:** `devaudit auth status` lists them per project, never the value.
 
@@ -97,4 +97,4 @@ The non-gating `credentials` check reports each credential's status and source, 
 }
 ```
 
-The PAT is only validated against the portal at an interactive terminal; a non-interactive run (an agent, CI) reports it as `not-checked` and never sends it. Expiry is "not available" until the portal exposes it (metasession-dev/devaudit#922). See [`doctor.md`](./doctor.md).
+The PAT is only validated against the portal at an interactive terminal; a non-interactive run (an agent, CI) reports it as `not-checked` and never sends it. At an interactive terminal its expiry is read from `GET /api/auth/token` (metasession-dev/devaudit#922): within 14 days it is a warning with a "renew" fix (set `DEVAUDIT_PAT_EXPIRY_WARN_DAYS` to change the window); a token with no expiry is fine; a portal without that route reports "expiry: not available". See [`doctor.md`](./doctor.md).

@@ -29,7 +29,7 @@ export interface CredentialEntry {
   /** Where it was found (`env`, `.env`, `file`), or null. */
   readonly source: string | null;
   readonly project: string | null;
-  /** ISO date; null until the portal exposes it (metasession-dev/devaudit#922). */
+  /** ISO timestamp of the PAT's expiry (`GET /api/auth/token`, metasession-dev/devaudit#922); null otherwise. */
   readonly expiresAt: string | null;
   readonly note: string;
 }
@@ -62,6 +62,13 @@ export interface CredentialsDeps {
   readonly probeViewer: (baseUrl: string, slug: string, key: string) => Promise<ProbeResult>;
   /** `GET /api/projects` with the PAT; slugs on 200. */
   readonly probePat: (baseUrl: string, token: string) => Promise<ProbeResult & { readonly slugs?: readonly string[] }>;
+  /**
+   * `GET /api/auth/token` with the PAT: the presented token's own metadata
+   * (metasession-dev/devaudit#922). `expiresAt` is null for a token with no
+   * expiry. A portal without the route answers 404 (or a redirect), which is
+   * reported as "expiry: not available". Optional so older callers keep working.
+   */
+  readonly probePatToken?: (baseUrl: string, token: string) => Promise<ProbeResult & { readonly expiresAt?: string | null }>;
   readonly resolvePat: () => Promise<{ token: string; baseUrl: string; source: 'env' | 'file' } | null>;
   /** Only an interactive terminal may send the PAT to the portal. */
   readonly interactive: boolean;
@@ -129,9 +136,47 @@ export async function defaultCredentialsDeps(repoRoot: string, cfg: Record<strin
         return { status: 200, slugs: [] };
       }
     },
+    probePatToken: async (baseUrl, token) => {
+      const r = await timed(`${baseUrl.replace(/\/$/, '')}/api/auth/token`, { 'X-DevAudit-Token': token });
+      if (!('res' in r)) return r;
+      if (r.res.status !== 200) return { status: r.res.status };
+      try {
+        const json = (await r.res.json()) as { expires_at?: unknown; token?: { expires_at?: unknown } };
+        const raw = json.expires_at !== undefined ? json.expires_at : json.token?.expires_at;
+        return { status: 200, expiresAt: typeof raw === 'string' && raw !== '' ? raw : null };
+      } catch {
+        return { status: 200, expiresAt: null };
+      }
+    },
     resolvePat: () => resolveToken(),
     interactive,
   };
+}
+
+const DEFAULT_PAT_EXPIRY_WARN_DAYS = 14;
+
+/** `DEVAUDIT_PAT_EXPIRY_WARN_DAYS` (a positive whole number), else 14. */
+export function patExpiryWarnDays(env: NodeJS.ProcessEnv): number {
+  const raw = env['DEVAUDIT_PAT_EXPIRY_WARN_DAYS'];
+  if (raw === undefined || !/^\d+$/.test(raw.trim())) return DEFAULT_PAT_EXPIRY_WARN_DAYS;
+  const n = Number(raw.trim());
+  return n > 0 ? n : DEFAULT_PAT_EXPIRY_WARN_DAYS;
+}
+
+/**
+ * The PAT's expiry against now, for a token the portal has already accepted.
+ * `expired` should not happen (the portal refuses an expired token) but is
+ * handled rather than reported as ok.
+ */
+function patExpiry(expiresAt: string | null, warnDays: number, now: Date): { status: CredentialStatus; text: string } {
+  if (expiresAt === null) return { status: 'ok', text: 'expiry: none set' };
+  const t = Date.parse(expiresAt);
+  if (Number.isNaN(t)) return { status: 'ok', text: 'expiry: not available' };
+  const day = expiresAt.slice(0, 10);
+  const days = Math.ceil((t - now.getTime()) / 86_400_000);
+  if (days <= 0) return { status: 'invalid', text: `expired on ${day}` };
+  if (days <= warnDays) return { status: 'warn', text: `expires on ${day} (in ${days} day${days === 1 ? '' : 's'})` };
+  return { status: 'ok', text: `expires on ${day}` };
 }
 
 function isCi(env: NodeJS.ProcessEnv): boolean {
@@ -143,7 +188,7 @@ function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-export async function buildCredentialsReport(deps: CredentialsDeps): Promise<CredentialsReport> {
+export async function buildCredentialsReport(deps: CredentialsDeps, now: Date = new Date()): Promise<CredentialsReport> {
   const devaudit = (deps.cfg['devaudit'] ?? {}) as { project_slug?: string; base_url?: string; api_key_secret?: string };
   const slug = devaudit.project_slug ?? (deps.cfg['project_slug'] as string | undefined) ?? null;
   const baseUrl = (devaudit.base_url ?? '').replace(/\/$/, '');
@@ -208,7 +253,19 @@ export async function buildCredentialsReport(deps: CredentialsDeps): Promise<Cre
     else if (p.status !== 200) { status = 'not-checked'; note = `not checked (portal answered ${p.status})`; }
     else if (slug && !(p.slugs ?? []).includes(slug)) { status = 'invalid'; note = 'valid, but not a member of this project'; }
     else { status = 'ok'; note = 'valid and a member of this project. expiry: not available'; }
-    patEntry = { status, source: pat.source, project, expiresAt: null, note };
+    let expiresAt: string | null = null;
+    if (status === 'ok' && deps.probePatToken) {
+      // Only an accepted token is asked about its expiry; a portal without the route
+      // (before metasession-dev/devaudit#922) leaves "expiry: not available".
+      const meta = await deps.probePatToken(pat.baseUrl, pat.token);
+      if (!('failure' in meta) && meta.status === 200) {
+        expiresAt = meta.expiresAt ?? null;
+        const e = patExpiry(expiresAt, patExpiryWarnDays(deps.env), now);
+        status = e.status;
+        note = `valid and a member of this project; ${e.text}`;
+      }
+    }
+    patEntry = { status, source: pat.source, project, expiresAt, note };
   }
 
   return { uploaderKey, viewerKey, pat: patEntry };
@@ -240,6 +297,7 @@ export function credentialsCheck(report: CredentialsReport): CheckResult & { rea
     add('move-viewer-key', 'Move the viewer key out of .env into the CLI config folder', 'Save the key to viewer-keys.json and remove the DEVAUDIT_VIEWER_API_KEY line from .env', `viewer key ${viewerKey.note}`, 'A', { slug });
   }
   if (pat.status === 'invalid') add('renew-pat', 'Renew your personal access token', FIX_PAT, `personal access token ${pat.note}`);
+  else if (pat.status === 'warn') add('renew-pat', 'Renew your personal access token before it expires', FIX_PAT, `personal access token ${pat.note}`);
 
   const notes = [
     `uploader key: ${uploaderKey.status === 'ok' ? 'not local' : 'FOUND LOCALLY'}`,

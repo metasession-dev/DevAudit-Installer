@@ -559,11 +559,11 @@ describe('runFix: viewer-key repairs', () => {
       expect(calls.map((c) => c.revokeExisting)).toEqual([false, true]);
     });
 
-    it('reports a 403 as failed with the ask-an-admin message, and a missing PAT as failed', async () => {
+    it("reports a 403 as failed with the portal's reason, and a missing PAT as failed", async () => {
       const { DevAuditApiError } = await import('../src/lib/devaudit-api.js');
-      const refused: IssueFn = async () => { throw new DevAuditApiError('x', 403, ''); };
+      const refused: IssueFn = async () => { throw new DevAuditApiError('x', 403, JSON.stringify({ error: 'Project access required' })); };
       const r = await runFix([p], { ...(await viewerDeps({ issueViewerKey: refused })), ask: asks() }, base0);
-      expect(r.outcomes[0]).toMatchObject({ status: 'failed', message: expect.stringContaining('ask a project admin') });
+      expect(r.outcomes[0]).toMatchObject({ status: 'failed', message: expect.stringContaining('(403): Project access required') });
       const noPat = async () => { throw new DeferralCredentialError('No personal access token available.'); };
       const r2 = await runFix([p], { ...(await viewerDeps({ credential: noPat })), ask: asks() }, base0);
       expect(r2.outcomes[0]).toMatchObject({ status: 'failed' });

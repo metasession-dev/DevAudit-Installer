@@ -1,4 +1,4 @@
-import { DevAuditClient } from './devaudit-api.js';
+import { DevAuditClient, isActiveApiKey } from './devaudit-api.js';
 import { saveViewerKey } from './viewer-keys.js';
 
 /**
@@ -28,7 +28,7 @@ export async function issueOwnViewerKey(opts: IssueOwnViewerKeyOptions): Promise
   const client = new DevAuditClient({ token: opts.token, baseUrl: opts.baseUrl });
   const project = await client.getProjectBySlug(opts.slug);
   if (!project) return { kind: 'project-not-found' };
-  const live = (await client.listApiKeys(project.id)).filter((k) => k.name === opts.name && k.revoked_at === null);
+  const live = (await client.listApiKeys(project.id)).filter((k) => k.name === opts.name && isActiveApiKey(k));
   if (live.length > 0 && !opts.revokeExisting) return { kind: 'exists-live' };
   for (const key of live) {
     // eslint-disable-next-line no-await-in-loop
