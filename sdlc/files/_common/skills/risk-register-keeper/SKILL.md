@@ -238,4 +238,4 @@ Per the [#119 review](https://github.com/metasession-dev/DevAudit-Installer/issu
 - `sdlc/files/_common/skills/adr-author/SKILL.md` — sibling skill (same family).
 - `sdlc/files/_common/skills/governance-doc-author/SKILL.md` — Phase 0 routing cross-links to this skill ("register a new risk" vs "draft a ROPA / DPIA / incident-report").
 - Meta-reviewer (META-COMPLY): `framework-registry-auditor` reviews the `risk_assessment` evidence type's clause mappings before the META-COMPLY sub-PR opens.
-- Approval mode reference: `sdlc-config.example.json:approval.mode` — `dual_actor` vs `solo_with_gap` vs `auto_low_risk`.
+- Approval mode reference: `sdlc-config.example.json:approval.mode` — `dual_actor` vs `solo_with_gap` (an `auto_low_risk` mode is not implemented).

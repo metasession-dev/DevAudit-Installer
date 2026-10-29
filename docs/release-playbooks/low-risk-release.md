@@ -40,8 +40,8 @@ it is bundled. Check the current PR head SHA for `Quality Gates`, `Release Scope
 Integrity`, `Compliance Validation`, `DevAudit Release Approval`, and `E2E
 Regression Suite`. A pending or running check is waiting, not green.
 
-Under `auto_low_risk` the portal may approve UAT automatically; otherwise apply
-the configured approval policy. The author may self-merge only where the project
+Nothing approves UAT automatically (an `auto_low_risk` mode is not implemented):
+apply the configured approval policy. The author may self-merge only where the project
 policy permits it and every required check is terminal green on the current
 head SHA.
 

@@ -188,7 +188,7 @@ jobs:
               --provider github_actions --external-run-id "$CI_RUN" \
               --external-run-attempt "${{ github.run_attempt }}" --external-job-id "host-deployment" \
               --idempotency-key "github:${{ github.repository }}:post-deploy-prod.deployment:${CI_RUN}:${{ github.run_attempt }}:5:${VERSION}" \
-              --commit-sha "$GIT_SHA" --branch main \
+              --commit-sha "$GIT_SHA" --branch {{RELEASE_BRANCH}} \
               --workflow-name "Post-Deploy Production" \
               --workflow-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           done
@@ -275,7 +275,7 @@ jobs:
               --provider github_actions --external-run-id "$CI_RUN" \
               --external-run-attempt "${{ github.run_attempt }}" --external-job-id "host-deployment" \
               --idempotency-key "github:${{ github.repository }}:post-deploy-prod.deployment:${CI_RUN}:${{ github.run_attempt }}:5:${VERSION}" \
-              --commit-sha "$GIT_SHA" --branch main \
+              --commit-sha "$GIT_SHA" --branch {{RELEASE_BRANCH}} \
               --workflow-name "Post-Deploy Production" \
               --workflow-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
               --outcome "$OUTCOME" --outcome-reason "host verification=${HOST_VERIFICATION}; production probe=${PROBE_VERIFICATION}; last HTTP=${{ steps.production_probe.outputs.http_code || 'unknown' }}"
@@ -285,7 +285,7 @@ jobs:
               --label "Production Deployment" --provider github_actions --status "$CHECK_STATUS" \
               --external-run-id "$CI_RUN" \
               --external-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
-              --commit-sha "$GIT_SHA" --branch main \
+              --commit-sha "$GIT_SHA" --branch {{RELEASE_BRANCH}} \
               --details-json "$(jq -cn \
                 --arg hostVerification "$HOST_VERIFICATION" \
                 --arg hostOutcome "${{ steps.host_deployment.outcome }}" \
@@ -316,7 +316,7 @@ jobs:
               --provider github_actions --external-run-id "$CI_RUN" \
               --external-run-attempt "${{ github.run_attempt }}" --external-job-id "production-smoke" \
               --idempotency-key "github:${{ github.repository }}:post-deploy-prod.smoke:${CI_RUN}:${{ github.run_attempt }}:5:${VERSION}" \
-              --commit-sha "$GIT_SHA" --branch main \
+              --commit-sha "$GIT_SHA" --branch {{RELEASE_BRANCH}} \
               --workflow-name "Post-Deploy Production" \
               --workflow-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           done
@@ -369,7 +369,7 @@ jobs:
               --provider github_actions --external-run-id "$CI_RUN" \
               --external-run-attempt "${{ github.run_attempt }}" --external-job-id "production-smoke" \
               --idempotency-key "github:${{ github.repository }}:post-deploy-prod.smoke:${CI_RUN}:${{ github.run_attempt }}:5:${VERSION}" \
-              --commit-sha "$GIT_SHA" --branch main \
+              --commit-sha "$GIT_SHA" --branch {{RELEASE_BRANCH}} \
               --workflow-name "Post-Deploy Production" \
               --workflow-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
               --outcome "$OUTCOME" --outcome-reason "production smoke: ${{ steps.production_smoke.outcome }}"
@@ -379,7 +379,7 @@ jobs:
               --label "Production Smoke" --provider github_actions --status "$CHECK_STATUS" \
               --external-run-id "$CI_RUN" \
               --external-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
-              --commit-sha "$GIT_SHA" --branch main \
+              --commit-sha "$GIT_SHA" --branch {{RELEASE_BRANCH}} \
               --details-json '{"executionSource":"steps.production_smoke.outcome"}'
           done
 
@@ -442,7 +442,7 @@ jobs:
           - [ ] \`EUAIA.Art-9 / Art-14 / Art-15\` — AI failure: <REPLACE — yes/no, which article(s)>
 
           Once closed, the \`incident-export.yml\` workflow exports the body of this issue to \`compliance/governance/incident-report-<N>.md\`. Routing depends on the Framework attribution ticks (DevAudit-Installer#200 Fix 1):
-          - **Path A (baseline-only — only \`ISO29119.3.5.4\` ticked):** direct-committed to \`develop\`, no PR. GDPR triage pre-filled as N/A. Next \`compliance-evidence.yml\` run uploads as \`incident_report\`.
+          - **Path A (baseline-only — only \`ISO29119.3.5.4\` ticked):** direct-committed to \`{{INTEGRATION_BRANCH}}\`, no PR. GDPR triage pre-filled as N/A. Next \`compliance-evidence.yml\` run uploads as \`incident_report\`.
           - **Path B (any of SOC2/GDPR/EUAIA ticked):** auto-files a PR with the GDPR triage + sign-off sections to fill in. Merge that PR → \`compliance-evidence.yml\` uploads as \`incident_report\`.
           BODY_EOF
           )
@@ -492,7 +492,7 @@ jobs:
               --external-job-id "production-smoke" \
               --idempotency-key "github:${{ github.repository }}:post-deploy-prod.smoke:${CI_RUN}:${{ github.run_attempt }}:5:${VERSION}" \
               --commit-sha "${GIT_SHA}" \
-              --branch main \
+              --branch {{RELEASE_BRANCH}} \
               --workflow-name "Post-Deploy Production" \
               --workflow-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
               --output-file "$EXECUTION_OUT"
@@ -506,7 +506,7 @@ jobs:
               bash scripts/upload-evidence.sh \
                 "${PROJECT_SLUG}" "${EVIDENCE_SCOPE}" smoke_test prod-smoke-results.json \
                 --release "${VERSION}" --create-release-if-missing --environment production \
-                --category smoke_test --sdlc-stage 5 --git-sha "${GIT_SHA}" --ci-run-id "${CI_RUN}" --branch main \
+                --category smoke_test --sdlc-stage 5 --git-sha "${GIT_SHA}" --ci-run-id "${CI_RUN}" --branch {{RELEASE_BRANCH}} \
                 "${LINEAGE_FLAGS[@]}" \
                 || { echo "Warning: smoke upload failed for ${VERSION}"; REQ_FAILURES=$((REQ_FAILURES + 1)); }
             fi
@@ -525,7 +525,7 @@ jobs:
               bash scripts/upload-evidence.sh \
                 "${PROJECT_SLUG}" "${EVIDENCE_SCOPE}" release_ticket "$TICKET" \
                 --release "${VERSION}" --create-release-if-missing --environment production \
-                --category release_artifact --sdlc-stage 5 --git-sha "${GIT_SHA}" --ci-run-id "${CI_RUN}" --branch main \
+                --category release_artifact --sdlc-stage 5 --git-sha "${GIT_SHA}" --ci-run-id "${CI_RUN}" --branch {{RELEASE_BRANCH}} \
                 || { echo "Warning: ticket upload failed for ${VERSION}"; REQ_FAILURES=$((REQ_FAILURES + 1)); }
             else
               echo "No RELEASE-TICKET-${VERSION}.md found — skipping ticket (date-versioned or archived)."
@@ -542,7 +542,7 @@ jobs:
               --label "Production Evidence Completeness" --provider devaudit_installer \
               --status "$EVIDENCE_STATUS" --external-run-id "$CI_RUN" \
               --external-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
-              --commit-sha "$GIT_SHA" --branch main \
+              --commit-sha "$GIT_SHA" --branch {{RELEASE_BRANCH}} \
               --details-json "{\"uploadFailures\":${REQ_FAILURES}}"
             if [ "$REQ_FAILURES" -gt 0 ]; then
               echo "::error::Skipping status promotion for ${VERSION}: production evidence is incomplete"

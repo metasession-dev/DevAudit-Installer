@@ -69,7 +69,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: develop
+          ref: {{INTEGRATION_BRANCH}}
           fetch-depth: 0
           # See ci.yml.template's checkout step for why (devaudit-installer#676/#815).
           clean: {{CHECKOUT_CLEAN}}
@@ -90,7 +90,7 @@ jobs:
           BASE=$(jq -r '.devaudit.base_url // empty' sdlc-config.json 2>/dev/null || true)
           echo "DEVAUDIT_BASE_URL=${BASE%/}" >> "$GITHUB_ENV"
 
-      - name: Merge main into develop branch
+      - name: Merge {{RELEASE_BRANCH}} into {{INTEGRATION_BRANCH}} branch
         id: merge
         run: |
           # devaudit#281 — merge origin/main back into develop so the
@@ -98,15 +98,15 @@ jobs:
           # compliance-tree close-out. Uses a non-interactive merge.
           git config user.name "devaudit-bot"
           git config user.email "devaudit-bot@users.noreply.github.com"
-          git fetch origin main
+          git fetch origin {{RELEASE_BRANCH}}
           # Check if develop already contains main (nothing to merge)
-          if git merge-base --is-ancestor origin/main develop; then
-            echo "develop already contains origin/main — no merge needed."
+          if git merge-base --is-ancestor origin/{{RELEASE_BRANCH}} {{INTEGRATION_BRANCH}}; then
+            echo "{{INTEGRATION_BRANCH}} already contains origin/{{RELEASE_BRANCH}} — no merge needed."
             echo "merged=false" >> "$GITHUB_OUTPUT"
           else
-            git merge origin/main --no-edit --no-ff
+            git merge origin/{{RELEASE_BRANCH}} --no-edit --no-ff
             echo "merged=true" >> "$GITHUB_OUTPUT"
-            echo "Merged origin/main into develop branch."
+            echo "Merged origin/{{RELEASE_BRANCH}} into {{INTEGRATION_BRANCH}} branch."
           fi
 
       - name: Run close-out
@@ -142,7 +142,7 @@ jobs:
           SHA="$(jq -r '.mergeCommit.oid // empty' <<<"$PR_JSON")"
           NUMBER="$(jq -r '.number' <<<"$PR_JSON")"
           URL="$(jq -r '.url' <<<"$PR_JSON")"
-          [ -n "$MERGED" ] && [ "$BASE" = develop ] && [ "$HEAD" = "chore/close-out-$REQ" ] && [ -n "$SHA" ] || { echo "::error::release_pr must be a merged develop close-out PR for $REQ."; exit 1; }
+          [ -n "$MERGED" ] && [ "$BASE" = {{INTEGRATION_BRANCH}} ] && [ "$HEAD" = "chore/close-out-$REQ" ] && [ -n "$SHA" ] || { echo "::error::release_pr must be a merged {{INTEGRATION_BRANCH}} close-out PR for $REQ."; exit 1; }
           BASE_URL="${DEVAUDIT_BASE_URL:-}"
           [ -n "$BASE_URL" ] && [ -n "$DEVAUDIT_API_KEY" ] || { echo "::error::DevAudit base URL and project API key are required."; exit 1; }
           RELEASE="$(curl --fail-with-body -sS -G "${BASE_URL%/}/api/ci/releases/resolve" -H "Authorization: Bearer ${DEVAUDIT_API_KEY}" --data-urlencode "projectSlug={{PROJECT_SLUG}}" --data-urlencode "versionPrefix=${REQ}")"
@@ -158,7 +158,7 @@ jobs:
           # close it as superseded instead of leaving duplicate sync PRs.
           REQ="${{ steps.in.outputs.req }}"
           # Look for open PRs targeting develop that mention this REQ in the title
-          EXISTING_PRS=$(gh pr list --base develop --state open --json number,title --jq '.[] | select(.title | test("'"${REQ}"'")) | .number' 2>/dev/null || true)
+          EXISTING_PRS=$(gh pr list --base {{INTEGRATION_BRANCH}} --state open --json number,title --jq '.[] | select(.title | test("'"${REQ}"'")) | .number' 2>/dev/null || true)
           for PR_NUM in $EXISTING_PRS; do
             echo "Closing existing PR #${PR_NUM} as superseded by automated close-out for ${REQ}"
             gh pr close ${PR_NUM} --comment "Superseded by automated release close-out for ${REQ}. This PR is no longer needed — the reconciliation is handled by the Release Close-out workflow." 2>/dev/null || true
@@ -179,13 +179,13 @@ jobs:
           git add -A -- compliance
           # Build the close-out marker
           MARKER=$(closeout_marker "${REQ}" 2>/dev/null || echo "Release-Closeout: ${REQ}")
-          git commit -m "docs(compliance): close out ${REQ} release — sync main + reconcile (RELEASED)
+          git commit -m "docs(compliance): close out ${REQ} release — sync {{RELEASE_BRANCH}} + reconcile (RELEASED)
 
           ${MARKER}
 
           Automated reconciliation after the DevAudit portal marked ${REQ} released.
           Includes:
-          - main → develop sync
+          - {{RELEASE_BRANCH}} → {{INTEGRATION_BRANCH}} sync
           - release ticket moved to approved-releases/
           - release ticket status → RELEASED
           - RTM row → RELEASED
@@ -198,14 +198,14 @@ jobs:
           ${MARKER}
 
           This PR includes:
-          - **main → develop reconciliation** — merges released code back into develop
+          - **{{RELEASE_BRANCH}} → {{INTEGRATION_BRANCH}} reconciliation** — merges released code back into {{INTEGRATION_BRANCH}}
           - **release ticket** moved to \`approved-releases/\`, status \`RELEASED\`
           - **RTM row** flipped to \`RELEASED\`
           - **absorbed predecessor tickets** moved to \`superseded-releases/\` when the release bundle lists them
 
-          Review + merge to develop."
-          gh pr create --base develop --head "$BRANCH" \
-            --title "docs(compliance): close out ${REQ} — sync main + reconcile (RELEASED)" \
+          Review + merge to {{INTEGRATION_BRANCH}}."
+          gh pr create --base {{INTEGRATION_BRANCH}} --head "$BRANCH" \
+            --title "docs(compliance): close out ${REQ} — sync {{RELEASE_BRANCH}} + reconcile (RELEASED)" \
             --body "$PR_BODY" \
             || echo "::warning::PR may already exist for ${BRANCH}."
           # devaudit#620 — arm auto-merge so a human doesn't have to notice the

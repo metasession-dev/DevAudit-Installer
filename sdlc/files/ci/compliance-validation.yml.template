@@ -12,7 +12,7 @@ name: Compliance Validation
 
 on:
   pull_request:
-    branches: [main]
+    branches: [{{RELEASE_BRANCH}}]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -30,10 +30,10 @@ jobs:
           clean: {{CHECKOUT_CLEAN}}
 
       - name: Validate compliance artifacts
-        run: bash scripts/validate-compliance-artifacts.sh origin/main
+        run: bash scripts/validate-compliance-artifacts.sh origin/{{RELEASE_BRANCH}}
 
       - name: Validate test execution summaries
-        run: bash scripts/validate-test-summary.sh origin/main
+        run: bash scripts/validate-test-summary.sh origin/{{RELEASE_BRANCH}}
 
       - name: Validate commit conventions
-        run: bash scripts/validate-commits.sh origin/main
+        run: bash scripts/validate-commits.sh origin/{{RELEASE_BRANCH}}

@@ -6,6 +6,7 @@ import { resolveRepoRoot } from '../lib/git-root.js';
 import { resolveInstallerRoot } from '../lib/installer-root.js';
 import { listHosts, loadHostAdapter, type HostAdapter } from '../lib/adapter.js';
 import { CONFIG_KEYS, SECRET_NAME, findConfigKey, parseConfigValue, type ConfigKeySpec } from '../lib/repo-config-keys.js';
+import { getConfigPath, setConfigPath } from '../lib/config-path.js';
 import { detectDeployHost, describeDetection, type DeployDetection, type GhRunner } from '../lib/deploy-detect.js';
 import * as prompts from '../lib/prompt.js';
 
@@ -103,7 +104,7 @@ export async function planConfigChange(
   const warnings: string[] = [];
   const followUps: string[] = [];
   let contradiction: string | null = null;
-  const before = ctx.cfg[key];
+  const before = getConfigPath(ctx.cfg, key);
   const spec = findConfigKey(key);
   if (!spec) {
     return {
@@ -173,7 +174,7 @@ export async function planConfigChange(
   }
   if (errors.length === 0) {
     const { required } = await adapterConfigKeys(ctx.installerRoot, targetHost);
-    const next = { ...ctx.cfg, [key]: after };
+    const next = setConfigPath(ctx.cfg, key, after);
     for (const req of required) {
       const v = next[req];
       if (v === undefined || v === '' || (Array.isArray(v) && v.length === 0)) {
@@ -186,6 +187,18 @@ export async function planConfigChange(
     if (key === 'deploy_secrets' && Array.isArray(after)) {
       for (const s of after) followUps.push(`make sure the repo secret ${String(s)} exists: devaudit configure secret ${String(s)}`);
     }
+    if (key === 'release_branch_required_reviews' && typeof after === 'number') {
+      followUps.push(
+        'run `devaudit update` to apply it to the release branch protection on GitHub' +
+          (after === 0 ? ' (0 reviews lets the author merge their own release PR: DevAudit records this as a control gap)' : '') +
+          '; lowering an existing branch asks for a confirmation',
+      );
+    }
+    if (key === 'approval.mode' && after === 'solo_with_gap') {
+      followUps.push(
+        "a self-approved release is a recorded control gap; the portal's approval policy must allow it (`devaudit doctor` compares the two)",
+      );
+    }
   }
   if (JSON.stringify(before) === JSON.stringify(after) && errors.length === 0) {
     warnings.push(`\`${key}\` already has this value; nothing would change`);
@@ -196,7 +209,7 @@ export async function planConfigChange(
 
 /** Write one key, keeping the file's key order and two-space formatting. */
 export async function writeConfigValue(ctx: ConfigContext, key: string, value: unknown): Promise<void> {
-  const next: Record<string, unknown> = { ...ctx.cfg, [key]: value };
+  const next = setConfigPath(ctx.cfg, key, value);
   await fs.writeFile(join(ctx.repoRoot, 'sdlc-config.json'), `${JSON.stringify(next, null, 2)}\n`);
 }
 
@@ -207,7 +220,7 @@ function show(value: unknown): string {
 function describeSpec(spec: ConfigKeySpec, cfg: Record<string, unknown>, host: string, required: readonly string[]) {
   return {
     key: spec.key,
-    value: cfg[spec.key] ?? null,
+    value: getConfigPath(cfg, spec.key) ?? null,
     type: spec.type,
     description: spec.description,
     ...(spec.enum ? { allowed: spec.enum } : {}),
@@ -243,8 +256,8 @@ export async function runConfigureGet(key: string): Promise<void> {
   const spec = findConfigKey(key);
   const host = recordedHost(ctx.cfg);
   if (!spec) {
-    if (isJsonMode()) emitJsonResult({ key, value: ctx.cfg[key] ?? null, known: false });
-    else log.log(`${key} = ${show(ctx.cfg[key])} (not a key \`devaudit configure\` manages)`);
+    if (isJsonMode()) emitJsonResult({ key, value: getConfigPath(ctx.cfg, key) ?? null, known: false });
+    else log.log(`${key} = ${show(getConfigPath(ctx.cfg, key))} (not a key \`devaudit configure\` manages)`);
     return;
   }
   const { required } = await adapterConfigKeys(ctx.installerRoot, host);
@@ -253,7 +266,7 @@ export async function runConfigureGet(key: string): Promise<void> {
     emitJsonResult({ ...row, known: true });
     return;
   }
-  log.log(`${key} = ${show(ctx.cfg[key])}`);
+  log.log(`${key} = ${show(getConfigPath(ctx.cfg, key))}`);
   log.log(`  ${spec.description}`);
   if (spec.enum) log.log(`  allowed: ${spec.enum.join(', ')}`);
   if (key === 'host') log.log(`  allowed: ${ctx.hosts.join(', ')}`);
@@ -322,7 +335,9 @@ export async function runConfigureSet(
       for (const f of plan.followUps) log.log(`    - ${f}`);
     }
     if (status === 'applied') {
-      log.success(`  updated sdlc-config.json${reason ? ` (reason: ${reason})` : ''}. Run \`devaudit update\` to regenerate the workflows.`);
+      log.success(
+        `  updated sdlc-config.json${reason ? ` (reason: ${reason})` : ''}.${plan.impact.length > 0 ? ' Run `devaudit update` to regenerate the workflows.' : ''}`,
+      );
     } else if (status === 'planned') log.info('  dry run: nothing written');
     else if (status === 'unapplied') {
       log.warn(

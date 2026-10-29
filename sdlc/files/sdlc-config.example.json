@@ -76,6 +76,12 @@
 
   "_comment_release_gate": "Optional (devaudit-installer#1059). Which E2E tier runs on the PR into the release branch: none, smoke, critical or full. These keys are deliberately not listed below: leave them unset to keep today's behaviour (critical, plus the full regression after the production deploy), and add one only to change it. Choose full to test the release candidate before it ships (slower, the full pack can take about an hour); then set post_deploy_full_regression to false to avoid testing the same commit twice. scheduled_full_regression is a cron expression (e.g. \"0 3 * * *\") that runs the full regression on the integration branch; scheduled runs are not release evidence. Needs e2e_regression_enabled. Change these with `devaudit configure set`; devaudit doctor reviews the choice. See docs/e2e-test-tiers.md.",
 
+  "_comment_release_branch_required_reviews": "Optional (DevAudit-Installer#1116). Approving reviews GitHub requires on the release branch: 0, 1 or 2. Not listed below: leave it unset to keep 1, the value `devaudit install` has always applied. 0 lets the author merge their own release PR (a recorded control gap, for a solo developer). `devaudit install` applies it; `devaudit update` keeps the branch at it, and lowering an existing branch asks for a confirmation. Change it with `devaudit configure set release_branch_required_reviews <0|1|2>`.",
+
+  "_comment_onboarding": "Optional (DevAudit-Installer#1116). onboarding_preset (A, B, C, D or custom; a missing key means custom) records the onboarding preset the project chose. compliance_frameworks lists the standards the project needs evidence for (soc-2, iso-27001, iso-29119, gdpr, eu-ai-act; empty for none). Neither is listed below; set them with `devaudit configure set`.",
+
+  "_comment_e2e_data": "Optional (DevAudit-Installer#1116, test data). Where the end-to-end tests get their data, and how it is prepared. e2e_data_isolation: none, ephemeral (a fresh database per run), shared_serialised (a shared environment only these tests use, one run at a time) or shared (a shared environment others also use); unset keeps today's behaviour. e2e_seed_paths: files or folders that hold the seed. e2e_reset_command / e2e_preflight_command / e2e_leak_check_command: commands the project owns (reset the data, fail when the seed fixtures are absent, print the number of rows left behind). e2e_max_skipped: most skipped tests a run may have. feature_e2e_projects: Playwright projects the feature run uses (unset runs all). e2e_seed_command above keeps its meaning. These are defined now and given behaviour by a later work package; none is listed below. Set them with `devaudit configure set`.",
+
   "paths_ignore": [
     ".github/workflows/**",
     "SDLC/**",
@@ -109,7 +115,7 @@
     ]
   },
 
-  "_comment_approval": "Four-eyes release approval policy (Stage 3 Step 11). dual_actor = DevAudit enforces approver ≠ release_creator. solo_with_gap = self-approval allowed with documented control gap in compliance/risk-register.md. auto_low_risk = LOW-risk auto-approved by CI, MEDIUM/HIGH require human.",
+  "_comment_approval": "Release approval policy (Stage 3 Step 11). dual_actor (default) = the approver must differ from the release creator. solo_with_gap = the author may approve their own release; DevAudit records a control gap in compliance/risk-register.md. Nothing approves automatically: an \"auto_low_risk\" mode is not implemented, so it is not offered, and auto_low_risk_threshold below is unused. Change it with `devaudit configure set approval.mode <value>`; the portal has its own approval policy, which `devaudit doctor` compares with this one.",
   "approval": {
     "mode": "dual_actor",
     "auto_low_risk_threshold": "LOW"

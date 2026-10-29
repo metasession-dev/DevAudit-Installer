@@ -818,7 +818,7 @@ Project's `sdlc-config.json` `approval.mode` setting:
 
 - `dual_actor` (recommended) — DevAudit enforces `approver_user_id ≠ release_creator_user_id`. If you're the release creator, you cannot approve your own release; delegate to another authorised reviewer.
 - `solo_with_gap` — DevAudit allows self-approval. This is a documented control gap; the gap must be recorded in `compliance/risk-register.md` with explicit acknowledgement of which compliance clauses it diverges from (SOC2 CC8.1, ISO 29119 §5.4).
-- `auto_low_risk` — LOW-risk requirements auto-approve once Compliance Evidence Upload completes (audited as a system event). MEDIUM/HIGH requirements always require a human click.
+- There is no automatic approval: an `auto_low_risk` mode is not implemented, so DevAudit does not offer it. Every release is approved by a person, whatever its risk.
 
 The `Release Approval Gate` workflow on Stage 4's PR enforces this — it polls DevAudit's API for `release.status` and fails the PR if approval isn't recorded. Wait for the next CI run on develop to confirm the gate sees the approval before proceeding to Stage 4.
 
