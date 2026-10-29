@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'cli/**'
+      - 'core/**'
       - 'plugin-sdk/**'
       - 'sdlc/files/**'
       - 'sdlc/src/**'
@@ -58,7 +59,7 @@ jobs:
           echo "Changed files between $BASE_SHA and $HEAD_SHA:"
           printf '%s\n' "$CHANGED"
 
-          if printf '%s\n' "$CHANGED" | grep -Eq '^(cli/|plugin-sdk/|sdlc/files/|sdlc/src/|contracts/evidence-types\.json$|\.github/workflows/cli\.yml$)'; then
+          if printf '%s\n' "$CHANGED" | grep -Eq '^(cli/|core/|plugin-sdk/|sdlc/files/|sdlc/src/|contracts/evidence-types\.json$|\.github/workflows/cli\.yml$)'; then
             echo "run_tests=true" >> "$GITHUB_OUTPUT"
             echo "reason=relevant-files-changed" >> "$GITHUB_OUTPUT"
           else
@@ -77,6 +78,15 @@ jobs:
         run: |
           npm install --legacy-peer-deps
           npm run build
+      # core is a file: dep of cli too (DevAudit-Installer#1116, WP1). Build it and run its own tests.
+      - name: Build and test core (cli depends on it via file:)
+        if: steps.changes.outputs.run_tests == 'true'
+        working-directory: core
+        run: |
+          npm install --legacy-peer-deps
+          npx tsc --noEmit
+          npm run build
+          npm test
       - if: steps.changes.outputs.run_tests == 'true'
         run: npm install --legacy-peer-deps
       - name: TypeScript
@@ -102,7 +112,7 @@ jobs:
 
   # devaudit-installer#1091 D24 — every tarball holds what it must and nothing it must not. Runs only
   # on a pull request into main (the promotion PR), so it is just another green check there. It builds
-  # the five packages the way release.yml does and then runs scripts/check-package-contents.sh.
+  # the six packages the way release.yml does and then runs scripts/check-package-contents.sh.
   package-contents:
     name: Package contents
     if: github.event_name == 'pull_request' && github.base_ref == 'main'
@@ -114,6 +124,11 @@ jobs:
           node-version: '22'
       - name: plugin-sdk — install + build
         working-directory: plugin-sdk
+        run: |
+          npm install --legacy-peer-deps
+          npm run build
+      - name: core — install + build
+        working-directory: core
         run: |
           npm install --legacy-peer-deps
           npm run build

@@ -22,8 +22,9 @@ Local setup:
 git clone https://github.com/metasession-dev/DevAudit-Installer.git
 cd DevAudit-Installer
 
-# Build the SDK once — the CLI and plugins depend on it via file: links.
+# Build the SDK and the core once — the CLI and plugins depend on them via file: links.
 ( cd plugin-sdk && npm install --legacy-peer-deps && npm run build )
+( cd core && npm install --legacy-peer-deps && npm run build )
 
 # CLI
 ( cd cli && npm install --legacy-peer-deps && npm test )
@@ -103,6 +104,7 @@ This repository uses a **GitFlow** branching model with five branch types:
 | Path | Contents |
 |---|---|
 | `cli/` | The `devaudit` CLI source, tests, bin entry |
+| `core/` | The `@metasession.co/devaudit-core` package — the pure shared core of the CLI and the portal |
 | `plugin-sdk/` | The `@metasession.co/devaudit-plugin-sdk` package — plugin contract types |
 | `plugins/devaudit-plugin-*/` | First-party plugins built against the SDK |
 | `sdlc/` | Framework templates that get synced into consumer projects |

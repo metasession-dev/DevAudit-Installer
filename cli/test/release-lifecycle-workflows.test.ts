@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { load as yamlLoad } from 'js-yaml';
 import { describe, expect, it } from 'vitest';
 
 const root = resolve(import.meta.dirname, '../..');
@@ -16,12 +17,83 @@ const reference = (name: string) =>
     '\n',
   );
 
+type WorkflowStep = { name?: string; run?: string; 'working-directory'?: string };
+type WorkflowJob = {
+  if?: string;
+  permissions?: Record<string, string>;
+  steps: WorkflowStep[];
+};
+type ReleaseWorkflow = {
+  on: { workflow_dispatch: { inputs: Record<string, { default?: string; required?: boolean; options?: string[] }> } };
+  jobs: Record<string, WorkflowJob>;
+};
+
+describe('@metasession.co/devaudit-core in the release (DevAudit-Installer#1116 WP1)', () => {
+  const source = readFileSync(resolve(root, '.github/workflows/release.yml'), 'utf8');
+  const workflow = yamlLoad(source) as ReleaseWorkflow;
+
+  it('publishes core after plugin-sdk and before the cli, verifies it, and pins it in the cli only', () => {
+    const at = (name: string) => {
+      const index = source.indexOf(name);
+      expect(index, `step "${name}" is in release.yml`).toBeGreaterThanOrEqual(0);
+      return index;
+    };
+    const sdk = at('plugin-sdk — install + build + publish');
+    const core = at('core — install + build + test + publish');
+    const verifyCore = at('Verify core is publicly installable');
+    const pinCore = at('Pin core version in the cli');
+    const cli = at('cli — install + build + publish');
+    expect(sdk).toBeLessThan(core);
+    expect(core).toBeLessThan(verifyCore);
+    expect(verifyCore).toBeLessThan(pinCore);
+    expect(pinCore).toBeLessThan(cli);
+    expect(source).toContain('bash scripts/verify-npm-publication.sh @metasession.co/devaudit-core');
+    const publish = workflow.jobs.publish!;
+    const pin = publish.steps.find((step) => step.name === 'Pin core version in the cli');
+    expect(pin?.run).toContain('.dependencies["@metasession.co/devaudit-core"] = $v');
+    expect(pin?.run).toContain('cli/package.json');
+    // Only the cli depends on core: the plugins are not touched by the core pin.
+    expect(pin?.run).not.toContain('plugins/');
+  });
+
+  it('keeps a tag push and a manual release on the publish job, and takes it off the core prerelease run', () => {
+    expect(workflow.on.workflow_dispatch.inputs.mode?.default).toBe('release');
+    expect(workflow.on.workflow_dispatch.inputs.mode?.options).toEqual(['release', 'core-prerelease']);
+    expect(workflow.on.workflow_dispatch.inputs.version?.required).toBe(false);
+    expect(workflow.jobs.publish!.if).toBe("github.event_name == 'push' || inputs.mode != 'core-prerelease'");
+    const guard = workflow.jobs.publish!.steps[0];
+    expect(guard?.run).toContain('needs the \'version\' input');
+  });
+
+  it('the core prerelease job runs only from develop, publishes only core to the next tag, and releases nothing (M8)', () => {
+    const job = workflow.jobs['core-prerelease'];
+    expect(job).toBeDefined();
+    expect(job!.if).toBe("github.event_name == 'workflow_dispatch' && inputs.mode == 'core-prerelease'");
+    expect(job!.permissions).toEqual({ contents: 'read', 'id-token': 'write' });
+    expect(job!.steps[0]?.run).toContain('refs/heads/develop');
+    const runs = job!.steps.map((step) => step.run ?? '').join('\n');
+    expect(runs).toContain('npm publish --provenance --access public --tag next');
+    expect(runs.match(/npm publish/g)).toHaveLength(1);
+    const publishStep = job!.steps.find((step) => (step.run ?? '').includes('npm publish'));
+    expect(publishStep?.['working-directory']).toBe('core');
+    expect(runs).toContain('VER="${BASE}-next.${SHA7}"');
+    expect(runs).toContain('verify-npm-publication.sh @metasession.co/devaudit-core');
+    for (const forbidden of ['gh release', 'git tag', 'git push', '--tag latest', 'plugin-sdk', 'working-directory: cli']) {
+      expect(runs, `the prerelease job must not contain "${forbidden}"`).not.toContain(forbidden);
+    }
+    for (const step of job!.steps) {
+      expect(step['working-directory'] ?? '', 'no step runs in another package').not.toMatch(/^(cli|plugin-sdk|sdlc|plugins\/)/);
+    }
+  });
+});
+
 describe('authoritative release lifecycle workflow templates (#405)', () => {
   it('does not create a GitHub release until every npm package is publicly retrievable (#534)', () => {
     const source = readFileSync(resolve(root, '.github/workflows/release.yml'), 'utf8');
     const verifier = readFileSync(resolve(root, 'scripts/verify-npm-publication.sh'), 'utf8');
     const verificationNames = [
       'Verify plugin-sdk is publicly installable',
+      'Verify core is publicly installable',
       'Verify CLI is publicly installable',
       'Verify Prisma plugin is publicly installable',
       'Verify evidence-export plugin is publicly installable',

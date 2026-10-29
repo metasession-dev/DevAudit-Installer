@@ -144,6 +144,8 @@ ensure_build() {
   echo "Building the candidate CLI ($ROOT/cli)..."
   ( cd "$ROOT/plugin-sdk" && npm ci --silent >/dev/null 2>&1 && npm run build --silent >/dev/null 2>&1 ) \
     || die "plugin-sdk build failed"
+  ( cd "$ROOT/core" && npm ci --silent >/dev/null 2>&1 && npm run build --silent >/dev/null 2>&1 ) \
+    || die "core build failed"
   ( cd "$ROOT/cli" && npm install --legacy-peer-deps --silent >/dev/null 2>&1 && npm run build --silent >/dev/null 2>&1 ) \
     || die "cli build failed"
 }
@@ -503,10 +505,10 @@ run_layer1() {
     record installer typecheck FAIL "cli typecheck failed"
   fi
   local mismatch=""
-  for p in plugin-sdk cli sdlc plugins/devaudit-plugin-prisma plugins/devaudit-plugin-evidence-export; do
+  for p in plugin-sdk core cli sdlc plugins/devaudit-plugin-prisma plugins/devaudit-plugin-evidence-export; do
     [ "$(node -p "require('$ROOT/$p/package.json').version")" = "$v" ] || mismatch="$mismatch $p"
   done
-  if [ -z "$mismatch" ]; then record installer versions-aligned PASS "all 5 packages at $v"; else record installer versions-aligned WARN "not at $v:$mismatch (bump happens at release)"; fi
+  if [ -z "$mismatch" ]; then record installer versions-aligned PASS "all 6 packages at $v"; else record installer versions-aligned WARN "not at $v:$mismatch (bump happens at release)"; fi
   # #1020: no operator-facing guidance may tell anyone to put a skip-CI tag on a
   # commit that goes through a PR (GitHub then runs no workflows, so the required
   # Quality Gates check is never created). Historical records, tests, the changelog
@@ -566,17 +568,19 @@ run_layer1() {
   else
     record installer mock-portal-lifecycle FAIL "tests/release-pipeline-e2e/run.sh failed"
   fi
-  # Pack the CLI and plugin-sdk as npm would and install them into an empty
-  # prefix. The CLI depends on `file:../plugin-sdk` for local development;
-  # release.yml rewrites that to the published version before publishing, so
-  # do the equivalent here: point it at the packed plugin-sdk tarball.
-  local pack="$WORK_DIR/pack" tgz sdk_tgz
+  # Pack the CLI, plugin-sdk and core as npm would and install them into an empty
+  # prefix. The CLI depends on `file:../plugin-sdk` and `file:../core` for local
+  # development; release.yml rewrites those to the published versions before
+  # publishing, so do the equivalent here: point them at the packed tarballs.
+  local pack="$WORK_DIR/pack" tgz sdk_tgz core_tgz
   rm -rf "$pack"; mkdir -p "$pack/repack"
   sdk_tgz=$(cd "$ROOT/plugin-sdk" && npm pack --silent --pack-destination "$pack" 2>/dev/null | tail -1)
+  core_tgz=$(cd "$ROOT/core" && npm pack --silent --pack-destination "$pack" 2>/dev/null | tail -1)
   tgz=$(cd "$ROOT/cli" && npm pack --silent --pack-destination "$pack" 2>/dev/null | tail -1)
-  if [ -n "$tgz" ] && [ -n "$sdk_tgz" ]; then
+  if [ -n "$tgz" ] && [ -n "$sdk_tgz" ] && [ -n "$core_tgz" ]; then
     tar -xzf "$pack/$tgz" -C "$pack/repack" \
-      && jq --arg dep "file:$pack/$sdk_tgz" '.dependencies["@metasession.co/devaudit-plugin-sdk"] = $dep' \
+      && jq --arg dep "file:$pack/$sdk_tgz" --arg core "file:$pack/$core_tgz" \
+           '.dependencies["@metasession.co/devaudit-plugin-sdk"] = $dep | .dependencies["@metasession.co/devaudit-core"] = $core' \
            "$pack/repack/package/package.json" > "$pack/repack/package.json.tmp" \
       && mv "$pack/repack/package.json.tmp" "$pack/repack/package/package.json" \
       && tar -czf "$pack/cli-release-shaped.tgz" -C "$pack/repack" package \
@@ -589,16 +593,16 @@ run_layer1() {
   else
     record installer pack-install FAIL "npm pack or install failed"
   fi
-  # Every tarball holds what it must and nothing it must not (#1091 D24). The plugins need their
-  # dist/ first, as release.yml builds them.
+  # Every tarball holds what it must and nothing it must not (#1091 D24). core and the plugins need
+  # their dist/ first, as release.yml builds them.
   local p built=1
-  for p in plugins/devaudit-plugin-prisma plugins/devaudit-plugin-evidence-export; do
+  for p in core plugins/devaudit-plugin-prisma plugins/devaudit-plugin-evidence-export; do
     if [ ! -d "$ROOT/$p/dist" ]; then
       ( cd "$ROOT/$p" && npm install --legacy-peer-deps >/dev/null 2>&1 && npm run build >/dev/null 2>&1 ) || built=0
     fi
   done
   if [ "$built" = 0 ]; then
-    record installer package-contents FAIL "a plugin could not be built, so its tarball cannot be checked"
+    record installer package-contents FAIL "core or a plugin could not be built, so its tarball cannot be checked"
   elif out=$(bash "$ROOT/scripts/check-package-contents.sh" 2>&1); then
     record installer package-contents PASS "$(printf '%s\n' "$out" | tail -1)"
   else

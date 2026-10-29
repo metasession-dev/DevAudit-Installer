@@ -126,8 +126,27 @@ STUB
 chmod +x "$TMP/stub-empty.sh"
 if CASE_DIR="$d" PACK_CMD="$TMP/stub-empty.sh" bash "$TMP/repo/scripts/check-package-contents.sh" lib >/dev/null 2>&1; then no "an empty pack result fails"; else ok "an empty pack result fails"; fi
 
+# 7b. every `exports` target is a promised file: a package with a "./node" entry (core) whose
+# tarball lacks it fails, and one that has it passes
+mkdir -p "$TMP/repo/core"
+cat > "$TMP/repo/core/package.json" <<'JSON'
+{ "name": "@x/core", "version": "1.0.0", "main": "./dist/index.js", "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
+               "./node": { "types": "./dist/node/index.d.ts", "import": "./dist/node/index.js" } } }
+JSON
+d="$(new_case core-missing-node)"
+printf '%s\n' dist/index.js dist/index.d.ts dist/node/index.d.ts > "$d/core.files"
+out="$(run_case "$d" core 2>&1)"; rc=$?
+if [ "$rc" -eq 1 ] && printf '%s' "$out" | grep -qF "dist/node/index.js"; then ok "a missing exports entry (dist/node/index.js) fails"; else no "a missing exports entry fails (rc=$rc): $out"; fi
+d="$(new_case core-complete)"
+printf '%s\n' dist/index.js dist/index.d.ts dist/node/index.js dist/node/index.d.ts > "$d/core.files"
+if run_case "$d" core >/dev/null 2>&1; then ok "a package with every exports entry passes"; else no "a package with every exports entry passes"; fi
+
+# 7c. core is one of the default packages
+if grep -q '^PACKAGES=(plugin-sdk core cli ' "$SCRIPT"; then ok "core is checked by default"; else no "core is checked by default"; fi
+
 # 8. the real repository: every listed package has a package.json the script can read
-for p in plugin-sdk cli sdlc plugins/devaudit-plugin-prisma plugins/devaudit-plugin-evidence-export; do
+for p in plugin-sdk core cli sdlc plugins/devaudit-plugin-prisma plugins/devaudit-plugin-evidence-export; do
   if [ -f "$ROOT/$p/package.json" ]; then ok "real package.json: $p"; else no "real package.json: $p"; fi
 done
 

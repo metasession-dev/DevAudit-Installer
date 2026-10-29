@@ -4,6 +4,15 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+### Added
+
+- **A sixth package, `@metasession.co/devaudit-core`** (#1129, work package WP1 of the guided-onboarding umbrella #1116): the pure shared core of the CLI and the portal, with a pure entry point (`.`) and a Node-only one (`./node`). The CLI now depends on it (`file:../core` in the repository; pinned to the published version at release). It currently exports only its contract version; detection, the gap model, presets, the question registry and the local scan arrive in later work packages. `release.yml` publishes it after `plugin-sdk` and before `cli`; `scripts/check-package-contents.sh` and `scripts/release-validation.sh` cover it; `scripts/check-package-contents.sh` now also checks that every `exports` target is in each tarball.
+- **A manual `core` prerelease** (#1129, decision M8 of #1116): `gh workflow run release.yml --ref develop -f mode=core-prerelease` publishes only `@metasession.co/devaudit-core@<version>-next.<sha>` on the npm `next` tag, so the portal can build on `core` before the release that first publishes it. It runs only from `develop` and creates no release, no git tag and no `latest` version. `release.yml` gains a `mode` input (default `release`, unchanged behaviour); its `version` input is now optional and a manual release without one fails before publishing.
+
+### Upgrade notes
+
+- Nothing changes for a consuming project: `core` is an internal dependency of the CLI, installed with it.
+
 ## [1.11.0] — 2026-10-28
 
 ### Upgrade notes

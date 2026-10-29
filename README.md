@@ -5,7 +5,7 @@
 This repo — `DevAudit-Installer` — is the **framework + client** side of DevAudit: the SDLC you run and the tooling that gets installed into your project. It holds two of DevAudit's three pillars:
 
 1. **The SDLC framework** (`sdlc/`) — stage docs, templates, per-stack/host adapters, and eight AI skills (`sdlc-implementer` orchestrator + `e2e-test-engineer`, `e2e-ci-reliability`, `governance-doc-author`, the SoT-alignment family of `requirements-aligner` / `adr-author` / `risk-register-keeper`, and `devaudit-configure` for repo settings).
-2. **The CLI + compliance gates** (`cli/`, `plugin-sdk/`, `plugins/*`, and the CI workflow templates under `sdlc/files/ci/`) — what onboards your project and what runs on every push/PR to feed the portal.
+2. **The CLI + compliance gates** (`cli/`, `core/`, `plugin-sdk/`, `plugins/*`, and the CI workflow templates under `sdlc/files/ci/`) — what onboards your project and what runs on every push/PR to feed the portal.
 
 The third pillar — the **evidence portal** (the product/server side: what you see, the source of truth for releases, evidence, and approvals) — lives at [`metasession-dev/devaudit`](https://github.com/metasession-dev/devaudit) (running at <https://devaudit.ai>). **Topics are split, not duplicated:** the product story, standards coverage, the portal UI, release lifecycle/approvals, and the API are documented there; the CLI, onboarding, the SDLC process, the skills, and the workflows that upload evidence are documented here. Each side cross-references the other.
 
@@ -34,6 +34,7 @@ Start at the portal for the big picture:
 | Package                                                                                                                            | Purpose                                          |
 | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
 | [`@metasession.co/devaudit-cli`](https://www.npmjs.com/package/@metasession.co/devaudit-cli)                                       | The `devaudit` binary                            |
+| [`@metasession.co/devaudit-core`](https://www.npmjs.com/package/@metasession.co/devaudit-core)                                     | The pure shared core of the CLI and the portal — see [`core/README.md`](./core/README.md) |
 | [`@metasession.co/devaudit-plugin-sdk`](https://www.npmjs.com/package/@metasession.co/devaudit-plugin-sdk)                         | Plugin contract types — see [`plugin-sdk/README.md`](./plugin-sdk/README.md) for authoring a plugin |
 | [`@metasession.co/devaudit-plugin-prisma`](https://www.npmjs.com/package/@metasession.co/devaudit-plugin-prisma)                   | First-party plugin — Prisma migration hooks      |
 | [`@metasession.co/devaudit-plugin-evidence-export`](https://www.npmjs.com/package/@metasession.co/devaudit-plugin-evidence-export) | First-party plugin — bulk evidence bundle export |

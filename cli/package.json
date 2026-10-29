@@ -32,6 +32,7 @@
   },
   "dependencies": {
     "@clack/prompts": "^1.8.1",
+    "@metasession.co/devaudit-core": "file:../core",
     "@metasession.co/devaudit-plugin-sdk": "file:../plugin-sdk",
     "ajv": "^8.20.0",
     "commander": "^12.1.0",

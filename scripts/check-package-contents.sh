@@ -2,14 +2,14 @@
 # check-package-contents.sh — does each package tarball contain what it must, and nothing it must
 # not? (devaudit-installer#1091 D24; replaces the hand-rolled "bundle" check in the release steps.)
 #
-# For each of the five packages it runs `npm pack --dry-run --json` and fails when a required
+# For each of the six packages it runs `npm pack --dry-run --json` and fails when a required
 # path is missing, or when the tarball contains an environment file, `consumers.local` or any
 # `*.local` file (consumers are never named in this public repo, and a local file may hold a
 # credential).
 #
 # Usage:   scripts/check-package-contents.sh [package-dir ...]
-#          defaults to the five published packages, relative to the repository root
-# Needs:   jq, npm; plugin-sdk and the two plugins built (`npm run build`) so their dist/ exists.
+#          defaults to the six published packages, relative to the repository root
+# Needs:   jq, npm; plugin-sdk, core and the two plugins built (`npm run build`) so their dist/ exists.
 #          The CLI's `prepack` builds dist/ and bundles sdlc/ into the tarball itself.
 # Env:     PACK_CMD  command that prints `npm pack --dry-run --json` output for the current
 #                    directory (default: that npm command; the tests replace it)
@@ -22,7 +22,7 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PACK_CMD="${PACK_CMD:-npm pack --dry-run --json}"
 
-PACKAGES=(plugin-sdk cli sdlc plugins/devaudit-plugin-prisma plugins/devaudit-plugin-evidence-export)
+PACKAGES=(plugin-sdk core cli sdlc plugins/devaudit-plugin-prisma plugins/devaudit-plugin-evidence-export)
 
 # ---- the required list ----------------------------------------------------------------------
 # CLI: exact files, directory prefixes (at least one file under each), and minimum counts.
@@ -34,7 +34,7 @@ CLI_REQUIRED_FILES=(
 CLI_REQUIRED_DIRS=("dist/")
 CLI_MIN_BLUEPRINTS=6 # sdlc/src/blueprints/*.raw.md
 CLI_MIN_SKILLS=9     # distinct directories under sdlc/files/_common/skills/
-# Every package: its main / types / bin entries from package.json, and README.md when the
+# Every package: its main / types / bin / exports entries from package.json, and README.md when the
 # package directory has one (npm adds it on its own).
 # Never in any tarball:
 FORBIDDEN_RE='(^|/)\.env($|\.)|(^|/)consumers\.local$|\.local$'
@@ -52,10 +52,12 @@ pack_files() {
   ( cd "$1" && eval "$PACK_CMD" 2>/dev/null ) | awk '/^\[$/ { f = 1 } f' | jq -r '.[0].files[].path' 2>/dev/null
 }
 
-# manifest_paths <dir>: package.json main / types / bin entries, without a leading "./".
+# manifest_paths <dir>: package.json main / types / bin / exports entries, without a leading "./".
+# Every string under `exports` is a file the package promises (for example core's "./node" entry).
 manifest_paths() {
-  jq -r '[.main, .types, (.bin | if type == "string" then . elif type == "object" then (.[]) else empty end)]
-         | map(select(. != null)) | .[] | sub("^\\./"; "")' "$1/package.json"
+  jq -r '[.main, .types, (.bin | if type == "string" then . elif type == "object" then (.[]) else empty end),
+          ((.exports // empty) | .. | strings)]
+         | map(select(. != null)) | unique | .[] | sub("^\\./"; "")' "$1/package.json"
 }
 
 check_package() { # <relative dir>

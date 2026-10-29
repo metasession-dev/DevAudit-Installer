@@ -16,6 +16,16 @@ updates:
           - "minor"
           - "patch"
   - package-ecosystem: "npm"
+    directory: "/core"
+    schedule:
+      interval: "weekly"
+    target-branch: "develop"
+    groups:
+      patch-and-minor:
+        update-types:
+          - "minor"
+          - "patch"
+  - package-ecosystem: "npm"
     directory: "/plugin-sdk"
     schedule:
       interval: "weekly"
