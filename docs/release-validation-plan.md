@@ -70,7 +70,7 @@ The gate never writes to a consumer repository or to the portal:
 | --- | --- | --- |
 | `typecheck` | `cli` `tsc --noEmit` | yes |
 | `test-typecheck` | `cli` `tsc --noEmit -p tsconfig.test.json` (CI type-checks the test files too) | yes |
-| `versions-aligned` | all 5 packages share one version | no (WARN before the bump) |
+| `versions-aligned` | all 6 packages share one version | no (WARN before the bump) |
 | `vitest` | full `cli` vitest suite, run from `cli/`; the whole output is kept in `$WORK_DIR/vitest.log` and the failing test names are listed in the record and in `results.md` | yes |
 | `shell-tests` | every `sdlc/files/_common/scripts/*.test.sh` and `scripts/*.test.sh`; each one's output is kept in `$WORK_DIR/shell-tests/` | yes |
 | `adapters` | `node scripts/validate-adapter.cjs --all` | yes |
@@ -223,7 +223,7 @@ scripts/release-validation.sh consumer <repo-name>
 WORK_DIR=/tmp/rv scripts/release-validation.sh fixture node python
 ```
 
-The script builds the candidate with the same installs as CI (`npm ci` for `plugin-sdk`, `npm install --legacy-peer-deps` for `cli`; `npm ci` rejects `cli`'s lockfile, #996) and `SKIP_BUILD=1` reuses `cli/dist`, keeps
+The script builds the candidate with the same installs as CI (`npm ci` for `plugin-sdk` and `core`, `npm install --legacy-peer-deps` for `cli`; `npm ci` rejects `cli`'s lockfile, #996) and `SKIP_BUILD=1` reuses `cli/dist`, keeps
 `WORK_DIR` for inspection (clones, update logs, `gh-stub.log`), and writes
 `$WORK_DIR/results.md`. It exits 1 if any check failed.
 
