@@ -15,6 +15,16 @@ devaudit configure secret <NAME> [--dry-run]          # set a repo secret throug
 
 Implementation: [`cli/src/commands/configure.ts`](../cli/src/commands/configure.ts), keys in [`cli/src/lib/repo-config-keys.ts`](../cli/src/lib/repo-config-keys.ts), deploy-host detection in [`cli/src/lib/deploy-detect.ts`](../cli/src/lib/deploy-detect.ts).
 
+## `devaudit configure` with no arguments
+
+Run in a terminal with no subcommand, `devaudit configure` asks the same questions as the guided install ([`onboarding.md`](./onboarding.md#presets-and-the-guided-install)) with this project's current values as the defaults. The preset question starts at the preset recorded in `onboarding_preset`; "Keep my current settings" is offered when none is recorded. After the answers it lists every change as `key: before -> after`, keys the new preset does not write as `removed`, and the workflows the next `devaudit update` regenerates, asks once, and writes only what changed. If nothing changed it writes nothing.
+
+- **Switching presets** writes exactly the target preset's keys and removes the ones it does not write (C to A leaves no `release_gate_tier`, `post_deploy_full_regression` or `scheduled_full_regression`). C to D changes `post_deploy_full_regression` to `false`, and D to C changes it back.
+- **A change that enables a test tier** (the release gate question, or moving to preset B, C or D) asks where the tests get their data (Q18) straight away when `e2e_data_isolation` is unset.
+- **The approval policy on the portal** is a separate action that needs a project admin. If the portal does not accept a solo policy, the approval settings in `sdlc-config.json` are left as they are and the rest is written.
+- **Without a terminal** (no TTY, `CI` set or `--json`) it asks nothing, writes nothing and exits 8: use `devaudit configure set <key> <value>` in scripts. A declined confirmation also exits 8.
+- A new review count on the release branch reaches GitHub through `devaudit update`, which asks before lowering an existing branch.
+
 ## `configure set`: what it checks
 
 1. **The key is one `configure` manages.** Unknown keys are refused; `configure list` shows them. `e2e_regression_enabled` is refused with a pointer to `devaudit update --enable-e2e-regression` / `--disable-e2e-regression`, which also syncs the workflow.

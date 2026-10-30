@@ -60,12 +60,14 @@ interface SelectCall {
 }
 
 /** An asker that answers from queues and fails loudly on anything unexpected. */
-function asker(script: { select?: string[]; confirm?: boolean[]; text?: string[]; multiselect?: string[][] } = {}) {
+function asker(script: { data?: string; select?: string[]; confirm?: boolean[]; text?: string[]; multiselect?: string[][] } = {}) {
   const queues = { select: [...(script.select ?? [])], confirm: [...(script.confirm ?? [])], text: [...(script.text ?? [])], multiselect: [...(script.multiselect ?? [])] };
   const selects: SelectCall[] = [];
   const texts: Array<{ message: string; initial: string; validate?: (v: string) => string | undefined }> = [];
   const confirms: string[] = [];
   const say: string[] = [];
+  const dataAsked: string[] = [];
+  const dataAnswer = script.data ?? 'unknown';
   const next = <T>(kind: keyof typeof queues, message: string): T => {
     const value = (queues[kind] as unknown[]).shift();
     if (value === undefined) throw new Error(`unexpected ${kind} prompt: ${message}`);
@@ -73,6 +75,11 @@ function asker(script: { select?: string[]; confirm?: boolean[]; text?: string[]
   };
   const ask: GuidedAsker = {
     select: async (message, options, initial) => {
+      // Q18 is asked straight after B, C or D when the data has no answer; most tests do not care.
+      if (message.startsWith('Where do the tests get their data?')) {
+        dataAsked.push(message);
+        return dataAnswer;
+      }
       selects.push({ message, options, initial });
       const answer = next<string>('select', message);
       return answer === '<default>' ? initial : answer;
@@ -93,7 +100,7 @@ function asker(script: { select?: string[]; confirm?: boolean[]; text?: string[]
       return answer;
     },
   };
-  return { ask, selects, texts, confirms, say, sayFn: (line: string) => void say.push(line) };
+  return { ask, selects, texts, confirms, dataAsked, say, sayFn: (line: string) => void say.push(line) };
 }
 
 /** A portal stub: `GET /api/ci/projects/{slug}` answers with `project`, the frameworks route with `frameworks`. */
@@ -133,7 +140,7 @@ describe('the express path, per preset', () => {
   });
 
   it('preset C is suggested for SOC 2 with a full pack, D is listed after C and never suggested', async () => {
-    const dir = await repo({ config: { project_slug: 'fixture-app', stack: 'node', compliance_frameworks: ['soc-2'], onboarding_preset: 'B' } });
+    const dir = await repo({ config: { project_slug: 'fixture-app', stack: 'node', compliance_frameworks: ['soc-2'], onboarding_preset: 'custom' } });
     const a = asker({ select: ['C', 'yes'] });
     await run(dir, a, portal(POLICY_INDEPENDENT));
     const preset = a.selects[0]!;
@@ -205,6 +212,36 @@ describe('the express path, per preset', () => {
     const asked = a.selects.map((s) => s.message);
     expect(asked[0]).toBe('Which preset fits?');
     expect(asked.some((m) => m.startsWith('Where does production run?'))).toBe(true);
+  });
+});
+
+describe('Q18 (where the tests get their data)', () => {
+  it.each(['B', 'C', 'D'] as const)('is asked straight after preset %s when the data has no answer', async (id) => {
+    const dir = await repo();
+    const a = asker({ select: [id, 'yes'], confirm: id === 'B' ? [true] : [] });
+    await run(dir, a, portal(POLICY_INDEPENDENT));
+    expect(a.dataAsked).toHaveLength(1);
+  });
+
+  it('is not asked for preset A, or when the project already has an answer', async () => {
+    const dir = await repo();
+    const a = asker({ select: ['A', 'yes'], confirm: [true] });
+    await run(dir, a, portal(POLICY_INDEPENDENT));
+    expect(a.dataAsked).toHaveLength(0);
+    const dir2 = await repo({ config: { project_slug: 'fixture-app', stack: 'node', e2e_data_isolation: 'ephemeral', onboarding_preset: 'C' } });
+    const b = asker({ select: ['C', 'yes'] });
+    const plan = await run(dir2, b, portal(POLICY_INDEPENDENT));
+    expect(b.dataAsked).toHaveLength(0);
+    expect(plan.onboarding?.preset).toBe('C');
+    expect(b.say.join('\n')).toContain('Test data: ephemeral');
+  });
+
+  it('writes the answer and the concurrency group for a shared, serialised environment', async () => {
+    const dir = await repo();
+    const a = asker({ select: ['C', 'yes'], data: 'shared_serialised' });
+    const plan = await run(dir, a, portal(POLICY_INDEPENDENT));
+    expect(plan.onboarding?.config['e2e_data_isolation']).toBe('shared_serialised');
+    expect(plan.onboarding?.config['e2e_concurrency_group']).toBe('e2e-fixture-app');
   });
 });
 

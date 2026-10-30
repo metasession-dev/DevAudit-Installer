@@ -73,7 +73,7 @@ Not for authoring test content (that's `e2e-test-engineer`) and not for a single
 - "we deploy to AWS" / "we deploy to our own servers"
 - "change the CI runner"
 
-Runs `devaudit doctor`, explains what disagrees with how the repo really deploys, and applies each change you confirm through `devaudit configure` (validated, with a dry run first). You set secrets yourself with `devaudit configure secret <NAME>`. See [`configure.md`](configure.md).
+Runs `devaudit doctor`, explains what disagrees with how the repo really deploys, and applies each change you confirm through `devaudit configure` (validated, with a dry run first). You set secrets yourself with `devaudit configure secret <NAME>`. See [`configure.md`](configure.md). In a terminal, `devaudit configure` with no arguments is the guided version: your current values as defaults, a before/after summary, and only the changes written.
 
 ## Governance documents — `governance-doc-author`
 

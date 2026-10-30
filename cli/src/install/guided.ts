@@ -1,4 +1,5 @@
 import {
+  conditionHolds,
   CUSTOM_PRESET,
   PRESETS,
   PRESET_CONFIG_KEYS,
@@ -238,7 +239,8 @@ export async function runGuided(input: GuidedInput): Promise<GuidedResult> {
         options.push({ value: id, label: `${id} — ${PRESETS[id].name}`, hint: offer.note ? `${hint} (${offer.note})` : hint });
       }
       options.push({ value: 'custom', label: CUSTOM_PRESET.name, hint: CUSTOM_PRESET.summary });
-      const initial = input.existing !== null && existingPreset === null ? 'keep' : input.scanPreset !== undefined && options.some((o) => o.value === input.scanPreset) ? input.scanPreset : suggestion.preset;
+      const current = existingPreset !== null && options.some((o) => o.value === existingPreset) ? existingPreset : null;
+      const initial = input.existing !== null && existingPreset === null ? 'keep' : current !== null && current !== 'custom' ? current : input.scanPreset !== undefined && options.some((o) => o.value === input.scanPreset) ? input.scanPreset : suggestion.preset;
       let chosen: string;
       if (input.presetFlag !== undefined && !flagUsed) {
         flagUsed = true;
@@ -345,6 +347,8 @@ export async function runGuided(input: GuidedInput): Promise<GuidedResult> {
       if (nightly === 'off') delete s.cfg['scheduled_full_regression'];
       else s.cfg['scheduled_full_regression'] = nightly;
       s.cfg['e2e_regression_enabled'] = !(tier === 'none' && afterAnswer !== 'full' && nightly === 'off');
+      // A tier that runs against shared data needs to know where the data lives (Q18).
+      if (s.cfg['e2e_regression_enabled'] === true && s.dataIsolation === undefined && s.testsExist) await handlers['Q18']!();
     },
     Q9: async () => {
       const kind = await ask.select(
@@ -452,6 +456,8 @@ export async function runGuided(input: GuidedInput): Promise<GuidedResult> {
       if (chosen.length > 0) s.cfg['e2e_projects'] = chosen;
     },
   };
+
+  if (conditionHolds('preset-needs-data', conditionState(s))) await handlers['Q18']!();
 
   // ---- the express summary loop ---------------------------------------------------------------------------
 
