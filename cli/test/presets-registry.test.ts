@@ -60,8 +60,8 @@ describe('docs/presets.md', () => {
   });
 });
 
-describe('the compliance lines (until the open framework registry lands)', () => {
-  // The clause ids section 4 cites. Once contracts/frameworks/*.json exists this list is read from it (WP9).
+describe('the compliance lines', () => {
+  // The clause ids section 4 cites; cli/test/framework-registry.test.ts checks them against contracts/frameworks/*.json (WP9).
   const KNOWN_CLAUSES = ['SOC2.CC8.1', 'ISO27001.A.8.32'];
 
   it('every clause a preset cites is a clause id the specification names', () => {

@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for looking. This repo holds the `devaudit` CLI, the plugin SDK, first-party plugins, and the SDLC framework templates that consumers sync. The web portal lives in a separate repository — [`metasession-dev/devaudit`](https://github.com/metasession-dev/devaudit) (formerly `META-COMPLY`; renamed during the 2026-05 repo split).
+Thanks for looking. This repo holds the `devaudit` CLI, the plugin SDK, first-party plugins, and the SDLC framework templates that consumers sync. The web portal lives in a separate, private repository and is described at [devaudit.ai](https://devaudit.ai/) (formerly `META-COMPLY`; renamed during the 2026-05 repo split).
 
 ## Contribution policy
 
@@ -105,6 +105,7 @@ This repository uses a **GitFlow** branching model with five branch types:
 |---|---|
 | `cli/` | The `devaudit` CLI source, tests, bin entry |
 | `core/` | The `@metasession.co/devaudit-core` package — the pure shared core of the CLI and the portal |
+| `contracts/frameworks/` | The open framework registry (SOC 2, ISO 27001, ISO 29119, GDPR, EU AI Act clauses), published under Apache-2.0; see [`docs/framework-registry.md`](./docs/framework-registry.md) |
 | `plugin-sdk/` | The `@metasession.co/devaudit-plugin-sdk` package — plugin contract types |
 | `plugins/devaudit-plugin-*/` | First-party plugins built against the SDK |
 | `sdlc/` | Framework templates that get synced into consumer projects |

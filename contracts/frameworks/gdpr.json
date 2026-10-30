@@ -1,0 +1,108 @@
+{
+  "$schema": "./schema.json",
+  "registryVersion": "2026-10-30",
+  "transcribedFrom": "DevAudit portal, commit 189ab4e",
+  "code": "gdpr",
+  "name": "GDPR",
+  "longName": "EU General Data Protection Regulation",
+  "edition": "GDPR",
+  "clauses": [
+    {
+      "id": "GDPR.Art-25",
+      "title": "Data protection by design and by default",
+      "expects": [
+        {
+          "kind": "evidence_type_any",
+          "types": [
+            "implementation_plan"
+          ],
+          "description": "Each requirement's implementation plan records the privacy-by-design choices."
+        }
+      ]
+    },
+    {
+      "id": "GDPR.Art-30",
+      "title": "Records of processing activities (ROPA)",
+      "expects": [
+        {
+          "kind": "evidence_type_any",
+          "types": [
+            "ropa"
+          ],
+          "freshnessDays": 365,
+          "description": "A record of processing activities is on file for the project. A record older than a year is shown as expired."
+        },
+        {
+          "kind": "evidence_filename_any",
+          "fileNames": [
+            "ropa.md"
+          ],
+          "freshnessDays": 365,
+          "description": "The same record, recognised by its file name, so the clause is still met if it was uploaded without the usual evidence type."
+        }
+      ]
+    },
+    {
+      "id": "GDPR.Art-32",
+      "title": "Security of processing",
+      "expects": [
+        {
+          "kind": "evidence_type_any",
+          "types": [
+            "sast_report",
+            "dependency_audit",
+            "security_summary"
+          ],
+          "description": "Static-analysis results, a dependency audit or a security summary from the delivery pipeline."
+        },
+        {
+          "kind": "evidence_type_any",
+          "types": [
+            "audit_log"
+          ],
+          "description": "An audit log snapshot shows that access to data can be traced."
+        }
+      ]
+    },
+    {
+      "id": "GDPR.Art-33",
+      "title": "Notification of a personal data breach to the supervisory authority",
+      "expects": [
+        {
+          "kind": "evidence_type_any",
+          "types": [
+            "incident_report"
+          ],
+          "description": "A personal-data breach notification is on file as an incident report. The 72-hour notification window applies."
+        }
+      ]
+    },
+    {
+      "id": "GDPR.Art-34",
+      "title": "Communication of a personal data breach to the data subject",
+      "expects": [
+        {
+          "kind": "evidence_type_any",
+          "types": [
+            "incident_report"
+          ],
+          "description": "The notice to affected individuals is on file as an incident report. One upload can serve both this clause and the notification to the authority, depending on its scope."
+        }
+      ]
+    },
+    {
+      "id": "GDPR.Art-35",
+      "title": "Data protection impact assessment (DPIA)",
+      "expects": [
+        {
+          "kind": "evidence_type_any",
+          "types": [
+            "dpia"
+          ],
+          "freshnessDays": 365,
+          "description": "A data protection impact assessment is on file for the project. An assessment older than a year is shown as expired."
+        }
+      ]
+    }
+  ]
+}

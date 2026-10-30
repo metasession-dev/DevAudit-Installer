@@ -30,6 +30,12 @@ CLI_REQUIRED_FILES=(
   "bin/devaudit.js"
   "sdlc/src/bin/devaudit-sdlc.cjs"
   "sdlc/files/_common/scripts/upload-evidence.sh"
+  "frameworks/schema.json"
+  "frameworks/soc-2.json"
+  "frameworks/iso-27001.json"
+  "frameworks/iso-29119.json"
+  "frameworks/gdpr.json"
+  "frameworks/eu-ai-act.json"
 )
 CLI_REQUIRED_DIRS=("dist/")
 CLI_MIN_BLUEPRINTS=6 # sdlc/src/blueprints/*.raw.md

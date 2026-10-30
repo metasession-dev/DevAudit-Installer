@@ -1,0 +1,25 @@
+name: No private links
+
+# DevAudit-Installer#1128: this public repository never links into the private portal repository
+# (a 404 for every reader outside the organisation, including every consumer whose repository receives
+# the synced templates). scripts/check-no-private-links.sh lists the links it finds.
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: No links into the private portal repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check tracked files
+        run: bash scripts/check-no-private-links.sh
+      - name: Test the check
+        run: bash scripts/check-no-private-links.test.sh

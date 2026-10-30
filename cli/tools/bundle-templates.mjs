@@ -26,6 +26,8 @@ async function bundle(srcRel, destRel) {
 }
 
 await bundle('sdlc', 'sdlc');
+// DevAudit-Installer#1116 WP9 — the open framework registry is published in the package too.
+await bundle('contracts/frameworks', 'frameworks');
 // devaudit-installer#1082 — upload-evidence.sh ships inside sdlc/files/_common/scripts/;
 // the old repo-root copy bundled here was stale and is gone. Remove a leftover snapshot.
 await fs.rm(resolve(cliRoot, 'scripts'), { recursive: true, force: true });

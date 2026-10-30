@@ -1,0 +1,107 @@
+{
+  "$schema": "./schema.json",
+  "registryVersion": "2026-10-30",
+  "transcribedFrom": "DevAudit portal, commit 189ab4e",
+  "code": "iso-29119",
+  "name": "ISO/IEC/IEEE 29119",
+  "longName": "Software Testing",
+  "edition": "ISO/IEC/IEEE 29119",
+  "clauses": [
+    {
+      "id": "ISO29119.2.5",
+      "title": "Organisational Test Policy",
+      "expects": [
+        {
+          "kind": "evidence_filename_any",
+          "fileNames": [
+            "Test_Policy.md"
+          ],
+          "freshnessDays": 365,
+          "description": "The organisation-level test policy is on file in the compliance documents and was refreshed within the last year."
+        }
+      ]
+    },
+    {
+      "id": "ISO29119.2.6",
+      "title": "Organisational Test Strategy",
+      "expects": [
+        {
+          "kind": "evidence_filename_any",
+          "fileNames": [
+            "Test_Strategy.md"
+          ],
+          "freshnessDays": 365,
+          "description": "The project-level test strategy is on file in the compliance documents and was refreshed within the last year."
+        }
+      ]
+    },
+    {
+      "id": "ISO29119.3.3",
+      "title": "Test scope and requirements traceability",
+      "expects": [
+        {
+          "kind": "evidence_type_any",
+          "types": [
+            "test_scope",
+            "rtm"
+          ],
+          "description": "A per-requirement test scope or the requirements traceability matrix shows what is tested and where it traces to."
+        }
+      ]
+    },
+    {
+      "id": "ISO29119.3.4",
+      "title": "Test Plan",
+      "expects": [
+        {
+          "kind": "evidence_type_any",
+          "types": [
+            "test_plan",
+            "test_cases"
+          ],
+          "description": "A per-requirement test plan or the test cases it lists."
+        }
+      ]
+    },
+    {
+      "id": "ISO29119.3.5.3",
+      "title": "Test execution log",
+      "expects": [
+        {
+          "kind": "evidence_type_any",
+          "types": [
+            "e2e_result",
+            "test_report"
+          ],
+          "description": "Test results from the delivery pipeline show execution against the planned cases."
+        }
+      ]
+    },
+    {
+      "id": "ISO29119.3.5.4",
+      "title": "Test incident report",
+      "expects": [
+        {
+          "kind": "evidence_type_any",
+          "types": [
+            "incident_report"
+          ],
+          "description": "Defects and test incidents are on file as incident reports, one per incident."
+        }
+      ]
+    },
+    {
+      "id": "ISO29119.3.5.6",
+      "title": "Test completion / summary report",
+      "expects": [
+        {
+          "kind": "evidence_type_any",
+          "types": [
+            "test_report"
+          ],
+          "description": "A test summary report exists for the release."
+        }
+      ]
+    }
+  ]
+}

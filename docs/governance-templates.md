@@ -192,7 +192,7 @@ Issue [#98](https://github.com/metasession-dev/DevAudit-Installer/issues/98) tra
   ```
 
 - **W2 — Audit log snapshot in CI** (`v0.1.33`, closes `ISO27001.A.8.16`, `EUAIA.Art-12`, `GDPR.Art-32` audit-log half):
-  A new CI step in `compliance-evidence.yml` snapshots the portal's audit log for the rolling 90-day window via `GET /api/ci/projects/<slug>/audit-log/export` (shipped in META-COMPLY [#413](https://github.com/metasession-dev/devaudit/pull/413)) and uploads it as `evidence_type=audit_log`. Auto-generated; no template needed; soft-fails on transient endpoint hiccups so the rest of the evidence pipeline isn't blocked.
+  A new CI step in `compliance-evidence.yml` snapshots the portal's audit log for the rolling 90-day window via `GET /api/ci/projects/<slug>/audit-log/export` (shipped in META-COMPLY pull request 413 of the portal) and uploads it as `evidence_type=audit_log`. Auto-generated; no template needed; soft-fails on transient endpoint hiccups so the rest of the evidence pipeline isn't blocked.
 
 ## See also
 

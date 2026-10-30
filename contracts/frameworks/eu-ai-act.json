@@ -1,0 +1,108 @@
+{
+  "$schema": "./schema.json",
+  "registryVersion": "2026-10-30",
+  "transcribedFrom": "DevAudit portal, commit 189ab4e",
+  "code": "eu-ai-act",
+  "name": "EU AI Act",
+  "longName": "EU AI Act (Regulation 2024/1689)",
+  "edition": "Regulation (EU) 2024/1689",
+  "clauses": [
+    {
+      "id": "EUAIA.Art-9",
+      "title": "Risk management system",
+      "expects": [
+        {
+          "kind": "requirement_meta",
+          "riskClass": "HIGH",
+          "description": "Each high-risk requirement has a risk-management plan in its implementation plan and threat model."
+        }
+      ]
+    },
+    {
+      "id": "EUAIA.Art-11",
+      "title": "Technical documentation (Annex IV)",
+      "expects": [
+        {
+          "kind": "evidence_type_any",
+          "types": [
+            "implementation_plan"
+          ],
+          "description": "A per-requirement implementation plan, with the traceability matrix, is on file."
+        }
+      ]
+    },
+    {
+      "id": "EUAIA.Art-12",
+      "title": "Record-keeping (automatic logging of risk-relevant events)",
+      "expects": [
+        {
+          "kind": "evidence_type_any",
+          "types": [
+            "audit_log",
+            "ai_prompt_log"
+          ],
+          "description": "An audit log snapshot covering the release window, or a log of the AI interactions that matter for risk."
+        }
+      ]
+    },
+    {
+      "id": "EUAIA.Art-13",
+      "title": "Transparency and provision of information to deployers",
+      "expects": [
+        {
+          "kind": "evidence_type_any",
+          "types": [
+            "ai_disclosure",
+            "ai_use_note"
+          ],
+          "freshnessDays": 180,
+          "description": "An AI-use disclosure or note is on file, listing every AI tool, where prompts come from and the human-oversight notes. Refresh it every 180 days, or sooner when an AI tool, model or kind of prompt is added or materially changed."
+        }
+      ]
+    },
+    {
+      "id": "EUAIA.Art-14",
+      "title": "Human oversight",
+      "expects": [
+        {
+          "kind": "audit_event_any",
+          "eventTypes": [
+            "release.approved",
+            "release.released"
+          ],
+          "description": "A release approval by a person is recorded as an audit event tied to the human reviewer, which provides human oversight of the release."
+        },
+        {
+          "kind": "evidence_type_any",
+          "types": [
+            "ai_agent_handoff"
+          ],
+          "description": "Records of what an AI agent changed and the human decision that followed it."
+        }
+      ]
+    },
+    {
+      "id": "EUAIA.Art-15",
+      "title": "Accuracy, robustness and cybersecurity",
+      "expects": [
+        {
+          "kind": "evidence_type_any",
+          "types": [
+            "e2e_result",
+            "test_report"
+          ],
+          "description": "Test results from the delivery pipeline show accuracy and robustness."
+        },
+        {
+          "kind": "evidence_type_any",
+          "types": [
+            "sast_report",
+            "dependency_audit",
+            "security_summary"
+          ],
+          "description": "Static-analysis results, a dependency audit or a security summary from the delivery pipeline."
+        }
+      ]
+    }
+  ]
+}

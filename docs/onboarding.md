@@ -389,4 +389,4 @@ That's a warning, not a tool-gate failure (exit code stays `0` unless a *require
 - [consuming-projects.md](./consuming-projects.md) — which consumers are polyglot-monorepo (`targets`, deprecated) vs single-target.
 - [consuming-projects.md#offboarding-a-project](./consuming-projects.md#offboarding-a-project) — removing a project: `devaudit uninstall` reverses the steps this doc walks through.
 - [`credentials.md`](./credentials.md) — every credential this flow issues, including your own viewer key, where each lives, the lookup order, and rotate / revoke / leaving.
-- [devaudit#867](https://github.com/metasession-dev/devaudit/issues/867) — the umbrella issue for the viewer-key + read-back API + fleet-doctor work referenced above.
+- portal issue 867 — the umbrella issue for the viewer-key + read-back API + fleet-doctor work referenced above.
