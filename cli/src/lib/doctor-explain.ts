@@ -195,6 +195,11 @@ export const CHECK_EXPLANATIONS: Readonly<Record<string, GapExplanation>> = {
     why: "The repository's approval.mode and the project's approval policy on the portal decide who can approve a release. When they differ, either the author is blocked from a release the repository expects them to approve, or the portal does not enforce the different approver the repository expects.",
     guidance: "Change approval.mode with `devaudit configure`, or change the project's approval policy in the portal (it needs a project admin).",
   },
+  'ci-values': {
+    title: 'A secret or variable the workflows read is not visible to them',
+    why: 'GitHub reads a `secrets.X` or `vars.X` that does not exist, or that exists only inside an environment, as an empty string and does not fail. The generated workflows read repository-level values only (no job sets `environment:`), so a configuration value such as an `e2e_env` entry that points at one starts the app without it, and the first symptom is a wait that times out far from the cause.',
+    guidance: 'Define the named secret or variable at repository level (`gh secret set NAME` or `gh variable set NAME`, you are prompted for the value), or correct the name in `sdlc-config.json`. Write `${{ secrets.NAME || \'\' }}` for a value that may be empty.',
+  },
   'test-data': {
     title: 'The test data is not fully declared',
     why: 'Tests that write data need a place to write it that cannot hurt anyone, a way to put it back, and a seed the tests can rely on. When any of that is missing or contradictory, a run can collide with people, leave data behind, or pass while hiding tests that skipped for lack of data.',

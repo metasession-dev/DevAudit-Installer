@@ -4,6 +4,7 @@ import { exists, isDir, ensureDir } from '../lib/fs-utils.js';
 import { substituteTokens, substituteBlocks, stripServicesBlock, stripE2eRegressionListener } from '../lib/templates.js';
 import { resolveTargets, type Target } from '../lib/sdlc-config.js';
 import { loadHostAdapter } from '../lib/adapter.js';
+import { preflightArg, preflightValues, type EnvMap } from '../lib/config-values.js';
 import { writeManaged, removeManaged } from './write-managed.js';
 import type { SyncContext, SectionResult } from './types.js';
 
@@ -294,6 +295,27 @@ function buildE2eSetupStep(cfg: SdlcConfig): string {
 }
 
 /**
+ * DevAudit-Installer#1160 — the step that names configuration values that reached the job empty. GitHub reads a
+ * `secrets.X` / `vars.X` that does not exist, or is not visible to the job, as an empty string, so a dev server
+ * would otherwise start without its credentials and the first symptom would be a wait that times out. Only an
+ * entry that is exactly one reference is checked (`${{ secrets.X || '' }}` is how a value that may be empty is
+ * written). `maps` are the config maps whose values the dev server reads; `stepEnvMap` is the one applied at
+ * step level here (the others are already in the job's `env:`). Returns '' when nothing is checked.
+ */
+function buildConfigValuesPreflightStep(cfg: SdlcConfig, maps: readonly EnvMap[], stepEnvMap?: EnvMap): string {
+  const refs = preflightValues(cfg as unknown as Record<string, unknown>, maps);
+  if (refs.length === 0) return '';
+  const lines = ['      - name: Check configuration values'];
+  const own = stepEnvMap ? refs.filter((r) => r.map === stepEnvMap) : [];
+  if (own.length > 0) {
+    lines.push('        env:');
+    for (const r of own) lines.push(`          ${r.env}: \${{ ${r.kind}.${r.source} }}`);
+  }
+  lines.push(`        run: bash "$GITHUB_WORKSPACE/scripts/check-config-values.sh" ${refs.map((r) => `'${preflightArg(r)}'`).join(' ')}`);
+  return `${lines.join('\n')}\n`;
+}
+
+/**
  * Build the blocking "Start dev server" step. Rebuilt in code (rather than left
  * inline in the template) so e2e_env can be threaded onto the dev-server process
  * — overriding the job-level remote secrets so the server talks to the local
@@ -301,6 +323,7 @@ function buildE2eSetupStep(cfg: SdlcConfig): string {
  */
 function buildE2eDevServerStep(cfg: SdlcConfig): string {
   const env = stepEnv(cfg, cfg.e2e_env ?? {});
+  const preflight = buildConfigValuesPreflightStep(cfg, ['app_env', 'e2e_env'], 'e2e_env');
   const lines = ['      - name: Start dev server'];
   if (Object.keys(env).length > 0) lines.push('        env:', indentEnvBlock({ ...env }, 10));
   // e2e_start_command is '' on every fresh install (no prompt collects it —
@@ -313,7 +336,7 @@ function buildE2eDevServerStep(cfg: SdlcConfig): string {
   // never parsing at all).
   const startCommand = (cfg.e2e_start_command ?? '').trim() || 'true';
   lines.push(`        run: ${startCommand} &`);
-  return lines.join('\n');
+  return preflight + lines.join('\n');
 }
 
 /**
@@ -644,7 +667,7 @@ function buildAuthenticatedE2eStep(cfg: SdlcConfig): string {
  */
 function buildE2eRegressionServerStep(cfg: SdlcConfig): string {
   const startCommand = (cfg.e2e_start_command ?? '').trim() || 'true';
-  return [
+  return buildConfigValuesPreflightStep(cfg, ['database_env', 'app_env', 'e2e_env']) + [
     '      - name: Start dev server',
     '        run: |',
     '          set -euo pipefail',

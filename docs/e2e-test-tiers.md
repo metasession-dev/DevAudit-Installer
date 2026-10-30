@@ -113,6 +113,8 @@ Set a fixed group in `sdlc-config.json` (devaudit-installer#969):
 
 ## Before enabling: how the generated workflows use `e2e_env` and your Playwright config
 
+> **Where the values come from.** A `${{ secrets.X }}` in `e2e_env` is read from a repository (or organisation) secret; a secret that exists only inside a GitHub environment, or has a different name, reads as empty and the dev server then fails to start. See [Where the values live](./e2e-local-db-ci.md#where-the-values-live-secrets-and-variables); the regression and feature workflows name any empty value in a `Check configuration values` step before the dev server starts (#1160).
+
 Read this before putting real credentials in `e2e_env` or turning on `e2e_regression_enabled`. Four behaviours of the generated workflows interact with your own Playwright setup.
 
 ### Where `e2e_env` is applied

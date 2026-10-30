@@ -25,6 +25,7 @@ import * as prompts from '../lib/prompt.js';
 import { FIX_EXIT_UNAPPLIED, runFix, type FixDeps, type FixReport } from './doctor-fix.js';
 import { onboardingChecksFor, type OnboardingCheckDeps } from './doctor-onboarding.js';
 import { testDataCheck, type TestDataDeps } from './doctor-testdata.js';
+import { ciValuesCheck, type CiValuesDeps } from './doctor-values.js';
 import type { Gap } from '@metasession.co/devaudit-core';
 import { commitsInRange, refExists, reqHasCommits } from '../lib/req-commits.js';
 
@@ -51,6 +52,7 @@ export interface DoctorOptions {
   readonly onboardingDeps?: OnboardingCheckDeps;
   /** Test seam for the #1116 WP15 `test-data` check. */
   readonly testDataDeps?: TestDataDeps;
+  readonly ciValuesDeps?: CiValuesDeps;
 }
 
 /**
@@ -846,7 +848,12 @@ export async function collectDoctorState(options: DoctorOptions = {}, scope: { r
   ];
   // DevAudit-Installer#1116 WP15: runs after test-tiers and preset-drift and reads their result.
   const onboardingChecks: readonly CheckResult[] = consumer
-    ? [...onboardingBase, await timed('test-data', () => testDataCheck(consumer, onboardingBase, options.testDataDeps))]
+    ? [
+        ...onboardingBase,
+        await timed('test-data', () => testDataCheck(consumer, onboardingBase, options.testDataDeps)),
+        // DevAudit-Installer#1160: every secret/variable the configuration references exists where the workflows can read it.
+        await timed('ci-values', () => ciValuesCheck(consumer, options.ciValuesDeps)),
+      ]
     : onboardingBase;
   // Release-deferral diagnosis (#956 phase 3a-2): read-only, non-gating, and
   // reported under a new additive JSON key so existing keys are untouched.

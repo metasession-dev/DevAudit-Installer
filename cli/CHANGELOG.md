@@ -12,6 +12,10 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 - **No more links into the private portal repository** (#1128, work package WP9 of #1116): the README, the issue and pull request templates that `install` and `update` sync into your repository, a blueprint and a few documents linked into `metasession-dev/devaudit`, which is private (a 404 for you). They now link to `https://devaudit.ai/`, to the blueprint in this repository, or to `docs/framework-registry.md`. A CI guard (`scripts/check-no-private-links.sh`) keeps it that way.
 
+### Added
+
+- **The generated workflows name configuration values that reached the job empty, and `devaudit doctor` checks that they exist** (#1160). GitHub reads a `${{ secrets.X }}` or `${{ vars.X }}` that does not exist, or exists only inside an environment (no generated job sets `environment:`), as an empty string, so a dev server could start without its credentials and fail as a timeout. `ci.yml`, `feature-e2e.yml` and `e2e-regression.yml` now run a `Check configuration values` step before the dev server for every `app_env`, `e2e_env` (and, in the regression, `database_env`) entry that is exactly one `${{ secrets.X }}` or `${{ vars.X }}`; it fails with one line per empty value and prints names only. **If a value is allowed to be empty, write `${{ secrets.X || '' }}`; those entries are not checked.** New `devaudit doctor` check `ci-values` (names read by those config maps or by any file in `.github/workflows/` that exist nowhere, or only inside an environment; names DevAudit manages and optional reads are left out; skipped without a GitHub CLI session that can list secrets) and a "Where the values live" section in `docs/e2e-local-db-ci.md`.
+
 ### Fixed
 
 - **`devaudit scan` sign-in follows the portal's final contract** (portal #925 and #926, on the portal's `develop`, not deployed yet): the device sign-in sends `machine_name` and `grant_type`, reads the token from `access_token` (it read `token`), and polls less often after `slow_down`. The report upload (`POST /api/projects/{id}/scan-reports`, project admin's token in `X-DevAudit-Token`) needed no change.
