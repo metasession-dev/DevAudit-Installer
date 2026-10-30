@@ -28,6 +28,14 @@ The `sdlc-implementer` skill is an orchestrator. It calls into other shipped ski
 - Committing.
 - Pushing.
 
+### `e2e-test-data` — Phase 2 (when the plan's "Test Data Requirements" say seeding or fixtures are needed)
+
+**When**: The plan's "Test Data Requirements" (Blueprint 1) list seed data, fixtures or test accounts, or a change alters what data the tests need, or `devaudit doctor` reports a `test-data` finding. It runs next to `e2e-test-engineer`; the orchestrator never writes seed or reset scripts itself.
+
+**Invocation**: `Skill(name: "e2e-test-data", input: { issue: "#N", req: "REQ-XXX", plan_path: "compliance/plans/REQ-XXX/implementation-plan.md" })`.
+
+**What it returns**: the data needs declared in the plan, the seed and reset scripts (shown, not committed without confirmation), the configuration keys for the operator to set with `devaudit configure`, and the three drift checks' results.
+
 ### `e2e-ci-reliability` — Phase 4 (external gate hangs or fails for unrelated reasons), and any general CI reliability review
 
 **When**: A required gate's E2E check fails on retry with a *different* spec each time (not the same spec every time) — that shifting-failure signature is suite-reliability territory, not a per-gate flake to individually wave off. Also invoked directly, independent of any specific gate failure, for a general CI-health/reliability review — e.g. deciding whether a regression tier has grown large enough to need sharding.

@@ -426,6 +426,8 @@ command. `devaudit` never creates, overwrites, or deletes a hook script; it
 is entirely consumer/skill-owned, and needs no `.devaudit-patches` entry or
 upstream-issue trail because it was never generated content to begin with.
 
+**The E2E test data is declared, not hooked.** `e2e_data_isolation` and its keys (`e2e_seed_command`, `e2e_seed_paths`, `e2e_reset_command`, `e2e_preflight_command`, `e2e_leak_check_command`, `e2e_max_skipped`, `feature_e2e_projects`) tell DevAudit where the tests get their data; the regression workflow then runs `scripts/e2e-data-lifecycle.sh` around the tests, and `devaudit doctor` checks the declaration (`test-data`). With `e2e_data_isolation` unset or `none` nothing changes, even for a project that already sets `e2e_seed_command`. The seed and reset code stay the project's; the `e2e-test-data` skill helps write it. See [`e2e-test-tiers.md`](e2e-test-tiers.md#test-data-1116).
+
 ### One-time migration: `META_COMPLY_*` → `DEVAUDIT_*` rename
 
 During the META-COMPLY ↔ DevAudit-Installer repo split, four identifiers were renamed for brand alignment:

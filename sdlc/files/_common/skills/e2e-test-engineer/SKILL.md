@@ -205,6 +205,7 @@ Present three lists to the user:
 Write the tests in the project's existing style.
 
 - **Match the structure.** Same directory, same file-naming pattern, same test-ID or tag convention.
+- **Does this change alter what data the tests need?** If so, use the `e2e-test-data` skill (seed, reset, test accounts, drift) alongside writing the spec.
 - **Reuse existing helpers.** Page Object Models, fixtures, custom commands, test-data factories — use them. Don't invent parallel infrastructure.
 - **Match the assertion style.** If the codebase uses `expect(locator).toBeVisible()`, don't switch to `assert.isTrue(...)`.
 - **Read 2–3 nearby tests before writing.** Fastest way to absorb conventions you wouldn't have noticed otherwise.
@@ -350,7 +351,7 @@ The classification is: "Is the AC correct but untested/buggy? → defect. Is the
    - `precondition_gap` — seed data missing, auth fixture expired, test account locked
    - `intentional_non_applicability` — API-only change with no UI surface, feature flag disabled for this environment
    - `obsolete_or_quarantined` — test references removed functionality, spec is stale
-3. **Fix `environment_gap` and `precondition_gap` first** — these are never acceptable skip reasons. Resolve the underlying issue, rerun the focused tests, then rerun the full suite.
+3. **Fix `environment_gap` and `precondition_gap` first** — these are never acceptable skip reasons. Hand a `precondition_gap` or `seed-data gap` to the `e2e-test-data` skill (it owns the seed, the reset and the drift checks). Resolve the underlying issue, rerun the focused tests, then rerun the full suite.
 4. **Only remaining `intentional_non_applicability` or unresolved skips** may be surfaced to the operator for approval. Each accepted skip must have an operator-approved rationale.
 5. **A skipped test never proves an acceptance criterion.** If a skipped test is the only coverage for an in-scope AC, that AC is unverified until a passing test proves it.
 6. **Do not write a `PASSED` E2E sentinel while unresolved or unapproved skips remain.**

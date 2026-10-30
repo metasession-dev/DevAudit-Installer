@@ -161,7 +161,7 @@ AI involvement is a factor in risk classification:
 1. **Correctness** — Does it do what it claims? AI produces plausible code with subtle logic errors.
 2. **Security** — Injection vulnerabilities, insecure defaults, improper error handling?
 3. **Dependencies** — All imports real, current, vulnerability-free? AI fabricates package names.
-4. **Hardcoded values** — Test data, placeholder credentials, debug flags?
+4. **Hardcoded values** — Test data, placeholder credentials, debug flags? (Where the end-to-end tests get their data is declared in `sdlc-config.json`; see `e2e-test-data`.)
 5. **Consistency** — Follows project conventions, or has AI introduced alien patterns?
 
 The PR approval process serves as the formal review gate. Reviewer identity and timestamp are recorded immutably.

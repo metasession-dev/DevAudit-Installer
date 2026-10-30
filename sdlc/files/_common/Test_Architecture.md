@@ -183,7 +183,7 @@ All E2E tests must use the Page Object Model pattern:
 Products must implement:
 
 - Authentication fixtures (login states, session management)
-- Database seeding/cleanup fixtures
+- Database seeding/cleanup fixtures (DevAudit enforces the declaration and the checks: `e2e_data_isolation` and its keys, the lifecycle step, the `test-data` doctor check; the seed, reset and fixtures themselves stay the project's job)
 - Test data factories using Faker.js and Fishery
 
 ### Shared Utilities (Required)

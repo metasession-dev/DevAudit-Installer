@@ -27,6 +27,11 @@ export interface Finding {
   readonly subject: string;
   readonly detail: string;
   readonly remediation?: Remediation;
+  /**
+   * Other ways to close the same gap (DevAudit-Installer#1116 WP15). They appear as further options of the
+   * gap in `--json` and `--guided`; `doctor --fix` acts only on `remediation`.
+   */
+  readonly alternatives?: readonly Remediation[];
 }
 
 export interface CheckResult {

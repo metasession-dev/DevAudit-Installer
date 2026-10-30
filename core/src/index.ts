@@ -58,6 +58,7 @@ export {
   type SoloApprover,
 } from './presets.js';
 export { renderPresetsMarkdown } from './presets-doc.js';
+export { seedFilesHash, type SeedFile } from './seed-hash.js';
 export {
   NOT_ASKED,
   QUESTIONS,

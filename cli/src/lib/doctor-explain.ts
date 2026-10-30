@@ -195,6 +195,56 @@ export const CHECK_EXPLANATIONS: Readonly<Record<string, GapExplanation>> = {
     why: "The repository's approval.mode and the project's approval policy on the portal decide who can approve a release. When they differ, either the author is blocked from a release the repository expects them to approve, or the portal does not enforce the different approver the repository expects.",
     guidance: "Change approval.mode with `devaudit configure`, or change the project's approval policy in the portal (it needs a project admin).",
   },
+  'test-data': {
+    title: 'The test data is not fully declared',
+    why: 'Tests that write data need a place to write it that cannot hurt anyone, a way to put it back, and a seed the tests can rely on. When any of that is missing or contradictory, a run can collide with people, leave data behind, or pass while hiding tests that skipped for lack of data.',
+    guidance: 'Run `devaudit configure` to answer where the tests get their data, and use the `e2e-test-data` skill to create the seed, reset and checks.',
+  },
+  'test-data:isolation-unset': {
+    title: 'The regression has no declared place for its data',
+    why: 'The regression is enabled, but nothing says where its tests get their data (a fresh database, a shared environment, or none). Without that answer DevAudit cannot tell whether a run can collide with people or leave data behind.',
+    guidance: 'Run `devaudit configure` (it asks), then use the `e2e-test-data` skill to create the seed and reset scripts.',
+  },
+  'test-data:shared-writes': {
+    title: 'The regression writes to an environment other people use',
+    why: 'With shared data, a run can collide with a person using the environment, and a run killed part-way leaves data dirty for the next one. It is recorded as a risk, not blocked.',
+    guidance: 'Give the regression its own data (`e2e_data_isolation: ephemeral`), serialise its runs (`shared_serialised`), or leave it as it is and accept the risk.',
+  },
+  'test-data:shared-unattended': {
+    title: 'An unattended regression runs against shared data',
+    why: 'The full regression runs on a schedule or after every deploy with nobody watching, against data that is shared. A person using that environment at that time collides with the run, and a killed run leaves data dirty until someone resets it.',
+    guidance: 'Change the isolation, turn the unattended run off, or leave it as it is; the `e2e-test-data` skill helps design an isolated seed.',
+  },
+  'test-data:seed-path-missing': {
+    title: 'A declared seed path or script does not exist',
+    why: 'The configuration names seed files or scripts that are not in the repository, so the seed step and the drift check cannot work.',
+    guidance: 'Use the `e2e-test-data` skill to create the seed, or correct the paths with `devaudit configure set e2e_seed_paths <paths>`.',
+  },
+  'test-data:seed-paths-empty': {
+    title: 'The seed command is set but its files are not listed',
+    why: 'DevAudit hashes the files in `e2e_seed_paths` to tell when the seed changed; with none listed it cannot, and a changed seed goes unnoticed.',
+    guidance: 'List the seed files or folders with `devaudit configure set e2e_seed_paths <paths>`.',
+  },
+  'test-data:serialised-no-group': {
+    title: 'Runs against the shared environment are not serialised',
+    why: 'The data is declared shared but only used by the tests, one run at a time, yet no concurrency group makes runs queue, so two runs can overlap.',
+    guidance: 'Set `e2e_concurrency_group` with `devaudit configure set e2e_concurrency_group <name>`.',
+  },
+  'test-data:fixture-not-seeded': {
+    title: 'Specs may refer to seed data that is not in the seed',
+    why: 'This is a text heuristic and can be wrong: specs mention fixture names that do not appear in the seed files, which often means a test that skips or fails for lack of data.',
+    guidance: 'Use the `e2e-test-data` skill to compare the seed with the specs (its drift check).',
+  },
+  'test-data:feature-destructive': {
+    title: 'Feature runs include a project that changes shared data',
+    why: 'Every feature pull request runs all Playwright projects, including `regression`, against a backend other people use, which can change or delete their data.',
+    guidance: 'Limit the feature run with `devaudit configure set feature_e2e_projects smoke,critical`.',
+  },
+  'test-data:seed-changed-since-last-run': {
+    title: 'The seed changed since the last regression ran',
+    why: 'The last regression ran against an older seed, so its result does not tell you how the current seed behaves. This is advisory.',
+    guidance: 'Review the seed change with the `e2e-test-data` skill and run the regression again.',
+  },
   durations: {
     title: 'The run times of your CI jobs could not be measured',
     why: 'How long the smoke, critical and full test groups take decides which release gate is practical; the doctor measures them from your recent successful runs.',
@@ -224,7 +274,13 @@ export function explanationFor(check: string): GapExplanation | undefined {
 export function gapsFromCheck(check: CheckResult): Gap[] {
   const explanation = explanationFor(check.name);
   if (check.findings && check.findings.length > 0) {
-    return check.findings.map((finding) => findingToGap(check.name, finding, explanation));
+    return check.findings.map((finding) => {
+      // A finding may carry its own explanation, keyed `<check>:<subject>` (the test-data findings do).
+      const gap = findingToGap(check.name, finding, CHECK_EXPLANATIONS[`${check.name}:${finding.subject}`] ?? explanation);
+      if (!finding.alternatives || finding.alternatives.length === 0) return gap;
+      const extra = finding.alternatives.map((alt) => findingToGap(check.name, { ...finding, remediation: alt }, explanation).options[0]!);
+      return { ...gap, options: [...gap.options, ...extra] };
+    });
   }
   if (check.ok) return [];
   return [findingToGap(check.name, { subject: check.name, detail: check.detail }, explanation)];

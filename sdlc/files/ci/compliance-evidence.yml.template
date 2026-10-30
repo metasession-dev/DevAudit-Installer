@@ -548,6 +548,7 @@ jobs:
               --started-at "${{ github.event.workflow_run.run_started_at }}" \
               --completed-at "${{ github.event.workflow_run.updated_at }}" \
               --outcome-reason "$OUTCOME_REASON" \
+              --run-data-file e2e-artifacts/e2e-regression-metadata.json \
               --outcome "${REQ_OUTCOME}"
             case "$REQ_OUTCOME" in
               passed) CHECK_STATUS=successful ;;

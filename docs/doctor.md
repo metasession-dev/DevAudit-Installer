@@ -159,6 +159,10 @@ Every portal read in `doctor` is read-only (`GET /api/ci/releases/resolve`) and 
 
 Exit code of `--guided`: `0` when there were no gaps or every gap was fixed or left as it is; `8` when a chosen fix was declined, refused or failed (or there was no terminal); `2` for a refused flag combination or an unknown check.
 
+### The `test-data` check (non-gating)
+
+Reads configuration and files only (and, for live drift, the last regression run's artifact through `gh`); it never contacts a backend, and is silent when no tier that writes data is enabled. Findings: `isolation-unset`, `shared-writes`, `shared-unattended` (shared data and a regression nobody watches: a schedule, or a run after every deploy), `seed-path-missing`, `seed-paths-empty`, `serialised-no-group`, `fixture-not-seeded` (a text heuristic), `feature-destructive` (feature runs include `regression` against shared data) and `seed-changed-since-last-run` (the seed hash differs from the last successful regression's run record; "not measured yet" without `gh`, a run or the field). Data findings point to the `e2e-test-data` skill, scope findings to `e2e-test-engineer`. `devaudit doctor --explain test-data:<finding>` explains each one. Every gap can be left as it is.
+
 ### The preset checks (non-gating)
 
 | Check | Reports |

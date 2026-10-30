@@ -52,7 +52,7 @@ Develop-main with develop branch (per Test Strategy branching patterns):
 | Framework | Playwright (per Test Architecture standard) |
 | Test count | [TOTAL] tests across [N] projects |
 | Unauthenticated (CI) | [COUNT] (run in CI on PR to main) |
-| Authenticated (local only) | [COUNT] (require credentials) |
+| Authenticated (report-only pass in CI, and local) | [COUNT] (require credentials; CI runs them in a separate pass that does not block a merge) |
 | Browser | Chromium |
 | Prerequisite | [e.g., npx tsx scripts/seed-e2e-admins.ts] |
 
