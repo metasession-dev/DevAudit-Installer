@@ -36,4 +36,55 @@ export {
   type Remediation,
 } from './gap.js';
 
+export {
+  CUSTOM_PRESET,
+  MOMENTS,
+  PRESETS,
+  PRESET_CONFIG_KEYS,
+  PRESET_IDS,
+  SECOND_ADMIN_NOTE,
+  SELF_APPROVAL_CLAUSES,
+  SOLO_APPROVER_NOTE,
+  offerPresets,
+  suggestPreset,
+  type ConfigValue,
+  type OfferInput,
+  type PortalApprovalPolicy,
+  type Preset,
+  type PresetId,
+  type PresetOffer,
+  type PresetOffers,
+  type PresetSuggestion,
+  type SoloApprover,
+} from './presets.js';
+export { renderPresetsMarkdown } from './presets-doc.js';
+export {
+  NOT_ASKED,
+  QUESTIONS,
+  askedConfigKeys,
+  conditionHolds,
+  questionById,
+  questionsToAsk,
+  type ConditionId,
+  type ConditionState,
+  type DefaultRule,
+  type Question,
+  type QuestionChoice,
+  type QuestionDefault,
+  type QuestionKind,
+  type QuestionPart,
+} from './registry.js';
+export {
+  SECRET_NAME_PATTERN,
+  SLUG,
+  VALIDATORS,
+  VALIDATOR_IDS,
+  isValidBranchName,
+  validate,
+  validateAll,
+  type ValidationContext,
+  type Validator,
+  type ValidatorId,
+} from './validators.js';
+
 export * from './detect/index.js';

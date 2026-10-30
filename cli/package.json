@@ -24,6 +24,7 @@
     "build": "tsup",
     "dev": "tsup --watch",
     "bundle:templates": "node tools/bundle-templates.mjs",
+    "docs:presets": "node tools/generate-presets-doc.mjs",
     "prepack": "npm run build && npm run bundle:templates",
     "test": "vitest run",
     "test:watch": "vitest",

@@ -149,9 +149,10 @@ function readProjects(configText: string): ProjectEntry[] | null {
     let name: string | null = null;
     let dependsOnAnother = false;
     for (const property of splitTopLevel(trimmed.slice(1, -1))) {
-      const m = /^\s*['"]?(\w+)['"]?\s*:\s*([\s\S]*?)\s*$/.exec(property);
+      const m = /^\s*['"]?(\w+)['"]?\s*:/.exec(property);
       if (!m) continue;
-      const [, key, value] = m;
+      const key = m[1];
+      const value = property.slice(m[0].length).trim();
       if (key === 'name') {
         const literal = /^(['"`])([^'"`]*)\1$/.exec(value ?? '');
         if (literal) name = literal[2] ?? null;
