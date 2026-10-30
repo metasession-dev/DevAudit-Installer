@@ -87,10 +87,20 @@ export async function main(argv: readonly string[]): Promise<void> {
     .option('--test-tier-critical <command>', 'Command for the critical tier (single line). Omit to keep the runner default.')
     .option('--test-tier-full <command>', 'Command for the full tier (single line). Omit to keep the runner default.')
     .option('--test-feature-command <command>', 'Command for the feature scope; {REQ} is replaced with the requirement id.')
+    .option(
+      '--preset <id>',
+      'Apply a preset without the preset question: A (solo, fast feedback), B (safety net), C (team with a compliance lead), D (full gate, tested once) or custom. With --yes, A and B need the project\'s approval policy to allow self-approval with a recorded gap (read from the portal), otherwise install refuses with exit code 2. See docs/presets.md.',
+    )
+    .option(
+      '--from-scan <file>',
+      'Take the suggested preset and the standards from a scan report file (a report id is a portal feature that is not available yet).',
+    )
     .action(
       async (
         path: string | undefined,
         cmdOpts: {
+          preset?: string;
+          fromScan?: string;
           token?: string;
           baseUrl?: string;
           forceTeamConfig?: boolean;
@@ -125,6 +135,8 @@ export async function main(argv: readonly string[]): Promise<void> {
             ? { withViewerKey: true }
             : {}),
           ...(cmdOpts.host !== undefined ? { host: cmdOpts.host } : {}),
+          ...(cmdOpts.preset !== undefined ? { preset: cmdOpts.preset } : {}),
+          ...(cmdOpts.fromScan !== undefined ? { fromScan: cmdOpts.fromScan } : {}),
           testOptions: {
             ...(cmdOpts.releaseGateTier !== undefined ? { release_gate_tier: cmdOpts.releaseGateTier } : {}),
             ...(cmdOpts.postDeployFullRegression !== undefined ? { post_deploy_full_regression: cmdOpts.postDeployFullRegression } : {}),

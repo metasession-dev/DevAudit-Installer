@@ -1,4 +1,5 @@
 import { runInstall } from '../install/index.js';
+import { InstallRefusal } from '../install/refusal.js';
 import { logger } from '../lib/logger.js';
 import { printCredentialsBlock } from '../lib/credentials-check.js';
 
@@ -30,6 +31,10 @@ export interface InstallOptions {
   readonly host?: string;
   /** Test tier / release gate flags by `sdlc-config.json` key (devaudit-installer#1059, #1060). */
   readonly testOptions?: Readonly<Record<string, string>>;
+  /** `--preset <A|B|C|D|custom>` (devaudit-installer#1116 WP6). */
+  readonly preset?: string;
+  /** `--from-scan <file|report-id>`. */
+  readonly fromScan?: string;
 }
 
 export async function runInstallCommand(options: InstallOptions): Promise<void> {
@@ -49,10 +54,13 @@ export async function runInstallCommand(options: InstallOptions): Promise<void> 
       ...(options.printViewerKey !== undefined ? { printViewerKey: options.printViewerKey } : {}),
       ...(options.host !== undefined ? { host: options.host } : {}),
       ...(options.testOptions !== undefined && Object.keys(options.testOptions).length > 0 ? { testOptions: options.testOptions } : {}),
+      ...(options.preset !== undefined ? { preset: options.preset } : {}),
+      ...(options.fromScan !== undefined ? { fromScan: options.fromScan } : {}),
     });
     if (!options.dryRun) await printCredentialsBlock(options.path);
   } catch (err) {
     log.error((err as Error).message);
-    process.exit(1);
+    // A refused option (unknown --preset, a preset the portal cannot support, an unreadable scan file) exits 2.
+    process.exit(err instanceof InstallRefusal ? err.exitCode : 1);
   }
 }
