@@ -1,7 +1,8 @@
 import { Command, Option } from 'commander';
 import { configureLogger } from './lib/logger.js';
 import { CLI_VERSION } from './lib/version.js';
-import { runDoctor } from './commands/doctor.js';
+import { runDoctor, runDoctorGuided } from './commands/doctor.js';
+import { runExplain } from './commands/doctor-guided.js';
 import { runFleetDoctor } from './commands/fleet.js';
 import { runReleaseStatus } from './commands/release-status.js';
 import { runViewerKeySet } from './commands/auth/viewer-key.js';
@@ -368,8 +369,30 @@ export async function main(argv: readonly string[]): Promise<void> {
       'Propose and (after confirmation) apply fixes for release-deferral findings and a deploy-host mismatch (sets host in sdlc-config.json, tier A). Tier A local edits (ticket Release intent, RTM DEFERRED, predecessor lines) are confirmed or accepted with --yes; tier B portal defer/resume is interactive-only: it needs your PAT (DEVAUDIT_USER_TOKEN), a typed reason and a confirmation at a terminal, and --yes never authorises it; tier C is printed, never run. Exits 8 when proposals remain unapplied. Not available with --fleet. See docs/doctor.md.',
     )
     .option('--reason <text>', 'Reason for a portal defer/resume under --fix (skips the reason prompt; the terminal confirmation is still required).')
-    .action(async (cmdOpts: { fleet?: boolean; fix?: boolean; reason?: string }, cmd: Command) => {
+    .option(
+      '--explain <check>',
+      'Explain one check in plain words: why it matters and what you can do, including leaving it as it is. Read-only. See docs/doctor.md.',
+    )
+    .option(
+      '--guided [check]',
+      'Walk the gaps one at a time (or only those of one check): for each you choose a fix, leave it as it is, or stop. Applying a fix uses the same confirmations as --fix (tier A confirmed; tier B interactive with a typed reason; tier C printed). Interactive only: with no terminal, CI set or --json it changes nothing and exits 8. Not available with --fix, --yes or --fleet. See docs/doctor.md.',
+    )
+    .action(async (cmdOpts: { fleet?: boolean; fix?: boolean; reason?: string; explain?: string; guided?: string | boolean }, cmd: Command) => {
       const globals = cmd.optsWithGlobals() as { yes?: boolean; dryRun?: boolean };
+      if (cmdOpts.guided !== undefined && (cmdOpts.fix || globals.yes || cmdOpts.fleet || cmdOpts.explain !== undefined || cmdOpts.reason !== undefined)) {
+        logger().error('--guided asks before every change and cannot be combined with --fix, --yes, --reason, --explain or --fleet.');
+        process.exit(2);
+      }
+      if (cmdOpts.explain !== undefined) {
+        if (cmdOpts.fix || cmdOpts.fleet || cmdOpts.reason !== undefined) {
+          logger().error('--explain only prints; it cannot be combined with --fix, --reason or --fleet.');
+          process.exit(2);
+        }
+        process.exit(runExplain(cmdOpts.explain));
+      }
+      if (cmdOpts.guided !== undefined) {
+        process.exit(await runDoctorGuided(typeof cmdOpts.guided === 'string' ? cmdOpts.guided : undefined));
+      }
       if (cmdOpts.fleet && (cmdOpts.fix || cmdOpts.reason !== undefined)) {
         logger().error('--fleet is read-only and never forwards --fix or --reason. Run `devaudit doctor --fix` inside one project instead.');
         process.exit(2);

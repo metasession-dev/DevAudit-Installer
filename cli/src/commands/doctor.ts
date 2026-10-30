@@ -20,7 +20,11 @@ import {
 import { makeTimer } from '../lib/timing.js';
 import { agentPermissionsReport, type AgentPermissionsDeps } from '../lib/agent-permissions.js';
 import { buildDeferralContext, runDeferralChecks } from './doctor-deferral.js';
+import { runGuided, type GuidedDeps } from './doctor-guided.js';
+import * as prompts from '../lib/prompt.js';
 import { FIX_EXIT_UNAPPLIED, runFix, type FixDeps, type FixReport } from './doctor-fix.js';
+import { onboardingChecksFor, type OnboardingCheckDeps } from './doctor-onboarding.js';
+import type { Gap } from '@metasession.co/devaudit-core';
 import { commitsInRange, refExists, reqHasCommits } from '../lib/req-commits.js';
 
 export interface DoctorOptions {
@@ -42,6 +46,8 @@ export interface DoctorOptions {
   readonly credentialsDeps?: CredentialsDeps;
   /** Test seam for the #1098 `agent-permissions` check (no reads of the real home in tests). */
   readonly agentPermissionsDeps?: Partial<AgentPermissionsDeps>;
+  /** Test seam for the #1116 WP8 checks (portal reads, gh runner, test groups). */
+  readonly onboardingDeps?: OnboardingCheckDeps;
 }
 
 /**
@@ -782,10 +788,19 @@ async function checkAcceptedExceptions(): Promise<CheckResult> {
   };
 }
 
-export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
-  const log = logger();
-  const jsonMode = isJsonMode();
-  if (!jsonMode) log.info('Running devaudit doctor — checking required tools...\n');
+/** Everything one doctor run finds, computed without printing (so `--guided` can run the checks again). */
+export interface DoctorState {
+  readonly checks: readonly CheckResult[];
+  readonly closeout: CheckResult;
+  readonly onboardingChecks: readonly CheckResult[];
+  readonly deferralChecks: readonly CheckResult[];
+  readonly consumer: { repoRoot: string; cfg: Record<string, unknown> } | null;
+  readonly closeoutProposals: readonly Proposal[];
+  readonly proposals: readonly Proposal[];
+  readonly gaps: readonly Gap[];
+}
+
+export async function collectDoctorState(options: DoctorOptions = {}, scope: { readonly skipDurations?: boolean } = {}): Promise<DoctorState> {
   // The five tool probes are independent child processes: run them together (process spawn is
   // slow on a loaded Windows runner), report them in the usual order.
   const checks: readonly CheckResult[] = await Promise.all([
@@ -795,23 +810,9 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
     timed('tool:jq', () => checkCommand('jq', ['--version'])),
     timed('tool:curl', () => checkCommand('curl', ['--version'])),
   ]);
-  let allOk = true;
-  for (const check of checks) {
-    if (!check.ok) allOk = false;
-    if (!jsonMode) {
-      const marker = check.ok ? '✓' : '✗';
-      log.log(`  ${marker} ${check.name.padEnd(8)} ${check.detail}`);
-    }
-  }
   // Reconciliation safety-net — reported but does not gate the tool check (#60).
   const { result: closeout, drifted: closeoutDrifted } = await timed('closeout-drift', () => checkReleaseCloseoutDrift());
-  if (!jsonMode) {
-    const closeoutMarker = closeout.ok ? '✓' : '⚠';
-    log.log(`  ${closeoutMarker} ${closeout.name.padEnd(8)} ${closeout.detail}`);
-    if (!closeout.ok) {
-      log.warn('Release close-out drift detected — see above. (Does not affect the tool check.)');
-    }
-  }
+  const consumer = await readConsumerConfig();
   // Onboarding-checklist invariants — same non-gating shape as the
   // close-out check above (devaudit-installer#826, extended #867).
   const onboardingChecks: readonly CheckResult[] = [
@@ -834,38 +835,14 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
     await timed('credentials', () => checkCredentials(options.credentialsDeps)),
     // devaudit-installer#1098: recommended agent deny rules, informational.
     await timed('agent-permissions', () => checkAgentPermissions(options.agentPermissionsDeps)),
+    // DevAudit-Installer#1116 WP8: preset drift, standards fit, approval policy, run times.
+    ...(consumer ? await timed('onboarding-1116', () => onboardingChecksFor(consumer, options.onboardingDeps, scope)) : []),
   ];
-  let onboardingIssues = false;
-  for (const check of onboardingChecks) {
-    if (!check.ok) onboardingIssues = true;
-    if (!jsonMode) {
-      const marker = check.ok ? '✓' : '⚠';
-      log.log(`  ${marker} ${check.name.padEnd(14)} ${check.detail}`);
-    }
-  }
-  if (!jsonMode) {
-    log.log('');
-    if (onboardingIssues) {
-      log.warn('Onboarding checklist gaps detected — see above. (Does not affect the tool check.)');
-    }
-  }
   // Release-deferral diagnosis (#956 phase 3a-2): read-only, non-gating, and
   // reported under a new additive JSON key so existing keys are untouched.
-  const consumer = await readConsumerConfig();
   const deferralChecks: readonly CheckResult[] = consumer
     ? await runDeferralChecks(await buildDeferralContext(consumer.repoRoot, consumer.cfg))
     : [];
-  let deferralIssues = false;
-  for (const check of deferralChecks) {
-    if (!check.ok) deferralIssues = true;
-    if (!jsonMode) {
-      const marker = check.ok ? '✓' : '⚠';
-      log.log(`  ${marker} ${check.name.padEnd(18)} ${check.detail}`);
-    }
-  }
-  if (!jsonMode && deferralIssues) {
-    log.warn('Release-deferral findings detected — see above. (Read-only; does not affect the tool check.)');
-  }
   const closeoutProposals: Proposal[] = closeoutDrifted.map((req) => ({
     check: closeout.name,
     subject: req,
@@ -895,7 +872,7 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
     ),
   ];
   // DevAudit-Installer#1116 WP4: every non-ok check as plain-language gaps (why, and the ways to close it).
-  // Additive in --json; the text output above is unchanged.
+  // Additive in --json; the text output is unchanged.
   const gaps = [
     ...gapsFromChecks(checks),
     ...gapsFromCloseout(
@@ -905,6 +882,54 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
     ...gapsFromChecks(onboardingChecks),
     ...gapsFromChecks(deferralChecks),
   ];
+  return { checks, closeout, onboardingChecks, deferralChecks, consumer, closeoutProposals, proposals, gaps };
+}
+
+export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
+  const log = logger();
+  const jsonMode = isJsonMode();
+  if (!jsonMode) log.info('Running devaudit doctor — checking required tools...\n');
+  const { checks, closeout, onboardingChecks, deferralChecks, consumer, proposals, gaps } = await collectDoctorState(options);
+  let allOk = true;
+  for (const check of checks) {
+    if (!check.ok) allOk = false;
+    if (!jsonMode) {
+      const marker = check.ok ? '✓' : '✗';
+      log.log(`  ${marker} ${check.name.padEnd(8)} ${check.detail}`);
+    }
+  }
+  if (!jsonMode) {
+    const closeoutMarker = closeout.ok ? '✓' : '⚠';
+    log.log(`  ${closeoutMarker} ${closeout.name.padEnd(8)} ${closeout.detail}`);
+    if (!closeout.ok) {
+      log.warn('Release close-out drift detected — see above. (Does not affect the tool check.)');
+    }
+  }
+  let onboardingIssues = false;
+  for (const check of onboardingChecks) {
+    if (!check.ok) onboardingIssues = true;
+    if (!jsonMode) {
+      const marker = check.ok ? '✓' : '⚠';
+      log.log(`  ${marker} ${check.name.padEnd(14)} ${check.detail}`);
+    }
+  }
+  if (!jsonMode) {
+    log.log('');
+    if (onboardingIssues) {
+      log.warn('Onboarding checklist gaps detected — see above. (Does not affect the tool check.)');
+    }
+  }
+  let deferralIssues = false;
+  for (const check of deferralChecks) {
+    if (!check.ok) deferralIssues = true;
+    if (!jsonMode) {
+      const marker = check.ok ? '✓' : '⚠';
+      log.log(`  ${marker} ${check.name.padEnd(18)} ${check.detail}`);
+    }
+  }
+  if (!jsonMode && deferralIssues) {
+    log.warn('Release-deferral findings detected — see above. (Read-only; does not affect the tool check.)');
+  }
   let fixReport: FixReport | null = null;
   if (options.fix) {
     const fixOpts = {
@@ -971,4 +996,50 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
     }
     process.exit(6);
   }
+}
+
+/** The deps `doctor --fix` and `doctor --guided` hand to `runFix`: the repository, the portal base URL and the commit lookup. */
+function fixDepsFor(consumer: { repoRoot: string; cfg: Record<string, unknown> } | null): FixDeps {
+  if (!consumer) return { repoRoot: process.cwd(), baseUrl: '' };
+  const devauditCfg = (consumer.cfg['devaudit'] ?? {}) as { base_url?: string };
+  return {
+    repoRoot: consumer.repoRoot,
+    baseUrl: (devauditCfg.base_url ?? '').replace(/\/$/, ''),
+    commitsFor: async (req) => {
+      const main = (await refExists(consumer.repoRoot, 'origin/main')) ? 'origin/main' : 'main';
+      const dev = (await refExists(consumer.repoRoot, 'develop')) ? 'develop' : 'origin/develop';
+      const commits = await commitsInRange(consumer.repoRoot, main, dev);
+      return commits.filter((c) => reqHasCommits([c], req)).map((c) => c.subject);
+    },
+  };
+}
+
+/**
+ * `devaudit doctor --guided [check]` (DevAudit-Installer#1116 WP8): walks the gaps one at a time and
+ * applies a chosen fix through `runFix`, the code behind `--fix`. Returns the exit code.
+ */
+export async function runDoctorGuided(
+  scope: string | undefined,
+  options: DoctorOptions & { readonly guided?: Partial<GuidedDeps> } = {},
+): Promise<number> {
+  const first = await collectDoctorState(options, { skipDurations: true });
+  const report = await runGuided(scope, {
+    ask: prompts,
+    json: isJsonMode(),
+    fixDeps: { ...fixDepsFor(first.consumer), ...options.fix?.deps },
+    // The first collection is reused; later calls (after a fix) run the checks again, without the slow measurement.
+    collect: (() => {
+      let used = false;
+      return async () => {
+        if (!used) {
+          used = true;
+          return { gaps: first.gaps, proposals: first.proposals };
+        }
+        const next = await collectDoctorState(options, { skipDurations: true });
+        return { gaps: next.gaps, proposals: next.proposals };
+      };
+    })(),
+    ...options.guided,
+  });
+  return report.exitCode;
 }
