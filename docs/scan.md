@@ -47,6 +47,22 @@ Text taken from the repository (paths, reasons) is escaped in the HTML, SARIF an
 - `--ci` never asks. With `--max-missing N` the command exits `1` when more than `N` clauses are `missing` across the selected standards (default `0`). `--max-missing` needs `--ci`.
 - Exit `0`: a report was produced (and, with `--ci`, the number missing is within the limit). Exit `1`: too many missing, or the repository could not be read. Exit `2`: invalid flags, or an unknown standard.
 
+## Saving the report and getting help (the account step)
+
+In a terminal, without `--local`, `--ci` or `--json`, the report is followed by an offer: **"Save this report and get help fixing it? Create your free DevAudit account [Y/n]"**. On yes, in this order:
+
+1. **Sign in** through the browser (a device sign-in: you open a link, check the code and approve the machine; the command line never sees a password). Skipped when a valid personal access token already exists (the `devaudit auth login` cache or `DEVAUDIT_USER_TOKEN`). The token is saved the way `devaudit auth login` saves it and is never printed.
+2. **Create the project** (the free plan has one project and one admin).
+3. **Issue your own read-only viewer key**, saved the way `install` saves it.
+4. **Upload the report** (exactly the file in the cache, nothing renamed).
+
+Then: **"Set up the suggested preset now? Yes / Change one thing / Not now"**. Yes runs the guided install with the scan's answers (the cached report) and the suggested preset; "change one thing" runs it with the preset question open; "not now" prints the command to run later.
+
+- Without a terminal the offer is skipped with "To create an account, run `devaudit scan` in your own terminal."
+- Declined, or `--local`: guided install needs a portal project, so it is not offered. You are pointed at the local fixes (`devaudit bootstrap-governance`, `devaudit configure`) and told that onboarding needs an account.
+- **Already onboarded** (`sdlc-config.json` names the project): nothing is created. "Save this report to <project>?" uploads with your personal access token (a viewer key is read-only and cannot upload). Without a token it prints "Run `devaudit auth login` to save this report to <project>." and uploads nothing; the next step is `devaudit configure`.
+- A portal that does not have a step yet (sign-in or report saving) is reported in one plain line and the rest carries on.
+
 ## The suggested preset
 
 The report carries the preset that fits what was found (A, B, C or `custom`; never D, which is offered, not suggested), with its reason. It is the same rule `devaudit install` and `devaudit doctor` use; a scan makes no portal call, so A and B are suggested with the note that they need portal support for a solo approver. See [`presets.md`](./presets.md).

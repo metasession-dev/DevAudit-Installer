@@ -32,6 +32,10 @@ Reproduced from Phase 0 of the `sdlc-implementer` skill, which holds the canonic
 | Defer or resume a release | A person: `devaudit doctor --fix` (their PAT, at a terminal) or the portal UI. Never the agent |
 | Install, join, issue a viewer key | A person, with their PAT |
 
+## The scan's account step
+
+`devaudit scan` can create your account and save its report (see [`scan.md`](./scan.md#saving-the-report-and-getting-help-the-account-step)). The personal access token it receives from the browser sign-in is saved by the same function as `devaudit auth login` (`auth.json` in the CLI config folder, mode 0600), is never printed, logged or put in an environment variable, and is the only credential that can upload a report; your own viewer key, issued in the same step, is read-only and saved like `install` saves it. The uploader key stays CI-only and is never issued by `scan`.
+
 ## The viewer key
 
 A viewer key is read-only and personal: one key per person, per project, per machine, named `viewer:<your email>:<hostname>` (the email is `git config user.email`). The portal records the creator.
