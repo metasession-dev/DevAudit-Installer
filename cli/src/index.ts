@@ -18,6 +18,7 @@ import { runUpdate } from './commands/update.js';
 import { runBootstrapGovernance } from './commands/bootstrap-governance.js';
 import { makeStub } from './commands/stub.js';
 import { runConfigureList, runConfigureGet, runConfigureSet, runConfigureSecret } from './commands/configure.js';
+import { runConfigureGuided } from './commands/configure-guided.js';
 import { discoverPlugins, registerPluginCommands } from './lib/plugin/index.js';
 import { runPluginList } from './commands/plugin/list.js';
 import { runPluginInstall } from './commands/plugin/install.js';
@@ -411,8 +412,12 @@ export async function main(argv: readonly string[]): Promise<void> {
   const configureCmd = program
     .command('configure')
     .description(
-      "Read and change this repo's sdlc-config.json with validation: deploy host, production URL secret, custom deploy settings, runner and CI keys. Changes the repo's evidence contradicts need confirmation or --reason. See docs/configure.md.",
+      "Read and change this repo's sdlc-config.json with validation (with no subcommand: the guided questions with your current values, a before/after summary and a write of only what changed): deploy host, production URL secret, custom deploy settings, runner and CI keys. Changes the repo's evidence contradicts need confirmation or --reason. See docs/configure.md.",
     );
+  configureCmd.action(async (_opts: unknown, cmd: Command) => {
+    const globals = cmd.optsWithGlobals() as { json?: boolean };
+    process.exit(await runConfigureGuided({ json: Boolean(globals.json) }));
+  });
   configureCmd
     .command('list')
     .description('Every key `configure` manages, with its current value (keys for other hosts hidden). --json lists all, with types and allowed values.')
