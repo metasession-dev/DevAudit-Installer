@@ -1,6 +1,6 @@
 # Skills Overview
 
-DevAudit ships eight AI skills with the SDLC framework, synced into every consumer, plus one operator-only skill that lives in this repo and never syncs anywhere. One synced skill orchestrates the lifecycle; six specialize within particular stages; one (`devaudit-configure`) keeps the repo's DevAudit settings right.
+DevAudit ships nine AI skills with the SDLC framework, synced into every consumer, plus one operator-only skill that lives in this repo and never syncs anywhere. One synced skill orchestrates the lifecycle; seven specialize within particular stages; one (`devaudit-configure`) keeps the repo's DevAudit settings right.
 
 This page is the short reader-facing overview. The full contract for skill structure, sync behavior, triggers, and evolution lives in [`sdlc/SKILLS.md`](../sdlc/SKILLS.md).
 
@@ -10,6 +10,7 @@ This page is the short reader-facing overview. The full contract for skill struc
 | --- | --- | --- | --- |
 | `sdlc-implementer` | Orchestrator | 1-5 | Drives the tracked SDLC path end to end, including phase routing, evidence checkpoints, PR readiness, and resume/watch behavior |
 | `e2e-test-engineer` | E2E and visual specialist | 2 | Maintains the end-to-end and API/integration test pack (Playwright, pytest, Jest, Vitest) in smoke / critical / full tiers, proves acceptance criteria, captures per-AC evidence shots, and helps classify failures |
+| `e2e-test-data` | E2E test-data specialist | 1, 2 | Declares the data a requirement's tests need, helps write the project's seed and reset scripts, test accounts and teardown, and runs the three drift checks (seed against schema, against specs, live data against baseline) |
 | `e2e-ci-reliability` | E2E suite reliability specialist | 2, 4 | Diagnoses long-run E2E suite flake (accumulated degradation vs. cold-compile vs. host ceiling) as distinct from application defects, and applies sharding, warm-up, or capacity fixes |
 | `governance-doc-author` | Governance-document specialist | 1-3 | Authors or refreshes governance artifacts such as ROPA, DPIA, AI disclosure, incident response, and periodic review docs |
 | `requirements-aligner` | SRS alignment specialist | 1, 3 | Maintains `docs/SRS.md` and drops per-REQ `srs-alignment.md` traceability evidence |
@@ -40,7 +41,7 @@ There are three practical groups:
 | Group | Skills | Purpose |
 | --- | --- | --- |
 | Orchestration | `sdlc-implementer` | Owns workflow routing, checkpoints, and end-to-end lifecycle control |
-| Execution specialists | `e2e-test-engineer`, `e2e-ci-reliability`, `governance-doc-author` | Own bounded procedural work that the orchestrator delegates |
+| Execution specialists | `e2e-test-engineer`, `e2e-test-data`, `e2e-ci-reliability`, `governance-doc-author` | Own bounded procedural work that the orchestrator delegates |
 | SoT-alignment family | `requirements-aligner`, `adr-author`, `risk-register-keeper` | Keep the persistent source-of-truth documents aligned with the change and emit per-REQ traceability artifacts |
 | Repo configuration | `devaudit-configure` | Keeps `sdlc-config.json` (deploy host, production URL, custom deploy, runner, CI keys, test tiers, E2E release gate) in line with the repo, through the validated `devaudit configure` CLI |
 
@@ -48,6 +49,7 @@ There are three practical groups:
 
 - Use `sdlc-implementer` when the work is a tracked `REQ-XXX` change and needs the full SDLC path.
 - Use `e2e-test-engineer` when the work involves end-to-end, authenticated-flow, screenshot, or visual-regression testing.
+- Use `e2e-test-data` when the tests need seed data, fixtures, test accounts or teardown, when a seed is out of date, when tests leave data behind, or when `devaudit doctor` reports a `test-data` finding.
 - Use `e2e-ci-reliability` when a full-regression run fails a different, unrelated spec each time, when isolated reruns of "failing" specs pass clean, or when the regression tier has grown large enough that sharding is worth considering — not for authoring test content. A fix it applies (sharding, warm-up) is made durable via `e2e/ci-reliability/regression-run.sh`, a fixed-path hook `e2e-regression.yml` invokes if present (devaudit-installer#928) — never as a hand-edit or `.devaudit-patches` entry against the generated workflow.
 - Use `governance-doc-author` when a project needs or refreshes governance evidence rather than code.
 - Use `devaudit-configure` when `devaudit doctor` reports a `deploy-host`, `production-url`, `custom-deploy`, `ci-runner`, `e2e-release-gate` or `test-tiers` finding, when the team wants a different tier to gate the release PR, when the project deploys somewhere other than what onboarding recorded (Vercel, AWS, self-hosted), or when a CI setting such as the runner needs to change. It never edits `sdlc-config.json` or workflows by hand and never handles secret values.

@@ -24,6 +24,7 @@ import { runGuided, type GuidedDeps } from './doctor-guided.js';
 import * as prompts from '../lib/prompt.js';
 import { FIX_EXIT_UNAPPLIED, runFix, type FixDeps, type FixReport } from './doctor-fix.js';
 import { onboardingChecksFor, type OnboardingCheckDeps } from './doctor-onboarding.js';
+import { testDataCheck, type TestDataDeps } from './doctor-testdata.js';
 import type { Gap } from '@metasession.co/devaudit-core';
 import { commitsInRange, refExists, reqHasCommits } from '../lib/req-commits.js';
 
@@ -48,6 +49,8 @@ export interface DoctorOptions {
   readonly agentPermissionsDeps?: Partial<AgentPermissionsDeps>;
   /** Test seam for the #1116 WP8 checks (portal reads, gh runner, test groups). */
   readonly onboardingDeps?: OnboardingCheckDeps;
+  /** Test seam for the #1116 WP15 `test-data` check. */
+  readonly testDataDeps?: TestDataDeps;
 }
 
 /**
@@ -818,7 +821,7 @@ export async function collectDoctorState(options: DoctorOptions = {}, scope: { r
   const consumer = await readConsumerConfig();
   // Onboarding-checklist invariants — same non-gating shape as the
   // close-out check above (devaudit-installer#826, extended #867).
-  const onboardingChecks: readonly CheckResult[] = [
+  const onboardingBase: readonly CheckResult[] = [
     await timed('srs', () => checkSrsBootstrapped()),
     await timed('rtm', () => checkRtmInitialized()),
     await timed('semgrep', () => checkSemgrepAvailable()),
@@ -841,6 +844,10 @@ export async function collectDoctorState(options: DoctorOptions = {}, scope: { r
     // DevAudit-Installer#1116 WP8: preset drift, standards fit, approval policy, run times.
     ...(consumer ? await timed('onboarding-1116', () => onboardingChecksFor(consumer, options.onboardingDeps, scope)) : []),
   ];
+  // DevAudit-Installer#1116 WP15: runs after test-tiers and preset-drift and reads their result.
+  const onboardingChecks: readonly CheckResult[] = consumer
+    ? [...onboardingBase, await timed('test-data', () => testDataCheck(consumer, onboardingBase, options.testDataDeps))]
+    : onboardingBase;
   // Release-deferral diagnosis (#956 phase 3a-2): read-only, non-gating, and
   // reported under a new additive JSON key so existing keys are untouched.
   const deferralChecks: readonly CheckResult[] = consumer

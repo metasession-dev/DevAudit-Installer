@@ -4,6 +4,8 @@ How to make the generated E2E gate (`ci.yml` Gate 4) run against a **disposable 
 database** instead of a remote/production one — so the suite can exercise mutation, email,
 and delete paths without ever touching real data.
 
+> Declaring the test data (`e2e_data_isolation`, the seed, reset, preflight and leak-check commands) adds a lifecycle step around the regression; see [`e2e-test-tiers.md`](./e2e-test-tiers.md#test-data-1116).
+
 ## When you need this
 
 The generated dev server inherits the workflow's **job-level env** — i.e. the

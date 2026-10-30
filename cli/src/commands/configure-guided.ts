@@ -72,6 +72,17 @@ export function diffGuided(cfg: Record<string, unknown>, result: GuidedResult, s
   return { changes, removals };
 }
 
+/** Whether the change turns on a scheduled or post-deploy regression that was not on before. */
+export function turnsOnUnattendedRun(cfg: Record<string, unknown>, changes: readonly Change[]): boolean {
+  const wasOff = (key: string): boolean => cfg[key] === undefined || cfg[key] === '' || cfg[key] === false;
+  return changes.some(
+    (c) =>
+      (c.key === 'scheduled_full_regression' && typeof c.after === 'string' && c.after !== '' && wasOff(c.key)) ||
+      (c.key === 'post_deploy_full_regression' && c.after === true && cfg[c.key] === false) ||
+      (c.key === 'e2e_regression_enabled' && c.after === true && wasOff(c.key)),
+  );
+}
+
 export async function runConfigureGuided(opts: { readonly json: boolean }, deps: ConfigureGuidedDeps = {}): Promise<number> {
   const log = logger();
   const say = deps.say ?? ((line: string) => log.log(line));
@@ -133,6 +144,11 @@ export async function runConfigureGuided(opts: { readonly json: boolean }, deps:
   for (const r of removals) say(`  ${r.key}: ${show(r.before)} -> removed (not part of the new preset)`);
   if (result.policyToSet !== null) {
     say(`  portal approval policy: ${policy.status === 'ok' ? policy.policy : '(not reported)'} -> ${result.policyToSet} (changed on the portal, needs a project admin)`);
+  }
+  // DevAudit-Installer#1116 WP15: a run nobody watches should show where its tests get their data.
+  if (turnsOnUnattendedRun(cfg, changes)) {
+    const answer = changes.find((c) => c.key === 'e2e_data_isolation')?.after ?? cfg['e2e_data_isolation'];
+    say(`  these runs happen without anyone watching; your tests use ${typeof answer === 'string' && answer !== '' ? answer : 'no declared data answer (e2e_data_isolation is not set)'}`);
   }
   const affected = [...new Set([...changes, ...removals].flatMap((c) => findConfigKey(c.key)?.affects ?? []))];
   if (affected.length > 0) {

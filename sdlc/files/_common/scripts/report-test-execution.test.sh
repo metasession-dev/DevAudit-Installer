@@ -361,7 +361,37 @@ case_attribution_guard() {
   rm -rf "$dir"
 }
 
+case_run_data_file() {
+  echo "case: complete sends the run record's data object as runData"
+  local dir exit_code
+  dir=$(mktemp -d)
+  make_fixture "$dir"
+  printf '%s' '{"outcome":"passed","data":{"isolation":"shared","seedCommit":"abc","seedFilesHash":"h","reset":{"ran":true,"exitCode":0},"preflight":{"ran":false,"exitCode":null},"leakCheck":{"ran":true,"count":0},"workers":2,"skipped":{"count":1,"byReason":{"x":1}}}}' > "$dir/meta.json"
+  printf '%s' '{"outcome":"passed"}' > "$dir/nodata.json"
+  common=(--project-slug fixture-app --release REQ-100 --sdlc-stage 2 --environment uat --suite-kind e2e --idempotency-key github:fixture/repo:e2e:1:1:REQ-100 --started-at 2026-07-16T10:00:00Z --outcome passed)
+  RESOLVE_STATUS=200 RESOLVE_BODY='{"latest":{"id":"release-1","version":"REQ-100"}}' COMPLETE_STATUS=200 COMPLETE_BODY='{"id":"e1"}' \
+    run_helper "$dir" complete "${common[@]}" --run-data-file "$dir/meta.json" >"$dir/stdout.log" 2>"$dir/stderr.log" && exit_code=0 || exit_code=$?
+  if [ "$exit_code" -eq 0 ]; then ok "exit code 0"; else no "expected exit 0"; fi
+  assert_contains "payload carries runData" '"runData"' "$dir/curl.log"
+  assert_contains "runData uses the portal field names" '"seedFilesHash": "h"' "$dir/curl.log"
+  assert_contains "schemaVersion stays 1" '"schemaVersion": 1' "$dir/curl.log"
+  rm -f "$dir/curl.log"
+  RESOLVE_STATUS=200 RESOLVE_BODY='{"latest":{"id":"release-1","version":"REQ-100"}}' COMPLETE_STATUS=200 COMPLETE_BODY='{"id":"e1"}' \
+    run_helper "$dir" complete "${common[@]}" >"$dir/stdout.log" 2>"$dir/stderr.log" && exit_code=0 || exit_code=$?
+  if grep -Fq '"runData"' "$dir/curl.log"; then no "no file: payload unchanged"; else ok "no file: payload unchanged"; fi
+  rm -f "$dir/curl.log"
+  RESOLVE_STATUS=200 RESOLVE_BODY='{"latest":{"id":"release-1","version":"REQ-100"}}' COMPLETE_STATUS=200 COMPLETE_BODY='{"id":"e1"}' \
+    run_helper "$dir" complete "${common[@]}" --run-data-file "$dir/nodata.json" >"$dir/stdout.log" 2>"$dir/stderr.log" && exit_code=0 || exit_code=$?
+  if grep -Fq '"runData"' "$dir/curl.log"; then no "file without data: payload unchanged"; else ok "file without data: payload unchanged"; fi
+  rm -f "$dir/curl.log"
+  RESOLVE_STATUS=200 RESOLVE_BODY='{"latest":{"id":"release-1","version":"REQ-100"}}' START_STATUS=201 START_BODY='{"id":"e1"}' \
+    run_helper "$dir" start --project-slug fixture-app --release REQ-100 --sdlc-stage 2 --environment uat --suite-kind e2e --idempotency-key k --run-data-file "$dir/meta.json" >"$dir/stdout.log" 2>"$dir/stderr.log" && exit_code=0 || exit_code=$?
+  if grep -Fq '"runData"' "$dir/curl.log"; then no "start never sends runData"; else ok "start never sends runData"; fi
+  rm -rf "$dir"
+}
+
 case_attribution_guard
+case_run_data_file
 case_start_success
 case_complete_reconciles_terminal_conflict
 case_missing_release_fails

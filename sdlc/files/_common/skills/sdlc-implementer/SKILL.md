@@ -40,6 +40,7 @@ The orchestrator MUST invoke `e2e-test-engineer` for end-to-end and visual-regre
 - Never author e2e tests directly.
 - Never transcribe `e2e-test-engineer`'s six-phase workflow into this skill's body.
 - Call via the standard Claude Code Skill mechanism (`Skill(name: "e2e-test-engineer", …)`).
+- When the plan's "Test Data Requirements" say seeding or fixtures are needed (or the change alters what data the tests need), also invoke `Skill(name: "e2e-test-data", …)` in Phase 2. Never author seed or reset scripts directly.
 
 **Structural enforcement (devaudit#132):** the contract is backed by two gates inside Phase 2 — a literal pre-test-work declaration before any `e2e/**/*.spec.ts` edit (step 3) and a mandatory self-audit before Phase 3 (step 9). Both are scripts the orchestrator follows, not prose it can rationalise around. If you find yourself about to skip either, that's the inertia trap the gates exist to interrupt — STOP, run the gate, and you'll usually find the delegation path is obvious from there.
 

@@ -24,10 +24,23 @@ DevAudit distinguishes between fast blocking E2E coverage and broader regression
 
 The generated framework requires the blocking E2E gate in `ci.yml`.
 
-The broader three-tier pattern is documented and available as a reference workflow through the `e2e-test-engineer` skill materials:
+The three-tier model is generated: `e2e-regression.yml` is produced from `sdlc-config.json` when `e2e_regression_enabled` is true (opt in with `devaudit update --enable-e2e-regression`), together with its tier commands, release gate, nightly run and post-deploy run. The reference copy in the `e2e-test-engineer` skill materials and [`docs/e2e-local-db-ci.md`](./e2e-local-db-ci.md) (safe local/disposable backends in CI) remain useful background.
 
-- [`docs/e2e-local-db-ci.md`](./e2e-local-db-ci.md) for safe local/disposable backends in CI
-- [`sdlc/files/_common/skills/e2e-test-engineer/references/e2e-regression-3-tier.yml`](../sdlc/files/_common/skills/e2e-test-engineer/references/e2e-regression-3-tier.yml) for the optional smoke/critical/regression split
+## Test data (#1116)
+
+Where each tier gets its data is declared, not assumed. DevAudit owns the contract, the checks and the run record; the project owns the seed and reset code (the `e2e-test-data` skill helps write it).
+
+| Key | Meaning |
+| --- | --- |
+| `e2e_data_isolation` | `none`, `ephemeral` (a fresh database per run), `shared_serialised` (an environment only the tests use, one run at a time), `shared` (other people use it too), `unknown` |
+| `e2e_seed_command`, `e2e_seed_paths` | The seed, and the git-tracked files/folders that hold it (their hash tells when it changed) |
+| `e2e_reset_command` | Puts the data back; also run after the tests, best effort, for a run that was killed |
+| `e2e_preflight_command` | Exits non-zero when the fixtures the tests need are absent; a failed preflight **fails the run**, it is never turned into a skip |
+| `e2e_leak_check_command` | Prints the number of rows left behind on its last line; recorded, never changes the outcome |
+| `e2e_max_skipped` | Fails the run (and so the release gate) when more tests than this skipped; unset reports only |
+| `feature_e2e_projects` | Limits the feature-PR run to these Playwright projects (default all) |
+
+With `e2e_data_isolation` set and not `none`, `e2e-regression.yml` runs `scripts/e2e-data-lifecycle.sh` after the setup step (reset, seed, preflight) and after the tests (reset, leak check, skip budget); the smoke run in `ci.yml` and the feature run do not. With it unset or `none` the workflows are unchanged, even when `e2e_seed_command` is set. The run record is the `data` object in `e2e-regression-metadata.json` (`isolation`, `seedCommit`, `seedFilesHash`, `reset`, `preflight`, `leakCheck`, `workers`, `skipped`); it never holds a host name, URL, credential or row contents, and it is also sent to the portal as `runData`. `devaudit doctor` reports the `test-data` findings (see [`doctor.md`](./doctor.md)).
 
 ## Tier commands for any test runner (#1060)
 

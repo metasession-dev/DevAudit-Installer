@@ -52,6 +52,19 @@ Framework- and tracker-agnostic. Not for unit/component/API-only or performance 
 
 An incident found outside a tracked run doesn't have to go through the issue-filing path first — `e2e-test-engineer` can file the incident report directly ("this regression isn't tied to an open issue, file it as an incident") and skip straight to the incident-export flow described in [`incident-export.md`](incident-export.md).
 
+## Test data: seed, reset, teardown, drift — `e2e-test-data`
+
+- "set up the test data"
+- "write a seed script"
+- "our seed is out of date"
+- "tests fail because a fixture is missing"
+- "tests leave data behind"
+- "reset the test database"
+- "add a test account"
+- "seed-data gap"
+
+Not for writing specs (that's `e2e-test-engineer`) and not for changing the release gate (that's `devaudit-configure`). `devaudit doctor`'s `test-data` check points here.
+
 ## E2E suite flakiness and CI reliability — `e2e-ci-reliability`
 
 - "why is our regression tier flaky"

@@ -21,6 +21,7 @@ Run in a terminal with no subcommand, `devaudit configure` asks the same questio
 
 - **Switching presets** writes exactly the target preset's keys and removes the ones it does not write (C to A leaves no `release_gate_tier`, `post_deploy_full_regression` or `scheduled_full_regression`). C to D changes `post_deploy_full_regression` to `false`, and D to C changes it back.
 - **A change that enables a test tier** (the release gate question, or moving to preset B, C or D) asks where the tests get their data (Q18) straight away when `e2e_data_isolation` is unset.
+- **A change that turns on an unattended regression** (a schedule, or a run after every deploy) prints the current `e2e_data_isolation` in the before/after summary: "these runs happen without anyone watching; your tests use <answer>". It asks nothing new.
 - **The approval policy on the portal** is a separate action that needs a project admin. If the portal does not accept a solo policy, the approval settings in `sdlc-config.json` are left as they are and the rest is written.
 - **Without a terminal** (no TTY, `CI` set or `--json`) it asks nothing, writes nothing and exits 8: use `devaudit configure set <key> <value>` in scripts. A declined confirmation also exits 8.
 - A new review count on the release branch reaches GitHub through `devaudit update`, which asks before lowering an existing branch.

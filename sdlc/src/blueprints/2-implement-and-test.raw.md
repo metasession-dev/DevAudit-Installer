@@ -162,7 +162,7 @@ Run the E2E checks required by the approved test plan. Before running the full l
 
 - Required services/databases are running locally
 - Required secrets/env vars point to disposable local or test resources
-- Test data and authenticated fixtures are seeded
+- Test data and authenticated fixtures are seeded (checkable: `e2e_preflight_command` exits non-zero when a fixture is absent; `devaudit doctor` reports the `test-data` findings)
 - Playwright browsers and project dependencies are installed
 
 If those prerequisites are confirmed, run:

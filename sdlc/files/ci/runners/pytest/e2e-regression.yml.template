@@ -101,6 +101,7 @@ jobs:
 
 {{DATABASE_URI_STEP}}
 {{E2E_SETUP_STEP}}
+{{E2E_DATA_BEFORE_STEP}}
       # Decide which tier to run based on the trigger: critical on the PR into
       # the release branch, the full tier after a production deployment, and
       # the full tier (optionally scoped to given pytest arguments) on manual
@@ -177,6 +178,7 @@ jobs:
           mv "$METADATA.tmp" "$METADATA"
           exit "$STATUS"
 
+{{E2E_DATA_AFTER_STEP}}
       - uses: actions/upload-artifact@v4
         if: always()
         continue-on-error: true

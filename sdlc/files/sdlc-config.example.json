@@ -52,6 +52,8 @@
   "e2e_seed_command": "",
   "e2e_projects": [],
 
+  "_comment_e2e_data": "Test data (DevAudit-Installer#1116): declare where the tests get their data with e2e_data_isolation (none | ephemeral | shared_serialised | shared | unknown). When set (and not none), e2e-regression.yml runs scripts/e2e-data-lifecycle.sh around the tests: e2e_reset_command, then e2e_seed_command (files in e2e_seed_paths, tracked in version control), then e2e_preflight_command (non-zero fails the run); after the tests a best-effort e2e_reset_command, then e2e_leak_check_command (last line = rows left behind) and the e2e_max_skipped budget. feature_e2e_projects limits the feature-PR run to the listed Playwright projects. Unset keeps today's behaviour, even with e2e_seed_command set. Set them with `devaudit configure`; author the seed with the e2e-test-data skill.",
+
   "_comment_e2e_env": "Env applied to the E2E setup, (blocking) dev-server, and E2E test steps. To run E2E against a local stack, override EVERY remote/prod key here so production is fully severed — e.g. { \"E2E_LOCAL\": \"1\", \"NEXT_PUBLIC_SUPABASE_URL\": \"http://127.0.0.1:54321\", \"SUPABASE_SERVICE_ROLE_KEY\": \"<local-service-key>\", \"RESEND_API_KEY\": \"re_e2e_local_dummy_key\" }. Step-level env wins over the job-level secrets. Values may reference repo secrets, e.g. \"${{ secrets.E2E_ADMIN_USERNAME }}\".",
   "e2e_env": {},
 

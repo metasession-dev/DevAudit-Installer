@@ -99,6 +99,7 @@ jobs:
 
 {{DATABASE_URI_STEP}}
 {{E2E_SETUP_STEP}}
+{{E2E_DATA_BEFORE_STEP}}
       - name: Kill stale dev server
         # See ci.yml.template's "Kill stale dev server" step for why (devaudit-installer#820/#1054).
         run: |
@@ -253,6 +254,7 @@ jobs:
           mv e2e-regression-metadata.tmp e2e-regression-metadata.json
           exit "$STATUS"
 
+{{E2E_DATA_AFTER_STEP}}
       - name: Stop dev server
         if: always()
         run: |

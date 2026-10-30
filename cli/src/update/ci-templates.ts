@@ -135,6 +135,11 @@ interface SdlcConfig {
   // for projects whose critical/regression specs mutate a SHARED backend.
   // Empty/absent = the original per-ref group with PR-only cancellation.
   readonly e2e_concurrency_group?: string;
+  // DevAudit-Installer#1116 WP15 — where the tests get their data. The regression lifecycle
+  // (scripts/e2e-data-lifecycle.sh) is generated only when this is set and not `none`.
+  readonly e2e_data_isolation?: string;
+  // DevAudit-Installer#1116 WP15 — Playwright projects the feature run is limited to (default: all).
+  readonly feature_e2e_projects?: readonly string[];
   // Only meaningful with e2e_concurrency_group; defaults to false there.
   readonly e2e_concurrency_cancel_in_progress?: boolean;
   // devaudit-installer#1060 — test tier commands. When none is set the
@@ -242,6 +247,35 @@ function renderEnvBareBlock(env: Record<string, string>): string {
  * (e.g. `supabase start` + schema load + seed) sees the local-stack coords.
  * A multi-line command is emitted as a `run: |` block scalar.
  */
+/**
+ * DevAudit-Installer#1116 WP15 — the regression run's test-data lifecycle, generated only when
+ * `e2e_data_isolation` is set and not `none` (an unset project's workflow is byte-identical). The logic
+ * is in scripts/e2e-data-lifecycle.sh, which reads the declared commands from sdlc-config.json; the
+ * step carries `e2e_env` so the commands see the same environment as the tests.
+ */
+function dataLifecycleEnabled(cfg: SdlcConfig): boolean {
+  const isolation = (cfg.e2e_data_isolation ?? '').trim();
+  return isolation !== '' && isolation !== 'none';
+}
+
+function buildE2eDataLifecycleStep(cfg: SdlcConfig, phase: 'before' | 'after'): string {
+  if (!dataLifecycleEnabled(cfg)) return '';
+  const env = stepEnv(cfg, cfg.e2e_env ?? {});
+  const results = cfg.test_runner === 'pytest' ? 'e2e-regression-results.xml' : 'e2e-regression-results.json';
+  const lines =
+    phase === 'before'
+      ? ['      - name: E2E data lifecycle (reset, seed, preflight)']
+      : ['      - name: E2E data lifecycle (teardown, leak check, skip budget)', '        if: always()'];
+  if (Object.keys(env).length > 0) lines.push('        env:', indentEnvBlock({ ...env }, 10));
+  lines.push(
+    phase === 'before'
+      ? '        run: bash scripts/e2e-data-lifecycle.sh before'
+      : `        run: bash scripts/e2e-data-lifecycle.sh after --results ${results} --metadata e2e-regression-metadata.json`,
+  );
+  lines.push('');
+  return lines.join('\n');
+}
+
 function buildE2eSetupStep(cfg: SdlcConfig): string {
   const cmd = (cfg.e2e_setup_command ?? '').trim();
   if (!cmd) return '';
@@ -676,6 +710,15 @@ function buildE2eRegressionConcurrency(cfg: SdlcConfig): string {
  * instead of `--project=` which runs the full suite. The REQ_ID shell
  * variable is populated from the detect-req job output at runtime.
  */
+/**
+ * DevAudit-Installer#1116 WP15 — `feature_e2e_projects` limits the feature run to the listed Playwright
+ * projects (so it cannot run a destructive `regression` project against shared data). Empty keeps all.
+ */
+function featureProjectFlags(cfg: SdlcConfig): string {
+  const names = (cfg.feature_e2e_projects ?? []).filter((n) => /^[A-Za-z0-9_.:-]+$/.test(n));
+  return names.map((n) => ` --project=${n}`).join('');
+}
+
 function buildFeatureE2eTestStep(cfg: SdlcConfig): string {
   const env = stepEnv(cfg, cfg.e2e_env ?? {});
   if (cfg.test_runner === 'pytest') {
@@ -703,7 +746,7 @@ function buildFeatureE2eTestStep(cfg: SdlcConfig): string {
   lines.push(
     hasConfigured(cfg.test_feature_command)
       ? `          ${TIER_SCRIPT} feature "$REQ_ID"`
-      : '          npx playwright test --grep "$REQ_ID" --reporter=json,html',
+      : `          npx playwright test --grep "$REQ_ID"${featureProjectFlags(cfg)} --reporter=json,html`,
   );
   return lines.join('\n');
 }
@@ -1315,6 +1358,8 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
       DATABASE_SERVICE_OPTIONS: buildDatabaseServiceOptions(cfg.database_service),
       DATABASE_URI_STEP: buildDbUriStep(cfg.database_service, cfg.database_port, cfg),
       E2E_SETUP_STEP: buildE2eSetupStep(cfg),
+      E2E_DATA_BEFORE_STEP: buildE2eDataLifecycleStep(cfg, 'before'),
+      E2E_DATA_AFTER_STEP: buildE2eDataLifecycleStep(cfg, 'after'),
       E2E_DEV_SERVER_STEP: buildE2eDevServerStep(cfg),
       E2E_TEST_STEP: buildE2eTestStep(cfg),
       E2E_FEATURE_TEST_STEP: buildFeatureE2eTestStep(cfg),

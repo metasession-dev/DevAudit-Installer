@@ -135,7 +135,7 @@ Key files to expect:
 - `.github/workflows/ci.yml` — CI pipeline with quality gates
 - `scripts/` — evidence upload, compliance validation scripts
 - `INSTRUCTIONS.md`, `CLAUDE.md`, `.cursorrules`, `.windsurfrules` — AI agent pointers
-- `.claude/skills/` — sdlc-implementer and e2e-test-engineer skills
+- `.claude/skills/` — sdlc-implementer, e2e-test-engineer and e2e-test-data skills (the latter owns seed, reset and test-data drift; `e2e_data_isolation` in `sdlc-config.json` declares where the tests get their data)
 - `.gitignore` — sentinel file entries
 
 ### 5. Hand off to the sdlc-implementer skill
