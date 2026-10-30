@@ -33,7 +33,7 @@ on:
   # workflow so the critical-tier run on the release PR + the full
   # regression on post-merge to main both upload their JSON results +
   # HTML report to the portal under the right release. Without this hook
-  # the UAT four-eyes reviewer only sees smoke-tier evidence from the
+  # the UAT approver only sees smoke-tier evidence from the
   # feature PR's develop merge — the broader sweep against the
   # about-to-be-promoted integration code never reaches the portal.
   workflow_run:

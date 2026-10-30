@@ -298,7 +298,7 @@ Runs **first**, before any `REQ-XXX` is assigned. It decides which of the six ch
 
    Map the result to one of the six paths in `change-workflows.md`.
 
-3. **Announce a "Workflow Decision" block** (template below): change-type, commit-type, whether a `REQ-XXX` is needed, risk class, which stages/gates run, which approvals the **operator** must perform (UAT four-eyes, Production approval), and what is **skipped**.
+3. **Announce a "Workflow Decision" block** (template below): change-type, commit-type, whether a `REQ-XXX` is needed, risk class, which stages/gates run, which approvals the **operator** must perform (UAT approval, Production approval), and what is **skipped**.
 4. **Pause policy — pause-when-it-matters.** Pause for explicit confirmation on **tracked / heavier** paths, or when classification is **ambiguous**; **announce-and-auto-proceed** on trivial / housekeeping. The operator can always reclassify ("treat this as housekeeping" / "this is HIGH risk").
 5. **Route — and stay on to completion.** A route is a choice of _which workflow to drive_, never a hand-off that abandons the operator. Whatever the path, the skill keeps guiding step by step until no further action is required (typically: merged).
    - **tracked** (feature / bug fix / refactor / perf) → continue into Phase 1 below (full Stages 1–5). **Write the skill-invocation sentinel** (devaudit-installer#226): `node SDLC/bin/devaudit-sdlc.cjs --phase=issue` (or `node SDLC/bin/devaudit-sdlc.cjs --phase=issue` if the npm package is installed). This invokes the CLI engine, which appends a JSON phase record to `.sdlc-implementer-invoked` (a gitignored, local-only file). The pre-push hook checks for this file's existence before allowing `feat`/`fix`/`refactor`/`perf` commits to be pushed. Without this sentinel, the pre-push hook will refuse the push and `validate-commits.sh` in CI will flag missing RTM provenance. Each subsequent phase transition (Phase 1, 2, 3, 4, 5) must also invoke `node SDLC/bin/devaudit-sdlc.cjs --phase=<N>` to append its phase record to the sentinel.
@@ -316,7 +316,7 @@ Runs **first**, before any `REQ-XXX` is assigned. It decides which of the six ch
 > - **Risk:** \<LOW | MEDIUM | HIGH | CRITICAL\>
 > - **Path:** \<Full SDLC Stages 1–5 | Lightweight (gates → chore PR) | Doc-only push\>
 > - **Gates/evidence:** \<…\>
-> - **Your approvals:** \<UAT four-eyes + Production approval | PR review only\>
+> - **Your approvals:** \<UAT approval (by a different person under `approval.mode: dual_actor`; by you, with a recorded gap, under `solo_with_gap`) + Production approval | PR review only\>
 > - **Skipped:** \<…\>
 >   Proceed? _(or reclassify)_
 
@@ -331,8 +331,8 @@ _Tracked feature — REQ-XXX assigned_
 > - **Requirement:** REQ-XXX (new)
 > - **Risk:** MEDIUM
 > - **Path:** Full SDLC Stages 1–5
-> - **Gates/evidence:** plan + RTM row + unit/integration/e2e evidence + UAT four-eyes + Production approval
-> - **Your approvals:** UAT four-eyes + Production approval
+> - **Gates/evidence:** plan + RTM row + unit/integration/e2e evidence + UAT approval + Production approval
+> - **Your approvals:** UAT approval + Production approval
 > - **Skipped:** none
 
 _Test fix surfaced by suite drift_
@@ -344,7 +344,7 @@ _Test fix surfaced by suite drift_
 > - **Path:** Lightweight (gates → PR review → merge)
 > - **Gates/evidence:** quality-gates smoke (default CI Gate 4); no full regression on PR (use `workflow_dispatch` while iterating; any post-merge or scheduled regression is consumer-configured)
 > - **Your approvals:** PR review only
-> - **Skipped:** RTM, evidence pack, UAT four-eyes, Production approval
+> - **Skipped:** RTM, evidence pack, UAT approval, Production approval
 
 _Workflow tweak (CI artifact upload, gate timeout bump, etc.)_
 
@@ -355,7 +355,7 @@ _Workflow tweak (CI artifact upload, gate timeout bump, etc.)_
 > - **Path:** Lightweight (gates → verify-via-dispatch → PR review → merge)
 > - **Gates/evidence:** quality-gates smoke + a `gh workflow run <file> --ref <branch>` on the modified workflow before merge (silent CI regressions are the failure mode this catches)
 > - **Your approvals:** PR review only
-> - **Skipped:** RTM, evidence pack, UAT four-eyes, Production approval
+> - **Skipped:** RTM, evidence pack, UAT approval, Production approval
 
 **Bundled-REQs variant (devaudit-installer#736)** — used instead of the single-issue template above when Phase 1 step 4's eligibility check accepts an operator-declared bundle:
 
@@ -365,7 +365,7 @@ _Workflow tweak (CI artifact upload, gate timeout bump, etc.)_
 > - **Risk (per REQ):** REQ-XXX MEDIUM, REQ-YYY LOW — **bundle ceremony runs at MEDIUM** (max across the set)
 > - **Path:** Full SDLC Stages 1–5, one shared branch/PR/release for both REQs
 > - **Gates/evidence:** each REQ gets its own plan, RTM row, and evidence folder; gates run once against the shared diff at MEDIUM depth
-> - **Your approvals:** one UAT four-eyes + one Production approval, covering both REQs
+> - **Your approvals:** one UAT approval + one Production approval, covering both REQs
 > - **Skipped:** none
 > - **Bundling cost:** if UAT requests changes, only the specific REQ(s) needing rework re-enter Phase 2–3 — but the shared PR still needs full re-review, since it's one PR covering both REQs. Portal-side, a declared bundle is ONE release with ONE approval (devaudit-installer#817, #955) — there is no approving REQ-XXX alone while REQ-YYY holds; if changes are requested, the *whole bundle's* release drops out of approval even though only one REQ needed the rework. This is the trade-off of bundling; reclassify to separate REQs now if that's not acceptable.
 >   Proceed? _(or reclassify to separate REQs)_
@@ -389,7 +389,7 @@ Reached from Phase 0 for non-tracked change-types. The skill drives this end-to-
    - **Post-merge-only CI (older generated workflows — `push: branches: [<integration>]` with no `pull_request:` trigger)** — say so explicitly in the LAST/NEXT sticky: _"no PR-time checks will fire; review + merge is the gate; CI runs post-merge on `$INTEGRATION_BRANCH`."_ Don't poll the PR for checks that won't arrive. The post-merge run (CI Pipeline + Compliance Evidence Upload on the integration branch) is the actual gate; address it via fix-forward if it fails.
 
    Either way, never bypass a gate (no `--no-verify`, no `--admin` merge of a red required check); the only difference is **where** you wait for the gate to fire — before merge vs. after merge.
-8. **Guide review -> merge.** A human still reviews the PR. Merge only after all required checks are terminal green on the current PR head SHA; queued, running, stale, cancelled, unexpectedly skipped, or failed checks are not green. If GitHub leaves a stale projection, use the repository's **Recover Required Checks** workflow: dry-run first, then apply only to rerun a resolvable completed Actions run on the same SHA. When GitHub never created the required suite, push an auditable empty commit to the PR branch and verify the new SHA; never fabricate status or bypass protection. **Never put a skip-CI tag (the bracketed `skip ci` token and its variants) anywhere in a commit message on a PR branch, not even quoted in an explanation:** GitHub matches the substring anywhere in the message and then runs no workflows at all, so the required `Quality Gates` check is never created and the PR stays BLOCKED (#1020). That includes the empty retrigger commit and the template-sync commit (`chore: sync SDLC templates from DevAudit`). There is no portal release approval, UAT four-eyes, Production gate, or standalone close-out on the normal lightweight path.
+8. **Guide review -> merge.** A human still reviews the PR. Merge only after all required checks are terminal green on the current PR head SHA; queued, running, stale, cancelled, unexpectedly skipped, or failed checks are not green. If GitHub leaves a stale projection, use the repository's **Recover Required Checks** workflow: dry-run first, then apply only to rerun a resolvable completed Actions run on the same SHA. When GitHub never created the required suite, push an auditable empty commit to the PR branch and verify the new SHA; never fabricate status or bypass protection. **Never put a skip-CI tag (the bracketed `skip ci` token and its variants) anywhere in a commit message on a PR branch, not even quoted in an explanation:** GitHub matches the substring anywhere in the message and then runs no workflows at all, so the required `Quality Gates` check is never created and the PR stays BLOCKED (#1020). That includes the empty retrigger commit and the template-sync commit (`chore: sync SDLC templates from DevAudit`). There is no portal release approval, UAT approval, Production gate, or standalone close-out on the normal lightweight path.
 9. **Record the correct release meaning.** A housekeeping push registers **no portal release** (#1020): CI runs on GitHub and that is the only record, unless a reviewed standalone declaration exists for the date (step 10). The work waits on `$INTEGRATION_BRANCH` until a later tracked release explicitly absorbs it through the required bundled-changes markdown/JSON manifest and portal lineage. Never infer that an unrelated hotfix or mandatory back-merge belongs to the only pending REQ. A submitted REQ bundle is frozen approval scope; changing it returns that REQ to evidence compilation and UAT resubmission. A doc-only push attaches documents to the existing `REQ-XXX` release.
 10. **Standalone exception.** Only when housekeeping cannot reasonably wait for the next tracked release may the skill prepare a standalone promotion. It must state `Standalone housekeeping promotion` and why in the release PR, add `compliance/standalone-housekeeping/STANDALONE-HOUSEKEEPING-vYYYY.MM.DD.json` with `schemaVersion: 1`, the exact derived bare-date version, `releaseMode: standalone_housekeeping`, and a specific reason. It must obtain terminal-green CI and PR review. The installed release-scope check validates the declaration before merge; post-deploy uploads it as release-ticket evidence and changes the portal row to standalone housekeeping. Use portal approval only if project policy explicitly opts in. If the installed workflow cannot implement that policy, halt and keep the change on the normal integration path.
 
@@ -518,7 +518,7 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
 
 6. **On gate failure**, iterate up to N=3 attempts. Each iteration: read the failure output, propose a fix, apply, re-run. On exhausted attempts, halt with the full failure output and explicit resume instructions: "Gate <name> failed after N=3 attempts. Last failure: <output>. Operator action — fix the failure, commit to the feature branch, push, then ping `resume REQ-XXX`. The skill will re-run the gate from where it left off." Update the sticky with the same. Never use `--no-verify`, `eslint-disable`, `@ts-expect-error`, `xfail`, or any other bypass.
 7. **Commit** using Conventional Commits with `Ref: REQ-XXX` trailer and `Co-Authored-By: Claude` trailer. One commit per logical step; never amend a commit that's already been pushed. **Also include the sentinel git trailer (devaudit#775).** `node SDLC/bin/devaudit-sdlc.cjs --phase=<N>` prints a `Sdlc-Implementer-Sentinel: <json>` line after appending the phase record — copy it verbatim into every commit message trailer for the rest of this tracked session. The `.sdlc-implementer-invoked` file it also writes is gitignored and never reaches a CI checkout, so CI-uploaded evidence (`upload-evidence.sh` running inside `ci.yml`) has no way to prove sdlc-implementer provenance without this trailer — without it, every CI-sourced evidence item reads as "MANUAL BYPASS ATTEMPT" on the portal even though the skill genuinely drove the work.
-8. **Land the work on `$INTEGRATION_BRANCH`.** Push the feature branch, then open a PR `feat/REQ-XXX-<slug> → $INTEGRATION_BRANCH` and merge it once CI is green. **Bundle mode:** once every bundled REQ has completed steps 2–7 on the shared branch, open **one** PR `feat/bundle-<slug> → $INTEGRATION_BRANCH` referencing every bundled REQ-XXX in its title/body, instead of one PR per REQ. This is the **integration hop** — there is no UAT four-eyes gate here (that's the release PR in Phase 4); for MEDIUM+ risk get a peer review on this PR per the project's norms. The push to `$INTEGRATION_BRANCH` is what triggers `ci.yml` to register the release and upload gate evidence. **Merge conflict resolution:** if the PR has merge conflicts (another feature branch merged first), pull the latest `$INTEGRATION_BRANCH` into the feature branch (`git merge "$INTEGRATION_BRANCH" --no-edit`), resolve conflicts (preferring the feature branch's changes for files this REQ touches), push, wait for CI. If conflicts are in files this REQ doesn't touch, halt — "Merge conflict in <files> from another feature. Operator action — review the conflict, these files are outside REQ-XXX's scope."
+8. **Land the work on `$INTEGRATION_BRANCH`.** Push the feature branch, then open a PR `feat/REQ-XXX-<slug> → $INTEGRATION_BRANCH` and merge it once CI is green. **Bundle mode:** once every bundled REQ has completed steps 2–7 on the shared branch, open **one** PR `feat/bundle-<slug> → $INTEGRATION_BRANCH` referencing every bundled REQ-XXX in its title/body, instead of one PR per REQ. This is the **integration hop** — there is no UAT approval gate here (that's the release PR in Phase 4); for MEDIUM+ risk get a peer review on this PR per the project's norms. The push to `$INTEGRATION_BRANCH` is what triggers `ci.yml` to register the release and upload gate evidence. **Merge conflict resolution:** if the PR has merge conflicts (another feature branch merged first), pull the latest `$INTEGRATION_BRANCH` into the feature branch (`git merge "$INTEGRATION_BRANCH" --no-edit`), resolve conflicts (preferring the feature branch's changes for files this REQ touches), push, wait for CI. If conflicts are in files this REQ doesn't touch, halt — "Merge conflict in <files> from another feature. Operator action — review the conflict, these files are outside REQ-XXX's scope."
 
    **Merge refused by the environment (devaudit-installer#837).** If CI is green but the merge itself cannot be performed — branch protection requires a human approval this session cannot supply, or the harness's own guardrails refuse the merge action outright (e.g. an auto-mode guardrail declining "Merge Without Review", regardless of REQ-XXX's risk class) — this is not a gate failure; do not loop retrying the merge. Halt:
 
@@ -686,7 +686,7 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
 
 ### Phase 4 — Submit for UAT review (SDLC stage 4)
 
-1. **Prepare the truthful release PR** — the PR that carries the UAT four-eyes approval gate (`check-release-approval.yml`), always into `$RELEASE_BRANCH` from `$INTEGRATION_BRANCH` (e.g. `develop → main`). The implementation already landed on `$INTEGRATION_BRANCH` in Phase 2; this promotes it. (Note: if other work is also waiting on `$INTEGRATION_BRANCH`, this is a bundled release — every in-scope REQ keeps its own release record and Production approval.)
+1. **Prepare the truthful release PR** — the PR that carries the UAT approval approval gate (`check-release-approval.yml`), always into `$RELEASE_BRANCH` from `$INTEGRATION_BRANCH` (e.g. `develop → main`). The implementation already landed on `$INTEGRATION_BRANCH` in Phase 2; this promotes it. (Note: if other work is also waiting on `$INTEGRATION_BRANCH`, this is a bundled release — every in-scope REQ keeps its own release record and Production approval.)
 
    Before creating a PR manually, run the synced helper:
 
@@ -708,9 +708,11 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
    - Test plan
    - SDLC checklist
 
-2. **Verify the UAT reviewer ≠ skill-trigger user** for HIGH/CRITICAL. If they match, halt with a configuration error: "HIGH/CRITICAL risk requires an independent UAT reviewer; the configured reviewer matches the trigger user — fix the four-eyes attestation slot in the implementation plan and re-run."
+2. **Check who approves, by `sdlc-config.json` `approval.mode`** (default `dual_actor`):
+   - **`dual_actor`** (presets C and D): verify the UAT reviewer ≠ skill-trigger user for HIGH/CRITICAL. If they match, halt with a configuration error: "HIGH/CRITICAL risk requires an independent UAT reviewer; the configured reviewer matches the trigger user — fix the four-eyes attestation slot in the implementation plan and re-run."
+   - **`solo_with_gap`** (presets A and B): do **not** halt, for any risk class (the gap and the attestation are the same for LOW, MEDIUM, HIGH and CRITICAL; a project that needs independence for high-risk work uses preset C or D). Instead require both before handing off for approval: (a) the control-gap `RISK-NNN` entry is signed off (the `risk-register-keeper` Phase 4 check), and (b) a `## Sign-off (solo, recorded gap)` section on the release ticket stating that the approver is the author, that the human independently reviewed the diff before clicking _Approve_ in the portal, and linking the RISK entry. Without both the skill refuses to hand off. The portal's approval policy must also allow it (`devaudit doctor` reports a disagreement as `approval-policy`).
 
-   **Solo-operator teams.** On a one-person team, the literal "reviewer ≠ submitter" check is structurally unsatisfiable. The supported interpretation is _actor type, not human identity_ — AI tooling (the skill-trigger) and the human operator (the portal-approver) are distinct actors. Document this on the release ticket under `## Sign-off (dual-actor)` with the explicit interpretation, and ensure the human operator has independently reviewed the diff before clicking _Approve Production_ in the portal. Without this attestation the four-eyes claim is performative.
+   **Actor type, as the explanation.** The AI tooling (the skill-trigger) and the human operator (the portal-approver) are distinct actors; that is why the skill never approves anything itself. It is the explanation, not the condition: under `dual_actor` the condition is a different reviewer, under `solo_with_gap` it is the signed-off RISK entry plus the attestation above. Under `dual_actor` record the interpretation on the release ticket under `## Sign-off (dual-actor)`.
 
 3. **Apply labels** — `awaiting-uat-review`, `risk:<class>`.
 4. **Comment on the issue**: "Implementation complete. PR #M opened. Evidence on portal: <release URL>. Reviewer action — in the portal (`<base_url>/projects/<slug>/releases/<id>`, your own login): click **Submit for UAT review** if it is not submitted yet, perform UAT, record it, then approve or request changes. Resume with `resume REQ-XXX` once UAT approval is granted on the portal."

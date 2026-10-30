@@ -151,7 +151,7 @@ jobs:
           - **From:** ${PERIOD_START}
           - **To:** ${PERIOD_END}
           - **Reviewer:** REPLACE — name + role
-          - **Approver (different person, dual-actor):** REPLACE
+          - **Approver (different person, dual-actor; under `approval.mode: solo_with_gap` the approver may be the reviewer — record the gap in one line):** REPLACE
 
           ## 2. Activity summary (auto-derived from repo state)
 

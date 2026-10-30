@@ -155,7 +155,7 @@ The default path for any user-visible change. Triggered by `feat`/`fix`/`refacto
 
 ```
 0 Project setup → 1 Plan (REQ-XXX, risk, plan) → 2 Implement & test (gates green)
-→ 3 Compile evidence (+ UAT verification) → 4 Submit for review (PR + UAT four-eyes)
+→ 3 Compile evidence (+ UAT verification) → 4 Submit for review (PR + UAT approval)
 → 5 Deploy to main (prod smoke + Production approval)
 ```
 

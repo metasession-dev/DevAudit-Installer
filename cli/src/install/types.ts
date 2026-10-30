@@ -149,6 +149,10 @@ export interface OnboardingPlan {
   readonly portalStandards: readonly string[] | null;
   /** The label of the self-hosted runner, written as the `CI_RUNNER_LABEL` repository variable. */
   readonly runnerLabel?: string;
+  /** No smoke tests were found: the closing lines describe the way to a gated release. */
+  readonly noSmokeTests?: boolean;
+  /** Preset A could be offered (a portal that allows a solo approver); false names `custom` in the closing lines. */
+  readonly presetAOffered?: boolean;
 }
 
 export interface DetectedStack {

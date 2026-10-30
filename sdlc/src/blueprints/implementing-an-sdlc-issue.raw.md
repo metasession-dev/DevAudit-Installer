@@ -118,7 +118,7 @@ Steps (the [`sdlc-implementer`](#skills-inventory) skill runs this phase automat
 For HIGH/CRITICAL risk, the plan must explicitly include:
 
 - **Threat model** — what attackers/abusers could do; what's mitigated; what's accepted
-- **Four-eyes attestation slot** — names the second reviewer who'll sign off pre-merge
+- **Four-eyes attestation slot** — names the second reviewer who'll sign off pre-merge (under `approval.mode: dual_actor`; under `solo_with_gap` the release ticket's solo sign-off section is required instead)
 - **Rollback plan** — what reverts the change if production smoke fails
 
 Sample prompt for an AI agent kicking off stage 1: see [`Sample prompts → Stage 1`](#sample-prompts).

@@ -30,7 +30,7 @@ Risk:
 
 Evidence:
 
-## Four-eyes attestation (REQUIRED for HIGH and CRITICAL risk only)
+## Four-eyes attestation (REQUIRED for HIGH and CRITICAL risk under `approval.mode: dual_actor`; under `solo_with_gap` the release ticket's solo sign-off section replaces it)
 
 <!-- @username — second reviewer who has signed off on the implementation plan. -->
 

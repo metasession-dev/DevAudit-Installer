@@ -4,8 +4,13 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+### Changed
+
+- **Approval follows `approval.mode` everywhere a skill or template assumed a second person** (#1140, work package WP12 of #1116). The `sdlc-implementer` Phase 4 halt on "reviewer = trigger user" applies under `dual_actor` (presets C and D); under `solo_with_gap` (A and B) the skill does not halt for any risk class and instead requires the signed-off control-gap RISK entry and a `## Sign-off (solo, recorded gap)` section on the release ticket. `risk-register-keeper` also compares with the portal's approval policy. The periodic review templates, the release close-out sign-off line, the pull request template, `Test_Strategy.md`, the AI disclosure template and the documents that said "four-eyes" now say it depends on the approval mode. Your next sync diff rewrites those files.
+
 ### Added
 
+- **"Starting with no tests"** (#1140): the `devaudit-configure` skill (now also explaining the registry, the preset ladder and `configure` with no arguments), `docs/onboarding.md` and the closing lines of a guided install with no smoke tests give the same four steps from no tests to a gated release; the `add-smoke-tests` doctor remediation says what comes next. `docs/governance-templates.md` gains the preset-to-clause table, and `docs/e2e-test-tiers.md` names the strictest combination as preset D.
 - **`devaudit doctor --explain <check>` and `--guided`** (#1136, work package WP8 of #1116): `--explain` prints why a check matters and what you can do, including leaving it as it is. `--guided` (or `--guided <check>`) walks the gaps one at a time and only offers: fix, leave this as it is, or stop. Fixes are applied by the same code as `--fix` with the same confirmations (tier B stays interactive-only with a typed reason); the check and its dependents run again after each fix. With no terminal, `CI` or `--json` it changes nothing and exits 8; combined with `--fix`, `--yes` or `--fleet` it exits 2.
 - **Four new non-gating doctor checks** (#1136): `preset-drift` (the configuration no longer matches the recorded preset, with the closest preset named; silent without a preset or for `custom`), `standards-fit` (SOC 2 / ISO 27001 against a self-approving setup, and the portal's standards), `approval-policy` (`approval.mode` against the portal's policy) and `durations` (median job durations of recent successful runs).
 - **`devaudit configure` with no arguments** (#1135, work package WP7 of #1116): the guided questions with the project's current values as the defaults, a before/after summary of every change (including keys a preset switch removes) and a write of only what changed. Moving to preset B, C or D, or enabling a test tier, asks where the tests get their data (Q18) straight away. Without a terminal (no TTY, `CI`, `--json`) it asks nothing, writes nothing and exits 8. A portal that refuses a solo approval policy leaves the approval settings alone. The guided install also asks Q18 after preset B, C or D when the data has no answer, and starts the preset question at the project's current preset.
@@ -25,6 +30,7 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 - Nothing changes for a consuming project: `core` is an internal dependency of the CLI, installed with it.
 - **A project that names its own branches** (`integration_branch` or `release_branch` other than `develop`/`main`) gets different `compliance-validation.yml`, `compliance-evidence.yml`, `ci-status-fallback.yml`, `close-out-completion.yml` and other workflows in its next sync PR, because they now follow its branches. A project with the default branches sees no change.
+- A project on `approval.mode: solo_with_gap` no longer sees the `sdlc-implementer` skill halt at Phase 4 for HIGH/CRITICAL work; it asks for the signed-off RISK entry and the solo sign-off section instead. A project on `dual_actor` sees no change in behaviour.
 - Choosing the solo setting `release_branch_required_reviews: 0` (or, in the guided install, preset A or B, or answering Q11 "I approve my own") lowers the release branch to 0 required reviews, a recorded control gap. Nothing sets it for you.
 
 ## [1.11.0] — 2026-10-28
