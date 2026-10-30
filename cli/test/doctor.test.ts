@@ -64,7 +64,7 @@ describe('devaudit doctor', () => {
     await writeFile(join(repo, 'sdlc-config.json'), JSON.stringify({ project_slug: 'fixture' }));
     const home = await mkdtemp(join(tmpdir(), 'devaudit-doctor-home-'));
     const doctorIn = async (h: string) => {
-      const r = await execa('node', [BIN, '--json', 'doctor'], { cwd: repo, reject: false, env: { HOME: h, USERPROFILE: h } });
+      const r = await execa('node', [BIN, '--json', 'doctor'], { cwd: repo, reject: false, env: { HOME: h, USERPROFILE: h, DEVAUDIT_CLAUDE_HOME: h } });
       const j = JSON.parse(r.stdout) as { onboarding: Array<{ name: string; ok: boolean; detail: string }>; proposals: Array<{ check: string; remediation: { id: string; tier: string } }> };
       return { entry: j.onboarding.find((c) => c.name === 'agent-permissions')!, proposals: j.proposals };
     };
@@ -72,7 +72,7 @@ describe('devaudit doctor', () => {
     const none = await doctorIn(home);
     expect(none.entry.ok).toBe(true); // informational: never a gap
     expect(none.entry.detail).toMatch(/no Claude Code settings file found/);
-    expect(none.entry.detail).toMatch(/other agents: not checked/);
+    expect(none.entry.detail).toMatch(/other agents: no documented mechanism for Gemini CLI, Cursor or Windsurf/);
     expect(none.proposals.find((p) => p.remediation.id === 'add-agent-permission-rules')?.remediation.tier).toBe('C');
 
     await mkdir(join(home, '.claude'), { recursive: true });

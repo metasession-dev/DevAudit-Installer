@@ -123,7 +123,7 @@ Commit `sdlc-config.json` and the regenerated files on the fix branch, with a me
 
 ### 8. Mention the agent permission rules, once
 
-If `devaudit doctor` reports `agent-permissions` as missing rules, tell the operator in one sentence that `docs/agent-permissions.md` has the recommended rules that keep agent sessions away from their personal access token, and that adding them is their choice. Never edit their agent settings (`.claude/settings.json`, `~/.claude/settings.json`) yourself and never write the credential folder rules for them.
+If `devaudit doctor` reports `agent-permissions` as missing rules, tell the operator in one sentence that `devaudit agent-permissions apply` (documented in `docs/agent-permissions.md`) adds the recommended rules that keep agent sessions away from their personal access token to their user settings after a confirmation, and that running it is their choice. Never run it for them. Never edit their agent settings (`.claude/settings.json`, `~/.claude/settings.json`) yourself and never write the credential folder rules for them.
 
 ## What this skill does not do
 

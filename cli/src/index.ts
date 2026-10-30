@@ -2,6 +2,7 @@ import { Command, Option } from 'commander';
 import { configureLogger } from './lib/logger.js';
 import { CLI_VERSION } from './lib/version.js';
 import { runDoctor, runDoctorGuided } from './commands/doctor.js';
+import { runAgentPermissionsApply } from './commands/agent-permissions.js';
 import { runExplain } from './commands/doctor-guided.js';
 import { runFleetDoctor } from './commands/fleet.js';
 import { runReleaseStatus } from './commands/release-status.js';
@@ -416,6 +417,24 @@ export async function main(argv: readonly string[]): Promise<void> {
         return;
       }
       await runDoctor();
+    });
+  const agentPermissionsCmd = program
+    .command('agent-permissions')
+    .description('Recommended agent permission rules that keep an AI agent session away from your personal access token (docs/agent-permissions.md).');
+  agentPermissionsCmd
+    .command('apply')
+    .description('Add the recommended Claude Code deny rules to a settings file after a confirmation: shows the rules and the file, backs the file up, merges into permissions.deny (existing entries untouched), idempotent. Needs a terminal unless --yes. Exits 8 when not applied.')
+    .option('--scope <scope>', 'user (default: ~/.claude/settings.json, the stronger scope), project (<repo>/.claude/settings.json, shared with everyone who can commit) or local (<repo>/.claude/settings.local.json)')
+    .option('--include-env-files', 'Also deny Read of .env files (opt-in: it blocks legitimate local-development reads too; see docs/agent-permissions.md)')
+    .action(async (cmdOpts: { scope?: string; includeEnvFiles?: boolean }, cmd: Command) => {
+      const globals = cmd.optsWithGlobals() as { yes?: boolean };
+      process.exit(
+        await runAgentPermissionsApply({
+          ...(cmdOpts.scope !== undefined ? { scope: cmdOpts.scope } : {}),
+          ...(globals.yes ? { yes: true } : {}),
+          ...(cmdOpts.includeEnvFiles ? { includeEnvFiles: true } : {}),
+        }),
+      );
     });
   const releaseCmd = program.command('release').description('Release readiness and state (read-only; no portal writes)');
   releaseCmd

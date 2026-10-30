@@ -9,6 +9,7 @@ import { DevAuditApiError, viewerKeyRefusal } from '../lib/devaudit-api.js';
 import { parseDotenv } from '../lib/credentials-check.js';
 import { issueOwnViewerKey } from '../lib/viewer-key-issue.js';
 import { VIEWER_KEYS_FILE } from '../lib/paths.js';
+import { applyAgentPermissions, planApply, settingsPathFor, type ApplyScope } from '../lib/agent-permissions.js';
 import { saveViewerKey, viewerKeyName } from '../lib/viewer-keys.js';
 import { addPredecessor, clearReleaseIntent, setReleaseIntent, setRtmStatus } from '../lib/ticket-edit.js';
 import {
@@ -231,6 +232,19 @@ export async function runFix(
           await writeConfigValue(ctx, key, plan.after);
           const next = ['run `devaudit update` to regenerate the workflows', ...plan.followUps];
           out.push(mk(p, 'applied', `sdlc-config.json ${key}: ${JSON.stringify(plan.before)} -> ${JSON.stringify(plan.after)}; ${next.join('; ')}`));
+          break;
+        }
+        case 'apply-agent-permissions': {
+          // DevAudit-Installer#1116 WP13: the same function as `devaudit agent-permissions apply`.
+          const scope = (d['scope'] ?? 'user') as ApplyScope;
+          const path = settingsPathFor(scope, deps.repoRoot);
+          const plan = await planApply(path, false);
+          if (plan.refusal) { out.push(mk(p, 'failed', plan.refusal)); break; }
+          if (plan.toAdd.length === 0) { out.push(mk(p, 'unchanged', `all rules are already in ${path}`)); break; }
+          const a = await authoriseA(p);
+          if (!a.ok) { out.push(mk(p, 'unapplied', a.why)); break; }
+          const r = await applyAgentPermissions(path, false);
+          out.push(mk(p, r.status === 'refused' ? 'failed' : 'applied', r.message));
           break;
         }
         case 'move-viewer-key': {
