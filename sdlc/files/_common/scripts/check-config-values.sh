@@ -14,13 +14,22 @@
 #   Example: check-config-values.sh 'e2e_env.SUPABASE_SECRET_KEY=secrets.SUPABASE_SECRET_KEY'
 #
 # Exit 0 when every named environment variable is non-empty (or nothing is named); exit 1 otherwise. Only
-# names are printed, never a value. An entry that may legitimately be empty is written in the config as
-# `${{ secrets.X || '' }}`, which the generator does not pass to this script.
+# names are printed, never a value.
+#
+# Dependabot and fork pull requests are given no repository secrets, so every secret reads as empty there
+# and the repository did nothing wrong. When PR_WITHOUT_SECRETS is `true` (the generated step sets it from the
+# actor and the pull request's head repository) the empty values are reported as warnings and the exit is 0.
+#
+# An entry that may legitimately be empty is written in the config as `${{ secrets.X || '' }}`, which the
+# generator does not pass to this script.
 
 set -uo pipefail
 
 missing=0
 summary=()
+level=error
+soft=0
+if [ "${PR_WITHOUT_SECRETS:-}" = "true" ]; then level=warning; soft=1; fi
 
 for spec in "$@"; do
   left="${spec%%=*}"
@@ -43,7 +52,7 @@ for spec in "$@"; do
     where="Settings > Secrets and variables > Actions > Variables"
   fi
   msg="$map.$name is empty: $what is not visible to this job. It is not defined at repository level (a value that exists only in an environment, a different name, or a fork or Dependabot pull request all read as empty)."
-  echo "::error::$msg"
+  echo "::$level::$msg"
   echo "  fix: define $from under $where in this repository, or correct the name in sdlc-config.json ($map.$name)."
   summary+=("- \`$map.$name\`: $what is empty for this job")
   missing=$((missing + 1))
@@ -52,10 +61,11 @@ done
 if [ "$missing" -gt 0 ] && [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
   {
     echo "### Configuration values that reached this job empty"
+    [ "$soft" -eq 1 ] && echo "This run is a Dependabot or fork pull request: GitHub gives it no repository secrets, so these are expected to be empty here. Nothing failed."
     printf '%s\n' "${summary[@]}"
     echo
     echo "GitHub reads an unknown or invisible \`secrets.X\` / \`vars.X\` as an empty string. Define each at repository level, or fix the name in \`sdlc-config.json\`."
   } >> "$GITHUB_STEP_SUMMARY"
 fi
 
-[ "$missing" -eq 0 ]
+[ "$missing" -eq 0 ] || [ "$soft" -eq 1 ]

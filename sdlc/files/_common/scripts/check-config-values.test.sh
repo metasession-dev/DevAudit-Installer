@@ -69,6 +69,16 @@ echo "a value is never printed"
 assert_eq "present secret: exit 0" 0 "$(run 'e2e_env.PRESENT_ONE=secrets.PRESENT_ONE')"
 assert_not_contains "no value in the output" "a-secret-value-1"
 
+echo "a pull request GitHub gives no secrets (Dependabot, fork)"
+export PR_WITHOUT_SECRETS=true
+assert_eq "empty value with PR_WITHOUT_SECRETS=true: exit 0" 0 "$(run 'e2e_env.MISSING_A=secrets.A')"
+assert_contains "still named, as a warning" "::warning::e2e_env.MISSING_A is empty"
+assert_not_contains "not an error" "::error::"
+export PR_WITHOUT_SECRETS=false
+assert_eq "PR_WITHOUT_SECRETS=false: exit 1" 1 "$(run 'e2e_env.MISSING_A=secrets.A')"
+assert_contains "an error again" "::error::e2e_env.MISSING_A is empty"
+unset PR_WITHOUT_SECRETS
+
 echo "the step summary"
 export GITHUB_STEP_SUMMARY="$WORK/summary.md"
 : > "$GITHUB_STEP_SUMMARY"

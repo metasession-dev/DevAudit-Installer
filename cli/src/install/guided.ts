@@ -22,6 +22,7 @@ import { COMPLIANCE_FRAMEWORK_CODES } from '../lib/repo-config-keys.js';
 import { soloApproverFrom, type PolicyRead, type StandardsRead } from '../lib/onboarding-portal.js';
 import type { Asker } from './test-config.js';
 import { InstallRefusal } from './refusal.js';
+import { ONE_COLLABORATOR_WARNING } from '../lib/collaborators.js';
 
 /**
  * DevAudit-Installer#1116 WP6 — the guided half of `devaudit install`.
@@ -68,6 +69,8 @@ export interface GuidedInput {
   readonly scanFrameworks?: readonly string[] | undefined;
   readonly ask: GuidedAsker;
   readonly say: (line: string) => void;
+  /** How many people can push to the repository (null when unknown); used for the one-collaborator warning. */
+  readonly collaborators?: (() => Promise<number | null>) | undefined;
 }
 
 export interface GuidedResult {
@@ -433,7 +436,7 @@ export async function runGuided(input: GuidedInput): Promise<GuidedResult> {
         return;
       }
       s.cfg['e2e_data_isolation'] = answer;
-      if (answer === 'shared_serialised') s.cfg['e2e_concurrency_group'] = `e2e-${s.basics.projectSlug}`;
+      if (answer === 'shared_serialised') s.cfg['e2e_concurrency_group'] = `${s.basics.projectSlug}-e2e-data`;
     },
     Q19: async () => {
       const found = facts.testData.seedScripts;
@@ -501,6 +504,9 @@ export async function runGuided(input: GuidedInput): Promise<GuidedResult> {
   }
 
   // ---- result ---------------------------------------------------------------------------------------------
+
+  // Approval by a different person with one collaborator: a warning, not a refusal (section 5). Skipped when it cannot be told.
+  if (s.cfg['approval.mode'] === 'dual_actor' && input.collaborators && (await input.collaborators().catch(() => null)) === 1) say(ONE_COLLABORATOR_WARNING);
 
   const preset = s.preset === null ? null : effectivePreset(s.preset, s.cfg);
   const config: Record<string, unknown> = { ...s.cfg };

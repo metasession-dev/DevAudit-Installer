@@ -307,10 +307,9 @@ function buildConfigValuesPreflightStep(cfg: SdlcConfig, maps: readonly EnvMap[]
   if (refs.length === 0) return '';
   const lines = ['      - name: Check configuration values'];
   const own = stepEnvMap ? refs.filter((r) => r.map === stepEnvMap) : [];
-  if (own.length > 0) {
-    lines.push('        env:');
-    for (const r of own) lines.push(`          ${r.env}: \${{ ${r.kind}.${r.source} }}`);
-  }
+  // Dependabot and fork pull requests get no repository secrets: the script only warns there.
+  lines.push('        env:', "          PR_WITHOUT_SECRETS: ${{ github.actor == 'dependabot[bot]' || github.event.pull_request.head.repo.fork == true }}");
+  for (const r of own) lines.push(`          ${r.env}: \${{ ${r.kind}.${r.source} }}`);
   lines.push(`        run: bash "$GITHUB_WORKSPACE/scripts/check-config-values.sh" ${refs.map((r) => `'${preflightArg(r)}'`).join(' ')}`);
   return `${lines.join('\n')}\n`;
 }

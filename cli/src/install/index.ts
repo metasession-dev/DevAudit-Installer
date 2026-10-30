@@ -19,7 +19,8 @@ import { collectPlan } from './prompts.js';
 import { clackAsker, parseTestOptions, type TestOptions } from './test-config.js';
 import { describeProjectPreset, parsePresetFlag } from './guided.js';
 import { InstallRefusal } from './refusal.js';
-import { readScanHints } from './scan-hints.js';
+import { isPortalReportRef, readScanHints } from './scan-hints.js';
+import type { FetchLike } from '../lib/onboarding-portal.js';
 import { applyOnboardingPortal } from './onboarding-apply.js';
 import { writeSdlcConfig } from './write-config.js';
 import { findOrCreateProject } from './project.js';
@@ -71,8 +72,10 @@ export interface RunInstallOptions {
   readonly testOptions?: Readonly<Record<string, string>>;
   /** `--preset <A|B|C|D|custom>`: apply a preset (devaudit-installer#1116 WP6). */
   readonly preset?: string;
-  /** `--from-scan <file|report-id>`: take the suggested preset and standards from a scan report. */
+  /** `--from-scan <file|report-id|project-slug/report-id>`: take the suggested preset and standards from a scan report. */
   readonly fromScan?: string;
+  /** Test seam: the fetch used to read a saved scan report from the portal. */
+  readonly scanFetch?: FetchLike;
 }
 
 export interface InstallReport {
@@ -95,8 +98,19 @@ export async function runInstall(options: RunInstallOptions): Promise<InstallRep
   if (options.preset !== undefined && parsePresetFlag(options.preset) === null) {
     throw new InstallRefusal(`Unknown preset "${options.preset}". Use A, B, C, D or custom.`);
   }
-  const scanHints = options.fromScan !== undefined ? await readScanHints(options.fromScan) : undefined;
+  // A file is read and refused (exit 2) before anything else; a saved report is read from the portal once the address is known.
+  const fromPortal = options.fromScan !== undefined && (await isPortalReportRef(options.fromScan));
+  let scanHints = options.fromScan !== undefined && !fromPortal ? await readScanHints(options.fromScan) : undefined;
   const auth = await resolveTokenForInstall(options);
+  if (options.fromScan !== undefined && fromPortal) {
+    const configured = ((await readSdlcConfig(projectPath))?.['devaudit'] as { project_slug?: unknown } | undefined)?.project_slug;
+    scanHints = await readScanHints(options.fromScan, {
+      baseUrl: auth.baseUrl,
+      repoRoot: projectPath,
+      ...(typeof configured === 'string' && configured !== '' ? { configuredSlug: configured } : {}),
+      ...(options.scanFetch ? { fetchImpl: options.scanFetch } : {}),
+    });
+  }
   const installerRoot = await resolveInstallerRoot();
   const repoRoot = await resolveRepoRoot(projectPath);
 

@@ -124,7 +124,7 @@ describe('test-data: each finding', () => {
   it('serialised-no-group has a tier A repair naming a group', async () => {
     const r = await check({ e2e_regression_enabled: true, e2e_data_isolation: 'shared_serialised', post_deploy_full_regression: false, feature_e2e_projects: ['smoke'] });
     expect(subjects(r)).toEqual(['serialised-no-group']);
-    expect(r.findings![0]!.remediation!.data).toEqual({ key: 'e2e_concurrency_group', value: 'e2e-example-app' });
+    expect(r.findings![0]!.remediation!.data).toEqual({ key: 'e2e_concurrency_group', value: 'example-app-e2e-data' });
   });
 
   it('fixture-not-seeded is advisory and labelled as a heuristic', async () => {

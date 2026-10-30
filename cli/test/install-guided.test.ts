@@ -8,6 +8,7 @@ import { collectPlan } from '../src/install/prompts.js';
 import { writeSdlcConfig } from '../src/install/write-config.js';
 import { applyOnboardingPortal } from '../src/install/onboarding-apply.js';
 import { readScanHints } from '../src/install/scan-hints.js';
+import { collaboratorCount } from '../src/lib/collaborators.js';
 import { InstallRefusal } from '../src/install/refusal.js';
 import { describeProjectPreset, complianceLine, effectivePreset, parsePresetFlag, type GuidedAsker } from '../src/install/guided.js';
 import { readApprovalPolicy, readClaimedStandards, setApprovalPolicy, type FetchLike } from '../src/lib/onboarding-portal.js';
@@ -119,8 +120,8 @@ const POLICY_SOLO = { status: 200, body: { approval_policy: 'self_allowed_with_g
 const POLICY_INDEPENDENT = { status: 200, body: { approval_policy: 'independent' } };
 const POLICY_ABSENT = { status: 200, body: { slug: 'fixture-app' } };
 
-async function run(dir: string, a: ReturnType<typeof asker>, p: ReturnType<typeof portal>, ctxExtra: Partial<InstallContext> = {}): Promise<InstallPlan> {
-  return collectPlan(ctxFor(dir, ctxExtra), detected, { ask: a.ask, say: a.sayFn, fetchImpl: p.fetchImpl, viewerKey: 'viewer-key' });
+async function run(dir: string, a: ReturnType<typeof asker>, p: ReturnType<typeof portal>, ctxExtra: Partial<InstallContext> = {}, collaborators: () => Promise<number | null> = async () => null): Promise<InstallPlan> {
+  return collectPlan(ctxFor(dir, ctxExtra), detected, { ask: a.ask, say: a.sayFn, fetchImpl: p.fetchImpl, viewerKey: 'viewer-key', collaborators });
 }
 
 describe('the express path, per preset', () => {
@@ -241,7 +242,47 @@ describe('Q18 (where the tests get their data)', () => {
     const a = asker({ select: ['C', 'yes'], data: 'shared_serialised' });
     const plan = await run(dir, a, portal(POLICY_INDEPENDENT));
     expect(plan.onboarding?.config['e2e_data_isolation']).toBe('shared_serialised');
-    expect(plan.onboarding?.config['e2e_concurrency_group']).toBe('e2e-fixture-app');
+    expect(plan.onboarding?.config['e2e_concurrency_group']).toBe('fixture-app-e2e-data');
+  });
+});
+
+describe('the one-collaborator warning', () => {
+  const WARNING = 'only one collaborator';
+
+  it('is printed (and nothing is refused) when a different person approves and the repository has one collaborator', async () => {
+    const dir = await repo();
+    const a = asker({ select: ['C', 'yes'] });
+    const plan = await run(dir, a, portal(POLICY_INDEPENDENT), {}, async () => 1);
+    expect(a.say.join('\n')).toContain(WARNING);
+    expect(plan.onboarding?.config['approval.mode']).toBe('dual_actor');
+  });
+
+  it('is not printed with two collaborators, when the count is unknown, or when the person approves their own', async () => {
+    for (const count of [2, null]) {
+      const dir = await repo();
+      const a = asker({ select: ['C', 'yes'] });
+      await run(dir, a, portal(POLICY_INDEPENDENT), {}, async () => count);
+      expect(a.say.join('\n'), String(count)).not.toContain(WARNING);
+    }
+    const dir = await repo();
+    const solo = asker({ select: ['A', 'yes'] });
+    await run(dir, solo, portal(POLICY_SOLO), {}, async () => 1);
+    expect(solo.say.join('\n')).not.toContain(WARNING);
+  });
+});
+
+describe('collaboratorCount', () => {
+  it('reads the count from gh and says nothing when gh cannot tell', async () => {
+    const calls: string[][] = [];
+    const gh = (out: string, exitCode = 0) => async (args: readonly string[]) => {
+      calls.push([...args]);
+      return { exitCode, stdout: out };
+    };
+    expect(await collaboratorCount('/repo', gh('1\n'))).toBe(1);
+    expect(calls[0]).toEqual(['api', 'repos/{owner}/{repo}/collaborators', '--jq', 'length']);
+    expect(await collaboratorCount('/repo', gh('3'))).toBe(3);
+    expect(await collaboratorCount('/repo', gh('', 1))).toBeNull();
+    expect(await collaboratorCount('/repo', gh('not a number'))).toBeNull();
   });
 });
 
@@ -402,10 +443,71 @@ describe('--preset while interactive', () => {
 });
 
 describe('--from-scan', () => {
-  it('a report id says the portal feature is not available', async () => {
+  it('a report id without a portal address is refused with the file as the alternative', async () => {
     const err = await readScanHints('rpt_8f3a91c2d4').catch((e: unknown) => e);
     expect(err).toBeInstanceOf(InstallRefusal);
-    expect((err as Error).message).toBe('Reading a scan report by its id is a portal feature that is not available yet; pass the report file instead (devaudit install --from-scan <file>).');
+    expect((err as Error).message).toContain('pass the report file instead');
+  });
+
+  describe('a saved report read from the portal (#926)', () => {
+    const REPORT = { scanVersion: '1', registryVersion: '2026-10-30', suggestedPreset: 'C', suggestionReason: 'x', facts: {}, gaps: [], frameworks: [{ code: 'soc-2', clauses: [] }, { code: 'gdpr', clauses: [] }] };
+    const okFetch = (calls: Array<{ url: string; auth: string | undefined }>, status = 200): FetchLike => async (url, init) => {
+      calls.push({ url, auth: init?.headers?.['Authorization'] });
+      return { ok: status >= 200 && status < 300, status, json: async () => REPORT };
+    };
+    const withKey = async (fn: () => Promise<void>): Promise<void> => {
+      const prev = process.env['DEVAUDIT_VIEWER_API_KEY'];
+      process.env['DEVAUDIT_VIEWER_API_KEY'] = 'viewer-key-for-test';
+      try {
+        await fn();
+      } finally {
+        if (prev === undefined) delete process.env['DEVAUDIT_VIEWER_API_KEY'];
+        else process.env['DEVAUDIT_VIEWER_API_KEY'] = prev;
+      }
+    };
+
+    it('reads <project-slug>/<report-id> with the viewer key and takes the preset and the standards', async () => {
+      const calls: Array<{ url: string; auth: string | undefined }> = [];
+      await withKey(async () => {
+        const hints = await readScanHints('example-app/rpt_8f3a91c2d4', { baseUrl: 'https://portal.example/', repoRoot: process.cwd(), fetchImpl: okFetch(calls) });
+        expect(hints).toEqual({ preset: 'C', frameworks: ['soc-2', 'gdpr'] });
+      });
+      expect(calls).toEqual([{ url: 'https://portal.example/api/ci/projects/example-app/scan-reports/rpt_8f3a91c2d4', auth: 'Bearer viewer-key-for-test' }]);
+    });
+
+    it('a bare id uses the project in sdlc-config.json', async () => {
+      const calls: Array<{ url: string; auth: string | undefined }> = [];
+      await withKey(async () => {
+        await readScanHints('rpt_8f3a91c2d4', { baseUrl: 'https://portal.example', repoRoot: process.cwd(), configuredSlug: 'example-app', fetchImpl: okFetch(calls) });
+      });
+      expect(calls[0]!.url).toContain('/projects/example-app/scan-reports/rpt_8f3a91c2d4');
+    });
+
+    it('a bare id with no project is refused without a request', async () => {
+      const calls: Array<{ url: string; auth: string | undefined }> = [];
+      const err = await readScanHints('rpt_8f3a91c2d4', { baseUrl: 'https://portal.example', repoRoot: process.cwd(), fetchImpl: okFetch(calls) }).catch((e: unknown) => e);
+      expect((err as Error).message).toContain('has no devaudit.project_slug');
+      expect(calls).toEqual([]);
+    });
+
+    it('is refused with a reason for 404, 403 and a missing key, and never prints the key', async () => {
+      await withKey(async () => {
+        for (const [status, text] of [[404, /has no scan report/], [403, /was not accepted/]] as const) {
+          const err = await readScanHints('example-app/rpt_8f3a91c2d4', { baseUrl: 'https://portal.example', repoRoot: process.cwd(), fetchImpl: okFetch([], status) }).catch((e: unknown) => e);
+          expect(err).toBeInstanceOf(InstallRefusal);
+          expect((err as Error).message).toMatch(text);
+          expect((err as Error).message).not.toContain('viewer-key-for-test');
+        }
+      });
+      const prev = process.env['DEVAUDIT_VIEWER_API_KEY'];
+      delete process.env['DEVAUDIT_VIEWER_API_KEY'];
+      try {
+        const err = await readScanHints('example-app/rpt_8f3a91c2d4', { baseUrl: 'https://portal.example', repoRoot: '/nonexistent-repo-root', fetchImpl: okFetch([]) }).catch((e: unknown) => e);
+        expect((err as Error).message).toContain('needs your viewer key');
+      } finally {
+        if (prev !== undefined) process.env['DEVAUDIT_VIEWER_API_KEY'] = prev;
+      }
+    });
   });
 
   it('an unreadable path and malformed JSON are refused', async () => {
@@ -421,6 +523,12 @@ describe('--from-scan', () => {
     const dir = await repo({ playwright: null });
     await fs.writeFile(join(dir, 'scan.json'), JSON.stringify({ suggestedPreset: 'B', frameworks: ['soc-2', 5] }));
     expect(await readScanHints(join(dir, 'scan.json'))).toEqual({ preset: 'B', frameworks: ['soc-2'] });
+  });
+
+  it('takes the standards from a real scan report, whose frameworks are objects with a code', async () => {
+    const dir = await repo({ playwright: null });
+    await fs.writeFile(join(dir, 'scan.json'), JSON.stringify({ suggestedPreset: 'A', frameworks: [{ code: 'soc-2', clauses: [] }, { code: 'iso-27001', clauses: [] }, { clauses: [] }] }));
+    expect(await readScanHints(join(dir, 'scan.json'))).toEqual({ preset: 'A', frameworks: ['soc-2', 'iso-27001'] });
   });
 
   it('the report preset is the default of the preset question when it can be offered', async () => {

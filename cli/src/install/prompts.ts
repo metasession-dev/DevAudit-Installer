@@ -17,6 +17,7 @@ import {
   type PolicyRead,
   type StandardsRead,
 } from '../lib/onboarding-portal.js';
+import { collaboratorCount } from '../lib/collaborators.js';
 import { PRESETS, detectFacts, offerPresets } from '@metasession.co/devaudit-core';
 import { fsRepoReader } from '@metasession.co/devaudit-core/node';
 import { InstallRefusal } from './refusal.js';
@@ -91,6 +92,8 @@ export interface CollectDeps {
   readonly say?: (line: string) => void;
   /** The viewer key to read the portal with; looked up from the usual places when undefined. */
   readonly viewerKey?: string | null;
+  /** How many people can push to the repository (null when unknown). Default: `gh api .../collaborators`. */
+  readonly collaborators?: () => Promise<number | null>;
 }
 
 export const clackGuidedAsker: GuidedAsker = {
@@ -162,6 +165,7 @@ export async function collectPlan(
     scanFrameworks: ctx.scanHints?.frameworks?.filter((f) => COMPLIANCE_FRAMEWORK_CODES.includes(f)),
     ask: deps.ask ?? clackGuidedAsker,
     say,
+    collaborators: deps.collaborators ?? (() => collaboratorCount(ctx.repoRoot)),
   });
   const apiKeySecretName = existing?.['devaudit'] !== undefined ? ((existing['devaudit'] as { api_key_secret?: string }).api_key_secret ?? DEFAULT_API_KEY_SECRET) : DEFAULT_API_KEY_SECRET;
   const viewerApiKeySecretName = resolveViewerApiKeySecretName(ctx, guided.basics.projectSlug, existing as SdlcConfig | null, (existing as SdlcConfig | null)?.devaudit?.viewer_api_key_secret);
