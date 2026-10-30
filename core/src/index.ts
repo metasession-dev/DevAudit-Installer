@@ -89,3 +89,28 @@ export {
 } from './validators.js';
 
 export * from './detect/index.js';
+
+export {
+  assembleReport,
+  clauseState,
+  counts as scanCounts,
+  escapeHtml,
+  evaluateClause,
+  evaluateExpectation,
+  evaluateFramework,
+  findFiles,
+  gapsFromResults,
+  missingCount,
+  renderBadge,
+  renderHtml,
+  renderSarif,
+  renderText,
+  type ClauseDefinition,
+  type ClauseResult,
+  type Expectation,
+  type ExpectationResult,
+  type FrameworkFile,
+  type FrameworkResult,
+  type ScanContext,
+  type ScanReport,
+} from './scan/index.js';

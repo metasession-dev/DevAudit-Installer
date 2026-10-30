@@ -11,6 +11,7 @@ on:
       - 'sdlc/src/**'
       - 'contracts/evidence-types.json'
       - 'contracts/frameworks/**'
+      - 'contracts/scan-report.schema.json'
       - '.github/workflows/cli.yml'
   pull_request:
     branches: [main, develop]
