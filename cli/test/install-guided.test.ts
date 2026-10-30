@@ -497,6 +497,7 @@ describe('the portal reads and writes', () => {
     expect(await setApprovalPolicy({ baseUrl: base.baseUrl, token: 'mctok_x', projectId: 'p1', fetchImpl: p.fetchImpl }, 'self_allowed_with_gap', 'because')).toEqual({ ok: true });
     expect(p.calls[0]!.method).toBe('PATCH');
     expect(p.calls[0]!.headers['x-devaudit-token']).toBe('mctok_x');
+    expect(p.calls[0]!.url).toBe('https://devaudit.example.test/api/projects/p1/approval-policy');
     expect(JSON.parse(p.calls[0]!.body!)).toEqual({ approval_policy: 'self_allowed_with_gap', reason: 'because' });
     for (const status of [400, 404, 405]) {
       const r = await setApprovalPolicy({ baseUrl: base.baseUrl, token: 't', projectId: 'p1', fetchImpl: portal({ status }).fetchImpl }, 'independent', 'r');

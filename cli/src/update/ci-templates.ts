@@ -255,7 +255,8 @@ function renderEnvBareBlock(env: Record<string, string>): string {
  */
 function dataLifecycleEnabled(cfg: SdlcConfig): boolean {
   const isolation = (cfg.e2e_data_isolation ?? '').trim();
-  return isolation !== '' && isolation !== 'none';
+  // `unknown` is "I do not know yet": like unset, it changes nothing (and is not a value the run record accepts).
+  return isolation !== '' && isolation !== 'none' && isolation !== 'unknown';
 }
 
 function buildE2eDataLifecycleStep(cfg: SdlcConfig, phase: 'before' | 'after'): string {

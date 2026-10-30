@@ -18,7 +18,11 @@
 #       The seed files hash (paths default to e2e_seed_paths): the git-tracked files under the paths,
 #       sorted bytewise, one line "<sha256 hex of the file>  <path>" each, then the sha256 of those lines.
 #
-# Does nothing unless e2e_data_isolation is set to something other than `none`.
+# Does nothing unless e2e_data_isolation is set to something other than `none` or `unknown`.
+#
+# The `data` object is sent to the portal as `runData` (metasession-dev/devaudit#942), which rejects wrong
+# types: absent values are omitted rather than written as null or empty (workers, seedFilesHash,
+# seedCommit), skip reasons are cut to 200 characters and at most 50 distinct reasons are kept.
 #
 # Environment (all optional): E2E_DATA_CONFIG (default sdlc-config.json), E2E_DATA_STATE (default
 # .e2e-data-lifecycle.json), E2E_RESULTS_FILE, E2E_METADATA_FILE (default e2e-regression-metadata.json).
@@ -71,8 +75,8 @@ if [ "$MODE" = hash ]; then
 fi
 
 ISOLATION="$(cfg '.e2e_data_isolation')"
-if [ -z "$ISOLATION" ] || [ "$ISOLATION" = none ]; then
-  echo "e2e-data-lifecycle: e2e_data_isolation is not set (or none); nothing to do."
+if [ -z "$ISOLATION" ] || [ "$ISOLATION" = none ] || [ "$ISOLATION" = unknown ]; then
+  echo "e2e-data-lifecycle: e2e_data_isolation is not set (or none, or unknown); nothing to do."
   exit 0
 fi
 
@@ -154,6 +158,11 @@ case "$MODE" in
     fi
     skipped="$(jq -nc --argjson r "$reasons" '{count: ($r | length), byReason: ($r | group_by(.) | map({key: .[0], value: length}) | from_entries)}')"
     state_update '.workers = $w | .skipped = $s' --argjson w "$workers" --argjson s "$skipped"
+    # What the portal accepts: omit what is absent, bound the reasons.
+    state_update 'del(.workers | select(. == null))
+      | (if ((.seedFilesHash // "") | test("^[a-f0-9]{64}$")) then . else del(.seedFilesHash) end)
+      | (if (((.seedCommit // "") | length) > 0 and ((.seedCommit // "") | length) <= 64) then . else del(.seedCommit) end)
+      | .skipped.byReason |= (reduce to_entries[] as $e ({}; .[$e.key[0:200]] += $e.value) | to_entries | sort_by(-.value) | .[0:50] | from_entries)'
     if [ -f "$METADATA" ]; then
       jq --slurpfile d "$STATE" '. + {data: $d[0]}' "$METADATA" > "$METADATA.tmp" && mv "$METADATA.tmp" "$METADATA"
     fi
