@@ -14,7 +14,8 @@ import { saveViewerKey, viewerKeyName } from '../lib/viewer-keys.js';
  * The personal access token is saved by the same function `devaudit auth login` uses and is never printed, logged
  * or put in an environment variable. Every portal call that its dependency (portal #925, #926) has not delivered
  * ends in one plain line, "not available on this portal yet", and the run goes on. The device-flow field names
- * below follow RFC 8628 and are confirmed or corrected when portal #925 lands.
+ * are the portal's final contract (portal #925, RFC 8628 names; the token is `access_token`) and the upload is
+ * portal #926 (`POST /api/projects/{id}/scan-reports`, admin PAT in `X-DevAudit-Token`).
  */
 
 export const NOT_A_TERMINAL_LINE = 'To create an account, run `devaudit scan` in your own terminal.';
@@ -86,7 +87,7 @@ async function jsonOf(res: Response): Promise<Record<string, unknown> | null> {
 async function startDevice(base: string, f: typeof fetch): Promise<DeviceStart | null> {
   let res: Response;
   try {
-    res = await f(`${base}/api/auth/device`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ client: 'devaudit-cli', machine: hostname() }) });
+    res = await f(`${base}/api/auth/device`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ machine_name: hostname() }) });
   } catch {
     return null;
   }
@@ -110,24 +111,27 @@ type PollResult = { kind: 'token'; token: string } | { kind: 'denied' } | { kind
 
 async function pollDevice(base: string, start: DeviceStart, f: typeof fetch, sleep: (ms: number) => Promise<void>): Promise<PollResult> {
   let waited = 0;
+  let interval = start.interval;
   while (waited < start.expiresIn) {
     // eslint-disable-next-line no-await-in-loop
-    await sleep(start.interval * 1000);
-    waited += start.interval;
+    await sleep(interval * 1000);
+    waited += interval;
     let res: Response;
     try {
       // eslint-disable-next-line no-await-in-loop
-      res = await f(`${base}/api/auth/device/token`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ device_code: start.deviceCode }) });
+      res = await f(`${base}/api/auth/device/token`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ device_code: start.deviceCode, grant_type: 'urn:ietf:params:oauth:grant-type:device_code' }) });
     } catch {
       continue;
     }
     // eslint-disable-next-line no-await-in-loop
     const body = await jsonOf(res);
-    if (res.ok && body && typeof body['token'] === 'string') return { kind: 'token', token: body['token'] };
+    if (res.ok && body && typeof body['access_token'] === 'string') return { kind: 'token', token: body['access_token'] };
     const error = body?.['error'];
     if (error === 'access_denied') return { kind: 'denied' };
     if (error === 'expired_token') return { kind: 'expired' };
-    // authorization_pending, slow_down or a transient error: keep waiting
+    // RFC 8628: slow_down means poll less often
+    if (error === 'slow_down') interval += 5;
+    // authorization_pending or a transient error: keep waiting
   }
   return { kind: 'expired' };
 }

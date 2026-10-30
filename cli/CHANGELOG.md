@@ -14,6 +14,7 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ### Fixed
 
+- **`devaudit scan` sign-in follows the portal's final contract** (portal #925 and #926, on the portal's `develop`, not deployed yet): the device sign-in sends `machine_name` and `grant_type`, reads the token from `access_token` (it read `token`), and polls less often after `slow_down`. The report upload (`POST /api/projects/{id}/scan-reports`, project admin's token in `X-DevAudit-Token`) needed no change.
 - **Portal contracts confirmed on the portal's `develop`** (#931, #924, #942; not deployed yet): the approval policy is set with `PATCH /api/projects/{id}/approval-policy` (a project admin's personal access token; the first version called a route that does not exist), and the run record sent as `runData` omits what the portal would reject: no `workers`, `seedFilesHash` or `seedCommit` when absent, skip reasons cut to 200 characters and at most 50 kept, and `e2e_data_isolation: unknown` behaves like unset. Both already degrade to one plain line on a portal without the feature.
 
 ### Added

@@ -45,14 +45,14 @@ function portal(opts: { projects?: Array<{ id: string; slug: string }>; pendingP
     http.post(`${BASE}/api/auth/device`, async ({ request }) => {
       await record(request);
       if (opts.deviceStatus) return new HttpResponse('not here', { status: opts.deviceStatus });
-      return HttpResponse.json({ user_code: 'ABCD-EFGH', verification_uri: `${BASE}/device`, device_code: 'dev-code-1', interval: 1, expires_in: 60 });
+      return HttpResponse.json({ user_code: 'ABCD-EFGH', verification_uri: `${BASE}/device`, verification_uri_complete: `${BASE}/device/ABCD-EFGH`, device_code: 'dev-code-1', interval: 1, expires_in: 60 });
     }),
     http.post(`${BASE}/api/auth/device/token`, async ({ request }) => {
       await record(request);
       polls += 1;
       if (opts.pollError) return HttpResponse.json({ error: opts.pollError }, { status: 400 });
       if (polls <= (opts.pendingPolls ?? 0)) return HttpResponse.json({ error: 'authorization_pending' }, { status: 400 });
-      return HttpResponse.json({ token: TOKEN, organisation_id: 'org-1' });
+      return HttpResponse.json({ access_token: TOKEN, token_type: 'bearer', expires_in: 2592000, org_id: 'org-1' });
     }),
     http.get(`${BASE}/api/projects`, async ({ request }) => {
       await record(request);
@@ -198,6 +198,9 @@ describe('accepted', () => {
     expect(calls[6]!.token).toBe(TOKEN);
     expect(calls[6]!.body).toBe(await fs.readFile(cacheFileFor(await fs.realpath(d)), 'utf-8'));
     expect(calls.slice(0, 3).every((c) => c.token === null)).toBe(true);
+    // the portal's request shapes (portal #925): machine_name to start, device_code + grant_type to poll
+    expect(JSON.parse(calls[0]!.body)).toHaveProperty('machine_name');
+    expect(JSON.parse(calls[1]!.body)).toEqual({ device_code: 'dev-code-1', grant_type: 'urn:ietf:params:oauth:grant-type:device_code' });
   });
 
   it('an existing valid token means no device sign-in', async () => {
@@ -241,6 +244,23 @@ describe('the portal does not have the feature yet', () => {
     const r = await scan(d, {}, { terminal: true, account: { ask: p.ask, ...noStored, sleep } });
     expect(r.lines.join('\n')).toContain('not available on this portal yet');
     expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual(['POST /api/auth/device']);
+  });
+
+  it('slow_down makes the next poll wait five seconds longer (RFC 8628)', async () => {
+    portal();
+    let polls = 0;
+    server.use(
+      http.post(`${BASE}/api/auth/device/token`, async ({ request }) => {
+        await record(request);
+        polls += 1;
+        if (polls === 1) return HttpResponse.json({ error: 'slow_down' }, { status: 400 });
+        return HttpResponse.json({ access_token: TOKEN, token_type: 'bearer', expires_in: 2592000, org_id: 'org-1' });
+      }),
+    );
+    const waits: number[] = [];
+    const d = await repo();
+    await scan(d, {}, { terminal: true, account: { ask: prompts({ confirm: [true], select: ['later'] }).ask, ...noStored, sleep: async (ms: number) => void waits.push(ms) } });
+    expect(waits.slice(0, 2)).toEqual([1000, 6000]);
   });
 
   it('a declined or expired sign-in creates nothing', async () => {
