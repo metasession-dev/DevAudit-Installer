@@ -49,7 +49,12 @@ function entriesOf(value: unknown): string[] | null {
   return null;
 }
 
-const trimSlash = (path: string): string => (path.length > 1 ? path.replace(/\/+$/, '') : path);
+/** Drop trailing slashes (a loop, not a regular expression: `/\/+$/` is polynomial on a long run of slashes). */
+function trimSlash(path: string): string {
+  let end = path.length;
+  while (end > 1 && path[end - 1] === '/') end -= 1;
+  return path.slice(0, end);
+}
 
 /** Lower-case letters and digits in words joined by single hyphens, the form `defaultSlug` produces. */
 export const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;

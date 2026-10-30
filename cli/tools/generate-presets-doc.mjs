@@ -18,7 +18,7 @@ const target = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', 'doc
 const text = renderPresetsMarkdown();
 
 if (process.argv.includes('--check')) {
-  const current = await fs.readFile(target, 'utf-8').catch(() => null);
+  const current = (await fs.readFile(target, 'utf-8').catch(() => null))?.replace(/\r\n/g, '\n') ?? null;
   if (current !== text) {
     console.error('docs/presets.md is out of date: run `npm run docs:presets` in cli/ and commit the result.');
     process.exit(1);

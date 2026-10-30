@@ -137,6 +137,16 @@ describe('detectRunner', () => {
   });
 });
 
+describe('detection does not take quadratic time on hostile input', () => {
+  it('a workflow line and a Playwright property padded with whitespace', async () => {
+    const pad = ' '.repeat(200_000);
+    const started = Date.now();
+    expect(await detectRunner(memoryReader({ '.github/workflows/ci.yml': `runs-on:${pad}x${pad}\n` }), null)).toBeNull();
+    expect(dependentProjectsFromConfig(`projects: [{ name: 'a', dependencies:${pad}['setup']${pad} }]`)).toEqual(['a']);
+    expect(Date.now() - started).toBeLessThan(2000);
+  });
+});
+
 describe('detectGovernanceFiles', () => {
   it('lists the markdown files in compliance/governance', async () => {
     const reader = memoryReader({

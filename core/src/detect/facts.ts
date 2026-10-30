@@ -87,10 +87,11 @@ export async function detectRunner(reader: RepoReader, config: Record<string, un
   for (const name of (await listFileNames(reader, '.github/workflows')).filter((n) => /\.ya?ml$/.test(n))) {
     const text = await readText(reader, joinRepoPath('.github/workflows', name));
     for (const line of text.split('\n')) {
-      const m = /^\s*runs-on:\s*(.+?)\s*$/.exec(line);
+      const m = /^\s*runs-on:(.*)$/.exec(line);
       if (!m) continue;
-      if (/self-hosted/.test(m[1]!)) return 'self-hosted';
-      if (/(ubuntu|windows|macos)-/.test(m[1]!)) sawGithub = true;
+      const runsOn = m[1]!.trim();
+      if (/self-hosted/.test(runsOn)) return 'self-hosted';
+      if (/(ubuntu|windows|macos)-/.test(runsOn)) sawGithub = true;
     }
   }
   return sawGithub ? 'github' : null;

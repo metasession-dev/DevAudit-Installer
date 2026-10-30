@@ -58,6 +58,16 @@ describe('the validators of the question registry', () => {
     expect(validate('tierHasTests', 'full')).toBeNull();
   });
 
+  it('does not take quadratic time on a long run of slashes (a polynomial regular expression was flagged by CodeQL)', () => {
+    const hostile = `a${'/'.repeat(200_000)}x`;
+    const started = Date.now();
+    expect(validate('existingDir', hostile, { existingDirs: ['a'] })).not.toBeNull();
+    expect(validate('existingPath', `${'/'.repeat(200_000)}`, { existingPaths: ['a'] })).not.toBeNull();
+    expect(Date.now() - started).toBeLessThan(2000);
+    // trailing slashes are still ignored
+    expect(validate('existingDir', ['app///'], { existingDirs: ['app'] })).toBeNull();
+  });
+
   it('branchesDiffer: two valid, different names', () => {
     expect(validate('branchesDiffer', { integration: 'develop', release: 'main' })).toBeNull();
     expect(validate('branchesDiffer', { integration: 'staging', release: 'production' })).toBeNull();

@@ -54,7 +54,8 @@ describe('the configuration a preset writes is accepted by `configure set`', () 
 
 describe('docs/presets.md', () => {
   it('is the rendering of the preset data (run `npm run docs:presets` in cli/ after changing core/src/presets.ts)', async () => {
-    const committed = await fs.readFile(resolve(ROOT, 'docs', 'presets.md'), 'utf-8');
+    // A Windows checkout may turn the line endings into CRLF; the content is what must match.
+    const committed = (await fs.readFile(resolve(ROOT, 'docs', 'presets.md'), 'utf-8')).replace(/\r\n/g, '\n');
     expect(committed).toBe(renderPresetsMarkdown());
   });
 });
