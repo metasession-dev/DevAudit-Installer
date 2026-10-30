@@ -19,7 +19,7 @@ import { collectPlan } from './prompts.js';
 import { clackAsker, parseTestOptions, type TestOptions } from './test-config.js';
 import { describeProjectPreset, parsePresetFlag } from './guided.js';
 import { InstallRefusal } from './refusal.js';
-import { isPortalReportRef, readScanHints } from './scan-hints.js';
+import { configuredProjectSlug, isPortalReportRef, readScanHints } from './scan-hints.js';
 import type { FetchLike } from '../lib/onboarding-portal.js';
 import { applyOnboardingPortal } from './onboarding-apply.js';
 import { writeSdlcConfig } from './write-config.js';
@@ -103,7 +103,8 @@ export async function runInstall(options: RunInstallOptions): Promise<InstallRep
   let scanHints = options.fromScan !== undefined && !fromPortal ? await readScanHints(options.fromScan) : undefined;
   const auth = await resolveTokenForInstall(options);
   if (options.fromScan !== undefined && fromPortal) {
-    const configured = ((await readSdlcConfig(projectPath))?.['devaudit'] as { project_slug?: unknown } | undefined)?.project_slug;
+    const existingConfig = (await readSdlcConfig(projectPath)) as Record<string, unknown> | null;
+    const configured = configuredProjectSlug(existingConfig);
     scanHints = await readScanHints(options.fromScan, {
       baseUrl: auth.baseUrl,
       repoRoot: projectPath,

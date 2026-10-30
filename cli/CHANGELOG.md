@@ -43,6 +43,8 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ### Fixed
 
+- **The guided install no longer writes a runner that never starts** (#1164). Choosing GitHub's machines (the default) wrote `runner: github-ci`, which the generated workflows use as a literal `runs-on:` label, so jobs would queue forever; it now writes `ubuntu-latest`, as the specification says, and a `runner: github-ci` already in a configuration renders as `ubuntu-latest`. An existing `runner: ubuntu-latest` was shown as "our own machines"; it now reads as GitHub's. A bare `install --from-scan <report-id>` also finds the project from the top-level `project_slug`, the form the portal's web onboarding writes.
+
 - **The configuration-values check no longer fails Dependabot and fork pull requests** (#1162, follow-up to #1160). GitHub gives those runs no repository secrets, so every secret read as empty there; the `Check configuration values` step now reports the same lines as warnings and exits 0 when the actor is `dependabot[bot]` or the pull request comes from a fork. Without this, Dependabot pull requests would have failed Quality Gates for any project with a bare `${{ secrets.X }}` in `e2e_env` or `app_env`.
 
 - **`install --from-scan <file>` now takes the standards from a real scan report** (#1162). It read `frameworks` as a list of strings, but the report holds `{ code, clauses }` objects, so the standards the scan was asked about were silently dropped.

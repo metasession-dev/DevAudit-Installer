@@ -1027,6 +1027,8 @@ function runnerOf(cfg: SdlcConfig): string {
 
 function resolveRunner(cfg: SdlcConfig): string {
   const runner = runnerOf(cfg);
+  // `github-ci` is the logical name for GitHub's machines (a CI_RUNNER_LABEL value), not a label a runner has: a static `runs-on: github-ci` would queue forever (#1164).
+  if (runner === 'github-ci') return 'ubuntu-latest';
   if (runner !== 'self-hosted') return runner;
   const label = "(inputs.runner_label || vars.CI_RUNNER_LABEL || 'github-ci')";
   return `\${{ ${label} == 'github-ci' && 'ubuntu-latest' || ${label} }}`;
