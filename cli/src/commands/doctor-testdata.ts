@@ -220,7 +220,7 @@ export async function testDataCheck(
     add({
       subject: 'serialised-no-group',
       detail: '`e2e_data_isolation` is `shared_serialised` but `e2e_concurrency_group` is empty, so two regression runs can overlap.',
-      remediation: setConfig('e2e_concurrency_group', `e2e-${slug}`, 'Set a fixed concurrency group so runs queue behind each other'),
+      remediation: setConfig('e2e_concurrency_group', `${slug}-e2e-data`, 'Set a fixed concurrency group so runs queue behind each other'),
     });
   }
 

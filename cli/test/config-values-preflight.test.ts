@@ -159,9 +159,24 @@ describe('the generated workflows', () => {
   it('give the step the e2e_env references in ci.yml and feature-e2e.yml, and none in the regression (its env is job-wide)', async () => {
     const r = await render(refs);
     for (const yaml of [r.ci, r.feature]) {
-      for (const { step } of preflights(yaml)) expect(step['env']).toEqual({ SUPABASE_SECRET_KEY: '${{ secrets.SUPABASE_SECRET_KEY }}' });
+      for (const { step } of preflights(yaml)) {
+        const env = step['env'] as Record<string, unknown>;
+        expect(Object.keys(env).sort()).toEqual(['PR_WITHOUT_SECRETS', 'SUPABASE_SECRET_KEY']);
+        expect(env['SUPABASE_SECRET_KEY']).toBe('${{ secrets.SUPABASE_SECRET_KEY }}');
+      }
     }
-    for (const { step } of preflights(r.regression)) expect(step['env']).toBeUndefined();
+    for (const { step } of preflights(r.regression)) expect(Object.keys(step['env'] as Record<string, unknown>)).toEqual(['PR_WITHOUT_SECRETS']);
+  }, 120_000);
+
+  it('only warn on a pull request GitHub gives no secrets (Dependabot, fork)', async () => {
+    const r = await render(refs);
+    for (const yaml of [r.ci, r.feature, r.regression]) {
+      for (const { step } of preflights(yaml)) {
+        const flag = (step['env'] as Record<string, string>)['PR_WITHOUT_SECRETS']!;
+        expect(flag).toContain("github.actor == 'dependabot[bot]'");
+        expect(flag).toContain('github.event.pull_request.head.repo.fork == true');
+      }
+    }
   }, 120_000);
 
   it('ship the script', async () => {

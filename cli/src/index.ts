@@ -96,8 +96,8 @@ export async function main(argv: readonly string[]): Promise<void> {
       'Apply a preset without the preset question: A (solo, fast feedback), B (safety net), C (team with a compliance lead), D (full gate, tested once) or custom. With --yes, A and B need the project\'s approval policy to allow self-approval with a recorded gap (read from the portal), otherwise install refuses with exit code 2. See docs/presets.md.',
     )
     .option(
-      '--from-scan <file>',
-      'Take the suggested preset and the standards from a scan report file (a report id is a portal feature that is not available yet).',
+      '--from-scan <file|report-id>',
+      'Take the suggested preset and the standards from a scan report: a file, or a saved report read from the portal with your viewer key (<report-id>, or <project-slug>/<report-id> when this repository does not name the project).',
     )
     .action(
       async (

@@ -88,7 +88,7 @@ A preset that means you approve your own releases (A, B, or answering "I approve
 | Flag | Meaning |
 | --- | --- |
 | `--preset <A\|B\|C\|D\|custom>` | Apply that preset without the preset question. With `--yes`, A and B read the approval policy from the portal and refuse (exit code 2) unless it already allows self-approval with a recorded gap; C, D and `custom` need no check. |
-| `--from-scan <file>` | Take the suggested preset and the standards from a scan report file. A report id is a portal feature that is not available yet (exit code 2). |
+| `--from-scan <file\|report-id>` | Take the suggested preset and the standards from a scan report: a file, or a saved report read from the portal (`GET /api/ci/projects/{slug}/scan-reports/{id}`) with your viewer key. A bare `<report-id>` uses the project named in `sdlc-config.json`; otherwise write `<project-slug>/<report-id>`. A report the portal does not have, a key that is not accepted, or no key (`devaudit join` issues one) exit with code 2 and name the file as the alternative. |
 
 Re-running `install` on a project that has a configuration but no `onboarding_preset` offers "Keep my current settings" first and applies no preset or policy unless you choose one. `devaudit join` asks nothing and writes no preset or policy; it prints the project's preset. `--yes` without `--preset` behaves as before.
 

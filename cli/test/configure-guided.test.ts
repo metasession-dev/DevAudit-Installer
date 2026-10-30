@@ -168,6 +168,37 @@ describe('configure with no arguments', () => {
     expect(said).toContain('devaudit update');
   });
 
+  it('a repository with several targets sets the approval policy on every target project, in one confirmation', async () => {
+    const targets = [
+      { name: 'api', devaudit: { project_slug: 'example-app-api' } },
+      { name: 'ui', devaudit: { project_slug: 'example-app-ui' } },
+      { name: 'ui-copy', devaudit: { project_slug: 'example-app-ui' } },
+    ];
+    const dir = await repo(configFor('C', { targets }));
+    const set: Array<[string, string | undefined]> = [];
+    const a = asker({ select: ['A', 'yes'], confirm: [true, true] });
+    const code = await run(dir, a, {
+      setPolicy: async (policy, _reason, slug) => {
+        set.push([policy, slug]);
+        return { ok: true };
+      },
+    });
+    expect(code).toBe(0);
+    expect(set).toEqual([['self_allowed_with_gap', 'example-app-api'], ['self_allowed_with_gap', 'example-app-ui']]);
+    expect(a.say.join('\n')).toContain('on each of these 2 projects, in this one confirmation: example-app-api, example-app-ui');
+    expect((await read(dir))['onboarding_preset']).toBe('A');
+  });
+
+  it('when the policy cannot be set on one target, says which and keeps the approval settings as they were', async () => {
+    const dir = await repo(configFor('C', { targets: [{ name: 'api', devaudit: { project_slug: 'example-app-api' } }, { name: 'ui', devaudit: { project_slug: 'example-app-ui' } }] }));
+    const a = asker({ select: ['A', 'yes'], confirm: [true, true] });
+    const code = await run(dir, a, { setPolicy: async (_p, _r, slug) => (slug === 'example-app-ui' ? { ok: false, unavailable: false, message: 'not a project admin' } : { ok: true }) });
+    expect(code).toBe(0);
+    const after = await read(dir);
+    expect(after['onboarding_preset']).not.toBe('A');
+    expect(after['approval']).toEqual(configFor('C')['approval']);
+  });
+
   it('A to C writes the C values back', async () => {
     const dir = await repo(configFor('A', { approval: { mode: 'solo_with_gap', auto_low_risk_threshold: 'LOW' } }));
     const a = asker({ select: ['C', 'yes'], confirm: [true] });

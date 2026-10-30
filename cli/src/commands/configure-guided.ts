@@ -14,6 +14,7 @@ import {
   type FetchLike,
   type WriteResult,
 } from '../lib/onboarding-portal.js';
+import { collaboratorCount } from '../lib/collaborators.js';
 import * as prompts from '../lib/prompt.js';
 import { clackGuidedAsker } from '../install/prompts.js';
 import { runGuided, type GuidedAsker, type GuidedBasics, type GuidedResult } from '../install/guided.js';
@@ -34,10 +35,12 @@ export interface ConfigureGuidedDeps {
   readonly cwd?: string;
   readonly fetchImpl?: FetchLike;
   readonly viewerKey?: string | null;
-  /** Sets the approval policy on the portal (tier B). Default: the personal token and `PATCH /api/projects/{id}`. */
-  readonly setPolicy?: (policy: 'independent' | 'self_allowed_with_gap', reason: string) => Promise<WriteResult>;
+  /** Sets the approval policy of one project on the portal (tier B). Default: the personal token and `PATCH /api/projects/{id}/approval-policy`. `slug` is the project; absent means the repository's own. */
+  readonly setPolicy?: (policy: 'independent' | 'self_allowed_with_gap', reason: string, slug?: string) => Promise<WriteResult>;
   /** Overrides the terminal check (tests). */
   readonly terminalProblem?: string | null;
+  /** How many people can push to the repository (null when unknown). Default: `gh api .../collaborators`. */
+  readonly collaborators?: () => Promise<number | null>;
 }
 
 export interface Change {
@@ -128,6 +131,7 @@ export async function runConfigureGuided(opts: { readonly json: boolean }, deps:
     standards,
     ask: deps.ask ?? clackGuidedAsker,
     say,
+    collaborators: deps.collaborators ?? (() => collaboratorCount(ctx.repoRoot)),
   });
 
   // The project's name identifies it on the portal and is not changed here.
@@ -142,8 +146,11 @@ export async function runConfigureGuided(opts: { readonly json: boolean }, deps:
   say('These changes would be written to sdlc-config.json:');
   for (const c of changes) say(`  ${c.key}: ${show(c.before)} -> ${show(c.after)}`);
   for (const r of removals) say(`  ${r.key}: ${show(r.before)} -> removed (not part of the new preset)`);
+  // A repository with several targets has one portal project per target; the policy is repository-wide, so it is set on each (section 5, R29).
+  const policySlugs = projectSlugsOf(cfg, slug);
   if (result.policyToSet !== null) {
     say(`  portal approval policy: ${policy.status === 'ok' ? policy.policy : '(not reported)'} -> ${result.policyToSet} (changed on the portal, needs a project admin)`);
+    if (policySlugs.length > 1) say(`  ... on each of these ${policySlugs.length} projects, in this one confirmation: ${policySlugs.join(', ')}`);
   }
   // DevAudit-Installer#1116 WP15: a run nobody watches should show where its tests get their data.
   if (turnsOnUnattendedRun(cfg, changes)) {
@@ -164,8 +171,21 @@ export async function runConfigureGuided(opts: { readonly json: boolean }, deps:
   let skipped: string[] = [];
   if (result.policyToSet !== null) {
     const reason = `Set by devaudit configure (preset ${result.preset ?? 'none'})`;
-    const outcome = deps.setPolicy ? await deps.setPolicy(result.policyToSet, reason) : await setPolicyOnPortal(baseUrl, slug, result.policyToSet, reason, deps.fetchImpl);
-    if (!outcome.ok) {
+    const wantedPolicy = result.policyToSet;
+    let outcome: Extract<WriteResult, { ok: false }> | null = null;
+    const failedFor: string[] = [];
+    for (const projectSlug of policySlugs) {
+      // eslint-disable-next-line no-await-in-loop
+      const one = deps.setPolicy ? await deps.setPolicy(wantedPolicy, reason, projectSlug) : await setPolicyOnPortal(baseUrl, projectSlug, wantedPolicy, reason, deps.fetchImpl);
+      if (!one.ok) {
+        failedFor.push(projectSlug);
+        outcome = one;
+      }
+    }
+    if (failedFor.length > 0 && policySlugs.length > 1) {
+      log.warn(`The approval policy was not set on: ${failedFor.join(', ')}; it was set on the other ${policySlugs.length - failedFor.length}.`);
+    }
+    if (outcome !== null) {
       if (result.policyToSet === 'self_allowed_with_gap') {
         // Never write "I approve my own" while the portal still blocks it.
         skipped = ['approval.mode', 'release_branch_required_reviews', 'onboarding_preset'];
@@ -188,6 +208,17 @@ export async function runConfigureGuided(opts: { readonly json: boolean }, deps:
   const claim = result.frameworks.filter((f) => COMPLIANCE_FRAMEWORK_CODES.includes(f) && standards.status === 'ok' && !standards.codes.includes(f));
   if (claim.length > 0) say(`Claim ${claim.join(', ')} in the portal's project settings (the standards are saved in sdlc-config.json).`);
   return 0;
+}
+
+/**
+ * The portal projects of this repository: each target's `devaudit.project_slug` (a repository with several targets has one project
+ * per target), else the repository's own slug. Distinct, in order; never empty when `fallback` is not.
+ */
+export function projectSlugsOf(cfg: Record<string, unknown>, fallback: string): string[] {
+  const targets = Array.isArray(cfg['targets']) ? (cfg['targets'] as Array<{ devaudit?: { project_slug?: unknown } }>) : [];
+  const slugs = targets.map((t) => t?.devaudit?.project_slug).filter((s): s is string => typeof s === 'string' && s !== '');
+  const all = slugs.length > 0 ? slugs : fallback !== '' ? [fallback] : [];
+  return [...new Set(all)];
 }
 
 async function setPolicyOnPortal(

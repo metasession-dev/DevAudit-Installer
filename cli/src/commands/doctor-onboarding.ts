@@ -39,7 +39,7 @@ export function presetDriftCheck(cfg: Record<string, unknown>, testGroups: TestG
   const name = 'preset-drift';
   const recorded = cfg['onboarding_preset'];
   if (!isPreset(recorded)) {
-    return { name, ok: true, detail: 'no preset recorded (nothing to compare)', suspectedOrigin: 'consumer-drift' };
+    return { name, ok: true, detail: 'no preset chosen (nothing to compare); `devaudit configure` suggests one for this repository', suspectedOrigin: 'consumer-drift' };
   }
   const diffs = differences(cfg, recorded);
   const closest = PRESET_IDS.map((id) => ({ id, n: differences(cfg, id).length })).sort((a, b) => a.n - b.n || a.id.localeCompare(b.id))[0]!;
