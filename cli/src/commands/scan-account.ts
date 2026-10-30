@@ -54,7 +54,8 @@ export type AccountOutcome =
   | 'needs-login'
   | 'signed-in-failed';
 
-const slugOf = (name: string): string => name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'my-project';
+/** A project slug from a folder name: lower-case words joined by single hyphens (words found by splitting, not by a pattern anchored at both ends). */
+const slugOf = (name: string): string => name.toLowerCase().split(/[^a-z0-9]/).filter((w) => w !== '').join('-') || 'my-project';
 
 async function validToken(token: string, baseUrl: string): Promise<boolean> {
   try {
