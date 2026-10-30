@@ -144,6 +144,30 @@ Every portal read in `doctor` is read-only (`GET /api/ci/releases/resolve`) and 
 - After `devaudit update`, `install` and `join`, the same check prints a read-only **Credentials** block (no prompts, no portal writes, exit code unchanged; skipped when `CI` or `GITHUB_ACTIONS` is set; printed once per invocation, one line per project for a multi-path `update`).
 - Read-only runs (`doctor` without `--fix`) send only the viewer key to the portal, never the PAT. When `DEVAUDIT_USER_TOKEN` is set in the environment, `doctor` reports a `pat-env` note (the variable name, never the value): agent sessions started from that shell inherit it, so prefer `devaudit auth login`.
 
+## `devaudit doctor --explain <check>` and `--guided`
+
+`devaudit doctor --explain <check>` prints, for one check, why it matters and what you can do about it (including leaving it as it is), with the fix tier of each option and the standards clauses it bears on. It reads and changes nothing. An unknown check name lists the checks and exits `2`.
+
+`devaudit doctor --guided` walks the current gaps one at a time; `devaudit doctor --guided <check>` walks only that check's. It is for a person at a terminal:
+
+- **No terminal** (no TTY, `CI` set, or `--json`): it prompts for nothing, changes nothing, prints why and exits `8`. It never falls back to applying fixes (use `--fix` for that).
+- **Every gap offers the fixes, "leave this as it is", and "stop".** Leaving a gap records nothing and is not an error; the next run reports it again. Stopping leaves the rest. A summary of fixed, left and still-open gaps ends the run.
+- **Order:** gaps with a compliance consequence first (most clauses first), then gaps with a fix, guidance-only gaps last.
+- **The same safeguards as `--fix`, by reuse:** a tier A fix is confirmed, a tier B portal change needs an interactive terminal, a typed reason and a confirmation (never `--yes`), tier C is printed and never run.
+- **Re-check:** after an applied fix the check, and every check that depends on it, runs again and the new state is shown. A fix that does not clear the gap says so and the gap stays open.
+- `--guided` cannot be combined with `--fix`, `--yes`, `--reason`, `--explain` or `--fleet` (exit `2`).
+
+Exit code of `--guided`: `0` when there were no gaps or every gap was fixed or left as it is; `8` when a chosen fix was declined, refused or failed (or there was no terminal); `2` for a refused flag combination or an unknown check.
+
+### The preset checks (non-gating)
+
+| Check | Reports |
+| --- | --- |
+| `preset-drift` | The configuration no longer matches `onboarding_preset` (the closest preset is named when another fits better), or a gated tier has no tests. Silent for a project with no preset or `custom`. Repairs: set the key back (tier A), or record the project as `custom`. |
+| `standards-fit` | SOC 2 or ISO 27001 needed while the author approves releases (names the clauses with a recorded gap), and differences between `compliance_frameworks` and the standards the portal shows. |
+| `approval-policy` | `approval.mode` against the project's approval policy on the portal (read with the viewer key; not compared when the portal does not report one). |
+| `durations` | The median duration of each job over the last 10 successful runs of `ci.yml` and `e2e-regression.yml`, or "not measured yet". |
+
 ## `suspectedOrigin` tagging
 
 Every onboarding-checklist and closeout-drift result carries a first-pass `suspectedOrigin: 'framework' | 'consumer-drift' | 'unknown'` (devaudit-installer#867):

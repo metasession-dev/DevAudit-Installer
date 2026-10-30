@@ -180,6 +180,32 @@ export const CHECK_EXPLANATIONS: Readonly<Record<string, GapExplanation>> = {
     why: 'A release deferred longer than `deferral_max_age_days` (or past its review-by date) is probably forgotten work that is blocking nothing and shipping nothing.',
     guidance: 'Resume the release, extend the deferral with a new date, or abandon it.',
   },
+  'preset-drift': {
+    title: "The configuration no longer matches the project's preset",
+    why: 'A preset is a set of settings chosen together. When one has been edited by hand the project no longer runs what its preset says it does, and the evidence and gaps described for that preset may not hold.',
+    guidance: 'Set the differing keys back with `devaudit configure`, switch to the preset that fits with `devaudit configure`, or record the project as custom if the differences are deliberate.',
+  },
+  'standards-fit': {
+    title: 'The standards you need do not fit your approval settings',
+    why: 'SOC 2 and ISO 27001 expect a release to be approved by someone other than its author. When the author approves their own release the matching clauses show as not covered, and the standards on the portal may not match the ones in your configuration.',
+    guidance: 'Choose an approval setting with a different approver (`devaudit configure`), keep the gap and prepare a compensating control, or correct the standards in sdlc-config.json or the portal.',
+  },
+  'approval-policy': {
+    title: "The repository and the portal disagree about who may approve a release",
+    why: "The repository's approval.mode and the project's approval policy on the portal decide who can approve a release. When they differ, either the author is blocked from a release the repository expects them to approve, or the portal does not enforce the different approver the repository expects.",
+    guidance: "Change approval.mode with `devaudit configure`, or change the project's approval policy in the portal (it needs a project admin).",
+  },
+  durations: {
+    title: 'The run times of your CI jobs could not be measured',
+    why: 'How long the smoke, critical and full test groups take decides which release gate is practical; the doctor measures them from your recent successful runs.',
+    guidance: 'Install and sign in to the GitHub CLI (`gh auth login`); once the workflows have run successfully the times appear here.',
+  },
+};
+
+/** Checks that are re-run after a fix because they read what the fixed check read (a dependent runs after the check it depends on). */
+export const CHECK_DEPENDENTS: Readonly<Record<string, readonly string[]>> = {
+  'test-tiers': ['test-data'],
+  'preset-drift': ['test-data'],
 };
 
 /** Every check name doctor can emit that has an explanation. */
