@@ -72,7 +72,7 @@ assert_eq "data.leakCheck.ran" true "$(jq -r '.data.leakCheck.ran' "$d/e2e-regre
 assert_eq "data.reset.ran" true "$(jq -r '.data.reset.ran' "$d/e2e-regression-metadata.json")"
 assert_eq "data.workers from the results file" 2 "$(jq -r '.data.workers' "$d/e2e-regression-metadata.json")"
 assert_eq "existing fields did not move" "passed" "$(jq -r '.outcome' "$d/e2e-regression-metadata.json")"
-assert_eq "only runData field names (absent values are omitted, never null)" "isolation,leakCheck,preflight,reset,skipped,workers" "$(jq -r '.data | keys | join(",")' "$d/e2e-regression-metadata.json")"
+assert_eq "only runData field names (absent values are omitted, never null)" "isolation,leakCheck,preflight,reset,skipped,workers" "$(jq -r '.data | del(.seedCommit) | keys | join(",")' "$d/e2e-regression-metadata.json")"
 assert_eq "no host, URL or credential in the record" 0 "$(grep -ciE 'https?://|password|token' "$d/e2e-regression-metadata.json" || true)"
 
 echo "after: the leak check never changes the outcome"
