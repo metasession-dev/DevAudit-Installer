@@ -100,7 +100,17 @@ interface State {
   notes: string[];
 }
 
-const GITHUB_RUNNER = 'github-ci';
+/**
+ * Q9's GitHub choice. The generated workflows use any `runner` other than `self-hosted` as a literal `runs-on:` label, so this
+ * must be a label GitHub provides. (`github-ci` is a value of the `CI_RUNNER_LABEL` variable, not a label.)
+ */
+const GITHUB_RUNNER = 'ubuntu-latest';
+const GITHUB_HOSTED_LABEL = /^(ubuntu|windows|macos)-/;
+
+/** Whether an existing `runner` value means GitHub's machines: a GitHub-hosted label, or the logical name `github-ci`. `self-hosted` and any other label are our own machines. */
+export function runnerMeansGithub(runner: unknown): boolean {
+  return typeof runner === 'string' && (runner === 'github-ci' || GITHUB_HOSTED_LABEL.test(runner));
+}
 const SOLO_POLICY: PortalApprovalPolicy = 'self_allowed_with_gap';
 
 const FRAMEWORK_LABELS: Readonly<Record<string, string>> = {
@@ -213,7 +223,7 @@ export async function runGuided(input: GuidedInput): Promise<GuidedResult> {
     preset: null,
     frameworks: [...(input.scanFrameworks ?? existingFrameworks ?? portalCodes ?? [])],
     runnerLabel: undefined,
-    runnerKind: input.existing?.['runner'] === undefined ? (facts.runner === 'self-hosted' ? 'self-hosted' : 'github') : input.existing['runner'] === GITHUB_RUNNER ? 'github' : 'self-hosted',
+    runnerKind: input.existing?.['runner'] === undefined ? (facts.runner === 'self-hosted' ? 'self-hosted' : 'github') : runnerMeansGithub(input.existing['runner']) ? 'github' : 'self-hosted',
     testsExist: facts.testRunner !== null,
     dataIsolation: typeof input.existing?.['e2e_data_isolation'] === 'string' ? (input.existing['e2e_data_isolation'] as string) : undefined,
     notes: [],

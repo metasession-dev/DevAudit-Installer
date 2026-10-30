@@ -674,3 +674,22 @@ describe('applyOnboardingPortal', () => {
     expect(declined.message).toContain('standards not claimed on the portal');
   });
 });
+
+describe('the runner (#1164)', () => {
+  it("a fresh install on GitHub's machines writes a runner label GitHub provides, not the logical name", async () => {
+    const dir = await repo();
+    const a = asker({ select: ['C', 'yes'] });
+    const plan = await run(dir, a, portal(POLICY_INDEPENDENT));
+    expect(plan.onboarding?.config['runner']).toBe('ubuntu-latest');
+    expect(a.say.join('\n')).toContain("Tests and builds run on: GitHub's machines");
+  });
+
+  it("an existing ubuntu-latest is shown as GitHub's machines; self-hosted shows our own machines", async () => {
+    const gh = asker({ select: ['C', 'yes'] });
+    await run(await repo({ config: { project_slug: 'fixture-app', stack: 'node', runner: 'ubuntu-latest' } }), gh, portal(POLICY_INDEPENDENT));
+    expect(gh.say.join('\n')).toContain("Tests and builds run on: GitHub's machines");
+    const own = asker({ select: ['C', 'yes'] });
+    await run(await repo({ config: { project_slug: 'fixture-app', stack: 'node', runner: 'self-hosted' } }), own, portal(POLICY_INDEPENDENT));
+    expect(own.say.join('\n')).toContain('Tests and builds run on: our own machines');
+  });
+});

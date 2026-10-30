@@ -23,6 +23,14 @@ export interface ScanReportSource {
   readonly fetchImpl?: FetchLike;
 }
 
+/** The project a repository's `sdlc-config.json` names: `devaudit.project_slug`, else the top-level `project_slug` (the form the portal's web onboarding writes). */
+export function configuredProjectSlug(cfg: Record<string, unknown> | null): string | undefined {
+  const nested = (cfg?.['devaudit'] as { project_slug?: unknown } | undefined)?.project_slug;
+  const top = cfg?.['project_slug'];
+  for (const c of [nested, top]) if (typeof c === 'string' && c !== '') return c;
+  return undefined;
+}
+
 /** `<report-id>` or `<project-slug>/<report-id>`; null when the argument is neither (so it is treated as a file path). */
 export function parseReportRef(arg: string): { slug: string | null; id: string } | null {
   const parts = arg.split('/');

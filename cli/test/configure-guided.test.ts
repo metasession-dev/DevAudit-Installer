@@ -38,7 +38,7 @@ function configFor(preset: 'A' | 'B' | 'C' | 'D' | 'custom', extra: Record<strin
     production_url_secret: 'EXAMPLE_APP_PROD_URL',
     approval: { mode: 'dual_actor', auto_low_risk_threshold: 'LOW' },
     e2e_data_isolation: 'ephemeral',
-    runner: 'github-ci',
+    runner: 'ubuntu-latest',
   };
   if (preset !== 'custom') for (const [k, v] of Object.entries(PRESETS[preset].config)) cfg = setConfigPath(cfg, k, v);
   else cfg = setConfigPath(cfg, 'onboarding_preset', 'custom');
