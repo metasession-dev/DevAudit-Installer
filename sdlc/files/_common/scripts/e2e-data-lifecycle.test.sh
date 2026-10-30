@@ -72,7 +72,7 @@ assert_eq "data.leakCheck.ran" true "$(jq -r '.data.leakCheck.ran' "$d/e2e-regre
 assert_eq "data.reset.ran" true "$(jq -r '.data.reset.ran' "$d/e2e-regression-metadata.json")"
 assert_eq "data.workers from the results file" 2 "$(jq -r '.data.workers' "$d/e2e-regression-metadata.json")"
 assert_eq "existing fields did not move" "passed" "$(jq -r '.outcome' "$d/e2e-regression-metadata.json")"
-assert_eq "exactly the runData field names" "isolation,leakCheck,preflight,reset,seedCommit,seedFilesHash,skipped,workers" "$(jq -r '.data | keys | join(",")' "$d/e2e-regression-metadata.json")"
+assert_eq "only runData field names (absent values are omitted, never null)" "isolation,leakCheck,preflight,reset,skipped,workers" "$(jq -r '.data | del(.seedCommit) | keys | join(",")' "$d/e2e-regression-metadata.json")"
 assert_eq "no host, URL or credential in the record" 0 "$(grep -ciE 'https?://|password|token' "$d/e2e-regression-metadata.json" || true)"
 
 echo "after: the leak check never changes the outcome"
@@ -107,6 +107,32 @@ d="$(project '{"e2e_data_isolation":"ephemeral"}')"
 echo '{"outcome":"passed"}' > "$d/e2e-regression-metadata.json"; echo "$pw" > "$d/r.json"
 assert_eq "no budget: report only, exit 0" 0 "$(run "$d" after --results r.json)"
 assert_eq "no budget: still counted" 3 "$(jq -r '.data.skipped.count' "$d/e2e-regression-metadata.json")"
+
+echo "run record: what the portal accepts"
+d="$(project '{"e2e_data_isolation":"ephemeral"}')"
+echo '{"outcome":"passed"}' > "$d/e2e-regression-metadata.json"
+( cd "$d" && GITHUB_SHA=abc123 bash "$SCRIPT" before >/dev/null 2>&1; GITHUB_SHA=abc123 bash "$SCRIPT" after >/dev/null 2>&1 )
+assert_eq "seedFilesHash is omitted when there are no seed files" false "$(jq 'has("seedFilesHash") or (.data | has("seedFilesHash"))' "$d/e2e-regression-metadata.json")"
+assert_eq "workers is omitted when unknown" false "$(jq '.data | has("workers")' "$d/e2e-regression-metadata.json")"
+assert_eq "seedCommit is kept" abc123 "$(jq -r '.data.seedCommit' "$d/e2e-regression-metadata.json")"
+d="$(project '{"e2e_data_isolation":"ephemeral","e2e_seed_paths":["seed/"]}')"
+( cd "$d" && git init -q && mkdir -p seed && printf 'a' > seed/a.sql && git add -A )
+echo '{"outcome":"passed"}' > "$d/e2e-regression-metadata.json"
+( cd "$d" && bash "$SCRIPT" before >/dev/null 2>&1; bash "$SCRIPT" after >/dev/null 2>&1 )
+assert_eq "seedFilesHash is 64 lowercase hex when there are seed files" true "$(jq '.data.seedFilesHash | test("^[a-f0-9]{64}$")' "$d/e2e-regression-metadata.json")"
+long="$(printf 'x%.0s' $(seq 1 250))"
+many="$(jq -nc --arg long "$long" '([range(0;60)] | map({status:"skipped",annotations:[{type:"skip",description:("r"+tostring)}]})) as $a | {config:{workers:1},suites:[{specs:[{tests: ($a + [{status:"skipped",annotations:[{type:"skip",description:$long}]}])}]}]}')"
+d="$(project '{"e2e_data_isolation":"ephemeral"}')"
+echo '{"outcome":"passed"}' > "$d/e2e-regression-metadata.json"; echo "$many" > "$d/r.json"
+assert_eq "many skip reasons: exit 0" 0 "$(run "$d" after --results r.json)"
+assert_eq "at most 50 distinct reasons" true "$(jq '(.data.skipped.byReason | length) <= 50' "$d/e2e-regression-metadata.json")"
+assert_eq "no reason is longer than 200 characters" true "$(jq '[.data.skipped.byReason | keys[] | length] | max <= 200' "$d/e2e-regression-metadata.json")"
+assert_eq "the count still counts every skipped test" 61 "$(jq '.data.skipped.count' "$d/e2e-regression-metadata.json")"
+
+echo "isolation unknown does nothing (like unset)"
+d="$(project '{"e2e_data_isolation":"unknown","e2e_seed_command":"echo seed >> calls.log"}')"
+assert_eq "unknown: exit 0" 0 "$(run "$d" before)"
+assert_eq "unknown: nothing ran" "" "$(log_of "$d")"
 
 echo "skip budget: pytest JUnit XML"
 xml='<testsuites><testsuite><testcase name="a"><skipped message="needs seed row" type="pytest.skip"/></testcase><testcase name="b"><skipped type="pytest.skip"/></testcase><testcase name="c"/></testsuite></testsuites>'

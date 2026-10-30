@@ -126,11 +126,13 @@ async function send(method: string, url: string, token: string, body: unknown, o
 }
 
 /**
- * Set the project's approval policy (tier B). `PATCH /api/projects/{id}` with `{ approval_policy, reason }`,
- * the project admin's personal access token in `X-DevAudit-Token` (`metasession-dev/devaudit#931`).
+ * Set the project's approval policy (tier B). `PATCH /api/projects/{id}/approval-policy` with
+ * `{ approval_policy, reason? }` (reason at most 500 characters), a project admin's personal access token
+ * in `X-DevAudit-Token`; keys of any role are refused (`metasession-dev/devaudit#931`, confirmed by the
+ * portal on its develop branch, not deployed at the time of writing).
  */
 export async function setApprovalPolicy(opts: PortalWriteOptions, policy: PortalApprovalPolicy, reason: string): Promise<WriteResult> {
-  return send('PATCH', `${opts.baseUrl.replace(/\/$/, '')}/api/projects/${encodeURIComponent(opts.projectId)}`, opts.token, { approval_policy: policy, reason }, opts);
+  return send('PATCH', `${opts.baseUrl.replace(/\/$/, '')}/api/projects/${encodeURIComponent(opts.projectId)}/approval-policy`, opts.token, { approval_policy: policy, reason: reason.slice(0, 500) }, opts);
 }
 
 /** Claim one standard (tier B). `POST /api/projects/{id}/frameworks` with `{ framework }` (`#924`). */

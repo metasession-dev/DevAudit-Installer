@@ -98,6 +98,7 @@ describe('the Playwright regression workflow', () => {
     const commands = { e2e_seed_command: 'npm run seed', e2e_reset_command: 'npm run reset', e2e_preflight_command: 'npm run check-seed', e2e_leak_check_command: 'npm run leaks', e2e_max_skipped: 3 };
     expect((await render(commands)).regression).toBe(base.regression);
     expect((await render({ ...commands, e2e_data_isolation: 'none' })).regression).toBe(base.regression);
+    expect((await render({ ...commands, e2e_data_isolation: 'unknown' })).regression).toBe(base.regression);
     expect(base.regression).not.toContain('e2e-data-lifecycle');
   }, 120_000);
 
