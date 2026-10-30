@@ -1,3 +1,5 @@
+import type { Remediation } from '@metasession.co/devaudit-core';
+
 /**
  * First-pass signal for `fleet-doctor` (devaudit-installer#867): whether a
  * failing check most likely points at this one consumer having drifted from
@@ -14,20 +16,11 @@ export type SuspectedOrigin = 'framework' | 'consumer-drift' | 'unknown';
  * devaudit-installer#956 — additive descriptor a finding may carry. Plain
  * `doctor` only reports it (read-only); `doctor --fix` (phase 3b) acts on it. Tier A = local + reversible, B = portal
  * state change (human PAT), C = git history/code (commands printed only).
+ *
+ * The type lives in `@metasession.co/devaudit-core` (DevAudit-Installer#1116 WP4), where the gap
+ * model that wraps it is shared with the portal.
  */
-export interface Remediation {
-  readonly id: string;
-  readonly tier: 'A' | 'B' | 'C';
-  readonly summary: string;
-  readonly plan: readonly string[];
-  readonly needsPortal: boolean;
-  /**
-   * Machine-readable parameters for `doctor --fix` (ticket path, portal
-   * release id, reason, ...). Additive; absent on descriptors that only
-   * describe guidance.
-   */
-  readonly data?: Readonly<Record<string, string>>;
-}
+export type { Remediation };
 
 export interface Finding {
   /** The release/REQ the finding is about, e.g. `REQ-042`. */

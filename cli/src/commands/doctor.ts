@@ -9,6 +9,7 @@ import { resolveInstallerRoot } from '../lib/installer-root.js';
 import { loadHostAdapter } from '../lib/adapter.js';
 import { resolveAdapters } from '../update/resolve-adapters.js';
 import type { CheckResult, Proposal } from '../lib/doctor-types.js';
+import { gapsFromChecks, gapsFromCloseout } from '../lib/doctor-explain.js';
 import { resolvePortalReadKey, resolveReleaseByPrefix } from '../lib/releases-api.js';
 import {
   buildCredentialsReport,
@@ -865,32 +866,44 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
   if (!jsonMode && deferralIssues) {
     log.warn('Release-deferral findings detected — see above. (Read-only; does not affect the tool check.)');
   }
+  const closeoutProposals: Proposal[] = closeoutDrifted.map((req) => ({
+    check: closeout.name,
+    subject: req,
+    detail: `${req} is released on the portal but still in pending-releases/`,
+    remediation: {
+      id: 'close-out-release',
+      // #984 — guidance: `--fix` never runs close-out-release.sh (it moves
+      // files with git), so it is tier C (printed, not counted as unapplied).
+      tier: 'C' as const,
+      summary: `Close out ${req} locally`,
+      plan: [`./scripts/close-out-release.sh ${req}`],
+      needsPortal: false,
+    },
+  }));
   const proposals: Proposal[] = [
     ...deferralChecks.flatMap((c) =>
       (c.findings ?? []).flatMap((f) =>
         f.remediation ? [{ check: c.name, subject: f.subject, detail: f.detail, remediation: f.remediation }] : [],
       ),
     ),
-    ...closeoutDrifted.map((req) => ({
-      check: closeout.name,
-      subject: req,
-      detail: `${req} is released on the portal but still in pending-releases/`,
-      remediation: {
-        id: 'close-out-release',
-        // #984 — guidance: `--fix` never runs close-out-release.sh (it moves
-        // files with git), so it is tier C (printed, not counted as unapplied).
-        tier: 'C' as const,
-        summary: `Close out ${req} locally`,
-        plan: [`./scripts/close-out-release.sh ${req}`],
-        needsPortal: false,
-      },
-    })),
+    ...closeoutProposals,
     // devaudit-installer#1040 config findings, appended so existing proposal order is unchanged.
     ...onboardingChecks.flatMap((c) =>
       (c.findings ?? []).flatMap((f) =>
         f.remediation ? [{ check: c.name, subject: f.subject, detail: f.detail, remediation: f.remediation }] : [],
       ),
     ),
+  ];
+  // DevAudit-Installer#1116 WP4: every non-ok check as plain-language gaps (why, and the ways to close it).
+  // Additive in --json; the text output above is unchanged.
+  const gaps = [
+    ...gapsFromChecks(checks),
+    ...gapsFromCloseout(
+      closeout,
+      closeoutProposals.map((p) => ({ subject: p.subject, detail: p.detail, remediation: p.remediation })),
+    ),
+    ...gapsFromChecks(onboardingChecks),
+    ...gapsFromChecks(deferralChecks),
   ];
   let fixReport: FixReport | null = null;
   if (options.fix) {
@@ -943,6 +956,8 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
       // Additive (#956): release-deferral checks and inert remediation proposals.
       deferral: deferralChecks,
       proposals,
+      // Additive (#1116 WP4): the same findings as gaps with a plain-language reason and options.
+      gaps,
       ...(fixReport ? { fix: fixReport } : {}),
     });
   }
