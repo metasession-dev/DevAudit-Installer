@@ -1,8 +1,7 @@
 import { promises as fs } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 import { execa } from 'execa';
 import type { FrameworkFile, RepoReader, ScanContext } from '@metasession.co/devaudit-core';
-import { baseName } from '@metasession.co/devaudit-core';
 import { extractEvidenceTypesFromContent } from './evidence-type-extractor.js';
 
 /**
@@ -77,7 +76,7 @@ function starterLookup(installerRoot: string): (fileName: string) => Promise<rea
       await walkFiles(resolve(installerRoot, 'sdlc', 'files', '_common'), out);
       return out;
     })();
-    const hits = (await files).filter((p) => baseName(p) === fileName || baseName(p) === `${fileName}.template`);
+    const hits = (await files).filter((p) => basename(p) === fileName || basename(p) === `${fileName}.template`);
     const contents: string[] = [];
     for (const p of hits) contents.push(await fs.readFile(p, 'utf-8'));
     return contents;

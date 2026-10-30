@@ -197,7 +197,7 @@ export async function runScan(options: ScanOptions, deps: ScanDeps = {}): Promis
     await fs.writeFile(file, content);
   }
   // The last report is cached outside the repository so `install` can reuse it.
-  const cache = cacheFileFor(repoRoot, deps.cacheDir);
+  const cache = cacheFileFor(await fs.realpath(repoRoot).catch(() => repoRoot), deps.cacheDir);
   await fs.mkdir(dirname(cache), { recursive: true });
   await fs.writeFile(cache, `${JSON.stringify(report, null, 2)}\n`);
 
