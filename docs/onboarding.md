@@ -2,6 +2,8 @@
 
 > **This is the operator's onboarding flow** — the first developer setting up a fresh DevAudit project. If you're a second / nth developer joining an **already-onboarded** project, see [`sdlc/files/_common/joining-an-existing-project.md`](../sdlc/files/_common/joining-an-existing-project.md) instead. `devaudit install` is destructive against team-shared state (repo secrets, branch protection); the second-dev path uses `devaudit join` which leaves all of that alone.
 
+**Start with a look, if you like:** `devaudit scan` ([`scan.md`](./scan.md)) reads the repository, shows what it is set up to evidence for the standards you choose, and offers to create your free account and hand over to the guided install with the scan's answers. You can skip it and go straight to the two actions below.
+
 Onboarding replaces the legacy manual setup sequence with **two operator actions**:
 
 1. Issue a Personal Access Token at `https://devaudit.ai/settings/tokens`.

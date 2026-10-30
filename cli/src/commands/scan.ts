@@ -21,7 +21,9 @@ import { emitJsonResult, isJsonMode, logger } from '../lib/logger.js';
 import { CACHE_DIR } from '../lib/paths.js';
 import * as prompts from '../lib/prompt.js';
 import { readSdlcConfig } from '../lib/sdlc-config.js';
+import { clackAsker } from '../install/test-config.js';
 import { clackGuidedAsker } from '../install/prompts.js';
+import { LOCAL_FIXES, NOT_A_TERMINAL_LINE, runAccountStep, type AccountStepDeps } from './scan-account.js';
 import type { GuidedAsker } from '../install/guided.js';
 import { buildScanContext, loadFrameworks } from '../lib/scan-context.js';
 
@@ -56,8 +58,12 @@ export interface ScanDeps {
   readonly gh?: GhRunner;
   readonly say?: (line: string) => void;
   readonly cacheDir?: string;
-  /** Test seam: replaces the terminal check. */
+  /** Test seam: replaces the terminal check for the framework question. */
   readonly interactive?: boolean;
+  /** Test seam: whether stdin and stdout are terminals and `CI` is unset (the account offer needs it). */
+  readonly terminal?: boolean;
+  /** Test seam for the account step (WP11). */
+  readonly account?: Partial<AccountStepDeps>;
 }
 
 const COMPLIANCE_CHOICES = [
@@ -205,6 +211,21 @@ export async function runScan(options: ScanOptions, deps: ScanDeps = {}): Promis
   else {
     say(renderText(report));
     for (const [file] of writes) say(`Wrote ${file}`);
+  }
+
+  // ---- the account step (WP11): after the report, never with --json, --ci or without a terminal -----------
+  if (!json && !options.ci) {
+    if (options.local) {
+      say(LOCAL_FIXES);
+    } else if (!(deps.terminal ?? prompts.nonInteractiveReason(false) === null)) {
+      say(NOT_A_TERMINAL_LINE);
+    } else {
+      const base = ((cfg?.['devaudit'] as { base_url?: string } | undefined)?.base_url ?? process.env['DEVAUDIT_BASE_URL'] ?? 'https://devaudit.ai').replace(/\/$/, '');
+      await runAccountStep(
+        { report, cacheFile: cache, repoRoot, baseUrl: base, cfg },
+        { say, ask: { confirm: (m, i) => clackAsker.confirm(m, i), select: (m, o, i) => clackAsker.select(m, o, i) }, ...deps.account },
+      );
+    }
   }
 
   if (options.ci && missingCount(report) > maxMissing) {
