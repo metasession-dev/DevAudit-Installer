@@ -816,7 +816,7 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     // Phase 0 states the model and carries the canonical per-step table.
     expect(skill).toContain('an agent holds neither the uploader key nor the PAT');
     expect(skill).toContain('Who does what, step by step.');
-    expect(skill).toContain('Never run `devaudit install`, `join`, `auth`, `doctor --fix` or `doctor --fleet`.');
+    expect(skill).toContain('Never run `devaudit install`, `join`, `auth`, `doctor --fix`, `doctor --fleet` or `devaudit agent-permissions apply`.');
     // Evidence reaches the portal through CI; state is read with release status.
     expect(skill).toContain('`Compliance Evidence Upload`');
     expect(skill).toContain('gh run list --workflow \"Compliance Evidence Upload\" --commit <sha>');

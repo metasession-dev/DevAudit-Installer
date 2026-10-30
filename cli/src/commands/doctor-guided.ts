@@ -69,6 +69,8 @@ export interface GuidedDeps {
   readonly collect: () => Promise<{ gaps: readonly Gap[]; proposals?: readonly Proposal[] }>;
   readonly fixDeps: FixDeps;
   readonly say?: (line: string) => void;
+  /** Adds options to gaps before they are shown (a tier A repair that exists only in guided mode). */
+  readonly decorate?: (gaps: readonly Gap[]) => Gap[];
   /** `--json` is set: nothing is prompted. */
   readonly json?: boolean;
 }
@@ -104,7 +106,8 @@ export async function runGuided(scope: string | undefined, deps: GuidedDeps): Pr
     logger().error(`Unknown check "${scope}". Checks doctor can explain: ${EXPLAINED_CHECKS.join(', ')}.`);
     return { exitCode: GUIDED_EXIT_REFUSED, ...empty };
   }
-  const inScope = (gaps: readonly Gap[]): Gap[] => gaps.filter((g) => scope === undefined || g.check === scope);
+  const decorate = deps.decorate ?? ((g: readonly Gap[]) => [...g]);
+  const inScope = (gaps: readonly Gap[]): Gap[] => decorate(gaps).filter((g) => scope === undefined || g.check === scope);
   let current = await deps.collect();
   let queue = orderGaps(inScope(current.gaps));
   if (queue.length === 0) {

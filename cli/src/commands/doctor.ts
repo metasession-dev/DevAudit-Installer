@@ -256,6 +256,9 @@ function checkPatInEnvironment(env: NodeJS.ProcessEnv = process.env): CheckResul
  * Claude Code deny rules that keep an agent session away from the PAT present? Reads settings files
  * only; the installer never writes a user's agent settings. Never fails the run (`ok` stays true).
  */
+/** What `apply` can write: Claude Code only. The others have no mechanism it can express (docs/agent-permissions.md). */
+const OTHER_AGENTS_NOTE = 'no documented mechanism for Gemini CLI, Cursor or Windsurf that `apply` can write; nothing to apply';
+
 async function checkAgentPermissions(deps?: Partial<AgentPermissionsDeps>): Promise<CheckResult> {
   const name = 'agent-permissions';
   const consumer = await readConsumerConfig();
@@ -263,13 +266,13 @@ async function checkAgentPermissions(deps?: Partial<AgentPermissionsDeps>): Prom
   try {
     const r = await agentPermissionsReport({ repoRoot: consumer.repoRoot, ...deps });
     if (r.missingGroups.length === 0) {
-      return { name, ok: true, detail: `Claude Code: all ${r.total} recommended deny rules present (PAT commands, credential store); other agents: not checked`, suspectedOrigin: 'unknown' };
+      return { name, ok: true, detail: `Claude Code: all ${r.total} recommended deny rules present (PAT commands, credential store); other agents: ${OTHER_AGENTS_NOTE}`, suspectedOrigin: 'unknown' };
     }
     const where = r.files.length === 0 ? 'no Claude Code settings file found' : `${r.present} of ${r.total} recommended deny rules present; missing: ${r.missingGroups.join(', ')}`;
     return {
       name,
       ok: true,
-      detail: `Claude Code: ${where} (recommended, not required: keeps agent sessions away from your PAT; see docs/agent-permissions.md); other agents: not checked`,
+      detail: `Claude Code: ${where} (recommended, not required: keeps agent sessions away from your PAT). Fix: \`devaudit agent-permissions apply\` (user scope is the stronger one; \`--scope project|local\` are the others; see docs/agent-permissions.md); other agents: ${OTHER_AGENTS_NOTE}`,
       suspectedOrigin: 'unknown',
       findings: [
         {
@@ -279,7 +282,7 @@ async function checkAgentPermissions(deps?: Partial<AgentPermissionsDeps>): Prom
             id: 'add-agent-permission-rules',
             tier: 'C',
             summary: 'Add the recommended agent permission rules',
-            plan: ['copy the snippet from docs/agent-permissions.md into .claude/settings.json (this project) or ~/.claude/settings.json (all your projects); devaudit never edits your agent settings'],
+            plan: ['run devaudit agent-permissions apply yourself (it shows the rules and the file, asks, backs the file up and merges into permissions.deny)', 'or copy the snippet from docs/agent-permissions.md into your agent settings'],
             needsPortal: false,
           },
         },
@@ -1027,6 +1030,8 @@ export async function runDoctorGuided(
     ask: prompts,
     json: isJsonMode(),
     fixDeps: { ...fixDepsFor(first.consumer), ...options.fix?.deps },
+    // DevAudit-Installer#1116 WP13: guided mode also offers the apply as a tier A option (same function as the command).
+    decorate: withAgentPermissionsOption,
     // The first collection is reused; later calls (after a fix) run the checks again, without the slow measurement.
     collect: (() => {
       let used = false;
@@ -1042,4 +1047,32 @@ export async function runDoctorGuided(
     ...options.guided,
   });
   return report.exitCode;
+}
+
+/** Adds the tier A "apply the rules" option to the `agent-permissions` gap (the tier C guidance stays as the other option). */
+export function withAgentPermissionsOption(gaps: readonly Gap[]): Gap[] {
+  return gaps.map((g) =>
+    g.check !== 'agent-permissions' || g.options.some((o) => o.id === 'apply-agent-permissions')
+      ? g
+      : {
+          ...g,
+          options: [
+            {
+              id: 'apply-agent-permissions',
+              label: 'Add the recommended agent permission rules to your user settings (devaudit agent-permissions apply)',
+              tier: 'A' as const,
+              consequence: 'Changes a local file (a timestamped backup is written first); the change is reversible. Your agent settings are edited only after you confirm.',
+              remediation: {
+                id: 'apply-agent-permissions',
+                tier: 'A' as const,
+                summary: 'Add the recommended agent permission rules to your user settings',
+                plan: ['devaudit agent-permissions apply'],
+                needsPortal: false,
+                data: { scope: 'user' },
+              },
+            },
+            ...g.options,
+          ],
+        },
+  );
 }

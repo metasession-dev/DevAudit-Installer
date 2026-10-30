@@ -2,6 +2,7 @@ import { runInstall } from '../install/index.js';
 import { InstallRefusal } from '../install/refusal.js';
 import { logger } from '../lib/logger.js';
 import { printCredentialsBlock } from '../lib/credentials-check.js';
+import { offerAgentPermissions } from './agent-permissions.js';
 
 export interface InstallOptions {
   readonly path?: string;
@@ -58,6 +59,8 @@ export async function runInstallCommand(options: InstallOptions): Promise<void> 
       ...(options.fromScan !== undefined ? { fromScan: options.fromScan } : {}),
     });
     if (!options.dryRun) await printCredentialsBlock(options.path);
+    // DevAudit-Installer#1116 WP13: offered once, never forced.
+    await offerAgentPermissions({ ...(options.dryRun !== undefined ? { dryRun: options.dryRun } : {}), ...(options.path !== undefined ? { cwd: options.path } : {}) });
   } catch (err) {
     log.error((err as Error).message);
     // A refused option (unknown --preset, a preset the portal cannot support, an unreadable scan file) exits 2.

@@ -13,7 +13,7 @@ The portal enforces the split: every `/api/ci/*` route accepts API keys only, an
 
 ## Keeping agent sessions away from the PAT (recommended)
 
-The skill text, the interactive-only `doctor --fix` and the `doctor` warning are the first three layers. The fourth, recommended and not required, is a set of agent permission rules that refuse the PAT commands and reads of this credential folder even if a skill is ignored or a prompt is injected: [`agent-permissions.md`](./agent-permissions.md) has the copy-paste Claude Code rules (tested on a real agent), what the other agents document, and the limits. It is defence in depth, not a sandbox; `devaudit doctor` only reports whether the rules are present.
+The skill text, the interactive-only `doctor --fix` and the `doctor` warning are the first three layers. The fourth, recommended and not required, is a set of agent permission rules that refuse the PAT commands and reads of this credential folder even if a skill is ignored or a prompt is injected: [`agent-permissions.md`](./agent-permissions.md) has the copy-paste Claude Code rules (tested on a real agent), what the other agents document, and the limits. It is defence in depth, not a sandbox; `devaudit agent-permissions apply` adds them to your agent settings after a confirmation (user scope by default, with a backup), `install`, `join` and `update` offer it once, and `devaudit doctor` reports whether they are present and names that command.
 
 ## Who does what, step by step
 
