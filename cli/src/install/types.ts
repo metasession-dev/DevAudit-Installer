@@ -75,6 +75,14 @@ export interface InstallContext {
    * never written.
    */
   readonly testOptions?: Readonly<Record<string, string>>;
+  /** `--preset <A|B|C|D|custom>` (devaudit-installer#1116 WP6); validated before anything is touched. */
+  readonly preset?: string;
+  /** `--from-scan <file|report-id>`: a scan report to take the suggested preset and standards from. */
+  readonly fromScan?: string;
+  /** The parsed `--from-scan` report (validated before anything is touched). */
+  readonly scanHints?: import('./scan-hints.js').ScanHints;
+  /** `devaudit join`: no registry question is asked and no policy or preset is written. */
+  readonly joining?: boolean;
   /**
    * Set to `'developer'` only AFTER the orchestrator's mode-detection runs
    * (between step 6 and step 7); the steps that run before that point (1–6)
@@ -122,6 +130,25 @@ export interface InstallPlan {
   testConfig?: Record<string, unknown>;
   /** Things to tell the operator about the test tier choices (printed in the summary). */
   testNotes?: readonly string[];
+  /** What the guided onboarding decided (devaudit-installer#1116 WP6); absent when no preset or registry answer applies. */
+  onboarding?: OnboardingPlan;
+}
+
+export interface OnboardingPlan {
+  /** Recorded as `onboarding_preset`; null when none was chosen and the config is kept. */
+  readonly preset: string | null;
+  /** Dotted config keys to write on top of the existing config. */
+  readonly config: Readonly<Record<string, unknown>>;
+  /** Dotted config keys of other presets to remove. */
+  readonly removeKeys: readonly string[];
+  /** The approval policy to set on the portal (tier B). */
+  readonly policyToSet: 'independent' | 'self_allowed_with_gap' | null;
+  /** The standards the person needs evidence for. */
+  readonly frameworks: readonly string[];
+  /** The standards the portal already lists for the project; null when it cannot say. */
+  readonly portalStandards: readonly string[] | null;
+  /** The label of the self-hosted runner, written as the `CI_RUNNER_LABEL` repository variable. */
+  readonly runnerLabel?: string;
 }
 
 export interface DetectedStack {

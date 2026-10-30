@@ -255,7 +255,7 @@ Precisely (see the *Never touched by `update`* line and the `sdlc-config.json` r
 
 There are two paths:
 
-- **Detected or prompted at `install` time.** The CLI reads `pyproject.toml` / `package.json` to infer the stack and working directory, then prompts for the remaining wizard values (project slug, runtime version, source dirs, working directory, production URL secret). See [`onboarding.md`](onboarding.md#step-2--run-the-installer).
+- **Detected or prompted at `install` time.** The CLI reads `pyproject.toml` / `package.json` to infer the stack and working directory, then runs the guided install: a suggested preset and one summary to accept, change or expand into the remaining wizard values (project slug, runtime version, source dirs, working directory, production URL secret). See [`onboarding.md`](onboarding.md#presets-and-the-guided-install).
 - **Added by hand later, for anything `install` did not ask about** (`database_*`, `paths_ignore`, `e2e_*`, `runner`, `install_flags`, ...). Nothing auto-populates these. The end-to-end workflow for a new customisation is:
   1. Look for an existing key: read the `SdlcConfig` interface in `cli/src/update/ci-templates.ts` (the only copy that cannot go stale) or the annotated [`sdlc/files/sdlc-config.example.json`](../sdlc/files/sdlc-config.example.json), which is the closest thing to a full field reference today. Each key has a `_comment_<key>` entry.
   2. If a key exists, set it in `sdlc-config.json` and run `devaudit update`. Nothing to patch, and it survives every future sync.
