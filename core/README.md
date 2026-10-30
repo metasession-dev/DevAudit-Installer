@@ -23,6 +23,10 @@ const facts = await detectFacts(fsRepoReader(process.cwd()));
 
 Detection reads files only, through a `RepoReader`. It never runs anything from the repository and never reads outside it: a path that is absolute or has a `..` segment is refused with `RepoPathError`, and `fsRepoReader` treats a symlink that leaves the root as absent. A directory entry from `list` ends with `/`. The portal supplies its own `RepoReader` over the GitHub API.
 
+## Gaps
+
+`Gap` is the shape for "this is not as it should be, here is why, and here is what you can do": `{ id, source, check, subject, title, why, controls, options[] }`, each option `{ id, label, tier, consequence, remediation? }` with a fix tier of `A` (local and reversible), `B` (portal state, interactive only) or `C` (guidance that is printed, never run). `findingToGap(check, finding, explanation?)` builds one from a check's finding and never returns a gap without a reason or an option. A gap describes; whoever shows it decides what to offer and always lets the person leave it as it is.
+
 ## Develop
 
 ```sh

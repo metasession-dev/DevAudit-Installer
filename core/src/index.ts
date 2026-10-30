@@ -24,4 +24,16 @@ export {
   type RepoReader,
 } from './repo-reader.js';
 
+export {
+  findingToGap,
+  gapId,
+  type ClauseState,
+  type FindingInput,
+  type FixTier,
+  type Gap,
+  type GapExplanation,
+  type GapOption,
+  type Remediation,
+} from './gap.js';
+
 export * from './detect/index.js';
