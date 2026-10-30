@@ -90,7 +90,7 @@ jobs:
             INCIDENT_REPORTS=$(find compliance/governance -maxdepth 1 -name 'incident-report*.md' -type f 2>/dev/null | wc -l | tr -d ' ')
           fi
           # CI pass-rate over the period — best-effort via gh.
-          CI_RUNS=$(gh run list --branch develop --limit 100 --json conclusion,createdAt 2>/dev/null || echo '[]')
+          CI_RUNS=$(gh run list --branch {{INTEGRATION_BRANCH}} --limit 100 --json conclusion,createdAt 2>/dev/null || echo '[]')
           TOTAL_RUNS=$(echo "$CI_RUNS" | jq --arg since "${PERIOD_START}T00:00:00Z" '[.[] | select(.createdAt >= $since)] | length' 2>/dev/null || echo 0)
           PASSED_RUNS=$(echo "$CI_RUNS" | jq --arg since "${PERIOD_START}T00:00:00Z" '[.[] | select(.createdAt >= $since and .conclusion == "success")] | length' 2>/dev/null || echo 0)
           PASS_RATE="n/a"
@@ -162,7 +162,7 @@ jobs:
           | Deferred releases at period end           | ${DEFERRED_RELEASES}      |
           | Approved releases (cumulative)            | ${APPROVED_RELEASES}      |
           | Incident reports on disk                  | ${INCIDENT_REPORTS}       |
-          | CI runs on \`develop\` (this period)       | ${CI_TOTAL}               |
+          | CI runs on \`{{INTEGRATION_BRANCH}}\` (this period)       | ${CI_TOTAL}               |
           | CI runs passing                           | ${CI_PASSED}              |
           | CI pass rate                              | ${CI_PASS_RATE}           |
 
@@ -196,7 +196,7 @@ jobs:
 
           ---
 
-          _Source data: \`compliance/RTM.md\`, \`compliance/pending-releases/\`, \`compliance/approved-releases/\`, \`compliance/governance/incident-report-*.md\`, GitHub Actions runs on \`develop\` since ${PERIOD_START}._
+          _Source data: \`compliance/RTM.md\`, \`compliance/pending-releases/\`, \`compliance/approved-releases/\`, \`compliance/governance/incident-report-*.md\`, GitHub Actions runs on \`{{INTEGRATION_BRANCH}}\` since ${PERIOD_START}._
           EOF
           echo "Generated compliance/governance/periodic-review.md"
 
@@ -213,8 +213,8 @@ jobs:
           # Branch from develop. If a branch from a prior failed run exists,
           # blow it away and start fresh; we always regenerate from the latest
           # repo state.
-          git fetch origin develop
-          git checkout -B "${BRANCH}" origin/develop
+          git fetch origin {{INTEGRATION_BRANCH}}
+          git checkout -B "${BRANCH}" origin/{{INTEGRATION_BRANCH}}
           git add compliance/governance/periodic-review.md
           if git diff --cached --quiet; then
             echo "No change to periodic-review.md — nothing to do."
@@ -281,11 +281,11 @@ jobs:
               "- \`SOC2.CC4.1\` (Monitoring of internal controls)" \
               "- \`ISO27001.A.12.1\` (Operational procedures and responsibilities)" \
               "" \
-              "Verify at \`${BASE}/projects/<slug>/compliance\` after the PR-merge push lands on develop — both clauses should flip MISSING → COVERED within ~2 minutes. Stays COVERED for 365 days (portal's \`freshnessDays\`), then flips to EXPIRED until the next quarterly review." \
+              "Verify at \`${BASE}/projects/<slug>/compliance\` after the PR-merge push lands on {{INTEGRATION_BRANCH}} — both clauses should flip MISSING → COVERED within ~2 minutes. Stays COVERED for 365 days (portal's \`freshnessDays\`), then flips to EXPIRED until the next quarterly review." \
               "" \
               "See [\`docs/governance-templates.md\`](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/governance-templates.md#soc-2--trust-services-criteria) for full guidance." \
               > "$PR_BODY_FILE"
-            gh pr create --base develop --head "${BRANCH}" \
+            gh pr create --base {{INTEGRATION_BRANCH}} --head "${BRANCH}" \
               --title "chore(compliance): periodic review ${REVIEW_ID}" \
               --body-file "$PR_BODY_FILE"
             rm -f "$PR_BODY_FILE"

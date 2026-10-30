@@ -702,7 +702,7 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
       "::error::client_payload incomplete (approved_sha and release_pr both missing or unresolvable)",
     );
     expect(source.indexOf('::error::client_payload incomplete')).toBeLessThan(
-      source.indexOf("gh pr list --base main --json number,headRefOid,updatedAt --limit 20"),
+      source.indexOf("gh pr list --base {{RELEASE_BRANCH}} --json number,headRefOid,updatedAt --limit 20"),
     );
   });
 

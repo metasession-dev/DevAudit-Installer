@@ -106,7 +106,7 @@ jobs:
 
           # Path A: only ISO29119.3.5.4 ticked, no GDPR/SOC2/EUAIA.
           if [ "$HAS_ISO_ONLY" = true ] && [ "$HAS_SOC2" = false ] && [ "$HAS_GDPR" = false ] && [ "$HAS_EUAIA" = false ]; then
-            echo "Path A: baseline-only (ISO29119.3.5.4) — direct commit to develop"
+            echo "Path A: baseline-only (ISO29119.3.5.4) — direct commit to {{INTEGRATION_BRANCH}}"
             echo "path=A" >> "$GITHUB_OUTPUT"
           else
             echo "Path B: GDPR/SOC2/EUAIA attribution — PR with REPLACE markers"
@@ -252,7 +252,7 @@ jobs:
               "> The narrative below is the original issue body + comments.",
               "> No GDPR triage required — framework attribution confirmed baseline-only.",
               "> DevAudit-Installer#210: structured sections (§4-§9) auto-populated from linked PRs + issue body.",
-              "> Sign-off section has REPLACE markers — complete before pushing to develop.",
+              "> Sign-off section has REPLACE markers — complete before pushing to {{INTEGRATION_BRANCH}}.",
               "",
               "# Incident Report — " + .title,
               "",
@@ -443,7 +443,7 @@ jobs:
           } > "$OUT"
           echo "Wrote $OUT (Path B)"
 
-      - name: Direct commit to develop (Path A)
+      - name: Direct commit to {{INTEGRATION_BRANCH}} (Path A)
         if: steps.route.outputs.path == 'A'
         env:
           # GitHub push uses the workflow token plus job permissions.
@@ -460,7 +460,7 @@ jobs:
             exit 0
           fi
           git commit -m "chore(compliance): export incident #${ISSUE_NUMBER} (baseline-only, Path A)" -m "Auto-exported by Incident Export workflow." -m "" -m "Source: ${ISSUE_URL}" -m "" -m "Framework attribution: ISO29119.3.5.4 only — no GDPR/SOC2/EUAIA. Direct commit (no PR required)."
-          git push origin HEAD:develop
+          git push origin HEAD:{{INTEGRATION_BRANCH}}
 
       - name: Open export PR (Path B)
         if: steps.route.outputs.path == 'B'
@@ -474,8 +474,8 @@ jobs:
         run: |
           git config user.name 'devaudit-bot'
           git config user.email 'devaudit-bot@users.noreply.github.com'
-          git fetch origin develop
-          git checkout -B "${BRANCH}" origin/develop
+          git fetch origin {{INTEGRATION_BRANCH}}
+          git checkout -B "${BRANCH}" origin/{{INTEGRATION_BRANCH}}
           git add "$OUT"
           if git diff --cached --quiet; then
             echo "No change — already exported."
@@ -485,7 +485,7 @@ jobs:
           git push --force-with-lease origin "${BRANCH}"
           EXISTING=$(gh pr list --head "${BRANCH}" --json number --jq '.[0].number' || true)
           if [ -z "$EXISTING" ]; then
-            gh pr create --base develop --head "${BRANCH}" \
+            gh pr create --base {{INTEGRATION_BRANCH}} --head "${BRANCH}" \
               --title "chore(compliance): export incident #${ISSUE_NUMBER}" \
               --body "Auto-exported by the \`Incident Export\` workflow when issue [#${ISSUE_NUMBER}](${ISSUE_URL}) was closed with label \`incident\`.\n\n**Required before merge:**\n- [ ] Replace \`REPLACE — …\` markers in the **GDPR triage** section (personal-data Y/N decision is load-bearing)\n- [ ] Fill in **severity** in the frontmatter\n- [ ] Add reviewer sign-off (IC, Eng lead, DPO if PII, Security lead)\n- [ ] If 72h window applies and we're outside it, document the delay explicitly\n\nSee [\`compliance/governance/incident-report.md\`](compliance/governance/incident-report.md) (the v0.1.30 starter) and [\`DevAudit-Installer/docs/governance-templates.md\`](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/governance-templates.md#gdpr--eu-general-data-protection-regulation-2016679) for guidance.\n\nCloses (for this incident) \`ISO29119.3.5.4\` + \`SOC2.CC7.2\`; \`GDPR.Art-33\` + \`Art-34\` close once the triage section is filled in."
           else

@@ -31,6 +31,22 @@ Then it prints:
 
 Exit codes: `0` applied, unchanged or dry run; `2` invalid key or value; `8` not applied (needs a confirmation or `--reason`).
 
+## Dotted keys and the onboarding keys
+
+A key with a dot lives inside a section of `sdlc-config.json`: `approval.mode` is `approval.mode` in the `approval` object, and `production_review.terminal_status` is in `production_review`. `configure set` writes only that value; the section's other fields and the file's key order are kept, and a missing section is created.
+
+| Key | Values | What it does |
+| --- | --- | --- |
+| `approval.mode` | `dual_actor` (default), `solo_with_gap` | Who may approve a release: a different person, or the author with a recorded control gap. Read by the `sdlc-implementer` and `risk-register-keeper` skills; the portal has its own approval policy, which `doctor` compares with this one. |
+| `production_review.terminal_status` | `prod_review` (default), `released` | Where `post-deploy-prod.yml` leaves a release: waiting for a person to confirm production, or released automatically. |
+| `release_branch_required_reviews` | `0`, `1` (default), `2` | Approving reviews GitHub requires on the release branch. `devaudit install` applies it. `devaudit update` keeps the branch at it: raising is automatic; **lowering an existing branch asks for a confirmation** that states the recorded control gap, and without a terminal it only reports the difference. `0` lets the author merge their own release PR. |
+| `compliance_frameworks` | `soc-2`, `iso-27001`, `iso-29119`, `gdpr`, `eu-ai-act` (a list, or empty) | The standards the project needs evidence for. The portal's claimed standards win when they differ. |
+| `onboarding_preset` | `A`, `B`, `C`, `D`, `custom` | The onboarding preset the project chose. A missing key means `custom`. |
+| `e2e_data_isolation` | `none`, `ephemeral`, `shared_serialised`, `shared` | Where the end-to-end tests get their data. Unset keeps today's behaviour. |
+| `e2e_seed_paths`, `e2e_reset_command`, `e2e_preflight_command`, `e2e_leak_check_command`, `e2e_max_skipped`, `feature_e2e_projects` | lists, one-line commands, a number | Test-data settings the project owns. They are defined now and take effect with the test-data work of DevAudit-Installer#1116 (work package WP15); no generated file reads them yet. |
+
+None of these regenerates a workflow, so `configure set` for them prints no list of files. `release_branch_required_reviews` takes effect at the next `devaudit update`.
+
 ## `configure secret`
 
 ```bash

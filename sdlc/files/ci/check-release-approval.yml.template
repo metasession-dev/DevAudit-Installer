@@ -59,7 +59,7 @@ jobs:
           # devaudit#283 — repository_dispatch events don't have a
           # pull_request payload. Fall back to the develop branch ref so
           # the gate can resolve the release and post a status check.
-          ref: ${{ github.event.pull_request.head.sha || 'develop' }}
+          ref: ${{ github.event.pull_request.head.sha || '{{INTEGRATION_BRANCH}}' }}
           fetch-depth: 0
           # See ci.yml.template's checkout step for why (devaudit-installer#676/#815).
           clean: {{CHECKOUT_CLEAN}}
@@ -228,7 +228,7 @@ jobs:
           done
           VERSION=$(echo "$RESP" | jq -r '.latest.version // empty')
           if [ -z "$VERSION" ]; then
-            echo "::error::No release found for ${LOOKUP_PREFIX} after ${MAX_ATTEMPTS} attempts. Push to develop first to create the release."
+            echo "::error::No release found for ${LOOKUP_PREFIX} after ${MAX_ATTEMPTS} attempts. Push to {{INTEGRATION_BRANCH}} first to create the release."
             exit 1
           fi
           RELEASE_ID=$(echo "$RESP" | jq -r '.latest.id')
@@ -330,8 +330,8 @@ jobs:
             # main concurrently. Make that loud and visible instead of
             # letting it pass unremarked — this is best-effort recovery,
             # not a reliable resolution.
-            echo "::error::client_payload incomplete (approved_sha and release_pr both missing or unresolvable) — falling back to the 'most recently updated open PR against main' heuristic to refresh the approval check. This can target the wrong PR if multiple release PRs are open concurrently. Investigate why the portal's release-approved dispatch payload was incomplete."
-            PR_DATA=$(gh pr list --base main --json number,headRefOid,updatedAt --limit 20 2>/dev/null || echo '[]')
+            echo "::error::client_payload incomplete (approved_sha and release_pr both missing or unresolvable) — falling back to the 'most recently updated open PR against {{RELEASE_BRANCH}}' heuristic to refresh the approval check. This can target the wrong PR if multiple release PRs are open concurrently. Investigate why the portal's release-approved dispatch payload was incomplete."
+            PR_DATA=$(gh pr list --base {{RELEASE_BRANCH}} --json number,headRefOid,updatedAt --limit 20 2>/dev/null || echo '[]')
             TARGET_SHA=$(echo "$PR_DATA" | jq -r 'sort_by(.updatedAt) | reverse | .[0].headRefOid // empty' 2>/dev/null || true)
           fi
 

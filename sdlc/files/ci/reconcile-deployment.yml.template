@@ -14,7 +14,7 @@ on:
         description: 'REQ-XXX release receiving recovery evidence'
         required: true
       expected_sha:
-        description: 'Exact main SHA verified at the provider'
+        description: 'Exact {{RELEASE_BRANCH}} SHA verified at the provider'
         required: true
       github_deployment_id:
         description: 'Existing GitHub deployment ID to reconcile'
@@ -69,5 +69,5 @@ jobs:
         run: |
           bash scripts/upload-evidence.sh {{PROJECT_SLUG}} "${{ inputs.release }}" test_report deployment-reconciliation.json \
             --category release_artifact --release "${{ inputs.release }}" --environment production \
-            --git-sha "${{ inputs.expected_sha }}" --branch main --sdlc-stage 5 \
+            --git-sha "${{ inputs.expected_sha }}" --branch {{RELEASE_BRANCH}} --sdlc-stage 5 \
             --meta-key 'provenance=manual_reconciliation' --meta-key 'provider={{HOST}}'

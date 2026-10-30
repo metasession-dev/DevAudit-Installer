@@ -21,6 +21,10 @@ An admin must configure these via **repo Settings → Branches → Branch protec
 | Allow force pushes | ❌ |
 | Allow deletions | ❌ |
 
+### The review count on `main` in a DevAudit-managed repository
+
+`devaudit install` and `devaudit update` manage the required approving reviews on the release branch from `release_branch_required_reviews` in `sdlc-config.json`: `1` (the default, as in the table above), `0` or `2`. GitHub never counts the author's own approval, so with `1` a solo developer cannot merge their own release PR; choose `0` and DevAudit records the control gap (the portal's approval policy must allow it too). Change it with `devaudit configure set release_branch_required_reviews 0`. `devaudit update` then keeps the branch at that number: it raises a lower count on its own, and **asks for a confirmation before lowering** an existing branch (without a terminal it reports the difference and changes nothing). Without the key, `update` keeps a minimum of 1 and never lowers anything. See [configure.md](./configure.md).
+
 ### `develop` branch
 
 | Setting | Value |

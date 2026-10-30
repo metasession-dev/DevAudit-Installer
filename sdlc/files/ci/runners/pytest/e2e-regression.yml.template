@@ -246,7 +246,7 @@ jobs:
           - [ ] Read the run log: ${RUN_URL}
           - [ ] Pull \`e2e-regression-report\` artifact from the run; inspect \`e2e-regression-results.xml\` for the failure details
           - [ ] Decide: hotfix on \`{{RELEASE_BRANCH}}\`, revert \`${MERGE_SHA_SHORT}\`, or accept-with-rationale if the failure is environmental
-          - [ ] If the failing spec is a Must-tier candidate that should have caught this pre-merge, mark it \`@pytest.mark.critical\` so the next PR-to-main runs it
+          - [ ] If the failing spec is a Must-tier candidate that should have caught this pre-merge, mark it \`@pytest.mark.critical\` so the next PR-to-{{RELEASE_BRANCH}} runs it
 
           **Auto-filed by:** \`e2e-regression.yml\` (DevAudit-Installer#821 3-tier gating)
           EOF

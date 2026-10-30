@@ -27,6 +27,9 @@ export interface ConfigKeySpec {
 
 export const SECRET_NAME = /^[A-Z][A-Z0-9_]*$/;
 
+/** The standards a project can claim (DevAudit-Installer#1116 Q13); also the codes of `compliance_frameworks`. */
+export const COMPLIANCE_FRAMEWORK_CODES: readonly string[] = ['soc-2', 'iso-27001', 'iso-29119', 'gdpr', 'eu-ai-act'];
+
 const secretName = (value: unknown): string | null =>
   typeof value === 'string' && SECRET_NAME.test(value)
     ? null
@@ -65,6 +68,18 @@ const cronOrEmpty = (value: unknown): string | null => {
   if (/['"\r\n]/.test(value)) return 'must not contain quotes or line breaks';
   return /^\S+(\s+\S+){4}$/.test(value.trim()) ? null : 'must be a cron expression with five space-separated fields, e.g. "0 3 * * *"';
 };
+
+/** Like `shellCommand`, but an empty string is allowed (it unsets the command). */
+const optionalShellCommand = (value: unknown): string | null =>
+  typeof value === 'string' && value.trim() === '' ? null : shellCommand(value);
+
+const frameworkCodes = (value: unknown): string | null =>
+  Array.isArray(value) && value.every((v) => typeof v === 'string' && COMPLIANCE_FRAMEWORK_CODES.includes(v))
+    ? null
+    : `every entry must be one of: ${COMPLIANCE_FRAMEWORK_CODES.join(', ')}`;
+
+const reviewCount = (value: unknown): string | null =>
+  typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 2 ? null : 'must be 0, 1 or 2';
 
 const featureCommand = (value: unknown): string | null =>
   shellCommand(value) ?? (String(value).includes('{REQ}') ? null : 'must contain the {REQ} placeholder');
@@ -264,6 +279,101 @@ export const CONFIG_KEYS: readonly ConfigKeySpec[] = [
     affects: ['.github/workflows/e2e-regression.yml'],
   },
   { key: 'paths_ignore', type: 'string[]', description: 'Paths that do not trigger CI on push.', affects: CI },
+
+  // ---- DevAudit-Installer#1116 WP2: approval, production review, standards and the onboarding preset ----
+  // `approval.mode` and `production_review.terminal_status` are dotted keys: they live inside the
+  // `approval` and `production_review` objects of sdlc-config.json (see lib/config-path.ts).
+  {
+    key: 'approval.mode',
+    type: 'string',
+    description:
+      'Who may approve a release: dual_actor (the approver must differ from the author; the default) or solo_with_gap (the author approves their own release and DevAudit records the control gap). Read by the sdlc-implementer and risk-register-keeper skills; the portal has its own approval policy that doctor compares with this one.',
+    enum: ['dual_actor', 'solo_with_gap'],
+    affects: [],
+  },
+  {
+    key: 'production_review.terminal_status',
+    type: 'string',
+    description:
+      'Where post-deploy-prod.yml leaves a release after the production evidence: prod_review (a person confirms production, the default) or released (it completes automatically). Read by the workflow at run time.',
+    enum: ['prod_review', 'released'],
+    affects: [],
+  },
+  {
+    key: 'release_branch_required_reviews',
+    type: 'integer',
+    description:
+      'Approving reviews GitHub requires on the release branch: 0, 1 (default) or 2. 0 lets the author merge their own release PR, a recorded control gap. Applied to branch protection by devaudit install and devaudit update; lowering it on an existing branch asks for a confirmation.',
+    validate: reviewCount,
+    affects: [],
+  },
+  {
+    key: 'compliance_frameworks',
+    type: 'string[]',
+    description: `Standards the project needs evidence for (${COMPLIANCE_FRAMEWORK_CODES.join(', ')}); empty for none. The portal's claimed standards win when they differ; this key lets doctor notice a change and work offline.`,
+    validate: frameworkCodes,
+    affects: [],
+  },
+  {
+    key: 'onboarding_preset',
+    type: 'string',
+    description:
+      'The onboarding preset the project chose: A (solo, fast feedback), B (safety net), C (team with a compliance lead), D (C with the full pack run once, before merge) or custom. A missing key means custom: a project onboarded before presets existed is never moved onto one.',
+    enum: ['A', 'B', 'C', 'D', 'custom'],
+    affects: [],
+  },
+
+  // ---- DevAudit-Installer#1116 WP2 / decision M7: test data. Defined here so the question registry
+  // and the install and configure flows can ask for them; WP15 gives them behaviour, so for now no
+  // generated file reads them. ----
+  {
+    key: 'e2e_data_isolation',
+    type: 'string',
+    description:
+      'Where the end-to-end tests get their data: none (they need no data), ephemeral (a fresh database per run), shared_serialised (a shared environment only these tests use, one run at a time) or shared (a shared environment other people also use). Unset keeps today\'s behaviour.',
+    enum: ['none', 'ephemeral', 'shared_serialised', 'shared'],
+    affects: [],
+  },
+  {
+    key: 'e2e_seed_paths',
+    type: 'string[]',
+    description: 'Files or folders that hold the end-to-end seed data (used to hash the seed and to check it exists).',
+    affects: [],
+  },
+  {
+    key: 'e2e_reset_command',
+    type: 'string',
+    description: 'Command that puts the test data back (or clears it) before and after a regression run; the project owns it.',
+    validate: optionalShellCommand,
+    affects: [],
+  },
+  {
+    key: 'e2e_preflight_command',
+    type: 'string',
+    description: 'Command that exits non-zero when the seed fixtures the tests need are absent; a failure fails the run instead of skipping tests.',
+    validate: optionalShellCommand,
+    affects: [],
+  },
+  {
+    key: 'e2e_leak_check_command',
+    type: 'string',
+    description: 'Command that prints, on its last line, the number of rows a run left behind (recorded, never fails the run).',
+    validate: optionalShellCommand,
+    affects: [],
+  },
+  {
+    key: 'e2e_max_skipped',
+    type: 'integer',
+    description: 'Most skipped tests a regression run may have before it fails; unset only reports the count.',
+    validate: nonNegative,
+    affects: [],
+  },
+  {
+    key: 'feature_e2e_projects',
+    type: 'string[]',
+    description: 'Playwright projects the feature end-to-end run uses; empty or unset runs every project (today\'s behaviour).',
+    affects: [],
+  },
 ];
 
 export function findConfigKey(key: string): ConfigKeySpec | undefined {

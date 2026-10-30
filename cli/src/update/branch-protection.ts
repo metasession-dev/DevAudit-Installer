@@ -2,12 +2,16 @@ import { join } from 'node:path';
 import { promises as fs } from 'node:fs';
 import { getGitProvider } from '../lib/git-provider/index.js';
 import { readSdlcConfig, resolveTargets } from '../lib/sdlc-config.js';
+import * as prompts from '../lib/prompt.js';
+import { isJsonMode } from '../lib/logger.js';
+import type { ConfirmLowerReviews } from '../lib/git-provider/types.js';
 import type { SyncContext, SectionResult } from './types.js';
 import {
   MAIN_REQUIRED_CHECKS,
   DEVELOP_REQUIRED_CHECKS,
   MAIN_REVIEW_COUNT,
   DEVELOP_REVIEW_COUNT,
+  configuredReleaseReviewCount,
   namespacedRequiredChecks,
 } from '../lib/branch-protection-checks.js';
 
@@ -21,7 +25,25 @@ import {
  * review count, code-owner reviews, ...) is kept. A branch protected by
  * rulesets gets no classic protection on top. Problems are reported as a
  * warning, never as a sync failure.
+ *
+ * One setting is the project's to choose in both directions (DevAudit-Installer#1116 WP2): when
+ * `sdlc-config.json` has `release_branch_required_reviews`, the release branch's required approving
+ * reviews are made to equal it. Raising is automatic; lowering (for example to 0 for a solo
+ * developer) weakens protection, so it happens only after an interactive confirmation that states
+ * the recorded control gap. Without a terminal, or on "no", the difference is reported and nothing
+ * is changed. Without the key the branch keeps DevAudit's minimum of 1, as before.
  */
+
+/** Asks a person before the release branch's required reviews are lowered; false when nobody can answer. */
+const confirmLowerReviews: ConfirmLowerReviews = async ({ branch, from, to }) => {
+  const json = isJsonMode();
+  if (prompts.nonInteractiveReason(json)) return false;
+  const gap =
+    to === 0
+      ? 'The author will be able to merge their own release PR; DevAudit records this as a control gap for SOC 2 CC8.1 and ISO 27001 A.8.32.'
+      : 'This weakens the review requirement and is recorded as a change to the control.';
+  return (await prompts.confirm(`Lower the required approving reviews on ${branch} from ${from} to ${to}? ${gap}`, { json })) === true;
+};
 export async function verifyBranchProtection(ctx: SyncContext): Promise<SectionResult> {
   if (ctx.dryRun) {
     return { name: 'Branch protection', filesSynced: 0, skipped: true, message: 'skipped in --dry-run (would call the git provider)' };
@@ -61,12 +83,15 @@ export async function verifyBranchProtection(ctx: SyncContext): Promise<SectionR
   // reports. ensureBranchProtection only adds (#990), so looping is safe.
   const targets = resolveTargets(config ?? { project_slug: '' });
   const multiTarget = targets.length > 1;
-  const branches: { branch: string; checks: readonly string[]; minReviewCount: number }[] = [];
+  const configuredReleaseReviews = configuredReleaseReviewCount(config);
+  const branches: { branch: string; checks: readonly string[]; minReviewCount: number; exact?: number }[] = [];
   for (const target of targets) {
     branches.push({
       branch: releaseBranch,
       checks: namespacedRequiredChecks(MAIN_REQUIRED_CHECKS, target.name, multiTarget),
-      minReviewCount: MAIN_REVIEW_COUNT,
+      // An explicit `release_branch_required_reviews` replaces DevAudit's minimum of 1 (it may be 0).
+      minReviewCount: configuredReleaseReviews ?? MAIN_REVIEW_COUNT,
+      ...(configuredReleaseReviews !== undefined ? { exact: configuredReleaseReviews } : {}),
     });
     if (integrationBranch !== releaseBranch) {
       branches.push({
@@ -76,9 +101,12 @@ export async function verifyBranchProtection(ctx: SyncContext): Promise<SectionR
       });
     }
   }
-  for (const { branch, checks, minReviewCount } of branches) {
+  for (const { branch, checks, minReviewCount, exact } of branches) {
     // eslint-disable-next-line no-await-in-loop
-    const r = await provider.ensureBranchProtection(ctx.projectPath, branch, checks, { minReviewCount });
+    const r = await provider.ensureBranchProtection(ctx.projectPath, branch, checks, {
+      minReviewCount,
+      ...(exact !== undefined ? { exactReviewCount: exact, confirmLower: confirmLowerReviews } : {}),
+    });
     const label = `${branch}${multiTarget ? ` (${checks.join(', ')})` : ''}`;
     switch (r.status) {
       case 'ok':
@@ -107,6 +135,12 @@ export async function verifyBranchProtection(ctx: SyncContext): Promise<SectionR
       default:
         problem = true;
         results.push(`${label}: failed — ${r.message ?? 'unknown'}`);
+    }
+    if (r.reviewsNotLowered) {
+      // sdlc-config.json asks for fewer reviews than the branch requires; lowering needs a person to confirm.
+      problem = true;
+      results[results.length - 1] +=
+        ` — requires ${r.reviewsNotLowered.current} approving review(s) but release_branch_required_reviews is ${r.reviewsNotLowered.configured}; not lowered (run \`devaudit update\` in a terminal to confirm, or change it on GitHub)`;
     }
   }
   return {
