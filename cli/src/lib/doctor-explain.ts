@@ -191,15 +191,17 @@ export function explanationFor(check: string): GapExplanation | undefined {
 }
 
 /**
- * The gaps behind one check result: none when it is ok; one per finding when it has findings; otherwise
- * one for the check as a whole.
+ * The gaps behind one check result: one per finding when it lists findings, even when the check as a
+ * whole is ok (an informational check such as `agent-permissions` reports a repair without failing);
+ * otherwise one for the check as a whole when it is not ok; otherwise none.
  */
 export function gapsFromCheck(check: CheckResult): Gap[] {
-  if (check.ok) return [];
   const explanation = explanationFor(check.name);
-  const findings: readonly Finding[] =
-    check.findings && check.findings.length > 0 ? check.findings : [{ subject: check.name, detail: check.detail }];
-  return findings.map((finding) => findingToGap(check.name, finding, explanation));
+  if (check.findings && check.findings.length > 0) {
+    return check.findings.map((finding) => findingToGap(check.name, finding, explanation));
+  }
+  if (check.ok) return [];
+  return [findingToGap(check.name, { subject: check.name, detail: check.detail }, explanation)];
 }
 
 export function gapsFromChecks(checks: readonly CheckResult[]): Gap[] {

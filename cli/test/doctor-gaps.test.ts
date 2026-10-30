@@ -54,6 +54,18 @@ describe('gapsFromCheck', () => {
     expect(gapsFromChecks([ok, { ...ok, name: 'rtm' }])).toEqual([]);
   });
 
+  it('an ok check that still reports a finding (informational, with a repair) has a gap for it', () => {
+    const gaps = gapsFromCheck({
+      name: 'agent-permissions',
+      ok: true,
+      detail: 'no Claude Code settings file found',
+      findings: [{ subject: 'agent-permissions', detail: 'rules missing', remediation: { id: 'add-agent-permission-rules', tier: 'C', summary: 'Add the rules', plan: ['x'], needsPortal: false } }],
+    });
+    expect(gaps).toHaveLength(1);
+    expect(gaps[0]!.options[0]).toMatchObject({ id: 'add-agent-permission-rules', tier: 'C' });
+    expect(gapsFromCheck({ name: 'agent-permissions', ok: true, detail: 'all rules present', findings: [] })).toEqual([]);
+  });
+
   it('a failing check without findings is one gap with guidance', () => {
     const gaps = gapsFromCheck({ name: 'srs', ok: false, detail: 'docs/SRS.md is missing' });
     expect(gaps).toHaveLength(1);
@@ -105,7 +117,10 @@ describe('devaudit doctor --json', () => {
     const repo = await fs.mkdtemp(join(tmpdir(), 'cli-doctor-gaps-'));
     dirs.push(repo);
     await fs.writeFile(join(repo, 'sdlc-config.json'), JSON.stringify({ project_slug: 'fixture', stack: 'node' }));
-    const result = await execa('node', [BIN, '--json', 'doctor'], { cwd: repo, reject: false });
+    // An empty home: no agent settings, no stored credentials, as on a CI runner, whatever this machine has.
+    const home = await fs.mkdtemp(join(tmpdir(), 'cli-doctor-gaps-home-'));
+    dirs.push(home);
+    const result = await execa('node', [BIN, '--json', 'doctor'], { cwd: repo, reject: false, env: { HOME: home, USERPROFILE: home } });
     const json = JSON.parse(result.stdout) as {
       ok: boolean;
       tools: { name: string; ok: boolean }[];
@@ -137,7 +152,7 @@ describe('devaudit doctor --json', () => {
       ids.add(gap.id);
     }
 
-    // Every check that is not ok has at least one gap.
+    // Every check that is not ok has at least one gap (an ok check that reports a finding has one too).
     const failing = [
       ...json.tools.filter((c) => !c.ok),
       ...(json.releaseCloseoutDrift.ok ? [] : [json.releaseCloseoutDrift]),
@@ -145,6 +160,9 @@ describe('devaudit doctor --json', () => {
       ...json.deferral.filter((c) => !c.ok),
     ];
     for (const check of failing) expect(json.gaps.some((g) => g.check === check.name), `a gap for ${check.name}`).toBe(true);
+    // With no agent settings the (informational, ok) agent-permissions check still reports a repair: it is a gap.
+    expect(json.onboarding.find((c) => c.name === 'agent-permissions')?.ok).toBe(true);
+    expect(json.gaps.some((g) => g.check === 'agent-permissions' && g.options.some((o) => o.remediation?.id === 'add-agent-permission-rules'))).toBe(true);
     // A fresh consumer has no SRS and no RTM, so those are among them.
     expect(json.gaps.some((g) => g.check === 'srs')).toBe(true);
     expect(json.gaps.some((g) => g.check === 'rtm')).toBe(true);
@@ -161,7 +179,9 @@ describe('devaudit doctor --json', () => {
     const repo = await fs.mkdtemp(join(tmpdir(), 'cli-doctor-gaps-text-'));
     dirs.push(repo);
     await fs.writeFile(join(repo, 'sdlc-config.json'), JSON.stringify({ project_slug: 'fixture', stack: 'node' }));
-    const result = await execa('node', [BIN, 'doctor'], { cwd: repo, reject: false });
+    const home = await fs.mkdtemp(join(tmpdir(), 'cli-doctor-gaps-home-'));
+    dirs.push(home);
+    const result = await execa('node', [BIN, 'doctor'], { cwd: repo, reject: false, env: { HOME: home, USERPROFILE: home } });
     const text = result.stdout + result.stderr;
     expect(text).not.toContain('"gaps"');
     expect(text).not.toContain('doctor:srs:srs');
