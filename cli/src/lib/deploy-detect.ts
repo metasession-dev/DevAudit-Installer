@@ -1,6 +1,11 @@
-import { join } from 'node:path';
 import { execa } from 'execa';
-import { exists } from './fs-utils.js';
+import {
+  hostEvidenceFromFiles,
+  rankHostEvidence,
+  type DeployEvidence,
+  type DetectedHost,
+} from '@metasession.co/devaudit-core';
+import { fsRepoReader } from '@metasession.co/devaudit-core/node';
 
 /**
  * devaudit-installer#1040 — evidence for where a consumer's production really
@@ -15,14 +20,7 @@ import { exists } from './fs-utils.js';
  * listed in `unchecked`.
  */
 
-export type DetectedHost = 'railway' | 'vercel' | 'custom';
-
-export interface DeployEvidence {
-  readonly host: DetectedHost;
-  readonly source: 'deployments' | 'file';
-  readonly detail: string;
-  readonly weight: number;
-}
+export type { DeployEvidence, DetectedHost };
 
 export interface DeployDetection {
   readonly recorded: string;
@@ -57,19 +55,6 @@ const CREATORS: ReadonlyArray<[RegExp, DetectedHost, string]> = [
   [/^vercel(\[bot\])?$/i, 'vercel', 'Vercel GitHub app'],
   [/^railway(-app)?(\[bot\])?$/i, 'railway', 'Railway GitHub app'],
   [/^github-actions(\[bot\])?$/i, 'custom', 'a GitHub Actions workflow in this repo'],
-];
-
-const FILES: ReadonlyArray<[string, DetectedHost, string, number]> = [
-  ['vercel.json', 'vercel', 'vercel.json', 2],
-  ['.vercel/project.json', 'vercel', '.vercel/project.json (linked Vercel project)', 2],
-  ['railway.json', 'railway', 'railway.json', 2],
-  ['railway.toml', 'railway', 'railway.toml', 2],
-  ['fly.toml', 'custom', 'fly.toml (Fly.io: deploy with the custom host)', 2],
-  ['serverless.yml', 'custom', 'serverless.yml (Serverless Framework)', 1],
-  ['appspec.yml', 'custom', 'appspec.yml (AWS CodeDeploy)', 1],
-  ['terraform', 'custom', 'terraform/', 1],
-  ['k8s', 'custom', 'k8s/ manifests', 1],
-  ['helm', 'custom', 'helm/ chart', 1],
 ];
 
 interface Deployment {
@@ -133,22 +118,9 @@ export async function detectDeployHost(
     }
   }
 
-  for (const [rel, host, detail, weight] of FILES) {
-    if (await exists(join(repoRoot, rel))) evidence.push({ host, source: 'file', detail, weight });
-  }
-
-  const totals = new Map<DetectedHost, number>();
-  for (const e of evidence) totals.set(e.host, (totals.get(e.host) ?? 0) + e.weight);
-  const ranked = [...totals.entries()].sort((a, b) => b[1] - a[1]);
-  const top = ranked[0];
-  if (!top) {
-    return { recorded: recordedHost, detected: null, confidence: 'none', evidence, unchecked, environmentUrl };
-  }
-  const [detected, score] = top;
-  const runnerUp = ranked[1]?.[1] ?? 0;
-  const fromDeployments = evidence.some((e) => e.host === detected && e.source === 'deployments');
-  const confidence =
-    runnerUp > 0 && score - runnerUp < 3 ? 'low' : fromDeployments ? 'high' : 'medium';
+  // The committed host files, and the ranking of all the evidence, are shared with the portal (core).
+  evidence.push(...(await hostEvidenceFromFiles(fsRepoReader(repoRoot))));
+  const { detected, confidence } = rankHostEvidence(evidence);
   return { recorded: recordedHost, detected, confidence, evidence, unchecked, environmentUrl };
 }
 
