@@ -14,13 +14,13 @@ The constraints are enforced in `SKILL.md` and in the smoke pass. Where applicab
 | **Enforcement** | Portal-side via `check-release-approval.yml` workflow status check + branch protection. Skill-side: never call `gh pr merge` until the check is green. |
 | **Failure mode if violated** | Merge bypasses human review entirely. Auditor's question "did a human approve this change?" cannot be answered with evidence. |
 
-### 2. For HIGH/CRITICAL, never act as the UAT approver
+### 2. Never act as the UAT approver; who else may approve follows `approval.mode`
 
 |  |  |  | --- | --- |
-| **What** | The skill must verify at Phase 4 that the configured UAT reviewer (in `compliance/plans/REQ-XXX/implementation-plan.md` §Four-eyes attestation slot) differs from the skill-trigger user. If they match, halt. |
+| **What** | The skill never approves. Under `approval.mode: dual_actor` (default; presets C and D) it must verify at Phase 4 that the configured UAT reviewer (in `compliance/plans/REQ-XXX/implementation-plan.md` §Four-eyes attestation slot) differs from the skill-trigger user for HIGH/CRITICAL; if they match, halt. Under `solo_with_gap` (presets A and B) it does not halt for any risk class; it requires the control-gap `RISK-NNN` entry to be signed off and a `## Sign-off (solo, recorded gap)` section on the release ticket (the approver is the author; the human independently reviewed the diff; link to the RISK entry), and refuses to hand off without both. |
 | **Why (framework)** | SOC 2 CC8.1 — segregation of duties; ISO 27001 A.5.15 (Access control — duty segregation). The change-author cannot also be the change-approver for higher-risk work. |
-| **Enforcement** | Portal-side: the release-approval API rejects self-approval for MEDIUM/HIGH/CRITICAL risk classes. Skill-side: refuses to open the PR if the configured reviewer matches the trigger user. |
-| **Failure mode if violated** | One human approves their own work. The four-eyes principle is paper-only. |
+| **Enforcement** | Portal-side: under the `independent` approval policy the release-approval API rejects self-approval; under `self_allowed_with_gap` it records the gap. Skill-side: the branch above. |
+| **Failure mode if violated** | Under `dual_actor`: one human approves their own work and the segregation of duties is paper-only. Under `solo_with_gap`: the gap is silently inherited instead of deliberately acknowledged. |
 
 ### 3. Plan checkpoint mandatory for HIGH/CRITICAL
 

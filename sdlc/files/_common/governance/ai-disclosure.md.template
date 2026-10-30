@@ -62,7 +62,7 @@ Add one row per AI tool / model / API. Delete this template row before your firs
 
 - **Where humans intervene in the AI loop:** REPLACE — e.g. "Every AI-suggested change goes through a four-eyes code review before merge"
 - **Authority of the human reviewer:** REPLACE — can they reject / override / stop the system? Document the path
-- **Cross-reference to four-eyes release approval:** all releases require an approved-by audit event in the portal (closes `EUAIA.Art-14`)
+- **Cross-reference to release approval:** all releases require an approved-by audit event in the portal (closes `EUAIA.Art-14`); the approver is a different person under `approval.mode: dual_actor`, and the author with a recorded gap under `solo_with_gap`
 
 ## 5. Capabilities and limitations
 

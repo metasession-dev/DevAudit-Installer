@@ -1,7 +1,7 @@
 ---
 name: devaudit-configure
-description: Walk the operator through checking and changing this repo's DevAudit settings in `sdlc-config.json` — where production deploys (railway, vercel, custom for AWS/self-hosted), the production URL secret and access-gated probe header, custom deploy settings (deploy_command, deploy_secrets, deployed_sha_url, deploy_trigger), runner/CI keys, and the E2E test tiers and release gate (release_gate_tier, post_deploy_full_regression, scheduled_full_regression, test_runner, test_tier_*, test_feature_command) — using `devaudit doctor` to find what disagrees with the repo's real setup and `devaudit configure` to validate and apply each change, then regenerating the workflows with `devaudit update` on a fix branch. Use when the operator says "configure devaudit", "we deploy on Vercel, not Railway", "doctor says the host is wrong", "set up the production URL", "our prod is behind Vercel protection", "we deploy to AWS / our own servers", "change the CI runner", "which tests gate the release", "run the full regression before merge", "set up our test tiers", "doctor says the release gate is too slow", "check our devaudit config", or after adopting a new devaudit version. Do NOT use for implementing a tracked change (that's `sdlc-implementer`), for editing generated workflows by hand (they are overwritten on sync), or for handling secret values (the operator types them into `devaudit configure secret`).
-version: 1.1.0
+description: Walk the operator through checking and changing this repo's DevAudit settings in `sdlc-config.json` — where production deploys (railway, vercel, custom for AWS/self-hosted), the production URL secret and access-gated probe header, custom deploy settings (deploy_command, deploy_secrets, deployed_sha_url, deploy_trigger), runner/CI keys, and the E2E test tiers and release gate (release_gate_tier, post_deploy_full_regression, scheduled_full_regression, test_runner, test_tier_*, test_feature_command) — using `devaudit doctor` to find what disagrees with the repo's real setup and `devaudit configure` to validate and apply each change, then regenerating the workflows with `devaudit update` on a fix branch. Use when the operator says "configure devaudit", "change our preset", "we have no tests yet", "we deploy on Vercel, not Railway", "doctor says the host is wrong", "set up the production URL", "our prod is behind Vercel protection", "we deploy to AWS / our own servers", "change the CI runner", "which tests gate the release", "run the full regression before merge", "set up our test tiers", "doctor says the release gate is too slow", "check our devaudit config", or after adopting a new devaudit version. Do NOT use for implementing a tracked change (that's `sdlc-implementer`), for editing generated workflows by hand (they are overwritten on sync), or for handling secret values (the operator types them into `devaudit configure secret`).
+version: 1.2.0
 tags:
   - configuration
   - onboarding
@@ -20,6 +20,33 @@ Helps the operator get this repo's `sdlc-config.json` right for how the project 
 - **Never edit generated workflows** (`.github/workflows/*.yml` written by devaudit). Change the config, then `devaudit update` regenerates them.
 - **One change at a time, confirmed.** Show the dry run, get the operator's yes, then apply.
 - **GitFlow.** Changes land on a `fix/<issue#>-<slug>` branch (create a tracking issue if there is none) and reach the integration branch by PR. Never commit to `main` or the integration branch directly.
+
+## The registry and the preset ladder
+
+`devaudit install` and `devaudit configure` (run with no arguments, in a terminal) ask the same questions, from one registry (Q0a to Q21; `docs/presets.md` lists them with the presets). A **preset** is a set of answers chosen together:
+
+| Preset | Fits | Before a release | Approval |
+| --- | --- | --- | --- |
+| A | one developer who wants fast feedback | smoke tests block the merge | the author, gap recorded |
+| B | a safety net | critical tests block; full pack after deploy and nightly | the author, gap recorded |
+| C | a team with a compliance lead | the full pack blocks; again after deploy and nightly | a different person |
+| D | the same team, full pack once | the full pack blocks; not run again after deploy | a different person |
+| custom | anything else | you choose each setting | you choose |
+
+The suggestion comes from one rule shared with `devaudit doctor` and `devaudit scan`: it only suggests a preset that can be offered, never D, and gives its reason in a sentence. A and B need a portal that allows a solo approver; B needs smoke tests; C and D need a full test pack and a second portal admin. Never tell the operator a preset makes the project compliant: each carries a gap, named in `docs/presets.md`.
+
+`devaudit configure` with no arguments shows the answers with the current values as defaults, then every change as before/after, and writes only what changed. A preset switch removes the keys the target preset does not write. Without a terminal it asks nothing and exits 8: use `devaudit configure set <key> <value>` instead. Approval follows `approval.mode`: `dual_actor` (a different person) or `solo_with_gap` (the author, as a recorded control gap); changing it also needs the portal's approval policy to agree, which `devaudit doctor` checks (`approval-policy`).
+
+## Starting with no tests
+
+A project that answered "not yet" to "Does the project have automated end-to-end tests?" gets preset A suggested and B, C and D not offered. The path from there to a gated release:
+
+1. **Finish the install on preset A.** Smoke only is not yet a gate, so A (smoke tests block the merge, approval by the author, the gap recorded) is the preset that fits. Use `custom` instead when A is not offered (the portal does not allow a solo approver yet) or when the team wants a different person to approve (Q11 "a different person"; preset A would record a gap the team does not want).
+2. **Write the first tests.** Use the `e2e-test-engineer` skill to bootstrap a suite and add smoke tests (its Phase 1b and Phase 5; a requirement and an approved plan come first).
+3. **Run `devaudit doctor`.** The `test-tiers` check should now pass.
+4. **Run `devaudit configure`** to enable critical or full when those tests exist; the Q4 to Q8 answers update through the detection already there.
+
+If the project also needs test data (a database to seed or reset), the data steps are added later (Q18 to Q20).
 
 ## Flow
 

@@ -1,6 +1,7 @@
 # Release Approval Gate — blocks PR merge until release is approved in DevAudit.
 #
-# Four-eyes release-approval gate (always required). When UAT-environment
+# Release-approval gate (always required; who may approve follows `approval.mode`:
+# a different person under dual_actor, a recorded gap under solo_with_gap). When UAT-environment
 # verification is configured for the project (sdlc-config.json `uat.enabled`),
 # the human approver factors that into their review, but the gate itself is
 # about the approval click — not the UAT-env exercise. Renamed from

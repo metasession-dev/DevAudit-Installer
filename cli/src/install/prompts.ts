@@ -12,6 +12,7 @@ import { resolveViewerKey } from '../lib/viewer-keys.js';
 import {
   readApprovalPolicy,
   readClaimedStandards,
+  soloApproverFrom,
   type FetchLike,
   type PolicyRead,
   type StandardsRead,
@@ -178,6 +179,7 @@ export async function collectPlan(
     frameworks: guided.frameworks,
     portalStandards: portal.standards.status === 'ok' ? portal.standards.codes : null,
     ...(guided.runnerLabel !== undefined ? { runnerLabel: guided.runnerLabel } : {}),
+    ...(await noTestsHints(ctx, portal.policy)),
   };
   const test = await resolveTestConfig({
     options: (ctx.testOptions ?? {}) as TestOptions,
@@ -187,6 +189,14 @@ export async function collectPlan(
     ask: deps.ask ?? clackGuidedAsker,
   });
   return withTestConfig(plan, { config: test.config, notes: [...guided.notes, ...test.notes] }, onboarding);
+}
+
+/** Whether the closing lines should describe the way from no tests to a gated release (and whether preset A was offered). */
+async function noTestsHints(ctx: InstallContext, policy: PolicyRead): Promise<{ noSmokeTests?: boolean; presetAOffered?: boolean }> {
+  const facts = await detectFacts(fsRepoReader(ctx.repoRoot));
+  if (facts.testGroups.smoke) return {};
+  const offers = offerPresets({ testGroups: facts.testGroups, soloApprover: soloApproverFrom(policy) });
+  return { noSmokeTests: true, presetAOffered: offers.A.offered };
 }
 
 function withTestConfig(

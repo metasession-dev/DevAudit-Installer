@@ -177,6 +177,8 @@ When `sdlc-config.json:approval.mode = 'solo_with_gap'` and a release is about t
 
 **Step 4 — Refuse approval until the entry is signed off** by the operator. The control gap must be deliberately acknowledged, not silently inherited.
 
+**Step 5 — Compare with the portal's approval policy** (portal issue #931). If the portal reports `independent` while the repository says `solo_with_gap`, say so: the author cannot approve there, so the release will stall at approval until one side changes. `devaudit doctor`'s `approval-policy` check reports the same disagreement.
+
 ### Phase 5 — Per-REQ ad-hoc audit
 
 Same logic as Phase 1's Step 2 + Step 3, but produces a markdown report rather than blocking. Useful when an operator asks _"is REQ-XXX's risk record complete?"_ outside the SDLC orchestration flow.

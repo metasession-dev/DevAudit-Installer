@@ -401,7 +401,7 @@ export async function testTiersCheck(
       findings.push({
         subject: 'smoke',
         detail,
-        remediation: guidance('add-smoke-tests', 'Add smoke tests', ['use the e2e-test-engineer skill to scaffold a smoke test for the core path (a requirement and an approved plan come first)', p.custom ? 'or check the test_tier_smoke command' : runner === 'pytest' ? 'tag tests with @pytest.mark.smoke' : `tag specs into the \`${e2eProject}\` Playwright project`]),
+        remediation: guidance('add-smoke-tests', 'Add smoke tests', ['use the e2e-test-engineer skill to scaffold a smoke test for the core path (a requirement and an approved plan come first)', 'then run `devaudit configure` to choose when the bigger groups run', p.custom ? 'or check the test_tier_smoke command' : runner === 'pytest' ? 'tag tests with @pytest.mark.smoke' : `tag specs into the \`${e2eProject}\` Playwright project`]),
       });
     } else {
       const detail = `the ${p.tier} tier resolves to zero tests`;

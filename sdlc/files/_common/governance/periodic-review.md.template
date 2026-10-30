@@ -47,7 +47,7 @@ The 60% of this doc that the operator must fill (auto-generated sections at the 
 - **From:** REPLACE — YYYY-MM-DD
 - **To:** REPLACE — YYYY-MM-DD
 - **Reviewer:** REPLACE — name + role
-- **Approver (different person, if dual-actor required):** REPLACE
+- **Approver (different person, if dual-actor required; under `approval.mode: solo_with_gap` the approver may be the reviewer — record the gap in one line):** REPLACE
 
 ## 2. Activity summary (CI-derived, auto-fill when WS3 lands)
 

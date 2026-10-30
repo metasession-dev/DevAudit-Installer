@@ -90,6 +90,17 @@ A preset that means you approve your own releases (A, B, or answering "I approve
 
 Re-running `install` on a project that has a configuration but no `onboarding_preset` offers "Keep my current settings" first and applies no preset or policy unless you choose one. `devaudit join` asks nothing and writes no preset or policy; it prints the project's preset. `--yes` without `--preset` behaves as before.
 
+### Starting with no tests
+
+A project that answers "not yet" to the end-to-end tests question gets preset A suggested, and B, C and D are not offered. The path from there to a gated release:
+
+1. **Finish the install on preset A.** Smoke only is not yet a gate, so A (smoke tests block the merge, approval by the author, the gap recorded) is the preset that fits. Use `custom` instead when A is not offered (the portal does not allow a solo approver yet) or when the team wants a different person to approve (Q11 "a different person"; preset A would record a gap the team does not want).
+2. **Write the first tests.** Use the `e2e-test-engineer` skill to bootstrap a suite and add smoke tests (its Phase 1b and Phase 5; a requirement and an approved plan come first).
+3. **Run `devaudit doctor`.** The `test-tiers` check should now pass.
+4. **Run `devaudit configure`** to enable critical or full when those tests exist; the Q4 to Q8 answers update through the detection already there.
+
+The closing lines of a guided install that found no smoke tests say the same, and name `custom` when preset A was not offered. The `devaudit-configure` skill carries the same section.
+
 ### Test tiers and the release gate
 
 `devaudit install` can record how your tests are tiered and which tier gates a release (devaudit-installer#1059, #1060). Nothing is written unless a flag or an answer names it, so a project that skips this keeps today's behaviour. The same keys can be set any time with `devaudit configure set`.
@@ -228,7 +239,7 @@ Some operations remain out of scope by design:
 | Sign you up for DevAudit                   | Identity establishment is a user action, not an automated one.             |
 | Issue the first PAT                        | Chicken-and-egg: the PAT is the auth credential the script consumes.       |
 | Walk REQ-001 through Stages 0–5            | Product decisions (what to build, what risk class) belong to humans.       |
-| Click "Approve" in the Release Approval UI | Four-eyes regulatory control; the whole point of the framework.            |
+| Click "Approve" in the Release Approval UI | The approval control: a different person under `dual_actor`, a recorded gap under `solo_with_gap`. |
 | Review and approve the onboarding PR       | Code review is a control. (See `Compliance Validation` for the soft gate.) |
 
 Everything else is automated.

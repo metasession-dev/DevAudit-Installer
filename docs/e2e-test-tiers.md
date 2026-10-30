@@ -160,7 +160,7 @@ By default the full regression runs only **after** the production deploy, so a f
 
 Recommended combinations:
 
-- **Strictest:** `release_gate_tier: full` and `post_deploy_full_regression: false`. The release candidate is fully tested before merge and the same commit is not tested twice. Slowest.
+- **Strictest (preset D):** `release_gate_tier: full` and `post_deploy_full_regression: false`. The release candidate is fully tested before merge and the same commit is not tested twice. Slowest.
 - **Earlier signal:** keep `critical`, add `scheduled_full_regression: "0 3 * * *"` (nightly) and leave the post-deploy run on. Today's behaviour plus an early warning.
 - **No E2E suite yet:** `smoke` or `none`.
 
