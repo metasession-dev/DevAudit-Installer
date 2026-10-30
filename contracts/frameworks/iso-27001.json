@@ -1,0 +1,150 @@
+{
+  "$schema": "./schema.json",
+  "registryVersion": "2026-10-30",
+  "transcribedFrom": "DevAudit portal, commit 189ab4e",
+  "code": "iso-27001",
+  "name": "ISO 27001",
+  "longName": "Information Security Management",
+  "edition": "ISO/IEC 27001:2022",
+  "clauses": [
+    {
+      "id": "ISO27001.A.5.1",
+      "title": "Policies for information security",
+      "expects": [
+        {
+          "kind": "evidence_filename_any",
+          "fileNames": [
+            "AGENT.md",
+            "Test_Policy.md"
+          ],
+          "freshnessDays": 365,
+          "description": "One of the organisation-level policy documents is on file in the compliance documents and was refreshed within the last year. Either document satisfies the clause. The list of accepted documents differs on purpose from the one for the communication clause in SOC 2."
+        }
+      ]
+    },
+    {
+      "id": "ISO27001.A.5.15",
+      "title": "Access control",
+      "expects": [
+        {
+          "kind": "portal_invariant",
+          "description": "Role-based access is built into the portal: every protected view checks an active grant, so the control is part of how the portal works."
+        }
+      ]
+    },
+    {
+      "id": "ISO27001.A.8.16",
+      "title": "Monitoring activities",
+      "expects": [
+        {
+          "kind": "evidence_type_any",
+          "types": [
+            "audit_log",
+            "smoke_test"
+          ],
+          "description": "An audit log snapshot or export, or smoke-test results, show that activity is monitored."
+        }
+      ]
+    },
+    {
+      "id": "ISO27001.A.8.25",
+      "title": "Secure development life cycle",
+      "expects": [
+        {
+          "kind": "any_of",
+          "description": "Secure development evidence for a tracked change: either the implementation plan or the architecture decision closes the clause.",
+          "expectations": [
+            {
+              "kind": "evidence_type_any",
+              "types": [
+                "implementation_plan"
+              ],
+              "description": "A per-requirement implementation plan with its threat model exists for the tracked change."
+            },
+            {
+              "kind": "evidence_type_any",
+              "types": [
+                "architecture_decision"
+              ],
+              "description": "A per-requirement architecture decision points to the decision record for the change."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ISO27001.A.8.28",
+      "title": "Secure coding",
+      "expects": [
+        {
+          "kind": "evidence_type_any",
+          "types": [
+            "sast_report",
+            "dependency_audit",
+            "security_summary"
+          ],
+          "description": "Static-analysis results, a dependency audit or a security summary from the delivery pipeline."
+        }
+      ]
+    },
+    {
+      "id": "ISO27001.A.8.29",
+      "title": "Security testing in development and acceptance",
+      "expects": [
+        {
+          "kind": "evidence_type_any",
+          "types": [
+            "e2e_result",
+            "test_report"
+          ],
+          "description": "End-to-end and acceptance test results from the delivery pipeline."
+        },
+        {
+          "kind": "evidence_type_any",
+          "types": [
+            "sast_report",
+            "dependency_audit"
+          ],
+          "description": "Static-analysis and dependency-audit results from the delivery pipeline."
+        }
+      ]
+    },
+    {
+      "id": "ISO27001.A.8.32",
+      "title": "Change management",
+      "expects": [
+        {
+          "kind": "audit_event_any",
+          "eventTypes": [
+            "release.independently_approved"
+          ],
+          "description": "Met by a release approval made by someone other than the release's creator or submitter, with the reviewer recorded. A self-approved release is recorded as a self-approval instead and is shown as a gap."
+        }
+      ]
+    },
+    {
+      "id": "ISO27001.A.12.1",
+      "title": "Operational procedures and responsibilities",
+      "idEdition": "2013",
+      "note": "ID from the 2013 edition; 2022 equivalent to be confirmed by the compliance reader",
+      "expects": [
+        {
+          "kind": "evidence_filename_any",
+          "fileNames": [
+            "Periodic_Security_Review_Schedule.md"
+          ],
+          "freshnessDays": 365,
+          "description": "The project's schedule of periodic security reviews is on file in the compliance documents and was refreshed within the last year."
+        },
+        {
+          "kind": "evidence_type_any",
+          "types": [
+            "periodic_review"
+          ],
+          "freshnessDays": 365,
+          "description": "The most recent execution of a procedure review is on file. A review older than a year is shown as expired."
+        }
+      ]
+    }
+  ]
+}

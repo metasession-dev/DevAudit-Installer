@@ -10,6 +10,7 @@ on:
       - 'sdlc/files/**'
       - 'sdlc/src/**'
       - 'contracts/evidence-types.json'
+      - 'contracts/frameworks/**'
       - '.github/workflows/cli.yml'
   pull_request:
     branches: [main, develop]

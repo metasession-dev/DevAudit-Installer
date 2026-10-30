@@ -7,12 +7,12 @@ This repo — `DevAudit-Installer` — is the **framework + client** side of Dev
 1. **The SDLC framework** (`sdlc/`) — stage docs, templates, per-stack/host adapters, and nine AI skills (`sdlc-implementer` orchestrator + `e2e-test-engineer`, `e2e-test-data`, `e2e-ci-reliability`, `governance-doc-author`, the SoT-alignment family of `requirements-aligner` / `adr-author` / `risk-register-keeper`, and `devaudit-configure` for repo settings).
 2. **The CLI + compliance gates** (`cli/`, `core/`, `plugin-sdk/`, `plugins/*`, and the CI workflow templates under `sdlc/files/ci/`) — what onboards your project and what runs on every push/PR to feed the portal.
 
-The third pillar — the **evidence portal** (the product/server side: what you see, the source of truth for releases, evidence, and approvals) — lives at [`metasession-dev/devaudit`](https://github.com/metasession-dev/devaudit) (running at <https://devaudit.ai>). **Topics are split, not duplicated:** the product story, standards coverage, the portal UI, release lifecycle/approvals, and the API are documented there; the CLI, onboarding, the SDLC process, the skills, and the workflows that upload evidence are documented here. Each side cross-references the other.
+The third pillar — the **evidence portal** (the product/server side: what you see, the source of truth for releases, evidence, and approvals) — lives in the DevAudit portal, running at <https://devaudit.ai>. **Topics are split, not duplicated:** the product story, standards coverage, the portal UI, release lifecycle/approvals, and the API are documented on [devaudit.ai](https://devaudit.ai/); the CLI, onboarding, the SDLC process, the skills, and the workflows that upload evidence are documented here. Each side cross-references the other.
 
 Start at the portal for the big picture:
 
-- [What is DevAudit](https://github.com/metasession-dev/devaudit/blob/main/docs/what-is-devaudit.md) — the three pillars in depth
-- [Standards coverage](https://github.com/metasession-dev/devaudit/blob/main/docs/standards-coverage.md) — clause-by-clause mapping for ISO 29119 / ISO 27001 / SOC 2 / GDPR / EU AI Act
+- [What is DevAudit](https://devaudit.ai/) — the three pillars in depth
+- [Standards coverage](docs/framework-registry.md) — clause-by-clause mapping for ISO 29119 / ISO 27001 / SOC 2 / GDPR / EU AI Act
 
 ## Contents
 
@@ -217,21 +217,21 @@ Adding a new stack or host means dropping a new `adapter.json` + supporting file
 | [`docs/adding-a-stack.md`](./docs/adding-a-stack.md) · [`docs/adding-a-host.md`](./docs/adding-a-host.md)                          | Adapter contracts                                                                                                                                                            |
 | [`INSTRUCTIONS.md`](./INSTRUCTIONS.md)                                                                                             | Working conventions for this repo                                                                                                                                            |
 
-**Portal repo (product, server, the things you see):**
+**Portal (product, server, the things you see):**
 
 | Doc                                                                                                                    | What                                                       |
 | ---------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| [What is DevAudit](https://github.com/metasession-dev/devaudit/blob/main/docs/what-is-devaudit.md)                     | The three pillars, value proposition                       |
-| [Standards coverage](https://github.com/metasession-dev/devaudit/blob/main/docs/standards-coverage.md)                 | Clause-by-clause standards mapping                         |
-| [Portal ↔ consumer integration](https://github.com/metasession-dev/devaudit/blob/main/docs/ci-integration.md)          | API, evidence categories, when/how artifacts are displayed |
-| [Releases & approvals](https://github.com/metasession-dev/devaudit/blob/main/docs/releases-and-approvals.md)           | Release lifecycle states, types, four-eyes approval        |
-| [Implementing an SDLC issue](https://github.com/metasession-dev/devaudit/blob/main/docs/implementing-an-sdlc-issue.md) | Audience walkthrough with sample AI prompts                |
+| [What is DevAudit](https://devaudit.ai/)                     | The three pillars, value proposition                       |
+| [Standards coverage](docs/framework-registry.md)                 | Clause-by-clause standards mapping                         |
+| Portal ↔ consumer integration          | API, evidence categories, when/how artifacts are displayed (described on `devaudit.ai`) |
+| Releases & approvals           | Release lifecycle states, types, approval (described on `devaudit.ai`) |
+| [Implementing an SDLC issue](https://github.com/metasession-dev/DevAudit-Installer/blob/main/sdlc/src/blueprints/implementing-an-sdlc-issue.raw.md) | Audience walkthrough with sample AI prompts                |
 
 ## Related repositories
 
 | Repo                                                                        | Role                                                                                                                                             |
 | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [`metasession-dev/devaudit`](https://github.com/metasession-dev/devaudit)   | DevAudit evidence portal (Next.js, `devaudit.ai`). Product/standards/portal-UI/release docs live there; the authoritative consumers list too.  |
+| `metasession-dev/devaudit` (private; described on [devaudit.ai](https://devaudit.ai/))   | DevAudit evidence portal (Next.js, `devaudit.ai`). Product, portal and release documentation is on [devaudit.ai](https://devaudit.ai/); the authoritative consumers list too.  |
 
 For the current list of onboarded consumer projects, ask the portal directly (`devaudit doctor --fleet`, or the portal's own project list) rather than a hardcoded table here — a project list checked into git goes stale the moment a consumer onboards, offboards, or gets renamed on the portal side.
 

@@ -1,0 +1,46 @@
+name: Framework registry dispatch
+
+# DevAudit-Installer#1116 WP9: when the open framework registry changes on develop, tell the portal so it
+# can refresh its copy. Sends `repository_dispatch` `framework-registry-updated` to the portal repository
+# with a token kept in the DEVAUDIT_INSTALLER_REGISTRY_DISPATCH secret (owner action O2). Without the
+# secret the job says so and succeeds, so the registry can change before the portal has a receiver.
+# The payload is { sha, registryVersion }; docs/framework-registry.md describes it.
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - 'contracts/frameworks/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dispatch:
+    name: Notify the portal
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Send repository_dispatch to the portal
+        env:
+          DISPATCH_TOKEN: ${{ secrets.DEVAUDIT_INSTALLER_REGISTRY_DISPATCH }}
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DISPATCH_TOKEN:-}" ]; then
+            echo "::notice::DEVAUDIT_INSTALLER_REGISTRY_DISPATCH is not set; the portal was not notified."
+            exit 0
+          fi
+          VERSION="$(jq -r '.registryVersion' contracts/frameworks/soc-2.json)"
+          BODY="$(jq -nc --arg sha "$SOURCE_SHA" --arg version "$VERSION" '{event_type: "framework-registry-updated", client_payload: {sha: $sha, registryVersion: $version}}')"
+          CODE="$(curl -sS -o /dev/null -w '%{http_code}' -X POST \
+            -H "Authorization: Bearer ${DISPATCH_TOKEN}" \
+            -H 'Accept: application/vnd.github+json' \
+            https://api.github.com/repos/metasession-dev/devaudit/dispatches \
+            -d "$BODY")"
+          if [ "$CODE" != "204" ]; then
+            echo "::error::the portal repository answered HTTP ${CODE} to the dispatch"
+            exit 1
+          fi
+          echo "Sent framework-registry-updated (registryVersion ${VERSION}, ${SOURCE_SHA})."

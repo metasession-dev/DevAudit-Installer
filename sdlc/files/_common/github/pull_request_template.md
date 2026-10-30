@@ -3,7 +3,7 @@ SDLC-compliant PR template. Fields marked (REQUIRED) are mandatory for Requireme
 For chores using the trivial-change escape hatch (TASK issues), delete the REQ / Risk /
 Evidence / Four-eyes / Rollback sections and keep only the Summary + Test plan.
 
-Reference: https://github.com/metasession-dev/devaudit/blob/main/docs/implementing-an-sdlc-issue.md
+Reference: https://github.com/metasession-dev/DevAudit-Installer/blob/main/sdlc/src/blueprints/implementing-an-sdlc-issue.raw.md
 -->
 
 ## Summary
