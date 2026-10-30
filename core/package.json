@@ -1,7 +1,7 @@
 {
   "name": "@metasession.co/devaudit-core",
   "version": "1.11.0",
-  "description": "DevAudit shared core — pure, dependency-free logic shared by the CLI and the portal (detection, presets, the question registry, the gap model and the local scan).",
+  "description": "DevAudit shared core \u2014 pure, dependency-free logic shared by the CLI and the portal (detection, presets, the question registry, the gap model and the local scan).",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -13,7 +13,8 @@
     "./node": {
       "types": "./dist/node/index.d.ts",
       "import": "./dist/node/index.js"
-    }
+    },
+    "./scan-report.schema.json": "./dist/scan-report.schema.json"
   },
   "files": [
     "dist",
@@ -24,7 +25,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "build": "tsup && tsc --emitDeclarationOnly",
+    "build": "tsup && tsc --emitDeclarationOnly && node tools/copy-schema.mjs",
     "dev": "tsup --watch",
     "test": "vitest run",
     "test:watch": "vitest",

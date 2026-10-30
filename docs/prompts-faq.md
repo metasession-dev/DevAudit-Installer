@@ -15,6 +15,16 @@ A quick-reference for the range of prompts (natural-language, for an AI agent) a
 
 See [`onboarding.md`](onboarding.md) for the full walkthrough.
 
+## Seeing where a repository stands — `devaudit scan`
+
+| I want to... | Run |
+| --- | --- |
+| See what this repository is set up to evidence for SOC 2 / ISO 27001 (no account, no network) | `devaudit scan --framework soc-2,iso-27001` |
+| Get the report as a file for a reviewer | `devaudit scan --out scan-reports` |
+| Fail a CI job when too many clauses are missing | `devaudit scan --ci --max-missing 3` |
+
+See [`scan.md`](scan.md).
+
 ## Keeping a consumer current
 
 | I want to... | Run |

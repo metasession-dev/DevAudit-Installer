@@ -3,6 +3,7 @@ import { configureLogger } from './lib/logger.js';
 import { CLI_VERSION } from './lib/version.js';
 import { runDoctor, runDoctorGuided } from './commands/doctor.js';
 import { runAgentPermissionsApply } from './commands/agent-permissions.js';
+import { runScan, type ScanOptions } from './commands/scan.js';
 import { runExplain } from './commands/doctor-guided.js';
 import { runFleetDoctor } from './commands/fleet.js';
 import { runReleaseStatus } from './commands/release-status.js';
@@ -417,6 +418,22 @@ export async function main(argv: readonly string[]): Promise<void> {
         return;
       }
       await runDoctor();
+    });
+  program
+    .command('scan [path]')
+    .description('Read this repository and report what it is set up to evidence for the standards you choose (SOC 2, ISO 27001, ISO 29119, GDPR, EU AI Act), clause by clause, from files only. It reports readiness, never "compliant". The default report and --local make no network request; --github adds read-only repository posture through gh. --json prints the scan report (contracts/scan-report.schema.json). See docs/scan.md.')
+    .option('--framework <codes>', 'Standards to evaluate, comma-separated (soc-2, iso-27001, iso-29119, gdpr, eu-ai-act). Without it: asked once in a terminal, else compliance_frameworks from sdlc-config.json, else none.')
+    .option('--local', 'Make no network request (the default report does not either); refused together with --github.')
+    .option('--github', 'Also read the release branch protection through gh (read-only).')
+    .option('--html <file>', 'Write an HTML report.')
+    .option('--sarif <file>', 'Write a SARIF 2.1.0 file: one result per clause that is not evidenced.')
+    .option('--badge <file>', 'Write an SVG badge: "evidence readiness · <standard> · <evidenced> of <total>", in one neutral colour.')
+    .option('--out <dir>', 'Write the JSON report, HTML, SARIF and badge into this folder.')
+    .option('--ci', 'Never ask; exit 1 when more than --max-missing clauses are missing.')
+    .option('--max-missing <n>', 'With --ci: the number of missing clauses to accept (default 0).')
+    .action(async (path: string | undefined, cmdOpts: Omit<ScanOptions, 'path' | 'json'>, cmd: Command) => {
+      const globals = cmd.optsWithGlobals() as { json?: boolean };
+      process.exit(await runScan({ ...cmdOpts, ...(path !== undefined ? { path } : {}), json: Boolean(globals.json) }));
     });
   const agentPermissionsCmd = program
     .command('agent-permissions')
