@@ -152,6 +152,7 @@ Before the broader thought-leadership and workflow series begins, the **first pu
 | 38                                          | MOFU   | Lead Developer              | The LAST/NEXT Status Sticky: Workflow Navigability for Distributed Teams                                          | UX pattern guide (1500w)             |
 | 39                                          | MOFU   | CTO + Lead Developer        | Six Kinds of Tests, One Safety Net: What Runs When, and What Happens When the Last Gate Fails                     | Technical explainer (~1800w) + short-form|
 | 40                                          | MOFU   | Lead Developer              | The Advisory Nobody Asked For: Why a Failing Dependency Audit Mid-Feature Is the Process Working                  | Technical explainer (~1800w) + short-form |
+| 41                                          | MOFU   | CTO + Lead Developer        | Humans Decide, the Agent Does the Work: How DevAudit Splits an SDLC Between Developer, QA and a Coding Agent      | Workflow explainer (~2200w) + short-form  |
 
 ---
 
@@ -870,6 +871,28 @@ This is a five-part series that follows a single feature from GitHub issue to pr
   **CTA:** "See what the framework maps to → [devaudit.ai/compliance](https://devaudit.ai/compliance)"
   **Cross-links:** [docs/compliance-gates.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/compliance-gates.md) · [docs/release-playbooks/](https://github.com/metasession-dev/DevAudit-Installer/tree/main/docs/release-playbooks) · [Long-form](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/articles/dependency-advisory-mid-feature-long-form.md)
 
+#### Article 41: Humans Decide, the Agent Does the Work
+
+> **Publication note:** Added after launch (devaudit-installer#1166). Every behaviour below is read from the current `sdlc-implementer` skill, the CI templates and the CLI, not from the docs. Only behaviour in a released version is described. UAT is described as a human review of recorded evidence in the portal, not as a deployment the agent performs; the agent's part in production is to merge after sign-off and to verify what the host did.
+
+**Primary persona:** CTO + Lead Developer (the QA lead gets a callout section, "Where QA sits")
+**Goal:** Show how DevAudit divides an SDLC between a developer, a QA reviewer and a coding agent: people decide, scope, review and sign off; the agent writes the implementation plan, code, tests and evidence and carries the release as far as a person has allowed. Show that the boundary is enforced by which credentials each side holds, and where the time goes without inventing a percentage.
+**Key points:**
+
+- One prompt (`Implement issue #N under the SDLC.`), five stages; the table of who does what at each, and where the agent stops
+- The first human moment: Phase 0 triage and the "workflow decision" (change type, risk, gates, which approvals the person must give); pause on tracked or ambiguous work, announce-and-proceed on trivial; the person can always reclassify
+- Planning: the implementation plan from the template (acceptance criteria, risk class, threat model), the three sibling skills (requirements alignment, architecture decision, risk register), human approval of the plan for HIGH/CRITICAL (or every class with `--require-plan-approval`), halt on over-scoping and on scope expansion
+- Implementing: failing tests first, gates cheapest first, E2E through the specialist skill, requirement reference and AI co-author trailer on every commit, evidence compiled and uploaded by CI, the LAST/NEXT sticky saying whose turn it is
+- The boundary is credentials: the agent holds neither the uploader key (CI only) nor the person's PAT; it reads with a read-only viewer key; the skill never records or submits UAT; the who-does-what table
+- Where QA sits: UAT is a recorded decision, `approval.mode` (`dual_actor` / `solo_with_gap`), the AC coverage list with its three options, a red required gate ends the turn blocked with exactly two paths (fix or accept with a record), change requests classified as defect / requirements gap / scope change, the five-iteration cap
+- After sign-off: resume, merge with a merge commit behind the release approval check, watch the post-deploy workflow, require the host's deployment status to be a success (a health probe is not proof), production smoke, a person approves Production and marks it released (default), close-out pull request
+- Where the time goes, qualitatively; no percentage; what stays with people
+- Configuration is committed (`approval.mode`, `release_gate_tier`, `production_review.terminal_status`, `e2e_regression_enabled`, `devaudit configure set`)
+- Honest limits (plan's "What DevAudit is not"): not a replacement for review quality, not a certification
+  **DevAudit hook:** `sdlc-implementer/SKILL.md` (Phase 0 to Phase 5, the "Who does what" table), `docs/credentials.md`, `check-release-approval.yml.template`, `post-deploy-prod.yml.template`, `deploy-custom.yml.template`, `devaudit doctor` (`credentials`, `test-tiers` AC coverage).
+  **CTA:** "See the full lifecycle → [devaudit.ai/sdlc](https://devaudit.ai/sdlc)"
+  **Cross-links:** [docs/credentials.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/credentials.md) · [docs/change-workflows.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/change-workflows.md) · [docs/skills.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/skills.md) · [Long-form](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/articles/developer-qa-agent-collaboration-long-form.md)
+
 ---
 
 ## Publishing cadence
@@ -1233,6 +1256,17 @@ Each companion post follows this structure:
 **Proof point:** The same audit run supports ISO 27001 A.8.28 and A.8.29, GDPR Art. 32 and EU AI Act Art. 15, and the gate outcome sits under SOC 2 CC7.2 in the portal's framework registry; the failed run, the fix and the green re-run are the audit pack. DevAudit produces the evidence; the auditor decides.
 **CTA:** "Read the full article → devaudit.ai/blog/dependency-advisory-mid-feature"
 **Source draft:** [short-form](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/articles/dependency-advisory-mid-feature-short-form.md) · hero image `images/dependency-advisory-mid-feature-hero.png` (SVG source alongside)
+
+#### #41s: Humans Decide, the Agent Does the Work
+
+**Long-form parent:** Article 41 — Humans Decide, the Agent Does the Work
+**Platform:** LinkedIn, Dev.to
+**Hook:** "Handing a ticket to a coding agent is easy. Deciding what it may do alone is the hard part."
+**Insight:** Two answers go wrong: the agent does everything, including approving its own work, or you do everything and it is a faster keyboard. The split that works is by kind of work. The agent plans, writes the tests and code, compiles the evidence and prepares the release; the developer and QA confirm the path, read the plan, do UAT, decide what happens when a gate fails and approve production.
+**Proof point:** The line is built in: the agent is not given the uploader key (CI only) or the person's personal access token, reads release state with a read-only key, and the skill never records UAT on a reviewer's behalf.
+**CTA:** "Read the full article → devaudit.ai/blog/developer-qa-agent-collaboration"
+**Source draft:** [short-form](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/articles/developer-qa-agent-collaboration-short-form.md) · hero image `images/developer-qa-agent-collaboration-hero.png` (prompt: `images/developer-qa-agent-collaboration-hero-prompt.md`)
+
 
 ---
 
