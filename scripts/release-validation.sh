@@ -153,7 +153,11 @@ ensure_build() {
 candidate_version() { node -p "require('$ROOT/cli/package.json').version"; }
 
 # ---------------------------------------------------------------------------
-# workflow syntax: YAML parses, no unrendered {{TOKENS}}, every run: is bash -n clean
+# workflow syntax: YAML parses, no unrendered {{TOKENS}}, every run: is bash -n clean.
+# A workflow the update kept as the consumer's own (a local modification) has a sibling
+# <file>.devaudit-new holding what the update would have written. The upstream copy must be
+# clean (a failure is a FAIL: it is the candidate's output); the kept copy's own problems are the
+# consumer's to resolve and are reported as a WARN, not a FAIL (#1143).
 # ---------------------------------------------------------------------------
 check_workflows() { # <target> <dir>
   local target="$1" dir="$2" out
@@ -165,16 +169,23 @@ check_workflows() { # <target> <dir>
 import glob, os, re, subprocess, sys
 import yaml
 bad = []
+kept_bad = []
 files = sorted(glob.glob(os.path.join(sys.argv[1], '*.yml')) + glob.glob(os.path.join(sys.argv[1], '*.yaml')))
+checked = [(f, f, False) for f in files if not os.path.exists(f + '.devaudit-new')]
 for f in files:
-    text = open(f, encoding='utf-8').read()
-    name = os.path.basename(f)
+    if os.path.exists(f + '.devaudit-new'):
+        checked.append((f + '.devaudit-new', f, False))  # upstream copy: a failure is a FAIL
+        checked.append((f, f, True))  # the consumer's kept copy: a failure is a WARN
+for path, f, kept in sorted(checked):
+    text = open(path, encoding='utf-8').read()
+    name = os.path.basename(path)
+    bad_here = kept_bad if kept else bad
     if re.search(r'\{\{[A-Z0-9_]+\}\}', text):
-        bad.append(f'{name}: unrendered template token')
+        bad_here.append(f'{name}: unrendered template token')
     try:
         doc = yaml.safe_load(text)
     except Exception as e:  # noqa: BLE001
-        bad.append(f'{name}: YAML error {str(e).splitlines()[0]}')
+        bad_here.append(f'{name}: YAML error {str(e).splitlines()[0]}')
         continue
     for job_id, job in (doc.get('jobs') or {}).items():
         for i, step in enumerate((job or {}).get('steps') or []):
@@ -186,15 +197,21 @@ for f in files:
             script = re.sub(r'\$\{\{.*?\}\}', 'X', run, flags=re.S)
             p = subprocess.run(['bash', '-n'], input=script, text=True, capture_output=True)
             if p.returncode != 0:
-                bad.append(f'{name}:{job_id}:step{i} bash -n: {p.stderr.strip().splitlines()[0]}')
+                bad_here.append(f'{name}:{job_id}:step{i} bash -n: {p.stderr.strip().splitlines()[0]}')
 print(f'{len(files)} workflow(s)')
 for b in bad:
     print('BAD ' + b)
+for b in kept_bad:
+    print('KEPT ' + b)
 sys.exit(1 if bad else 0)
 PY
 )
   if [ $? -eq 0 ]; then
-    record "$target" workflows-parse PASS "$(printf '%s' "$out" | head -1); YAML, tokens, bash -n clean"
+    if printf '%s' "$out" | grep -q '^KEPT'; then
+      record "$target" workflows-parse WARN "$(printf '%s' "$out" | head -1); the upstream copies are clean, but a kept local workflow fails (the consumer's to resolve): $(printf '%s' "$out" | grep '^KEPT' | head -5 | tr '\n' ';')"
+    else
+      record "$target" workflows-parse PASS "$(printf '%s' "$out" | head -1); YAML, tokens, bash -n clean"
+    fi
   else
     record "$target" workflows-parse FAIL "$(printf '%s' "$out" | grep '^BAD' | head -5 | tr '\n' ';')"
   fi
