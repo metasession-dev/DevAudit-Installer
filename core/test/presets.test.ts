@@ -107,7 +107,7 @@ describe('the preset data (section 4)', () => {
       for (const text of [p.summary, p.evidence, p.gap, p.gapText]) expect(text.trim().length, id).toBeGreaterThan(10);
     }
     expect(PRESETS.A.gapText).toMatch(/You approve your own releases/);
-    expect(PRESETS.D.gapText).toMatch(/DevAudit does not run it again after the deploy/);
+    expect(PRESETS.D.gapText).toMatch(/not again after the deploy/);
     expect(PRESETS.D.moments[3]).toMatch(/No full regression after deploy/);
     expect(PRESETS.B.moments[2]).toMatch(/smoke if there are no critical tests/);
   });

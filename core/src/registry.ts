@@ -349,7 +349,7 @@ export const QUESTIONS: readonly Question[] = [
       {
         value: 'solo',
         label: 'I approve my own; the gap is recorded',
-        consequence: 'Needs a portal that allows a solo approver. The release branch then requires 0 reviews. SOC 2 CC8.1 and ISO 27001 A.8.32 show as not covered, and an auditor will ask for a compensating control.',
+        consequence: 'Needs a portal that allows a solo approver. The release branch then requires 0 reviews. SOC 2 CC8.1 and ISO 27001 A.8.32 show as a gap in the evidence, and an auditor may ask what compensating control you have.',
       },
     ],
     defaults: [{ rule: 'P', source: 'the chosen preset' }],

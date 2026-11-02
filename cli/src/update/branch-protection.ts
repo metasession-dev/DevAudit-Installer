@@ -40,7 +40,7 @@ const confirmLowerReviews: ConfirmLowerReviews = async ({ branch, from, to }) =>
   if (prompts.nonInteractiveReason(json)) return false;
   const gap =
     to === 0
-      ? 'The author will be able to merge their own release PR; DevAudit records this as a control gap for SOC 2 CC8.1 and ISO 27001 A.8.32.'
+      ? 'The author will be able to merge their own release PR; DevAudit records this as a gap in the evidence for SOC 2 CC8.1 and ISO 27001 A.8.32.'
       : 'This weakens the review requirement and is recorded as a change to the control.';
   return (await prompts.confirm(`Lower the required approving reviews on ${branch} from ${from} to ${to}? ${gap}`, { json })) === true;
 };

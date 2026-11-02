@@ -100,7 +100,7 @@ Two governance starters target GDPR.
 
 | Clause            | Title                                       | Starter                                    | What you must replace                                                                                                                                   |
 | ----------------- | ------------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ISO27001.A.12.1` | Operational procedures and responsibilities | `compliance/governance/periodic-review.md` | Same file as SOC 2 CC4.1 — one quarterly review covers both. Cross-reference your `Periodic_Security_Review_Schedule.md` items completed in the period. |
+| `ISO27001.A.12.1` | Operational procedures and responsibilities (periodic review evidence) | `compliance/governance/periodic-review.md` | Same file as SOC 2 CC4.1 — one quarterly review covers both. Cross-reference your `Periodic_Security_Review_Schedule.md` items completed in the period. |
 
 **Replacing the stub — sources:**
 

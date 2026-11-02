@@ -1,11 +1,11 @@
 {
   "$schema": "./schema.json",
-  "registryVersion": "2026-10-30",
+  "registryVersion": "2026-11-02",
   "transcribedFrom": "DevAudit portal, commit 189ab4e",
   "code": "soc-2",
   "name": "SOC 2",
   "longName": "SOC 2 Trust Services Criteria",
-  "edition": "AICPA TSC 2017",
+  "edition": "AICPA Trust Services Criteria (2017, revised points of focus 2022)",
   "clauses": [
     {
       "id": "SOC2.CC2.1",
@@ -107,7 +107,7 @@
           "eventTypes": [
             "release.independently_approved"
           ],
-          "description": "Met by a release approval made by someone other than the release's creator or submitter. A release approved by its own creator or submitter, where the project's approval policy allows it with a recorded gap, is recorded as a self-approval instead and is shown as a gap."
+          "description": "Evidence of independent approval of a change: a release approval made by someone other than the release's creator or submitter. A release approved by its own creator or submitter (allowed only where the project's approval policy permits it, with a recorded gap) is recorded as a self-approval and shown as a gap."
         }
       ]
     },

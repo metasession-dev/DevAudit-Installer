@@ -41,7 +41,7 @@ export interface Preset {
   readonly gap: string;
   /** The sentence the CLI shows for the gap. */
   readonly gapText: string;
-  /** Registry clause IDs that show as not covered under this preset (a self-approval cannot satisfy them). */
+  /** Registry clause IDs that show as a gap in the evidence under this preset (a self-approval cannot satisfy them). */
   readonly controls: readonly string[];
   /** What it needs before it is offered. */
   readonly requires: { readonly soloApprover: boolean; readonly smokeTests: boolean; readonly fullPack: boolean };
@@ -53,7 +53,7 @@ export const SOLO_APPROVER_NOTE = 'needs portal support for a solo approver';
 export const SECOND_ADMIN_NOTE = 'needs a second portal admin';
 
 const SELF_APPROVAL_GAP_TEXT =
-  'You approve your own releases. DevAudit records this as a control gap for SOC 2 CC8.1 and ISO 27001 A.8.32; an auditor will ask for a compensating control.';
+  'You approve your own releases. DevAudit records this as a gap in the evidence for SOC 2 CC8.1 and ISO 27001 A.8.32; an auditor may ask what compensating control you have.';
 
 /** The clauses whose expectation a self-approval cannot satisfy (M2). */
 export const SELF_APPROVAL_CLAUSES = ['SOC2.CC8.1', 'ISO27001.A.8.32'] as const;
@@ -169,9 +169,9 @@ export const PRESETS: Readonly<Record<PresetId, Preset>> = {
       'The full regression runs nightly at 02:00 UTC on the integration branch (never blocks, not release evidence); the quarterly review.',
     ],
     evidence: 'As preset C, without the full regression recorded after the deploy.',
-    gap: 'As preset C; and the full pack is not run again after the deploy, so a problem that appears only in the deployed environment is found by production evidence and the quarterly review, not by the full pack.',
+    gap: 'As preset C; and the full pack is not run again after the deploy, so a problem that appears only in the deployed environment can be caught only by the post-deploy production smoke check and the quarterly review, not by the full pack.',
     gapText:
-      'The full regression runs once, before merge. DevAudit does not run it again after the deploy, so a problem that appears only in the deployed environment is found by production evidence and the quarterly review, not by the full pack.',
+      'The full regression runs once, before merge, and not again after the deploy. A problem that appears only in the deployed environment can be caught only by the post-deploy production smoke check and the quarterly review, not by the full pack.',
     controls: [],
     requires: { soloApprover: false, smokeTests: false, fullPack: true },
     notes: [SECOND_ADMIN_NOTE],

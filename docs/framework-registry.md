@@ -45,4 +45,8 @@ A clause change changes what DevAudit tells people about their compliance, so it
 
 When a file under `contracts/frameworks/` changes on `develop`, the workflow `framework-registry-dispatch.yml` sends the repository dispatch `framework-registry-updated` with `{ sha, registryVersion }` to the portal repository, so the portal can refresh its copy. It needs the `DEVAUDIT_INSTALLER_REGISTRY_DISPATCH` secret and says so, and succeeds, when it is not set.
 
-The wording of the clause descriptions and of the setup gap text is reviewed by an outside compliance reader before a release is published. The questions put to the reader, with the exact strings, are in [`compliance-reader-brief.md`](./compliance-reader-brief.md).
+The wording of the clause descriptions and of the setup gap text is reviewed by an outside compliance reader before a release is published. The questions put to the reader, with the exact strings, are in [`compliance-reader-brief.md`](./compliance-reader-brief.md); the answers prepared so far, and what they changed, are in [`compliance-reader-brief-answers.md`](./compliance-reader-brief-answers.md).
+
+## Notice
+
+The standards named in this registry belong to their publishers. DevAudit is not affiliated with, or endorsed by, ISO, IEC, IEEE, the AICPA or the European Union. Clause IDs and short titles are used only to identify the clause; the registry does not reproduce the text of any standard.

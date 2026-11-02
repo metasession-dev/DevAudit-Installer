@@ -175,11 +175,11 @@ export function effectivePreset(preset: PresetChoice, cfg: Readonly<Record<strin
 export function complianceLine(cfg: Readonly<Record<string, unknown>>, frameworks: readonly string[]): string {
   const solo = cfg['approval.mode'] === 'solo_with_gap';
   const needsEvidence = frameworks.some((f) => f === 'soc-2' || f === 'iso-27001');
-  if (!solo) return 'No control gap from these choices: the approver differs from the author. `devaudit doctor` checks the rest.';
+  if (!solo) return 'The approver differs from the person who created or submitted the release, so DevAudit records no gap for SOC 2 CC8.1 and ISO 27001 A.8.32. `devaudit doctor` checks the rest.';
   const names = 'SOC 2 CC8.1 and ISO 27001 A.8.32';
   return needsEvidence
-    ? `You approve your own releases, and you need evidence for SOC 2 or ISO 27001: ${names} show as not covered, and an auditor will ask for a compensating control.`
-    : `You approve your own releases. DevAudit records this as a control gap for ${names}; an auditor will ask for a compensating control.`;
+    ? `You approve your own releases, and you need evidence for SOC 2 or ISO 27001: ${names} show as gaps in the evidence, and an auditor may ask what compensating control you have.`
+    : `You approve your own releases. DevAudit records this as a gap in the evidence for ${names}; an auditor may ask what compensating control you have.`;
 }
 
 function summaryLines(s: State, facts: DetectedFacts): Array<{ id: string; label: string; value: string }> {

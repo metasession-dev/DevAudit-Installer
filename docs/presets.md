@@ -68,7 +68,7 @@ It does not write `release_gate_tier`, `post_deploy_full_regression`, `scheduled
 
 - **Evidence produced:** An approval record per release; smoke and feature results per change; the quarterly review.
 - **Gap carried:** No segregation of duties; no full-regression evidence; no human production confirmation.
-- **Clauses with a recorded gap:** `SOC2.CC8.1`, `ISO27001.A.8.32`. You approve your own releases. DevAudit records this as a control gap for SOC 2 CC8.1 and ISO 27001 A.8.32; an auditor will ask for a compensating control.
+- **Clauses with a recorded gap:** `SOC2.CC8.1`, `ISO27001.A.8.32`. You approve your own releases. DevAudit records this as a gap in the evidence for SOC 2 CC8.1 and ISO 27001 A.8.32; an auditor may ask what compensating control you have.
 
 ### What it needs
 
@@ -106,7 +106,7 @@ A solo developer or small team that wants the important journeys tested before e
 
 - **Evidence produced:** Preset A plus the critical results before every release, the full results per deploy and per night, and a human production confirmation.
 - **Gap carried:** No segregation of duties; the full regression detects problems after release rather than preventing them.
-- **Clauses with a recorded gap:** `SOC2.CC8.1`, `ISO27001.A.8.32`. You approve your own releases. DevAudit records this as a control gap for SOC 2 CC8.1 and ISO 27001 A.8.32; an auditor will ask for a compensating control.
+- **Clauses with a recorded gap:** `SOC2.CC8.1`, `ISO27001.A.8.32`. You approve your own releases. DevAudit records this as a gap in the evidence for SOC 2 CC8.1 and ISO 27001 A.8.32; an auditor may ask what compensating control you have.
 
 ### What it needs
 
@@ -183,8 +183,8 @@ The same team as C, with the full pack run once, before merge, and not again aft
 ### Evidence and gap
 
 - **Evidence produced:** As preset C, without the full regression recorded after the deploy.
-- **Gap carried:** As preset C; and the full pack is not run again after the deploy, so a problem that appears only in the deployed environment is found by production evidence and the quarterly review, not by the full pack.
-- **Clauses with a recorded gap:** none. The full regression runs once, before merge. DevAudit does not run it again after the deploy, so a problem that appears only in the deployed environment is found by production evidence and the quarterly review, not by the full pack.
+- **Gap carried:** As preset C; and the full pack is not run again after the deploy, so a problem that appears only in the deployed environment can be caught only by the post-deploy production smoke check and the quarterly review, not by the full pack.
+- **Clauses with a recorded gap:** none. The full regression runs once, before merge, and not again after the deploy. A problem that appears only in the deployed environment can be caught only by the post-deploy production smoke check and the quarterly review, not by the full pack.
 
 ### What it needs
 
@@ -193,7 +193,7 @@ The same team as C, with the full pack run once, before merge, and not again aft
 
 ## What a recorded gap means
 
-Once the portal's approval policy exists, `SOC2.CC8.1` and `ISO27001.A.8.32` are satisfied only by an approval made by someone other than the release's creator or submitter. Under presets A and B (policy `self_allowed_with_gap`) they show as not covered after a self-approved release; under presets C and D (policy `independent`) they show as covered. Reports measure evidence readiness; they never say a project is compliant.
+Once the portal's approval policy exists, `SOC2.CC8.1` and `ISO27001.A.8.32` are evidenced only by an approval made by someone other than the release's creator or submitter (the portal compares the approver with the release's creator and submitter, not with whoever wrote the code). Under presets A and B (policy `self_allowed_with_gap`) they show as a gap in the evidence after a self-approved release; under presets C and D (policy `independent`) they show as evidenced. Reports measure evidence readiness; they never say a project is compliant.
 
 ## Changing later
 

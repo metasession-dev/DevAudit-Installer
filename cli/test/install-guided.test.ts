@@ -305,7 +305,7 @@ describe('change one thing and detailed questions', () => {
     const a = asker({ select: ['C', 'change', 'Q11', 'solo', 'yes'], confirm: [] });
     const plan = await run(dir, a, portal(POLICY_SOLO));
     const lines = a.say.filter((l) => l.includes('Compliance:'));
-    expect(lines[0]).toContain('No control gap');
+    expect(lines[0]).toContain('records no gap');
     expect(lines[1]).toContain('You approve your own releases');
     expect(plan.onboarding?.config['approval.mode']).toBe('solo_with_gap');
     expect(plan.onboarding?.config['release_branch_required_reviews']).toBe(0);
@@ -568,7 +568,7 @@ describe('helpers', () => {
   });
 
   it('complianceLine follows the approval mode and the standards', () => {
-    expect(complianceLine({ 'approval.mode': 'dual_actor' }, [])).toContain('No control gap');
+    expect(complianceLine({ 'approval.mode': 'dual_actor' }, [])).toContain('records no gap');
     expect(complianceLine({ 'approval.mode': 'solo_with_gap' }, [])).toContain('SOC 2 CC8.1 and ISO 27001 A.8.32');
     expect(complianceLine({ 'approval.mode': 'solo_with_gap' }, ['soc-2'])).toContain('you need evidence for SOC 2 or ISO 27001');
   });

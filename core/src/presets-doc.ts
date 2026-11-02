@@ -93,7 +93,7 @@ export function renderPresetsMarkdown(): string {
   lines.push(
     '## What a recorded gap means',
     '',
-    `Once the portal's approval policy exists, ${SELF_APPROVAL_CLAUSES.map(code).join(' and ')} are satisfied only by an approval made by someone other than the release's creator or submitter. Under presets A and B (policy ${code('self_allowed_with_gap')}) they show as not covered after a self-approved release; under presets C and D (policy ${code('independent')}) they show as covered. Reports measure evidence readiness; they never say a project is compliant.`,
+    `Once the portal's approval policy exists, ${SELF_APPROVAL_CLAUSES.map(code).join(' and ')} are evidenced only by an approval made by someone other than the release's creator or submitter (the portal compares the approver with the release's creator and submitter, not with whoever wrote the code). Under presets A and B (policy ${code('self_allowed_with_gap')}) they show as a gap in the evidence after a self-approved release; under presets C and D (policy ${code('independent')}) they show as evidenced. Reports measure evidence readiness; they never say a project is compliant.`,
     '',
     '## Changing later',
     '',

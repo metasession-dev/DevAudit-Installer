@@ -1,6 +1,6 @@
 {
   "$schema": "./schema.json",
-  "registryVersion": "2026-10-30",
+  "registryVersion": "2026-11-02",
   "transcribedFrom": "DevAudit portal, commit 189ab4e",
   "code": "iso-27001",
   "name": "ISO 27001",
@@ -118,15 +118,16 @@
           "eventTypes": [
             "release.independently_approved"
           ],
-          "description": "Met by a release approval made by someone other than the release's creator or submitter, with the reviewer recorded. A self-approved release is recorded as a self-approval instead and is shown as a gap."
+          "description": "Evidence of independent approval of a change: a release approval made by someone other than the release's creator or submitter, with the reviewer recorded. A self-approved release is recorded as a self-approval and shown as a gap."
         }
       ]
     },
     {
       "id": "ISO27001.A.12.1",
-      "title": "Operational procedures and responsibilities",
+      "title": "Operational procedures and responsibilities (periodic review evidence)",
       "idEdition": "2013",
-      "note": "ID from the 2013 edition; 2022 equivalent to be confirmed by the compliance reader",
+      "note": "ID from the 2013 edition; the evidence here, a periodic review schedule and a quarterly review, supports ISO/IEC 27001:2022 A.5.36 and does not evidence the 2013 control's operating procedures, change management, capacity or environment separation (change management is A.8.32)",
+      "equivalents2022": ["ISO27001.A.5.36"],
       "expects": [
         {
           "kind": "evidence_filename_any",
