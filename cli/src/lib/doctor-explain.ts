@@ -187,7 +187,7 @@ export const CHECK_EXPLANATIONS: Readonly<Record<string, GapExplanation>> = {
   },
   'standards-fit': {
     title: 'The standards you need do not fit your approval settings',
-    why: 'SOC 2 and ISO 27001 expect a release to be approved by someone other than its author. When the author approves their own release the matching clauses show as not covered, and the standards on the portal may not match the ones in your configuration.',
+    why: 'SOC 2 and ISO 27001 look for a release to be approved by someone other than the person who created or submitted it. When that person approves their own release the matching clauses show as gaps in the evidence, and the standards on the portal may not match the ones in your configuration.',
     guidance: 'Choose an approval setting with a different approver (`devaudit configure`), keep the gap and prepare a compensating control, or correct the standards in sdlc-config.json or the portal.',
   },
   'approval-policy': {

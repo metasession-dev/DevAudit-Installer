@@ -374,7 +374,7 @@ describe('update section 2k keeps the release branch at the configured count', (
       expect(await fn({ branch: 'main', from: 1, to: 0 })).toBe(true);
       expect(yes.questions).toHaveLength(1);
       expect(yes.questions[0]).toContain('from 1 to 0');
-      expect(yes.questions[0]).toContain('control gap');
+      expect(yes.questions[0]).toContain('gap in the evidence');
       expect(yes.questions[0]).toContain('SOC 2 CC8.1');
 
       const no = driverAnswering(false);

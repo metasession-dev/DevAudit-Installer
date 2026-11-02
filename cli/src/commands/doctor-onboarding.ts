@@ -99,7 +99,7 @@ export function standardsFitCheck(cfg: Record<string, unknown>, portalStandards:
   if (needsEvidence && getConfigPath(cfg, 'approval.mode') === 'solo_with_gap') {
     findings.push({
       subject: 'approval.mode',
-      detail: `You need evidence for ${configured.filter((f) => f === 'soc-2' || f === 'iso-27001').join(' and ')}, but releases are approved by their author, so ${SELF_APPROVAL_CLAUSES.join(' and ')} show as not covered (a recorded gap). An auditor will ask for a compensating control.`,
+      detail: `You need evidence for ${configured.filter((f) => f === 'soc-2' || f === 'iso-27001').join(' and ')}, but releases are approved by the person who created or submitted them, so ${SELF_APPROVAL_CLAUSES.join(' and ')} show as gaps in the evidence (a recorded gap). An auditor may ask what compensating control you have.`,
     });
   }
   if (portalStandards !== null) {

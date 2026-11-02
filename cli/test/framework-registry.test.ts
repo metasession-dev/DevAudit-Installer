@@ -111,9 +111,9 @@ describe('the registry files', () => {
   it('ISO27001.A.12.1 is an ID from the 2013 edition, with its 2022 equivalent still to be confirmed', async () => {
     const clause = (await load('iso-27001')).clauses.find((c) => c.id === 'ISO27001.A.12.1')!;
     expect(clause.idEdition).toBe('2013');
-    expect(clause.note).toBe('ID from the 2013 edition; 2022 equivalent to be confirmed by the compliance reader');
-    expect(clause.equivalents2022).toBeUndefined();
-    expect(clause.title).toBe('Operational procedures and responsibilities');
+    expect(clause.note).toContain('supports ISO/IEC 27001:2022 A.5.36');
+    expect(clause.equivalents2022).toEqual(['ISO27001.A.5.36']);
+    expect(clause.title).toBe('Operational procedures and responsibilities (periodic review evidence)');
   });
 
   it('the change-management clauses expect an independent approval (M2)', async () => {

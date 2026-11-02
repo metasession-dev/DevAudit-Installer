@@ -1,6 +1,6 @@
 # Answers to the compliance reader brief
 
-**Status:** prepared answers, not an independent review. They come from reading what DevAudit does and how, in the code of this repository and of the portal, and from general knowledge of the standards. They are a considered starting position for the maintainer. They are not a substitute for a qualified, independent compliance reader, and they are not legal advice. Where the right answer depends on a professional judgement or on law, the answer says so.
+**Status:** accepted by the maintainer on 2026-11-02 and applied (see "What changed" at the end). These are prepared answers, not an independent review. They come from reading what DevAudit does and how, in the code of this repository and of the portal, and from general knowledge of the standards. They are a considered starting position for the maintainer. They are not a substitute for a qualified, independent compliance reader, and they are not legal advice. Where the right answer depends on a professional judgement or on law, the answer says so.
 
 Questions: [`compliance-reader-brief.md`](./compliance-reader-brief.md).
 
@@ -62,7 +62,7 @@ Two facts decide the answers below:
 - **Request:** add a short notice to `docs/framework-registry.md`: the standards named are the property of their publishers, DevAudit is not affiliated with or endorsed by ISO, IEC, IEEE, the AICPA or the EU, and clause IDs and short titles are used only to identify the clause.
 - **Limit:** whether the short control titles and clause numbers of ISO and AICPA publications are protected is a legal question that I cannot settle. Many vendors list them, but ISO and the AICPA do claim copyright in their publications. A lawyer or the compliance reader should confirm before the registry is published at scale.
 
-## What would change in the repository if these answers are accepted
+## What changed in the repository when these answers were accepted
 
 - `contracts/frameworks/soc-2.json`, `iso-27001.json`: the edition note, the two descriptions, and the `ISO27001.A.12.1` title, note and `equivalents2022`.
 - `core/src/presets.ts`: the gap text for presets A, B and D.
