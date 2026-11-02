@@ -146,6 +146,22 @@ if grep -q '^## Failing tests$' "$WORK_DIR/results.md" && grep -q '^- vitest: te
 got=$(surface_for_path cli/tools/bundle-templates.mjs | sorted_words)
 if [ "$got" = "cli-core" ]; then ok "2b: cli/tools/bundle-templates.mjs is cli-core"; else no "2b: bundle-templates.mjs surfaces ($got)"; fi
 
+# 8. #1143: workflows-parse reports a kept local workflow as a WARN, and fails only on the upstream copy
+GOOD_WF=$'name: t\non: push\njobs:\n  a:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo ok\n'
+BAD_WF=$'name: t\non: push\njobs:\n  a:\n    runs-on: ubuntu-latest\n    steps:\n      - run: |\n          if true; then\n            echo never closed\n'
+wf_case() { # <name> <expected status> <files...: name=content>
+  local label="$1" expected="$2" d="$TMP/wf-$RANDOM"; shift 2
+  mkdir -p "$d/.github/workflows"
+  local kv; for kv in "$@"; do printf '%s' "${kv#*=}" > "$d/.github/workflows/${kv%%=*}"; done
+  : > "$RESULTS"
+  check_workflows "t" "$d" >/dev/null
+  if [ "$(cut -f3 "$RESULTS" | head -1)" = "$expected" ]; then ok "workflows-parse: $label"; else no "workflows-parse: $label ($(cat "$RESULTS"))"; fi
+}
+wf_case "clean workflows pass" PASS "a.yml=$GOOD_WF"
+wf_case "a broken ordinary workflow fails" FAIL "a.yml=$BAD_WF"
+wf_case "a broken kept copy with a clean upstream copy is a warning" WARN "a.yml=$BAD_WF" "a.yml.devaudit-new=$GOOD_WF"
+wf_case "a broken upstream copy fails even when the kept copy is clean" FAIL "a.yml=$GOOD_WF" "a.yml.devaudit-new=$BAD_WF"
+
 echo ""
 echo "release-validation.test.sh: ${PASS} passed, ${FAIL} failed"
 [ "$FAIL" -eq 0 ]
