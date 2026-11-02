@@ -4,6 +4,8 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+## [1.12.0] — 2026-11-02
+
 ### Added
 
 - **`devaudit install --from-scan <report-id>` reads a saved scan report from the portal** (#1162): a bare id uses the project named in `sdlc-config.json`, or write `<project-slug>/<report-id>`; it reads `GET /api/ci/projects/{slug}/scan-reports/{id}` with your viewer key and refuses (exit 2, naming the file as the alternative) when the portal does not have it, the key is not accepted or there is none.
@@ -58,7 +60,10 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ### Upgrade notes
 
-- Nothing changes for a consuming project: `core` is an internal dependency of the CLI, installed with it.
+- `@metasession.co/devaudit-core` is a new package. It is an internal dependency of the CLI, installed with it; nothing changes for a consuming project because of it.
+- **Scripts you receive for the first time:** `scripts/check-config-values.sh` and `scripts/e2e-data-lifecycle.sh` appear in your next sync diff, as do the new skill `e2e-test-data` and new documents. `devaudit doctor` gains the checks `preset-drift`, `standards-fit`, `approval-policy`, `durations`, `test-data` and `ci-values`.
+- **A secret or variable your configuration points at must exist.** If `e2e_env` or `app_env` in `sdlc-config.json` holds an entry that is exactly one `${{ secrets.X }}` or `${{ vars.X }}`, your next sync adds a `Check configuration values` step before the dev server in `ci.yml`, `feature-e2e.yml` and `e2e-regression.yml`. It fails the run, naming the entry, when that secret or variable is empty for the job (a name that does not exist, or one that exists only inside a GitHub environment, reads as empty; a Dependabot or fork pull request, which GitHub gives no secrets, only warns). Run `devaudit doctor` first: the `ci-values` check lists those names. Write `${{ secrets.X || '' }}` for a value that may legitimately be empty. A project with no such entry sees no change.
+- **A `runner` of `github-ci` in your configuration** now renders as `ubuntu-latest` (it rendered as a label no GitHub-hosted runner has). Projects that use `self-hosted` or a real label see no change.
 - **A project that names its own branches** (`integration_branch` or `release_branch` other than `develop`/`main`) gets different `compliance-validation.yml`, `compliance-evidence.yml`, `ci-status-fallback.yml`, `close-out-completion.yml` and other workflows in its next sync PR, because they now follow its branches. A project with the default branches sees no change.
 - **Links in synced templates:** the issue templates (`config.yml`, `requirement.yml`, `bug.yml`, `task.yml`) and `pull_request_template.md` that `update` syncs into your repository have corrected links. If you edited those files, the next `update` leaves `*.devaudit-new` conflicts to resolve; otherwise you receive the corrected links.
 - **Test data:** nothing changes for a project that does not set `e2e_data_isolation`, including one that already sets `e2e_seed_command`: its regression workflows are byte-identical. The next sync does rewrite `compliance-evidence.yml` (it passes the run record to the portal) and the `sdlc-config.json` example comment. The `e2e-test-data` skill is added to your skills on sync.
