@@ -161,6 +161,18 @@ wf_case "clean workflows pass" PASS "a.yml=$GOOD_WF"
 wf_case "a broken ordinary workflow fails" FAIL "a.yml=$BAD_WF"
 wf_case "a broken kept copy with a clean upstream copy is a warning" WARN "a.yml=$BAD_WF" "a.yml.devaudit-new=$GOOD_WF"
 wf_case "a broken upstream copy fails even when the kept copy is clean" FAIL "a.yml=$GOOD_WF" "a.yml.devaudit-new=$BAD_WF"
+manifest_case() { # <name> <expected> <managed workflow list (space separated)> <files...: name=content>
+  local label="$1" expected="$2" managed="$3" d="$TMP/wfm-$RANDOM"; shift 3
+  mkdir -p "$d/.github/workflows" "$d/.devaudit"
+  local kv json="" w; for kv in "$@"; do printf '%s' "${kv#*=}" > "$d/.github/workflows/${kv%%=*}"; done
+  for w in $managed; do json="$json\"$w\": {},"; done
+  printf '{"version": 1, "files": {%s "x": {}}}' "$json" > "$d/.devaudit/sync-manifest.json"
+  : > "$RESULTS"
+  check_workflows "t" "$d" >/dev/null
+  if [ "$(cut -f3 "$RESULTS" | head -1)" = "$expected" ]; then ok "workflows-parse: $label"; else no "workflows-parse: $label ($(cat "$RESULTS"))"; fi
+}
+manifest_case "a broken workflow the manifest does not list is a warning" WARN ".github/workflows/a.yml" "a.yml=$GOOD_WF" "old.yml=$BAD_WF"
+manifest_case "a broken workflow the manifest lists still fails" FAIL ".github/workflows/a.yml" "a.yml=$BAD_WF"
 
 echo ""
 echo "release-validation.test.sh: ${PASS} passed, ${FAIL} failed"

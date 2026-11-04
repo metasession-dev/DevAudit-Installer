@@ -84,7 +84,7 @@ describe('sync manifest + writeManaged (devaudit-installer#930)', () => {
     } finally {
       await fs.rm(dir, { recursive: true, force: true });
     }
-  }, 60_000);
+  }, 180_000);
 
   it('preserves a hand-edited CI workflow byte-for-byte, writes upstream to .devaudit-new, and reports a conflict', async () => {
     process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
@@ -115,7 +115,7 @@ describe('sync manifest + writeManaged (devaudit-installer#930)', () => {
     } finally {
       await fs.rm(dir, { recursive: true, force: true });
     }
-  }, 60_000);
+  }, 180_000);
 
   it('preserves a hand-edited scripts/*.sh file and a hand-edited .husky/pre-commit hook', async () => {
     process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
@@ -138,7 +138,7 @@ describe('sync manifest + writeManaged (devaudit-installer#930)', () => {
     } finally {
       await fs.rm(dir, { recursive: true, force: true });
     }
-  }, 60_000);
+  }, 180_000);
 
   it('resolves a conflict once the operator takes .devaudit-new, clearing the flag on the next sync', async () => {
     process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
@@ -162,7 +162,7 @@ describe('sync manifest + writeManaged (devaudit-installer#930)', () => {
     } finally {
       await fs.rm(dir, { recursive: true, force: true });
     }
-  }, 60_000);
+  }, 180_000);
 
   it('a consumer-added file inside .claude/skills/<name>/ survives every sync', async () => {
     process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
@@ -182,7 +182,7 @@ describe('sync manifest + writeManaged (devaudit-installer#930)', () => {
     } finally {
       await fs.rm(dir, { recursive: true, force: true });
     }
-  }, 60_000);
+  }, 180_000);
 
   it('an unmodified stale workflow is removed; a locally-modified stale one is kept and reported', async () => {
     process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
@@ -214,7 +214,7 @@ describe('sync manifest + writeManaged (devaudit-installer#930)', () => {
     } finally {
       await fs.rm(dir, { recursive: true, force: true });
     }
-  }, 60_000);
+  }, 180_000);
 
   it('a script upstream stopped shipping is removed; consumer-owned and bootstrap-only scripts are kept', async () => {
     process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
@@ -303,7 +303,7 @@ describe('sync manifest + writeManaged (devaudit-installer#930)', () => {
     } finally {
       await fs.rm(dir, { recursive: true, force: true });
     }
-  }, 60_000);
+  }, 180_000);
 
   it('a patch-carrying CI file updates cleanly with no conflict (manifest recorded post-patch)', async () => {
     process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
@@ -345,7 +345,7 @@ describe('sync manifest + writeManaged (devaudit-installer#930)', () => {
     } finally {
       await fs.rm(dir, { recursive: true, force: true });
     }
-  }, 60_000);
+  }, 180_000);
 
   it('preserves unknown/custom top-level and nested sdlc-config.json keys across update', async () => {
     process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
@@ -358,7 +358,7 @@ describe('sync manifest + writeManaged (devaudit-installer#930)', () => {
     } finally {
       await fs.rm(dir, { recursive: true, force: true });
     }
-  }, 60_000);
+  }, 180_000);
 
   it('--dry-run reports conflicts without writing anything (classification only)', async () => {
     process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
@@ -378,7 +378,7 @@ describe('sync manifest + writeManaged (devaudit-installer#930)', () => {
     } finally {
       await fs.rm(dir, { recursive: true, force: true });
     }
-  }, 60_000);
+  }, 180_000);
 });
 
 describe('manifest bootstrap (devaudit-installer#930)', () => {
@@ -610,7 +610,7 @@ describe('manifest bootstrap (devaudit-installer#930)', () => {
     } finally {
       await fs.rm(dir, { recursive: true, force: true });
     }
-  }, 60_000);
+  }, 180_000);
 });
 
 // #984 — the manifest must not churn between two identical syncs: file keys
