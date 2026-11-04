@@ -14,6 +14,33 @@
 
 ## Claude Code
 
+### `devaudit agent-permissions apply`
+
+Instead of pasting, run it yourself (an agent never runs it):
+
+```bash
+devaudit agent-permissions apply                 # user scope (the default)
+devaudit agent-permissions apply --scope local   # just you, this project
+devaudit agent-permissions apply --scope project # shared with everyone who can commit
+devaudit agent-permissions apply --include-env-files
+```
+
+It shows the rules it would add, the file and the count, and asks for a confirmation at a terminal. It merges into `permissions.deny`: existing entries are neither removed nor reordered, only missing rules are appended, and every other key (including `allow` and `ask`) is kept. Before it changes anything it writes a timestamped backup of the original beside the file (`settings.json.devaudit-backup-<time>`), then writes atomically and keeps the file mode. It is idempotent: a second run says "already present" and writes nothing and makes no backup.
+
+| Scope | File | Notes |
+| --- | --- | --- |
+| `user` (default) | `~/.claude/settings.json` | All your projects. The stronger scope: an agent that can edit a project file could weaken a rule there. |
+| `project` | `<repo>/.claude/settings.json` | Shared with everyone who can commit; offered, but weaker. |
+| `local` | `<repo>/.claude/settings.local.json` | Just you, this project. |
+
+Without a terminal (no TTY, `CI` set, `--json`) it refuses unless `--yes` is given (exit `8`). A settings file that does not parse as JSON is refused and left untouched (exit `1`). It never writes outside these three paths. `install`, `join` and `update` offer it once ("Add the recommended agent protection rules to your user settings? [Y/n/never]"); "never" is remembered on this machine in the CLI config folder (`agentPermissionsOffer`), not in the repository, and the offer is silent with no terminal, in CI, with `--dry-run`, or when every rule is already present. You do not need a locally installed `devaudit` for the rules to matter: they also match `npx --yes @metasession.co/devaudit-cli ...`, with global flags first.
+
+#### The opt-in `env-files` group
+
+`--include-env-files` also denies `Read` of `.env` and `.env.*` files, which can hold uploader or portal keys in a consuming repository. It is **not** part of the default rules and doctor does not count it unless applied. The trade-off: it keeps an agent away from keys in `.env` files, and it also blocks legitimate local-development reads of those files (the agent cannot read your `.env` to help debug configuration).
+
+### Pasting the rules yourself
+
 Paste this into `.claude/settings.json` (this project, shared with everyone who can commit), `.claude/settings.local.json` (this project, just you) or `~/.claude/settings.json` (all your projects). A deny rule at any scope wins over an allow rule at any other.
 
 ```json
@@ -77,7 +104,7 @@ Re-run it after a Claude Code upgrade or a change to the rules (`bash scripts/ag
 
 ## Other agents
 
-What each vendor documents on 2026-10-28. **We have not exercised these**; only the Claude Code rules above are tested.
+What each vendor documents (first read 2026-10-28, re-checked 2026-10-30: unchanged). **We have not exercised these**; only the Claude Code rules above are tested, and `devaudit agent-permissions apply` writes only Claude Code settings: Cursor's `Shell(...)` rules match the first word of a command, so a subcommand rule cannot be expressed; Gemini CLI's policy files are TOML in a separate folder; Windsurf documents no file for its terminal deny list. For these agents `devaudit doctor` says "no documented mechanism for Gemini CLI, Cursor or Windsurf that `apply` can write; nothing to apply".
 
 **Gemini CLI.** A policy file can deny a shell command by prefix. Put it in your user policy folder (the workspace tier is documented as currently disabled, so a project file has no effect), for example `~/.gemini/policies/devaudit.toml`:
 
@@ -118,4 +145,4 @@ Where a vendor documents no mechanism, there is nothing to configure: keep the P
 
 ## Checking what you have
 
-`devaudit doctor` prints one `agent-permissions` line (Claude Code only; other agents are reported as not checked): all rules present, or how many are missing and in which group (`pat-commands`, `credential-store`). It is informational, appears as tier C guidance when something is missing, and never changes any file.
+`devaudit doctor` prints one `agent-permissions` line (Claude Code only; for other agents it says there is no documented mechanism `apply` can write): all rules present, or how many are missing and in which group (`pat-commands`, `credential-store`), and names the fix, `devaudit agent-permissions apply`. It is informational and never changes any file itself; `devaudit doctor --guided` offers the same fix as a tier A option that calls the same function, while `doctor --fix` only prints it (tier C), so scripts keep their exit codes.

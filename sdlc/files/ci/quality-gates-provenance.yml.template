@@ -176,7 +176,7 @@ jobs:
             if RESPONSE=$(bash scripts/provenance-gated-commit.sh "$VERIFY" "$GATED_SHA" "$CURRENT_RUN_ID"); then
               echo "$RESPONSE"
               echo ""
-              echo "Provenance verified — commit ${GATED_SHA} passed develop-side Quality Gates."
+              echo "Provenance verified — commit ${GATED_SHA} passed {{INTEGRATION_BRANCH}}-side Quality Gates."
               exit 0
             fi
 
@@ -187,5 +187,5 @@ jobs:
           done
 
           echo "::error::Commit ${GATED_SHA} (latest code-bearing commit in this release PR; head is ${HEAD_SHA}) has no successful ${CI_WORKFLOW_PATH} Quality Gates run after waiting $((MAX_ATTEMPTS * WAIT_SECONDS / 60)) minutes."
-          echo "::error::The docs-only CI Status Fallback success on a later commit does not count for code beneath it. Rerun CI on ${GATED_SHA} (or push it through the develop flow so ci.yml runs on it), then rerun this check."
+          echo "::error::The docs-only CI Status Fallback success on a later commit does not count for code beneath it. Rerun CI on ${GATED_SHA} (or push it through the {{INTEGRATION_BRANCH}} flow so ci.yml runs on it), then rerun this check."
           exit 1

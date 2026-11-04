@@ -80,6 +80,9 @@ APPROVED="${APPROVED_DIR}/RELEASE-TICKET-${REQ_ID}.md"
 SUPERSEDED="${SUPERSEDED_DIR}/RELEASE-TICKET-${REQ_ID}.md"
 RTM="compliance/RTM.md"
 TODAY="$(date +%Y-%m-%d)"
+# The sign-off wording follows sdlc-config.json approval.mode (default dual_actor).
+APPROVAL_MODE="$(jq -r '.approval.mode // "dual_actor"' sdlc-config.json 2>/dev/null || echo dual_actor)"
+if [ "$APPROVAL_MODE" = "solo_with_gap" ]; then SIGN_OFF_KIND="solo, recorded gap"; else SIGN_OFF_KIND="dual-actor"; fi
 
 find_bundle_manifest_file() {
   local req_id="$1"
@@ -352,7 +355,7 @@ if [ ! -f "$PENDING" ] && [ ! -f "$APPROVED" ] && [ -f "$SUPERSEDED" ]; then
     exit 0
   fi
 
-  ADDENDUM_SIGN_OFF="**Sign-off (dual-actor):** UAT approved + Production approved on the DevAudit portal (\`released\`); post-deploy production smoke evidence captured. Addendum closed out ${TODAY}."
+  ADDENDUM_SIGN_OFF="**Sign-off (${SIGN_OFF_KIND}):** UAT approved + Production approved on the DevAudit portal (\`released\`); post-deploy production smoke evidence captured. Addendum closed out ${TODAY}."
   ADDENDUM_PR_LINE=""
   if [ -n "$RELEASE_PR" ]; then
     case "$RELEASE_PR" in
@@ -414,7 +417,7 @@ fi
 # ── Flip ticket Status + backlink + sign-off (edit AFTER the move, then stage —
 #    avoids leaving content edits unstaged behind a rename) ────────────────────
 TMP="$(mktemp)"
-SIGN_OFF="**Sign-off (dual-actor):** UAT approved + Production approved on the DevAudit portal (\`released\`); post-deploy production smoke evidence captured. Closed out ${TODAY}."
+SIGN_OFF="**Sign-off (${SIGN_OFF_KIND}):** UAT approved + Production approved on the DevAudit portal (\`released\`); post-deploy production smoke evidence captured. Closed out ${TODAY}."
 PR_LINE=""
 if [ -n "$RELEASE_PR" ]; then
   case "$RELEASE_PR" in

@@ -255,7 +255,7 @@ Precisely (see the *Never touched by `update`* line and the `sdlc-config.json` r
 
 There are two paths:
 
-- **Detected or prompted at `install` time.** The CLI reads `pyproject.toml` / `package.json` to infer the stack and working directory, then prompts for the remaining wizard values (project slug, runtime version, source dirs, working directory, production URL secret). See [`onboarding.md`](onboarding.md#step-2--run-the-installer).
+- **Detected or prompted at `install` time.** The CLI reads `pyproject.toml` / `package.json` to infer the stack and working directory, then runs the guided install: a suggested preset and one summary to accept, change or expand into the remaining wizard values (project slug, runtime version, source dirs, working directory, production URL secret). See [`onboarding.md`](onboarding.md#presets-and-the-guided-install).
 - **Added by hand later, for anything `install` did not ask about** (`database_*`, `paths_ignore`, `e2e_*`, `runner`, `install_flags`, ...). Nothing auto-populates these. The end-to-end workflow for a new customisation is:
   1. Look for an existing key: read the `SdlcConfig` interface in `cli/src/update/ci-templates.ts` (the only copy that cannot go stale) or the annotated [`sdlc/files/sdlc-config.example.json`](../sdlc/files/sdlc-config.example.json), which is the closest thing to a full field reference today. Each key has a `_comment_<key>` entry.
   2. If a key exists, set it in `sdlc-config.json` and run `devaudit update`. Nothing to patch, and it survives every future sync.
@@ -426,6 +426,8 @@ command. `devaudit` never creates, overwrites, or deletes a hook script; it
 is entirely consumer/skill-owned, and needs no `.devaudit-patches` entry or
 upstream-issue trail because it was never generated content to begin with.
 
+**The E2E test data is declared, not hooked.** `e2e_data_isolation` and its keys (`e2e_seed_command`, `e2e_seed_paths`, `e2e_reset_command`, `e2e_preflight_command`, `e2e_leak_check_command`, `e2e_max_skipped`, `feature_e2e_projects`) tell DevAudit where the tests get their data; the regression workflow then runs `scripts/e2e-data-lifecycle.sh` around the tests, and `devaudit doctor` checks the declaration (`test-data`). With `e2e_data_isolation` unset or `none` nothing changes, even for a project that already sets `e2e_seed_command`. The seed and reset code stay the project's; the `e2e-test-data` skill helps write it. See [`e2e-test-tiers.md`](e2e-test-tiers.md#test-data-1116).
+
 ### One-time migration: `META_COMPLY_*` → `DEVAUDIT_*` rename
 
 During the META-COMPLY ↔ DevAudit-Installer repo split, four identifiers were renamed for brand alignment:
@@ -510,7 +512,7 @@ npm view @metasession.co/devaudit-cli version
 | **GitHub vars/secrets**      | `DEVAUDIT_BASE_URL` (variable), `DEVAUDIT_API_KEY` (secret), optionally `DEVAUDIT_VIEWER_API_KEY` (secret) | Consuming projects' CI workflows authenticate against DevAudit via `DEVAUDIT_API_KEY` — see [Token contract](#token-contract) below; `DEVAUDIT_USER_TOKEN` is *not* a repo secret (devaudit-installer#912) | Set by `devaudit install`; refresh manually when API keys rotate                     |
 | **Compliance doc filenames** | `RTM.md`, `test-plan.md`, `test-cases.md`, `test-summary-report.md`                               | CI upload step looks for these exact filenames                                                    | Renaming requires updating all consumer CI workflows                                 |
 | **Release status values**    | `draft`, `uat_review`, `uat_changes_requested`, `uat_rejected`, `uat_approved`, `prod_review`, `prod_approved`, `released`, `superseded`, `deferred` | `check-release-approval.yml` checks for specific statuses                                         | Changing status names requires updating all consumer release-approval gate workflows |
-| **Risk tier column**         | `compliance_projects.risk_tier` (`low`, `medium`, `high`)                                         | Controls self-approval rules: LOW allows self-approval, MEDIUM/HIGH requires independent reviewer | Default `medium`; set per project in DevAudit portal                                 |
+| **Risk tier column**         | `compliance_projects.risk_tier` (`low`, `medium`, `high`)                                         | Controls self-approval rules: LOW allows self-approval, MEDIUM/HIGH requires independent reviewer (unless the project's approval policy is `self_allowed_with_gap`, preset A or B) | Default `medium`; set per project in DevAudit portal                                 |
 
 #### Important (consistency, not immediately breaking)
 

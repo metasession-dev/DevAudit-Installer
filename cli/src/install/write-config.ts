@@ -1,6 +1,7 @@
 import { promises as fs } from 'node:fs';
 import { join } from 'node:path';
 import { readSdlcConfig, resolveTargets, type Target } from '../lib/sdlc-config.js';
+import { deleteConfigPath, setConfigPath } from '../lib/config-path.js';
 import type { InstallContext, InstallPlan, StepResult } from './types.js';
 
 const NODE_PATHS_IGNORE: readonly string[] = [
@@ -142,7 +143,7 @@ export async function writeSdlcConfig(ctx: InstallContext, plan: InstallPlan): P
   // like sast_baseline, accepted_dep_risks, database_*, app_env, build_env, etc.);
   // wizardOwned always wins (stack/host/slug/runtime/source_dirs/working_directory/
   // production_url_secret/devaudit block come from the current install plan).
-  const config: Record<string, unknown> = {
+  let config: Record<string, unknown> = {
     ...defaultedIfNew,
     ...((existing as unknown as Record<string, unknown> | null) ?? {}),
     ...wizardOwned,
@@ -150,6 +151,12 @@ export async function writeSdlcConfig(ctx: InstallContext, plan: InstallPlan): P
   // Test tier / release gate keys named by a flag or a confirmed prompt win over
   // the existing config; keys nobody named are left exactly as they were.
   if (plan.testConfig) Object.assign(config, plan.testConfig);
+  // The guided onboarding (devaudit-installer#1116 WP6): preset and answered keys by dotted path
+  // (`approval.mode` keeps its siblings), after the keys of any other preset are removed.
+  if (plan.onboarding) {
+    for (const key of plan.onboarding.removeKeys) config = deleteConfigPath(config, key);
+    for (const [key, value] of Object.entries(plan.onboarding.config)) config = setConfigPath(config, key, value);
+  }
   if (isNewTarget && ctx.addTarget) {
     // Keep the other target(s) intact under `targets`; the flat top-level
     // fields above continue to describe *this* (the newest) target, which is

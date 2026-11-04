@@ -169,6 +169,7 @@ The tier names are not Playwright-specific. A project on pytest, Jest or Vitest,
 - **Tag every test with its requirement**, in the form the runner's feature scope reads. Playwright: the single rule under *Tag every test with its REQ and AC* below (the id in the title or a describe **and** `tagTest()`). Jest and Vitest: `[REQ-XXX][ACn]` in the title. pytest: the id once per file (title, docstring, comment or marker). Without the tag the feature scope cannot select the test and `devaudit doctor` reports the file.
 - **Tests for Must ACs belong in a project that runs on the release PR** (by default `e2e/critical/`, the `critical` project), not only in `regression`: the portal reads a test as covering an AC only from a result, and results exist before approval from the feature-PR run (every project, selected by the title), the smoke run on the integration branch and the release-PR gate tier. An AC that has only a screenshot reads "untested" on the portal; `devaudit doctor` (`test-tiers`) reports each AC with no test titled `[REQ-XXX][ACn]` (devaudit-installer#1096).
 - **Register pytest markers** in `pyproject.toml`; an unregistered `smoke` or `critical` marker warns and fails under `--strict-markers`.
+- **The release gates have preset names** (`docs/presets.md`): B gates the release PR on `critical`, C on `full`, and D on `full` without the post-deploy run. Use those names with the operator when discussing which tier gates a release. A project with no smoke tests yet is on preset A (or `custom`); see "Starting with no tests" in the `devaudit-configure` skill.
 - **`critical` is optional.** A project may keep two tiers; `devaudit configure set release_gate_tier smoke` says so explicitly and `devaudit doctor` accepts it. Do not rename or remove an existing `critical` tier: consumer configs and portal labels depend on it.
 - **Evidence form.** Playwright writes the JSON report; pytest writes JUnit XML to `$TEST_JUNIT_XML`. Tests with no `page` object have no screenshots (see *Specs with no page object*).
 - If the project has no tier commands yet, `references/tiers-per-runner.md` has the configuration and a copy-paste example per runner. Never create a smoke test without a requirement and an approved plan; hand the tier configuration to `devaudit configure`.
@@ -204,6 +205,7 @@ Present three lists to the user:
 Write the tests in the project's existing style.
 
 - **Match the structure.** Same directory, same file-naming pattern, same test-ID or tag convention.
+- **Does this change alter what data the tests need?** If so, use the `e2e-test-data` skill (seed, reset, test accounts, drift) alongside writing the spec.
 - **Reuse existing helpers.** Page Object Models, fixtures, custom commands, test-data factories — use them. Don't invent parallel infrastructure.
 - **Match the assertion style.** If the codebase uses `expect(locator).toBeVisible()`, don't switch to `assert.isTrue(...)`.
 - **Read 2–3 nearby tests before writing.** Fastest way to absorb conventions you wouldn't have noticed otherwise.
@@ -349,7 +351,7 @@ The classification is: "Is the AC correct but untested/buggy? → defect. Is the
    - `precondition_gap` — seed data missing, auth fixture expired, test account locked
    - `intentional_non_applicability` — API-only change with no UI surface, feature flag disabled for this environment
    - `obsolete_or_quarantined` — test references removed functionality, spec is stale
-3. **Fix `environment_gap` and `precondition_gap` first** — these are never acceptable skip reasons. Resolve the underlying issue, rerun the focused tests, then rerun the full suite.
+3. **Fix `environment_gap` and `precondition_gap` first** — these are never acceptable skip reasons. Hand a `precondition_gap` or `seed-data gap` to the `e2e-test-data` skill (it owns the seed, the reset and the drift checks). Resolve the underlying issue, rerun the focused tests, then rerun the full suite.
 4. **Only remaining `intentional_non_applicability` or unresolved skips** may be surfaced to the operator for approval. Each accepted skip must have an operator-approved rationale.
 5. **A skipped test never proves an acceptance criterion.** If a skipped test is the only coverage for an in-scope AC, that AC is unverified until a passing test proves it.
 6. **Do not write a `PASSED` E2E sentinel while unresolved or unapproved skips remain.**

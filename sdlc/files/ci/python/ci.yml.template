@@ -276,9 +276,9 @@ jobs:
           chmod +x scripts/generate-bundled-changes.sh scripts/submit-bundle-manifest.sh scripts/upload-evidence.sh 2>/dev/null || true
           SINCE_REF=$(git tag --sort=-creatordate | head -1 || true)
           if [ -z "$SINCE_REF" ]; then
-            git fetch origin main --quiet 2>/dev/null || true
-            if git rev-parse --verify origin/main >/dev/null 2>&1; then
-              SINCE_REF=$(git merge-base origin/main HEAD 2>/dev/null || true)
+            git fetch origin {{RELEASE_BRANCH}} --quiet 2>/dev/null || true
+            if git rev-parse --verify origin/{{RELEASE_BRANCH}} >/dev/null 2>&1; then
+              SINCE_REF=$(git merge-base origin/{{RELEASE_BRANCH}} HEAD 2>/dev/null || true)
             fi
           fi
           [ -n "$SINCE_REF" ] || SINCE_REF="HEAD~50"

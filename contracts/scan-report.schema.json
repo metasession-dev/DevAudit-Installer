@@ -1,0 +1,122 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "DevAudit scan report",
+  "description": "The report of `devaudit scan`: what a repository is set up to evidence, per clause of the selected frameworks, with the facts it detected, a suggested preset and the gaps. One format for `--json`, the scan cache, the upload to the portal and `install --from-scan`. A change to this schema raises scanVersion.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["scanVersion", "registryVersion", "facts", "frameworks", "suggestedPreset", "suggestionReason", "gaps"],
+  "properties": {
+    "scanVersion": { "const": "1" },
+    "registryVersion": { "type": "string", "description": "The latest registryVersion (a date) among the framework files evaluated; empty when none were." },
+    "facts": { "$ref": "#/definitions/facts" },
+    "frameworks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "clauses"],
+        "properties": {
+          "code": { "type": "string", "minLength": 1 },
+          "clauses": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["id", "state", "reason", "paths"],
+              "properties": {
+                "id": { "type": "string", "minLength": 1, "description": "A registry clause ID such as SOC2.CC8.1." },
+                "state": { "$ref": "#/definitions/clauseState" },
+                "reason": { "type": "string" },
+                "paths": { "type": "array", "items": { "type": "string" } }
+              }
+            }
+          }
+        }
+      }
+    },
+    "suggestedPreset": { "enum": ["A", "B", "C", "custom"], "description": "Never D: it is offered, not suggested." },
+    "suggestionReason": { "type": "string" },
+    "gaps": { "type": "array", "items": { "$ref": "#/definitions/gap" } }
+  },
+  "definitions": {
+    "clauseState": { "enum": ["evidenced", "partly", "missing", "unknown", "needs_portal"] },
+    "facts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stack", "workingDirectory", "host", "testRunner", "testGroups", "branches", "runner", "governanceFiles", "testData"],
+      "properties": {
+        "stack": { "enum": ["node", "python", null] },
+        "workingDirectory": { "type": ["string", "null"] },
+        "host": { "type": ["string", "null"] },
+        "testRunner": { "enum": ["playwright", "pytest", null] },
+        "testGroups": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["smoke", "critical", "full"],
+          "properties": { "smoke": { "type": "boolean" }, "critical": { "type": "boolean" }, "full": { "type": "boolean" } }
+        },
+        "branches": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["integration", "release"],
+          "properties": { "integration": { "type": ["string", "null"] }, "release": { "type": ["string", "null"] } }
+        },
+        "runner": { "enum": ["github", "self-hosted", null] },
+        "governanceFiles": { "type": "array", "items": { "type": "string" } },
+        "testData": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["seedScripts", "dependentProjects"],
+          "properties": {
+            "seedScripts": { "type": "array", "items": { "type": "string" } },
+            "dependentProjects": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
+    },
+    "remediation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "tier", "summary", "plan", "needsPortal"],
+      "properties": {
+        "id": { "type": "string" },
+        "tier": { "enum": ["A", "B", "C"] },
+        "summary": { "type": "string" },
+        "plan": { "type": "array", "items": { "type": "string" } },
+        "needsPortal": { "type": "boolean" },
+        "data": { "type": "object", "additionalProperties": { "type": "string" } }
+      }
+    },
+    "gap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "source", "check", "subject", "title", "why", "controls", "options"],
+      "properties": {
+        "id": { "type": "string" },
+        "source": { "enum": ["scan", "doctor"] },
+        "check": { "type": "string" },
+        "subject": { "type": "string" },
+        "state": { "$ref": "#/definitions/clauseState" },
+        "title": { "type": "string" },
+        "why": { "type": "string" },
+        "controls": { "type": "array", "items": { "type": "string" } },
+        "options": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "label", "tier", "consequence"],
+            "properties": {
+              "id": { "type": "string" },
+              "label": { "type": "string" },
+              "tier": { "enum": ["A", "B", "C"] },
+              "consequence": { "type": "string" },
+              "remediation": { "$ref": "#/definitions/remediation" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -5,9 +5,16 @@ on:
     tags: ['v[0-9]+.[0-9]+.[0-9]+']
   workflow_dispatch:
     inputs:
+      mode:
+        description: 'release (default): publish every package and create the GitHub Release. core-prerelease: publish ONLY @metasession.co/devaudit-core as <version>-next.<short sha> on the npm "next" tag, from develop (DevAudit-Installer#1116, decision M8); no release, no git tag.'
+        type: choice
+        options:
+          - release
+          - core-prerelease
+        default: release
       version:
-        description: 'Version to publish (e.g. 0.1.0). Used only when manually triggered.'
-        required: true
+        description: 'Version to publish (e.g. 0.1.0). Required for mode "release"; ignored for "core-prerelease".'
+        required: false
 
 permissions:
   contents: write   # for `gh release create`
@@ -15,7 +22,9 @@ permissions:
 
 jobs:
   publish:
-    name: Publish 5 packages to npmjs.org + create GitHub Release
+    name: Publish 6 packages to npmjs.org + create GitHub Release
+    # A tag push always releases; a manual run releases unless it asked for the core prerelease.
+    if: github.event_name == 'push' || inputs.mode != 'core-prerelease'
     runs-on: ubuntu-latest
     env:
       # npm can show a version's metadata minutes before its tarball URL answers (1.10.0: more than
@@ -24,6 +33,15 @@ jobs:
       NPM_PUBLICATION_VERIFY_ATTEMPTS: '40'
       NPM_PUBLICATION_VERIFY_INTERVAL_SECONDS: '15'
     steps:
+      # `version` is optional so that the core prerelease can leave it empty; a manual release needs it.
+      - name: Require a version for a manual release
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          if [ -z "${{ inputs.version }}" ]; then
+            echo "::error::mode 'release' needs the 'version' input (for example 1.12.0)."
+            exit 1
+          fi
+
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v7
         with:
@@ -62,7 +80,26 @@ jobs:
       - name: Verify plugin-sdk is publicly installable
         run: bash scripts/verify-npm-publication.sh @metasession.co/devaudit-plugin-sdk "$(jq -r .version plugin-sdk/package.json)"
 
-      # ----- Step 2: rewrite file:../plugin-sdk → ^X.Y.Z in dependents -----
+      # ----- Step 1b: core (no internal deps; DevAudit-Installer#1116 WP1) -----
+      # Published after plugin-sdk and before cli, which depends on it.
+      - name: core — install + build + test + publish
+        working-directory: core
+        run: |
+          npm install --legacy-peer-deps
+          npm run build
+          npm test
+          NAME=$(jq -r .name package.json)
+          VER=$(jq -r .version package.json)
+          if npm view "${NAME}@${VER}" version >/dev/null 2>&1; then
+            echo "${NAME}@${VER} is already published — skipping (resumable release)."
+          else
+            npm publish --provenance --access public
+          fi
+
+      - name: Verify core is publicly installable
+        run: bash scripts/verify-npm-publication.sh @metasession.co/devaudit-core "$(jq -r .version core/package.json)"
+
+      # ----- Step 2: rewrite file:../plugin-sdk and file:../core → ^X.Y.Z in dependents -----
       # The file: ref keeps local dev working from a fresh clone. At publish
       # time we swap it to the version we just published, so the published
       # tarballs depend on a real semver range rather than a missing path.
@@ -79,6 +116,18 @@ jobs:
             mv "$dir/package.json.tmp" "$dir/package.json"
             echo "  $dir → $(jq -r '.dependencies["@metasession.co/devaudit-plugin-sdk"]' $dir/package.json)"
           done
+
+      # Only the cli depends on core.
+      - name: Pin core version in the cli
+        run: |
+          set -euo pipefail
+          VER=$(jq -r .version core/package.json)
+          echo "Pinning @metasession.co/devaudit-core to ^$VER in the cli"
+          jq --arg v "^$VER" \
+            '.dependencies["@metasession.co/devaudit-core"] = $v' \
+            cli/package.json > cli/package.json.tmp
+          mv cli/package.json.tmp cli/package.json
+          echo "  cli → $(jq -r '.dependencies["@metasession.co/devaudit-core"]' cli/package.json)"
 
       # ----- Step 3: cli -----
       - name: cli — install + build + publish
@@ -166,3 +215,58 @@ jobs:
             echo "Creating GitHub Release $TAG"
             gh release create "$TAG" --generate-notes --title "$TAG"
           fi
+
+  # DevAudit-Installer#1116 decision M8: the portal (devaudit#928) needs @metasession.co/devaudit-core
+  # before the release that first publishes it. This manual job publishes ONLY core, as a prerelease on
+  # the npm "next" tag, from develop. It lives in this file because npm allows one Trusted Publisher per
+  # package, bound to one workflow file (owner action O1). It never publishes another package, never
+  # moves the "latest" tag, and never creates a git tag or a GitHub Release.
+  core-prerelease:
+    name: Publish a core prerelease (npm next tag) for the portal
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'core-prerelease'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write   # for `npm publish --provenance` (SLSA)
+    env:
+      NPM_PUBLICATION_VERIFY_ATTEMPTS: '40'
+      NPM_PUBLICATION_VERIFY_INTERVAL_SECONDS: '15'
+    steps:
+      - name: Refuse to run from any branch except develop
+        run: |
+          if [ "${GITHUB_REF}" != "refs/heads/develop" ]; then
+            echo "::error::The core prerelease runs only from develop (this run is on ${GITHUB_REF})."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Ensure npm supports OIDC Trusted Publishing
+        run: npm install -g npm@latest
+
+      - name: core — set the prerelease version (not committed), build, test, publish to the next tag
+        working-directory: core
+        run: |
+          set -euo pipefail
+          BASE=$(jq -r .version ../cli/package.json)
+          SHA7=$(git rev-parse --short=7 HEAD)
+          VER="${BASE}-next.${SHA7}"
+          jq --arg v "$VER" '.version = $v' package.json > package.json.tmp
+          mv package.json.tmp package.json
+          echo "Prerelease version: ${VER}"
+          npm install --legacy-peer-deps
+          npm run build
+          npm test
+          NAME=$(jq -r .name package.json)
+          if npm view "${NAME}@${VER}" version >/dev/null 2>&1; then
+            echo "${NAME}@${VER} is already published — skipping."
+          else
+            npm publish --provenance --access public --tag next
+          fi
+
+      - name: Verify the core prerelease is publicly installable
+        run: bash scripts/verify-npm-publication.sh @metasession.co/devaudit-core "$(jq -r .version core/package.json)"

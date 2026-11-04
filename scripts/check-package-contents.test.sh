@@ -29,7 +29,7 @@ mkdir -p "$TMP/repo/scripts"
 cp "$SCRIPT" "$TMP/repo/scripts/check-package-contents.sh"
 
 # The canned tarball listings, chosen per package directory by the stub PACK_CMD.
-GOOD_CLI_FILES=(README.md bin/devaudit.js dist/index.js sdlc/src/bin/devaudit-sdlc.cjs sdlc/files/_common/scripts/upload-evidence.sh)
+GOOD_CLI_FILES=(README.md bin/devaudit.js dist/index.js sdlc/src/bin/devaudit-sdlc.cjs sdlc/files/_common/scripts/upload-evidence.sh frameworks/schema.json frameworks/soc-2.json frameworks/iso-27001.json frameworks/iso-29119.json frameworks/gdpr.json frameworks/eu-ai-act.json)
 for i in 1 2 3 4 5 6; do GOOD_CLI_FILES+=("sdlc/src/blueprints/$i-x.raw.md"); done
 for i in 1 2 3 4 5 6 7 8 9; do GOOD_CLI_FILES+=("sdlc/files/_common/skills/skill$i/SKILL.md"); done
 
@@ -74,7 +74,7 @@ out="$(run_case "$d" cli lib 2>&1)"; rc=$?
 if [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -q 'all 2 package(s) pass'; then ok "complete tarballs pass (lifecycle noise before the JSON is ignored)"; else no "complete tarballs pass (rc=$rc): $out"; fi
 
 # 2. each required CLI path, removed, fails and is named
-for missing in "sdlc/src/bin/devaudit-sdlc.cjs" "sdlc/files/_common/scripts/upload-evidence.sh" "bin/devaudit.js" "dist/index.js" "README.md"; do
+for missing in "sdlc/src/bin/devaudit-sdlc.cjs" "sdlc/files/_common/scripts/upload-evidence.sh" "bin/devaudit.js" "dist/index.js" "README.md" "frameworks/schema.json" "frameworks/gdpr.json"; do
   d="$(new_case "miss-$(echo "$missing" | tr '/.' '__')")"
   grep -vxF "$missing" "$d/cli.files" > "$d/cli.files.new" && mv "$d/cli.files.new" "$d/cli.files"
   out="$(run_case "$d" cli 2>&1)"; rc=$?
@@ -126,8 +126,27 @@ STUB
 chmod +x "$TMP/stub-empty.sh"
 if CASE_DIR="$d" PACK_CMD="$TMP/stub-empty.sh" bash "$TMP/repo/scripts/check-package-contents.sh" lib >/dev/null 2>&1; then no "an empty pack result fails"; else ok "an empty pack result fails"; fi
 
+# 7b. every `exports` target is a promised file: a package with a "./node" entry (core) whose
+# tarball lacks it fails, and one that has it passes
+mkdir -p "$TMP/repo/core"
+cat > "$TMP/repo/core/package.json" <<'JSON'
+{ "name": "@x/core", "version": "1.0.0", "main": "./dist/index.js", "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
+               "./node": { "types": "./dist/node/index.d.ts", "import": "./dist/node/index.js" } } }
+JSON
+d="$(new_case core-missing-node)"
+printf '%s\n' dist/index.js dist/index.d.ts dist/node/index.d.ts > "$d/core.files"
+out="$(run_case "$d" core 2>&1)"; rc=$?
+if [ "$rc" -eq 1 ] && printf '%s' "$out" | grep -qF "dist/node/index.js"; then ok "a missing exports entry (dist/node/index.js) fails"; else no "a missing exports entry fails (rc=$rc): $out"; fi
+d="$(new_case core-complete)"
+printf '%s\n' dist/index.js dist/index.d.ts dist/node/index.js dist/node/index.d.ts > "$d/core.files"
+if run_case "$d" core >/dev/null 2>&1; then ok "a package with every exports entry passes"; else no "a package with every exports entry passes"; fi
+
+# 7c. core is one of the default packages
+if grep -q '^PACKAGES=(plugin-sdk core cli ' "$SCRIPT"; then ok "core is checked by default"; else no "core is checked by default"; fi
+
 # 8. the real repository: every listed package has a package.json the script can read
-for p in plugin-sdk cli sdlc plugins/devaudit-plugin-prisma plugins/devaudit-plugin-evidence-export; do
+for p in plugin-sdk core cli sdlc plugins/devaudit-plugin-prisma plugins/devaudit-plugin-evidence-export; do
   if [ -f "$ROOT/$p/package.json" ]; then ok "real package.json: $p"; else no "real package.json: $p"; fi
 done
 

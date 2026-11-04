@@ -21,7 +21,7 @@ Tracked releases and standalone housekeeping releases both rely on the same core
 | `ci.yml` | Push to `develop` | Quality verification: typecheck, SAST, dependency audit, E2E, build; release registration | Produces the raw CI/gate evidence that a reviewer later sees on the release |
 | `compliance-evidence.yml` | Compliance-doc pushes and release-ticket updates on `develop` | Uploads committed markdown evidence and release-scoped docs | Fills the release completeness checklist with planning, test, governance, and release artifacts |
 | `compliance-validation.yml` | PRs to `main` | PR-time validation of artifact presence, commit rules, and release truthfulness | Blocks merge when the evidence pack or commit contract is incomplete |
-| `check-release-approval.yml` | PRs to `main` and reruns after portal approval | Reads portal approval state | Links the PR to the release (so the portal shows `pr_url` while still draft), then enforces the UAT four-eyes gate before merge |
+| `check-release-approval.yml` | PRs to `main` and reruns after portal approval | Reads portal approval state | Links the PR to the release (so the portal shows `pr_url` while still draft), then enforces the UAT approval gate before merge (the approver is a different person under `approval.mode: dual_actor`; under `solo_with_gap` the author's approval is a recorded gap) |
 | `post-deploy-prod.yml` | After merge to `main` | Production smoke, production evidence upload, incident creation on smoke failure | Advances the release into production review/released and records post-deploy proof |
 
 ## What reviewers should expect
@@ -59,7 +59,7 @@ The portal's `release-approved` `repository_dispatch` re-triggers `check-release
 | Test execution and CI traceability | `ci.yml` |
 | Markdown/governance/release-ticket evidence | `compliance-evidence.yml` |
 | PR truthfulness and artifact completeness | `compliance-validation.yml` |
-| UAT approval/four-eyes | `check-release-approval.yml` |
+| UAT approval (four-eyes under `dual_actor`) | `check-release-approval.yml` |
 | Required-gate failure on the release PR (fix or documented exception, E2E first) | `sdlc-implementer` Phase 4 step 5a, `report-test-execution.sh resolve`, `validate-risk-acceptance-record.sh`, `validate-test-summary.sh` (see [e2e-test-tiers.md](e2e-test-tiers.md#when-a-tier-fails-fix-or-accept-devaudit-installer1016)) |
 | Dependency-audit failure on the release PR (bump, or accept with an expiring documented risk) | `evaluate-npm-audit.sh` against `compliance/security/accepted-vulnerabilities.json` (`schemaVersion` 2 + `acceptanceRecord`), `validate-risk-acceptance-record.sh --kind dependency`, `sdlc-implementer` Phase 4 (see [Dependency-audit exceptions](#dependency-audit-exceptions-devaudit-installer1017)) |
 | Deferred-REQ promotion gate (a deferred REQ's commits must not reach `main` unless listed under `Absorbed predecessor releases`) | `check-deferred-reqs-in-range.sh`, run by `check-release-pr-scope.sh` inside the existing Release Scope Integrity job (not a separate required check) |

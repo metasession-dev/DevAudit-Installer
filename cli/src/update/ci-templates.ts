@@ -4,6 +4,7 @@ import { exists, isDir, ensureDir } from '../lib/fs-utils.js';
 import { substituteTokens, substituteBlocks, stripServicesBlock, stripE2eRegressionListener } from '../lib/templates.js';
 import { resolveTargets, type Target } from '../lib/sdlc-config.js';
 import { loadHostAdapter } from '../lib/adapter.js';
+import { preflightArg, preflightValues, type EnvMap } from '../lib/config-values.js';
 import { writeManaged, removeManaged } from './write-managed.js';
 import type { SyncContext, SectionResult } from './types.js';
 
@@ -135,6 +136,11 @@ interface SdlcConfig {
   // for projects whose critical/regression specs mutate a SHARED backend.
   // Empty/absent = the original per-ref group with PR-only cancellation.
   readonly e2e_concurrency_group?: string;
+  // DevAudit-Installer#1116 WP15 — where the tests get their data. The regression lifecycle
+  // (scripts/e2e-data-lifecycle.sh) is generated only when this is set and not `none`.
+  readonly e2e_data_isolation?: string;
+  // DevAudit-Installer#1116 WP15 — Playwright projects the feature run is limited to (default: all).
+  readonly feature_e2e_projects?: readonly string[];
   // Only meaningful with e2e_concurrency_group; defaults to false there.
   readonly e2e_concurrency_cancel_in_progress?: boolean;
   // devaudit-installer#1060 — test tier commands. When none is set the
@@ -242,6 +248,36 @@ function renderEnvBareBlock(env: Record<string, string>): string {
  * (e.g. `supabase start` + schema load + seed) sees the local-stack coords.
  * A multi-line command is emitted as a `run: |` block scalar.
  */
+/**
+ * DevAudit-Installer#1116 WP15 — the regression run's test-data lifecycle, generated only when
+ * `e2e_data_isolation` is set and not `none` (an unset project's workflow is byte-identical). The logic
+ * is in scripts/e2e-data-lifecycle.sh, which reads the declared commands from sdlc-config.json; the
+ * step carries `e2e_env` so the commands see the same environment as the tests.
+ */
+function dataLifecycleEnabled(cfg: SdlcConfig): boolean {
+  const isolation = (cfg.e2e_data_isolation ?? '').trim();
+  // `unknown` is "I do not know yet": like unset, it changes nothing (and is not a value the run record accepts).
+  return isolation !== '' && isolation !== 'none' && isolation !== 'unknown';
+}
+
+function buildE2eDataLifecycleStep(cfg: SdlcConfig, phase: 'before' | 'after'): string {
+  if (!dataLifecycleEnabled(cfg)) return '';
+  const env = stepEnv(cfg, cfg.e2e_env ?? {});
+  const results = cfg.test_runner === 'pytest' ? 'e2e-regression-results.xml' : 'e2e-regression-results.json';
+  const lines =
+    phase === 'before'
+      ? ['      - name: E2E data lifecycle (reset, seed, preflight)']
+      : ['      - name: E2E data lifecycle (teardown, leak check, skip budget)', '        if: always()'];
+  if (Object.keys(env).length > 0) lines.push('        env:', indentEnvBlock({ ...env }, 10));
+  lines.push(
+    phase === 'before'
+      ? '        run: bash scripts/e2e-data-lifecycle.sh before'
+      : `        run: bash scripts/e2e-data-lifecycle.sh after --results ${results} --metadata e2e-regression-metadata.json`,
+  );
+  lines.push('');
+  return lines.join('\n');
+}
+
 function buildE2eSetupStep(cfg: SdlcConfig): string {
   const cmd = (cfg.e2e_setup_command ?? '').trim();
   if (!cmd) return '';
@@ -259,6 +295,26 @@ function buildE2eSetupStep(cfg: SdlcConfig): string {
 }
 
 /**
+ * DevAudit-Installer#1160 — the step that names configuration values that reached the job empty. GitHub reads a
+ * `secrets.X` / `vars.X` that does not exist, or is not visible to the job, as an empty string, so a dev server
+ * would otherwise start without its credentials and the first symptom would be a wait that times out. Only an
+ * entry that is exactly one reference is checked (`${{ secrets.X || '' }}` is how a value that may be empty is
+ * written). `maps` are the config maps whose values the dev server reads; `stepEnvMap` is the one applied at
+ * step level here (the others are already in the job's `env:`). Returns '' when nothing is checked.
+ */
+function buildConfigValuesPreflightStep(cfg: SdlcConfig, maps: readonly EnvMap[], stepEnvMap?: EnvMap): string {
+  const refs = preflightValues(cfg as unknown as Record<string, unknown>, maps);
+  if (refs.length === 0) return '';
+  const lines = ['      - name: Check configuration values'];
+  const own = stepEnvMap ? refs.filter((r) => r.map === stepEnvMap) : [];
+  // Dependabot and fork pull requests get no repository secrets: the script only warns there.
+  lines.push('        env:', "          PR_WITHOUT_SECRETS: ${{ github.actor == 'dependabot[bot]' || github.event.pull_request.head.repo.fork == true }}");
+  for (const r of own) lines.push(`          ${r.env}: \${{ ${r.kind}.${r.source} }}`);
+  lines.push(`        run: bash "$GITHUB_WORKSPACE/scripts/check-config-values.sh" ${refs.map((r) => `'${preflightArg(r)}'`).join(' ')}`);
+  return `${lines.join('\n')}\n`;
+}
+
+/**
  * Build the blocking "Start dev server" step. Rebuilt in code (rather than left
  * inline in the template) so e2e_env can be threaded onto the dev-server process
  * — overriding the job-level remote secrets so the server talks to the local
@@ -266,6 +322,7 @@ function buildE2eSetupStep(cfg: SdlcConfig): string {
  */
 function buildE2eDevServerStep(cfg: SdlcConfig): string {
   const env = stepEnv(cfg, cfg.e2e_env ?? {});
+  const preflight = buildConfigValuesPreflightStep(cfg, ['app_env', 'e2e_env'], 'e2e_env');
   const lines = ['      - name: Start dev server'];
   if (Object.keys(env).length > 0) lines.push('        env:', indentEnvBlock({ ...env }, 10));
   // e2e_start_command is '' on every fresh install (no prompt collects it —
@@ -278,7 +335,7 @@ function buildE2eDevServerStep(cfg: SdlcConfig): string {
   // never parsing at all).
   const startCommand = (cfg.e2e_start_command ?? '').trim() || 'true';
   lines.push(`        run: ${startCommand} &`);
-  return lines.join('\n');
+  return preflight + lines.join('\n');
 }
 
 /**
@@ -609,7 +666,7 @@ function buildAuthenticatedE2eStep(cfg: SdlcConfig): string {
  */
 function buildE2eRegressionServerStep(cfg: SdlcConfig): string {
   const startCommand = (cfg.e2e_start_command ?? '').trim() || 'true';
-  return [
+  return buildConfigValuesPreflightStep(cfg, ['database_env', 'app_env', 'e2e_env']) + [
     '      - name: Start dev server',
     '        run: |',
     '          set -euo pipefail',
@@ -676,6 +733,15 @@ function buildE2eRegressionConcurrency(cfg: SdlcConfig): string {
  * instead of `--project=` which runs the full suite. The REQ_ID shell
  * variable is populated from the detect-req job output at runtime.
  */
+/**
+ * DevAudit-Installer#1116 WP15 — `feature_e2e_projects` limits the feature run to the listed Playwright
+ * projects (so it cannot run a destructive `regression` project against shared data). Empty keeps all.
+ */
+function featureProjectFlags(cfg: SdlcConfig): string {
+  const names = (cfg.feature_e2e_projects ?? []).filter((n) => /^[A-Za-z0-9_.:-]+$/.test(n));
+  return names.map((n) => ` --project=${n}`).join('');
+}
+
 function buildFeatureE2eTestStep(cfg: SdlcConfig): string {
   const env = stepEnv(cfg, cfg.e2e_env ?? {});
   if (cfg.test_runner === 'pytest') {
@@ -703,7 +769,7 @@ function buildFeatureE2eTestStep(cfg: SdlcConfig): string {
   lines.push(
     hasConfigured(cfg.test_feature_command)
       ? `          ${TIER_SCRIPT} feature "$REQ_ID"`
-      : '          npx playwright test --grep "$REQ_ID" --reporter=json,html',
+      : `          npx playwright test --grep "$REQ_ID"${featureProjectFlags(cfg)} --reporter=json,html`,
   );
   return lines.join('\n');
 }
@@ -961,6 +1027,8 @@ function runnerOf(cfg: SdlcConfig): string {
 
 function resolveRunner(cfg: SdlcConfig): string {
   const runner = runnerOf(cfg);
+  // `github-ci` is the logical name for GitHub's machines (a CI_RUNNER_LABEL value), not a label a runner has: a static `runs-on: github-ci` would queue forever (#1164).
+  if (runner === 'github-ci') return 'ubuntu-latest';
   if (runner !== 'self-hosted') return runner;
   const label = "(inputs.runner_label || vars.CI_RUNNER_LABEL || 'github-ci')";
   return `\${{ ${label} == 'github-ci' && 'ubuntu-latest' || ${label} }}`;
@@ -1315,6 +1383,8 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
       DATABASE_SERVICE_OPTIONS: buildDatabaseServiceOptions(cfg.database_service),
       DATABASE_URI_STEP: buildDbUriStep(cfg.database_service, cfg.database_port, cfg),
       E2E_SETUP_STEP: buildE2eSetupStep(cfg),
+      E2E_DATA_BEFORE_STEP: buildE2eDataLifecycleStep(cfg, 'before'),
+      E2E_DATA_AFTER_STEP: buildE2eDataLifecycleStep(cfg, 'after'),
       E2E_DEV_SERVER_STEP: buildE2eDevServerStep(cfg),
       E2E_TEST_STEP: buildE2eTestStep(cfg),
       E2E_FEATURE_TEST_STEP: buildFeatureE2eTestStep(cfg),

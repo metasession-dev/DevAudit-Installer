@@ -161,7 +161,7 @@ AI involvement is a factor in risk classification:
 1. **Correctness** — Does it do what it claims? AI produces plausible code with subtle logic errors.
 2. **Security** — Injection vulnerabilities, insecure defaults, improper error handling?
 3. **Dependencies** — All imports real, current, vulnerability-free? AI fabricates package names.
-4. **Hardcoded values** — Test data, placeholder credentials, debug flags?
+4. **Hardcoded values** — Test data, placeholder credentials, debug flags? (Where the end-to-end tests get their data is declared in `sdlc-config.json`; see `e2e-test-data`.)
 5. **Consistency** — Follows project conventions, or has AI introduced alien patterns?
 
 The PR approval process serves as the formal review gate. Reviewer identity and timestamp are recorded immutably.
@@ -283,7 +283,7 @@ Projects use a develop-main branching model with a permanent integration branch 
 9. **Post-deploy** — Smoke tests against production, evidence uploaded to DevAudit (environment=production)
 10. **Prod review** — Approve production release in DevAudit
 
-The four-eyes principle is enforced through mandatory PR reviews. The PR approval constitutes formal sign-off for compliance purposes.
+PR review is mandatory. Under `approval.mode: dual_actor` the four-eyes principle is enforced: the approver differs from the author. Under `solo_with_gap` the author's own approval is a recorded control gap, not a four-eyes control. The PR approval constitutes formal sign-off for compliance purposes.
 
 ### Commit Standards
 
@@ -302,7 +302,7 @@ Tracked requirements include: `Ref: REQ-XXX`
 
 **Planning** — Requirements with acceptance criteria, risk classification, AI use intent (if applicable).
 
-**Development** — PR with code review (four-eyes principle), commit messages with traceability, `Co-Authored-By` tags, branch protection enforcement, SAST and dependency scan results.
+**Development** — PR with code review (a different reviewer under `dual_actor`; a recorded gap under `solo_with_gap`), commit messages with traceability, `Co-Authored-By` tags, branch protection enforcement, SAST and dependency scan results.
 
 **Testing** — Test execution logs with timestamps and results, security scan evidence, screenshot/video capture for failures, AI review documentation.
 

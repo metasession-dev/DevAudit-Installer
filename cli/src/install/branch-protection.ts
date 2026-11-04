@@ -4,7 +4,7 @@ import { readSdlcConfig, resolveTargets, type SdlcConfig, type Target } from '..
 import {
   MAIN_REQUIRED_CHECKS,
   DEVELOP_REQUIRED_CHECKS,
-  MAIN_REVIEW_COUNT,
+  releaseReviewCount,
   DEVELOP_REVIEW_COUNT,
   namespacedRequiredChecks,
 } from '../lib/branch-protection-checks.js';
@@ -53,6 +53,9 @@ export async function configureBranchProtection(
   // entirely (the integrationBranch !== releaseBranch guard below would go
   // false).
   const releaseBranch = config?.release_branch ?? 'main';
+  // DevAudit-Installer#1116 WP2: `release_branch_required_reviews` (0-2), default 1 (today's value).
+  const releaseReviews = releaseReviewCount(config);
+  const reviewsLabel = (n: number): string => `${n} review${n === 1 ? '' : 's'}`;
   // Multi-target (#689/#696): apply once per target with that target's
   // namespaced check name (mirroring the CI workflow job-name suffix from
   // #692). GitHubProvider.applyBranchProtection unions rather than replaces
@@ -71,7 +74,7 @@ export async function configureBranchProtection(
     return {
       step: '10/12 Configure branch protection',
       status: 'planned',
-      message: `would apply branch protection on ${repo}:${releaseBranch} (1 review) + ${integrationBranch} (0 reviews) — ${checksSummary}`,
+      message: `would apply branch protection on ${repo}:${releaseBranch} (${reviewsLabel(releaseReviews)}) + ${integrationBranch} (0 reviews) — ${checksSummary}`,
     };
   }
   const results: string[] = [];
@@ -81,11 +84,11 @@ export async function configureBranchProtection(
       ctx.projectPath,
       releaseBranch,
       namespacedRequiredChecks(MAIN_REQUIRED_CHECKS, target.name, multiTarget),
-      { requiredReviewCount: MAIN_REVIEW_COUNT },
+      { requiredReviewCount: releaseReviews },
     );
     const mainLabel = `${releaseBranch}${multiTarget ? ` (${target.name})` : ''}`;
     if (mainResult.applied) {
-      results.push(`${mainLabel}: ok (${MAIN_REVIEW_COUNT} review)`);
+      results.push(`${mainLabel}: ok (${reviewsLabel(releaseReviews)})`);
     } else {
       results.push(`${mainLabel}: FAILED — ${mainResult.message ?? 'unknown'}`);
     }

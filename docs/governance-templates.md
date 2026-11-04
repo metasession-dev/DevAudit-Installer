@@ -75,7 +75,7 @@ Two governance starters target GDPR.
 | -------------- | ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `EUAIA.Art-13` | Transparency and provision of information to deployers | `compliance/governance/ai-disclosure.md`                                                                                          | Every AI tool / model / API your project incorporates, its intended purpose, capabilities, limitations, human oversight path, logging behaviour. |
 | `EUAIA.Art-12` | Record-keeping (automatic logging)                     | (auto — covered by W2 audit-log snapshot in CI; see issue [#98](https://github.com/metasession-dev/DevAudit-Installer/issues/98)) | Not a governance doc — closed by the audit-log export evidence type.                                                                             |
-| `EUAIA.Art-14` | Human oversight                                        | (auto — covered by `release.approved` audit events from the portal's four-eyes flow)                                              | Not a governance doc — closed when releases are approved.                                                                                        |
+| `EUAIA.Art-14` | Human oversight                                        | (auto — covered by `release.approved` audit events from the portal's approval flow; a different approver under `dual_actor`, a recorded gap under `solo_with_gap`)                                              | Not a governance doc — closed when releases are approved.                                                                                        |
 
 **Replacing the stub — sources:**
 
@@ -100,7 +100,7 @@ Two governance starters target GDPR.
 
 | Clause            | Title                                       | Starter                                    | What you must replace                                                                                                                                   |
 | ----------------- | ------------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ISO27001.A.12.1` | Operational procedures and responsibilities | `compliance/governance/periodic-review.md` | Same file as SOC 2 CC4.1 — one quarterly review covers both. Cross-reference your `Periodic_Security_Review_Schedule.md` items completed in the period. |
+| `ISO27001.A.12.1` | Operational procedures and responsibilities (periodic review evidence) | `compliance/governance/periodic-review.md` | Same file as SOC 2 CC4.1 — one quarterly review covers both. Cross-reference your `Periodic_Security_Review_Schedule.md` items completed in the period. |
 
 **Replacing the stub — sources:**
 
@@ -120,6 +120,19 @@ The other ISO 29119 clauses (Test Policy, Test Strategy, Test Plan, Test executi
 
 - [ISO/IEC/IEEE 29119](https://www.iso.org/standard/45142.html)
 - Portal registry: `META-COMPLY/lib/config/frameworks/iso-29119.ts`
+
+## Presets and the clauses with a recorded gap
+
+The approval preset decides who approves a release, which decides how two change-management clauses read. This table is checked against the preset data in `@metasession.co/devaudit-core` (see [`presets.md`](./presets.md)):
+
+| Preset | Approver | Clauses shown as not covered |
+| --- | --- | --- |
+| A | the author (`solo_with_gap`) | `SOC2.CC8.1`, `ISO27001.A.8.32` |
+| B | the author (`solo_with_gap`) | `SOC2.CC8.1`, `ISO27001.A.8.32` |
+| C | a different person (`dual_actor`) | none from approval |
+| D | a different person (`dual_actor`) | none from approval |
+
+A gap is a statement of what the evidence does not show, never a statement that a project is or is not compliant. Record the compensating control in the risk register (`risk-register-keeper`).
 
 ## Workflow
 
@@ -179,7 +192,7 @@ Issue [#98](https://github.com/metasession-dev/DevAudit-Installer/issues/98) tra
   ```
 
 - **W2 — Audit log snapshot in CI** (`v0.1.33`, closes `ISO27001.A.8.16`, `EUAIA.Art-12`, `GDPR.Art-32` audit-log half):
-  A new CI step in `compliance-evidence.yml` snapshots the portal's audit log for the rolling 90-day window via `GET /api/ci/projects/<slug>/audit-log/export` (shipped in META-COMPLY [#413](https://github.com/metasession-dev/devaudit/pull/413)) and uploads it as `evidence_type=audit_log`. Auto-generated; no template needed; soft-fails on transient endpoint hiccups so the rest of the evidence pipeline isn't blocked.
+  A new CI step in `compliance-evidence.yml` snapshots the portal's audit log for the rolling 90-day window via `GET /api/ci/projects/<slug>/audit-log/export` (shipped in META-COMPLY pull request 413 of the portal) and uploads it as `evidence_type=audit_log`. Auto-generated; no template needed; soft-fails on transient endpoint hiccups so the rest of the evidence pipeline isn't blocked.
 
 ## See also
 

@@ -1,5 +1,19 @@
 import type { InstallContext, InstallPlan, StepResult } from './types.js';
 
+/** The way from "no tests yet" to a gated release; the same four steps as docs/onboarding.md and the devaudit-configure skill. */
+export function startingWithNoTestsLines(presetAOffered: boolean): string[] {
+  return [
+    '  Starting with no tests:',
+    presetAOffered
+      ? '    1. Finish on preset A (smoke only is not yet a gate), or on `custom` if you want a different person to approve.'
+      : '    1. Finish on `custom` (preset A is not offered: this portal does not allow a solo approver yet).',
+    '    2. Use the e2e-test-engineer skill to write the first smoke tests (a requirement and an approved plan come first).',
+    '    3. Run `devaudit doctor`; the test-tiers check should now pass.',
+    '    4. Run `devaudit configure` to enable critical or full when those tests exist.',
+    '',
+  ];
+}
+
 export function doneReport(ctx: InstallContext, plan: InstallPlan): StepResult {
   if (ctx.installMode === 'developer') {
     const lines = [
@@ -48,6 +62,7 @@ export function doneReport(ctx: InstallContext, plan: InstallPlan): StepResult {
     ...(plan.testNotes ?? []).map((n) => `  ${n}`),
     ...(plan.testConfig ? [`  Test tier settings written: ${Object.keys(plan.testConfig).join(', ')}.`] : []),
   ];
+  const noTestsLines = plan.onboarding?.noSmokeTests ? startingWithNoTestsLines(plan.onboarding.presetAOffered !== false) : [];
   const lines = [
     '',
     `  ${ctx.projectName} is onboarded.`,
@@ -67,6 +82,7 @@ export function doneReport(ctx: InstallContext, plan: InstallPlan): StepResult {
     // sync.
     '    gh pr create --base develop',
     '',
+    ...noTestsLines,
     '  Review your test tiers any time with `devaudit doctor` (the test-tiers and',
     '    e2e-release-gate checks); if there is no smoke tier yet, the e2e-test-engineer',
     '    skill scaffolds one.',

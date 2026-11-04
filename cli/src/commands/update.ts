@@ -5,6 +5,7 @@ import { logger } from '../lib/logger.js';
 import { resolveRepoRoot } from '../lib/git-root.js';
 import { readSdlcConfig } from '../lib/sdlc-config.js';
 import { credentialsBlockFor } from '../lib/credentials-check.js';
+import { offerAgentPermissions } from './agent-permissions.js';
 import {
   discoverPlugins,
   buildPluginContext,
@@ -174,6 +175,7 @@ export async function runUpdate(options: UpdateOptions): Promise<void> {
     log.log('');
     for (const l of credLines) log.log(l);
   }
+  await offerAgentPermissions({ dryRun: Boolean(options.dryRun), cwd: roots[0] ?? process.cwd() });
   if (e2eRegression === 'enable') {
     log.log('');
     log.log('E2E regression tier enabled (devaudit-installer#876):');

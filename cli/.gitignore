@@ -7,4 +7,5 @@ coverage/
 # Bundled template snapshot — generated from the repo root by
 # tools/bundle-templates.mjs on `prepack`. Not committed.
 /sdlc/
+/frameworks/
 /scripts/

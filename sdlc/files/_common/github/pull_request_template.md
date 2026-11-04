@@ -3,7 +3,7 @@ SDLC-compliant PR template. Fields marked (REQUIRED) are mandatory for Requireme
 For chores using the trivial-change escape hatch (TASK issues), delete the REQ / Risk /
 Evidence / Four-eyes / Rollback sections and keep only the Summary + Test plan.
 
-Reference: https://github.com/metasession-dev/devaudit/blob/main/docs/implementing-an-sdlc-issue.md
+Reference: https://github.com/metasession-dev/DevAudit-Installer/blob/main/sdlc/src/blueprints/implementing-an-sdlc-issue.raw.md
 -->
 
 ## Summary
@@ -30,7 +30,7 @@ Risk:
 
 Evidence:
 
-## Four-eyes attestation (REQUIRED for HIGH and CRITICAL risk only)
+## Four-eyes attestation (REQUIRED for HIGH and CRITICAL risk under `approval.mode: dual_actor`; under `solo_with_gap` the release ticket's solo sign-off section replaces it)
 
 <!-- @username — second reviewer who has signed off on the implementation plan. -->
 

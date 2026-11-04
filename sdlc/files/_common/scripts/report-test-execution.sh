@@ -42,6 +42,10 @@
 #                                  (compliance/evidence/REQ-XXX/accepted-e2e-failure-<spec>.md).
 #                                  REQUIRED for --resolution-type accepted_exception, together with
 #                                  --remediation-reference (the tracking issue) -- see below.
+#   --run-data-file <path>         `complete` only -- the run record (e2e-regression-metadata.json); its `data`
+#                                  object (written by e2e-data-lifecycle.sh) is sent as `runData`
+#                                  (metasession-dev/devaudit#942). A portal that does not know the field
+#                                  ignores it; with no file, or no `data` object, the payload is unchanged.
 #   --output-file <path>           Writes key=value outputs for callers
 #
 # `resolve` is the self-service path for a failed cycle on an immutable,
@@ -125,6 +129,7 @@ RESOLUTION_TYPE=""
 RESOLVED_BY_CYCLE_ID=""
 REASON=""
 RECORD_PATH=""
+RUN_DATA_FILE=""
 # devaudit-installer#1019 -- default on; see classify-pr-attribution.sh.
 ATTRIBUTION_GUARD="${DEVAUDIT_ATTRIBUTION_GUARD:-1}"
 
@@ -157,6 +162,7 @@ while [ "$#" -gt 0 ]; do
     --resolved-by-cycle-id) RESOLVED_BY_CYCLE_ID="$2"; shift 2 ;;
     --reason) REASON="$2"; shift 2 ;;
     --record) RECORD_PATH="$2"; shift 2 ;;
+    --run-data-file) RUN_DATA_FILE="$2"; shift 2 ;;
     --no-attribution-guard) ATTRIBUTION_GUARD=0; shift ;;
     --output-file) OUTPUT_FILE="$2"; shift 2 ;;
     *) echo "Unknown option: $1"; exit 1 ;;
@@ -336,7 +342,14 @@ build_payload() {
   else
     EXTERNAL_RUN_ATTEMPT_JSON="null"
   fi
+  # DevAudit-Installer#1116 WP15: the run record's `data` object travels as `runData` (complete only).
+  local run_data_json="null"
+  if [ "$mode" = "complete" ] && [ -n "$RUN_DATA_FILE" ] && [ -f "$RUN_DATA_FILE" ]; then
+    run_data_json="$(jq -c 'if (.data | type) == "object" then .data else null end' "$RUN_DATA_FILE" 2>/dev/null || echo null)"
+    [ -n "$run_data_json" ] || run_data_json="null"
+  fi
   jq -n \
+    --argjson runData "$run_data_json" \
     --argjson schemaVersion 1 \
     --arg mode "$mode" \
     --arg sdlcStage "$SDLC_STAGE" \
@@ -389,6 +402,7 @@ build_payload() {
             outcomeReason: ($outcomeReason | if . == "" then null else . end)
           }
         end)
+      + (if $mode == "complete" and $runData != null then { runData: $runData } else {} end)
     '
 }
 

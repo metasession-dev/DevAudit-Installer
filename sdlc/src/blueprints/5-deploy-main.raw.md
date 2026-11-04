@@ -159,7 +159,7 @@ If the smoke results look wrong or a manual verification fails, click **Reject**
 
 #### Approver mode (same as Stage 3 Step 11)
 
-`approval.mode` is checked again here. `dual_actor` means the post-deploy approver must differ from the release creator. `solo_with_gap` accepts self-approval but records the control gap. `auto_low_risk` allows LOW-risk requirements to auto-advance through both transitions on workflow completion; MEDIUM/HIGH always require a human click.
+`approval.mode` is checked again here. `dual_actor` means the post-deploy approver must differ from the release creator. `solo_with_gap` accepts self-approval but records the control gap. Nothing advances a release automatically: an `auto_low_risk` mode is not implemented.
 
 ### Step 6: Automated Close-out (Tracked Requirements Only)
 

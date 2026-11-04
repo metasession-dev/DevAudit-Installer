@@ -1,18 +1,18 @@
 # Releasing DevAudit
 
-The one canonical procedure for publishing a DevAudit-Installer release: the five npm packages and the GitHub release. It is tool-neutral. [`/release-devaudit`](../.claude/commands/release-devaudit.md) and the Devin workflow are short wrappers that point here; follow this page whichever tool you use.
+The one canonical procedure for publishing a DevAudit-Installer release: the six npm packages and the GitHub release. It is tool-neutral. [`/release-devaudit`](../.claude/commands/release-devaudit.md) and the Devin workflow are short wrappers that point here; follow this page whichever tool you use.
 
 It is **not** [`docs/release-playbooks/`](./release-playbooks/README.md), which is for releases of a *consumer* project. It is also not the validation method: [`docs/release-validation-plan.md`](./release-validation-plan.md) says what the gate checks and its pass rule; this page says when to run it.
 
 Fixes are batched into one validated release so consumers update once. Nothing in a release is optional because it is slow: the checks below exist because each one caught, or would have caught, a real failure in 1.9.0 or 1.10.0.
 
-## The five packages
+## The six packages
 
-`@metasession.co/devaudit-plugin-sdk` (`plugin-sdk/`), `@metasession.co/devaudit-cli` (`cli/`), `@metasession.co/devaudit-sdlc` (`sdlc/`), `@metasession.co/devaudit-plugin-prisma` (`plugins/devaudit-plugin-prisma/`), `@metasession.co/devaudit-plugin-evidence-export` (`plugins/devaudit-plugin-evidence-export/`). They always share one version.
+`@metasession.co/devaudit-plugin-sdk` (`plugin-sdk/`), `@metasession.co/devaudit-core` (`core/`, the pure shared core of the CLI and the DevAudit web application; published after `plugin-sdk` and before `cli`), `@metasession.co/devaudit-cli` (`cli/`), `@metasession.co/devaudit-sdlc` (`sdlc/`), `@metasession.co/devaudit-plugin-prisma` (`plugins/devaudit-plugin-prisma/`), `@metasession.co/devaudit-plugin-evidence-export` (`plugins/devaudit-plugin-evidence-export/`). They always share one version.
 
 ## Prerequisites (checked once)
 
-- Each of the five packages has an npm **Trusted Publisher** (npmjs.org, package settings, Publishing access, GitHub Actions) pointing at this repository and `release.yml`. Publishing uses OIDC; no `NPM_TOKEN` exists or is needed.
+- Each of the six packages has an npm **Trusted Publisher** (npmjs.org, package settings, Publishing access, GitHub Actions) pointing at this repository and `release.yml`. Publishing uses OIDC; no `NPM_TOKEN` exists or is needed. npm allows one Trusted Publisher per package, bound to one workflow file, which is why the `core` prerelease job (below) lives in `release.yml` too. `@metasession.co/devaudit-core` must exist on npm with its Trusted Publisher before its first prerelease or release (owner action O1 of DevAudit-Installer#1116); if npm only allows a Trusted Publisher on an existing package, the maintainer publishes the first `core` version by hand.
 - You can push tags.
 - The `INSTALLER_DISPATCH_TOKEN` repository secret is set (devaudit-installer#613). Without it the back-merge automation's pull request sits at `action_required` until each pending run is approved by hand.
 - `jq`, `gh` (authenticated), `node` >= 22, `python3` with PyYAML.
@@ -25,13 +25,27 @@ The repository counts as **onboarded** when `.devaudit/sync-manifest.json` exist
 
 | # | Phase | Done when |
 | --- | --- | --- |
-| 1 | Prepare | the release PR (`chore/<issue#>-release-<version>`) is merged into `develop`; the five packages share the version; `[Unreleased]` in `cli/CHANGELOG.md` is empty |
+| 1 | Prepare | the release PR (`chore/<issue#>-release-<version>`) is merged into `develop`; the six packages share the version; `[Unreleased]` in `cli/CHANGELOG.md` is empty |
 | 2 | Validate | `scripts/release-validation.sh` passed on the final `develop` commit with consumer and layer-2b rows present; the counts are recorded |
 | 3 | Promote | the `develop` to `main` pull request is merged with a merge commit |
-| 4 | Publish | the annotated tag is pushed, `release.yml` is green (or resumed to green), and all five packages and the GitHub release are verified independently |
+| 4 | Publish | the annotated tag is pushed, `release.yml` is green (or resumed to green), and all six packages and the GitHub release are verified independently |
 | 5 | Close out | `develop` has the back-merge, tracking issues are closed, consumers are told |
 
 You may start at any phase after checking the earlier phases' "done when". If one does not hold, stop and report which, instead of proceeding. The tag step always asks for explicit confirmation of the version (npm publishes are immutable).
+
+## Core prerelease (decision M8)
+
+The DevAudit web application (`metasession-dev/devaudit`) builds on `@metasession.co/devaudit-core` (DevAudit-Installer#1116, `metasession-dev/devaudit#928`) and must be deployed before the release that first publishes `core`. So `release.yml` has a **manual** mode that publishes only `core`, as a prerelease:
+
+```bash
+gh workflow run release.yml --ref develop -f mode=core-prerelease
+```
+
+- It publishes `@metasession.co/devaudit-core@<cli version>-next.<7-character commit sha>` on the npm **`next`** tag. It refuses to run from any branch except `develop`.
+- It publishes nothing else: no other package, no `latest` tag, no git tag, no GitHub release, nothing on `main`. It is not a release.
+- The web application pins that exact version and moves to the final version when the installer releases.
+- It needs owner action O1 first (the package exists on npm, with its Trusted Publisher pointing at this repository and `release.yml`).
+- A tag push, or a manual run with the default `mode=release` and a `version`, behaves as before.
 
 ## Phase 1: Prepare
 
@@ -44,7 +58,7 @@ You may start at any phase after checking the earlier phases' "done when". If on
 3. **Bump** every package with `npm version`, which also updates each lockfile's own version fields (a 4-line diff per package):
    ```bash
    VERSION=1.11.0   # the confirmed target
-   for d in plugin-sdk cli sdlc plugins/devaudit-plugin-prisma plugins/devaudit-plugin-evidence-export; do
+   for d in plugin-sdk core cli sdlc plugins/devaudit-plugin-prisma plugins/devaudit-plugin-evidence-export; do
      (cd "$d" && npm version "$VERSION" --no-git-tag-version)
    done
    git diff --stat   # expect only package.json and package-lock.json version lines
@@ -89,7 +103,7 @@ scripts/release-validation.sh all
 
 ## Phase 3: Promote
 
-1. **Dependency and security step.** List open Dependabot alerts and classify each as runtime or dev from the five packages' `dependencies`; run `npm audit --omit=dev` in each package. Decide on any open Dependabot pull request that targets `main` **before** tagging: a security-update pull request always targets the default branch, so it needs retargeting to `develop` or a fix pull request into `develop`.
+1. **Dependency and security step.** List open Dependabot alerts and classify each as runtime or dev from the six packages' `dependencies`; run `npm audit --omit=dev` in each package. Decide on any open Dependabot pull request that targets `main` **before** tagging: a security-update pull request always targets the default branch, so it needs retargeting to `develop` or a fix pull request into `develop`.
 2. **Open `develop` to `main` as a draft** (`Release <version>`). Mark it ready (`gh pr ready <n>`) only when the validation counts (Phase 2) are in the body.
 3. **CI policy on the release pull request.** Required: `CLI CI` on Ubuntu and macOS, `Template Lint`, the consumer-names check, `Enforce GitFlow`, and `Package contents`. `Test (windows-latest)` is **not** a required check and can flake (#1089): rerun it once, record that you did, and never let it block alone; any failure that is not a timeout still blocks. Branch protection on `main` cannot be read with a normal token, so the maintainer confirms which checks are required before the first release of the day.
 4. **Merge with a merge commit** (never squash or rebase) once the required checks are green on the current head.
@@ -118,7 +132,7 @@ scripts/release-validation.sh all
 4. **Watch `release.yml`:** `gh run watch "$(gh run list --workflow Release --event push --limit 1 --json databaseId --jq '.[0].databaseId')" --exit-status`.
 5. **Verify independently of a green run.** A red first run can still have published four of five packages (it did for 1.10.0), and a green run is not proof:
    ```bash
-   for pkg in plugin-sdk cli sdlc plugin-prisma plugin-evidence-export; do
+   for pkg in plugin-sdk core cli sdlc plugin-prisma plugin-evidence-export; do
      npm view "@metasession.co/devaudit-$pkg@$VERSION" version
    done
    gh release view "v$VERSION"
@@ -172,4 +186,4 @@ Before Phase 3 of the first release in the onboarded state, check and stop with 
 - **CLI tarball missing `sdlc/`:** `bundle-templates.mjs` did not run (`prepack` is `npm run build && npm run bundle:templates`). `scripts/check-package-contents.sh` catches this before the tag.
 - **Consumer gets an `npx` prompt:** `SDLC/bin/devaudit-sdlc.cjs` does not exist locally. The consumer needs `devaudit update` to sync section 2h.
 - **Version mismatch:** one `package.json` was not bumped. `release.yml` publishes whatever version each file declares.
-- **`file:../plugin-sdk` in a published tarball:** `release.yml` rewrites it to the published version at publish time; if that rewrite fails, the published CLI cannot resolve the SDK.
+- **`file:../plugin-sdk` or `file:../core` in a published tarball:** `release.yml` rewrites each to the published version at publish time; if that rewrite fails, the published CLI cannot resolve the SDK or the core.

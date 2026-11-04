@@ -16,7 +16,7 @@ This repo is the single source of truth for:
 
 This repo does **not** contain:
 
-- The DevAudit web portal (Next.js application) — that's in [`metasession-dev/devaudit`](https://github.com/metasession-dev/devaudit) (formerly `META-COMPLY`).
+- The DevAudit web portal (Next.js application) — that's the DevAudit portal, described at [devaudit.ai](https://devaudit.ai/) (formerly `META-COMPLY`).
 - Any consumer project's compliance evidence — that lives in the consumer's own repo and the DevAudit portal.
 
 ## Tech stack of this repo

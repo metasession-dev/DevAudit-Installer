@@ -39,6 +39,8 @@ beforeAll(async () => {
         res.end(JSON.stringify({ latest: l }));
         return;
       }
+      // The #1116 WP8 checks read the project (approval policy, standards) with the viewer key: a read, not a portal change.
+      if (req.method === 'GET' && u.pathname.startsWith('/api/ci/projects/')) { res.statusCode = 404; res.end(); return; }
       hits.push({
         path: u.pathname, method: req.method ?? '',
         token: req.headers['x-devaudit-token'] as string | undefined,

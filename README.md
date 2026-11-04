@@ -4,15 +4,15 @@
 
 This repo — `DevAudit-Installer` — is the **framework + client** side of DevAudit: the SDLC you run and the tooling that gets installed into your project. It holds two of DevAudit's three pillars:
 
-1. **The SDLC framework** (`sdlc/`) — stage docs, templates, per-stack/host adapters, and eight AI skills (`sdlc-implementer` orchestrator + `e2e-test-engineer`, `e2e-ci-reliability`, `governance-doc-author`, the SoT-alignment family of `requirements-aligner` / `adr-author` / `risk-register-keeper`, and `devaudit-configure` for repo settings).
-2. **The CLI + compliance gates** (`cli/`, `plugin-sdk/`, `plugins/*`, and the CI workflow templates under `sdlc/files/ci/`) — what onboards your project and what runs on every push/PR to feed the portal.
+1. **The SDLC framework** (`sdlc/`) — stage docs, templates, per-stack/host adapters, and nine AI skills (`sdlc-implementer` orchestrator + `e2e-test-engineer`, `e2e-test-data`, `e2e-ci-reliability`, `governance-doc-author`, the SoT-alignment family of `requirements-aligner` / `adr-author` / `risk-register-keeper`, and `devaudit-configure` for repo settings).
+2. **The CLI + compliance gates** (`cli/`, `core/`, `plugin-sdk/`, `plugins/*`, and the CI workflow templates under `sdlc/files/ci/`) — what onboards your project and what runs on every push/PR to feed the portal.
 
-The third pillar — the **evidence portal** (the product/server side: what you see, the source of truth for releases, evidence, and approvals) — lives at [`metasession-dev/devaudit`](https://github.com/metasession-dev/devaudit) (running at <https://devaudit.ai>). **Topics are split, not duplicated:** the product story, standards coverage, the portal UI, release lifecycle/approvals, and the API are documented there; the CLI, onboarding, the SDLC process, the skills, and the workflows that upload evidence are documented here. Each side cross-references the other.
+The third pillar — the **evidence portal** (the product/server side: what you see, the source of truth for releases, evidence, and approvals) — lives in the DevAudit portal, running at <https://devaudit.ai>. **Topics are split, not duplicated:** the product story, standards coverage, the portal UI, release lifecycle/approvals, and the API are documented on [devaudit.ai](https://devaudit.ai/); the CLI, onboarding, the SDLC process, the skills, and the workflows that upload evidence are documented here. Each side cross-references the other.
 
 Start at the portal for the big picture:
 
-- [What is DevAudit](https://github.com/metasession-dev/devaudit/blob/main/docs/what-is-devaudit.md) — the three pillars in depth
-- [Standards coverage](https://github.com/metasession-dev/devaudit/blob/main/docs/standards-coverage.md) — clause-by-clause mapping for ISO 29119 / ISO 27001 / SOC 2 / GDPR / EU AI Act
+- [What is DevAudit](https://devaudit.ai/) — the three pillars in depth
+- [Standards coverage](docs/framework-registry.md) — clause-by-clause mapping for ISO 29119 / ISO 27001 / SOC 2 / GDPR / EU AI Act
 
 ## Contents
 
@@ -34,6 +34,7 @@ Start at the portal for the big picture:
 | Package                                                                                                                            | Purpose                                          |
 | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
 | [`@metasession.co/devaudit-cli`](https://www.npmjs.com/package/@metasession.co/devaudit-cli)                                       | The `devaudit` binary                            |
+| [`@metasession.co/devaudit-core`](https://www.npmjs.com/package/@metasession.co/devaudit-core)                                     | The pure shared core of the CLI and the portal — see [`core/README.md`](./core/README.md) |
 | [`@metasession.co/devaudit-plugin-sdk`](https://www.npmjs.com/package/@metasession.co/devaudit-plugin-sdk)                         | Plugin contract types — see [`plugin-sdk/README.md`](./plugin-sdk/README.md) for authoring a plugin |
 | [`@metasession.co/devaudit-plugin-prisma`](https://www.npmjs.com/package/@metasession.co/devaudit-plugin-prisma)                   | First-party plugin — Prisma migration hooks      |
 | [`@metasession.co/devaudit-plugin-evidence-export`](https://www.npmjs.com/package/@metasession.co/devaudit-plugin-evidence-export) | First-party plugin — bulk evidence bundle export |
@@ -50,6 +51,8 @@ Native binaries (no Node runtime) via brew / scoop / `curl | sh` are on the road
 | Interactive?       | Yes — 11 steps, usually ~5-10 min for the full operator flow                                                                 | No — non-interactive, ~1-2 min                                                                                                                      | Minimal — local-only prompts                                                                                      |
 | `sdlc-config.json` | Created                                                                                                                      | Read                                                                                                                                                | Read                                                                                                              |
 
+> An interactive `install` is guided: it detects your stack, tests and host, suggests one of four presets (see [`docs/presets.md`](docs/presets.md)) and shows a summary to accept, change or expand. `--preset <A|B|C|D|custom>` skips the preset question and `--from-scan <file>` takes the suggestion from a scan report; see [`docs/onboarding.md`](docs/onboarding.md#presets-and-the-guided-install).
+>
 > `install` against an already-onboarded repo auto-detects the situation and flips to **developer mode** internally (same as running `join` explicitly). The three detection bits: `sdlc-config.json` exists · portal returns a project for the slug · an `Onboarding-issued` API key already exists. Any one missing → operator mode (safe default). (A fourth bit — a `DEVAUDIT_USER_TOKEN` repo secret — was dropped in devaudit-installer#912: `install` no longer writes that secret, since nothing in CI ever consumed it.)
 
 ## Other CLI commands
@@ -58,8 +61,10 @@ Beyond `install`/`update`/`join`, the CLI ships:
 
 | Command | Purpose |
 | --- | --- |
-| `devaudit doctor` (`--fleet`, `--fix`) | Local health check of a consumer project; `--fleet` sweeps every project your account can see (read-only). Also reports non-gating release-deferral mismatches after a release PR is closed unmerged, whether `sdlc-config.json` matches the repo's real deploy host, production URL, custom deploy and CI runner, and whether the test tiers resolve to tests and the E2E release gate fits the suite; `--fix` repairs them in tiers (local edits such as the deploy host; portal defer/resume only with your PAT, a reason and confirmation). How to use it: [`docs/doctor.md`](./docs/doctor.md#how-to-use-doctor). |
-| `devaudit configure` (`list`, `get`, `set`, `secret`) | Validated changes to this repo's `sdlc-config.json` (deploy host, production URL secret, custom deploy settings, runner and CI keys, test tiers and the E2E release gate) and repo secrets via `gh`'s masked prompt; refuses values that don't fit and flags ones the repo's evidence contradicts. In Claude Code the `devaudit-configure` skill walks you through it. See [`docs/configure.md`](./docs/configure.md). |
+| `devaudit scan` | Reads a repository and reports what it is set up to evidence, clause by clause, for the standards you choose (SOC 2, ISO 27001, ISO 29119, GDPR, EU AI Act), from files only: no network by default, a readiness report and never "compliant". `--json`, `--html`, `--sarif`, `--badge`, `--out`, `--ci --max-missing N`. [`docs/scan.md`](./docs/scan.md). |
+| `devaudit doctor` (`--fleet`, `--fix`, `--explain <check>`, `--guided`) | Local health check of a consumer project; `--fleet` sweeps every project your account can see (read-only). Also reports non-gating release-deferral mismatches after a release PR is closed unmerged, whether `sdlc-config.json` matches the repo's real deploy host, production URL, custom deploy and CI runner, and whether the test tiers resolve to tests and the E2E release gate fits the suite; `--fix` repairs them in tiers (local edits such as the deploy host; portal defer/resume only with your PAT, a reason and confirmation). `--explain` says why a check matters; `--guided` walks the gaps one at a time and lets you fix, leave or stop. How to use it: [`docs/doctor.md`](./docs/doctor.md#how-to-use-doctor). |
+| `devaudit agent-permissions apply` | Adds the recommended Claude Code deny rules (keep an agent session away from your PAT and credential folder) to your user settings (or `--scope project\|local`) after a confirmation, with a backup; idempotent. `--include-env-files` is the opt-in extra. [`docs/agent-permissions.md`](./docs/agent-permissions.md). |
+| `devaudit configure` (no arguments: guided; `list`, `get`, `set`, `secret`) | Validated changes to this repo's `sdlc-config.json` (deploy host, production URL secret, custom deploy settings, runner and CI keys, test tiers and the E2E release gate) and repo secrets via `gh`'s masked prompt; refuses values that don't fit and flags ones the repo's evidence contradicts. In Claude Code the `devaudit-configure` skill walks you through it. See [`docs/configure.md`](./docs/configure.md). |
 | `devaudit push` | Upload an evidence file to a project/release (the CLI port of `scripts/upload-evidence.sh`) — what CI calls to record test executions, gate results, and other evidence. It needs the CI-only uploader key, so it is for CI and automation only; `sdlc-implementer` no longer calls it. Full flag reference: [`docs/push.md`](./docs/push.md). |
 | `devaudit status` | Show a consumer project's current framework state (synced version, onboarding checklist, pending releases). |
 | `devaudit uninstall` | Disconnect a repo from DevAudit: revokes its API key(s), removes the GitHub secrets/variables `install` wrote, and drops it from `sdlc-config.json`. Leaves branch protection and synced files in place. |
@@ -137,7 +142,7 @@ Develop-main (`develop` → `main`), one owner-developer partnered with AI agent
 
 | Agent                                                 | File installed                                                                                                                                  | Integration depth                                                                                                                                               |
 | ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Claude Code**                                       | `CLAUDE.md` + `.claude/skills/{sdlc-implementer,e2e-test-engineer,e2e-ci-reliability,governance-doc-author,requirements-aligner,adr-author,risk-register-keeper,devaudit-configure}/` | **Deepest** — skills auto-fire from natural-language prompts ("implement issue #N", "run e2e tests", "draft an ADR for REQ-066", "open a risk-register entry"). |
+| **Claude Code**                                       | `CLAUDE.md` + `.claude/skills/{sdlc-implementer,e2e-test-engineer,e2e-test-data,e2e-ci-reliability,governance-doc-author,requirements-aligner,adr-author,risk-register-keeper,devaudit-configure}/` | **Deepest** — skills auto-fire from natural-language prompts ("implement issue #N", "run e2e tests", "draft an ADR for REQ-066", "open a risk-register entry"). |
 | **Cursor**                                            | `.cursorrules` (pointer → `INSTRUCTIONS.md`)                                                                                                    | Rules load automatically; the agent reads the SDLC content on demand.                                                                                           |
 | **Windsurf**                                          | `.windsurfrules` (pointer → `INSTRUCTIONS.md`)                                                                                                  | Same as Cursor — rules-on-load, content-on-demand.                                                                                                              |
 | **Gemini CLI**                                        | `GEMINI.md` (pointer → `INSTRUCTIONS.md`)                                                                                                       | Same pattern as Cursor + Windsurf.                                                                                                                              |
@@ -152,7 +157,7 @@ The default path for any user-visible change. Triggered by `feat`/`fix`/`refacto
 
 ```
 0 Project setup → 1 Plan (REQ-XXX, risk, plan) → 2 Implement & test (gates green)
-→ 3 Compile evidence (+ UAT verification) → 4 Submit for review (PR + UAT four-eyes)
+→ 3 Compile evidence (+ UAT verification) → 4 Submit for review (PR + UAT approval)
 → 5 Deploy to main (prod smoke + Production approval)
 ```
 
@@ -209,25 +214,25 @@ Adding a new stack or host means dropping a new `adapter.json` + supporting file
 | [`docs/release-playbooks/`](./docs/release-playbooks/) — [high-risk](./docs/release-playbooks/high-risk-release.md), [low-risk](./docs/release-playbooks/low-risk-release.md), [housekeeping](./docs/release-playbooks/housekeeping-release.md) | Step-by-step playbooks for a **high-risk**, **low-risk**, or **housekeeping** release — each written twice: driving it with an AI agent, and by hand |
 | [`docs/issues/`](./docs/issues/)                                                                                                    | Internal proposal / incident write-ups — historical design decisions and known gaps, not operator-facing guidance                                                           |
 | [`sdlc/src/blueprints/implementing-an-sdlc-issue.raw.md`](./sdlc/src/blueprints/implementing-an-sdlc-issue.raw.md)                 | Operational stage-by-stage walkthrough. The file synced to consumers at `implementing-an-sdlc-issue.md` is a step-gate stub pointing back to this content, not the walkthrough itself — see `devaudit-sdlc.cjs --phase=issue --view`. |
-| [`docs/skills.md`](./docs/skills.md) · [`sdlc/SKILLS.md`](./sdlc/SKILLS.md) · [`docs/adding-a-skill.md`](./docs/adding-a-skill.md) | The eight shipped skills (`sdlc-implementer`, `e2e-test-engineer`, `e2e-ci-reliability`, `governance-doc-author`, `requirements-aligner`, `adr-author`, `risk-register-keeper`, `devaudit-configure`) + authoring new ones |
+| [`docs/skills.md`](./docs/skills.md) · [`sdlc/SKILLS.md`](./sdlc/SKILLS.md) · [`docs/adding-a-skill.md`](./docs/adding-a-skill.md) | The nine shipped skills (`sdlc-implementer`, `e2e-test-engineer`, `e2e-test-data`, `e2e-ci-reliability`, `governance-doc-author`, `requirements-aligner`, `adr-author`, `risk-register-keeper`, `devaudit-configure`) + authoring new ones |
 | [`docs/adding-a-stack.md`](./docs/adding-a-stack.md) · [`docs/adding-a-host.md`](./docs/adding-a-host.md)                          | Adapter contracts                                                                                                                                                            |
 | [`INSTRUCTIONS.md`](./INSTRUCTIONS.md)                                                                                             | Working conventions for this repo                                                                                                                                            |
 
-**Portal repo (product, server, the things you see):**
+**Portal (product, server, the things you see):**
 
 | Doc                                                                                                                    | What                                                       |
 | ---------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| [What is DevAudit](https://github.com/metasession-dev/devaudit/blob/main/docs/what-is-devaudit.md)                     | The three pillars, value proposition                       |
-| [Standards coverage](https://github.com/metasession-dev/devaudit/blob/main/docs/standards-coverage.md)                 | Clause-by-clause standards mapping                         |
-| [Portal ↔ consumer integration](https://github.com/metasession-dev/devaudit/blob/main/docs/ci-integration.md)          | API, evidence categories, when/how artifacts are displayed |
-| [Releases & approvals](https://github.com/metasession-dev/devaudit/blob/main/docs/releases-and-approvals.md)           | Release lifecycle states, types, four-eyes approval        |
-| [Implementing an SDLC issue](https://github.com/metasession-dev/devaudit/blob/main/docs/implementing-an-sdlc-issue.md) | Audience walkthrough with sample AI prompts                |
+| [What is DevAudit](https://devaudit.ai/)                     | The three pillars, value proposition                       |
+| [Standards coverage](docs/framework-registry.md)                 | Clause-by-clause standards mapping                         |
+| Portal ↔ consumer integration          | API, evidence categories, when/how artifacts are displayed (described on `devaudit.ai`) |
+| Releases & approvals           | Release lifecycle states, types, approval (described on `devaudit.ai`) |
+| [Implementing an SDLC issue](https://github.com/metasession-dev/DevAudit-Installer/blob/main/sdlc/src/blueprints/implementing-an-sdlc-issue.raw.md) | Audience walkthrough with sample AI prompts                |
 
 ## Related repositories
 
 | Repo                                                                        | Role                                                                                                                                             |
 | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [`metasession-dev/devaudit`](https://github.com/metasession-dev/devaudit)   | DevAudit evidence portal (Next.js, `devaudit.ai`). Product/standards/portal-UI/release docs live there; the authoritative consumers list too.  |
+| `metasession-dev/devaudit` (private; described on [devaudit.ai](https://devaudit.ai/))   | DevAudit evidence portal (Next.js, `devaudit.ai`). Product, portal and release documentation is on [devaudit.ai](https://devaudit.ai/); the authoritative consumers list too.  |
 
 For the current list of onboarded consumer projects, ask the portal directly (`devaudit doctor --fleet`, or the portal's own project list) rather than a hardcoded table here — a project list checked into git goes stale the moment a consumer onboards, offboards, or gets renamed on the portal side.
 

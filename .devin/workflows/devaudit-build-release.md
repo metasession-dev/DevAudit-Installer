@@ -1,5 +1,5 @@
 ---
-description: Release DevAudit — prepare, validate, promote, publish all 5 packages to npm and create the GitHub release, then close out. Follows docs/devaudit-release-procedure.md.
+description: Release DevAudit — prepare, validate, promote, publish all 6 packages to npm and create the GitHub release, then close out. Follows docs/devaudit-release-procedure.md.
 ---
 
 # Release DevAudit

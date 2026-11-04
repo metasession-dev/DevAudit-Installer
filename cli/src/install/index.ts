@@ -2,6 +2,7 @@ import { basename, resolve } from 'node:path';
 import { resolveToken } from '../lib/auth.js';
 import { resolveInstallerRoot } from '../lib/installer-root.js';
 import { isDir, isFile } from '../lib/fs-utils.js';
+import { readSdlcConfig } from '../lib/sdlc-config.js';
 import { resolveRepoRoot } from '../lib/git-root.js';
 import { logger } from '../lib/logger.js';
 import { getGitProvider, type GitProvider } from '../lib/git-provider/index.js';
@@ -15,7 +16,12 @@ import {
 import { runAuthProbe } from './auth-probe.js';
 import { detectStack } from './detect-stack.js';
 import { collectPlan } from './prompts.js';
-import { parseTestOptions, type TestOptions } from './test-config.js';
+import { clackAsker, parseTestOptions, type TestOptions } from './test-config.js';
+import { describeProjectPreset, parsePresetFlag } from './guided.js';
+import { InstallRefusal } from './refusal.js';
+import { configuredProjectSlug, isPortalReportRef, readScanHints } from './scan-hints.js';
+import type { FetchLike } from '../lib/onboarding-portal.js';
+import { applyOnboardingPortal } from './onboarding-apply.js';
 import { writeSdlcConfig } from './write-config.js';
 import { findOrCreateProject } from './project.js';
 import { issueApiKey, issueViewerApiKey } from './api-key.js';
@@ -64,6 +70,12 @@ export interface RunInstallOptions {
   readonly host?: string;
   /** Test tier / release gate flags by config key (devaudit-installer#1059, #1060). */
   readonly testOptions?: Readonly<Record<string, string>>;
+  /** `--preset <A|B|C|D|custom>`: apply a preset (devaudit-installer#1116 WP6). */
+  readonly preset?: string;
+  /** `--from-scan <file|report-id|project-slug/report-id>`: take the suggested preset and standards from a scan report. */
+  readonly fromScan?: string;
+  /** Test seam: the fetch used to read a saved scan report from the portal. */
+  readonly scanFetch?: FetchLike;
 }
 
 export interface InstallReport {
@@ -83,7 +95,23 @@ export async function runInstall(options: RunInstallOptions): Promise<InstallRep
   // Reject a bad tier / gate flag before anything is touched.
   const flagProblems = parseTestOptions((options.testOptions ?? {}) as TestOptions).errors;
   if (flagProblems.length > 0) throw new Error(flagProblems.join('\n'));
+  if (options.preset !== undefined && parsePresetFlag(options.preset) === null) {
+    throw new InstallRefusal(`Unknown preset "${options.preset}". Use A, B, C, D or custom.`);
+  }
+  // A file is read and refused (exit 2) before anything else; a saved report is read from the portal once the address is known.
+  const fromPortal = options.fromScan !== undefined && (await isPortalReportRef(options.fromScan));
+  let scanHints = options.fromScan !== undefined && !fromPortal ? await readScanHints(options.fromScan) : undefined;
   const auth = await resolveTokenForInstall(options);
+  if (options.fromScan !== undefined && fromPortal) {
+    const existingConfig = (await readSdlcConfig(projectPath)) as Record<string, unknown> | null;
+    const configured = configuredProjectSlug(existingConfig);
+    scanHints = await readScanHints(options.fromScan, {
+      baseUrl: auth.baseUrl,
+      repoRoot: projectPath,
+      ...(typeof configured === 'string' && configured !== '' ? { configuredSlug: configured } : {}),
+      ...(options.scanFetch ? { fetchImpl: options.scanFetch } : {}),
+    });
+  }
   const installerRoot = await resolveInstallerRoot();
   const repoRoot = await resolveRepoRoot(projectPath);
 
@@ -105,6 +133,10 @@ export async function runInstall(options: RunInstallOptions): Promise<InstallRep
     printViewerKey: Boolean(options.printViewerKey),
     ...(options.host !== undefined ? { host: options.host } : {}),
     ...(options.testOptions !== undefined ? { testOptions: options.testOptions } : {}),
+    ...(options.preset !== undefined ? { preset: options.preset } : {}),
+    ...(options.fromScan !== undefined ? { fromScan: options.fromScan } : {}),
+    ...(scanHints !== undefined ? { scanHints } : {}),
+    ...(options.mode === 'developer' ? { joining: true } : {}),
   };
   banner(tentativeCtx);
   const steps: StepResult[] = [];
@@ -120,6 +152,7 @@ export async function runInstall(options: RunInstallOptions): Promise<InstallRep
   const planStep = planSummary(plan);
   steps.push(planStep);
   log.success(`[${planStep.step}] ${planStep.message ?? ''}`);
+  if (tentativeCtx.joining) log.info(describeProjectPreset(await readSdlcConfig(repoRoot)));
 
   const providerResolution = await resolveProvider(options, tentativeCtx);
   // Resolve install mode now that we have plan.projectSlug + (maybe) a
@@ -132,6 +165,7 @@ export async function runInstall(options: RunInstallOptions): Promise<InstallRep
   steps.push(await record(log, findOrCreateProject(ctx, plan)));
   steps.push(await record(log, issueApiKey(ctx, plan)));
   steps.push(await record(log, issueViewerApiKey(ctx, plan)));
+  steps.push(await record(log, applyOnboardingPortal(ctx, plan, { ask: clackAsker })));
   if (providerResolution.provider) {
     steps.push(await record(log, setGithubSecrets(ctx, plan, providerResolution.provider)));
   } else {

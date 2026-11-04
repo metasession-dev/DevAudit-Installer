@@ -2,7 +2,7 @@ name: Report Release Close-out Completion
 
 on:
   pull_request:
-    branches: [develop]
+    branches: [{{INTEGRATION_BRANCH}}]
     types: [closed]
 
 permissions:

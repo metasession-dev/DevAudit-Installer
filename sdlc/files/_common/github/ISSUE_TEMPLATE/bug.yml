@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Use this template for defects in shipped behaviour. Bug fixes follow the SDLC at the depth dictated by the affected surface — see Test_Policy.md §Risk-Based Testing and the trivial-change escape hatch in the [SDLC walkthrough](https://github.com/metasession-dev/devaudit/blob/main/docs/implementing-an-sdlc-issue.md#trivial-change-escape-hatch).
+        Use this template for defects in shipped behaviour. Bug fixes follow the SDLC at the depth dictated by the affected surface — see Test_Policy.md §Risk-Based Testing and the trivial-change escape hatch in the [SDLC walkthrough](https://github.com/metasession-dev/DevAudit-Installer/blob/main/sdlc/src/blueprints/implementing-an-sdlc-issue.raw.md#trivial-change-escape-hatch).
 
         **Security vulnerabilities: do NOT open a public issue.** See `SECURITY.md` (if present in this repo) for the private disclosure path.
 

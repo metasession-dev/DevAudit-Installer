@@ -1,7 +1,10 @@
 import { Command, Option } from 'commander';
 import { configureLogger } from './lib/logger.js';
 import { CLI_VERSION } from './lib/version.js';
-import { runDoctor } from './commands/doctor.js';
+import { runDoctor, runDoctorGuided } from './commands/doctor.js';
+import { runAgentPermissionsApply } from './commands/agent-permissions.js';
+import { runScan, type ScanOptions } from './commands/scan.js';
+import { runExplain } from './commands/doctor-guided.js';
 import { runFleetDoctor } from './commands/fleet.js';
 import { runReleaseStatus } from './commands/release-status.js';
 import { runViewerKeySet } from './commands/auth/viewer-key.js';
@@ -18,6 +21,7 @@ import { runUpdate } from './commands/update.js';
 import { runBootstrapGovernance } from './commands/bootstrap-governance.js';
 import { makeStub } from './commands/stub.js';
 import { runConfigureList, runConfigureGet, runConfigureSet, runConfigureSecret } from './commands/configure.js';
+import { runConfigureGuided } from './commands/configure-guided.js';
 import { discoverPlugins, registerPluginCommands } from './lib/plugin/index.js';
 import { runPluginList } from './commands/plugin/list.js';
 import { runPluginInstall } from './commands/plugin/install.js';
@@ -87,10 +91,20 @@ export async function main(argv: readonly string[]): Promise<void> {
     .option('--test-tier-critical <command>', 'Command for the critical tier (single line). Omit to keep the runner default.')
     .option('--test-tier-full <command>', 'Command for the full tier (single line). Omit to keep the runner default.')
     .option('--test-feature-command <command>', 'Command for the feature scope; {REQ} is replaced with the requirement id.')
+    .option(
+      '--preset <id>',
+      'Apply a preset without the preset question: A (solo, fast feedback), B (safety net), C (team with a compliance lead), D (full gate, tested once) or custom. With --yes, A and B need the project\'s approval policy to allow self-approval with a recorded gap (read from the portal), otherwise install refuses with exit code 2. See docs/presets.md.',
+    )
+    .option(
+      '--from-scan <file|report-id>',
+      'Take the suggested preset and the standards from a scan report: a file, or a saved report read from the portal with your viewer key (<report-id>, or <project-slug>/<report-id> when this repository does not name the project).',
+    )
     .action(
       async (
         path: string | undefined,
         cmdOpts: {
+          preset?: string;
+          fromScan?: string;
           token?: string;
           baseUrl?: string;
           forceTeamConfig?: boolean;
@@ -125,6 +139,8 @@ export async function main(argv: readonly string[]): Promise<void> {
             ? { withViewerKey: true }
             : {}),
           ...(cmdOpts.host !== undefined ? { host: cmdOpts.host } : {}),
+          ...(cmdOpts.preset !== undefined ? { preset: cmdOpts.preset } : {}),
+          ...(cmdOpts.fromScan !== undefined ? { fromScan: cmdOpts.fromScan } : {}),
           testOptions: {
             ...(cmdOpts.releaseGateTier !== undefined ? { release_gate_tier: cmdOpts.releaseGateTier } : {}),
             ...(cmdOpts.postDeployFullRegression !== undefined ? { post_deploy_full_regression: cmdOpts.postDeployFullRegression } : {}),
@@ -355,8 +371,30 @@ export async function main(argv: readonly string[]): Promise<void> {
       'Propose and (after confirmation) apply fixes for release-deferral findings and a deploy-host mismatch (sets host in sdlc-config.json, tier A). Tier A local edits (ticket Release intent, RTM DEFERRED, predecessor lines) are confirmed or accepted with --yes; tier B portal defer/resume is interactive-only: it needs your PAT (DEVAUDIT_USER_TOKEN), a typed reason and a confirmation at a terminal, and --yes never authorises it; tier C is printed, never run. Exits 8 when proposals remain unapplied. Not available with --fleet. See docs/doctor.md.',
     )
     .option('--reason <text>', 'Reason for a portal defer/resume under --fix (skips the reason prompt; the terminal confirmation is still required).')
-    .action(async (cmdOpts: { fleet?: boolean; fix?: boolean; reason?: string }, cmd: Command) => {
+    .option(
+      '--explain <check>',
+      'Explain one check in plain words: why it matters and what you can do, including leaving it as it is. Read-only. See docs/doctor.md.',
+    )
+    .option(
+      '--guided [check]',
+      'Walk the gaps one at a time (or only those of one check): for each you choose a fix, leave it as it is, or stop. Applying a fix uses the same confirmations as --fix (tier A confirmed; tier B interactive with a typed reason; tier C printed). Interactive only: with no terminal, CI set or --json it changes nothing and exits 8. Not available with --fix, --yes or --fleet. See docs/doctor.md.',
+    )
+    .action(async (cmdOpts: { fleet?: boolean; fix?: boolean; reason?: string; explain?: string; guided?: string | boolean }, cmd: Command) => {
       const globals = cmd.optsWithGlobals() as { yes?: boolean; dryRun?: boolean };
+      if (cmdOpts.guided !== undefined && (cmdOpts.fix || globals.yes || cmdOpts.fleet || cmdOpts.explain !== undefined || cmdOpts.reason !== undefined)) {
+        logger().error('--guided asks before every change and cannot be combined with --fix, --yes, --reason, --explain or --fleet.');
+        process.exit(2);
+      }
+      if (cmdOpts.explain !== undefined) {
+        if (cmdOpts.fix || cmdOpts.fleet || cmdOpts.reason !== undefined) {
+          logger().error('--explain only prints; it cannot be combined with --fix, --reason or --fleet.');
+          process.exit(2);
+        }
+        process.exit(runExplain(cmdOpts.explain));
+      }
+      if (cmdOpts.guided !== undefined) {
+        process.exit(await runDoctorGuided(typeof cmdOpts.guided === 'string' ? cmdOpts.guided : undefined));
+      }
       if (cmdOpts.fleet && (cmdOpts.fix || cmdOpts.reason !== undefined)) {
         logger().error('--fleet is read-only and never forwards --fix or --reason. Run `devaudit doctor --fix` inside one project instead.');
         process.exit(2);
@@ -381,6 +419,40 @@ export async function main(argv: readonly string[]): Promise<void> {
       }
       await runDoctor();
     });
+  program
+    .command('scan [path]')
+    .description('Read this repository and report what it is set up to evidence for the standards you choose (SOC 2, ISO 27001, ISO 29119, GDPR, EU AI Act), clause by clause, from files only. It reports readiness, never "compliant". The default report and --local make no network request; --github adds read-only repository posture through gh. --json prints the scan report (contracts/scan-report.schema.json). See docs/scan.md.')
+    .option('--framework <codes>', 'Standards to evaluate, comma-separated (soc-2, iso-27001, iso-29119, gdpr, eu-ai-act). Without it: asked once in a terminal, else compliance_frameworks from sdlc-config.json, else none.')
+    .option('--local', 'Make no network request (the default report does not either); refused together with --github.')
+    .option('--github', 'Also read the release branch protection through gh (read-only).')
+    .option('--html <file>', 'Write an HTML report.')
+    .option('--sarif <file>', 'Write a SARIF 2.1.0 file: one result per clause that is not evidenced.')
+    .option('--badge <file>', 'Write an SVG badge: "evidence readiness · <standard> · <evidenced> of <total>", in one neutral colour.')
+    .option('--out <dir>', 'Write the JSON report, HTML, SARIF and badge into this folder.')
+    .option('--ci', 'Never ask; exit 1 when more than --max-missing clauses are missing.')
+    .option('--max-missing <n>', 'With --ci: the number of missing clauses to accept (default 0).')
+    .action(async (path: string | undefined, cmdOpts: Omit<ScanOptions, 'path' | 'json'>, cmd: Command) => {
+      const globals = cmd.optsWithGlobals() as { json?: boolean };
+      process.exit(await runScan({ ...cmdOpts, ...(path !== undefined ? { path } : {}), json: Boolean(globals.json) }));
+    });
+  const agentPermissionsCmd = program
+    .command('agent-permissions')
+    .description('Recommended agent permission rules that keep an AI agent session away from your personal access token (docs/agent-permissions.md).');
+  agentPermissionsCmd
+    .command('apply')
+    .description('Add the recommended Claude Code deny rules to a settings file after a confirmation: shows the rules and the file, backs the file up, merges into permissions.deny (existing entries untouched), idempotent. Needs a terminal unless --yes. Exits 8 when not applied.')
+    .option('--scope <scope>', 'user (default: ~/.claude/settings.json, the stronger scope), project (<repo>/.claude/settings.json, shared with everyone who can commit) or local (<repo>/.claude/settings.local.json)')
+    .option('--include-env-files', 'Also deny Read of .env files (opt-in: it blocks legitimate local-development reads too; see docs/agent-permissions.md)')
+    .action(async (cmdOpts: { scope?: string; includeEnvFiles?: boolean }, cmd: Command) => {
+      const globals = cmd.optsWithGlobals() as { yes?: boolean };
+      process.exit(
+        await runAgentPermissionsApply({
+          ...(cmdOpts.scope !== undefined ? { scope: cmdOpts.scope } : {}),
+          ...(globals.yes ? { yes: true } : {}),
+          ...(cmdOpts.includeEnvFiles ? { includeEnvFiles: true } : {}),
+        }),
+      );
+    });
   const releaseCmd = program.command('release').description('Release readiness and state (read-only; no portal writes)');
   releaseCmd
     .command('check [version]')
@@ -399,8 +471,12 @@ export async function main(argv: readonly string[]): Promise<void> {
   const configureCmd = program
     .command('configure')
     .description(
-      "Read and change this repo's sdlc-config.json with validation: deploy host, production URL secret, custom deploy settings, runner and CI keys. Changes the repo's evidence contradicts need confirmation or --reason. See docs/configure.md.",
+      "Read and change this repo's sdlc-config.json with validation (with no subcommand: the guided questions with your current values, a before/after summary and a write of only what changed): deploy host, production URL secret, custom deploy settings, runner and CI keys. Changes the repo's evidence contradicts need confirmation or --reason. See docs/configure.md.",
     );
+  configureCmd.action(async (_opts: unknown, cmd: Command) => {
+    const globals = cmd.optsWithGlobals() as { json?: boolean };
+    process.exit(await runConfigureGuided({ json: Boolean(globals.json) }));
+  });
   configureCmd
     .command('list')
     .description('Every key `configure` manages, with its current value (keys for other hosts hidden). --json lists all, with types and allowed values.')

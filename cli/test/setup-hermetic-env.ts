@@ -38,6 +38,13 @@ writeFileSync(
 const pathKey = Object.keys(process.env).find((k) => k.toUpperCase() === 'PATH') ?? 'PATH';
 process.env[pathKey] = process.env[pathKey] ? `${stubs}${delimiter}${process.env[pathKey]}` : stubs;
 
+// DevAudit-Installer#1116 R32: per-user folders are overridable and every worker gets its own, so no
+// test reads or writes the real config, cache or `~/.claude` folders. A test that needs a specific
+// one sets the variable itself before importing the module under test.
+for (const name of ['DEVAUDIT_CONFIG_DIR', 'DEVAUDIT_CACHE_DIR', 'DEVAUDIT_CLAUDE_HOME']) {
+  if (!process.env[name]) process.env[name] = mkdtempSync(join(tmpdir(), `devaudit-test-${name.toLowerCase()}-`));
+}
+
 for (const name of [
   'GH_TOKEN',
   'GITHUB_TOKEN',

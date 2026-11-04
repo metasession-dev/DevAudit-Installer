@@ -64,7 +64,7 @@ describe('devaudit doctor', () => {
     await writeFile(join(repo, 'sdlc-config.json'), JSON.stringify({ project_slug: 'fixture' }));
     const home = await mkdtemp(join(tmpdir(), 'devaudit-doctor-home-'));
     const doctorIn = async (h: string) => {
-      const r = await execa('node', [BIN, '--json', 'doctor'], { cwd: repo, reject: false, env: { HOME: h, USERPROFILE: h } });
+      const r = await execa('node', [BIN, '--json', 'doctor'], { cwd: repo, reject: false, env: { HOME: h, USERPROFILE: h, DEVAUDIT_CLAUDE_HOME: h } });
       const j = JSON.parse(r.stdout) as { onboarding: Array<{ name: string; ok: boolean; detail: string }>; proposals: Array<{ check: string; remediation: { id: string; tier: string } }> };
       return { entry: j.onboarding.find((c) => c.name === 'agent-permissions')!, proposals: j.proposals };
     };
@@ -72,7 +72,7 @@ describe('devaudit doctor', () => {
     const none = await doctorIn(home);
     expect(none.entry.ok).toBe(true); // informational: never a gap
     expect(none.entry.detail).toMatch(/no Claude Code settings file found/);
-    expect(none.entry.detail).toMatch(/other agents: not checked/);
+    expect(none.entry.detail).toMatch(/other agents: no documented mechanism for Gemini CLI, Cursor or Windsurf/);
     expect(none.proposals.find((p) => p.remediation.id === 'add-agent-permission-rules')?.remediation.tier).toBe('C');
 
     await mkdir(join(home, '.claude'), { recursive: true });
@@ -1064,8 +1064,9 @@ describe('devaudit doctor — D8 releases check + JSON surface (#956)', () => {
     // #1040 appended deploy-host, production-url, custom-deploy and ci-runner (additive);
     // #1059/#1060 appended e2e-release-gate and test-tiers after them.
     // #1099 WP4 appended `credentials` (and `pat-env` only when DEVAUDIT_USER_TOKEN is set).
-    expect(json.onboarding).toHaveLength(19);
-    expect((json.onboarding as Array<{ name: string }>).slice(-8).map((c) => c.name)).toEqual([
+    // #1116 WP8 appended preset-drift, standards-fit, approval-policy and durations; WP15 appended test-data; #1160 appended ci-values.
+    expect(json.onboarding).toHaveLength(25);
+    expect((json.onboarding as Array<{ name: string }>).slice(-14).map((c) => c.name)).toEqual([
       'deploy-host',
       'production-url',
       'custom-deploy',
@@ -1074,6 +1075,12 @@ describe('devaudit doctor — D8 releases check + JSON surface (#956)', () => {
       'test-tiers',
       'credentials',
       'agent-permissions',
+      'preset-drift',
+      'standards-fit',
+      'approval-policy',
+      'durations',
+      'test-data',
+      'ci-values',
     ]);
     // additive keys
     expect(Array.isArray(json.deferral)).toBe(true);

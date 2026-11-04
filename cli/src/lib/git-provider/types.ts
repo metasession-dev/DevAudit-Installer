@@ -26,7 +26,19 @@ export interface EnsureBranchProtectionResult {
   readonly changes?: readonly string[];
   readonly missingChecks?: readonly string[];
   readonly message?: string;
+  /**
+   * DevAudit-Installer#1116 WP2 — the branch requires more approving reviews than `exactReviewCount`
+   * asked for and the lowering was not confirmed (non-interactive, or declined): nothing was changed.
+   */
+  readonly reviewsNotLowered?: { readonly current: number; readonly configured: number };
 }
+
+/** Asked before `ensureBranchProtection` lowers a branch's required approving reviews. */
+export type ConfirmLowerReviews = (change: {
+  readonly branch: string;
+  readonly from: number;
+  readonly to: number;
+}) => Promise<boolean>;
 
 export interface SetDefaultBranchResult {
   readonly changed: boolean;
@@ -90,12 +102,22 @@ export interface GitProvider {
    * setting a maintainer chose, never adds classic protection to a branch
    * that repository rulesets already protect, and only falls back to the
    * install defaults when the branch has no protection at all.
+   *
+   * One exception (DevAudit-Installer#1116 WP2): when `exactReviewCount` is given (the project set
+   * `release_branch_required_reviews`), the branch's required approving reviews are made to equal it
+   * in both directions. Raising is as above. Lowering is applied only after `confirmLower` answers
+   * true; with no `confirmLower`, or a `false` answer, nothing is changed and the result carries
+   * `reviewsNotLowered`.
    */
   ensureBranchProtection(
     cwd: string,
     branch: string,
     requiredChecks: readonly string[],
-    options?: { readonly minReviewCount?: number },
+    options?: {
+      readonly minReviewCount?: number;
+      readonly exactReviewCount?: number;
+      readonly confirmLower?: ConfirmLowerReviews;
+    },
   ): Promise<EnsureBranchProtectionResult>;
   createPullRequest(cwd: string, opts: PullRequestCreateOptions): Promise<PullRequestCreated>;
 }

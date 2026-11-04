@@ -8,11 +8,22 @@ A quick-reference for the range of prompts (natural-language, for an AI agent) a
 | --- | --- |
 | Onboard a brand-new consumer project | `devaudit install ../path/to/new-consumer` |
 | Onboard a project (your own read-only viewer key is issued and saved locally by default; `--no-viewer-key` opts out) | `devaudit install ../path/to/new-consumer` |
+| Onboard with a preset chosen up front (A solo, B safety net, C team, D full gate once) | `devaudit install --preset C` (see [`presets.md`](presets.md)) |
 | Join an already-onboarded project as a second developer | `devaudit join` |
 | Get your own viewer key on an already-onboarded project | `devaudit join` (or `devaudit auth viewer-key set` for a key you received another way) |
 | Disconnect a repo from DevAudit entirely | `devaudit uninstall` |
 
 See [`onboarding.md`](onboarding.md) for the full walkthrough.
+
+## Seeing where a repository stands — `devaudit scan`
+
+| I want to... | Run |
+| --- | --- |
+| See what this repository is set up to evidence for SOC 2 / ISO 27001 (no account, no network) | `devaudit scan --framework soc-2,iso-27001` |
+| Get the report as a file for a reviewer | `devaudit scan --out scan-reports` |
+| Fail a CI job when too many clauses are missing | `devaudit scan --ci --max-missing 3` |
+
+See [`scan.md`](scan.md).
 
 ## Keeping a consumer current
 
@@ -51,6 +62,19 @@ Framework- and tracker-agnostic. Not for unit/component/API-only or performance 
 
 An incident found outside a tracked run doesn't have to go through the issue-filing path first — `e2e-test-engineer` can file the incident report directly ("this regression isn't tied to an open issue, file it as an incident") and skip straight to the incident-export flow described in [`incident-export.md`](incident-export.md).
 
+## Test data: seed, reset, teardown, drift — `e2e-test-data`
+
+- "set up the test data"
+- "write a seed script"
+- "our seed is out of date"
+- "tests fail because a fixture is missing"
+- "tests leave data behind"
+- "reset the test database"
+- "add a test account"
+- "seed-data gap"
+
+Not for writing specs (that's `e2e-test-engineer`) and not for changing the release gate (that's `devaudit-configure`). `devaudit doctor`'s `test-data` check points here.
+
 ## E2E suite flakiness and CI reliability — `e2e-ci-reliability`
 
 - "why is our regression tier flaky"
@@ -72,7 +96,7 @@ Not for authoring test content (that's `e2e-test-engineer`) and not for a single
 - "we deploy to AWS" / "we deploy to our own servers"
 - "change the CI runner"
 
-Runs `devaudit doctor`, explains what disagrees with how the repo really deploys, and applies each change you confirm through `devaudit configure` (validated, with a dry run first). You set secrets yourself with `devaudit configure secret <NAME>`. See [`configure.md`](configure.md).
+Runs `devaudit doctor`, explains what disagrees with how the repo really deploys, and applies each change you confirm through `devaudit configure` (validated, with a dry run first). You set secrets yourself with `devaudit configure secret <NAME>`. See [`configure.md`](configure.md). In a terminal, `devaudit configure` with no arguments is the guided version: your current values as defaults, a before/after summary, and only the changes written.
 
 ## Governance documents — `governance-doc-author`
 

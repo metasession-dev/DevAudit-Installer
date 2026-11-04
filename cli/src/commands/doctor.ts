@@ -9,6 +9,7 @@ import { resolveInstallerRoot } from '../lib/installer-root.js';
 import { loadHostAdapter } from '../lib/adapter.js';
 import { resolveAdapters } from '../update/resolve-adapters.js';
 import type { CheckResult, Proposal } from '../lib/doctor-types.js';
+import { gapsFromChecks, gapsFromCloseout } from '../lib/doctor-explain.js';
 import { resolvePortalReadKey, resolveReleaseByPrefix } from '../lib/releases-api.js';
 import {
   buildCredentialsReport,
@@ -19,7 +20,13 @@ import {
 import { makeTimer } from '../lib/timing.js';
 import { agentPermissionsReport, type AgentPermissionsDeps } from '../lib/agent-permissions.js';
 import { buildDeferralContext, runDeferralChecks } from './doctor-deferral.js';
+import { runGuided, type GuidedDeps } from './doctor-guided.js';
+import * as prompts from '../lib/prompt.js';
 import { FIX_EXIT_UNAPPLIED, runFix, type FixDeps, type FixReport } from './doctor-fix.js';
+import { onboardingChecksFor, type OnboardingCheckDeps } from './doctor-onboarding.js';
+import { testDataCheck, type TestDataDeps } from './doctor-testdata.js';
+import { ciValuesCheck, type CiValuesDeps } from './doctor-values.js';
+import type { Gap } from '@metasession.co/devaudit-core';
 import { commitsInRange, refExists, reqHasCommits } from '../lib/req-commits.js';
 
 export interface DoctorOptions {
@@ -41,6 +48,11 @@ export interface DoctorOptions {
   readonly credentialsDeps?: CredentialsDeps;
   /** Test seam for the #1098 `agent-permissions` check (no reads of the real home in tests). */
   readonly agentPermissionsDeps?: Partial<AgentPermissionsDeps>;
+  /** Test seam for the #1116 WP8 checks (portal reads, gh runner, test groups). */
+  readonly onboardingDeps?: OnboardingCheckDeps;
+  /** Test seam for the #1116 WP15 `test-data` check. */
+  readonly testDataDeps?: TestDataDeps;
+  readonly ciValuesDeps?: CiValuesDeps;
 }
 
 /**
@@ -249,6 +261,9 @@ function checkPatInEnvironment(env: NodeJS.ProcessEnv = process.env): CheckResul
  * Claude Code deny rules that keep an agent session away from the PAT present? Reads settings files
  * only; the installer never writes a user's agent settings. Never fails the run (`ok` stays true).
  */
+/** What `apply` can write: Claude Code only. The others have no mechanism it can express (docs/agent-permissions.md). */
+const OTHER_AGENTS_NOTE = 'no documented mechanism for Gemini CLI, Cursor or Windsurf that `apply` can write; nothing to apply';
+
 async function checkAgentPermissions(deps?: Partial<AgentPermissionsDeps>): Promise<CheckResult> {
   const name = 'agent-permissions';
   const consumer = await readConsumerConfig();
@@ -256,13 +271,13 @@ async function checkAgentPermissions(deps?: Partial<AgentPermissionsDeps>): Prom
   try {
     const r = await agentPermissionsReport({ repoRoot: consumer.repoRoot, ...deps });
     if (r.missingGroups.length === 0) {
-      return { name, ok: true, detail: `Claude Code: all ${r.total} recommended deny rules present (PAT commands, credential store); other agents: not checked`, suspectedOrigin: 'unknown' };
+      return { name, ok: true, detail: `Claude Code: all ${r.total} recommended deny rules present (PAT commands, credential store); other agents: ${OTHER_AGENTS_NOTE}`, suspectedOrigin: 'unknown' };
     }
     const where = r.files.length === 0 ? 'no Claude Code settings file found' : `${r.present} of ${r.total} recommended deny rules present; missing: ${r.missingGroups.join(', ')}`;
     return {
       name,
       ok: true,
-      detail: `Claude Code: ${where} (recommended, not required: keeps agent sessions away from your PAT; see docs/agent-permissions.md); other agents: not checked`,
+      detail: `Claude Code: ${where} (recommended, not required: keeps agent sessions away from your PAT). Fix: \`devaudit agent-permissions apply\` (user scope is the stronger one; \`--scope project|local\` are the others; see docs/agent-permissions.md); other agents: ${OTHER_AGENTS_NOTE}`,
       suspectedOrigin: 'unknown',
       findings: [
         {
@@ -272,7 +287,7 @@ async function checkAgentPermissions(deps?: Partial<AgentPermissionsDeps>): Prom
             id: 'add-agent-permission-rules',
             tier: 'C',
             summary: 'Add the recommended agent permission rules',
-            plan: ['copy the snippet from docs/agent-permissions.md into .claude/settings.json (this project) or ~/.claude/settings.json (all your projects); devaudit never edits your agent settings'],
+            plan: ['run devaudit agent-permissions apply yourself (it shows the rules and the file, asks, backs the file up and merges into permissions.deny)', 'or copy the snippet from docs/agent-permissions.md into your agent settings'],
             needsPortal: false,
           },
         },
@@ -781,10 +796,19 @@ async function checkAcceptedExceptions(): Promise<CheckResult> {
   };
 }
 
-export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
-  const log = logger();
-  const jsonMode = isJsonMode();
-  if (!jsonMode) log.info('Running devaudit doctor — checking required tools...\n');
+/** Everything one doctor run finds, computed without printing (so `--guided` can run the checks again). */
+export interface DoctorState {
+  readonly checks: readonly CheckResult[];
+  readonly closeout: CheckResult;
+  readonly onboardingChecks: readonly CheckResult[];
+  readonly deferralChecks: readonly CheckResult[];
+  readonly consumer: { repoRoot: string; cfg: Record<string, unknown> } | null;
+  readonly closeoutProposals: readonly Proposal[];
+  readonly proposals: readonly Proposal[];
+  readonly gaps: readonly Gap[];
+}
+
+export async function collectDoctorState(options: DoctorOptions = {}, scope: { readonly skipDurations?: boolean } = {}): Promise<DoctorState> {
   // The five tool probes are independent child processes: run them together (process spawn is
   // slow on a loaded Windows runner), report them in the usual order.
   const checks: readonly CheckResult[] = await Promise.all([
@@ -794,26 +818,12 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
     timed('tool:jq', () => checkCommand('jq', ['--version'])),
     timed('tool:curl', () => checkCommand('curl', ['--version'])),
   ]);
-  let allOk = true;
-  for (const check of checks) {
-    if (!check.ok) allOk = false;
-    if (!jsonMode) {
-      const marker = check.ok ? '✓' : '✗';
-      log.log(`  ${marker} ${check.name.padEnd(8)} ${check.detail}`);
-    }
-  }
   // Reconciliation safety-net — reported but does not gate the tool check (#60).
   const { result: closeout, drifted: closeoutDrifted } = await timed('closeout-drift', () => checkReleaseCloseoutDrift());
-  if (!jsonMode) {
-    const closeoutMarker = closeout.ok ? '✓' : '⚠';
-    log.log(`  ${closeoutMarker} ${closeout.name.padEnd(8)} ${closeout.detail}`);
-    if (!closeout.ok) {
-      log.warn('Release close-out drift detected — see above. (Does not affect the tool check.)');
-    }
-  }
+  const consumer = await readConsumerConfig();
   // Onboarding-checklist invariants — same non-gating shape as the
   // close-out check above (devaudit-installer#826, extended #867).
-  const onboardingChecks: readonly CheckResult[] = [
+  const onboardingBase: readonly CheckResult[] = [
     await timed('srs', () => checkSrsBootstrapped()),
     await timed('rtm', () => checkRtmInitialized()),
     await timed('semgrep', () => checkSemgrepAvailable()),
@@ -833,7 +843,85 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
     await timed('credentials', () => checkCredentials(options.credentialsDeps)),
     // devaudit-installer#1098: recommended agent deny rules, informational.
     await timed('agent-permissions', () => checkAgentPermissions(options.agentPermissionsDeps)),
+    // DevAudit-Installer#1116 WP8: preset drift, standards fit, approval policy, run times.
+    ...(consumer ? await timed('onboarding-1116', () => onboardingChecksFor(consumer, options.onboardingDeps, scope)) : []),
   ];
+  // DevAudit-Installer#1116 WP15: runs after test-tiers and preset-drift and reads their result.
+  const onboardingChecks: readonly CheckResult[] = consumer
+    ? [
+        ...onboardingBase,
+        await timed('test-data', () => testDataCheck(consumer, onboardingBase, options.testDataDeps)),
+        // DevAudit-Installer#1160: every secret/variable the configuration references exists where the workflows can read it.
+        await timed('ci-values', () => ciValuesCheck(consumer, options.ciValuesDeps)),
+      ]
+    : onboardingBase;
+  // Release-deferral diagnosis (#956 phase 3a-2): read-only, non-gating, and
+  // reported under a new additive JSON key so existing keys are untouched.
+  const deferralChecks: readonly CheckResult[] = consumer
+    ? await runDeferralChecks(await buildDeferralContext(consumer.repoRoot, consumer.cfg))
+    : [];
+  const closeoutProposals: Proposal[] = closeoutDrifted.map((req) => ({
+    check: closeout.name,
+    subject: req,
+    detail: `${req} is released on the portal but still in pending-releases/`,
+    remediation: {
+      id: 'close-out-release',
+      // #984 — guidance: `--fix` never runs close-out-release.sh (it moves
+      // files with git), so it is tier C (printed, not counted as unapplied).
+      tier: 'C' as const,
+      summary: `Close out ${req} locally`,
+      plan: [`./scripts/close-out-release.sh ${req}`],
+      needsPortal: false,
+    },
+  }));
+  const proposals: Proposal[] = [
+    ...deferralChecks.flatMap((c) =>
+      (c.findings ?? []).flatMap((f) =>
+        f.remediation ? [{ check: c.name, subject: f.subject, detail: f.detail, remediation: f.remediation }] : [],
+      ),
+    ),
+    ...closeoutProposals,
+    // devaudit-installer#1040 config findings, appended so existing proposal order is unchanged.
+    ...onboardingChecks.flatMap((c) =>
+      (c.findings ?? []).flatMap((f) =>
+        f.remediation ? [{ check: c.name, subject: f.subject, detail: f.detail, remediation: f.remediation }] : [],
+      ),
+    ),
+  ];
+  // DevAudit-Installer#1116 WP4: every non-ok check as plain-language gaps (why, and the ways to close it).
+  // Additive in --json; the text output is unchanged.
+  const gaps = [
+    ...gapsFromChecks(checks),
+    ...gapsFromCloseout(
+      closeout,
+      closeoutProposals.map((p) => ({ subject: p.subject, detail: p.detail, remediation: p.remediation })),
+    ),
+    ...gapsFromChecks(onboardingChecks),
+    ...gapsFromChecks(deferralChecks),
+  ];
+  return { checks, closeout, onboardingChecks, deferralChecks, consumer, closeoutProposals, proposals, gaps };
+}
+
+export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
+  const log = logger();
+  const jsonMode = isJsonMode();
+  if (!jsonMode) log.info('Running devaudit doctor — checking required tools...\n');
+  const { checks, closeout, onboardingChecks, deferralChecks, consumer, proposals, gaps } = await collectDoctorState(options);
+  let allOk = true;
+  for (const check of checks) {
+    if (!check.ok) allOk = false;
+    if (!jsonMode) {
+      const marker = check.ok ? '✓' : '✗';
+      log.log(`  ${marker} ${check.name.padEnd(8)} ${check.detail}`);
+    }
+  }
+  if (!jsonMode) {
+    const closeoutMarker = closeout.ok ? '✓' : '⚠';
+    log.log(`  ${closeoutMarker} ${closeout.name.padEnd(8)} ${closeout.detail}`);
+    if (!closeout.ok) {
+      log.warn('Release close-out drift detected — see above. (Does not affect the tool check.)');
+    }
+  }
   let onboardingIssues = false;
   for (const check of onboardingChecks) {
     if (!check.ok) onboardingIssues = true;
@@ -848,12 +936,6 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
       log.warn('Onboarding checklist gaps detected — see above. (Does not affect the tool check.)');
     }
   }
-  // Release-deferral diagnosis (#956 phase 3a-2): read-only, non-gating, and
-  // reported under a new additive JSON key so existing keys are untouched.
-  const consumer = await readConsumerConfig();
-  const deferralChecks: readonly CheckResult[] = consumer
-    ? await runDeferralChecks(await buildDeferralContext(consumer.repoRoot, consumer.cfg))
-    : [];
   let deferralIssues = false;
   for (const check of deferralChecks) {
     if (!check.ok) deferralIssues = true;
@@ -865,33 +947,6 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
   if (!jsonMode && deferralIssues) {
     log.warn('Release-deferral findings detected — see above. (Read-only; does not affect the tool check.)');
   }
-  const proposals: Proposal[] = [
-    ...deferralChecks.flatMap((c) =>
-      (c.findings ?? []).flatMap((f) =>
-        f.remediation ? [{ check: c.name, subject: f.subject, detail: f.detail, remediation: f.remediation }] : [],
-      ),
-    ),
-    ...closeoutDrifted.map((req) => ({
-      check: closeout.name,
-      subject: req,
-      detail: `${req} is released on the portal but still in pending-releases/`,
-      remediation: {
-        id: 'close-out-release',
-        // #984 — guidance: `--fix` never runs close-out-release.sh (it moves
-        // files with git), so it is tier C (printed, not counted as unapplied).
-        tier: 'C' as const,
-        summary: `Close out ${req} locally`,
-        plan: [`./scripts/close-out-release.sh ${req}`],
-        needsPortal: false,
-      },
-    })),
-    // devaudit-installer#1040 config findings, appended so existing proposal order is unchanged.
-    ...onboardingChecks.flatMap((c) =>
-      (c.findings ?? []).flatMap((f) =>
-        f.remediation ? [{ check: c.name, subject: f.subject, detail: f.detail, remediation: f.remediation }] : [],
-      ),
-    ),
-  ];
   let fixReport: FixReport | null = null;
   if (options.fix) {
     const fixOpts = {
@@ -943,6 +998,8 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
       // Additive (#956): release-deferral checks and inert remediation proposals.
       deferral: deferralChecks,
       proposals,
+      // Additive (#1116 WP4): the same findings as gaps with a plain-language reason and options.
+      gaps,
       ...(fixReport ? { fix: fixReport } : {}),
     });
   }
@@ -956,4 +1013,80 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<void> {
     }
     process.exit(6);
   }
+}
+
+/** The deps `doctor --fix` and `doctor --guided` hand to `runFix`: the repository, the portal base URL and the commit lookup. */
+function fixDepsFor(consumer: { repoRoot: string; cfg: Record<string, unknown> } | null): FixDeps {
+  if (!consumer) return { repoRoot: process.cwd(), baseUrl: '' };
+  const devauditCfg = (consumer.cfg['devaudit'] ?? {}) as { base_url?: string };
+  return {
+    repoRoot: consumer.repoRoot,
+    baseUrl: (devauditCfg.base_url ?? '').replace(/\/$/, ''),
+    commitsFor: async (req) => {
+      const main = (await refExists(consumer.repoRoot, 'origin/main')) ? 'origin/main' : 'main';
+      const dev = (await refExists(consumer.repoRoot, 'develop')) ? 'develop' : 'origin/develop';
+      const commits = await commitsInRange(consumer.repoRoot, main, dev);
+      return commits.filter((c) => reqHasCommits([c], req)).map((c) => c.subject);
+    },
+  };
+}
+
+/**
+ * `devaudit doctor --guided [check]` (DevAudit-Installer#1116 WP8): walks the gaps one at a time and
+ * applies a chosen fix through `runFix`, the code behind `--fix`. Returns the exit code.
+ */
+export async function runDoctorGuided(
+  scope: string | undefined,
+  options: DoctorOptions & { readonly guided?: Partial<GuidedDeps> } = {},
+): Promise<number> {
+  const first = await collectDoctorState(options, { skipDurations: true });
+  const report = await runGuided(scope, {
+    ask: prompts,
+    json: isJsonMode(),
+    fixDeps: { ...fixDepsFor(first.consumer), ...options.fix?.deps },
+    // DevAudit-Installer#1116 WP13: guided mode also offers the apply as a tier A option (same function as the command).
+    decorate: withAgentPermissionsOption,
+    // The first collection is reused; later calls (after a fix) run the checks again, without the slow measurement.
+    collect: (() => {
+      let used = false;
+      return async () => {
+        if (!used) {
+          used = true;
+          return { gaps: first.gaps, proposals: first.proposals };
+        }
+        const next = await collectDoctorState(options, { skipDurations: true });
+        return { gaps: next.gaps, proposals: next.proposals };
+      };
+    })(),
+    ...options.guided,
+  });
+  return report.exitCode;
+}
+
+/** Adds the tier A "apply the rules" option to the `agent-permissions` gap (the tier C guidance stays as the other option). */
+export function withAgentPermissionsOption(gaps: readonly Gap[]): Gap[] {
+  return gaps.map((g) =>
+    g.check !== 'agent-permissions' || g.options.some((o) => o.id === 'apply-agent-permissions')
+      ? g
+      : {
+          ...g,
+          options: [
+            {
+              id: 'apply-agent-permissions',
+              label: 'Add the recommended agent permission rules to your user settings (devaudit agent-permissions apply)',
+              tier: 'A' as const,
+              consequence: 'Changes a local file (a timestamped backup is written first); the change is reversible. Your agent settings are edited only after you confirm.',
+              remediation: {
+                id: 'apply-agent-permissions',
+                tier: 'A' as const,
+                summary: 'Add the recommended agent permission rules to your user settings',
+                plan: ['devaudit agent-permissions apply'],
+                needsPortal: false,
+                data: { scope: 'user' },
+              },
+            },
+            ...g.options,
+          ],
+        },
+  );
 }

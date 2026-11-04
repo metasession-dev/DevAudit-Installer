@@ -15,6 +15,17 @@ devaudit configure secret <NAME> [--dry-run]          # set a repo secret throug
 
 Implementation: [`cli/src/commands/configure.ts`](../cli/src/commands/configure.ts), keys in [`cli/src/lib/repo-config-keys.ts`](../cli/src/lib/repo-config-keys.ts), deploy-host detection in [`cli/src/lib/deploy-detect.ts`](../cli/src/lib/deploy-detect.ts).
 
+## `devaudit configure` with no arguments
+
+Run in a terminal with no subcommand, `devaudit configure` asks the same questions as the guided install ([`onboarding.md`](./onboarding.md#presets-and-the-guided-install)) with this project's current values as the defaults. The preset question starts at the preset recorded in `onboarding_preset`; "Keep my current settings" is offered when none is recorded. After the answers it lists every change as `key: before -> after`, keys the new preset does not write as `removed`, and the workflows the next `devaudit update` regenerates, asks once, and writes only what changed. If nothing changed it writes nothing.
+
+- **Switching presets** writes exactly the target preset's keys and removes the ones it does not write (C to A leaves no `release_gate_tier`, `post_deploy_full_regression` or `scheduled_full_regression`). C to D changes `post_deploy_full_regression` to `false`, and D to C changes it back.
+- **A change that enables a test tier** (the release gate question, or moving to preset B, C or D) asks where the tests get their data (Q18) straight away when `e2e_data_isolation` is unset.
+- **A change that turns on an unattended regression** (a schedule, or a run after every deploy) prints the current `e2e_data_isolation` in the before/after summary: "these runs happen without anyone watching; your tests use <answer>". It asks nothing new.
+- **The approval policy on the portal** is a separate action that needs a project admin. If the portal does not accept a solo policy, the approval settings in `sdlc-config.json` are left as they are and the rest is written.
+- **Without a terminal** (no TTY, `CI` set or `--json`) it asks nothing, writes nothing and exits 8: use `devaudit configure set <key> <value>` in scripts. A declined confirmation also exits 8.
+- A new review count on the release branch reaches GitHub through `devaudit update`, which asks before lowering an existing branch.
+
 ## `configure set`: what it checks
 
 1. **The key is one `configure` manages.** Unknown keys are refused; `configure list` shows them. `e2e_regression_enabled` is refused with a pointer to `devaudit update --enable-e2e-regression` / `--disable-e2e-regression`, which also syncs the workflow.
@@ -30,6 +41,22 @@ Then it prints:
 `--dry-run` does all of this and writes nothing. Without `--dry-run`, an uncontradicted change asks for confirmation (skip it with `--yes`; a non-interactive run applies it, because the command itself is the instruction). The file keeps its key order and two-space formatting.
 
 Exit codes: `0` applied, unchanged or dry run; `2` invalid key or value; `8` not applied (needs a confirmation or `--reason`).
+
+## Dotted keys and the onboarding keys
+
+A key with a dot lives inside a section of `sdlc-config.json`: `approval.mode` is `approval.mode` in the `approval` object, and `production_review.terminal_status` is in `production_review`. `configure set` writes only that value; the section's other fields and the file's key order are kept, and a missing section is created.
+
+| Key | Values | What it does |
+| --- | --- | --- |
+| `approval.mode` | `dual_actor` (default), `solo_with_gap` | Who may approve a release: a different person, or the author with a recorded control gap. Read by the `sdlc-implementer` and `risk-register-keeper` skills; the portal has its own approval policy, which `doctor` compares with this one. |
+| `production_review.terminal_status` | `prod_review` (default), `released` | Where `post-deploy-prod.yml` leaves a release: waiting for a person to confirm production, or released automatically. |
+| `release_branch_required_reviews` | `0`, `1` (default), `2` | Approving reviews GitHub requires on the release branch. `devaudit install` applies it. `devaudit update` keeps the branch at it: raising is automatic; **lowering an existing branch asks for a confirmation** that states the recorded control gap, and without a terminal it only reports the difference. `0` lets the author merge their own release PR. |
+| `compliance_frameworks` | `soc-2`, `iso-27001`, `iso-29119`, `gdpr`, `eu-ai-act` (a list, or empty) | The standards the project needs evidence for. The portal's claimed standards win when they differ. |
+| `onboarding_preset` | `A`, `B`, `C`, `D`, `custom` | The onboarding preset the project chose. A missing key means `custom`. |
+| `e2e_data_isolation` | `none`, `ephemeral`, `shared_serialised`, `shared` | Where the end-to-end tests get their data. Unset keeps today's behaviour. |
+| `e2e_seed_paths`, `e2e_reset_command`, `e2e_preflight_command`, `e2e_leak_check_command`, `e2e_max_skipped`, `feature_e2e_projects` | lists, one-line commands, a number | Test-data settings the project owns. They are defined now and take effect with the test-data work of DevAudit-Installer#1116 (work package WP15); no generated file reads them yet. |
+
+None of these regenerates a workflow, so `configure set` for them prints no list of files. `release_branch_required_reviews` takes effect at the next `devaudit update`.
 
 ## `configure secret`
 

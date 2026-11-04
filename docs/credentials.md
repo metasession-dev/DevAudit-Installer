@@ -13,7 +13,7 @@ The portal enforces the split: every `/api/ci/*` route accepts API keys only, an
 
 ## Keeping agent sessions away from the PAT (recommended)
 
-The skill text, the interactive-only `doctor --fix` and the `doctor` warning are the first three layers. The fourth, recommended and not required, is a set of agent permission rules that refuse the PAT commands and reads of this credential folder even if a skill is ignored or a prompt is injected: [`agent-permissions.md`](./agent-permissions.md) has the copy-paste Claude Code rules (tested on a real agent), what the other agents document, and the limits. It is defence in depth, not a sandbox; `devaudit doctor` only reports whether the rules are present.
+The skill text, the interactive-only `doctor --fix` and the `doctor` warning are the first three layers. The fourth, recommended and not required, is a set of agent permission rules that refuse the PAT commands and reads of this credential folder even if a skill is ignored or a prompt is injected: [`agent-permissions.md`](./agent-permissions.md) has the copy-paste Claude Code rules (tested on a real agent), what the other agents document, and the limits. It is defence in depth, not a sandbox; `devaudit agent-permissions apply` adds them to your agent settings after a confirmation (user scope by default, with a backup), `install`, `join` and `update` offer it once, and `devaudit doctor` reports whether they are present and names that command.
 
 ## Who does what, step by step
 
@@ -31,6 +31,14 @@ Reproduced from Phase 0 of the `sdlc-implementer` skill, which holds the canonic
 | Close-out PR (Phase 5) | CI opens it; reviewed and merged as Phase 5 says |
 | Defer or resume a release | A person: `devaudit doctor --fix` (their PAT, at a terminal) or the portal UI. Never the agent |
 | Install, join, issue a viewer key | A person, with their PAT |
+
+## Secrets and variables the workflows read
+
+The generated workflows read repository-level secrets and variables only (no job sets `environment:`), and GitHub reads a name it cannot find as an empty string. Where to define the values the configuration references, and how DevAudit reports a missing one, is in [`e2e-local-db-ci.md`](./e2e-local-db-ci.md#where-the-values-live-secrets-and-variables) (`devaudit doctor` check `ci-values`).
+
+## The scan's account step
+
+`devaudit scan` can create your account and save its report (see [`scan.md`](./scan.md#saving-the-report-and-getting-help-the-account-step)). The personal access token it receives from the browser sign-in is saved by the same function as `devaudit auth login` (`auth.json` in the CLI config folder, mode 0600), is never printed, logged or put in an environment variable, and is the only credential that can upload a report; your own viewer key, issued in the same step, is read-only and saved like `install` saves it. The uploader key stays CI-only and is never issued by `scan`.
 
 ## The viewer key
 

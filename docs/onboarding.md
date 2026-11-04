@@ -2,6 +2,8 @@
 
 > **This is the operator's onboarding flow** — the first developer setting up a fresh DevAudit project. If you're a second / nth developer joining an **already-onboarded** project, see [`sdlc/files/_common/joining-an-existing-project.md`](../sdlc/files/_common/joining-an-existing-project.md) instead. `devaudit install` is destructive against team-shared state (repo secrets, branch protection); the second-dev path uses `devaudit join` which leaves all of that alone.
 
+**Start with a look, if you like:** `devaudit scan` ([`scan.md`](./scan.md)) reads the repository, shows what it is set up to evidence for the standards you choose, and offers to create your free account and hand over to the guided install with the scan's answers. You can skip it and go straight to the two actions below.
+
 Onboarding replaces the legacy manual setup sequence with **two operator actions**:
 
 1. Issue a Personal Access Token at `https://devaudit.ai/settings/tokens`.
@@ -51,11 +53,11 @@ devaudit install ../path/to/new-consumer
 
 `install`/`join`/`uninstall` also each accept `--token <token>` (skips the env var / cached-login lookup for this one invocation) and `--base-url <url>` (points at a non-production portal — defaults to `DEVAUDIT_BASE_URL` env or `https://devaudit.ai`). Useful for a one-off run against a different account or a staging portal without touching your ambient environment. The global `--org <slug>` flag (any command) overrides which org context the invocation runs under, for an operator with access to more than one.
 
-If `sdlc-config.json` already exists in the target, `install` runs non-interactively from it (and preserves customisations like `app_env` / `build_env` / `e2e_*`); otherwise it prompts for the remaining values. The CLI will:
+With `--yes`, `install` runs non-interactively from an existing `sdlc-config.json` (and preserves customisations like `app_env` / `build_env` / `e2e_*`); without it, `install` is guided and asks for the remaining values. The CLI will:
 
 1. **Authenticate** — validates the PAT against DevAudit; aborts if invalid.
 2. **Detect the stack and working directory** — reads `pyproject.toml` / `package.json` to infer `python` / `node` and find the manifest location.
-3. **Configure** — interactive prompts for the remaining values (project slug, runtime version, source dirs, working directory, production URL secret name + value).
+3. **Configure** — the guided install ([Presets and the guided install](#presets-and-the-guided-install)): it detects what it can, suggests a preset, and shows one summary to accept, change or expand into every question (project slug, runtime version, source dirs, working directory and production URL secret are in the detailed questions).
 4. **Write `sdlc-config.json`** in the consumer's directory. This file is the per-consumer source of truth that `devaudit update` leaves alone; see [`sdlc-config.json`: what it is, why `update` leaves it alone, how parameters get in](consuming-projects.md#sdlc-configjson-what-it-is-why-update-leaves-it-alone-how-parameters-get-in) for how values the wizard did not ask about get in later.
 5. **Create the DevAudit project** (idempotent — skips if a project with this slug already belongs to the operator).
 6. **Issue a project-scoped API key** named `Onboarding-issued` (idempotent — won't re-issue if one already exists; will warn). This key carries the `uploader` role — write access to evidence upload and release status for this one project — and is consumed **only by CI**; never export it locally, never hand it to an agent (see [`permissions-and-tokens-reference.md`](./credentials.md) for why).
@@ -74,6 +76,32 @@ If `sdlc-config.json` already exists in the target, `install` runs non-interacti
 Want a stronger E2E safety net than the default blocking smoke gate? See [`e2e-test-tiers.md`](./e2e-test-tiers.md#opting-into-the-3-tier-regression-gate) for the opt-in 3-tier (`smoke`/`critical`/`regression`) model and its `devaudit update --enable-e2e-regression` flag — most projects don't need it.
 
 The consumer's working tree is left dirty so the operator can review the diff before committing.
+
+### Presets and the guided install
+
+An interactive `devaudit install` (devaudit-installer#1116) does not start with 24 questions. It detects your stack, test runner and test groups (smoke, critical, full), deploy host, branches and runner, reads the project's approval policy from the portal when the project already exists, and suggests one **preset**: A solo and fast, B safety net, C team with a compliance lead, D the same as C with the full pack run once, before merge. [`presets.md`](./presets.md) says what each runs at the five moments, the evidence it produces and the gap it carries. A preset that cannot be offered is listed with the reason (for example "it needs a full test pack and none was found", or "this portal does not yet allow a solo approver; ask its operator to upgrade"); `custom` is always available and asks each setting.
+
+You then see a summary, one line per setting, with a compliance line that is recomputed after every change. Choose **Yes** to write it, **Change one thing** to answer one setting's question and see the summary again, or **Detailed questions** to be asked everything that applies, with the summary's values as the defaults. An answer that departs from the preset is recorded as `custom` in `onboarding_preset`. Flags such as `--release-gate-tier` override the preset's value and are not asked.
+
+A preset that means you approve your own releases (A, B, or answering "I approve my own") also needs the project's portal approval policy to allow it. Install asks before it sets that (it needs a project admin), and if the portal does not support it the repository keeps "approved by a different person" and says so in one line.
+
+| Flag | Meaning |
+| --- | --- |
+| `--preset <A\|B\|C\|D\|custom>` | Apply that preset without the preset question. With `--yes`, A and B read the approval policy from the portal and refuse (exit code 2) unless it already allows self-approval with a recorded gap; C, D and `custom` need no check. |
+| `--from-scan <file\|report-id>` | Take the suggested preset and the standards from a scan report: a file, or a saved report read from the portal (`GET /api/ci/projects/{slug}/scan-reports/{id}`) with your viewer key. A bare `<report-id>` uses the project named in `sdlc-config.json`; otherwise write `<project-slug>/<report-id>`. A report the portal does not have, a key that is not accepted, or no key (`devaudit join` issues one) exit with code 2 and name the file as the alternative. |
+
+Re-running `install` on a project that has a configuration but no `onboarding_preset` offers "Keep my current settings" first and applies no preset or policy unless you choose one. `devaudit join` asks nothing and writes no preset or policy; it prints the project's preset. `--yes` without `--preset` behaves as before.
+
+### Starting with no tests
+
+A project that answers "not yet" to the end-to-end tests question gets preset A suggested, and B, C and D are not offered. The path from there to a gated release:
+
+1. **Finish the install on preset A.** Smoke only is not yet a gate, so A (smoke tests block the merge, approval by the author, the gap recorded) is the preset that fits. Use `custom` instead when A is not offered (the portal does not allow a solo approver yet) or when the team wants a different person to approve (Q11 "a different person"; preset A would record a gap the team does not want).
+2. **Write the first tests.** Use the `e2e-test-engineer` skill to bootstrap a suite and add smoke tests (its Phase 1b and Phase 5; a requirement and an approved plan come first).
+3. **Run `devaudit doctor`.** The `test-tiers` check should now pass.
+4. **Run `devaudit configure`** to enable critical or full when those tests exist; the Q4 to Q8 answers update through the detection already there.
+
+The closing lines of a guided install that found no smoke tests say the same, and name `custom` when preset A was not offered. The `devaudit-configure` skill carries the same section.
 
 ### Test tiers and the release gate
 
@@ -213,7 +241,7 @@ Some operations remain out of scope by design:
 | Sign you up for DevAudit                   | Identity establishment is a user action, not an automated one.             |
 | Issue the first PAT                        | Chicken-and-egg: the PAT is the auth credential the script consumes.       |
 | Walk REQ-001 through Stages 0–5            | Product decisions (what to build, what risk class) belong to humans.       |
-| Click "Approve" in the Release Approval UI | Four-eyes regulatory control; the whole point of the framework.            |
+| Click "Approve" in the Release Approval UI | The approval control: a different person under `dual_actor`, a recorded gap under `solo_with_gap`. |
 | Review and approve the onboarding PR       | Code review is a control. (See `Compliance Validation` for the soft gate.) |
 
 Everything else is automated.
@@ -363,4 +391,4 @@ That's a warning, not a tool-gate failure (exit code stays `0` unless a *require
 - [consuming-projects.md](./consuming-projects.md) — which consumers are polyglot-monorepo (`targets`, deprecated) vs single-target.
 - [consuming-projects.md#offboarding-a-project](./consuming-projects.md#offboarding-a-project) — removing a project: `devaudit uninstall` reverses the steps this doc walks through.
 - [`credentials.md`](./credentials.md) — every credential this flow issues, including your own viewer key, where each lives, the lookup order, and rotate / revoke / leaving.
-- [devaudit#867](https://github.com/metasession-dev/devaudit/issues/867) — the umbrella issue for the viewer-key + read-back API + fleet-doctor work referenced above.
+- portal issue 867 — the umbrella issue for the viewer-key + read-back API + fleet-doctor work referenced above.

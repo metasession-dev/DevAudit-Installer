@@ -25,7 +25,7 @@ name: CI Status Fallback
 on:
   workflow_dispatch:
   push:
-    branches: [develop]
+    branches: [{{INTEGRATION_BRANCH}}]
     paths:
 {{PATHS_IGNORE}}      - 'sdlc-config.json'
 

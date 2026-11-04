@@ -4,6 +4,8 @@ How to make the generated E2E gate (`ci.yml` Gate 4) run against a **disposable 
 database** instead of a remote/production one — so the suite can exercise mutation, email,
 and delete paths without ever touching real data.
 
+> Declaring the test data (`e2e_data_isolation`, the seed, reset, preflight and leak-check commands) adds a lifecycle step around the regression; see [`e2e-test-tiers.md`](./e2e-test-tiers.md#test-data-1116).
+
 ## When you need this
 
 The generated dev server inherits the workflow's **job-level env** — i.e. the
@@ -94,6 +96,18 @@ These are the **per-AC proof** images — distinct from the Playwright HTML repo
 failure warns, never blocks the gate) and only runs when a release ticket defines the
 in-scope REQ(s), so ordinary dev pushes don't spam evidence. Capture at the proving
 moment, not the end of the test.
+
+## Where the values live (secrets and variables)
+
+`e2e_env`, `app_env`, `build_env`, `database_env` and `typescript_check_env` may hold `${{ secrets.NAME }}` or `${{ vars.NAME }}`. Three facts decide whether the generated workflows can read them (#1160):
+
+1. **The workflows read repository-level values only.** No generated job sets `environment:`, so a secret or variable that exists only inside a GitHub *environment* (Settings > Environments) is invisible to every gate. Organisation-level values shared with the repository are visible. Put the values the gates need under **Settings > Secrets and variables > Actions**, as a repository secret or variable, and keep one name in one scope.
+2. **A name GitHub cannot find reads as an empty string and does not fail.** A misspelt secret name, a secret that exists only in an environment, and a secret that is missing from a fork or Dependabot pull request (those never receive repository secrets) all give an empty environment variable. The usual symptom is a dev server that starts without its credentials and a `Wait for dev server` step that times out, far from the cause.
+3. **DevAudit names the empty value before the dev server starts.** For every entry that is exactly one `${{ secrets.NAME }}` or `${{ vars.NAME }}` in `app_env`, `e2e_env` (and `database_env` in the regression), the generated `ci.yml`, `feature-e2e.yml` and `e2e-regression.yml` run a `Check configuration values` step (`scripts/check-config-values.sh`) that fails with one line per empty value: the map and variable (`e2e_env.SUPABASE_SECRET_KEY`), the secret or variable it is read from, and where to define it. Only names are printed. On a Dependabot or fork pull request, which GitHub gives no repository secrets, the same lines are warnings and the step passes. `devaudit doctor` reports the same problem without running CI (check `ci-values`: a name that exists nowhere, or only inside an environment; it needs a GitHub CLI session that can list secrets and is skipped without one). It checks the names in those config maps **and** every bare `${{ secrets.NAME }}` / `${{ vars.NAME }}` that a file in `.github/workflows/` reads, including workflows you wrote yourself. It does not check names DevAudit manages (`DEVAUDIT_*`, `INSTALLER_DISPATCH_TOKEN`, your `api_key_secret` and `production_url_secret`; other checks cover those), expressions with a fallback or comparison (`${{ secrets.X || ... }}`, `${{ secrets.X != '' }}`), `GITHUB_TOKEN`, or anything your application reads that no workflow or config entry mentions. It checks that a name exists, not that its value is right.
+
+A value that may legitimately be empty is written `${{ secrets.NAME || '' }}`; the check leaves it alone, as it does a literal value or a longer expression.
+
+To fix a finding, define the name at repository level (`gh secret set NAME`, `gh variable set NAME`; you are prompted for the value) or correct the name in `sdlc-config.json` (`devaudit configure set e2e_env ...`), then re-run the workflow.
 
 ## Alternative: a real container-service database
 

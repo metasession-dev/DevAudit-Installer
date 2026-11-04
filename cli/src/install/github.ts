@@ -14,6 +14,8 @@ function buildOperations(ctx: InstallContext, plan: InstallPlan): SecretOperatio
     operations.push({ kind: 'secret', name: plan.prodUrlSecretName, value: plan.prodUrlValue });
   }
   operations.push({ kind: 'variable', name: 'DEVAUDIT_BASE_URL', value: ctx.baseUrl });
+  // devaudit-installer#1116 Q9: a self-hosted runner's label is the CI_RUNNER_LABEL repository variable.
+  if (plan.onboarding?.runnerLabel) operations.push({ kind: 'variable', name: 'CI_RUNNER_LABEL', value: plan.onboarding.runnerLabel });
   return operations;
 }
 

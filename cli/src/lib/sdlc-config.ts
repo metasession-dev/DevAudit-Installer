@@ -13,6 +13,12 @@ export interface SdlcConfig {
   readonly integration_branch?: string;
   readonly release_branch?: string;
   /**
+   * DevAudit-Installer#1116 WP2: approving reviews GitHub requires on the release branch (0, 1 or 2).
+   * Absent means 1, the value `install` has always applied. `install` applies it, and `update` keeps
+   * the branch at it (lowering an existing branch only after an interactive confirmation).
+   */
+  readonly release_branch_required_reviews?: number;
+  /**
    * The @metasession.co/devaudit-cli version that last completed a
    * `devaudit update` sync of this project's templates. Written by
    * `stampVersion` (cli/src/update/stamp-version.ts) as the final step of

@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Use this template for **zero-risk chores**: typo fixes, formatting, dependency bumps, doc updates, refactors that produce no behaviour change. These follow the [trivial-change escape hatch](https://github.com/metasession-dev/devaudit/blob/main/docs/implementing-an-sdlc-issue.md#trivial-change-escape-hatch) — skip SDLC stages 1 (plan) and 3 (evidence), but **still run all gates locally** before pushing.
+        Use this template for **zero-risk chores**: typo fixes, formatting, dependency bumps, doc updates, refactors that produce no behaviour change. These follow the [trivial-change escape hatch](https://github.com/metasession-dev/DevAudit-Installer/blob/main/sdlc/src/blueprints/implementing-an-sdlc-issue.raw.md#trivial-change-escape-hatch) — skip SDLC stages 1 (plan) and 3 (evidence), but **still run all gates locally** before pushing.
 
         If the chore turns out to be non-trivial in flight, convert this issue to a [Requirement](./requirement.yml) and follow full stages 1–5.
 

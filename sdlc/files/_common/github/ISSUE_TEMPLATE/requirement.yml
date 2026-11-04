@@ -11,7 +11,7 @@ body:
         For bug fixes that touch the same high-risk surfaces, use [Bug](./bug.yml).
         For typo fixes, doc tweaks, dependency bumps, or other zero-risk chores, use [Task](./task.yml).
 
-        End-to-end walkthrough: [Implementing an SDLC issue](https://github.com/metasession-dev/devaudit/blob/main/docs/implementing-an-sdlc-issue.md) — stages 1–5, sample AI prompts, the skills inventory.
+        End-to-end walkthrough: [Implementing an SDLC issue](https://github.com/metasession-dev/DevAudit-Installer/blob/main/sdlc/src/blueprints/implementing-an-sdlc-issue.raw.md) — stages 1–5, sample AI prompts, the skills inventory.
 
   - type: textarea
     id: context
@@ -69,7 +69,7 @@ body:
       label: SDLC prep
       description: Confirm before triage.
       options:
-        - label: I've read the SDLC walkthrough (https://github.com/metasession-dev/devaudit/blob/main/docs/implementing-an-sdlc-issue.md) and understand which stages this requirement will pass through.
+        - label: I've read the SDLC walkthrough (https://github.com/metasession-dev/DevAudit-Installer/blob/main/sdlc/src/blueprints/implementing-an-sdlc-issue.raw.md) and understand which stages this requirement will pass through.
           required: true
         - label: I've checked the existing RTM (`compliance/RTM.md`) for any pre-existing REQ-XXX that covers this. (If yes, link it above and close this issue.)
           required: true

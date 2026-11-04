@@ -1,6 +1,7 @@
 import { execa } from 'execa';
 import type {
   BranchProtectionResult,
+  ConfirmLowerReviews,
   EnsureBranchProtectionResult,
   GitProvider,
   PullRequestCreateOptions,
@@ -324,9 +325,15 @@ export class GitHubProvider implements GitProvider {
     cwd: string,
     branch: string,
     requiredChecks: readonly string[],
-    options?: { readonly minReviewCount?: number },
+    options?: {
+      readonly minReviewCount?: number;
+      readonly exactReviewCount?: number;
+      readonly confirmLower?: ConfirmLowerReviews;
+    },
   ): Promise<EnsureBranchProtectionResult> {
-    const minReviews = options?.minReviewCount ?? 0;
+    const exactReviews = options?.exactReviewCount;
+    // An exact count also acts as the floor, so a count below it is raised as before.
+    const minReviews = Math.max(options?.minReviewCount ?? 0, exactReviews ?? 0);
     let meta: RepoMeta;
     try {
       meta = await this.getRepoMeta(cwd);
@@ -412,7 +419,32 @@ export class GitHubProvider implements GitProvider {
       }
       changes.push(`raised required approving reviews from ${reviews ?? 'none'} to ${minReviews}`);
     }
-    return changes.length > 0 ? { status: 'updated', changes } : { status: 'ok' };
+    // DevAudit-Installer#1116 WP2: a project that set `release_branch_required_reviews` wants the branch
+    // at exactly that count. Lowering weakens protection, so it needs an explicit yes from a person.
+    let reviewsNotLowered: { current: number; configured: number } | undefined;
+    if (exactReviews !== undefined && reviews !== undefined && reviews > exactReviews) {
+      const confirmed = options?.confirmLower ? await options.confirmLower({ branch, from: reviews, to: exactReviews }) : false;
+      if (confirmed) {
+        const res = await this.api(cwd, 'PATCH', `${base}/required_pull_request_reviews`, {
+          required_approving_review_count: exactReviews,
+        });
+        if (res.status < 200 || res.status >= 300) {
+          return {
+            status: 'failed',
+            changes,
+            message: `could not lower required approving reviews to ${exactReviews}: ${res.message}`,
+          };
+        }
+        changes.push(`lowered required approving reviews from ${reviews} to ${exactReviews} (confirmed)`);
+      } else {
+        reviewsNotLowered = { current: reviews, configured: exactReviews };
+      }
+    }
+    return {
+      status: changes.length > 0 ? 'updated' : 'ok',
+      ...(changes.length > 0 ? { changes } : {}),
+      ...(reviewsNotLowered ? { reviewsNotLowered } : {}),
+    };
   }
 
   /**

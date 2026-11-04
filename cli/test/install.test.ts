@@ -83,6 +83,10 @@ vi.mock('execa', () => ({
     if (file === 'pre-commit' || file === 'npx' || file === 'npm') {
       return { exitCode: 0, stdout: '', stderr: '' };
     }
+    // The portal needs the repository's web address to create a project (devaudit#826).
+    if (file === 'git' && args[0] === 'config' && args.includes('remote.origin.url')) {
+      return { exitCode: 0, stdout: 'git@github.com:example-org/fixture-app.git', stderr: '' };
+    }
     // resolveRepoRoot() calls `git rev-parse --show-toplevel` — real git is
     // never actually invoked in this test file (see the fs-fixture-based
     // `.git-root-marker` helper below), so walk up from opts.cwd looking for
@@ -108,7 +112,8 @@ vi.mock('execa', () => ({
 const handlers = [
   http.get(`${BASE_URL}/api/projects`, () => HttpResponse.json([])),
   http.post(`${BASE_URL}/api/projects`, async ({ request }) => {
-    const body = (await request.json()) as { slug: string; name: string };
+    const body = (await request.json()) as { slug: string; name: string; repo_url?: string };
+    if (!body.repo_url) return HttpResponse.json({ error: 'Repository URL is required' }, { status: 400 });
     return HttpResponse.json({ id: '11111111-aaaa-bbbb-cccc-222222222222', slug: body.slug, name: body.name }, { status: 201 });
   }),
   http.get(`${BASE_URL}/api/projects/:id/api-keys`, () => HttpResponse.json([])),
