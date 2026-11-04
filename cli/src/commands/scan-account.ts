@@ -136,17 +136,43 @@ async function pollDevice(base: string, start: DeviceStart, f: typeof fetch, sle
   return { kind: 'expired' };
 }
 
-async function upload(base: string, projectId: string, token: string, body: string, f: typeof fetch): Promise<'saved' | 'unavailable' | 'rejected'> {
+type Uploaded = { kind: 'saved' } | { kind: 'unavailable' } | { kind: 'rejected'; status: number; message: string | null };
+
+/** "HTTP 403: <the portal's own words>", for a refusal the person has to be able to act on. */
+const refusalText = (status: number, message: string | null): string => `HTTP ${status}${message ? `: ${message}` : ''}`;
+
+async function upload(base: string, projectId: string, token: string, body: string, f: typeof fetch): Promise<Uploaded> {
   let res: Response;
   try {
     res = await f(`${base}/api/projects/${encodeURIComponent(projectId)}/scan-reports`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-devaudit-token': token }, body });
   } catch {
-    return 'unavailable';
+    return { kind: 'unavailable' };
   }
-  if (res.ok) return 'saved';
-  if (res.status === 404 || res.status === 405 || res.status === 501) return 'unavailable';
-  return 'rejected';
+  if (res.ok) return { kind: 'saved' };
+  // The portal's own refusals carry `{ "error": "..." }` (a non-member gets a 404 that says so); a route that is not there does not.
+  const error = (await jsonOf(res))?.['error'];
+  const message = typeof error === 'string' && error.trim() !== '' ? error.trim() : null;
+  if ((res.status === 404 || res.status === 405 || res.status === 501) && message === null) return { kind: 'unavailable' };
+  return { kind: 'rejected', status: res.status, message };
 }
+
+/** Why the portal would not create the project. A plan limit is HTTP 402 (metasession-dev/devaudit#464), not 403. */
+function projectRefusal(err: unknown): string {
+  if (err instanceof DevAuditApiError) {
+    if (err.status === 402) {
+      return `Your plan does not allow another project${err.portalMessage ? ` (${err.portalMessage})` : ''}; the report was not saved. Run \`devaudit scan\` in a repository that already names a DevAudit project to save it there.`;
+    }
+    return `The project could not be created (${refusalText(err.status, err.portalMessage)}); the report was not saved.`;
+  }
+  return 'The project could not be created (the portal could not be reached); the report was not saved.';
+}
+
+const uploadLine = (r: Uploaded, savedLine: string): string =>
+  r.kind === 'saved'
+    ? savedLine
+    : r.kind === 'unavailable'
+      ? 'Saving a report is not available on this portal yet.'
+      : `The portal did not accept the report (${refusalText(r.status, r.message)}${r.status === 401 || r.status === 403 ? '; saving a report needs the project admin\'s own token' : ''}).`;
 
 /** The account step. Returns what happened; the caller has already decided the offer applies (a terminal, not `--local`, not `--ci`). */
 export async function runAccountStep(input: AccountStepInput, deps: AccountStepDeps & { ask: AccountPrompts }): Promise<AccountOutcome> {
@@ -172,9 +198,9 @@ export async function runAccountStep(input: AccountStepInput, deps: AccountStepD
       return 'not-saved';
     }
     const r = await upload(stored.baseUrl.replace(/\/$/, ''), project.id, stored.token, body, f);
-    say(r === 'saved' ? `Saved this report to ${onboardedSlug}.` : r === 'unavailable' ? 'Saving a report is not available on this portal yet.' : 'The portal did not accept the report (it may need project admin rights).');
+    say(uploadLine(r, `Saved this report to ${onboardedSlug}.`));
     say('Next: `devaudit configure` to review your settings.');
-    return r === 'saved' ? 'saved' : 'not-saved';
+    return r.kind === 'saved' ? 'saved' : 'not-saved';
   }
 
   // ---- a new account and project ------------------------------------------------------------------------
@@ -210,7 +236,7 @@ export async function runAccountStep(input: AccountStepInput, deps: AccountStepD
   try {
     project ??= await client.createProject(slug, slug);
   } catch (err) {
-    say(err instanceof DevAuditApiError && err.status === 403 ? 'The free plan allows one project and this account already has one; the report was not saved.' : 'The project could not be created; the report was not saved.');
+    say(projectRefusal(err));
     return 'not-saved';
   }
   try {
@@ -221,7 +247,7 @@ export async function runAccountStep(input: AccountStepInput, deps: AccountStepD
     say('Your own read-only viewer key could not be issued; run `devaudit join` later to get one.');
   }
   const saved = await upload(tokenBase, project.id, token, body, f);
-  say(saved === 'saved' ? `Saved this report to the new project ${slug}.` : saved === 'unavailable' ? 'Saving a report is not available on this portal yet; the project was created.' : 'The portal did not accept the report.');
+  say(saved.kind === 'unavailable' ? 'Saving a report is not available on this portal yet; the project was created.' : uploadLine(saved, `Saved this report to the new project ${slug}.`));
 
   // ---- hand-off to the guided install with the scan's answers -------------------------------------------
   const choice = await deps.ask.select('Set up the suggested preset now?', [
@@ -235,7 +261,7 @@ export async function runAccountStep(input: AccountStepInput, deps: AccountStepD
   } else {
     await install({ path: input.repoRoot, fromScan: input.cacheFile, ...(choice === 'yes' && input.report.suggestedPreset !== 'custom' ? { preset: input.report.suggestedPreset } : {}) });
   }
-  return saved === 'saved' ? 'saved' : 'not-saved';
+  return saved.kind === 'saved' ? 'saved' : 'not-saved';
 }
 
 /** Whether a personal access token is available without signing in (used by tests and the caller). */

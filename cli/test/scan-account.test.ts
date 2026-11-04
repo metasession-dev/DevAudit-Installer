@@ -38,7 +38,7 @@ const record = async (request: Request): Promise<void> => {
 };
 
 /** A portal where everything the account step needs exists. `pendingPolls` polls answer "pending" first. */
-function portal(opts: { projects?: Array<{ id: string; slug: string }>; pendingPolls?: number; deviceStatus?: number; pollError?: string; uploadStatus?: number } = {}): void {
+function portal(opts: { projects?: Array<{ id: string; slug: string }>; pendingPolls?: number; deviceStatus?: number; pollError?: string; uploadStatus?: number; uploadBody?: unknown; createStatus?: number; createBody?: unknown } = {}): void {
   let polls = 0;
   const projects = opts.projects ?? [];
   server.use(
@@ -60,6 +60,7 @@ function portal(opts: { projects?: Array<{ id: string; slug: string }>; pendingP
     }),
     http.post(`${BASE}/api/projects`, async ({ request }) => {
       await record(request);
+      if (opts.createStatus) return opts.createBody === undefined ? new HttpResponse('boom', { status: opts.createStatus }) : HttpResponse.json(opts.createBody, { status: opts.createStatus });
       return HttpResponse.json({ id: 'proj-1', slug: 'x', name: 'x' });
     }),
     http.post(`${BASE}/api/projects/:id/api-keys`, async ({ request }) => {
@@ -68,6 +69,7 @@ function portal(opts: { projects?: Array<{ id: string; slug: string }>; pendingP
     }),
     http.post(`${BASE}/api/projects/:id/scan-reports`, async ({ request }) => {
       await record(request);
+      if (opts.uploadStatus && opts.uploadBody !== undefined) return HttpResponse.json(opts.uploadBody, { status: opts.uploadStatus });
       return opts.uploadStatus ? new HttpResponse('nope', { status: opts.uploadStatus }) : HttpResponse.json({ id: 'report-1' });
     }),
   );
@@ -273,6 +275,46 @@ describe('the portal does not have the feature yet', () => {
       expect(calls.some((c) => c.path === '/api/projects' && c.method === 'POST'), error).toBe(false);
       expect(r.lines.join('\n')).toMatch(/declined|expired/);
     }
+  });
+
+  it('a plan limit (HTTP 402) says so in the portal\'s words and creates nothing more', async () => {
+    portal({ createStatus: 402, createBody: { error: 'The free plan allows 1 project', code: 'PLAN_QUOTA_EXCEEDED' } });
+    const d = await repo();
+    const r = await scan(d, {}, { terminal: true, account: { ask: prompts({ confirm: [true] }).ask, sleep, storedToken: async () => ({ token: TOKEN, baseUrl: BASE }) } });
+    const text = r.lines.join('\n');
+    expect(text).toContain('Your plan does not allow another project (The free plan allows 1 project)');
+    expect(text).toContain('the report was not saved');
+    expect(calls.some((c) => c.path.includes('/api-keys') || c.path.includes('/scan-reports'))).toBe(false);
+  });
+
+  it('any other refusal to create the project reports the status and the portal\'s reason', async () => {
+    for (const [status, body, expected] of [
+      [403, { error: 'Only org owners can create projects in this organisation' }, 'HTTP 403: Only org owners can create projects in this organisation'],
+      [400, { error: 'You need to own an organisation before you can create a project.' }, 'HTTP 400: You need to own an organisation'],
+      [500, undefined, 'HTTP 500)'],
+    ] as const) {
+      server.resetHandlers();
+      calls = [];
+      portal({ createStatus: status, ...(body === undefined ? {} : { createBody: body }) });
+      const d = await repo();
+      const r = await scan(d, {}, { terminal: true, account: { ask: prompts({ confirm: [true] }).ask, sleep, storedToken: async () => ({ token: TOKEN, baseUrl: BASE }) } });
+      expect(r.lines.join('\n'), String(status)).toContain(`The project could not be created (`);
+      expect(r.lines.join('\n'), String(status)).toContain(expected);
+    }
+  });
+
+  it('a refused upload says why; a 404 with the portal\'s own error is not "not available"', async () => {
+    portal({ uploadStatus: 403, uploadBody: { error: 'Forbidden' } });
+    const d = await repo();
+    const forbidden = await scan(d, {}, { terminal: true, account: { ask: prompts({ confirm: [true], select: ['later'] }).ask, sleep, storedToken: async () => ({ token: TOKEN, baseUrl: BASE }) } });
+    expect(forbidden.lines.join('\n')).toContain("The portal did not accept the report (HTTP 403: Forbidden; saving a report needs the project admin's own token)");
+    server.resetHandlers();
+    calls = [];
+    portal({ uploadStatus: 404, uploadBody: { error: 'Project not found' } });
+    const d2 = await repo();
+    const nonMember = await scan(d2, {}, { terminal: true, account: { ask: prompts({ confirm: [true], select: ['later'] }).ask, sleep, storedToken: async () => ({ token: TOKEN, baseUrl: BASE }) } });
+    expect(nonMember.lines.join('\n')).toContain('HTTP 404: Project not found');
+    expect(nonMember.lines.join('\n')).not.toContain('not available on this portal yet');
   });
 
   it('a report route that is not there says so, and the hand-off still runs', async () => {
