@@ -335,6 +335,19 @@ describe('the portal does not have the feature yet', () => {
     expect(nonMember.lines.join('\n')).not.toContain('not available on this portal yet');
   });
 
+  it('a failure inside the hand-off to the install is reported in one sentence, not thrown', async () => {
+    portal();
+    const d = await repo();
+    const failing = async (): Promise<never> => {
+      throw Object.assign(new Error('Command failed with exit code 1: gh secret set DEVAUDIT_API_KEY\n\nfailed to fetch public key: HTTP 404'), { stderr: 'failed to fetch public key: HTTP 404: Not Found' });
+    };
+    const r = await scan(d, {}, { terminal: true, account: { ask: prompts({ confirm: [true], select: ['yes'] }).ask, sleep, storedToken: async () => ({ token: TOKEN, baseUrl: BASE }), runInstall: failing } });
+    const text = r.lines.join('\n');
+    expect(text).toContain('The setup stopped: Command failed with exit code 1: gh secret set DEVAUDIT_API_KEY (failed to fetch public key: HTTP 404: Not Found).');
+    expect(text).toContain('Your report is saved.');
+    expect(text).toContain('devaudit install --from-scan');
+  });
+
   it('a report route that is not there says so, and the hand-off still runs', async () => {
     portal({ uploadStatus: 404 });
     const d = await repo();

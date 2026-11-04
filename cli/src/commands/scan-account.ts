@@ -168,6 +168,17 @@ function projectRefusal(err: unknown): string {
   return 'The project could not be created (the portal could not be reached); the report was not saved.';
 }
 
+/** The first line of an error, and the first line of what a failed command printed (execa's `stderr`), for one plain sentence. */
+function failureText(err: unknown): string {
+  if (!(err instanceof Error)) return 'an unknown error';
+  const first = (text: string): string => text.split('\n').find((l) => l.trim() !== '')?.trim() ?? '';
+  const stderr = (err as { stderr?: unknown }).stderr;
+  const detail = typeof stderr === 'string' ? first(stderr) : '';
+  const head = first(err.message);
+  if (head === '') return detail || 'an unknown error';
+  return detail !== '' && !head.includes(detail) ? `${head} (${detail})` : head;
+}
+
 const uploadLine = (r: Uploaded, savedLine: string): string =>
   r.kind === 'saved'
     ? savedLine
@@ -268,7 +279,12 @@ export async function runAccountStep(input: AccountStepInput, deps: AccountStepD
   if (choice === 'later') {
     say(`When you are ready: \`devaudit install --from-scan ${input.cacheFile}\``);
   } else {
-    await install({ path: input.repoRoot, fromScan: input.cacheFile, ...(choice === 'yes' && input.report.suggestedPreset !== 'custom' ? { preset: input.report.suggestedPreset } : {}) });
+    try {
+      await install({ path: input.repoRoot, fromScan: input.cacheFile, ...(choice === 'yes' && input.report.suggestedPreset !== 'custom' ? { preset: input.report.suggestedPreset } : {}) });
+    } catch (err) {
+      // The install is a separate command with its own steps; a failure in one must not end the scan as an unhandled error.
+      say(`The setup stopped: ${failureText(err)}.${saved.kind === 'saved' ? ' Your report is saved.' : ''} Fix that, then run \`devaudit install --from-scan ${input.cacheFile}\` again.`);
+    }
   }
   return saved.kind === 'saved' ? 'saved' : 'not-saved';
 }

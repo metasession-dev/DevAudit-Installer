@@ -47,6 +47,8 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ### Fixed
 
+- **A failure inside `devaudit scan`'s hand-off to the install no longer ends the scan with a stack trace** (found trying it against production: `gh secret set` could not set the repository secret). The scan now prints "The setup stopped: …" with the failure's first line and what the failed command printed, says the report is saved, and names the `devaudit install --from-scan` command to continue.
+
 - **`devaudit install` and `devaudit scan` send the repository's web address when they create a portal project.** The portal has required it since 21 September 2026 and answers HTTP 400 "Repository URL is required" without it, so a project that did not exist yet could not be created by either command (found trying the scan's account step against production). The address is read from the `origin` remote as an https address with any credentials in the remote removed; a repository with no usable `origin` remote is told to add one and nothing is requested.
 
 - **`devaudit scan` says why the portal refused** (found trying the account step against production). A plan limit comes back as HTTP 402, which the command did not recognise, so a person at their plan's project limit saw only "The project could not be created". It now says "Your plan does not allow another project (…)" with the portal's own message, reports the status and the portal's reason for any other refusal to create the project, and does the same for a refused upload (a 404 that carries the portal's own error, such as a non-member, is no longer reported as "not available on this portal yet").
