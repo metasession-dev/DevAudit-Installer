@@ -174,6 +174,17 @@ manifest_case() { # <name> <expected> <managed workflow list (space separated)> 
 manifest_case "a broken workflow the manifest does not list is a warning" WARN ".github/workflows/a.yml" "a.yml=$GOOD_WF" "old.yml=$BAD_WF"
 manifest_case "a broken workflow the manifest lists still fails" FAIL ".github/workflows/a.yml" "a.yml=$BAD_WF"
 
+# 9. #1116: the core package is part of the gate; its tests and config are not shipped files
+got=$(surface_for_path core/src/scan/evaluate.ts | sorted_words)
+if [ "$got" = "cli-core" ]; then ok "2b: core/src is cli-core"; else no "2b: core/src surfaces ($got)"; fi
+got=$(surface_for_path core/tools/copy-schema.mjs | sorted_words)
+if [ "$got" = "cli-core" ]; then ok "2b: core/tools is cli-core"; else no "2b: core/tools surfaces ($got)"; fi
+for f in core/test/scan.test.ts core/package.json core/tsconfig.json core/README.md SECURITY.md node_modules/.vite/vitest/x/results.json; do
+  if printf '%s\n' "$f" | grep -Eq "$RV_NOT_SHIPPED"; then ok "2b: $f is not a shipped path"; else no "2b: $f counted as shipped"; fi
+done
+got=$(surface_for_path sdlc/files/_common/github/ISSUE_TEMPLATE/bug.yml | sorted_words)
+if [ "$got" = "skills-docs" ]; then ok "2b: synced issue templates are skills-docs"; else no "2b: issue templates surfaces ($got)"; fi
+
 echo ""
 echo "release-validation.test.sh: ${PASS} passed, ${FAIL} failed"
 [ "$FAIL" -eq 0 ]

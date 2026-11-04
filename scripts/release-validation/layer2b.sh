@@ -12,7 +12,7 @@ RV_DIR="$ROOT/scripts/release-validation"
 # Default: the first of each stack in the local, gitignored consumer list (no names in this repo, #1042).
 RV_2B_CONSUMERS="${RV_2B_CONSUMERS:-$(local_consumers node | head -1) $(local_consumers python | head -1)}"
 # Changed paths that do not ship to consumers (or are covered by their own tests).
-RV_NOT_SHIPPED='^(docs/|tests/|scripts/|\.github/|\.claude/|\.devin/|plugins/|plugin-sdk/|contracts/|cli/(test/|CHANGELOG|README|package|tsconfig|tsup|vitest|\.)|sdlc/(CLAUDE|SKILLS|README|package)|README|CONTRIBUTING|CHANGELOG|LICENSE|INSTRUCTIONS|CLAUDE|AGENTS|GEMINI|package|\.)'
+RV_NOT_SHIPPED='^(docs/|tests/|scripts/|\.github/|\.claude/|\.devin/|plugins/|plugin-sdk/|contracts/|node_modules/|cli/(test/|CHANGELOG|README|package|tsconfig|tsup|vitest|\.)|core/(test/|README|LICENSE|package|tsconfig|tsup|vitest|\.)|sdlc/(CLAUDE|SKILLS|README|package)|README|CONTRIBUTING|SECURITY|CHANGELOG|LICENSE|INSTRUCTIONS|CLAUDE|AGENTS|GEMINI|package|\.)'
 
 # surface_for_path <path>: prints every surface a path belongs to.
 surface_for_path() {
@@ -36,7 +36,7 @@ changed_surfaces() {
   declare -A count=()
   while IFS= read -r f; do
     [ -n "$f" ] || continue
-    if printf '%s\n' "$f" | grep -Eq "$RV_NOT_SHIPPED" && ! printf '%s\n' "$f" | grep -Eq '^(cli/src/|sdlc/files/|sdlc/src/)'; then continue; fi
+    if printf '%s\n' "$f" | grep -Eq "$RV_NOT_SHIPPED" && ! printf '%s\n' "$f" | grep -Eq '^(cli/src/|core/src/|sdlc/files/|sdlc/src/)'; then continue; fi
     local matched=0
     while IFS= read -r s; do
       [ -n "$s" ] || continue

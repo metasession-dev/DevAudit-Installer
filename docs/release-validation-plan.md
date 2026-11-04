@@ -72,6 +72,8 @@ The gate never writes to a consumer repository or to the portal:
 | `test-typecheck` | `cli` `tsc --noEmit -p tsconfig.test.json` (CI type-checks the test files too) | yes |
 | `versions-aligned` | all 6 packages share one version | no (WARN before the bump) |
 | `vitest` | full `cli` vitest suite, run from `cli/`; the whole output is kept in `$WORK_DIR/vitest.log` and the failing test names are listed in the record and in `results.md` | yes |
+| `core-typecheck` | `core` `tsc --noEmit` (the core package is published too) | yes |
+| `core-vitest` | the `core` vitest suite, run from `core/`; the whole output is kept in `$WORK_DIR/core-vitest.log` and failing test names are listed in `results.md` | yes |
 | `shell-tests` | every `sdlc/files/_common/scripts/*.test.sh` and `scripts/*.test.sh`; each one's output is kept in `$WORK_DIR/shell-tests/` | yes |
 | `adapters` | `node scripts/validate-adapter.cjs --all` | yes |
 | `no-skip-ci-guidance` | no operator-facing guidance (`cli/src`, `sdlc/`, `docs/` outside `issues/` and `articles/`, `README.md`) recommends a skip-CI tag on a commit that goes through a PR: GitHub then runs no workflows, the required `Quality Gates` check is never created and the PR stays BLOCKED (#1020) | yes |
