@@ -8,8 +8,8 @@ branch-protection	^cli/src/(update/branch-protection|update/default-branch|lib/(
 deferral	^sdlc/files/_common/scripts/(is-deferred|check-deferred|list-reqs|close-out|derive-release|generate-bundled|resolve-bundle|validate-)|^cli/src/lib/(release-deferral|prompt)	deferral and release scripts
 doctor	^cli/src/commands/doctor|^cli/src/lib/doctor	doctor JSON contract and --fix
 scripts	^sdlc/files/(_common|stacks/[^/]+)/(scripts|hooks)/	synced scripts and git hooks
-skills-docs	^sdlc/files/_common/(skills/|[^/]+\.md$|workflows/)|^sdlc/src/blueprints	skills, stage docs, blueprints
+skills-docs	^sdlc/files/_common/(skills/|[^/]+\.md$|workflows/|github/|governance/)|^sdlc/src/blueprints	skills, stage docs, blueprints
 ai-rules	^sdlc/(ai-rules/|STACK_ADAPTER)	AI pointer files and INSTRUCTIONS.md
 adapters	^sdlc/files/(hosts|stacks)/[^/]+/adapter\.json|^sdlc/files/(hosts|stacks)/_schema/|^sdlc/(HOST|STACK)_ADAPTER\.md|^sdlc/files/sdlc-config\.example	stack and host adapters, config example
 sdlc-engine	^sdlc/src/(bin|lib)	the synced SDLC CLI engine
-cli-core	^cli/(src|tools)/	any CLI source or bundling tool: update is idempotent and the changed files are reported
+cli-core	^(cli|core)/(src|tools)/	any CLI or core source or bundling tool: update is idempotent and the changed files are reported

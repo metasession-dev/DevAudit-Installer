@@ -573,6 +573,26 @@ run_layer1() {
       record installer vitest PASS "$out"
     fi
     [ -z "$names" ] || printf '%s\n' "$names" | sed 's/^/vitest: /' >> "$FAILING"
+    # The core package is published too (#1116): its own type check and tests are part of the gate.
+    if ( cd "$ROOT/core" && npx tsc --noEmit >"$WORK_DIR/core-typecheck.log" 2>&1 ); then
+      record installer core-typecheck PASS "core tsc --noEmit clean"
+    else
+      record installer core-typecheck FAIL "core does not type-check (see $WORK_DIR/core-typecheck.log)"
+    fi
+    local clog="$WORK_DIR/core-vitest.log" cnames
+    ( cd "$ROOT/core" && npx vitest run ) > "$clog" 2>&1
+    out=$(sed -E 's/\x1b\[[0-9;]*m//g' "$clog" | grep -E 'Tests +[0-9]' | tail -1)
+    cnames=$(failing_test_names "$clog")
+    if [ -z "$out" ]; then
+      record installer core-vitest FAIL "core vitest printed no summary line (see $clog)"
+    elif ! sed -E 's/\x1b\[[0-9;]*m//g' "$clog" | grep -E '^ *RUN ' | head -1 | grep -q '/core'; then
+      record installer core-vitest FAIL "core vitest did not run from core/ (see $clog)"
+    elif printf '%s' "$out" | grep -q 'failed'; then
+      record installer core-vitest FAIL "$out; failing: $(printf '%s' "$cnames" | head -10 | tr '\n' ';') (log: $clog)"
+    else
+      record installer core-vitest PASS "$out"
+    fi
+    [ -z "$cnames" ] || printf '%s\n' "$cnames" | sed 's/^/core vitest: /' >> "$FAILING"
     local failed="" n=0 base
     mkdir -p "$WORK_DIR/shell-tests"
     for t in "$ROOT"/sdlc/files/_common/scripts/*.test.sh "$ROOT"/scripts/*.test.sh; do
