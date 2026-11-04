@@ -5,6 +5,7 @@ import type { ScanReport } from '@metasession.co/devaudit-core';
 import { readAuth, resolveToken, writeAuth } from '../lib/auth.js';
 import { DevAuditApiError, DevAuditClient } from '../lib/devaudit-api.js';
 import { saveViewerKey, viewerKeyName } from '../lib/viewer-keys.js';
+import { NO_REMOTE_MESSAGE, repoUrlFromRemote } from '../lib/repo-url.js';
 
 /**
  * DevAudit-Installer#1116 WP11 — the account step of `devaudit scan`: after the report, offer to save it and get
@@ -233,11 +234,19 @@ export async function runAccountStep(input: AccountStepInput, deps: AccountStepD
   const client = new DevAuditClient({ token, baseUrl: tokenBase });
   const slug = slugOf(basename(input.repoRoot));
   let project = await client.getProjectBySlug(slug).catch(() => null);
-  try {
-    project ??= await client.createProject(slug, slug);
-  } catch (err) {
-    say(projectRefusal(err));
-    return 'not-saved';
+  if (!project) {
+    // The portal will not create a project without the repository's web address (devaudit#826).
+    const repoUrl = await repoUrlFromRemote(input.repoRoot);
+    if (!repoUrl) {
+      say(`${NO_REMOTE_MESSAGE} The report was not saved.`);
+      return 'not-saved';
+    }
+    try {
+      project = await client.createProject(slug, slug, repoUrl);
+    } catch (err) {
+      say(projectRefusal(err));
+      return 'not-saved';
+    }
   }
   try {
     const name = await viewerKeyName(input.repoRoot);
