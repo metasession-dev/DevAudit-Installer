@@ -86,10 +86,11 @@ afterEach(async () => {
   await Promise.all(dirs.splice(0).map((d) => fs.rm(d, { recursive: true, force: true })));
 });
 
-async function repo(files: Record<string, string> = {}): Promise<string> {
+async function repo(files: Record<string, string> = {}, remote: string | null = 'git@github.com:example-org/example-app.git'): Promise<string> {
   const dir = await fs.mkdtemp(join(tmpdir(), 'cli-scanacct-'));
   dirs.push(dir);
   await execa('git', ['init', '-q'], { cwd: dir });
+  if (remote !== null) await execa('git', ['remote', 'add', 'origin', remote], { cwd: dir });
   for (const [rel, content] of Object.entries(files)) {
     await fs.mkdir(dirname(join(dir, rel)), { recursive: true });
     await fs.writeFile(join(dir, rel), content);
@@ -275,6 +276,23 @@ describe('the portal does not have the feature yet', () => {
       expect(calls.some((c) => c.path === '/api/projects' && c.method === 'POST'), error).toBe(false);
       expect(r.lines.join('\n')).toMatch(/declined|expired/);
     }
+  });
+
+  it('sends the repository\'s web address, without credentials, when it creates the project (the portal requires it)', async () => {
+    portal();
+    const d = await repo({}, 'https://someone:secret-token@github.com/example-org/example-app.git');
+    await scan(d, {}, { terminal: true, account: { ask: prompts({ confirm: [true], select: ['later'] }).ask, sleep, storedToken: async () => ({ token: TOKEN, baseUrl: BASE }) } });
+    const create = calls.find((c) => c.method === 'POST' && c.path === '/api/projects')!;
+    expect(JSON.parse(create.body)).toMatchObject({ repo_url: 'https://github.com/example-org/example-app' });
+    expect(create.body).not.toContain('secret-token');
+  });
+
+  it('a repository with no origin remote says what to add, and the project is not created', async () => {
+    portal();
+    const d = await repo({}, null);
+    const r = await scan(d, {}, { terminal: true, account: { ask: prompts({ confirm: [true] }).ask, sleep, storedToken: async () => ({ token: TOKEN, baseUrl: BASE }) } });
+    expect(r.lines.join('\n')).toContain('git remote add origin');
+    expect(calls.some((c) => c.method === 'POST' && c.path === '/api/projects')).toBe(false);
   });
 
   it('a plan limit (HTTP 402) says so in the portal\'s words and creates nothing more', async () => {

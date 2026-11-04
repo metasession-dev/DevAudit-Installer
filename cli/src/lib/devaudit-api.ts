@@ -102,8 +102,9 @@ export class DevAuditClient {
     return list.find((p) => p.slug === slug) ?? null;
   }
 
-  async createProject(slug: string, name: string): Promise<DevAuditProject> {
-    const res = await this.request('POST', '/api/projects', { slug, name });
+  /** `repoUrl` is required by the portal (metasession-dev/devaudit#826); see `lib/repo-url.ts`. */
+  async createProject(slug: string, name: string, repoUrl?: string): Promise<DevAuditProject> {
+    const res = await this.request('POST', '/api/projects', { slug, name, ...(repoUrl ? { repo_url: repoUrl } : {}) });
     return (await res.json()) as DevAuditProject;
   }
 

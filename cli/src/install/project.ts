@@ -1,4 +1,5 @@
 import { DevAuditClient } from '../lib/devaudit-api.js';
+import { NO_REMOTE_MESSAGE, repoUrlFromRemote } from '../lib/repo-url.js';
 import type { InstallContext, InstallPlan, StepResult } from './types.js';
 
 export async function findOrCreateProject(
@@ -23,7 +24,12 @@ export async function findOrCreateProject(
       data: { projectId: existing.id, created: false },
     };
   }
-  const created = await client.createProject(plan.projectSlug, plan.projectSlug);
+  // The portal will not create a project without the repository's web address (devaudit#826).
+  const repoUrl = await repoUrlFromRemote(ctx.repoRoot);
+  if (!repoUrl) {
+    return { step: '5/12 Find or create DevAudit project', status: 'fail', message: `cannot create project '${plan.projectSlug}': ${NO_REMOTE_MESSAGE}` };
+  }
+  const created = await client.createProject(plan.projectSlug, plan.projectSlug, repoUrl);
   plan.projectId = created.id;
   return {
     step: '5/12 Find or create DevAudit project',
