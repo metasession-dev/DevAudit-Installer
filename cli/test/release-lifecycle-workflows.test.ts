@@ -1,5 +1,5 @@
-import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -1043,5 +1043,76 @@ describe('post-deploy probes can carry an access header (#1022)', () => {
     const adapter = readFileSync(resolve(root, 'sdlc/files/hosts/vercel/adapter.json'), 'utf8');
     expect(adapter).toContain('DEVAUDIT_PROBE_HEADER');
     expect(adapter).toContain('x-vercel-protection-bypass');
+  });
+});
+
+describe('post-deploy-prod acts once per portal release for a declared bundle (#1184)', () => {
+  const source = template('post-deploy-prod.yml.template');
+  const lines = source.split('\n');
+  const start = lines.findIndex((l) => l.includes('- name: Resolve in-scope releases'));
+  const runIdx = lines.findIndex((l, i) => i > start && /^\s*run: \|\s*$/.test(l));
+  const body: string[] = [];
+  for (let i = runIdx + 1; i < lines.length; i++) {
+    const line = lines[i] ?? '';
+    if (/^ {6}\S/.test(line)) break;
+    body.push(line.replace(/^ {10}/, ''));
+  }
+  const script = body.join('\n');
+
+  const run = (tickets: string[], manifests: Record<string, string[]>) => {
+    const dir = mkdtempSync(join(tmpdir(), 'cli-postdeploy-bundle-'));
+    try {
+      mkdirSync(join(dir, 'scripts'), { recursive: true });
+      mkdirSync(join(dir, 'compliance', 'pending-releases'), { recursive: true });
+      for (const name of ['resolve-bundle-release.sh', 'is-deferred-ticket.sh']) {
+        writeFileSync(join(dir, 'scripts', name), commonScript(name));
+      }
+      for (const t of tickets) {
+        writeFileSync(join(dir, 'compliance', 'pending-releases', `RELEASE-TICKET-${t}.md`), `# ${t}\n`);
+      }
+      for (const [core, members] of Object.entries(manifests)) {
+        const base = join(dir, 'compliance', 'pending-releases', `BUNDLED-CHANGES-${core}`);
+        writeFileSync(base + '.md', `# Bundle ${core}\n${members.map((m) => `- \`${m}\` (co-tracked/bundled)`).join('\n')}\n`);
+        writeFileSync(
+          base + '.json',
+          JSON.stringify({ members: members.map((m) => ({ role: 'co_tracked', version: m })) }),
+        );
+      }
+      const envFile = join(dir, 'github-env');
+      writeFileSync(envFile, '');
+      const result = spawnSync('bash', ['-eo', 'pipefail', '-c', script], {
+        cwd: dir,
+        encoding: 'utf8',
+        env: { ...process.env, RELEASE_INPUT: '', GITHUB_ENV: envFile },
+      });
+      const envText = readFileSync(envFile, 'utf8');
+      return { status: result.status, stdout: result.stdout, stderr: result.stderr, reqs: /^REQS=(.*)$/m.exec(envText)?.[1] };
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  };
+
+  it('maps a co-tracked member to the core release and de-duplicates', () => {
+    const r = run(['REQ-035', 'REQ-036', 'REQ-037'], { 'REQ-035': ['REQ-036', 'REQ-037'] });
+    expect(r.status).toBe(0);
+    expect(r.reqs).toBe('REQ-035');
+    expect(r.stdout).toContain('In-scope releases to promote: REQ-035');
+  });
+
+  it('leaves a requirement outside any bundle as it is', () => {
+    const r = run(['REQ-035', 'REQ-036', 'REQ-040'], { 'REQ-035': ['REQ-036'] });
+    expect(r.status).toBe(0);
+    expect(r.reqs).toBe('REQ-035 REQ-040');
+  });
+
+  it('without a bundle manifest every ticket is its own release, as before', () => {
+    const r = run(['REQ-035', 'REQ-036'], {});
+    expect(r.reqs).toBe('REQ-035 REQ-036');
+  });
+
+  it('fails the step when a member sits in two live bundles, instead of guessing', () => {
+    const r = run(['REQ-035', 'REQ-038', 'REQ-036'], { 'REQ-035': ['REQ-036'], 'REQ-038': ['REQ-036'] });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toContain('Could not resolve the portal release for REQ-036');
   });
 });
