@@ -2405,6 +2405,50 @@ describe('syncProject — native TS sync against a fixture', () => {
         await fs.rm(dir, { recursive: true, force: true });
       }
     }, 60_000);
+
+    // GitHub runs `run:` blocks under `bash -e`. The step must still reach its
+    // metadata merge when the tests fail (#1029): the outcome stays "running"
+    // forever otherwise.
+    it('records the failed outcome in the run metadata under the default -e shell (#1029)', async () => {
+      const dir = await buildFixture();
+      try {
+        const configPath = join(dir, 'sdlc-config.json');
+        const config = JSON.parse(await fs.readFile(configPath, 'utf8')) as Record<string, unknown>;
+        config['e2e_regression_enabled'] = true;
+        await fs.writeFile(configPath, JSON.stringify(config));
+        process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
+        await syncProject(dir);
+
+        const lines = normalizeNewlines(
+          await fs.readFile(join(dir, '.github', 'workflows', 'e2e-regression.yml'), 'utf8'),
+        ).split('\n');
+        const stepStart = lines.findIndex((l) => l.includes('name: E2E Regression Tests'));
+        const runIdx = lines.findIndex((l, i) => i > stepStart && /^\s*run: \|\s*$/.test(l));
+        const scriptLines: string[] = [];
+        for (let i = runIdx + 1; i < lines.length; i++) {
+          const line = lines[i] ?? '';
+          if (/^\s{6}\S/.test(line) && !/^\s{8}/.test(line)) break;
+          scriptLines.push(line.replace(/^ {10}/, ''));
+        }
+
+        await fs.mkdir(join(dir, 'e2e', 'ci-reliability'), { recursive: true });
+        await fs.writeFile(join(dir, 'e2e', 'ci-reliability', 'regression-run.sh'), '#!/usr/bin/env bash\nexit 1\n');
+        await fs.writeFile(join(dir, 'e2e-regression-metadata.json'), '{"outcome":"running"}');
+
+        const result = await execa('bash', ['-eo', 'pipefail', '-c', scriptLines.join('\n')], {
+          cwd: dir,
+          env: { PROJECT: 'regression', SPECS: '', E2E_PORT: '3000' },
+          reject: false,
+        });
+        expect(result.exitCode).toBe(1);
+        const metadata = JSON.parse(await fs.readFile(join(dir, 'e2e-regression-metadata.json'), 'utf8'));
+        expect(metadata.outcome).toBe('failed');
+        expect(metadata.exit_code).toBe(1);
+        expect(metadata.completed_at).toBeTruthy();
+      } finally {
+        await fs.rm(dir, { recursive: true, force: true });
+      }
+    }, 60_000);
   });
 
   it('generates a vercel-flavoured reconcile-deployment.yml for the vercel host adapter (#1022)', async () => {

@@ -226,19 +226,20 @@ jobs:
           E2E_PORT: {{E2E_PORT}}
         run: |
           set -uo pipefail
+          # GitHub's default shell already has -e set; `cmd; STATUS=$?` would
+          # abort on a failing run and skip the metadata merge below
+          # (devaudit-installer#1029). `|| STATUS=$?` keeps the exit code.
+          STATUS=0
           if [ -f e2e/ci-reliability/regression-run.sh ]; then
             echo "::notice::Using project hook e2e/ci-reliability/regression-run.sh (PROJECT=$PROJECT)"
-            bash e2e/ci-reliability/regression-run.sh
-            STATUS=$?
+            bash e2e/ci-reliability/regression-run.sh || STATUS=$?
           elif [ -n "$SPECS" ]; then
             echo "::notice::Running scoped regression — project=$PROJECT specs=$SPECS"
             # shellcheck disable=SC2086
-            timeout --signal=TERM --kill-after=60s 40m npx playwright test --project="$PROJECT" --reporter=json,html $SPECS
-            STATUS=$?
+            timeout --signal=TERM --kill-after=60s 40m npx playwright test --project="$PROJECT" --reporter=json,html $SPECS || STATUS=$?
           else
             echo "::notice::Running project=$PROJECT"
-            timeout --signal=TERM --kill-after=60s 40m {{E2E_REGRESSION_TIER_COMMAND}}
-            STATUS=$?
+            timeout --signal=TERM --kill-after=60s 40m {{E2E_REGRESSION_TIER_COMMAND}} || STATUS=$?
           fi
           if [ "$STATUS" -eq 124 ]; then
             OUTCOME="timed_out"
