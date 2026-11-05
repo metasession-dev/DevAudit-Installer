@@ -325,6 +325,8 @@ interface TierProbe {
   readonly count: number | null;
   readonly declared: boolean;
   readonly custom: boolean;
+  /** A Playwright tier project the config names that this environment does not define (devaudit-installer#1183). */
+  readonly notListed?: boolean;
 }
 
 export async function testTiersCheck(
@@ -380,10 +382,26 @@ export async function testTiersCheck(
       continue;
     }
     const result = await run(command, repoRoot);
-    probes.push({ tier, count: parseCollected(command, result), declared, custom: custom !== '' });
+    const collected = parseCollected(command, result);
+    probes.push({
+      tier,
+      count: collected,
+      declared,
+      custom: custom !== '',
+      ...(collected === null && runner === 'playwright' && custom === '' && tier !== 'smoke' ? { notListed: true } : {}),
+    });
   }
 
   const count = (tier: Tier): number | null => probes.find((p) => p.tier === tier)?.count ?? null;
+
+  // A project the config gates on the environment (for example on an env var that is only set in CI)
+  // is not defined in a bare local run, so it cannot be listed: that is not a missing test.
+  const notListed = probes.filter((p) => p.notListed).map((p) => p.tier);
+  if (notListed.length > 0) {
+    notes.push(
+      `${notListed.join(' and ')} not listed: the Playwright project is not defined in this environment (set the variables playwright.config.ts gates it on, for example \`E2E_BACKEND=uat devaudit doctor\`)`,
+    );
+  }
 
   // Files that count as the project's tests, for requirement tagging.
   const testFiles =
@@ -422,7 +440,8 @@ export async function testTiersCheck(
   for (const file of testFiles) {
     const text = await fs.readFile(file, 'utf-8').catch(() => '');
     allText.push(text);
-    if (!/REQ-\d+/.test(text)) untagged.push(relative(repoRoot, file));
+    // A tracked ticket (REQ-035) or an SRS requirement id (REQ-AI-001), as scripts/check-req-title-tags.sh accepts.
+    if (!/REQ-(?:[A-Za-z]+-)*\d+/.test(text)) untagged.push(relative(repoRoot, file));
   }
   if (untagged.length > 0) {
     const shown = untagged.slice(0, 5).join(', ');
@@ -444,7 +463,9 @@ export async function testTiersCheck(
 
   // devaudit-installer#1096 — per-AC coverage for the requirements still in flight: reported, never blocking.
   let acCoverage: ReqCoverage[] | undefined;
-  if (runner === 'playwright') {
+  if (runner === 'playwright' && notListed.length > 0) {
+    notes.push('AC coverage not checked (a tier project is not listed in this environment, so its tests cannot be seen)');
+  } else if (runner === 'playwright') {
     const withAcs: Array<{ req: string; acs: number[] }> = [];
     for (const req of activeRtmReqs(rtm)) {
       const acs = await planAcs(repoRoot, req);

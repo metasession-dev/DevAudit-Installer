@@ -105,6 +105,7 @@ Set a fixed group in `sdlc-config.json` (devaudit-installer#969):
 ```
 
 - Every trigger of `e2e-regression.yml` then shares that one group, and `cancel-in-progress` is `false` (a running job is never killed mid-mutation).
+- Events the job will skip never enter the group (#1183). Each Vercel or Railway preview deployment sends a `deployment_status` event that starts a run the job's `if:` skips; the generated group gives those runs `<group>-skipped-<run_id>`, so they cannot displace a queued release-gate run. A group name holding `{` or `}` is used as written, without this split.
 - `e2e_concurrency_cancel_in_progress: true` restores cancellation with the fixed group, if you really want it.
 - Empty or absent (the default) leaves the generated workflow exactly as before.
 - `ci.yml` (smoke) and `feature-e2e.yml` get no group; they are expected not to mutate shared data.
