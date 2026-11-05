@@ -171,6 +171,21 @@ jobs:
               fi
             fi
           fi
+          # devaudit-installer#1184 — a declared bundle is ONE portal release,
+          # keyed by its core REQ (resolve-bundle-release.sh, #955). A
+          # co-tracked member has a pending ticket of its own but no portal
+          # release, so map every entry to its core and act once per release.
+          if [ -n "${REQS}" ]; then
+            RESOLVED=""
+            for ENTRY in ${REQS}; do
+              CORE=$(bash scripts/resolve-bundle-release.sh "$ENTRY") || {
+                echo "::error::Could not resolve the portal release for ${ENTRY} (a co-tracked member of more than one live bundle?)"
+                exit 1
+              }
+              RESOLVED="${RESOLVED} ${CORE}"
+            done
+            REQS=$(echo ${RESOLVED} | tr ' ' '\n' | sort -u | tr '\n' ' ' | sed 's/[[:space:]]*$//')
+          fi
           echo "In-scope releases to promote: ${REQS}"
           echo "REQS=${REQS}" >> "$GITHUB_ENV"
 
