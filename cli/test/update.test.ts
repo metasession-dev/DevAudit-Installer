@@ -2453,7 +2453,9 @@ describe('syncProject — native TS sync against a fixture', () => {
     // `npm run dev` is a wrapper: it exits on SIGTERM and leaves `next dev`
     // behind. Runs the real start and stop steps against a wrapper that
     // spawns a child, and checks the child is gone (#1025).
-    it('stop step reaps the child of a wrapper started by the start step (#1025)', async () => {
+    // Skipped on Windows: Git Bash PIDs are not the Windows PIDs process.kill
+    // sees, and the generated workflow only runs on Linux runners.
+    it.skipIf(process.platform === 'win32')('stop step reaps the child of a wrapper started by the start step (#1025)', async () => {
       const dir = await buildFixture();
       try {
         const configPath = join(dir, 'sdlc-config.json');
