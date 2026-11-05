@@ -23,7 +23,7 @@ describe('test tiers: workflows with no tier key are unchanged', { timeout: 120_
     expect(wf['ci.yml']).toContain('run: npx playwright test --project=chromium --reporter=json,html');
     expect(wf['feature-e2e.yml']).toContain('npx playwright test --grep "$REQ_ID" --reporter=json,html');
     expect(wf['e2e-regression.yml']).toContain(
-      '40m npx playwright test --project="$PROJECT" --reporter=json,html\n            STATUS=$?',
+      '40m npx playwright test --project="$PROJECT" --reporter=json,html || STATUS=$?',
     );
     for (const [name, content] of Object.entries(wf)) {
       expect(content, name).not.toContain('run-test-tier.sh');

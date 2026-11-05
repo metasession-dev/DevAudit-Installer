@@ -4,6 +4,10 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+### Fixed
+
+- **A failed E2E regression run now records its outcome** (#1029): the `E2E Regression Tests` step (Playwright and pytest) kept the test command's exit code with `cmd; STATUS=$?`, which GitHub's default `-e` shell aborts on, so `e2e-regression-metadata.json` stayed at `outcome: running` with no `completed_at` or `exit_code`. The code is now captured with `|| STATUS=$?`. The job still failed correctly before; only the evidence file was wrong. Your next sync diff rewrites `e2e-regression.yml`; a local patch for this can be dropped.
+
 ## [1.12.0] — 2026-11-02
 
 ### Added
