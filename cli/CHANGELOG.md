@@ -6,6 +6,8 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ### Fixed
 
+- **`e2e-regression.yml` no longer leaves the dev server's child processes running** (#1025): the `Start dev server` step now starts the server in its own process group and `Stop dev server` signals the whole group (TERM, then KILL), so the `next dev` child of an `npm run dev` wrapper is not orphaned. On a self-hosted runner the orphans from every run had accumulated until the runner service hit its memory cap. Your next sync diff rewrites `e2e-regression.yml`; a local patch for this can be dropped. `ci.yml` and `feature-e2e.yml` start their server with a plain `&` and are unchanged; both reap a stale server by port at the start of the next run.
+
 - **A failed E2E regression run now records its outcome** (#1029): the `E2E Regression Tests` step (Playwright and pytest) kept the test command's exit code with `cmd; STATUS=$?`, which GitHub's default `-e` shell aborts on, so `e2e-regression-metadata.json` stayed at `outcome: running` with no `completed_at` or `exit_code`. The code is now captured with `|| STATUS=$?`. The job still failed correctly before; only the evidence file was wrong. Your next sync diff rewrites `e2e-regression.yml`; a local patch for this can be dropped.
 
 ## [1.12.0] — 2026-11-02
