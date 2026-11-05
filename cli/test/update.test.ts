@@ -2449,6 +2449,56 @@ describe('syncProject — native TS sync against a fixture', () => {
         await fs.rm(dir, { recursive: true, force: true });
       }
     }, 60_000);
+
+    // `npm run dev` is a wrapper: it exits on SIGTERM and leaves `next dev`
+    // behind. Runs the real start and stop steps against a wrapper that
+    // spawns a child, and checks the child is gone (#1025).
+    // Skipped on Windows: Git Bash PIDs are not the Windows PIDs process.kill
+    // sees, and the generated workflow only runs on Linux runners.
+    it.skipIf(process.platform === 'win32')('stop step reaps the child of a wrapper started by the start step (#1025)', async () => {
+      const dir = await buildFixture();
+      try {
+        const configPath = join(dir, 'sdlc-config.json');
+        const config = JSON.parse(await fs.readFile(configPath, 'utf8')) as Record<string, unknown>;
+        config['e2e_regression_enabled'] = true;
+        config['e2e_start_command'] = 'bash ./fake-server.sh';
+        await fs.writeFile(configPath, JSON.stringify(config));
+        process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
+        await syncProject(dir);
+
+        const lines = normalizeNewlines(
+          await fs.readFile(join(dir, '.github', 'workflows', 'e2e-regression.yml'), 'utf8'),
+        ).split('\n');
+        const runBlock = (stepName: string): string => {
+          const stepStart = lines.findIndex((l) => l.includes(`name: ${stepName}`));
+          expect(stepStart).toBeGreaterThan(-1);
+          const runIdx = lines.findIndex((l, i) => i > stepStart && /^\s*run: \|\s*$/.test(l));
+          const out: string[] = [];
+          for (let i = runIdx + 1; i < lines.length; i++) {
+            const line = lines[i] ?? '';
+            if (/^\s{6}\S/.test(line) && !/^\s{8}/.test(line)) break;
+            out.push(line.replace(/^ {10}/, ''));
+          }
+          return out.join('\n');
+        };
+
+        await fs.writeFile(join(dir, 'fake-server.sh'), '#!/usr/bin/env bash\nsleep 300 &\necho $! > child.pid\nwait\n');
+        const shell = ['-eo', 'pipefail', '-c'];
+        await execa('bash', [...shell, runBlock('Start dev server')], { cwd: dir });
+        await vi.waitFor(async () => {
+          await fs.stat(join(dir, 'child.pid'));
+        });
+        const childPid = Number((await fs.readFile(join(dir, 'child.pid'), 'utf8')).trim());
+        expect(() => process.kill(childPid, 0)).not.toThrow();
+
+        await execa('bash', [...shell, runBlock('Stop dev server')], { cwd: dir });
+        await vi.waitFor(() => {
+          expect(() => process.kill(childPid, 0)).toThrow();
+        });
+      } finally {
+        await fs.rm(dir, { recursive: true, force: true });
+      }
+    }, 60_000);
   });
 
   it('generates a vercel-flavoured reconcile-deployment.yml for the vercel host adapter (#1022)', async () => {

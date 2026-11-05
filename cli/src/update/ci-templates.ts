@@ -670,8 +670,13 @@ function buildE2eRegressionServerStep(cfg: SdlcConfig): string {
     '      - name: Start dev server',
     '        run: |',
     '          set -euo pipefail',
+    // Job control puts the server in its own process group, so the stop step
+    // can signal the whole group: a `npm run dev` wrapper exits on SIGTERM
+    // but its `next dev` child would otherwise be orphaned (#1025).
+    '          set -m',
     `          ${startCommand} > e2e-server.log 2>&1 &`,
     '          echo "$!" > .e2e-server.pid',
+    '          set +m',
     '          echo "Started E2E server pid $(cat .e2e-server.pid)"',
   ].join('\n');
 }
