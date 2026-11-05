@@ -269,6 +269,58 @@ describe('test-tiers', () => {
     expect(r.ok).toBe(true);
   });
 
+  // devaudit-installer#1183 — a tier project the config gates on the environment is not defined in a bare local run.
+  it('reports a tier project that cannot be listed as not listed, and skips the per-AC check instead of reporting false gaps', async () => {
+    const calls: string[] = [];
+    const dir = await repo({
+      'playwright.config.ts': PW_ALL,
+      'e2e/a.spec.ts': '// REQ-7\n',
+      'compliance/RTM.md': '| ID | Status |\n| --- | --- |\n| REQ-7 | IN PROGRESS |\n',
+      'compliance/plans/REQ-7/implementation-plan.md': '## 1. Goal + acceptance criteria\n\n| AC | Description | SRS |\n| --- | --- | --- |\n| AC1 | one | s |\n',
+    });
+    const r = await testTiersCheck(
+      dir,
+      { e2e_regression_enabled: true, e2e_project: 'smoke' },
+      gh(null),
+      runner({ '--project=smoke': 'Total: 3 tests in 1 file', '--reporter=json': JSON.stringify({ suites: [] }) }, calls),
+    );
+    expect(r.detail).toMatch(/smoke 3, critical \?, full \?/);
+    expect(r.detail).toMatch(/critical and full not listed: the Playwright project is not defined in this environment/);
+    expect(r.detail).toMatch(/AC coverage not checked/);
+    expect(calls.some((c) => c.includes('--reporter=json'))).toBe(false);
+    expect(r.findings?.some((f) => /no test titled/.test(f.detail)) ?? false).toBe(false);
+    expect(r.ok).toBe(true);
+  });
+
+  it('still checks AC coverage once every tier project lists', async () => {
+    const dir = await repo({
+      'playwright.config.ts': PW_ALL,
+      'e2e/a.spec.ts': '// REQ-7\n',
+      'compliance/RTM.md': '| ID | Status |\n| --- | --- |\n| REQ-7 | IN PROGRESS |\n',
+      'compliance/plans/REQ-7/implementation-plan.md': '## 1. Goal + acceptance criteria\n\n| AC | Description | SRS |\n| --- | --- | --- |\n| AC1 | one | s |\n',
+    });
+    const r = await testTiersCheck(
+      dir,
+      { e2e_regression_enabled: true, e2e_project: 'smoke' },
+      gh(null),
+      runner({ '--project=': 'Total: 3 tests in 1 file', '--reporter=json': JSON.stringify({ suites: [] }) }),
+    );
+    expect(r.detail).not.toMatch(/not listed/);
+    expect(r.findings?.some((f) => /no test titled \[REQ-7\]\[AC1\]/.test(f.detail))).toBe(true);
+  });
+
+  it('accepts an SRS area id (REQ-AI-001) as a requirement tag, as check-req-title-tags.sh does', async () => {
+    const dir = await repo({
+      'pytest.ini': '[pytest]\n',
+      'tests/test_area.py': "tagTest('REQ-AI-001', 1)\n",
+      'tests/test_untagged.py': 'def test_x(): pass\n',
+    });
+    const r = await testTiersCheck(dir, {}, gh(null), runner({ '-m smoke': 'tests/test_area.py::t' }));
+    const untagged = r.findings!.find((f) => f.subject === 'requirement-tags')!;
+    expect(untagged.detail).toMatch(/1 test file\(s\).*test_untagged\.py/);
+    expect(untagged.detail).not.toMatch(/test_area\.py/);
+  });
+
   it('uses a custom tier command through its collect-only variant, and does not guess for an unknown one', async () => {
     const calls: string[] = [];
     const dir = await repo({ 'pytest.ini': '[pytest]\n', 'tests/test_a.py': '# REQ-1\n' });

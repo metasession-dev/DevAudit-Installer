@@ -715,19 +715,41 @@ function buildE2eRegressionJobEnv(cfg: SdlcConfig): string {
  * shares it and `cancel-in-progress` defaults to false so a run is never
  * killed mid-mutation of shared data. Note GitHub keeps one running and one
  * pending run per group: a newer queued run replaces an older queued one.
+ *
+ * Every `deployment_status` event starts a run, including preview deployments
+ * the job's `if:` then skips; a skipped run that had entered the fixed group
+ * could displace a queued release-gate run. So the group is an expression
+ * that gives an event the job will skip a group of its own
+ * (`<group>-skipped-<run_id>`) (devaudit-installer#1183). The condition is the
+ * negation of the job's `if:` in e2e-regression.yml.template, so keep the two
+ * in step. A group that is itself an expression (or holds braces) is used as
+ * written, without the split.
  */
 function buildE2eRegressionConcurrency(cfg: SdlcConfig): string {
   const group = (cfg.e2e_concurrency_group ?? '').trim();
+  const cancel = `  cancel-in-progress: ${cfg.e2e_concurrency_cancel_in_progress === true ? 'true' : 'false'}`;
   if (!group) {
     return [
       '  group: ${{ github.workflow }}-${{ github.ref }}',
       "  cancel-in-progress: ${{ github.event_name == 'pull_request' }}",
     ].join('\n');
   }
-  const plain = /^[A-Za-z0-9_.\/-]+$/.test(group);
+  // An expression, or braces that `format()` would read as placeholders.
+  if (/[{}]/.test(group)) {
+    const plain = /^[A-Za-z0-9_.\/-]+$/.test(group);
+    return [`  group: ${plain ? group : JSON.stringify(group)}`, cancel].join('\n');
+  }
+  const literal = `'${group.replace(/'/g, "''")}'`;
+  const skippedLiteral = `'${group.replace(/'/g, "''")}-skipped-{0}'`;
   return [
-    `  group: ${plain ? group : JSON.stringify(group)}`,
-    `  cancel-in-progress: ${cfg.e2e_concurrency_cancel_in_progress === true ? 'true' : 'false'}`,
+    '  group: >-',
+    "    ${{ (github.event_name == 'deployment_status' &&",
+    "    !(github.event.deployment_status.state == 'success' &&",
+    "    (github.event.deployment.environment == 'production' ||",
+    "    github.event.deployment.environment == 'prod' ||",
+    "    endsWith(github.event.deployment.environment, '/ production'))))",
+    `    && format(${skippedLiteral}, github.run_id) || ${literal} }}`,
+    cancel,
   ].join('\n');
 }
 
