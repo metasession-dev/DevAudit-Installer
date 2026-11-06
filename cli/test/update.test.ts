@@ -2088,7 +2088,7 @@ describe('syncProject — native TS sync against a fixture', () => {
       expect(content).toContain('image: mongo:7');
       expect(content).toContain('E2E_LOCAL: 1');
       expect(content).toContain('NEXT_PUBLIC_APP_URL: http://localhost:3000');
-      expect(content).toContain('npm run dev > e2e-server.log 2>&1 &');
+      expect(content).toContain('npm run dev > e2e-server.log 2>&1 < /dev/null &');
       expect(content).toContain('branches: [main]');
       await expectAllWorkflowsValidYaml(dir);
 
@@ -2495,6 +2495,65 @@ describe('syncProject — native TS sync against a fixture', () => {
         await vi.waitFor(() => {
           expect(() => process.kill(childPid, 0)).toThrow();
         });
+      } finally {
+        await fs.rm(dir, { recursive: true, force: true });
+      }
+    }, 60_000);
+
+    // A sharding hook restarts the server between shards, so the group the stop
+    // step signals is the hook's. Runs the skill's own restart_server between
+    // the real start and stop steps: no server of any shard may survive (#1025).
+    it.skipIf(process.platform === 'win32')('the sharding recipe restarts the server without orphaning a child (#1025)', async () => {
+      const dir = await buildFixture();
+      try {
+        const configPath = join(dir, 'sdlc-config.json');
+        const config = JSON.parse(await fs.readFile(configPath, 'utf8')) as Record<string, unknown>;
+        config['e2e_regression_enabled'] = true;
+        config['e2e_start_command'] = 'bash ./fake-server.sh';
+        await fs.writeFile(configPath, JSON.stringify(config));
+        process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
+        await syncProject(dir);
+
+        const lines = normalizeNewlines(
+          await fs.readFile(join(dir, '.github', 'workflows', 'e2e-regression.yml'), 'utf8'),
+        ).split('\n');
+        const runBlock = (stepName: string): string => {
+          const stepStart = lines.findIndex((l) => l.includes(`name: ${stepName}`));
+          const runIdx = lines.findIndex((l, i) => i > stepStart && /^\s*run: \|\s*$/.test(l));
+          const out: string[] = [];
+          for (let i = runIdx + 1; i < lines.length; i++) {
+            const line = lines[i] ?? '';
+            if (/^\s{6}\S/.test(line) && !/^\s{8}/.test(line)) break;
+            out.push(line.replace(/^ {10}/, ''));
+          }
+          return out.join('\n');
+        };
+        const recipe = normalizeNewlines(
+          await fs.readFile(
+            join(INSTALLER_ROOT, 'sdlc', 'files', '_common', 'skills', 'e2e-ci-reliability', 'references', 'reliability-fixes.md'),
+            'utf8',
+          ),
+        );
+        const restart = /restart_server\(\) \{\n[\s\S]*?\n\}\n/.exec(recipe)?.[0];
+        expect(restart).toBeTruthy();
+
+        await fs.writeFile(join(dir, 'fake-server.sh'), '#!/usr/bin/env bash\nsleep 300 &\necho $! >> children.pid\nwait\n');
+        const children = async (): Promise<number[]> =>
+          (await fs.readFile(join(dir, 'children.pid'), 'utf8')).trim().split('\n').map(Number);
+        const shell = ['-eo', 'pipefail', '-c'];
+        await execa('bash', [...shell, runBlock('Start dev server')], { cwd: dir });
+        await vi.waitFor(async () => expect(await children()).toHaveLength(1));
+
+        const hook = `${restart!.replace('npm run dev', 'bash ./fake-server.sh')}\nrestart_server shard-1.log\n`;
+        await execa('bash', ['-c', hook], { cwd: dir });
+        await vi.waitFor(async () => expect(await children()).toHaveLength(2));
+
+        await execa('bash', [...shell, runBlock('Stop dev server')], { cwd: dir });
+        for (const pid of await children()) {
+          await vi.waitFor(() => {
+            expect(() => process.kill(pid, 0)).toThrow();
+          });
+        }
       } finally {
         await fs.rm(dir, { recursive: true, force: true });
       }
