@@ -95,6 +95,7 @@ one release PR, and one portal release.
 | Approval | One UAT approval and one production approval for the whole bundle. If UAT requests changes the whole bundle's release drops out of approval, even if only one REQ needed rework; bundle scope also freezes at UAT submission. |
 | Tickets and RTM | One `RELEASE-TICKET-REQ-XXX.md` and one RTM row per REQ (the compliance validator requires both). Members are **not** listed under "Absorbed predecessor releases"; that field is only for earlier, separate releases being absorbed. |
 | Manifest | The committed `BUNDLED-CHANGES-<core>.{md,json}` lists members as `role: "co_tracked"`. That is a local declaration: `derive-release-version.sh` and CI regeneration read it, but `submit-bundle-manifest.sh` does not send `co_tracked` members to the portal (predecessors and housekeeping are still submitted). |
+| Post-deploy | `post-deploy-prod.yml` acts once on the core's release: every pending member ticket resolves to the core. Defer a bundle on its core's ticket; its members are then skipped too, and the bundle is not promoted by a later release. |
 | Close-out | The close-out PR releases the members with the core: their tickets move to `approved-releases/`, Status `RELEASED`, a `Released with bundle` backlink, RTM `RELEASED`. Absorbed predecessors are still superseded. |
 
 Python (#995): declared bundles work on `stack: python` as well. When a live
