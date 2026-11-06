@@ -674,7 +674,8 @@ function buildE2eRegressionServerStep(cfg: SdlcConfig): string {
     // can signal the whole group: a `npm run dev` wrapper exits on SIGTERM
     // but its `next dev` child would otherwise be orphaned (#1025).
     '          set -m',
-    `          ${startCommand} > e2e-server.log 2>&1 &`,
+    // Job control also stops bash giving a background job /dev/null as stdin.
+    `          ${startCommand} > e2e-server.log 2>&1 < /dev/null &`,
     '          echo "$!" > .e2e-server.pid',
     '          set +m',
     '          echo "Started E2E server pid $(cat .e2e-server.pid)"',

@@ -203,7 +203,7 @@ jobs:
 {{E2E_REGRESSION_TIER_ARG}}
             --arg specs "${{ steps.select.outputs.specs }}" \
             --arg serverStart "start command (pid ${SERVER_PID:-unknown})" \
-            --arg serverStop "kill ${SERVER_PID:-unknown}" \
+            --arg serverStop "kill process group ${SERVER_PID:-unknown}" \
             --arg startedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             --argjson timeoutMinutes "$TIMEOUT_MINUTES_VALUE" \
             '{target_url: $targetUrl, project: $project, {{E2E_REGRESSION_TIER_FIELD}}selected_specs: $specs, test_server_start: $serverStart, test_server_stop: $serverStop, timeout_minutes: $timeoutMinutes, started_at: $startedAt, outcome: "running"}' \
