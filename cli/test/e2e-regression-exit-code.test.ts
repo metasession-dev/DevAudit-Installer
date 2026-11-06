@@ -31,6 +31,9 @@ function runStep(script: string, exitCode: number, env: Record<string, string>) 
       writeFileSync(join(dir, path), fake);
       chmodSync(join(dir, path), 0o755);
     }
+    // macOS has no `timeout`. The step only needs its exit code passed through.
+    writeFileSync(join(dir, 'bin/timeout'), '#!/usr/bin/env bash\nwhile [[ "$1" == --* ]]; do shift; done\nshift\nexec "$@"\n');
+    chmodSync(join(dir, 'bin/timeout'), 0o755);
     writeFileSync(join(dir, 'e2e-regression-metadata.json'), '{"outcome":"running"}');
     const result = spawnSync('bash', ['-e', '-c', script], {
       cwd: dir,
