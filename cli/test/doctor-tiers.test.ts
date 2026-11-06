@@ -270,55 +270,85 @@ describe('test-tiers', () => {
   });
 
   // devaudit-installer#1183 — a tier project the config gates on the environment is not defined in a bare local run.
-  it('reports a tier project that cannot be listed as not listed, and skips the per-AC check instead of reporting false gaps', async () => {
-    const calls: string[] = [];
-    const dir = await repo({
-      'playwright.config.ts': PW_ALL,
-      'e2e/a.spec.ts': '// REQ-7\n',
-      'compliance/RTM.md': '| ID | Status |\n| --- | --- |\n| REQ-7 | IN PROGRESS |\n',
-      'compliance/plans/REQ-7/implementation-plan.md': '## 1. Goal + acceptance criteria\n\n| AC | Description | SRS |\n| --- | --- | --- |\n| AC1 | one | s |\n',
-    });
+  const NOT_FOUND = (p: string): string => `Error: Project(s) "${p}" not found. Available projects: "smoke"`;
+  const inFlight = {
+    'playwright.config.ts': PW_ALL,
+    'e2e/a.spec.ts': '// REQ-7\n',
+    'compliance/RTM.md': '| ID | Status |\n| --- | --- |\n| REQ-7 | IN PROGRESS |\n',
+    'compliance/plans/REQ-7/implementation-plan.md': '## 1. Goal + acceptance criteria\n\n| AC | Description | SRS |\n| --- | --- | --- |\n| AC1 | one | s |\n| AC2 | two | s |\n',
+  };
+  const listing = (titles: string[]): string =>
+    JSON.stringify({ suites: [{ title: 'a.spec.ts', specs: titles.map((title) => ({ title, tests: [{ projectName: 'smoke' }] })) }] });
+
+  it('a project this environment does not define is not listed: its ACs are unconfirmed, not gaps, and covered ones stay covered', async () => {
     const r = await testTiersCheck(
-      dir,
+      await repo(inFlight),
       { e2e_regression_enabled: true, e2e_project: 'smoke' },
       gh(null),
-      runner({ '--project=smoke': 'Total: 3 tests in 1 file', '--reporter=json': JSON.stringify({ suites: [] }) }, calls),
+      runner({
+        '--project=smoke': 'Total: 3 tests in 1 file',
+        '--project=critical': NOT_FOUND('critical'),
+        '--project=regression': NOT_FOUND('regression'),
+        '--reporter=json': listing(['[REQ-7][AC1] a']),
+      }),
     );
     expect(r.detail).toMatch(/smoke 3, critical \?, full \?/);
-    expect(r.detail).toMatch(/critical and full not listed: the Playwright project is not defined in this environment/);
-    expect(r.detail).toMatch(/AC coverage not checked/);
-    expect(calls.some((c) => c.includes('--reporter=json'))).toBe(false);
+    expect(r.detail).toMatch(/critical, full not listed: the Playwright project is not defined in this environment/);
+    expect(r.detail).toMatch(/REQ-7 AC2 not confirmed/);
     expect(r.findings?.some((f) => /no test titled/.test(f.detail)) ?? false).toBe(false);
+    // the skill reads this: it must not go quiet when a tier cannot be seen
+    expect(r.acCoverage![0]!.results.map((x) => x.status)).toEqual(['covered', 'not-listed']);
     expect(r.ok).toBe(true);
   });
 
-  it('still checks AC coverage once every tier project lists', async () => {
-    const dir = await repo({
-      'playwright.config.ts': PW_ALL,
-      'e2e/a.spec.ts': '// REQ-7\n',
-      'compliance/RTM.md': '| ID | Status |\n| --- | --- |\n| REQ-7 | IN PROGRESS |\n',
-      'compliance/plans/REQ-7/implementation-plan.md': '## 1. Goal + acceptance criteria\n\n| AC | Description | SRS |\n| --- | --- | --- |\n| AC1 | one | s |\n',
-    });
+  it('any other listing failure is unknown, not "not defined", and real gaps are still reported', async () => {
     const r = await testTiersCheck(
-      dir,
+      await repo(inFlight),
       { e2e_regression_enabled: true, e2e_project: 'smoke' },
       gh(null),
-      runner({ '--project=': 'Total: 3 tests in 1 file', '--reporter=json': JSON.stringify({ suites: [] }) }),
+      runner({ '--project=smoke': 'Total: 3 tests in 1 file', '--reporter=json': listing([]) }),
+    );
+    expect(r.detail).toMatch(/critical \?, full \?/);
+    expect(r.detail).not.toMatch(/not listed/);
+    expect(r.findings?.some((f) => /no test titled \[REQ-7\]\[AC1\]/.test(f.detail))).toBe(true);
+  });
+
+  it('a custom tier command on a gated project counts too', async () => {
+    const r = await testTiersCheck(
+      await repo(inFlight),
+      { e2e_project: 'smoke', test_tier_critical: 'npx playwright test --project=critical' },
+      gh(null),
+      runner({ '--project=smoke': 'Total: 3 tests in 1 file', '--project=critical': NOT_FOUND('critical'), '--project=regression': 'Total: 3 tests in 1 file', '--reporter=json': listing([]) }),
+    );
+    expect(r.detail).toMatch(/critical not listed/);
+    expect(r.findings?.some((f) => /no test titled/.test(f.detail)) ?? false).toBe(false);
+  });
+
+  it('still checks AC coverage once every tier project lists', async () => {
+    const r = await testTiersCheck(
+      await repo(inFlight),
+      { e2e_regression_enabled: true, e2e_project: 'smoke' },
+      gh(null),
+      runner({ '--project=': 'Total: 3 tests in 1 file', '--reporter=json': listing([]) }),
     );
     expect(r.detail).not.toMatch(/not listed/);
     expect(r.findings?.some((f) => /no test titled \[REQ-7\]\[AC1\]/.test(f.detail))).toBe(true);
   });
 
-  it('accepts an SRS area id (REQ-AI-001) as a requirement tag, as check-req-title-tags.sh does', async () => {
+  it('accepts an SRS id as a requirement tag, in any form check-req-title-tags.sh takes; the REQ-XXX placeholder is not one', async () => {
     const dir = await repo({
       'pytest.ini': '[pytest]\n',
       'tests/test_area.py': "tagTest('REQ-AI-001', 1)\n",
+      'tests/test_digit_area.py': "tagTest('REQ-FRAMEWORK-E2EREGRESSION-002', 1)\n",
+      'tests/test_placeholder.py': '# REQ-XXX\n',
       'tests/test_untagged.py': 'def test_x(): pass\n',
     });
     const r = await testTiersCheck(dir, {}, gh(null), runner({ '-m smoke': 'tests/test_area.py::t' }));
     const untagged = r.findings!.find((f) => f.subject === 'requirement-tags')!;
-    expect(untagged.detail).toMatch(/1 test file\(s\).*test_untagged\.py/);
-    expect(untagged.detail).not.toMatch(/test_area\.py/);
+    expect(untagged.detail).toMatch(/2 test file\(s\)/);
+    expect(untagged.detail).toMatch(/test_placeholder\.py/);
+    expect(untagged.detail).toMatch(/test_untagged\.py/);
+    expect(untagged.detail).not.toMatch(/test_area\.py|test_digit_area\.py/);
   });
 
   it('uses a custom tier command through its collect-only variant, and does not guess for an unknown one', async () => {

@@ -737,8 +737,7 @@ function buildE2eRegressionConcurrency(cfg: SdlcConfig): string {
   }
   // An expression, or braces that `format()` would read as placeholders.
   if (/[{}]/.test(group)) {
-    const plain = /^[A-Za-z0-9_.\/-]+$/.test(group);
-    return [`  group: ${plain ? group : JSON.stringify(group)}`, cancel].join('\n');
+    return [`  group: ${JSON.stringify(group)}`, cancel].join('\n');
   }
   const literal = `'${group.replace(/'/g, "''")}'`;
   const skippedLiteral = `'${group.replace(/'/g, "''")}-skipped-{0}'`;
