@@ -165,12 +165,14 @@ jobs:
           set -uo pipefail
           PROJECT="${{ steps.select.outputs.project }}"
           SPECS="${{ steps.select.outputs.specs }}"
+          # GitHub's default shell already has -e set; `|| STATUS=$?` keeps the
+          # exit code so the metadata merge below still runs on a failure.
+          STATUS=0
           if [ -n "$SPECS" ]; then
-            timeout --signal=TERM --kill-after=60s 40m npx playwright test --project="$PROJECT" --reporter=json,html $SPECS
+            timeout --signal=TERM --kill-after=60s 40m npx playwright test --project="$PROJECT" --reporter=json,html $SPECS || STATUS=$?
           else
-            timeout --signal=TERM --kill-after=60s 40m npx playwright test --project="$PROJECT" --reporter=json,html
+            timeout --signal=TERM --kill-after=60s 40m npx playwright test --project="$PROJECT" --reporter=json,html || STATUS=$?
           fi
-          STATUS=$?
           if [ "$STATUS" -eq 124 ]; then
             OUTCOME="timed_out"
             echo "::error::E2E regression exceeded its 40-minute execution budget. Partial evidence will be uploaded."
