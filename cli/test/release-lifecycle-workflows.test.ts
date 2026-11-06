@@ -905,7 +905,7 @@ describe('deferred tickets are skipped by every pending-ticket loop (#956 phase 
     expect(loop).toContain('if [ -f scripts/is-deferred-ticket.sh ] && bash scripts/is-deferred-ticket.sh "$T"; then');
     expect(loop).toContain('Skipping ${PENDING_REQ}: deferred (Release intent: deferred-to-next)');
     // the skip happens before the REQ is added to the promoted set
-    expect(loop.indexOf('is-deferred-ticket.sh')).toBeLessThan(loop.indexOf('REQS="${REQS} ${PENDING_REQ}"'));
+    expect(loop.indexOf('is-deferred-ticket.sh')).toBeLessThan(loop.indexOf('REQS="${REQS} ${CORE}"'));
     // all-deferred falls through to the existing "no tracked release ticket" path, loudly
     expect(loop).toContain('are deferred: treating this promotion as having no tracked release ticket');
     expect(loop.indexOf('are deferred: treating')).toBeLessThan(loop.indexOf('if [ -z "${REQS}" ]; then\n              chmod +x scripts/derive-release-version.sh'));
@@ -1059,7 +1059,11 @@ describe('post-deploy-prod acts once per portal release for a declared bundle (#
   }
   const script = body.join('\n');
 
-  const run = (tickets: string[], manifests: Record<string, string[]>) => {
+  const run = (
+    tickets: string[],
+    manifests: Record<string, string[]>,
+    opts: { deferred?: string[]; input?: string } = {},
+  ) => {
     const dir = mkdtempSync(join(tmpdir(), 'cli-postdeploy-bundle-'));
     try {
       mkdirSync(join(dir, 'scripts'), { recursive: true });
@@ -1068,8 +1072,11 @@ describe('post-deploy-prod acts once per portal release for a declared bundle (#
         writeFileSync(join(dir, 'scripts', name), commonScript(name));
       }
       for (const t of tickets) {
-        writeFileSync(join(dir, 'compliance', 'pending-releases', `RELEASE-TICKET-${t}.md`), `# ${t}\n`);
+        const intent = opts.deferred?.includes(t) ? '- **Release intent:** deferred-to-next — blocked\n' : '';
+        writeFileSync(join(dir, 'compliance', 'pending-releases', `RELEASE-TICKET-${t}.md`), `# ${t}\n\n${intent}`);
       }
+      // Reached only when nothing is in scope: stands in for the date-version derivation.
+      writeFileSync(join(dir, 'scripts', 'derive-release-version.sh'), '#!/usr/bin/env bash\necho v2026.11.06\n');
       for (const [core, members] of Object.entries(manifests)) {
         const base = join(dir, 'compliance', 'pending-releases', `BUNDLED-CHANGES-${core}`);
         writeFileSync(base + '.md', `# Bundle ${core}\n${members.map((m) => `- \`${m}\` (co-tracked/bundled)`).join('\n')}\n`);
@@ -1083,7 +1090,7 @@ describe('post-deploy-prod acts once per portal release for a declared bundle (#
       const result = spawnSync('bash', ['-eo', 'pipefail', '-c', script], {
         cwd: dir,
         encoding: 'utf8',
-        env: { ...process.env, RELEASE_INPUT: '', GITHUB_ENV: envFile },
+        env: { ...process.env, RELEASE_INPUT: opts.input ?? '', GITHUB_ENV: envFile },
       });
       const envText = readFileSync(envFile, 'utf8');
       return { status: result.status, stdout: result.stdout, stderr: result.stderr, reqs: /^REQS=(.*)$/m.exec(envText)?.[1] };
@@ -1108,6 +1115,27 @@ describe('post-deploy-prod acts once per portal release for a declared bundle (#
   it('without a bundle manifest every ticket is its own release, as before', () => {
     const r = run(['REQ-035', 'REQ-036'], {});
     expect(r.reqs).toBe('REQ-035 REQ-036');
+  });
+
+  it('never promotes a deferred core through a live member of its bundle', () => {
+    const r = run(['REQ-035', 'REQ-036', 'REQ-040'], { 'REQ-035': ['REQ-036'] }, { deferred: ['REQ-035'] });
+    expect(r.status).toBe(0);
+    expect(r.reqs).toBe('REQ-040');
+    expect(r.stdout).toContain('Skipping REQ-035: deferred');
+    expect(r.stdout).toContain('Skipping REQ-036: its bundle core REQ-035 is deferred');
+  });
+
+  it('a bundle whose core is deferred counts as deferred, so the no-ticket fallback still runs', () => {
+    const r = run(['REQ-035', 'REQ-036'], { 'REQ-035': ['REQ-036'] }, { deferred: ['REQ-035'] });
+    expect(r.status).toBe(0);
+    expect(r.reqs).toBe('');
+    expect(r.stdout).toContain('All 2 pending release ticket(s) are deferred');
+    expect(r.stdout).toContain('No tracked release ticket or standalone declaration');
+  });
+
+  it('a manual dispatch naming a member promotes the core; any other input is unchanged', () => {
+    expect(run(['REQ-035', 'REQ-036'], { 'REQ-035': ['REQ-036'] }, { input: 'REQ-036' }).reqs).toBe('REQ-035');
+    expect(run(['REQ-035', 'REQ-036'], { 'REQ-035': ['REQ-036'] }, { input: 'REQ-040' }).reqs).toBe('REQ-040');
   });
 
   it('fails the step when a member sits in two live bundles, instead of guessing', () => {
