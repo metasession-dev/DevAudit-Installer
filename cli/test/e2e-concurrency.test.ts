@@ -138,6 +138,11 @@ describe('e2e-regression.yml concurrency (#969)', { timeout: 120_000 }, () => {
     expect(concurrencyOf(yaml).group).toContain("format('uat-e2e-data-skipped-{0}', github.run_id) || 'uat-e2e-data'");
   });
 
+  it('escapes a quote in the group for the expression (#1183)', async () => {
+    const yaml = await renderRegression({ e2e_concurrency_group: "it's-shared" });
+    expect(concurrencyOf(yaml).group).toContain("format('it''s-shared-skipped-{0}', github.run_id) || 'it''s-shared'");
+  });
+
   it('uses a group that holds braces as written, without the split', async () => {
     const yaml = await renderRegression({ e2e_concurrency_group: 'shared-{x}' });
     expect(concurrencyOf(yaml).group).toBe('shared-{x}');

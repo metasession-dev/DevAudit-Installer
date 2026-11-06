@@ -15,7 +15,7 @@ import { join } from 'node:path';
  * so they are deliberately not relied on (devaudit-installer#1095 makes the title carry the id).
  */
 
-export type AcStatus = 'covered' | 'screenshot-but-no-test' | 'no-test' | 'covered-not-rerun';
+export type AcStatus = 'covered' | 'screenshot-but-no-test' | 'no-test' | 'covered-not-rerun' | 'not-listed';
 
 export interface ListedTest {
   readonly title: string;
@@ -171,6 +171,19 @@ export async function acCoverageForReq(
       : { ac, status: 'covered-not-rerun', detail: `AC${ac} is covered only in project(s) ${[...new Set(covering.flatMap((t) => t.projects))].join(', ')}, which do not run on the release PR (information)` };
   });
   return { req, results };
+}
+
+/**
+ * devaudit-installer#1183 — with a tier project missing from this environment the listing is partial,
+ * so "no test found" proves nothing: those ACs are `not-listed`, not gaps. Covered ones stay covered.
+ */
+export function markNotListed(cov: ReqCoverage, tiers: readonly string[]): ReqCoverage {
+  const results = cov.results.map((r): AcResult =>
+    r.status === 'no-test' || r.status === 'screenshot-but-no-test'
+      ? { ac: r.ac, status: 'not-listed', detail: `AC${r.ac} has no test in the projects listed here, and ${tiers.join(', ')} could not be listed` }
+      : r,
+  );
+  return { req: cov.req, results };
 }
 
 /** REQ ids in the RTM whose status is not RELEASED / APPROVED - DEPLOYED. */
