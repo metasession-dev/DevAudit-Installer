@@ -124,7 +124,10 @@ jobs:
           # main promotion is only valid when its explicit standalone
           # housekeeping declaration is present and valid.
           if [ -n "${RELEASE_INPUT}" ]; then
-            REQS="${RELEASE_INPUT}"
+            REQS=$(bash scripts/resolve-bundle-release.sh "${RELEASE_INPUT}") || {
+              echo "::error::Could not resolve the portal release for ${RELEASE_INPUT} (a co-tracked member of more than one live bundle?)"
+              exit 1
+            }
             if [[ "$REQS" =~ ^v[0-9]{4}\.[0-9]{2}\.[0-9]{2}(\.[0-9]+)?$ ]]; then
               chmod +x scripts/standalone-housekeeping-release.sh 2>/dev/null || true
               DECLARATION="compliance/standalone-housekeeping/STANDALONE-HOUSEKEEPING-${REQS}.json"
@@ -147,7 +150,23 @@ jobs:
                   DEFERRED_SKIPPED=$((DEFERRED_SKIPPED + 1))
                   continue
                 fi
-                REQS="${REQS} ${PENDING_REQ}"
+                # devaudit-installer#1184 — a declared bundle is ONE portal
+                # release, keyed by its core REQ (#955). A co-tracked member
+                # has a ticket of its own but no portal release, so it counts
+                # as its core: the sort -u below leaves one entry per release.
+                # Deferring a bundle marks the core's ticket, so a member of a
+                # deferred core is deferred too (never map back onto it).
+                CORE=$(bash scripts/resolve-bundle-release.sh "$PENDING_REQ") || {
+                  echo "::error::Could not resolve the portal release for ${PENDING_REQ} (a co-tracked member of more than one live bundle?)"
+                  exit 1
+                }
+                CORE_TICKET="compliance/pending-releases/RELEASE-TICKET-${CORE}.md"
+                if [ "$CORE" != "$PENDING_REQ" ] && [ -f "$CORE_TICKET" ] && [ -f scripts/is-deferred-ticket.sh ] && bash scripts/is-deferred-ticket.sh "$CORE_TICKET"; then
+                  echo "Skipping ${PENDING_REQ}: its bundle core ${CORE} is deferred"
+                  DEFERRED_SKIPPED=$((DEFERRED_SKIPPED + 1))
+                  continue
+                fi
+                REQS="${REQS} ${CORE}"
               done
             fi
             REQS=$(echo ${REQS} | tr ' ' '\n' | sort -u | tr '\n' ' ' | sed 's/[[:space:]]*$//')

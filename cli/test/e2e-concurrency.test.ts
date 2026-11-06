@@ -80,6 +80,18 @@ function concurrencyOf(yaml: string): { group: string; 'cancel-in-progress': unk
   return (yamlLoad(yaml) as { concurrency: { group: string; 'cancel-in-progress': unknown } }).concurrency;
 }
 
+/** The group expression: events the job skips get `<group>-skipped-<run_id>` (#1183). */
+function skipSplitGroup(group: string): string {
+  return (
+    "${{ (github.event_name == 'deployment_status' && " +
+    "!(github.event.deployment_status.state == 'success' && " +
+    "(github.event.deployment.environment == 'production' || " +
+    "github.event.deployment.environment == 'prod' || " +
+    "endsWith(github.event.deployment.environment, '/ production')))) " +
+    `&& format('${group}-skipped-{0}', github.run_id) || '${group}' }}`
+  );
+}
+
 describe('e2e-regression.yml concurrency (#969)', { timeout: 120_000 }, () => {
   it('default (key unset) keeps the original block byte-for-byte', async () => {
     const yaml = await renderRegression({});
@@ -97,8 +109,8 @@ describe('e2e-regression.yml concurrency (#969)', { timeout: 120_000 }, () => {
 
   it('fixed group, cancel-in-progress false by default', async () => {
     const yaml = await renderRegression({ e2e_concurrency_group: 'uat-e2e-data' });
-    expect(yaml).toContain('concurrency:\n  group: uat-e2e-data\n  cancel-in-progress: false\n');
-    expect(concurrencyOf(yaml)).toEqual({ group: 'uat-e2e-data', 'cancel-in-progress': false });
+    expect(yaml).toContain('  cancel-in-progress: false\n');
+    expect(concurrencyOf(yaml)).toEqual({ group: skipSplitGroup('uat-e2e-data'), 'cancel-in-progress': false });
   });
 
   it('honours e2e_concurrency_cancel_in_progress with a fixed group', async () => {
@@ -106,12 +118,35 @@ describe('e2e-regression.yml concurrency (#969)', { timeout: 120_000 }, () => {
       e2e_concurrency_group: 'uat-e2e-data',
       e2e_concurrency_cancel_in_progress: true,
     });
-    expect(concurrencyOf(yaml)).toEqual({ group: 'uat-e2e-data', 'cancel-in-progress': true });
+    expect(concurrencyOf(yaml)).toEqual({ group: skipSplitGroup('uat-e2e-data'), 'cancel-in-progress': true });
   });
 
   it('ignores cancel override when no fixed group is set', async () => {
     const yaml = await renderRegression({ e2e_concurrency_cancel_in_progress: false });
     expect(yaml).toContain("cancel-in-progress: ${{ github.event_name == 'pull_request' }}");
+  });
+
+  it('gives events the job skips a group of their own, using the job if: condition (#1183)', async () => {
+    const yaml = await renderRegression({ e2e_concurrency_group: 'uat-e2e-data' });
+    const doc = yamlLoad(yaml) as { jobs: Record<string, { if?: string }> };
+    const jobIf = (doc.jobs['e2e-regression']!.if ?? '').replace(/\s+/g, ' ');
+    // The skip condition is the job's own run condition, negated: same environment clause.
+    const envClause =
+      "(github.event.deployment.environment == 'production' || github.event.deployment.environment == 'prod' || endsWith(github.event.deployment.environment, '/ production'))";
+    expect(jobIf).toContain(envClause);
+    expect(concurrencyOf(yaml).group).toContain(envClause);
+    expect(concurrencyOf(yaml).group).toContain("format('uat-e2e-data-skipped-{0}', github.run_id) || 'uat-e2e-data'");
+  });
+
+  it('escapes a quote in the group for the expression (#1183)', async () => {
+    const yaml = await renderRegression({ e2e_concurrency_group: "it's-shared" });
+    expect(concurrencyOf(yaml).group).toContain("format('it''s-shared-skipped-{0}', github.run_id) || 'it''s-shared'");
+  });
+
+  it('uses a group that holds braces as written, without the split', async () => {
+    const yaml = await renderRegression({ e2e_concurrency_group: 'shared-{x}' });
+    expect(concurrencyOf(yaml).group).toBe('shared-{x}');
+    expect(concurrencyOf(yaml).group).not.toContain('skipped');
   });
 
   it('quotes a group that is not a plain YAML scalar', async () => {

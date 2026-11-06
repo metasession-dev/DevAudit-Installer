@@ -7,6 +7,7 @@ import { detectTestRunners, playwrightProjectNames } from '../lib/test-runner-de
 import {
   acCoverageForReq,
   activeRtmReqs,
+  markNotListed,
   parsePlaywrightList,
   planAcs,
   preApprovalProjects,
@@ -320,11 +321,16 @@ export function parseCollected(command: string, result: CommandResult): number |
   return null;
 }
 
+/** Playwright's error for a `--project` the config does not define in this environment. */
+const PROJECT_NOT_DEFINED = /\bProjects?(?:\(s\))?\s.*\bnot found\b|\bNo projects matched\b/;
+
 interface TierProbe {
   readonly tier: Tier;
   readonly count: number | null;
   readonly declared: boolean;
   readonly custom: boolean;
+  /** A Playwright tier project the config names that this environment does not define (devaudit-installer#1183). */
+  readonly notListed?: boolean;
 }
 
 export async function testTiersCheck(
@@ -380,10 +386,26 @@ export async function testTiersCheck(
       continue;
     }
     const result = await run(command, repoRoot);
-    probes.push({ tier, count: parseCollected(command, result), declared, custom: custom !== '' });
+    const collected = parseCollected(command, result);
+    probes.push({
+      tier,
+      count: collected,
+      declared,
+      custom: custom !== '',
+      ...(collected === null && PROJECT_NOT_DEFINED.test(result.stdout) ? { notListed: true } : {}),
+    });
   }
 
   const count = (tier: Tier): number | null => probes.find((p) => p.tier === tier)?.count ?? null;
+
+  // A project the config gates on the environment (for example on an env var that is only set in CI)
+  // is not defined in a bare local run, so it cannot be listed: that is not a missing test.
+  const notListed = probes.filter((p) => p.notListed).map((p) => p.tier);
+  if (notListed.length > 0) {
+    notes.push(
+      `${notListed.join(', ')} not listed: the Playwright project is not defined in this environment (set the variable playwright.config.ts gates it on and run devaudit doctor again)`,
+    );
+  }
 
   // Files that count as the project's tests, for requirement tagging.
   const testFiles =
@@ -422,7 +444,9 @@ export async function testTiersCheck(
   for (const file of testFiles) {
     const text = await fs.readFile(file, 'utf-8').catch(() => '');
     allText.push(text);
-    if (!/REQ-\d+/.test(text)) untagged.push(relative(repoRoot, file));
+    // A tracked ticket (REQ-035) or an SRS id (REQ-AI-001): the characters scripts/check-req-title-tags.sh
+    // accepts, ending in a digit so that the REQ-XXX placeholder is not a tag.
+    if (!/REQ-[0-9A-Za-z_-]*[0-9]/.test(text)) untagged.push(relative(repoRoot, file));
   }
   if (untagged.length > 0) {
     const shown = untagged.slice(0, 5).join(', ');
@@ -458,10 +482,13 @@ export async function testTiersCheck(
         const preApproval = preApprovalProjects(cfg, projects);
         acCoverage = [];
         for (const { req, acs } of withAcs) {
-          const cov = await acCoverageForReq(repoRoot, req, acs, listed, preApproval);
+          const found = await acCoverageForReq(repoRoot, req, acs, listed, preApproval);
+          const cov = notListed.length > 0 ? markNotListed(found, notListed) : found;
           acCoverage.push(cov);
+          const unconfirmed = cov.results.filter((r) => r.status === 'not-listed').map((r) => `AC${r.ac}`);
+          if (unconfirmed.length > 0) notes.push(`${req} ${unconfirmed.join(', ')} not confirmed: no test in the projects listed here`);
           for (const r of cov.results) {
-            if (r.status === 'covered') continue;
+            if (r.status === 'covered' || r.status === 'not-listed') continue;
             if (r.status === 'covered-not-rerun') {
               notes.push(`${req} ${r.detail}`);
               continue;

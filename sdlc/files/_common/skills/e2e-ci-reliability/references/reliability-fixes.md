@@ -60,16 +60,30 @@ if [ "$PROJECT" != "regression" ] || [ -n "${SPECS:-}" ]; then
   exit $?
 fi
 
+# Stop the whole process group, then start the next server as a group of its
+# own: `npm run dev` exits on SIGTERM and would leave `next dev` holding the
+# port. The workflow's "Stop dev server" step signals the group named in
+# .e2e-server.pid, so the last server must lead one too.
+restart_server() {
+  local log="$1" pid
+  pid="$(cat .e2e-server.pid 2>/dev/null || true)"
+  if [ -n "$pid" ]; then
+    kill -TERM -- "-${pid}" 2>/dev/null || kill -TERM "$pid" 2>/dev/null || true
+    sleep 2
+    kill -KILL -- "-${pid}" 2>/dev/null || true
+    kill -KILL "$pid" 2>/dev/null || true
+  fi
+  set -m
+  npm run dev > "$log" 2>&1 < /dev/null &
+  echo "$!" > .e2e-server.pid
+  set +m
+}
+
 OVERALL_STATUS=0
 for i in $(seq 1 "$SHARD_COUNT"); do
   # Restart the dev server between shards to reset accumulated
   # process/connection state — the mechanism this fix targets.
-  if [ -f .e2e-server.pid ] && kill -0 "$(cat .e2e-server.pid)" 2>/dev/null; then
-    kill "$(cat .e2e-server.pid)"
-    wait "$(cat .e2e-server.pid)" 2>/dev/null || true
-  fi
-  npm run dev > "e2e-server-shard-${i}.log" 2>&1 &
-  echo "$!" > .e2e-server.pid
+  restart_server "e2e-server-shard-${i}.log"
   npx wait-on "http://localhost:${E2E_PORT}" --timeout 60000
 
   PLAYWRIGHT_JSON_OUTPUT_NAME="e2e-regression-results-shard-${i}.json" \

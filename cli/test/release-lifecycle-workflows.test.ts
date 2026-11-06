@@ -1,5 +1,5 @@
-import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -905,7 +905,7 @@ describe('deferred tickets are skipped by every pending-ticket loop (#956 phase 
     expect(loop).toContain('if [ -f scripts/is-deferred-ticket.sh ] && bash scripts/is-deferred-ticket.sh "$T"; then');
     expect(loop).toContain('Skipping ${PENDING_REQ}: deferred (Release intent: deferred-to-next)');
     // the skip happens before the REQ is added to the promoted set
-    expect(loop.indexOf('is-deferred-ticket.sh')).toBeLessThan(loop.indexOf('REQS="${REQS} ${PENDING_REQ}"'));
+    expect(loop.indexOf('is-deferred-ticket.sh')).toBeLessThan(loop.indexOf('REQS="${REQS} ${CORE}"'));
     // all-deferred falls through to the existing "no tracked release ticket" path, loudly
     expect(loop).toContain('are deferred: treating this promotion as having no tracked release ticket');
     expect(loop.indexOf('are deferred: treating')).toBeLessThan(loop.indexOf('if [ -z "${REQS}" ]; then\n              chmod +x scripts/derive-release-version.sh'));
@@ -1043,5 +1043,104 @@ describe('post-deploy probes can carry an access header (#1022)', () => {
     const adapter = readFileSync(resolve(root, 'sdlc/files/hosts/vercel/adapter.json'), 'utf8');
     expect(adapter).toContain('DEVAUDIT_PROBE_HEADER');
     expect(adapter).toContain('x-vercel-protection-bypass');
+  });
+});
+
+describe('post-deploy-prod acts once per portal release for a declared bundle (#1184)', () => {
+  const source = template('post-deploy-prod.yml.template');
+  const lines = source.split('\n');
+  const start = lines.findIndex((l) => l.includes('- name: Resolve in-scope releases'));
+  const runIdx = lines.findIndex((l, i) => i > start && /^\s*run: \|\s*$/.test(l));
+  const body: string[] = [];
+  for (let i = runIdx + 1; i < lines.length; i++) {
+    const line = lines[i] ?? '';
+    if (/^ {6}\S/.test(line)) break;
+    body.push(line.replace(/^ {10}/, ''));
+  }
+  const script = body.join('\n');
+
+  const run = (
+    tickets: string[],
+    manifests: Record<string, string[]>,
+    opts: { deferred?: string[]; input?: string } = {},
+  ) => {
+    const dir = mkdtempSync(join(tmpdir(), 'cli-postdeploy-bundle-'));
+    try {
+      mkdirSync(join(dir, 'scripts'), { recursive: true });
+      mkdirSync(join(dir, 'compliance', 'pending-releases'), { recursive: true });
+      for (const name of ['resolve-bundle-release.sh', 'is-deferred-ticket.sh']) {
+        writeFileSync(join(dir, 'scripts', name), commonScript(name));
+      }
+      for (const t of tickets) {
+        const intent = opts.deferred?.includes(t) ? '- **Release intent:** deferred-to-next — blocked\n' : '';
+        writeFileSync(join(dir, 'compliance', 'pending-releases', `RELEASE-TICKET-${t}.md`), `# ${t}\n\n${intent}`);
+      }
+      // Reached only when nothing is in scope: stands in for the date-version derivation.
+      writeFileSync(join(dir, 'scripts', 'derive-release-version.sh'), '#!/usr/bin/env bash\necho v2026.11.06\n');
+      for (const [core, members] of Object.entries(manifests)) {
+        const base = join(dir, 'compliance', 'pending-releases', `BUNDLED-CHANGES-${core}`);
+        writeFileSync(base + '.md', `# Bundle ${core}\n${members.map((m) => `- \`${m}\` (co-tracked/bundled)`).join('\n')}\n`);
+        writeFileSync(
+          base + '.json',
+          JSON.stringify({ members: members.map((m) => ({ role: 'co_tracked', version: m })) }),
+        );
+      }
+      const envFile = join(dir, 'github-env');
+      writeFileSync(envFile, '');
+      const result = spawnSync('bash', ['-eo', 'pipefail', '-c', script], {
+        cwd: dir,
+        encoding: 'utf8',
+        env: { ...process.env, RELEASE_INPUT: opts.input ?? '', GITHUB_ENV: envFile },
+      });
+      const envText = readFileSync(envFile, 'utf8');
+      return { status: result.status, stdout: result.stdout, stderr: result.stderr, reqs: /^REQS=(.*)$/m.exec(envText)?.[1] };
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  };
+
+  it('maps a co-tracked member to the core release and de-duplicates', () => {
+    const r = run(['REQ-035', 'REQ-036', 'REQ-037'], { 'REQ-035': ['REQ-036', 'REQ-037'] });
+    expect(r.status).toBe(0);
+    expect(r.reqs).toBe('REQ-035');
+    expect(r.stdout).toContain('In-scope releases to promote: REQ-035');
+  });
+
+  it('leaves a requirement outside any bundle as it is', () => {
+    const r = run(['REQ-035', 'REQ-036', 'REQ-040'], { 'REQ-035': ['REQ-036'] });
+    expect(r.status).toBe(0);
+    expect(r.reqs).toBe('REQ-035 REQ-040');
+  });
+
+  it('without a bundle manifest every ticket is its own release, as before', () => {
+    const r = run(['REQ-035', 'REQ-036'], {});
+    expect(r.reqs).toBe('REQ-035 REQ-036');
+  });
+
+  it('never promotes a deferred core through a live member of its bundle', () => {
+    const r = run(['REQ-035', 'REQ-036', 'REQ-040'], { 'REQ-035': ['REQ-036'] }, { deferred: ['REQ-035'] });
+    expect(r.status).toBe(0);
+    expect(r.reqs).toBe('REQ-040');
+    expect(r.stdout).toContain('Skipping REQ-035: deferred');
+    expect(r.stdout).toContain('Skipping REQ-036: its bundle core REQ-035 is deferred');
+  });
+
+  it('a bundle whose core is deferred counts as deferred, so the no-ticket fallback still runs', () => {
+    const r = run(['REQ-035', 'REQ-036'], { 'REQ-035': ['REQ-036'] }, { deferred: ['REQ-035'] });
+    expect(r.status).toBe(0);
+    expect(r.reqs).toBe('');
+    expect(r.stdout).toContain('All 2 pending release ticket(s) are deferred');
+    expect(r.stdout).toContain('No tracked release ticket or standalone declaration');
+  });
+
+  it('a manual dispatch naming a member promotes the core; any other input is unchanged', () => {
+    expect(run(['REQ-035', 'REQ-036'], { 'REQ-035': ['REQ-036'] }, { input: 'REQ-036' }).reqs).toBe('REQ-035');
+    expect(run(['REQ-035', 'REQ-036'], { 'REQ-035': ['REQ-036'] }, { input: 'REQ-040' }).reqs).toBe('REQ-040');
+  });
+
+  it('fails the step when a member sits in two live bundles, instead of guessing', () => {
+    const r = run(['REQ-035', 'REQ-038', 'REQ-036'], { 'REQ-035': ['REQ-036'], 'REQ-038': ['REQ-036'] });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout + r.stderr).toContain('Could not resolve the portal release for REQ-036');
   });
 });

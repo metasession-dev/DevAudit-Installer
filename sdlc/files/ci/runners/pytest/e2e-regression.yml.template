@@ -153,15 +153,17 @@ jobs:
           TEST_JUNIT_XML: ${{ github.workspace }}/e2e-regression-results.xml
         run: |
           set -uo pipefail
+          # GitHub's default shell already has -e set; `|| STATUS=$?` keeps the
+          # exit code so the metadata merge below still runs on a failure
+          # (devaudit-installer#1029).
+          STATUS=0
           if [ -n "$SPECS" ]; then
             echo "::notice::Running scoped tests — specs=$SPECS"
             # shellcheck disable=SC2086
-            timeout --signal=TERM --kill-after=60s 40m pytest $SPECS --junit-xml="$TEST_JUNIT_XML"
-            STATUS=$?
+            timeout --signal=TERM --kill-after=60s 40m pytest $SPECS --junit-xml="$TEST_JUNIT_XML" || STATUS=$?
           else
             echo "::notice::Running tier=$TIER"
-            timeout --signal=TERM --kill-after=60s 40m bash "$GITHUB_WORKSPACE/scripts/run-test-tier.sh" "$TIER"
-            STATUS=$?
+            timeout --signal=TERM --kill-after=60s 40m bash "$GITHUB_WORKSPACE/scripts/run-test-tier.sh" "$TIER" || STATUS=$?
           fi
           if [ "$STATUS" -eq 124 ]; then
             OUTCOME="timed_out"

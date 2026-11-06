@@ -203,7 +203,7 @@ jobs:
 {{E2E_REGRESSION_TIER_ARG}}
             --arg specs "${{ steps.select.outputs.specs }}" \
             --arg serverStart "start command (pid ${SERVER_PID:-unknown})" \
-            --arg serverStop "kill ${SERVER_PID:-unknown}" \
+            --arg serverStop "kill process group ${SERVER_PID:-unknown}" \
             --arg startedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             --argjson timeoutMinutes "$TIMEOUT_MINUTES_VALUE" \
             '{target_url: $targetUrl, project: $project, {{E2E_REGRESSION_TIER_FIELD}}selected_specs: $specs, test_server_start: $serverStart, test_server_stop: $serverStop, timeout_minutes: $timeoutMinutes, started_at: $startedAt, outcome: "running"}' \
@@ -226,19 +226,20 @@ jobs:
           E2E_PORT: {{E2E_PORT}}
         run: |
           set -uo pipefail
+          # GitHub's default shell already has -e set; `cmd; STATUS=$?` would
+          # abort on a failing run and skip the metadata merge below
+          # (devaudit-installer#1029). `|| STATUS=$?` keeps the exit code.
+          STATUS=0
           if [ -f e2e/ci-reliability/regression-run.sh ]; then
             echo "::notice::Using project hook e2e/ci-reliability/regression-run.sh (PROJECT=$PROJECT)"
-            bash e2e/ci-reliability/regression-run.sh
-            STATUS=$?
+            bash e2e/ci-reliability/regression-run.sh || STATUS=$?
           elif [ -n "$SPECS" ]; then
             echo "::notice::Running scoped regression — project=$PROJECT specs=$SPECS"
             # shellcheck disable=SC2086
-            timeout --signal=TERM --kill-after=60s 40m npx playwright test --project="$PROJECT" --reporter=json,html $SPECS
-            STATUS=$?
+            timeout --signal=TERM --kill-after=60s 40m npx playwright test --project="$PROJECT" --reporter=json,html $SPECS || STATUS=$?
           else
             echo "::notice::Running project=$PROJECT"
-            timeout --signal=TERM --kill-after=60s 40m {{E2E_REGRESSION_TIER_COMMAND}}
-            STATUS=$?
+            timeout --signal=TERM --kill-after=60s 40m {{E2E_REGRESSION_TIER_COMMAND}} || STATUS=$?
           fi
           if [ "$STATUS" -eq 124 ]; then
             OUTCOME="timed_out"
@@ -261,8 +262,15 @@ jobs:
           set -euo pipefail
           if [ -f .e2e-server.pid ]; then
             PID="$(cat .e2e-server.pid)"
-            if kill -0 "$PID" 2>/dev/null; then
-              kill "$PID"
+            # Signal the whole process group the start step created, then
+            # force-kill what is left, so a wrapper's child (e.g. `next dev`
+            # under `npm run dev`) is not orphaned on a self-hosted runner
+            # (devaudit-installer#1025).
+            if kill -0 "$PID" 2>/dev/null || kill -0 -- "-${PID}" 2>/dev/null; then
+              kill -TERM -- "-${PID}" 2>/dev/null || kill -TERM "$PID" 2>/dev/null || true
+              sleep 2
+              kill -KILL -- "-${PID}" 2>/dev/null || true
+              kill -KILL "$PID" 2>/dev/null || true
               wait "$PID" 2>/dev/null || true
             fi
           fi

@@ -425,6 +425,11 @@ a fixed, undeclared path the generated workflow invokes if present — see
 command. `devaudit` never creates, overwrites, or deletes a hook script; it
 is entirely consumer/skill-owned, and needs no `.devaudit-patches` entry or
 upstream-issue trail because it was never generated content to begin with.
+A hook that restarts the dev server must keep `.e2e-server.pid` naming a
+process-group leader: `Stop dev server` signals that group, and a plain
+background start leaves the server's children running. The `restart_server`
+function in the `e2e-ci-reliability` skill's `references/reliability-fixes.md`
+does this.
 
 **The E2E test data is declared, not hooked.** `e2e_data_isolation` and its keys (`e2e_seed_command`, `e2e_seed_paths`, `e2e_reset_command`, `e2e_preflight_command`, `e2e_leak_check_command`, `e2e_max_skipped`, `feature_e2e_projects`) tell DevAudit where the tests get their data; the regression workflow then runs `scripts/e2e-data-lifecycle.sh` around the tests, and `devaudit doctor` checks the declaration (`test-data`). With `e2e_data_isolation` unset or `none` nothing changes, even for a project that already sets `e2e_seed_command`. The seed and reset code stay the project's; the `e2e-test-data` skill helps write it. See [`e2e-test-tiers.md`](e2e-test-tiers.md#test-data-1116).
 
