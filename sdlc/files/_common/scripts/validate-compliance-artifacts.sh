@@ -93,6 +93,18 @@ for REQ in $REQUIREMENTS; do
     continue
   fi
 
+  # DevAudit-Installer#1210: a REQ already released, superseded or abandoned
+  # is re-checked whenever one of its commits is in range (close-out commits
+  # carry `Ref: <REQ>`). Checks added after it shipped (the UAT pack, the
+  # Stage 3 sign-offs) apply to in-flight REQs only.
+  REQ_TERMINAL=false
+  if printf '%s' "$RTM_STATUS" | grep -qE 'APPROVED|RELEASED|SUPERSEDED|ABANDONED' \
+     || compgen -G "compliance/approved-releases/RELEASE-TICKET-${REQ}*" > /dev/null 2>&1 \
+     || compgen -G "compliance/superseded-releases/RELEASE-TICKET-${REQ}*" > /dev/null 2>&1; then
+    REQ_TERMINAL=true
+    echo "  INFO: $REQ is released/superseded — UAT pack and sign-off checks apply to in-flight REQs only"
+  fi
+
   # Check evidence directory exists
   if [ ! -d "compliance/evidence/$REQ" ]; then
     echo "  ERROR: Evidence directory missing: compliance/evidence/$REQ/"
@@ -119,7 +131,7 @@ for REQ in $REQUIREMENTS; do
   # artefacts end in an `## Operator sign-off` block that sdlc-implementer
   # Phase 3 step 8b collects from the operator. A pending block fails the
   # release PR so it cannot ship unsigned.
-  if [ -f "$SCRIPT_DIR/check-operator-signoffs.sh" ]; then
+  if [ "$REQ_TERMINAL" = "false" ] && [ -f "$SCRIPT_DIR/check-operator-signoffs.sh" ]; then
     SIGNOFF_RC=0
     SIGNOFF_OUT="$(bash "$SCRIPT_DIR/check-operator-signoffs.sh" "$REQ" 2>&1)" || SIGNOFF_RC=$?
     if [ "$SIGNOFF_RC" -eq 1 ]; then
@@ -447,6 +459,7 @@ for REQ in $REQUIREMENTS; do
      && [ "$(jq -r '.uat.enabled // false' sdlc-config.json 2>/dev/null)" = "true" ]; then
     UAT_REQUIRED=true
   fi
+  [ "$REQ_TERMINAL" = "true" ] && UAT_REQUIRED=false
   if [ "$UAT_REQUIRED" = "true" ]; then
     for UAT_FILE in uat-briefing.md uat-test-procedure.md; do
       if [ ! -f "compliance/evidence/$REQ/$UAT_FILE" ]; then
