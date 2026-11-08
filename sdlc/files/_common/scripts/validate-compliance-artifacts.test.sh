@@ -707,6 +707,40 @@ echo "Case UAT-5: the UAT filenames and accepted-e2e-failure records are known a
 assert_grep "no unrecognised-artifact warning for the pack" 'Unrecognized artifact filename: .*uat-' 0
 cd "$WORKDIR"
 
+echo "Case TERM-1: a RELEASED MEDIUM REQ with no pack and an unsigned block is not checked (#1210)"
+uat_fixture "$WORKDIR/caseterm1" REQ-060 MEDIUM
+sed -i 's/TESTED - PENDING SIGN-OFF/RELEASED/' compliance/RTM.md
+printf '%s\n' '## Operator sign-off' '- [ ] a' '**Reviewer:** <operator-name>' '**Date:** <YYYY-MM-DD>' > compliance/evidence/REQ-060/architecture-decision.md
+git add . && git commit -q --amend --no-edit
+run_validator
+assert_grep "released REQ reported as not checked" 'INFO: REQ-060 is released/superseded' 1
+assert_grep "no UAT pack error" 'UAT pack incomplete' 0
+assert_grep "no sign-off error" 'Operator sign-off pending' 0
+assert_exit "validator exits 0 for a released REQ re-checked through a close-out commit" 0
+cd "$WORKDIR"
+
+echo "Case TERM-2: a ticket in approved-releases/ is terminal even before the RTM row changes (#1210)"
+uat_fixture "$WORKDIR/caseterm2" REQ-061 HIGH
+git mv -q compliance/pending-releases/RELEASE-TICKET-REQ-061.md compliance/approved-releases/RELEASE-TICKET-REQ-061.md 2>/dev/null \
+  || mv compliance/pending-releases/RELEASE-TICKET-REQ-061.md compliance/approved-releases/RELEASE-TICKET-REQ-061.md
+printf '%s\n' '## Operator sign-off' '- [ ] a' '**Reviewer:** <operator-name>' '**Date:** <YYYY-MM-DD>' > compliance/evidence/REQ-061/risk-assessment.md
+git add -A && git commit -q --amend --no-edit
+run_validator
+assert_grep "approved-releases ticket reported as not checked" 'INFO: REQ-061 is released/superseded' 1
+assert_grep "no UAT pack error" 'UAT pack incomplete' 0
+assert_grep "no sign-off error" 'Operator sign-off pending' 0
+assert_exit "validator exits 0" 0
+cd "$WORKDIR"
+
+echo "Case TERM-3: an in-flight REQ is still checked (#1210)"
+uat_fixture "$WORKDIR/caseterm3" REQ-062 MEDIUM
+git add . && git commit -q --amend --no-edit
+run_validator
+assert_grep "in-flight REQ not reported as released" 'INFO: REQ-062 is released/superseded' 0
+assert_grep "pack still required" 'UAT pack incomplete' 1
+assert_exit "validator exits 1" 1
+cd "$WORKDIR"
+
 echo "Case 20: DEFERRED RTM row without ticket intent warns but does not fail"
 make_fixture "$WORKDIR/case20" "Ref: REQ-041"
 {
