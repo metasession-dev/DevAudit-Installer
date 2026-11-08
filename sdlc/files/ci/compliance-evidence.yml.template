@@ -325,44 +325,19 @@ jobs:
               REQS+=("$REQ_ID")
             done
           fi
+          REQ_SOURCE=tickets
+          [ "${#REQS[@]}" -eq 0 ] && REQ_SOURCE=artifact
 
           if [ "${#REQS[@]}" -eq 0 ] && [ -f e2e-artifacts/e2e-regression-results.json ]; then
-            {
-              printf '%s\n' 'import json'
-              printf '%s\n' 'import re'
-              printf '%s\n' 'import sys'
-              printf '%s\n' ''
-              printf '%s\n' 'try:'
-              printf '%s\n' "    with open('e2e-artifacts/e2e-regression-results.json', 'r', encoding='utf-8') as handle:"
-              printf '%s\n' '        data = json.load(handle)'
-              printf '%s\n' 'except Exception:'
-              printf '%s\n' '    sys.exit(0)'
-              printf '%s\n' ''
-              printf '%s\n' 'seen = set()'
-              printf '%s\n' ''
-              printf '%s\n' 'def walk(value):'
-              printf '%s\n' '    if isinstance(value, str):'
-              printf '%s\n' "        for req in re.findall(r'REQ-[0-9]+', value):"
-              printf '%s\n' '            seen.add(req)'
-              printf '%s\n' '    elif isinstance(value, dict):'
-              printf '%s\n' '        for item in value.values():'
-              printf '%s\n' '            walk(item)'
-              printf '%s\n' '    elif isinstance(value, list):'
-              printf '%s\n' '        for item in value:'
-              printf '%s\n' '            walk(item)'
-              printf '%s\n' ''
-              printf '%s\n' 'walk(data)'
-              printf '%s\n' 'for req in sorted(seen):'
-              printf '%s\n' '    print(req)'
-            } > /tmp/devaudit-extract-e2e-reqs.py
             while IFS= read -r REQ_ID; do
               [ -n "$REQ_ID" ] || continue
               REQS+=("$REQ_ID")
-            done < <(python3 /tmp/devaudit-extract-e2e-reqs.py)
-            rm -f /tmp/devaudit-extract-e2e-reqs.py
+            done < <(bash scripts/extract-e2e-reqs.sh e2e-artifacts/e2e-regression-results.json)
           fi
 
 {{E2E_XML_REQ_FALLBACK}}
+          # #1201: scope artifact-derived REQs to the release (scope-e2e-reqs-to-release.sh)
+          [ "$REQ_SOURCE" = artifact ] && [ "${#REQS[@]}" -gt 0 ] && [ -f scripts/scope-e2e-reqs-to-release.sh ] && mapfile -t REQS < <(bash scripts/scope-e2e-reqs-to-release.sh "${DERIVED_RELEASE}" "${REQS[@]}")
           if [ "${#REQS[@]}" -eq 1 ] && echo "$DERIVED_RELEASE" | grep -qE '^v[0-9]{4}\.[0-9]{2}\.[0-9]{2}([.][0-9]+)?$'; then
             echo "E2E upload recovered tracked release ${REQS[0]} from artifact metadata; overriding bare-date release ${DERIVED_RELEASE}."
             DERIVED_RELEASE="${REQS[0]}"
