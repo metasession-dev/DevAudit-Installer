@@ -326,7 +326,9 @@ jobs:
             done
           fi
 
-          if [ "${#REQS[@]}" -eq 0 ] && [ -f e2e-artifacts/e2e-regression-results.json ]; then
+          if [ "${#REQS[@]}" -eq 0 ] && [ -f e2e-artifacts/e2e-regression-results.json ] && [ ! -f scripts/extract-e2e-reqs.sh ]; then
+            echo "::warning::scripts/extract-e2e-reqs.sh not found at ${{ github.event.workflow_run.head_sha }}; REQ recovery from the artifact skipped (#1214)"
+          elif [ "${#REQS[@]}" -eq 0 ] && [ -f e2e-artifacts/e2e-regression-results.json ]; then
             while IFS= read -r REQ_ID; do
               [ -n "$REQ_ID" ] || continue
               REQS+=("$REQ_ID")

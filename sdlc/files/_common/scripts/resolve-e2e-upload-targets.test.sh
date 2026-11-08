@@ -76,10 +76,16 @@ assert_eq "bundle with no JSON: members get no JSON, the core still does" \
 
 D3="$WORK/other"
 mkdir -p "$D3"
-assert_eq "a bare-date release keeps its REQs, filed under it, with the JSON" \
-  "REQ-007 v2026.11.08 yes;REQ-008 v2026.11.08 yes" "$(targets "$D3" v2026.11.08 "$REPORT" REQ-007 REQ-008)"
+assert_eq "a bare-date release with several REQs files none of them (#1214)" \
+  "" "$(targets "$D3" v2026.11.08 "$REPORT" REQ-007 REQ-008)"
+DROPPED_BD="$(cd "$D3" && bash "$HELPER" v2026.11.08 "$REPORT" REQ-007 REQ-008 2>&1 >/dev/null)"
+assert_eq "the bare-date drop is logged" "Dropped REQ-007 REQ-008 (bare-date release v2026.11.08 holds no per-REQ evidence)" "$DROPPED_BD"
+assert_eq "a bare-date release with one REQ keeps it" \
+  "REQ-007 v2026.11.08 yes" "$(targets "$D3" v2026.11.08 "$REPORT" REQ-007)"
 assert_eq "_compliance-docs is filed under the derived release with the JSON" \
   "_compliance-docs v2026.11.08 yes" "$(targets "$D3" v2026.11.08 "$REPORT" _compliance-docs)"
+assert_eq "another non-REQ release keeps its REQs" \
+  "REQ-007 hotfix-1 yes;REQ-008 hotfix-1 yes" "$(targets "$D3" hotfix-1 "$REPORT" REQ-007 REQ-008)"
 
 if (cd "$D3" && bash "$HELPER" REQ-119 >/dev/null 2>&1); then
   assert_eq "missing JSON argument is a usage error" "1" "0"

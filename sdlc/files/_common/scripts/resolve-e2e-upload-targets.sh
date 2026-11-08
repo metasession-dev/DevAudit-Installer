@@ -16,8 +16,9 @@
 #   - <derived-release> always gets the run JSON (the canonical run artefact for
 #     its release); a member gets it only when the JSON has an executed test
 #     tagged to it (e2e-json-tags-req.sh, the same check ci.yml uses).
-# When <derived-release> is not a REQ id (a bare date, `_compliance-docs`): the
-# input is kept, filed under <derived-release>, and gets the JSON, as before.
+# When <derived-release> is a bare date (vYYYY.MM.DD): more than one REQ means no
+# tracked REQ was executed for it, so nothing is printed (#1214); one REQ is kept.
+# Any other non-REQ release: the input is kept, filed under it, with the JSON.
 #
 # Usage:   scripts/resolve-e2e-upload-targets.sh <derived-release> <results.json|""> [REQ ...]
 # Output:  one `<REQ> <release> <json:yes|no>` line per REQ to upload.
@@ -39,6 +40,19 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 case "$DERIVED" in
   REQ-[0-9]*) ;;
+  v[0-9][0-9][0-9][0-9].[0-9][0-9].[0-9][0-9]*)
+    # devaudit-installer#1214: a bare-date (housekeeping) release whose run names
+    # several REQs executed no tracked REQ of its own; filing them all under it
+    # would fill its matrix. Print nothing, so the caller keeps the run as GitHub
+    # CI history. (A single REQ is turned into that REQ's release by the caller
+    # before this script runs.)
+    if [ "$#" -gt 1 ]; then
+      echo "Dropped $* (bare-date release ${DERIVED} holds no per-REQ evidence)" >&2
+      exit 0
+    fi
+    for req in "$@"; do printf '%s %s yes\n' "$req" "$DERIVED"; done
+    exit 0
+    ;;
   *)
     for req in "$@"; do printf '%s %s yes\n' "$req" "$DERIVED"; done
     exit 0
