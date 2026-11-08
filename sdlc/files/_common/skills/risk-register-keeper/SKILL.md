@@ -161,7 +161,7 @@ I have reviewed the risk register entries above and confirm:
 **Date:** <YYYY-MM-DD>
 ```
 
-Leave the boxes and the `<operator-name>` / `<YYYY-MM-DD>` placeholders as they are: `sdlc-implementer` Phase 3 step 8b collects this sign-off from the operator in one CLI exchange (devaudit-installer#1200). Never fill it in yourself.
+Leave the boxes and the `<operator-name>` / `<YYYY-MM-DD>` placeholders as they are: `sdlc-implementer` Phase 3 step 5d collects this sign-off from the operator in one CLI exchange (devaudit-installer#1200). Never fill it in yourself.
 
 **Step 2 — Tag for upload.** The CI's `compliance-evidence.yml` uploads this file as `evidence_type=risk_assessment` (added to META-COMPLY's `EVIDENCE_TYPE_REGISTRY` in the paired sub-PR). The framework-coverage matrix attribution depends on `framework-registry-auditor`'s review — see the META-COMPLY-side PR for final clause closures.
 

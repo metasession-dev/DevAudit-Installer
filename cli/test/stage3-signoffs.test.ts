@@ -11,9 +11,9 @@ const read = (rel: string): Promise<string> => fs.readFile(join(ROOT, rel), 'utf
 const SKILLS = ['requirements-aligner', 'adr-author', 'risk-register-keeper', 'e2e-test-engineer'];
 
 describe('Stage 3 operator sign-offs (#1200)', () => {
-  it('sdlc-implementer collects them in Phase 3 step 8b and guards Phase 4', async () => {
+  it('sdlc-implementer collects them in Phase 3 step 5d, before the evidence commit, and guards Phase 4', async () => {
     const skill = await read('sdlc/files/_common/skills/sdlc-implementer/SKILL.md');
-    expect(skill).toContain('8b. **Collect the Stage 3 operator sign-offs in one exchange');
+    expect(skill).toContain('5d. **Collect the Stage 3 operator sign-offs in one exchange, before the evidence commit');
     expect(skill).toContain('bash scripts/check-operator-signoffs.sh REQ-XXX --json');
     for (const reply of ['`approved`', '`updated and approved`']) expect(skill).toContain(reply);
     expect(skill).toContain('Never tick a box or fill Reviewer without that explicit reply');
@@ -21,16 +21,17 @@ describe('Stage 3 operator sign-offs (#1200)', () => {
     expect(skill).toContain('mark a conditional box that does not apply `- [~]`');
     expect(await read('sdlc/files/_common/skills/adr-author/SKILL.md')).toContain('the other is marked `- [~]` (not applicable)');
     expect(skill).toContain('**Sign-off guard (devaudit-installer#1200).**');
-    // step 8b sits between the RTM update (8) and the sticky (9)
-    expect(skill.indexOf('8b. **Collect')).toBeGreaterThan(skill.indexOf('8. **Update `compliance/RTM.md`**'));
-    expect(skill.indexOf('8b. **Collect')).toBeLessThan(skill.indexOf('9. **Update SDLC status sticky** before exiting Phase 3'));
+    // #1212: step 5d sits after the completion guard (5c) and before the artefacts are organised and committed (6)
+    expect(skill.indexOf('5d. **Collect')).toBeGreaterThan(skill.indexOf('5c. **Run the Phase 3 completion guard'));
+    expect(skill.indexOf('5d. **Collect')).toBeLessThan(skill.indexOf('6. **Organise artefacts**'));
+    expect(skill).toContain('so CI uploads them signed and there is no second upload');
   });
 
   it.each(SKILLS)('%s keeps its sign-off block and tells the agent not to fill it in', async (name) => {
     const skill = await read(`sdlc/files/_common/skills/${name}/SKILL.md`);
     expect(skill).toContain('## Operator sign-off');
     expect(skill).toContain('**Reviewer:** <operator-name>');
-    expect(skill).toContain('Phase 3 step 8b collects this sign-off');
+    expect(skill).toContain('Phase 3 step 5d collects this sign-off');
   });
 
   it('the validator runs the check and fails on a pending block', async () => {
