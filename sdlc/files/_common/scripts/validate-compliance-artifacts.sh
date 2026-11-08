@@ -140,6 +140,11 @@ for REQ in $REQUIREMENTS; do
       EXIT_CODE=1
     elif [ "$SIGNOFF_RC" -eq 0 ]; then
       echo "  OK: Stage 3 operator sign-offs complete"
+    else
+      # Never a silent pass (DevAudit-Installer#1211): a check that could not run is a failure.
+      echo "  ERROR: Stage 3 operator sign-off check could not run (exit ${SIGNOFF_RC}):"
+      printf '%s\n' "$SIGNOFF_OUT" | sed 's/^/    /'
+      EXIT_CODE=1
     fi
   fi
 

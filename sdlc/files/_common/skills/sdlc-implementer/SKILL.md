@@ -703,7 +703,7 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
    ```
 
    If it exits 0, continue. Otherwise print, for each file in the result: its path; its unticked boxes, verbatim; and a one-line summary of what to check, written by you from the artefact (for example "ADR-009 status is Accepted", "SRS items for AC1-AC4 are present", "residual risk ratings", "e2e scope matches the diff"). Then ask once, for all files: **"Reply `approved`, `updated and approved` (you edited the files yourself), or list the changes needed."**
-   - **`approved`**: tick every box in each pending block, set `**Reviewer:**` to the GitHub login of the human running the session plus their git name (`gh api user --jq .login`, `git config user.name`; never the agent) and `**Date:**` to today, and add under the block `_Approved by <login> (<name>) in the Claude Code session on <YYYY-MM-DD>; recorded by the agent from the operator's explicit reply._`
+   - **`approved`**: tick each box that applies (`- [x]`) and mark a conditional box that does not apply `- [~]` (for example the one of `adr-author`'s "If ADR:" / "If no-ADR:" pair that does not match the verdict; `check-operator-signoffs.sh` counts `- [~]` as answered), set `**Reviewer:**` to the GitHub login of the human running the session plus their git name (`gh api user --jq .login`, `git config user.name`; never the agent) and `**Date:**` to today, and add under the block `_Approved by <login> (<name>) in the Claude Code session on <YYYY-MM-DD>; recorded by the agent from the operator's explicit reply._`
    - **`updated and approved`**: re-read the files first and keep the operator's edits; then do the same.
    - **a list of changes**: edit the artefacts, show what changed, and ask again.
 

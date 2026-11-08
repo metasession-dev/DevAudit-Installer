@@ -17,6 +17,9 @@ describe('Stage 3 operator sign-offs (#1200)', () => {
     expect(skill).toContain('bash scripts/check-operator-signoffs.sh REQ-XXX --json');
     for (const reply of ['`approved`', '`updated and approved`']) expect(skill).toContain(reply);
     expect(skill).toContain('Never tick a box or fill Reviewer without that explicit reply');
+    // #1211: a conditional box that does not apply is marked not applicable, not ticked.
+    expect(skill).toContain('mark a conditional box that does not apply `- [~]`');
+    expect(await read('sdlc/files/_common/skills/adr-author/SKILL.md')).toContain('the other is marked `- [~]` (not applicable)');
     expect(skill).toContain('**Sign-off guard (devaudit-installer#1200).**');
     // step 8b sits between the RTM update (8) and the sticky (9)
     expect(skill.indexOf('8b. **Collect')).toBeGreaterThan(skill.indexOf('8. **Update `compliance/RTM.md`**'));

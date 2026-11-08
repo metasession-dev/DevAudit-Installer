@@ -661,7 +661,7 @@ Required when `compliance/pending-releases/BUNDLED-CHANGES-REQ-XXX.md` exists or
 bash scripts/check-operator-signoffs.sh REQ-XXX
 ```
 
-The operator reviews each file, ticks the boxes and fills Reviewer (their name) and Date (YYYY-MM-DD). With `sdlc-implementer` this is one reply in the session: `approved`, `updated and approved`, or a list of changes. An agent records the reviewer from the operator's reply, never as itself. The check must exit 0 before Stage 4; `Compliance Validation` fails the release PR while any block is pending.
+The operator reviews each file, ticks the boxes that apply, marks a conditional box that does not apply `- [~]`, and fills Reviewer (their name) and Date (YYYY-MM-DD). With `sdlc-implementer` this is one reply in the session: `approved`, `updated and approved`, or a list of changes. An agent records the reviewer from the operator's reply, never as itself. The check must exit 0 before Stage 4; `Compliance Validation` fails the release PR while any block is pending.
 
 ### Step 9: Commit Compliance Docs and Push
 
