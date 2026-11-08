@@ -2510,7 +2510,7 @@ Key cross-cutting facts (asserted once, relied on below):
 
 - Config root is resolved by `env-paths('devaudit', { suffix: '' })` (`cli/src/lib/paths.ts`). On Linux this is `~/.config/devaudit/`. `AUTH_FILE = <config>/auth.json`, `PLUGINS_DIR = <config>/plugins`, `CONFIG_FILE = <config>/config.json`. Tests MUST override `HOME`/`XDG_CONFIG_HOME` (or pass `{ root }` to the plugin command functions, which accept it) to sandbox these.
 - Default portal base URL is `https://devaudit.ai` (`DEFAULT_BASE_URL` in `push.ts`, `auth.ts`, `login.ts`).
-- Logger (`cli/src/lib/logger.ts`): `--json` mode replaces all `consola` output with one NDJSON record per call written to stdout as `{level,tag,args,date}`; `emitJsonResult()` writes a single raw `JSON.stringify(payload)+"\n"` to stdout. `--no-color` sets `process.env.NO_COLOR='1'`. `--verbose` raises log level 3→5. The `preAction` hook configures the logger from `cmd.optsWithGlobals()` before any action runs.
+- Logger (`cli/src/lib/logger.ts`): `--json` mode replaces all `consola` output with one NDJSON record per call written to stdout as `{level,tag,args,date}`; `emitJsonResult()` writes a single raw `JSON.stringify(payload)+"\n"` to stdout, completely and synchronously (`writeStdoutSync` makes the stdout handle blocking, then writes through `process.stdout.write`), so a report larger than the 64 KiB pipe buffer is not cut off by the `process.exit` that follows (#1234); the NDJSON log records and the `release check` / `release status` JSON use the same writer. `--no-color` sets `process.env.NO_COLOR='1'`. `--verbose` raises log level 3→5. The `preAction` hook configures the logger from `cmd.optsWithGlobals()` before any action runs.
 
 ---
 

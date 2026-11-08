@@ -25,7 +25,7 @@ function build(opts: LoggerOptions): ConsolaInstance {
               args: logObj.args,
               date: logObj.date,
             };
-            process.stdout.write(JSON.stringify(record) + '\n');
+            writeStdoutSync(JSON.stringify(record) + '\n');
           },
         },
       ],
@@ -52,5 +52,18 @@ export function isJsonMode(): boolean {
 }
 
 export function emitJsonResult(payload: unknown): void {
-  process.stdout.write(JSON.stringify(payload) + '\n');
+  writeStdoutSync(JSON.stringify(payload) + '\n');
+}
+
+/**
+ * Writes `text` to stdout so that it is complete once this returns (devaudit-installer#1234).
+ * `process.stdout.write` is asynchronous when stdout is a pipe, and the commands end with
+ * `process.exit`, which cut a `--json` report larger than the 64 KiB pipe buffer off mid-string.
+ * Making the stream's handle blocking turns the write into a synchronous one (a file or a
+ * terminal needs nothing). The write still goes through `process.stdout.write`.
+ */
+export function writeStdoutSync(text: string): void {
+  const stream = process.stdout as NodeJS.WriteStream & { _handle?: { setBlocking?: (blocking: boolean) => void } };
+  stream._handle?.setBlocking?.(true);
+  stream.write(text);
 }

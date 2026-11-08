@@ -1,6 +1,6 @@
 import { promises as fs } from 'node:fs';
 import { join } from 'node:path';
-import { logger } from '../lib/logger.js';
+import { emitJsonResult, logger } from '../lib/logger.js';
 import { resolveRepoRoot } from '../lib/git-root.js';
 import { readPendingTickets } from '../lib/release-tickets.js';
 import { resolvePortalReadKey, resolveReleaseByPrefix } from '../lib/releases-api.js';
@@ -127,7 +127,7 @@ export async function runReleaseStatus(opts: { version?: string; json: boolean }
   const resolved = deps ?? (await defaultReleaseStatusDeps(process.cwd()));
   const log = logger();
   const fail = (exitCode: number, message: string): number => {
-    if (opts.json) process.stdout.write(JSON.stringify({ ok: false, error: message }) + '\n');
+    if (opts.json) emitJsonResult({ ok: false, error: message });
     else log.error(message);
     return exitCode;
   };
@@ -136,7 +136,7 @@ export async function runReleaseStatus(opts: { version?: string; json: boolean }
   if (!result.ok) return fail(result.exitCode, result.message);
   const r = result.report;
   if (opts.json) {
-    process.stdout.write(JSON.stringify({ ok: true, ...r }) + '\n');
+    emitJsonResult({ ok: true, ...r });
     return 0;
   }
   log.log(`${r.project} ${r.version}: ${r.status}`);
