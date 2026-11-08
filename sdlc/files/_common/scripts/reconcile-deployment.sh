@@ -69,8 +69,12 @@ if [ "$EXISTING" = "0" ]; then
   # #842: gh api's default error surface truncates to "Validation Failed (HTTP nnn)" and
   # drops the errors[] body needed to root-cause the 422 seen in production. Capture the
   # full --verbose request/response trace and print it on failure instead of discarding it.
+  # No `environment` field: it is optional, and when omitted the status keeps the deployment's own
+  # environment (which may be a qualified name such as `<Project> / production`, #465). Sending a
+  # hardcoded `production` asked the job token to change the environment of a deployment another
+  # app created, the leading hypothesis for the 422.
   set +e
-  STATUS_OUTPUT=$(gh api --method POST "/repos/${REPO}/deployments/${GITHUB_DEPLOYMENT_ID}/statuses" -f state=success -f environment=production -f description="$DESCRIPTION" -f environment_url="$HEALTH_URL" --verbose 2>&1)
+  STATUS_OUTPUT=$(gh api --method POST "/repos/${REPO}/deployments/${GITHUB_DEPLOYMENT_ID}/statuses" -f state=success -f description="$DESCRIPTION" -f environment_url="$HEALTH_URL" --verbose 2>&1)
   STATUS_RC=$?
   set -e
   if [ "$STATUS_RC" -ne 0 ]; then
