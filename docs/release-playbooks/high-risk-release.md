@@ -87,7 +87,8 @@ outcome (`devaudit release check` confirms readiness before you submit). A faile
 UAT needs a remediation reference and returns to the change-request loop. A
 recorded passing UAT is required before UAT approval. With the UAT pack, the
 tester's completed `uat-execution-record.md` must have landed on the integration
-branch and been uploaded before the approval.
+branch and been uploaded before the approval. Landing it moves the release PR's head,
+so all of the required checks above run again; land it as soon as UAT is done.
 
 ### Stage 5: production and close-out
 

@@ -729,6 +729,54 @@ assert_grep "missing Risk warns" 'WARNING: no Risk value for REQ-056 in complian
 assert_grep "no pack error" 'UAT pack incomplete' 0
 cd "$WORKDIR"
 
+# uat_bundle <dir> <checked REQ> — REQ-070 (core, MEDIUM) and REQ-071 (co_tracked member, MEDIUM), no packs
+uat_bundle() {
+  local dir="$1" req="$2"
+  make_fixture "$dir" "Ref: $req"
+  {
+    echo '# RTM'
+    echo
+    echo '| ID | Description | Risk | Status |'
+    echo '| --- | --- | --- | --- |'
+    echo '| REQ-070 | Bundle core | MEDIUM | TESTED - PENDING SIGN-OFF |'
+    echo '| REQ-071 | Bundle member | MEDIUM | TESTED - PENDING SIGN-OFF |'
+  } > compliance/RTM.md
+  for r in REQ-070 REQ-071; do
+    mkdir -p "compliance/evidence/$r"
+    echo "scope" > "compliance/evidence/$r/test-scope.md"
+    echo "plan" > "compliance/evidence/$r/test-plan.md"
+    echo "summary" > "compliance/evidence/$r/test-execution-summary.md"
+    echo "impl" > "compliance/evidence/$r/implementation-plan.md"
+    touch "compliance/pending-releases/RELEASE-TICKET-$r.md"
+  done
+  printf '%s\n' '### Co-Tracked Bundle Members' '- `REQ-071` (co-tracked/bundled)' > compliance/pending-releases/BUNDLED-CHANGES-REQ-070.md
+  printf '%s' '{"members":[{"version":"REQ-071","role":"co_tracked"}]}' > compliance/pending-releases/BUNDLED-CHANGES-REQ-070.json
+  git add . && git commit -q --amend --no-edit
+}
+
+echo "Case UAT-9: a co_tracked member of a live bundle needs no UAT pack of its own (#1226)"
+uat_bundle "$WORKDIR/caseuat9" REQ-071
+run_validator
+assert_grep "member reported as covered by the core" 'INFO: REQ-071 is a co_tracked member of REQ-070; its UAT pack is the bundle' 1
+assert_grep "no pack error for the member" 'UAT pack incomplete: compliance/evidence/REQ-071' 0
+cd "$WORKDIR"
+
+echo "Case UAT-10: the bundle core still needs the pack (#1226)"
+uat_bundle "$WORKDIR/caseuat10" REQ-070
+run_validator
+assert_grep "pack required on the core" 'UAT pack incomplete: compliance/evidence/REQ-070/uat-briefing.md is missing' 1
+assert_exit "validator exits 1" 1
+cd "$WORKDIR"
+
+echo "Case UAT-11: an invalid uat.human_pack warns and falls back to risk (#1227)"
+uat_fixture "$WORKDIR/caseuat11" REQ-057 HIGH
+printf '{"uat":{"human_pack":"Always"}}\n' > sdlc-config.json
+git add . && git commit -q --amend --no-edit
+run_validator
+assert_grep "invalid value warned" 'WARNING: uat.human_pack is "Always"; expected risk, always or never' 1
+assert_grep "risk rule applied (HIGH needs the pack)" 'UAT pack incomplete' 1
+cd "$WORKDIR"
+
 echo "Case UAT-5: the UAT filenames and accepted-e2e-failure records are known artifacts (#1198)"
 cd "$WORKDIR/caseuat4"
 run_validator

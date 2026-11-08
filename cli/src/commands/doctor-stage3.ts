@@ -2,7 +2,7 @@ import { promises as fs } from 'node:fs';
 import { join } from 'node:path';
 import type { Remediation } from '@metasession.co/devaudit-core';
 import type { CheckResult, Finding } from '../lib/doctor-types.js';
-import { readPendingTickets } from '../lib/release-tickets.js';
+import { archivedTicketDir, readBundleManifests, readPendingTickets } from '../lib/release-tickets.js';
 
 /**
  * DevAudit-Installer#1215 — `stage3-evidence`: an early, local warning for what the
@@ -13,7 +13,11 @@ import { readPendingTickets } from '../lib/release-tickets.js';
  * gating: it is an onboarding-style check whose findings are guidance.
  */
 
-export const STAGE3_EVIDENCE_FINDINGS = ['signoff-pending', 'uat-pack-missing'] as const;
+export const STAGE3_EVIDENCE_FINDINGS = ['signoff-pending', 'uat-pack-missing', 'uat.human_pack'] as const;
+
+const HUMAN_PACK_MODES = ['risk', 'always', 'never'] as const;
+/** An RTM status that means the REQ is done (the validator's #1210 rule). */
+const TERMINAL_STATUS = /APPROVED|RELEASED|SUPERSEDED|ABANDONED/;
 
 export interface PendingSignoff {
   readonly file: string;
@@ -65,19 +69,24 @@ export function pendingSignoffIn(file: string, text: string): PendingSignoff | n
 
 /** The RTM `Risk` cell for a requirement, or '' when the table has no Risk column or no row for it. */
 export function rtmRisk(rtm: string, req: string): string {
-  let riskIdx = -1;
+  return rtmCell(rtm, req, 'risk');
+}
+
+/** One RTM cell (`column` matched case-insensitively) for a requirement, or '' when absent. */
+export function rtmCell(rtm: string, req: string, column: string): string {
+  let colIdx = -1;
   let idIdx = 0;
   for (const line of rtm.replace(/\r\n/g, '\n').split('\n')) {
     if (!line.trim().startsWith('|')) continue;
     const cells = line.trim().replace(/^\||\|$/g, '').split('|').map((c) => c.trim());
-    const r = cells.findIndex((c) => c.toLowerCase() === 'risk');
+    const r = cells.findIndex((c) => c.toLowerCase() === column.toLowerCase());
     if (r >= 0) {
-      riskIdx = r;
+      colIdx = r;
       const id = cells.findIndex((c) => /^(req-id|id)$/i.test(c));
       idIdx = id >= 0 ? id : 0;
       continue;
     }
-    if (riskIdx >= 0 && cells[idIdx] === req) return cells[riskIdx] ?? '';
+    if (colIdx >= 0 && cells[idIdx] === req) return cells[colIdx] ?? '';
   }
   return '';
 }
@@ -86,14 +95,42 @@ const guidance = (id: string, summary: string, plan: string[]): Remediation => (
 
 export async function stage3EvidenceCheck(consumer: { readonly repoRoot: string; readonly cfg: Record<string, unknown> }): Promise<CheckResult> {
   const name = 'stage3-evidence';
-  const tickets = ((await readPendingTickets(consumer.repoRoot)) ?? []).filter((t) => !t.deferred);
-  if (tickets.length === 0) {
-    return { name, ok: true, detail: 'no pending release ticket (nothing to check)', suspectedOrigin: 'consumer-drift' };
+  const rtm = await fs.readFile(join(consumer.repoRoot, 'compliance', 'RTM.md'), 'utf-8').catch(() => '');
+  // #1227: a leftover pending copy of a ticket that is already released is not in flight (the validator skips it, #1210).
+  const tickets: { version: string }[] = [];
+  for (const t of ((await readPendingTickets(consumer.repoRoot)) ?? []).filter((t) => !t.deferred)) {
+    if ((await archivedTicketDir(consumer.repoRoot, t.version)) !== null) continue;
+    if (TERMINAL_STATUS.test(rtmCell(rtm, t.version, 'status'))) continue;
+    tickets.push(t);
   }
   const uat = (consumer.cfg['uat'] ?? {}) as { human_pack?: unknown };
-  const mode = uat.human_pack === 'always' || uat.human_pack === 'never' ? uat.human_pack : 'risk';
-  const rtm = await fs.readFile(join(consumer.repoRoot, 'compliance', 'RTM.md'), 'utf-8').catch(() => '');
   const findings: Finding[] = [];
+  // #1227: a hand-edited value the validator would read as `risk`.
+  const rawMode = uat.human_pack;
+  const mode = rawMode === 'always' || rawMode === 'never' ? rawMode : 'risk';
+  if (rawMode !== undefined && !(HUMAN_PACK_MODES as readonly unknown[]).includes(rawMode)) {
+    findings.push({
+      subject: 'uat.human_pack',
+      detail: `uat.human_pack is ${JSON.stringify(rawMode)} in sdlc-config.json; expected risk, always or never. It is read as risk.`,
+      remediation: {
+        id: 'set-config',
+        tier: 'A',
+        summary: 'Set uat.human_pack to risk (the default)',
+        plan: ['devaudit configure set uat.human_pack risk'],
+        needsPortal: false,
+        data: { key: 'uat.human_pack', value: 'risk' },
+      },
+    });
+  }
+  if (tickets.length === 0 && findings.length === 0) {
+    return { name, ok: true, detail: 'no pending release ticket (nothing to check)', suspectedOrigin: 'consumer-drift' };
+  }
+  // #1226: a declared bundle has one UAT, so a co_tracked member of a live bundle needs no pack of its own.
+  const bundleCoreOf = new Map<string, string>();
+  for (const manifest of await readBundleManifests(consumer.repoRoot)) {
+    if ((await archivedTicketDir(consumer.repoRoot, manifest.core)) !== null) continue;
+    for (const member of manifest.coTracked) if (member !== manifest.core) bundleCoreOf.set(member, manifest.core);
+  }
 
   for (const ticket of tickets) {
     const req = ticket.version;
@@ -121,7 +158,7 @@ export async function stage3EvidenceCheck(consumer: { readonly repoRoot: string;
     }
 
     const risk = rtmRisk(rtm, req);
-    const required = mode === 'always' || (mode === 'risk' && /MEDIUM|HIGH|CRITICAL/i.test(risk));
+    const required = !bundleCoreOf.has(req) && (mode === 'always' || (mode === 'risk' && /MEDIUM|HIGH|CRITICAL/i.test(risk)));
     if (required) {
       const missing = ['uat-briefing.md', 'uat-test-procedure.md'].filter((f) => !names.includes(f));
       if (missing.length > 0) {

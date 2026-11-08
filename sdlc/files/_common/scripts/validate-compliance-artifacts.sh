@@ -464,6 +464,13 @@ for REQ in $REQUIREMENTS; do
   if [ -f sdlc-config.json ] && command -v jq >/dev/null 2>&1; then
     UAT_PACK_MODE="$(jq -r '.uat.human_pack // "risk"' sdlc-config.json 2>/dev/null || echo risk)"
   fi
+  case "$UAT_PACK_MODE" in
+    risk|always|never) ;;
+    *)
+      echo "  WARNING: uat.human_pack is \"$UAT_PACK_MODE\"; expected risk, always or never — using risk (DevAudit-Installer#1227)"
+      UAT_PACK_MODE=risk
+      ;;
+  esac
   UAT_REQUIRED=false
   case "$UAT_PACK_MODE" in
     always) UAT_REQUIRED=true ;;
@@ -477,6 +484,15 @@ for REQ in $REQUIREMENTS; do
       ;;
   esac
   [ "$REQ_TERMINAL" = "true" ] && UAT_REQUIRED=false
+  # DevAudit-Installer#1226: a declared bundle has one UAT, so its pack lives on
+  # the core; a co_tracked member of a live bundle needs none of its own.
+  if [ "$UAT_REQUIRED" = "true" ] && [ -f "$SCRIPT_DIR/resolve-bundle-release.sh" ]; then
+    UAT_CORE="$(bash "$SCRIPT_DIR/resolve-bundle-release.sh" "$REQ" 2>/dev/null || echo "$REQ")"
+    if [ -n "$UAT_CORE" ] && [ "$UAT_CORE" != "$REQ" ]; then
+      echo "  INFO: $REQ is a co_tracked member of $UAT_CORE; its UAT pack is the bundle's, on $UAT_CORE"
+      UAT_REQUIRED=false
+    fi
+  fi
   if [ "$UAT_REQUIRED" = "true" ]; then
     for UAT_FILE in uat-briefing.md uat-test-procedure.md; do
       if [ ! -f "compliance/evidence/$REQ/$UAT_FILE" ]; then
