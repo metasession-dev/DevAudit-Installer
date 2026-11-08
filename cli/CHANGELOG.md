@@ -4,6 +4,10 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+### Fixed
+
+- **A full-regression E2E upload no longer fills an unrelated release's requirement matrix** (#1201): when the workflow_run E2E upload finds no pending release ticket (the ticket has already moved to `approved-releases/`), it recovers REQ ids from the run's Playwright JSON, and that JSON names every REQ the suite touches. Each one was uploaded with `--release <this release>`, so the portal created a pending row per REQ and the release showed, for example, 1 of 72 requirements with 71 old ones pending. The new `scripts/scope-e2e-reqs-to-release.sh` keeps only the release's own REQ and, for a declared bundle, its `co_tracked` members; the rest are logged as `Dropped` and not uploaded. REQs taken from pending tickets are unchanged. The inline Python that read the REQ ids moved to `scripts/extract-e2e-reqs.sh` (same output), because the workflow run block was within 300 bytes of GitHub's limit. Your next sync diff rewrites `compliance-evidence.yml` and adds both scripts; remove any local patch on the REQ-recovery step, which sync would otherwise report as a conflict. Rows already created on the portal are not removed; that is a portal action (metasession-dev/devaudit#962).
+
 ## [1.12.1] — 2026-11-06
 
 ### Fixed

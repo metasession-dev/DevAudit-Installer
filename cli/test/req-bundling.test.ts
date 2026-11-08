@@ -175,6 +175,20 @@ describe('declared bundle = one portal release (#955)', () => {
     expect(submit).toContain('sha256sum');
   });
 
+  it('scopes REQs recovered from the E2E artifact to the release before upload (#1201)', () => {
+    const evidenceTemplate = read('sdlc/files/ci/compliance-evidence.yml.template');
+    const scope = readCommon('scripts/scope-e2e-reqs-to-release.sh');
+    expect(evidenceTemplate).toContain('bash scripts/scope-e2e-reqs-to-release.sh "${DERIVED_RELEASE}" "${REQS[@]}"');
+    expect(evidenceTemplate).toContain('REQ_SOURCE=tickets');
+    expect(evidenceTemplate).toContain('[ "$REQ_SOURCE" = artifact ]');
+    // the scan feeds REQS first, the filter runs before any upload
+    expect(evidenceTemplate.indexOf('scope-e2e-reqs-to-release.sh')).toBeLessThan(
+      evidenceTemplate.indexOf('report-test-execution.sh start'),
+    );
+    expect(scope).toContain('select(.role == "co_tracked")');
+    expect(scope).toContain('compliance/approved-releases/BUNDLED-CHANGES-${RELEASE}.json');
+  });
+
   it('closes declared-bundle members out with the core', () => {
     expect(closeOut).toContain('mark_ticket_released_with_bundle');
     expect(closeOut).toContain('select((.role // "") == "co_tracked")');
