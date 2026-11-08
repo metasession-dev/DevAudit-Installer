@@ -249,7 +249,9 @@ required.
 A per-REQ evidence upload names a requirement (the positional `REQ-XXX`) and a release (`--release`). Under a release that is a REQ id, CI only names that REQ and the `co_tracked` members of its declared bundle; a member's evidence is filed under its bundle's core (`scripts/resolve-bundle-release.sh`). In particular:
 
 - `ci.yml` files each pending REQ under its own resolved release, and attaches the run's Playwright JSON to a REQ only when the JSON has an executed test tagged to it (`scripts/e2e-json-tags-req.sh`).
-- The `workflow_run` E2E upload in `compliance-evidence.yml` keeps only the derived release's REQ and its members (`scripts/resolve-e2e-upload-targets.sh`), whether the REQs came from pending tickets or from the run's JSON. The release's own REQ always gets the run JSON; a member gets it only when tagged.
+- The `workflow_run` E2E upload in `compliance-evidence.yml` keeps only the derived release's REQ and its members (`scripts/resolve-e2e-upload-targets.sh`), whether the REQs came from pending tickets or from the run's JSON. The release's own REQ always gets the run JSON; a member gets it only when tagged. Another pending
+ticket's REQ that the run tested is filed under its own release, as in `ci.yml` (#1225); REQs read from
+the run's JSON when no ticket is pending are never filed under a release of their own.
 
 ## Declared requirement scope (devaudit-installer#1209)
 

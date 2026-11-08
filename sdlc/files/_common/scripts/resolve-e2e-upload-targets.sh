@@ -8,19 +8,22 @@
 # one REQ's evidence into another release's matrix (#1201, #1213).
 #
 # Rules, when <derived-release> is a REQ id:
-#   - keep only the REQs that may be filed under it: itself and the co_tracked
-#     members of its declared bundle (scope-e2e-reqs-to-release.sh); another
-#     pending REQ's evidence belongs to its own release's runs, not this one;
-#   - every kept REQ is filed under <derived-release> (a member files under its
-#     bundle's core, resolve-bundle-release.sh);
-#   - <derived-release> always gets the run JSON (the canonical run artefact for
-#     its release); a member gets it only when the JSON has an executed test
-#     tagged to it (e2e-json-tags-req.sh, the same check ci.yml uses).
+#   - itself and the co_tracked members of its declared bundle
+#     (scope-e2e-reqs-to-release.sh) are filed under <derived-release>;
+#     <derived-release> always gets the run JSON (the canonical run artefact
+#     for its release); a member gets it only when the JSON has an executed
+#     test tagged to it (e2e-json-tags-req.sh, the same check ci.yml uses);
+#   - any other REQ from a pending ticket that the run tested is filed under
+#     its OWN release (resolve-bundle-release.sh), with the JSON, as ci.yml
+#     does (#1225); one it did not test is dropped;
+#   - with --artifact-reqs (the REQs came from the run's JSON, which names
+#     every REQ the suite touches, released ones included) any other REQ is
+#     dropped: nothing is filed under another release.
 # When <derived-release> is a bare date (vYYYY.MM.DD): more than one REQ means no
 # tracked REQ was executed for it, so nothing is printed (#1214); one REQ is kept.
 # Any other non-REQ release: the input is kept, filed under it, with the JSON.
 #
-# Usage:   scripts/resolve-e2e-upload-targets.sh <derived-release> <results.json|""> [REQ ...]
+# Usage:   scripts/resolve-e2e-upload-targets.sh [--artifact-reqs] <derived-release> <results.json|""> [REQ ...]
 # Output:  one `<REQ> <release> <json:yes|no>` line per REQ to upload.
 #          `Dropped <REQ> ...` lines go to stderr.
 # Exit:    0 on success; 1 on a usage error.
@@ -28,6 +31,15 @@
 # Install: cp this file to your project's scripts/ directory && chmod +x scripts/resolve-e2e-upload-targets.sh
 
 set -euo pipefail
+
+# --artifact-reqs: the REQs were recovered from the run's JSON, not from pending tickets.
+# A full-regression JSON names every REQ the suite touches, released ones included, so
+# only the release and its members are kept; nothing is filed under another release.
+ARTIFACT_REQS=false
+if [ "${1:-}" = "--artifact-reqs" ]; then
+  ARTIFACT_REQS=true
+  shift
+fi
 
 DERIVED="${1:-}"
 if [ -z "$DERIVED" ] || [ "$#" -lt 2 ]; then
@@ -59,14 +71,34 @@ case "$DERIVED" in
     ;;
 esac
 
-mapfile -t KEPT < <(bash "$DIR/scope-e2e-reqs-to-release.sh" "$DERIVED" "$@")
+mapfile -t KEPT < <(bash "$DIR/scope-e2e-reqs-to-release.sh" "$DERIVED" "$@" 2>/dev/null)
+SEEN=" "
 for req in "${KEPT[@]}"; do
   [ -n "$req" ] || continue
+  SEEN="${SEEN}${req} "
   if [ "$req" = "$DERIVED" ]; then
     printf '%s %s yes\n' "$req" "$DERIVED"
   elif [ -n "$JSON" ] && bash "$DIR/e2e-json-tags-req.sh" "$req" "$JSON"; then
     printf '%s %s yes\n' "$req" "$DERIVED"
   else
     printf '%s %s no\n' "$req" "$DERIVED"
+  fi
+done
+
+# devaudit-installer#1225: another pending REQ the run actually tested is filed under
+# its own release (as ci.yml does), never under this one; one it did not test is dropped.
+for req in "$@"; do
+  case "$SEEN" in *" ${req} "*) continue ;; esac
+  SEEN="${SEEN}${req} "
+  if [ "$ARTIFACT_REQS" = "true" ]; then
+    echo "Dropped ${req} (not in scope of ${DERIVED}; recovered from the run's JSON, not a pending ticket)" >&2
+  elif [ -n "$JSON" ] && bash "$DIR/e2e-json-tags-req.sh" "$req" "$JSON"; then
+    if own="$(bash "$DIR/resolve-bundle-release.sh" "$req" 2>/dev/null)" && [ -n "$own" ]; then
+      printf '%s %s yes\n' "$req" "$own"
+    else
+      echo "Dropped ${req} (tested by this run, but its release could not be resolved)" >&2
+    fi
+  else
+    echo "Dropped ${req} (not in scope of ${DERIVED} and not tested by this run)" >&2
   fi
 done

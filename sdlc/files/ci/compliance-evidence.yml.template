@@ -325,6 +325,9 @@ jobs:
               REQS+=("$REQ_ID")
             done
           fi
+          # #1225: REQs recovered from the run's JSON (below) never get a release of their own
+          SOURCE_FLAG=()
+          [ "${#REQS[@]}" -eq 0 ] && SOURCE_FLAG=(--artifact-reqs)
 
           if [ "${#REQS[@]}" -eq 0 ] && [ -f e2e-artifacts/e2e-regression-results.json ] && [ ! -f scripts/extract-e2e-reqs.sh ]; then
             echo "::warning::scripts/extract-e2e-reqs.sh not found at ${{ github.event.workflow_run.head_sha }}; REQ recovery from the artifact skipped (#1214)"
@@ -340,12 +343,13 @@ jobs:
             echo "E2E upload recovered tracked release ${REQS[0]} from artifact metadata; overriding bare-date release ${DERIVED_RELEASE}."
             DERIVED_RELEASE="${REQS[0]}"
           fi
-          # #1201/#1213: keep only REQs this release may hold (its own + bundle members); a member gets the run JSON only when tagged
-          declare -A REQ_JSON_OF=()
+          # #1201/#1213/#1225: each REQ's release (its own for another pending REQ the run tested) and whether it gets the run JSON
+          declare -A REQ_JSON_OF=() REQ_RELEASE_OF=()
           if [ "${#REQS[@]}" -gt 0 ] && [ -f scripts/resolve-e2e-upload-targets.sh ]; then
-            mapfile -t TARGETS < <(bash scripts/resolve-e2e-upload-targets.sh "${DERIVED_RELEASE}" e2e-artifacts/e2e-regression-results.json "${REQS[@]}")
+            TARGETS_OUT="$(bash scripts/resolve-e2e-upload-targets.sh ${SOURCE_FLAG[@]+"${SOURCE_FLAG[@]}"} "${DERIVED_RELEASE}" e2e-artifacts/e2e-regression-results.json "${REQS[@]}")" || { echo "::error::resolve-e2e-upload-targets.sh failed (exit $?); not uploading E2E evidence under a guessed release"; exit 1; }
+            mapfile -t TARGETS <<<"$TARGETS_OUT"
             REQS=()
-            for T in "${TARGETS[@]}"; do read -r T_REQ _ T_JSON <<<"$T"; REQS+=("$T_REQ"); REQ_JSON_OF[$T_REQ]="$T_JSON"; done
+            for T in "${TARGETS[@]}"; do [ -n "$T" ] || continue; read -r T_REQ T_REL T_JSON <<<"$T"; REQS+=("$T_REQ"); REQ_RELEASE_OF[$T_REQ]="$T_REL"; REQ_JSON_OF[$T_REQ]="$T_JSON"; done
           fi
 
           if [ "${#REQS[@]}" -eq 0 ]; then
@@ -408,18 +412,19 @@ jobs:
           UPLOAD_FAILURES=0
           for REQ in "${REQS[@]}"; do
             REQ_FAILURES=0
+            REQ_RELEASE="${REQ_RELEASE_OF[$REQ]:-$DERIVED_RELEASE}"
             LINEAGE_FLAGS=(--test-execution "${{ github.event.workflow_run.id }}")
             EXECUTION_OUT="$(mktemp)"
             bash scripts/report-test-execution.sh start \
               --project-slug {{PROJECT_SLUG}} \
-              --release "${DERIVED_RELEASE}" \
+              --release "${REQ_RELEASE}" \
               --sdlc-stage "${STAGE:-2}" \
               --environment "${E2E_ENVIRONMENT}" \
               --suite-kind e2e \
               --provider github_actions \
               --external-run-id "${{ github.event.workflow_run.id }}" \
               --external-run-attempt "${{ github.event.workflow_run.run_attempt }}" \
-              --idempotency-key "github:${{ github.repository }}:e2e-regression.${REQ}.e2e:${{ github.event.workflow_run.id }}:${{ github.event.workflow_run.run_attempt }}:${STAGE:-2}:${E2E_ENVIRONMENT}:${DERIVED_RELEASE}" \
+              --idempotency-key "github:${{ github.repository }}:e2e-regression.${REQ}.e2e:${{ github.event.workflow_run.id }}:${{ github.event.workflow_run.run_attempt }}:${STAGE:-2}:${E2E_ENVIRONMENT}:${REQ_RELEASE}" \
               --commit-sha "${{ github.event.workflow_run.head_sha }}" \
               --branch "${PRIOR_BRANCH}" \
               --workflow-name "E2E Regression" \
@@ -437,7 +442,7 @@ jobs:
               if bash scripts/upload-evidence.sh \
                 {{PROJECT_SLUG}} "$REQ" e2e_result \
                 e2e-artifacts/e2e-regression-results.json \
-                --category e2e_result ${FLAGS} --release "${DERIVED_RELEASE}" \
+                --category e2e_result ${FLAGS} --release "${REQ_RELEASE}" \
                 "${LINEAGE_FLAGS[@]}" \
                 --meta-key "tier=${TIER}"
               then
@@ -455,7 +460,7 @@ jobs:
               if bash scripts/upload-evidence.sh \
                 {{PROJECT_SLUG}} "$REQ" test_report \
                 e2e-artifacts/e2e-regression-metadata.json \
-                --category test_report ${FLAGS} --release "${DERIVED_RELEASE}" \
+                --category test_report ${FLAGS} --release "${REQ_RELEASE}" \
                 "${LINEAGE_FLAGS[@]}" \
                 --meta-key "tier=${TIER}" --meta-key "execution_outcome=${EXECUTION_OUTCOME:-unknown}"
               then
@@ -485,7 +490,7 @@ jobs:
               if bash scripts/upload-evidence.sh \
                 {{PROJECT_SLUG}} "$REQ" e2e_report \
                 e2e-artifacts/playwright-report.zip \
-                --category e2e_report ${FLAGS} --release "${DERIVED_RELEASE}" \
+                --category e2e_report ${FLAGS} --release "${REQ_RELEASE}" \
                 "${LINEAGE_FLAGS[@]}" \
                 --meta-key "tier=${TIER}"
               then
@@ -513,14 +518,14 @@ jobs:
             fi
             bash scripts/report-test-execution.sh complete \
               --project-slug {{PROJECT_SLUG}} \
-              --release "${DERIVED_RELEASE}" \
+              --release "${REQ_RELEASE}" \
               --sdlc-stage "${STAGE:-2}" \
               --environment "${E2E_ENVIRONMENT}" \
               --suite-kind e2e \
               --provider github_actions \
               --external-run-id "${{ github.event.workflow_run.id }}" \
               --external-run-attempt "${{ github.event.workflow_run.run_attempt }}" \
-              --idempotency-key "github:${{ github.repository }}:e2e-regression.${REQ}.e2e:${{ github.event.workflow_run.id }}:${{ github.event.workflow_run.run_attempt }}:${STAGE:-2}:${E2E_ENVIRONMENT}:${DERIVED_RELEASE}" \
+              --idempotency-key "github:${{ github.repository }}:e2e-regression.${REQ}.e2e:${{ github.event.workflow_run.id }}:${{ github.event.workflow_run.run_attempt }}:${STAGE:-2}:${E2E_ENVIRONMENT}:${REQ_RELEASE}" \
               --commit-sha "${{ github.event.workflow_run.head_sha }}" \
               --branch "${PRIOR_BRANCH}" \
               --workflow-name "E2E Regression" \
@@ -540,7 +545,7 @@ jobs:
               --argjson artifactUploadFailures "$REQ_FAILURES" \
               '{executionSource:"workflow_run.conclusion",conclusion:$conclusion,executionOutcome:$executionOutcome,artifactUploadFailures:$artifactUploadFailures}')
             bash scripts/report-release-check.sh \
-              --project-slug {{PROJECT_SLUG}} --release "${DERIVED_RELEASE}" \
+              --project-slug {{PROJECT_SLUG}} --release "${REQ_RELEASE}" \
               --check-key "e2e-regression:${{ github.event.workflow_run.id }}:${{ github.event.workflow_run.run_attempt }}:${REQ}" \
               --label "${TIER_LABEL} (${REQ})" --provider github_actions --status "$CHECK_STATUS" \
               --required "$CHECK_REQUIRED" \

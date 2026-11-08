@@ -64,7 +64,21 @@ assert_eq "two independent pending tickets: only the derived release's REQ is fi
   "REQ-119 REQ-119 yes" "$(targets "$D1" REQ-119 "$REPORT" REQ-118 REQ-119)"
 
 DROPPED="$(cd "$D1" && bash "$HELPER" REQ-119 "$REPORT" REQ-118 REQ-119 2>&1 >/dev/null)"
-assert_eq "the other pending REQ is reported as dropped" "Dropped REQ-118 (not in scope of REQ-119)" "$DROPPED"
+assert_eq "the other pending REQ is reported as dropped" "Dropped REQ-118 (not in scope of REQ-119 and not tested by this run)" "$DROPPED"
+
+# devaudit-installer#1225: another pending REQ the run tested goes under its own release
+assert_eq "another pending REQ the run tested files under its own release" \
+  "REQ-119 REQ-119 yes;REQ-201 REQ-201 yes" "$(targets "$D1" REQ-119 "$REPORT" REQ-119 REQ-201)"
+assert_eq "another pending REQ with only skipped tests is dropped" \
+  "REQ-119 REQ-119 yes" "$(targets "$D1" REQ-119 "$REPORT" REQ-119 REQ-202)"
+assert_eq "--artifact-reqs: a tested REQ recovered from the JSON is not filed under its own release" \
+  "REQ-119 REQ-119 yes" "$(targets "$D1" --artifact-reqs REQ-119 "$REPORT" REQ-007 REQ-201)"
+D4="$WORK/other-bundle"
+make_manifest "$D4" REQ-300 REQ-201
+# resolve-bundle-release.sh finds a bundle by its markdown manifest (the pair a real bundle commits)
+printf '%s\n' '### Co-Tracked Bundle Members' '- `REQ-201` (co-tracked/bundled)' > "$D4/compliance/pending-releases/BUNDLED-CHANGES-REQ-300.md"
+assert_eq "a tested REQ that is a member of another bundle files under that bundle's core" \
+  "REQ-119 REQ-119 yes;REQ-201 REQ-300 yes" "$(targets "$D4" REQ-119 "$REPORT" REQ-119 REQ-201)"
 
 D2="$WORK/bundle"
 make_manifest "$D2" REQ-200 REQ-201 REQ-202

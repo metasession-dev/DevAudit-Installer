@@ -314,7 +314,8 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     expect(source).toContain('refusing _compliance-docs fallback');
     expect(source).toContain('--meta-key source_event=${PRIOR_EVENT}');
     expect(source).toContain('--meta-key source_workflow=E2E_Regression');
-    expect(source).toContain('${STAGE:-2}:${E2E_ENVIRONMENT}:${DERIVED_RELEASE}');
+    // #1225: the idempotency key carries each REQ's own release
+    expect(source).toContain('${STAGE:-2}:${E2E_ENVIRONMENT}:${REQ_RELEASE}');
   });
 
   // devaudit-installer#787 — critical (pre-merge) and regression
