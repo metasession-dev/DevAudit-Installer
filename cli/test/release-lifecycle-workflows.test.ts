@@ -822,7 +822,8 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     expect(skill).toContain('gh run list --workflow \"Compliance Evidence Upload\" --commit <sha>');
     expect(skill).toContain('devaudit release status --json');
     expect(skill).toContain('Resolving a failed execution is a portal action by a **project admin**');
-    expect(skill).toContain('pending metasession-dev/devaudit#918');
+    // The portal's resolve action shipped (devaudit#918); the skill no longer calls it pending (#1199).
+    expect(skill).not.toContain('devaudit#918');
   });
 
   it('uploads the project-level Test Summary Report without attaching it to any release (devaudit-installer#621)', () => {
