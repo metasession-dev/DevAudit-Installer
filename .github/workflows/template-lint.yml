@@ -123,7 +123,9 @@ jobs:
         run: |
           chmod +x sdlc/files/_common/scripts/generate-bundled-changes.sh
           chmod +x sdlc/files/_common/scripts/validate-compliance-artifacts.sh
+          chmod +x sdlc/files/_common/scripts/check-operator-signoffs.sh
           bash sdlc/files/_common/scripts/generate-bundled-changes.test.sh
+          bash sdlc/files/_common/scripts/check-operator-signoffs.test.sh
           bash sdlc/files/_common/scripts/validate-compliance-artifacts.test.sh
 
       - name: Run declared-bundle single-release tests (devaudit-installer#955)

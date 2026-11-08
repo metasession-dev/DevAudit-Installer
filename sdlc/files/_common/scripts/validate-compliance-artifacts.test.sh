@@ -661,6 +661,50 @@ assert_grep "mismatch warning" 'WARNING: RTM status is DEFERRED but' 1
 assert_exit "validator exits 0" 0
 cd "$WORKDIR"
 
+echo "Case 21: a pending Stage 3 operator sign-off fails the validator (#1200)"
+make_fixture "$WORKDIR/case21" "Ref: REQ-042"
+{
+  echo '# RTM'
+  echo
+  echo '| ID | Description | Status |'
+  echo '| --- | --- | --- |'
+  echo '| REQ-042 | Sign-off check | TESTED - PENDING SIGN-OFF |'
+} > compliance/RTM.md
+mkdir -p compliance/evidence/REQ-042
+echo "scope" > compliance/evidence/REQ-042/test-scope.md
+echo "plan" > compliance/evidence/REQ-042/test-plan.md
+echo "summary" > compliance/evidence/REQ-042/test-execution-summary.md
+printf '%s\n' '## Operator sign-off' '' '- [ ] The verdict matches.' '' '**Reviewer:** <operator-name>' '**Date:** <YYYY-MM-DD>' > compliance/evidence/REQ-042/architecture-decision.md
+touch compliance/pending-releases/RELEASE-TICKET-REQ-042.md
+git add . && git commit -q --amend --no-edit
+run_validator
+assert_grep "pending sign-off ERROR names the file" 'ERROR: Operator sign-off pending' 1
+assert_grep "the pending file is listed" 'architecture-decision.md: 1 unticked box' 1
+assert_exit "validator exits 1 with a pending sign-off" 1
+cd "$WORKDIR"
+
+echo "Case 22: a completed Stage 3 operator sign-off passes the validator (#1200)"
+make_fixture "$WORKDIR/case22" "Ref: REQ-043"
+{
+  echo '# RTM'
+  echo
+  echo '| ID | Description | Status |'
+  echo '| --- | --- | --- |'
+  echo '| REQ-043 | Sign-off check | TESTED - PENDING SIGN-OFF |'
+} > compliance/RTM.md
+mkdir -p compliance/evidence/REQ-043
+echo "scope" > compliance/evidence/REQ-043/test-scope.md
+echo "plan" > compliance/evidence/REQ-043/test-plan.md
+echo "summary" > compliance/evidence/REQ-043/test-execution-summary.md
+printf '%s\n' '## Operator sign-off' '' '- [x] The verdict matches.' '' '**Reviewer:** alice' '**Date:** 2026-11-08' > compliance/evidence/REQ-043/architecture-decision.md
+touch compliance/pending-releases/RELEASE-TICKET-REQ-043.md
+git add . && git commit -q --amend --no-edit
+run_validator
+assert_grep "no pending sign-off ERROR" 'ERROR: Operator sign-off pending' 0
+assert_grep "sign-offs reported complete" 'OK: Stage 3 operator sign-offs complete' 1
+assert_exit "validator exits 0 with a completed sign-off" 0
+cd "$WORKDIR"
+
 echo
 echo "=== validate-compliance-artifacts.test.sh: $PASS passed, $FAIL failed ==="
 [ "$FAIL" -eq 0 ]
