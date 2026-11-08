@@ -4,6 +4,8 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+## [1.13.0] — 2026-11-08
+
 ### Added
 
 - **`devaudit doctor` warns about Stage 3 gaps before the release PR does, and the UAT pack requirement is configurable** (#1215): the new non-gating `stage3-evidence` check reports, for each pending release ticket that is not deferred, Stage 3 operator sign-offs still pending and a missing human UAT pack, with the steps to clear each. `devaudit configure set uat.human_pack <risk|always|never>` controls when the pack is required (`risk`, the default, means MEDIUM risk and above). `validate-compliance-artifacts.sh` now warns when the RTM has no Risk value for a REQ, where it used to skip the requirement silently, and no longer reads `uat.enabled` for the pack (that key means the project has a deployed UAT environment).
