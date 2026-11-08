@@ -741,6 +741,22 @@ assert_grep "pack still required" 'UAT pack incomplete' 1
 assert_exit "validator exits 1" 1
 cd "$WORKDIR"
 
+echo "Case SIGNOFF-RC: a sign-off check that cannot run is an ERROR, not a silent pass (#1211)"
+uat_fixture "$WORKDIR/casesignrc" REQ-063 LOW
+git add . && git commit -q --amend --no-edit
+# A copy of the validator next to a sign-off script that fails to run.
+mkdir -p "$WORKDIR/casesignrc-scripts"
+cp "$VALIDATOR" "$SCRIPT_DIR/markdown-table.sh" "$WORKDIR/casesignrc-scripts/"
+printf '%s\n' '#!/usr/bin/env bash' 'echo "simulated failure" >&2' 'exit 3' > "$WORKDIR/casesignrc-scripts/check-operator-signoffs.sh"
+set +e
+OUT_FILE=$(mktemp)
+bash "$WORKDIR/casesignrc-scripts/validate-compliance-artifacts.sh" base > "$OUT_FILE" 2>&1
+LAST_EXIT=$?
+set -e
+assert_grep "the failed run is reported" 'ERROR: Stage 3 operator sign-off check could not run \(exit 3\)' 1
+assert_exit "validator exits 1" 1
+cd "$WORKDIR"
+
 echo "Case 20: DEFERRED RTM row without ticket intent warns but does not fail"
 make_fixture "$WORKDIR/case20" "Ref: REQ-041"
 {
