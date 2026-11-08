@@ -174,6 +174,10 @@ If prerequisites are missing, do **not** start the full local suite. Run the tar
 
 **Do NOT proceed** until the scoped E2E/test-plan checks are complete and any local limitations are called out.
 
+### Step 4a: UI-Change Regression Sweep (DevAudit-Installer#1199)
+
+If the change touches UI-facing files, a gate tier (`smoke`, `critical`) runs only part of `e2e/`, so a changed label, selector or flow can break a spec in another tier and ship stale. For every user-visible label or text, `data-testid`, accessible role name or route the diff changes or removes, `grep -rn "<old value>" e2e/` over ALL of `e2e/`, and update or retire each affected spec. Run the `regression` Playwright project once in the same isolated stack before the release PR. Record the strings searched, the hits and the regression result under `## UI regression sweep` in `test-execution-summary.md` (or `not applicable (no UI-facing files changed)`).
+
 ### Step 4b: Reconcile Test Plan (devaudit-installer#241)
 
 After writing/updating tests (both unit and E2E), verify that `test-plan.md` file paths still match reality. The test plan was authored during Stage 1 with predicted file paths — during implementation, tests are often added to existing files instead of creating new ones. This natural drift must be reconciled before committing so `validate-compliance-artifacts.sh` doesn't fail at PR time.

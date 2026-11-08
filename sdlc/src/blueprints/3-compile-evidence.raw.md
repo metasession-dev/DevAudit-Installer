@@ -202,6 +202,10 @@ curl -s -H "Authorization: Bearer ${DEVAUDIT_API_KEY}" \
   "${DEVAUDIT_BASE_URL%/}/api/projects/<slug>/releases/REQ-XXX/journey" \
   > /tmp/release-journey.json
 bash scripts/render-test-executions.sh /tmp/release-journey.json
+
+# or, with your viewer key, the CLI's own read (DevAudit-Installer#1199):
+devaudit release status REQ-XXX --json > /tmp/release-status.json
+bash scripts/render-test-executions.sh /tmp/release-status.json
 ```
 
 The helper renders a first-class table when `.testExecutions[]` is present, preceded by a `<!-- generated-by: render-test-executions.sh ... -->` marker. It must not infer executions from legacy artifact grouping. **Paste the helper's output as-is - never type rows by hand.** It lists every CI execution per attempt (run id and attempt), so a failed attempt 1 that a passing attempt 2 superseded stays visible. A summary carrying a `CI as of:` stamp without the marker fails validation (devaudit-installer#1016); record local runs with their real counts (`3 failed`), never plain `passed` when failures occurred.

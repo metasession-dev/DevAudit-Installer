@@ -4,8 +4,12 @@
 # Usage:
 #   bash scripts/render-test-executions.sh path/to/release-journey.json
 #
-# Supported input:
-#   First-class test execution payloads with `.testExecutions[]`.
+# Supported input (either):
+#   - First-class test execution payloads with `.testExecutions[]` (camelCase).
+#   - The output of `devaudit release status <REQ> --json`: `.executions[]`, the
+#     portal's snake_case test cycles (devaudit-installer#1199). The release is
+#     the report's `.version`; a resolved execution shows `resolved: <resolution_type>`
+#     in the Incident / Remediation column.
 #
 # Output:
 #   Markdown suitable for inclusion under `## Test Executions` in
@@ -58,7 +62,34 @@ render_test_executions() {
   local rows
   rows="$(
     jq -r '
-      (.testExecutions // [])
+      . as $root
+      | (
+          if (.testExecutions // null) != null then .testExecutions
+          elif ((.executions // null) | type) == "array" then
+            [ .executions[]
+              | {
+                  sourceRelease: ($root.version // "Unknown"),
+                  sdlcStage: .sdlc_stage,
+                  suiteKind: .cycle_kind,
+                  outcome: .outcome,
+                  workflowName: .workflow_name,
+                  workflowUrl: .workflow_url,
+                  externalRunId: .external_run_id,
+                  externalRunAttempt: .external_run_attempt,
+                  incidentReference: .incident_reference,
+                  remediationReference: .remediation_reference,
+                  outcomeReason: (
+                    [ .outcome_reason, (if (.resolution_type // "") != "" then "resolved: " + .resolution_type else null end) ]
+                    | map(select(. != null and . != ""))
+                    | join("; ")
+                  ),
+                  relatedEvidence: [],
+                  startedAt: .started_at,
+                  completedAt: .completed_at
+                }
+            ]
+          else [] end
+        )
       | sort_by(.sourceRelease // "", .sdlcStage // 0, .startedAt // "", .completedAt // "", .suiteKind // .executionKind // "")
       | .[]
       | {

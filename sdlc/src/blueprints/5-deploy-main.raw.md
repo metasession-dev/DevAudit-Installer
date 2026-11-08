@@ -65,6 +65,16 @@ curl -s [PRODUCTION_URL]/[HEALTH_ENDPOINT]
 
 If it fails, check hosting platform logs. See deployment reference doc for troubleshooting.
 
+### Step 3b: Failed Test Executions Block "Mark as Released" (DevAudit-Installer#1199)
+
+The post-deploy regression run is evidence, not a deploy gate, but the portal refuses "Mark as Released" while any failed execution of the release has no documented resolution. Before asking anyone to approve Production, check:
+
+```bash
+devaudit release status REQ-XXX --json | jq '[.executions[] | select((.outcome == "failed" or .outcome == "timed_out") and ((.resolution_type // "") == ""))] | length'
+```
+
+A non-zero count needs one resolution per execution (`retry_passed`, `superseded`, `accepted_exception` or `incident_remediated`), recorded by a project admin on the release page (journey panel). The post-deploy run tests the deployed SHA, so a spec fix merged to `develop` afterwards cannot give a `retry_passed` for it. With `sdlc-implementer` this hand-off is a fixed message: executions, git steps, portal step and order (`references/phase5-triage-handoff.md.template`, `references/phase5-triage-decision-table.md`).
+
 ### Step 3a: Run Post-Deploy Actions (if any)
 
 Check the release ticket's **Post-Deploy Actions** section. If actions are listed:
