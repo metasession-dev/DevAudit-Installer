@@ -34,7 +34,10 @@ Tracked releases and standalone housekeeping releases both rely on the same core
 
 ### On the PR to `main`
 
-- `Compliance Validation` should confirm the change matches the declared workflow shape
+- `Compliance Validation` should confirm the change matches the declared workflow shape. For each in-flight REQ in the range it also fails on two Stage 3 gaps (`validate-compliance-artifacts.sh`):
+  - `ERROR: Operator sign-off pending` — an `## Operator sign-off` block in `compliance/evidence/REQ-XXX/` has an unanswered `- [ ]` box or a missing or placeholder Reviewer or Date. Clear it with the one-reply sign-off step of `sdlc-implementer` (Phase 3 step 5d), or by signing the files; `scripts/check-operator-signoffs.sh REQ-XXX` lists what is pending. A check that cannot run is also an error.
+  - `ERROR: UAT pack incomplete` / `still has REPLACE markers` / `has no step or not-testable row for: ACn` — the human UAT pack is required by `uat.human_pack` (`risk`, the default: MEDIUM risk and above) and `uat-briefing.md` or `uat-test-procedure.md` is missing, unfinished, or leaves an AC out. Write it with `sdlc-implementer` Phase 3 step 3c, or set `devaudit configure set uat.human_pack never` if the project does not need it. With `risk` and no Risk value in the RTM, the validator warns instead.
+  - A REQ that is already released, superseded or abandoned (RTM status, or its ticket in `approved-releases/` or `superseded-releases/`) is not checked for either, so the close-out commit of an earlier release does not block the next one. `devaudit doctor` (`stage3-evidence`) reports both gaps before the release PR does.
 - `Release Scope Integrity` should fail if a deferred REQ's commits are in the diff and it is not listed under `Absorbed predecessor releases` (`check-deferred-reqs-in-range.sh`)
 - `DevAudit Release Approval` should stay red until the portal release is approved for UAT (a portal `deferred` release gets a specific message and stays red)
 - once UAT approval is granted, rerunning the approval workflow should turn the gate green
