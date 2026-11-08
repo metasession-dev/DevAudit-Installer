@@ -18,6 +18,8 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ### Fixed
 
+- **`--json` output is no longer cut off when it is piped** (#1234): `devaudit doctor --json | jq` (and `scan`, `release check`, `release status`) printed at most one pipe buffer, 64 KiB, of a larger report before the process exited, leaving invalid JSON. The report is now written completely before the process exits. It showed up in release validation on a repository with 22 pending release tickets, where `doctor --json` is about 96 KiB; the same command was cut at 65,528 bytes before.
+
 - **A declared bundle needs one UAT pack, on its core** (#1226): `validate-compliance-artifacts.sh` and `devaudit doctor` asked every MEDIUM+ `co_tracked` member for its own `uat-briefing.md` and `uat-test-procedure.md`, although a bundle has one UAT. A member of a live bundle now needs none (the validator prints an INFO line naming the core); the core still does, and members' sign-offs are still checked.
 
 - **`devaudit doctor` `stage3-evidence` explains itself, flags an invalid `uat.human_pack`, and skips stale tickets** (#1227): `--explain stage3-evidence` and `--guided` now say what each finding means; a hand-edited `uat.human_pack` that is not `risk`, `always` or `never` is reported (with `devaudit configure set uat.human_pack risk` as the fix) and warned by the validator, where it used to be read as `risk` silently; and a leftover pending copy of an already-released ticket is no longer reported.

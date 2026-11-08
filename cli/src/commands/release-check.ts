@@ -1,7 +1,7 @@
 import { promises as fs } from 'node:fs';
 import { join } from 'node:path';
 import { execa } from 'execa';
-import { logger } from '../lib/logger.js';
+import { emitJsonResult, logger } from '../lib/logger.js';
 import { resolveRepoRoot } from '../lib/git-root.js';
 import { readPendingTickets } from '../lib/release-tickets.js';
 import {
@@ -172,13 +172,13 @@ export async function runReleaseChecks(deps: ReleaseCheckDeps, requested?: strin
 export async function runReleaseCheck(opts: { version?: string; json: boolean }, deps?: ReleaseCheckDeps | null): Promise<number> {
   const resolved = deps ?? (await defaultReleaseCheckDeps(process.cwd()));
   if (!resolved) {
-    if (opts.json) process.stdout.write(JSON.stringify({ ready: false, version: null, results: [], error: 'not a consumer project (no sdlc-config.json)' }) + '\n');
+    if (opts.json) emitJsonResult({ ready: false, version: null, results: [], error: 'not a consumer project (no sdlc-config.json)' });
     else logger().error('Not a consumer project: no sdlc-config.json found.');
     return 2;
   }
   const report = await runReleaseChecks(resolved, opts.version);
   if (opts.json) {
-    process.stdout.write(JSON.stringify(report) + '\n');
+    emitJsonResult(report);
   } else {
     const log = logger();
     for (const r of report.results) {
