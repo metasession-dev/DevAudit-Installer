@@ -431,11 +431,20 @@ jobs:
           # stage-2 execution can start. This keeps failed gate runs visible even
           # when later evidence generation fails.
           chmod +x scripts/upload-evidence.sh 2>/dev/null || true
+          # devaudit-installer#1209: declare the release's requirement scope so the
+          # portal keeps out-of-scope evidence out of its matrix. The portal replaces
+          # the scope on each declaration, so only this push-to-integration-branch
+          # registration sends it (a PR branch or an older SHA could send a shorter list).
+          DECLARE=()
+          if [ "${{ github.event_name }}" = "push" ] && [ -f scripts/release-declared-requirements.sh ]; then
+            SCOPE="$(bash scripts/release-declared-requirements.sh "${{ steps.version.outputs.version }}" || true)"
+            [ -n "$SCOPE" ] && DECLARE=(--declare-requirements "$SCOPE")
+          fi
           bash scripts/upload-evidence.sh \
             {{PROJECT_SLUG}} _compliance-docs release_registration README.md \
             --release ${{ steps.version.outputs.version }} --create-release-if-missing \
             --environment uat --category planning \
-            --git-sha ${{ github.sha }} --branch ${{ github.ref_name }} || true
+            --git-sha ${{ github.sha }} --branch ${{ github.ref_name }} ${DECLARE[@]+"${DECLARE[@]}"} || true
 
       - name: Upload standalone housekeeping declaration
         if: env.DEVAUDIT_BASE_URL != '' && steps.version.outputs.version != 'skip'

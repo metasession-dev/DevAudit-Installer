@@ -244,6 +244,16 @@ The manifest hash is SHA-256 over compact, recursively key-sorted JSON after rem
 rejects a schema-v2 mismatch. Generator name, version, repository, and generated timestamp are
 required.
 
+## Declared requirement scope (devaudit-installer#1209)
+
+A release may declare which requirements it covers. The portal (metasession-dev/devaudit#962) reads `metadata.declaredRequirementIds` (a JSON array of `REQ-XXX` ids) on a direct evidence upload; the presigned upload path ignores it. Once a release has a declared scope, non-screenshot evidence for a requirement outside it (the release's own REQ, the declared ids, and bundle-member REQs) is stored without a release link, creates no matrix row, and is audited as `evidence.out_of_scope`. A release with no declaration behaves as before.
+
+The portal **replaces** the scope on every declaration, so a sender must always send the complete list:
+
+- `scripts/release-declared-requirements.sh <release>` prints it: the release's REQ plus the `co_tracked` members of its `BUNDLED-CHANGES-<release>.json` (pending, approved or superseded), comma-separated. A non-REQ release (bare date, `_compliance-docs`) declares nothing.
+- `scripts/upload-evidence.sh --declare-requirements <ids>` sends it.
+- Only the `release_registration` upload on a **push to the integration branch** sends it (`ci.yml`, Node and Python). A pull-request branch (`feature-e2e.yml`), the `workflow_run` E2E upload (an older SHA) and per-REQ uploads never declare, because each can see an older or partial list and would shrink the scope.
+
 ## Authoritative lifecycle outcomes
 
 Execution outcome and evidence completeness are separate records:

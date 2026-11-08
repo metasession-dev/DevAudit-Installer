@@ -261,11 +261,18 @@ jobs:
       - name: Ensure release exists
         run: |
           chmod +x scripts/upload-evidence.sh 2>/dev/null || true
+          # devaudit-installer#1209: declare the release's requirement scope (the portal
+          # replaces it on each declaration, so only a push-to-integration-branch run sends it).
+          DECLARE=()
+          if [ "${{ github.event_name }}" = "push" ] && [ -f scripts/release-declared-requirements.sh ]; then
+            SCOPE="$(bash scripts/release-declared-requirements.sh "${{ steps.version.outputs.version }}" || true)"
+            [ -n "$SCOPE" ] && DECLARE=(--declare-requirements "$SCOPE")
+          fi
           bash scripts/upload-evidence.sh \
             {{PROJECT_SLUG}} _compliance-docs release_registration README.md \
             --release ${{ steps.version.outputs.version }} --create-release-if-missing \
             --environment uat --category planning \
-            --git-sha ${{ github.sha }} --branch ${{ github.ref_name }} || true
+            --git-sha ${{ github.sha }} --branch ${{ github.ref_name }} ${DECLARE[@]+"${DECLARE[@]}"} || true
 
       - name: Generate and upload bundled changes (declared bundle)
         # devaudit-installer#995 -- Node-template parity for declared bundles.
@@ -302,11 +309,18 @@ jobs:
           bash scripts/generate-bundled-changes.sh \
             "$SINCE_REF" "$VERSION" --json-out "$BUNDLED_MANIFEST" "${DECLARED_BUNDLE_ARGS[@]}" > "$BUNDLED_FILE"
           # The bundle's single release must exist before the manifest is submitted.
+          # devaudit-installer#1209: declare the release's requirement scope (the portal
+          # replaces it on each declaration, so only a push-to-integration-branch run sends it).
+          DECLARE=()
+          if [ "${{ github.event_name }}" = "push" ] && [ -f scripts/release-declared-requirements.sh ]; then
+            SCOPE="$(bash scripts/release-declared-requirements.sh "$VERSION" || true)"
+            [ -n "$SCOPE" ] && DECLARE=(--declare-requirements "$SCOPE")
+          fi
           bash scripts/upload-evidence.sh \
             {{PROJECT_SLUG}} _compliance-docs release_registration README.md \
             --release "$VERSION" --create-release-if-missing \
             --environment uat --category planning \
-            --git-sha ${{ github.sha }} --branch ${{ github.ref_name }} || true
+            --git-sha ${{ github.sha }} --branch ${{ github.ref_name }} ${DECLARE[@]+"${DECLARE[@]}"} || true
           bash scripts/submit-bundle-manifest.sh {{PROJECT_SLUG}} "$VERSION" "$BUNDLED_MANIFEST"
           bash scripts/upload-evidence.sh \
             {{PROJECT_SLUG}} _compliance-docs bundled_changes "$BUNDLED_FILE" \
