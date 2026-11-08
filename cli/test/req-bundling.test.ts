@@ -178,11 +178,13 @@ describe('declared bundle = one portal release (#955)', () => {
   it('scopes REQs recovered from the E2E artifact to the release before upload (#1201)', () => {
     const evidenceTemplate = read('sdlc/files/ci/compliance-evidence.yml.template');
     const scope = readCommon('scripts/scope-e2e-reqs-to-release.sh');
-    expect(evidenceTemplate).toContain('bash scripts/scope-e2e-reqs-to-release.sh "${DERIVED_RELEASE}" "${REQS[@]}"');
-    expect(evidenceTemplate).toContain('REQ_SOURCE=tickets');
-    expect(evidenceTemplate).toContain('[ "$REQ_SOURCE" = artifact ]');
-    // the scan feeds REQS first, the filter runs before any upload
-    expect(evidenceTemplate.indexOf('scope-e2e-reqs-to-release.sh')).toBeLessThan(
+    // #1213: one resolver for REQs from tickets and from the artifact; a member gets the JSON only when tagged
+    expect(evidenceTemplate).toContain('bash scripts/resolve-e2e-upload-targets.sh "${DERIVED_RELEASE}" e2e-artifacts/e2e-regression-results.json "${REQS[@]}"');
+    expect(evidenceTemplate).not.toContain('REQ_SOURCE');
+    expect(evidenceTemplate).toContain('[ "${REQ_JSON_OF[$REQ]:-yes}" = "yes" ]');
+    // the bare-date override runs before the resolver, which runs before any upload
+    expect(evidenceTemplate.indexOf('overriding bare-date release')).toBeLessThan(evidenceTemplate.indexOf('resolve-e2e-upload-targets.sh'));
+    expect(evidenceTemplate.indexOf('resolve-e2e-upload-targets.sh')).toBeLessThan(
       evidenceTemplate.indexOf('report-test-execution.sh start'),
     );
     expect(scope).toContain('select(.role == "co_tracked")');

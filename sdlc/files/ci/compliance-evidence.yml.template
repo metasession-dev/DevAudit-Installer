@@ -325,8 +325,6 @@ jobs:
               REQS+=("$REQ_ID")
             done
           fi
-          REQ_SOURCE=tickets
-          [ "${#REQS[@]}" -eq 0 ] && REQ_SOURCE=artifact
 
           if [ "${#REQS[@]}" -eq 0 ] && [ -f e2e-artifacts/e2e-regression-results.json ]; then
             while IFS= read -r REQ_ID; do
@@ -336,11 +334,16 @@ jobs:
           fi
 
 {{E2E_XML_REQ_FALLBACK}}
-          # #1201: scope artifact-derived REQs to the release (scope-e2e-reqs-to-release.sh)
-          [ "$REQ_SOURCE" = artifact ] && [ "${#REQS[@]}" -gt 0 ] && [ -f scripts/scope-e2e-reqs-to-release.sh ] && mapfile -t REQS < <(bash scripts/scope-e2e-reqs-to-release.sh "${DERIVED_RELEASE}" "${REQS[@]}")
           if [ "${#REQS[@]}" -eq 1 ] && echo "$DERIVED_RELEASE" | grep -qE '^v[0-9]{4}\.[0-9]{2}\.[0-9]{2}([.][0-9]+)?$'; then
             echo "E2E upload recovered tracked release ${REQS[0]} from artifact metadata; overriding bare-date release ${DERIVED_RELEASE}."
             DERIVED_RELEASE="${REQS[0]}"
+          fi
+          # #1201/#1213: keep only REQs this release may hold (its own + bundle members); a member gets the run JSON only when tagged
+          declare -A REQ_JSON_OF=()
+          if [ "${#REQS[@]}" -gt 0 ] && [ -f scripts/resolve-e2e-upload-targets.sh ]; then
+            mapfile -t TARGETS < <(bash scripts/resolve-e2e-upload-targets.sh "${DERIVED_RELEASE}" e2e-artifacts/e2e-regression-results.json "${REQS[@]}")
+            REQS=()
+            for T in "${TARGETS[@]}"; do read -r T_REQ _ T_JSON <<<"$T"; REQS+=("$T_REQ"); REQ_JSON_OF[$T_REQ]="$T_JSON"; done
           fi
 
           if [ "${#REQS[@]}" -eq 0 ]; then
@@ -428,7 +431,7 @@ jobs:
             fi
             # 1. JSON reporter output → e2e_result. The single canonical
             # machine-readable artefact for the run.
-            if [ -f e2e-artifacts/e2e-regression-results.json ]; then
+            if [ -f e2e-artifacts/e2e-regression-results.json ] && [ "${REQ_JSON_OF[$REQ]:-yes}" = "yes" ]; then
               if bash scripts/upload-evidence.sh \
                 {{PROJECT_SLUG}} "$REQ" e2e_result \
                 e2e-artifacts/e2e-regression-results.json \
