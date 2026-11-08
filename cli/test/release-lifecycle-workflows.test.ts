@@ -494,7 +494,8 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     expect(source).toContain('has_req_tagged_e2e_result "$REQ_ID" ci-evidence/e2e-results.json');
     expect(source).toContain('Not attaching generic E2E JSON to ${REQ_ID}');
     expect(source).toContain('Run-level evidence remains on _compliance-docs');
-    expect(source).toContain("result.get('status') not in {'skipped', 'interrupted'}");
+    expect(source).toContain('bash scripts/e2e-json-tags-req.sh "$1" "$2"');
+    expect(readFileSync(join(root, 'sdlc/files/_common/scripts/e2e-json-tags-req.sh'), 'utf8')).toContain("result.get('status') not in {'skipped', 'interrupted'}");
   });
 
   it('fans out SAST/Dependency Audit evidence to declared-bundle co-tracked members (#819)', () => {
