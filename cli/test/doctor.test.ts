@@ -1065,8 +1065,9 @@ describe('devaudit doctor — D8 releases check + JSON surface (#956)', () => {
     // #1059/#1060 appended e2e-release-gate and test-tiers after them.
     // #1099 WP4 appended `credentials` (and `pat-env` only when DEVAUDIT_USER_TOKEN is set).
     // #1116 WP8 appended preset-drift, standards-fit, approval-policy and durations; WP15 appended test-data; #1160 appended ci-values.
-    expect(json.onboarding).toHaveLength(25);
-    expect((json.onboarding as Array<{ name: string }>).slice(-14).map((c) => c.name)).toEqual([
+    // #1215 appended stage3-evidence.
+    expect(json.onboarding).toHaveLength(26);
+    expect((json.onboarding as Array<{ name: string }>).slice(-15).map((c) => c.name)).toEqual([
       'deploy-host',
       'production-url',
       'custom-deploy',
@@ -1081,6 +1082,7 @@ describe('devaudit doctor — D8 releases check + JSON surface (#956)', () => {
       'durations',
       'test-data',
       'ci-values',
+      'stage3-evidence',
     ]);
     // additive keys
     expect(Array.isArray(json.deferral)).toBe(true);

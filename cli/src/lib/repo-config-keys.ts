@@ -292,6 +292,14 @@ export const CONFIG_KEYS: readonly ConfigKeySpec[] = [
     affects: [],
   },
   {
+    key: 'uat.human_pack',
+    type: 'string',
+    description:
+      'When a tracked REQ needs the human UAT pack (uat-briefing.md, uat-test-procedure.md, uat-execution-record.md): risk (the default: MEDIUM risk and above, from the RTM Risk cell), always, or never. Read by validate-compliance-artifacts.sh, the sdlc-implementer skill and devaudit doctor (stage3-evidence).',
+    enum: ['risk', 'always', 'never'],
+    affects: [],
+  },
+  {
     key: 'production_review.terminal_status',
     type: 'string',
     description:

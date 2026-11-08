@@ -691,9 +691,9 @@ assert_grep "AC1 is accounted for, not reported" 'for:.*AC1' 0
 assert_exit "validator exits 1" 1
 cd "$WORKDIR"
 
-echo "Case UAT-4: a complete pack passes, and so does uat.enabled on a LOW REQ (#1198)"
+echo "Case UAT-4: a complete pack passes, and uat.human_pack: always requires it on a LOW REQ (#1198, #1215)"
 uat_fixture "$WORKDIR/caseuat4" REQ-053 LOW
-printf '{"uat":{"enabled":true}}\n' > sdlc-config.json
+printf '{"uat":{"human_pack":"always"}}\n' > sdlc-config.json
 printf '%s\n' '# Briefing' 'Background: a shop.' > compliance/evidence/REQ-053/uat-briefing.md
 printf '%s\n' '| Step | AC |' '| --- | --- |' '| 1 | AC1 |' '' '| AC | Reason |' '| --- | --- |' '| AC2 | automated only |' > compliance/evidence/REQ-053/uat-test-procedure.md
 git add . && git commit -q --amend --no-edit
@@ -703,7 +703,36 @@ assert_grep "no UAT error" 'ERROR: .*UAT|REPLACE markers' 0
 assert_exit "validator exits 0" 0
 cd "$WORKDIR"
 
+echo "Case UAT-6: uat.human_pack: always fails a LOW REQ without a pack (#1215)"
+uat_fixture "$WORKDIR/caseuat6" REQ-054 LOW
+printf '{"uat":{"human_pack":"always"}}\n' > sdlc-config.json
+git add . && git commit -q --amend --no-edit
+run_validator
+assert_grep "pack required by always" 'UAT pack incomplete' 1
+assert_exit "validator exits 1" 1
+cd "$WORKDIR"
+
+echo "Case UAT-7: uat.human_pack: never does not require a pack on a HIGH REQ (#1215)"
+uat_fixture "$WORKDIR/caseuat7" REQ-055 HIGH
+printf '{"uat":{"human_pack":"never"}}\n' > sdlc-config.json
+git add . && git commit -q --amend --no-edit
+run_validator
+assert_grep "no pack required by never" 'UAT pack incomplete' 0
+assert_exit "validator exits 0" 0
+cd "$WORKDIR"
+
+echo "Case UAT-8: no Risk value warns that the requirement was not evaluated (#1215)"
+uat_fixture "$WORKDIR/caseuat8" REQ-056 ""
+git add . && git commit -q --amend --no-edit
+run_validator
+assert_grep "missing Risk warns" 'WARNING: no Risk value for REQ-056 in compliance/RTM.md; UAT pack requirement not evaluated' 1
+assert_grep "no pack error" 'UAT pack incomplete' 0
+cd "$WORKDIR"
+
 echo "Case UAT-5: the UAT filenames and accepted-e2e-failure records are known artifacts (#1198)"
+cd "$WORKDIR/caseuat4"
+run_validator
+assert_grep "the pack files are present in this fixture" 'OK: uat-briefing.md written' 1
 assert_grep "no unrecognised-artifact warning for the pack" 'Unrecognized artifact filename: .*uat-' 0
 cd "$WORKDIR"
 

@@ -54,6 +54,7 @@ A key with a dot lives inside a section of `sdlc-config.json`: `approval.mode` i
 | `compliance_frameworks` | `soc-2`, `iso-27001`, `iso-29119`, `gdpr`, `eu-ai-act` (a list, or empty) | The standards the project needs evidence for. The portal's claimed standards win when they differ. |
 | `onboarding_preset` | `A`, `B`, `C`, `D`, `custom` | The onboarding preset the project chose. A missing key means `custom`. |
 | `e2e_data_isolation` | `none`, `ephemeral`, `shared_serialised`, `shared` | Where the end-to-end tests get their data. Unset keeps today's behaviour. |
+| `uat.human_pack` | `risk` (default), `always`, `never` | When a tracked REQ needs the human UAT pack (`uat-briefing.md`, `uat-test-procedure.md`, `uat-execution-record.md`): `risk` means MEDIUM risk and above, from the RTM Risk cell. Read by `validate-compliance-artifacts.sh`, the `sdlc-implementer` skill and `devaudit doctor` (`stage3-evidence`). |
 | `e2e_seed_paths`, `e2e_reset_command`, `e2e_preflight_command`, `e2e_leak_check_command`, `e2e_max_skipped`, `feature_e2e_projects` | lists, one-line commands, a number | Test-data settings the project owns. They are defined now and take effect with the test-data work of DevAudit-Installer#1116 (work package WP15); no generated file reads them yet. |
 
 None of these regenerates a workflow, so `configure set` for them prints no list of files. `release_branch_required_reviews` takes effect at the next `devaudit update`.

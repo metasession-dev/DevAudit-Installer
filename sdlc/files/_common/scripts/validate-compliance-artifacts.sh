@@ -453,17 +453,29 @@ for REQ in $REQUIREMENTS; do
     fi
   fi
 
-  # Human UAT pack (DevAudit-Installer#1198): required for MEDIUM and above, or
-  # when sdlc-config.json has uat.enabled. The briefing and the procedure must
+  # Human UAT pack (DevAudit-Installer#1198): required per `uat.human_pack`
+  # (#1215; default: MEDIUM and above). The briefing and the procedure must
   # be written (no REPLACE markers left) and the procedure must account for
   # every AC id from srs-alignment.md (or, failing that, the implementation
   # plan): a step row or a row in its "not testable by a human" table.
-  UAT_REQUIRED=false
-  if printf '%s' "$RTM_RISK" | grep -qiE 'MEDIUM|HIGH|CRITICAL'; then UAT_REQUIRED=true; fi
-  if [ -f sdlc-config.json ] && command -v jq >/dev/null 2>&1 \
-     && [ "$(jq -r '.uat.enabled // false' sdlc-config.json 2>/dev/null)" = "true" ]; then
-    UAT_REQUIRED=true
+  # `uat.human_pack` (DevAudit-Installer#1215): risk (default: MEDIUM and above),
+  # always, or never.
+  UAT_PACK_MODE=risk
+  if [ -f sdlc-config.json ] && command -v jq >/dev/null 2>&1; then
+    UAT_PACK_MODE="$(jq -r '.uat.human_pack // "risk"' sdlc-config.json 2>/dev/null || echo risk)"
   fi
+  UAT_REQUIRED=false
+  case "$UAT_PACK_MODE" in
+    always) UAT_REQUIRED=true ;;
+    never) ;;
+    *)
+      if printf '%s' "$RTM_RISK" | grep -qiE 'MEDIUM|HIGH|CRITICAL'; then
+        UAT_REQUIRED=true
+      elif [ -z "$RTM_RISK" ] && [ "$REQ_TERMINAL" = "false" ]; then
+        echo "  WARNING: no Risk value for $REQ in compliance/RTM.md; UAT pack requirement not evaluated (set the Risk cell, or uat.human_pack: always|never)"
+      fi
+      ;;
+  esac
   [ "$REQ_TERMINAL" = "true" ] && UAT_REQUIRED=false
   if [ "$UAT_REQUIRED" = "true" ]; then
     for UAT_FILE in uat-briefing.md uat-test-procedure.md; do

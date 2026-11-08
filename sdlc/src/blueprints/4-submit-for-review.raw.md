@@ -139,7 +139,7 @@ gh pr create --base main --head develop --title "type: description" --body "$(ca
 ## UAT Verification
 - UAT Health check: PASS
 - UAT Smoke test: PASS
-- UAT Feature verification: PASS — [what was verified] (MEDIUM+ or uat.enabled: link the executed `compliance/evidence/REQ-XXX/uat-execution-record.md` instead)
+- UAT Feature verification: PASS — [what was verified] (when the UAT pack applies, per uat.human_pack: link the executed `compliance/evidence/REQ-XXX/uat-execution-record.md` instead)
 - UAT URL: [UAT_URL]
 
 ## CI Results (Independent Verification)
@@ -247,7 +247,7 @@ gh pr create --base main --head develop --title "type: description" --body "$(ca
 ## UAT Verification
 - UAT Health check: PASS
 - UAT Smoke test: PASS
-- UAT Feature verification: PASS — [what was verified] (MEDIUM+ or uat.enabled: link the executed `compliance/evidence/REQ-XXX/uat-execution-record.md` instead)
+- UAT Feature verification: PASS — [what was verified] (when the UAT pack applies, per uat.human_pack: link the executed `compliance/evidence/REQ-XXX/uat-execution-record.md` instead)
 
 ## CI Verification
 - [ ] TypeScript (CI)

@@ -191,7 +191,7 @@ git add compliance/RTM.md compliance/pending-releases/RELEASE-TICKET-REQ-XXX.md 
 git commit -m "compliance: [REQ-XXX] evidence compiled - awaiting review"
 ```
 8. **WAIT CHECKPOINT:** Confirm CI + UAT deployment complete before UAT verification. Do NOT test against a stale deployment.
-9. **Verify on UAT** (if configured) — health check, smoke test, feature verification. Record in `security-summary.md`. Commit locally. Do NOT create a PR until UAT is green. For a MEDIUM or higher REQ (or `uat.enabled`), also write the human UAT pack in Stage 3 (`uat-briefing.md`, `uat-test-procedure.md`, `uat-execution-record.md`; `sdlc-implementer` Phase 3 step 3c) and have the UAT tester execute it.
+9. **Verify on UAT** (if configured) — health check, smoke test, feature verification. Record in `security-summary.md`. Commit locally. Do NOT create a PR until UAT is green. For a MEDIUM or higher REQ (or as `uat.human_pack` in `sdlc-config.json` says), also write the human UAT pack in Stage 3 (`uat-briefing.md`, `uat-test-procedure.md`, `uat-execution-record.md`; `sdlc-implementer` Phase 3 step 3c) and have the UAT tester execute it.
 10. **Push all compliance commits** in a single push: `git push origin develop`
 11. **Verify release in DevAudit** — CI auto-creates releases and links evidence. Check that a release exists with the current version (date-based: `v{YYYY}.{MM}.{DD}` or `v{YYYY}.{MM}.{DD}.{N}` for multiple releases on the same day) and evidence is linked.
 

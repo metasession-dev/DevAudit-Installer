@@ -103,7 +103,12 @@ export interface SdlcConfig {
      */
     readonly viewer_api_key_secret?: string;
   };
-  readonly uat?: { readonly enabled?: boolean };
+  /**
+   * `enabled`: the project has a deployed UAT environment (Stage 3 Step 10).
+   * `human_pack`: when the human UAT pack is required (devaudit-installer#1215);
+   * risk (default: MEDIUM and above), always, or never.
+   */
+  readonly uat?: { readonly enabled?: boolean; readonly human_pack?: 'risk' | 'always' | 'never' };
   readonly approval?: { readonly mode?: string };
   /**
    * Optional multi-target (polyglot monorepo) support — see #689. When
