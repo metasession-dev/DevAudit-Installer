@@ -178,6 +178,9 @@ describe('declared bundle = one portal release (#955)', () => {
   it('scopes REQs recovered from the E2E artifact to the release before upload (#1201)', () => {
     const evidenceTemplate = read('sdlc/files/ci/compliance-evidence.yml.template');
     const scope = readCommon('scripts/scope-e2e-reqs-to-release.sh');
+    // #1214: the artifact scan warns instead of silently finding nothing when its script is missing
+    expect(evidenceTemplate).toContain('[ ! -f scripts/extract-e2e-reqs.sh ]; then');
+    expect(evidenceTemplate).toContain('REQ recovery from the artifact skipped (#1214)');
     // #1213: one resolver for REQs from tickets and from the artifact; a member gets the JSON only when tagged
     expect(evidenceTemplate).toContain('bash scripts/resolve-e2e-upload-targets.sh "${DERIVED_RELEASE}" e2e-artifacts/e2e-regression-results.json "${REQS[@]}"');
     expect(evidenceTemplate).not.toContain('REQ_SOURCE');

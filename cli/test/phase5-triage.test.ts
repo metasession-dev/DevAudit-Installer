@@ -64,5 +64,8 @@ describe('render-test-executions.sh accepts release status output (#1199)', () =
     }
     expect(script).toContain('.testExecutions');
     expect(await read(SKILL)).toContain('devaudit release status REQ-XXX --json > /tmp/release-status.json');
+    // #1214: a failed read never renders a table
+    expect(await read(SKILL)).toContain('&& bash scripts/render-test-executions.sh /tmp/release-status.json');
+    expect(await read('sdlc/src/blueprints/3-compile-evidence.raw.md')).toContain('&& bash scripts/render-test-executions.sh /tmp/release-status.json');
   });
 });

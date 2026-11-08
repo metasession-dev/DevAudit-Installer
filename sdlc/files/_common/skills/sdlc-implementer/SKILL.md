@@ -611,9 +611,11 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
 5b.1. **Render the Test Executions table from the portal's execution read model when available (devaudit-installer#394).** Do not hand-build execution rows from uploaded artefacts if the portal exposes first-class test execution records. Read the executions with the viewer key, save the JSON, and render the markdown table with (the renderer accepts the `devaudit release status --json` output as well as a release-journey payload, devaudit-installer#1199):
 
    ```bash
-   devaudit release status REQ-XXX --json > /tmp/release-status.json
-   bash scripts/render-test-executions.sh /tmp/release-status.json
+   devaudit release status REQ-XXX --json > /tmp/release-status.json \
+     && bash scripts/render-test-executions.sh /tmp/release-status.json
    ```
+
+   If `release status` exits non-zero (portal unreachable, no viewer key, no release), stop and report it; do not render. A table rendered from a failed read says "No first-class test execution records", which is not true (devaudit-installer#1214).
 
    First-class rows must preserve:
    - source release
