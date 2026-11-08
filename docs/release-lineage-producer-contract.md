@@ -244,6 +244,25 @@ The manifest hash is SHA-256 over compact, recursively key-sorted JSON after rem
 rejects a schema-v2 mismatch. Generator name, version, repository, and generated timestamp are
 required.
 
+## Which requirements an upload may name under a release (devaudit-installer#1201, #1213)
+
+A per-REQ evidence upload names a requirement (the positional `REQ-XXX`) and a release (`--release`). Under a release that is a REQ id, CI only names that REQ and the `co_tracked` members of its declared bundle; a member's evidence is filed under its bundle's core (`scripts/resolve-bundle-release.sh`). In particular:
+
+- `ci.yml` files each pending REQ under its own resolved release, and attaches the run's Playwright JSON to a REQ only when the JSON has an executed test tagged to it (`scripts/e2e-json-tags-req.sh`).
+- The `workflow_run` E2E upload in `compliance-evidence.yml` keeps only the derived release's REQ and its members (`scripts/resolve-e2e-upload-targets.sh`), whether the REQs came from pending tickets or from the run's JSON. The release's own REQ always gets the run JSON; a member gets it only when tagged. Another pending
+ticket's REQ that the run tested is filed under its own release, as in `ci.yml` (#1225); REQs read from
+the run's JSON when no ticket is pending are never filed under a release of their own.
+
+## Declared requirement scope (devaudit-installer#1209)
+
+A release may declare which requirements it covers. The portal (metasession-dev/devaudit#962) reads `metadata.declaredRequirementIds` (a JSON array of `REQ-XXX` ids) on a direct evidence upload; the presigned upload path ignores it. Once a release has a declared scope, non-screenshot evidence for a requirement outside it (the release's own REQ, the declared ids, and bundle-member REQs) is stored without a release link, creates no matrix row, and is audited as `evidence.out_of_scope`. A release with no declaration behaves as before.
+
+The portal **replaces** the scope on every declaration, so a sender must always send the complete list:
+
+- `scripts/release-declared-requirements.sh <release>` prints it: the release's REQ plus the `co_tracked` members of its `BUNDLED-CHANGES-<release>.json` (pending, approved or superseded), comma-separated. A non-REQ release (bare date, `_compliance-docs`) declares nothing.
+- `scripts/upload-evidence.sh --declare-requirements <ids>` sends it.
+- Only the `release_registration` upload on a **push to the integration branch** sends it (`ci.yml`, Node and Python). A pull-request branch (`feature-e2e.yml`), the `workflow_run` E2E upload (an older SHA) and per-REQ uploads never declare, because each can see an older or partial list and would shrink the scope.
+
 ## Authoritative lifecycle outcomes
 
 Execution outcome and evidence completeness are separate records:

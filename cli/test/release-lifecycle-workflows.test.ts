@@ -314,7 +314,8 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     expect(source).toContain('refusing _compliance-docs fallback');
     expect(source).toContain('--meta-key source_event=${PRIOR_EVENT}');
     expect(source).toContain('--meta-key source_workflow=E2E_Regression');
-    expect(source).toContain('${STAGE:-2}:${E2E_ENVIRONMENT}:${DERIVED_RELEASE}');
+    // #1225: the idempotency key carries each REQ's own release
+    expect(source).toContain('${STAGE:-2}:${E2E_ENVIRONMENT}:${REQ_RELEASE}');
   });
 
   // devaudit-installer#787 — critical (pre-merge) and regression
@@ -494,7 +495,8 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     expect(source).toContain('has_req_tagged_e2e_result "$REQ_ID" ci-evidence/e2e-results.json');
     expect(source).toContain('Not attaching generic E2E JSON to ${REQ_ID}');
     expect(source).toContain('Run-level evidence remains on _compliance-docs');
-    expect(source).toContain("result.get('status') not in {'skipped', 'interrupted'}");
+    expect(source).toContain('bash scripts/e2e-json-tags-req.sh "$1" "$2"');
+    expect(readFileSync(join(root, 'sdlc/files/_common/scripts/e2e-json-tags-req.sh'), 'utf8')).toContain("result.get('status') not in {'skipped', 'interrupted'}");
   });
 
   it('fans out SAST/Dependency Audit evidence to declared-bundle co-tracked members (#819)', () => {
@@ -822,7 +824,8 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     expect(skill).toContain('gh run list --workflow \"Compliance Evidence Upload\" --commit <sha>');
     expect(skill).toContain('devaudit release status --json');
     expect(skill).toContain('Resolving a failed execution is a portal action by a **project admin**');
-    expect(skill).toContain('pending metasession-dev/devaudit#918');
+    // The portal's resolve action shipped (devaudit#918); the skill no longer calls it pending (#1199).
+    expect(skill).not.toContain('devaudit#918');
   });
 
   it('uploads the project-level Test Summary Report without attaching it to any release (devaudit-installer#621)', () => {

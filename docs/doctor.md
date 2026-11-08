@@ -172,6 +172,12 @@ Reads configuration and files only (and, for live drift, the last regression run
 | `approval-policy` | `approval.mode` against the project's approval policy on the portal (read with the viewer key; not compared when the portal does not report one). |
 | `durations` | The median duration of each job over the last 10 successful runs of `ci.yml` and `e2e-regression.yml`, or "not measured yet". |
 
+### The Stage 3 evidence check (non-gating, devaudit-installer#1215)
+
+| Check | Reports |
+| --- | --- |
+| `stage3-evidence` | For each pending release ticket that is not deferred: Stage 3 operator sign-offs still pending in `compliance/evidence/<REQ>/` (an unanswered `- [ ]` box, or a missing or placeholder Reviewer or Date; the rules of `scripts/check-operator-signoffs.sh`), and a missing `uat-briefing.md` or `uat-test-procedure.md` when `uat.human_pack` requires the pack (`risk`, the default, means MEDIUM risk and above from the RTM Risk cell; `always`; `never`). These are the gaps the release PR's `Compliance Validation` fails on. A `co_tracked` member of a live declared bundle needs no pack of its own (the bundle's pack is on its core, #1226), and a leftover pending copy of a ticket that is already released (archived elsewhere, or an RTM status of approved, released, superseded or abandoned) is skipped (#1227). An invalid `uat.human_pack` value is its own finding, with `devaudit configure set uat.human_pack risk` as the fix. Local and static, no portal call; each finding carries the steps to clear it, and `--explain stage3-evidence` says why it matters. |
+
 ## `suspectedOrigin` tagging
 
 Every onboarding-checklist and closeout-drift result carries a first-pass `suspectedOrigin: 'framework' | 'consumer-drift' | 'unknown'` (devaudit-installer#867):

@@ -30,6 +30,7 @@ on:
       - '.devin/workflows/devaudit-build-release.md'
       - 'scripts/release-routing-contract.test.sh'
       - 'scripts/action-runtime-contract.test.sh'
+      - 'scripts/e2e-upload-selection-contract.test.sh'
       - 'scripts/check-recovery-workflow.test.sh'
       - 'scripts/auto-merge-workflow.test.sh'
       - 'scripts/verify-auto-merge-checks.sh'
@@ -62,6 +63,7 @@ on:
       - '.devin/workflows/devaudit-build-release.md'
       - 'scripts/release-routing-contract.test.sh'
       - 'scripts/action-runtime-contract.test.sh'
+      - 'scripts/e2e-upload-selection-contract.test.sh'
       - 'scripts/check-recovery-workflow.test.sh'
       - 'scripts/auto-merge-workflow.test.sh'
       - 'scripts/verify-auto-merge-checks.sh'
@@ -123,15 +125,25 @@ jobs:
         run: |
           chmod +x sdlc/files/_common/scripts/generate-bundled-changes.sh
           chmod +x sdlc/files/_common/scripts/validate-compliance-artifacts.sh
+          chmod +x sdlc/files/_common/scripts/check-operator-signoffs.sh
           bash sdlc/files/_common/scripts/generate-bundled-changes.test.sh
+          bash sdlc/files/_common/scripts/check-operator-signoffs.test.sh
           bash sdlc/files/_common/scripts/validate-compliance-artifacts.test.sh
 
       - name: Run declared-bundle single-release tests (devaudit-installer#955)
         run: |
           chmod +x sdlc/files/_common/scripts/resolve-bundle-release.sh
+          chmod +x sdlc/files/_common/scripts/scope-e2e-reqs-to-release.sh
+          chmod +x sdlc/files/_common/scripts/release-declared-requirements.sh
+          chmod +x sdlc/files/_common/scripts/resolve-e2e-upload-targets.sh sdlc/files/_common/scripts/e2e-json-tags-req.sh
+          chmod +x sdlc/files/_common/scripts/extract-e2e-reqs.sh
           chmod +x sdlc/files/_common/scripts/submit-bundle-manifest.sh
           chmod +x sdlc/files/_common/scripts/close-out-release.sh
           bash sdlc/files/_common/scripts/resolve-bundle-release.test.sh
+          bash sdlc/files/_common/scripts/scope-e2e-reqs-to-release.test.sh
+          bash sdlc/files/_common/scripts/release-declared-requirements.test.sh
+          bash sdlc/files/_common/scripts/resolve-e2e-upload-targets.test.sh
+          bash sdlc/files/_common/scripts/extract-e2e-reqs.test.sh
           bash sdlc/files/_common/scripts/submit-bundle-manifest.test.sh
           bash sdlc/files/_common/scripts/close-out-release.test.sh
 
@@ -200,6 +212,9 @@ jobs:
           bash scripts/action-runtime-contract.test.sh
           bash scripts/check-recovery-workflow.test.sh
           bash scripts/auto-merge-workflow.test.sh
+
+      - name: Check the E2E upload's REQ selection end to end (devaudit-installer#1225)
+        run: bash scripts/e2e-upload-selection-contract.test.sh
           bash scripts/verify-auto-merge-checks.test.sh
           bash scripts/runner-host/runner-host.test.sh
           bash scripts/lint-shell-failure-modes.test.sh

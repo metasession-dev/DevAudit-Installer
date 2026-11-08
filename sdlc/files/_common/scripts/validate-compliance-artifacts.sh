@@ -93,6 +93,18 @@ for REQ in $REQUIREMENTS; do
     continue
   fi
 
+  # DevAudit-Installer#1210: a REQ already released, superseded or abandoned
+  # is re-checked whenever one of its commits is in range (close-out commits
+  # carry `Ref: <REQ>`). Checks added after it shipped (the UAT pack, the
+  # Stage 3 sign-offs) apply to in-flight REQs only.
+  REQ_TERMINAL=false
+  if printf '%s' "$RTM_STATUS" | grep -qE 'APPROVED|RELEASED|SUPERSEDED|ABANDONED' \
+     || compgen -G "compliance/approved-releases/RELEASE-TICKET-${REQ}*" > /dev/null 2>&1 \
+     || compgen -G "compliance/superseded-releases/RELEASE-TICKET-${REQ}*" > /dev/null 2>&1; then
+    REQ_TERMINAL=true
+    echo "  INFO: $REQ is released/superseded — UAT pack and sign-off checks apply to in-flight REQs only"
+  fi
+
   # Check evidence directory exists
   if [ ! -d "compliance/evidence/$REQ" ]; then
     echo "  ERROR: Evidence directory missing: compliance/evidence/$REQ/"
@@ -105,14 +117,36 @@ for REQ in $REQUIREMENTS; do
   # (DevAudit-Installer#205). The CI upload pipeline now skips unknown
   # filenames with a warning — this check surfaces the issue at PR
   # time so the operator can rename or add routing before merge.
-  KNOWN_ARTIFACTS="test-scope.md test-plan.md test-execution-summary.md test-summary-report.md implementation-plan.md srs-alignment.md architecture-decision.md risk-assessment.md security-summary.md ai-use-note.md ai-prompts.md ai-agent-handoff.md"
+  KNOWN_ARTIFACTS="test-scope.md test-plan.md test-execution-summary.md test-summary-report.md implementation-plan.md srs-alignment.md architecture-decision.md risk-assessment.md e2e-scope-decision.md uat-briefing.md uat-test-procedure.md uat-execution-record.md security-summary.md ai-use-note.md ai-prompts.md ai-agent-handoff.md"
   for ARTIFACT in compliance/evidence/$REQ/*.md; do
     [ -f "$ARTIFACT" ] || continue
     ARTIFACT_BASE=$(basename "$ARTIFACT")
+    case "$ARTIFACT_BASE" in accepted-e2e-failure-*.md) continue ;; esac
     if ! echo " $KNOWN_ARTIFACTS " | grep -q " $ARTIFACT_BASE "; then
       echo "  WARNING: Unrecognized artifact filename: compliance/evidence/$REQ/$ARTIFACT_BASE — CI upload will skip this file. Use a known filename or add routing in compliance-evidence.yml. (DevAudit-Installer#205)"
     fi
   done
+
+  # Stage 3 operator sign-offs (DevAudit-Installer#1200): the four per-REQ
+  # artefacts end in an `## Operator sign-off` block that sdlc-implementer
+  # Phase 3 step 5d collects from the operator. A pending block fails the
+  # release PR so it cannot ship unsigned.
+  if [ "$REQ_TERMINAL" = "false" ] && [ -f "$SCRIPT_DIR/check-operator-signoffs.sh" ]; then
+    SIGNOFF_RC=0
+    SIGNOFF_OUT="$(bash "$SCRIPT_DIR/check-operator-signoffs.sh" "$REQ" 2>&1)" || SIGNOFF_RC=$?
+    if [ "$SIGNOFF_RC" -eq 1 ]; then
+      echo "  ERROR: Operator sign-off pending (sdlc-implementer Phase 3 step 5d collects it):"
+      printf '%s\n' "$SIGNOFF_OUT" | sed 's/^/    /'
+      EXIT_CODE=1
+    elif [ "$SIGNOFF_RC" -eq 0 ]; then
+      echo "  OK: Stage 3 operator sign-offs complete"
+    else
+      # Never a silent pass (DevAudit-Installer#1211): a check that could not run is a failure.
+      echo "  ERROR: Stage 3 operator sign-off check could not run (exit ${SIGNOFF_RC}):"
+      printf '%s\n' "$SIGNOFF_OUT" | sed 's/^/    /'
+      EXIT_CODE=1
+    fi
+  fi
 
   # Check test-scope.md exists
   if [ ! -f "compliance/evidence/$REQ/test-scope.md" ]; then
@@ -416,6 +450,78 @@ for REQ in $REQUIREMENTS; do
     # Check AI prompt log for MEDIUM/HIGH with AI involvement
     if [ -f "compliance/evidence/$REQ/ai-use-note.md" ] && [ ! -f "compliance/evidence/$REQ/ai-prompts.md" ]; then
       echo "  WARNING: AI use noted but ai-prompts.md missing for MEDIUM/HIGH risk"
+    fi
+  fi
+
+  # Human UAT pack (DevAudit-Installer#1198): required per `uat.human_pack`
+  # (#1215; default: MEDIUM and above). The briefing and the procedure must
+  # be written (no REPLACE markers left) and the procedure must account for
+  # every AC id from srs-alignment.md (or, failing that, the implementation
+  # plan): a step row or a row in its "not testable by a human" table.
+  # `uat.human_pack` (DevAudit-Installer#1215): risk (default: MEDIUM and above),
+  # always, or never.
+  UAT_PACK_MODE=risk
+  if [ -f sdlc-config.json ] && command -v jq >/dev/null 2>&1; then
+    UAT_PACK_MODE="$(jq -r '.uat.human_pack // "risk"' sdlc-config.json 2>/dev/null || echo risk)"
+  fi
+  case "$UAT_PACK_MODE" in
+    risk|always|never) ;;
+    *)
+      echo "  WARNING: uat.human_pack is \"$UAT_PACK_MODE\"; expected risk, always or never — using risk (DevAudit-Installer#1227)"
+      UAT_PACK_MODE=risk
+      ;;
+  esac
+  UAT_REQUIRED=false
+  case "$UAT_PACK_MODE" in
+    always) UAT_REQUIRED=true ;;
+    never) ;;
+    *)
+      if printf '%s' "$RTM_RISK" | grep -qiE 'MEDIUM|HIGH|CRITICAL'; then
+        UAT_REQUIRED=true
+      elif [ -z "$RTM_RISK" ] && [ "$REQ_TERMINAL" = "false" ]; then
+        echo "  WARNING: no Risk value for $REQ in compliance/RTM.md; UAT pack requirement not evaluated (set the Risk cell, or uat.human_pack: always|never)"
+      fi
+      ;;
+  esac
+  [ "$REQ_TERMINAL" = "true" ] && UAT_REQUIRED=false
+  # DevAudit-Installer#1226: a declared bundle has one UAT, so its pack lives on
+  # the core; a co_tracked member of a live bundle needs none of its own.
+  if [ "$UAT_REQUIRED" = "true" ] && [ -f "$SCRIPT_DIR/resolve-bundle-release.sh" ]; then
+    UAT_CORE="$(bash "$SCRIPT_DIR/resolve-bundle-release.sh" "$REQ" 2>/dev/null || echo "$REQ")"
+    if [ -n "$UAT_CORE" ] && [ "$UAT_CORE" != "$REQ" ]; then
+      echo "  INFO: $REQ is a co_tracked member of $UAT_CORE; its UAT pack is the bundle's, on $UAT_CORE"
+      UAT_REQUIRED=false
+    fi
+  fi
+  if [ "$UAT_REQUIRED" = "true" ]; then
+    for UAT_FILE in uat-briefing.md uat-test-procedure.md; do
+      if [ ! -f "compliance/evidence/$REQ/$UAT_FILE" ]; then
+        echo "  ERROR: UAT pack incomplete: compliance/evidence/$REQ/$UAT_FILE is missing (templates in the sdlc-implementer skill's references/)"
+        EXIT_CODE=1
+      elif grep -q 'REPLACE' "compliance/evidence/$REQ/$UAT_FILE"; then
+        echo "  ERROR: compliance/evidence/$REQ/$UAT_FILE still has REPLACE markers"
+        EXIT_CODE=1
+      else
+        echo "  OK: $UAT_FILE written"
+      fi
+    done
+    AC_SOURCE=""
+    for CANDIDATE in "compliance/evidence/$REQ/srs-alignment.md" "compliance/evidence/$REQ/implementation-plan.md"; do
+      if [ -f "$CANDIDATE" ] && grep -qE '^\| *AC[0-9]+ *\|' "$CANDIDATE"; then AC_SOURCE="$CANDIDATE"; break; fi
+    done
+    if [ -n "$AC_SOURCE" ] && [ -f "compliance/evidence/$REQ/uat-test-procedure.md" ]; then
+      UAT_MISSING=""
+      for AC_ID in $(grep -oE '^\| *AC[0-9]+ *\|' "$AC_SOURCE" | grep -oE 'AC[0-9]+' | sort -u); do
+        if ! grep -qE "(^|[^A-Za-z0-9])${AC_ID}([^0-9]|$)" "compliance/evidence/$REQ/uat-test-procedure.md"; then
+          UAT_MISSING="$UAT_MISSING $AC_ID"
+        fi
+      done
+      if [ -n "$UAT_MISSING" ]; then
+        echo "  ERROR: uat-test-procedure.md has no step or not-testable row for:${UAT_MISSING} (ACs from $AC_SOURCE)"
+        EXIT_CODE=1
+      else
+        echo "  OK: uat-test-procedure.md accounts for every AC in $AC_SOURCE"
+      fi
     fi
   fi
 

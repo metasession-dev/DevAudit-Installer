@@ -2678,8 +2678,8 @@ describe('syncProject — native TS sync against a fixture', () => {
       // Moved from the general end-to-end test (which doesn't set
       // e2e_regression_enabled): the job's own content is only present
       // when opted in.
-      expect(content).toContain("printf '%s\\n' 'import json'");
-      expect(content).toContain('python3 /tmp/devaudit-extract-e2e-reqs.py');
+      expect(content).toContain('bash scripts/extract-e2e-reqs.sh e2e-artifacts/e2e-regression-results.json');
+      expect(content).not.toContain('python3 /tmp/devaudit-extract-e2e-reqs.py');
       expect(content).not.toContain("done < <(python3 - <<'PY'");
       expect(content).toContain('Walk suites/specs/tests/results recursively');
       expect(content).toContain('**Spec file:** ${SPEC_FILE}');

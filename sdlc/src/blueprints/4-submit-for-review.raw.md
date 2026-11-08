@@ -75,6 +75,8 @@ Before creating a PR, verify all prerequisites are met. **Do NOT skip this check
 - [ ] `compliance/evidence/REQ-XXX/test-scope.md` exists and all items addressed
 - [ ] `compliance/evidence/REQ-XXX/implementation-plan.md` exists (MEDIUM/HIGH risk)
 - [ ] `compliance/evidence/REQ-XXX/ai-prompts.md` exists (if AI was used on MEDIUM/HIGH risk)
+- [ ] Stage 3 operator sign-offs are complete: `bash scripts/check-operator-signoffs.sh REQ-XXX` exits 0
+- [ ] (MEDIUM+ or when the UAT pack applies) the tester's completed `compliance/evidence/REQ-XXX/uat-execution-record.md` has landed on `develop` and uploaded before UAT approval is given
 - [ ] RTM status is `TESTED - PENDING SIGN-OFF`: `grep 'REQ-XXX' compliance/RTM.md`
 - [ ] Release ticket exists: `ls compliance/pending-releases/RELEASE-TICKET-REQ-XXX.md`
 - [ ] Any REQ deferred earlier (ticket `**Release intent:** deferred-to-next`) is listed under `Absorbed predecessor releases` in this release's ticket; the develop-to-main promotion gate (`check-deferred-reqs-in-range.sh`, inside the Release Scope Integrity job) fails the PR otherwise
@@ -137,7 +139,7 @@ gh pr create --base main --head develop --title "type: description" --body "$(ca
 ## UAT Verification
 - UAT Health check: PASS
 - UAT Smoke test: PASS
-- UAT Feature verification: PASS — [what was verified]
+- UAT Feature verification: PASS — [what was verified] (when the UAT pack applies, per uat.human_pack: link the executed `compliance/evidence/REQ-XXX/uat-execution-record.md` instead)
 - UAT URL: [UAT_URL]
 
 ## CI Results (Independent Verification)
@@ -245,7 +247,7 @@ gh pr create --base main --head develop --title "type: description" --body "$(ca
 ## UAT Verification
 - UAT Health check: PASS
 - UAT Smoke test: PASS
-- UAT Feature verification: PASS — [what was verified]
+- UAT Feature verification: PASS — [what was verified] (when the UAT pack applies, per uat.human_pack: link the executed `compliance/evidence/REQ-XXX/uat-execution-record.md` instead)
 
 ## CI Verification
 - [ ] TypeScript (CI)

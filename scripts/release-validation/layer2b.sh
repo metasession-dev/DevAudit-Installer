@@ -12,7 +12,7 @@ RV_DIR="$ROOT/scripts/release-validation"
 # Default: the first of each stack in the local, gitignored consumer list (no names in this repo, #1042).
 RV_2B_CONSUMERS="${RV_2B_CONSUMERS:-$(local_consumers node | head -1) $(local_consumers python | head -1)}"
 # Changed paths that do not ship to consumers (or are covered by their own tests).
-RV_NOT_SHIPPED='^(docs/|tests/|scripts/|\.github/|\.claude/|\.devin/|plugins/|plugin-sdk/|contracts/|node_modules/|cli/(test/|CHANGELOG|README|package|tsconfig|tsup|vitest|\.)|core/(test/|README|LICENSE|package|tsconfig|tsup|vitest|\.)|sdlc/(CLAUDE|SKILLS|README|package)|README|CONTRIBUTING|SECURITY|CHANGELOG|LICENSE|INSTRUCTIONS|CLAUDE|AGENTS|GEMINI|package|\.)'
+RV_NOT_SHIPPED='^(docs/|tests/|scripts/|\.github/|\.claude/|\.devin/|plugins/|plugin-sdk/|contracts/|node_modules/|cli/(test/|CHANGELOG|README|package|tsconfig|tsup|vitest|\.)|core/(test/|CHANGELOG|README|LICENSE|package|tsconfig|tsup|vitest|\.)|sdlc/(CLAUDE|SKILLS|README|package)|README|CONTRIBUTING|SECURITY|CHANGELOG|LICENSE|INSTRUCTIONS|CLAUDE|AGENTS|GEMINI|package|\.)'
 
 # surface_for_path <path>: prints every surface a path belongs to.
 surface_for_path() {

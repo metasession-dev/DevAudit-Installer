@@ -1,0 +1,34 @@
+<!--
+  Phase 5 triage hand-off (devaudit-installer#1199). Fill this and post it BOTH as
+  the comment on the REQ issue and in chat whenever
+  `devaudit release status <REQ> --json` shows an execution in `.executions[]`
+  with outcome `failed` or `timed_out` and no `resolution_type`. The portal
+  refuses "Mark as Released" until each has a documented resolution, and its raw
+  error says nothing about what to do. Replace every <placeholder>. Choose each
+  resolution with references/phase5-triage-decision-table.md.
+-->
+## Phase 5 — N execution(s) block "Mark as Released" on <release>
+
+Release: <base_url>/projects/<slug>/releases/<id>
+
+### 1. Executions blocking closure
+
+| Execution | Suite | Run | Outcome | Classification | Resolution to choose | Remediation reference |
+| --- | --- | --- | --- | --- | --- | --- |
+| <cycle id> | <suite> | <run URL> | <failed / timed_out> | <flake / test bug / seed-data gap / defect fixed forward / defect open> | <retry_passed / superseded / accepted_exception / incident_remediated> | <tracking issue, incident or fix PR URL> |
+
+### 2. Git steps (only for `accepted_exception`; do these first)
+
+1. Open a tracking issue labelled `accepted-e2e-failure` holding the fix plan: <issue URL>.
+2. Copy `references/e2e-accepted-failure.md.template` to `compliance/evidence/<REQ>/accepted-e2e-failure-<spec>.md` and fill it in.
+3. Check it: `bash scripts/validate-risk-acceptance-record.sh --kind e2e compliance/evidence/<REQ>/accepted-e2e-failure-<spec>.md`.
+4. Regenerate `test-execution-summary.md`: `devaudit release status <REQ> --json > /tmp/release-status.json && bash scripts/render-test-executions.sh /tmp/release-status.json`, then `bash scripts/validate-test-summary.sh`.
+5. Land the record through a PR into `$INTEGRATION_BRANCH` (`Ref: <REQ>`).
+
+### 3. Portal step (a project admin, after the git steps)
+
+Open the release page above → journey panel → each execution in the table → choose the resolution in the table. Reason: name the committed record. Remediation reference: the tracking issue or incident URL. A project admin does this; the uploader key and this session cannot.
+
+### 4. Order
+
+git record → portal resolution → re-read `devaudit release status <REQ> --json` (every execution has a `resolution_type`) → **Approve Production** → **Mark as Released**.

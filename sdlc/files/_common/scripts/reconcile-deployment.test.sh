@@ -54,6 +54,9 @@ if run railway MOCK_RAILWAY_JSON="$GOOD"; then ok valid; else no valid; fi
 grep -q '"provenance": "manual_reconciliation"' "$WORK/deployment-reconciliation.json" && ok provenance_evidence || no provenance_evidence
 grep -q '"provider": "railway"' "$WORK/deployment-reconciliation.json" && ok provider_recorded || no provider_recorded
 grep -q 'provider_deployment=r1' "$WORK/gh.log" && ok status_description_names_the_deployment || no status_description_names_the_deployment
+# #842: the status must not set `environment` (the deployment keeps its own, possibly qualified, name); the URL is still sent
+grep -qF -e '-f environment=' "$WORK/gh.log" && no status_post_sends_no_environment || ok status_post_sends_no_environment
+grep -qF -e '-f environment_url=https://health.test' "$WORK/gh.log" && ok status_post_keeps_environment_url || no status_post_keeps_environment_url
 if run railway MOCK_RAILWAY_JSON='[{"id":"r1","status":"SUCCESS","meta":{"repo":"org/app","branch":"main","commitHash":"wrong"}}]'; then no sha_mismatch; else ok sha_mismatch; fi
 if run railway MOCK_RAILWAY_JSON='[{"id":"r1","status":"FAILED","meta":{"repo":"org/app","branch":"main","commitHash":"abc"}}]'; then no provider_failure; else ok provider_failure; fi
 if run railway MOCK_RAILWAY_JSON='[{"id":"other","status":"SUCCESS","meta":{"repo":"org/app","branch":"main","commitHash":"abc"}}]'; then no deployment_not_found; else ok deployment_not_found; fi

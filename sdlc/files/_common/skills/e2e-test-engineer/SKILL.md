@@ -439,6 +439,8 @@ I have reviewed the e2e-scope verdict above and confirm it matches the actual sc
 **Date:** <YYYY-MM-DD>
 ```
 
+Leave the boxes and the `<operator-name>` / `<YYYY-MM-DD>` placeholders as they are: `sdlc-implementer` Phase 3 step 5d collects this sign-off from the operator in one CLI exchange (devaudit-installer#1200). Never fill it in yourself.
+
 Tag for upload as `evidence_type=e2e_scope_decision` — a sibling of `architecture_decision` / `risk_assessment` in the evidence-type registry (see `scripts/upload-evidence.sh`). `sdlc-implementer` picks this up at Stage 3 (Phase 3) alongside the ADR and risk-register artefacts; see its SKILL.md for the upload step. Never skip writing this file — an `e2e_required: false` REQ with no artefact is indistinguishable from a REQ where the question was never asked, which is exactly the silent-drift failure mode this file exists to close.
 
 ### Filing defects

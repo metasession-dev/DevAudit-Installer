@@ -301,6 +301,18 @@ integration branch, CI on its head, the release ticket and the portal state
 reference (an issue or PR) and return to the change-request loop. UAT approval is
 allowed only after UAT has been recorded for the release under review.
 
+For a REQ that needs the human UAT pack (`uat.human_pack`; by default MEDIUM risk
+and above), the tester reads `compliance/evidence/REQ-XXX/uat-briefing.md`, follows
+`uat-test-procedure.md` step by step, and completes `uat-execution-record.md`
+(results per step, defects, recommendation, tester and operator signatures). The
+operator lands the completed record through a PR into the integration branch and
+waits for its evidence upload before the reviewer approves, so the record is on the
+portal at approval time (devaudit-installer#1198, #1212). The templates are in the
+`sdlc-implementer` skill's `references/`. Landing the record moves the release PR's
+head (it is the integration branch), so every required check on the release PR runs
+again, the release-gate E2E tier included: land it as soon as UAT is done. A declared
+bundle has one pack, on its core (devaudit-installer#1226).
+
 When full regression is triggered by a successful production
 `deployment_status`, its evidence importer must record it as Stage 5 production
 E2E evidence for the tracked REQ scope. It must not fall back to

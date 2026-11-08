@@ -62,6 +62,12 @@ in the release ticket, test-execution summary, security summary, and AI-use note
 where relevant. Predecessor evidence remains source-owned and is shown as linked
 history in the portal.
 
+Before the evidence commit, sign the Stage 3 artefacts: `sdlc-implementer` collects
+every pending `## Operator sign-off` block in one reply (Phase 3 step 5d), and
+`Compliance Validation` fails the release PR while one is pending. A HIGH REQ also
+needs the human UAT pack (`uat-briefing.md`, `uat-test-procedure.md`, and the
+`uat-execution-record.md` the tester completes), unless `uat.human_pack` is `never`.
+
 Submit the release for UAT review after evidence is complete.
 
 ### Stage 4: promotion and UAT gate
@@ -79,7 +85,10 @@ review; after UAT is performed, record it on the release page under your own
 login with the tested SHA/build, checklist/evidence references, and a truthful
 outcome (`devaudit release check` confirms readiness before you submit). A failed
 UAT needs a remediation reference and returns to the change-request loop. A
-recorded passing UAT is required before UAT approval.
+recorded passing UAT is required before UAT approval. With the UAT pack, the
+tester's completed `uat-execution-record.md` must have landed on the integration
+branch and been uploaded before the approval. Landing it moves the release PR's head,
+so all of the required checks above run again; land it as soon as UAT is done.
 
 ### Stage 5: production and close-out
 
@@ -87,6 +96,17 @@ After merge, wait for `post-deploy-prod.yml` and the hosting-platform deployment
 status for the merged SHA to reach terminal success. Verify production deployment
 and smoke test execution records and their production evidence. Only then can the required
 independent production approval move the portal release to `released`.
+
+"Mark as Released" is refused while an execution of the release failed or timed
+out and has no documented resolution. Read them with `devaudit release status
+REQ-XXX --json` (an entry in `.executions[]` with outcome `failed` or `timed_out`
+and an empty `resolution_type`). Choose each resolution with the decision table in
+the `sdlc-implementer` skill's `references/phase5-triage-decision-table.md`. The
+post-deploy run tests the deployed SHA, so a spec fix merged later cannot give a
+`retry_passed` for it; use `accepted_exception` with the fix as the remediation
+reference. Land any accepted-exception record first, then a project admin records
+the resolution on the release page (journey panel), then approve production and mark
+it released.
 
 Where post-merge regression is enabled, it must also finish terminal success.
 Treat a timeout as failed verification; retain partial reports/traces/screenshots,

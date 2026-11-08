@@ -134,6 +134,8 @@ I have reviewed the AC-to-SRS-item traces above and confirm:
 **Date:** <YYYY-MM-DD>
 ```
 
+Leave the boxes and the `<operator-name>` / `<YYYY-MM-DD>` placeholders as they are: `sdlc-implementer` Phase 3 step 5d collects this sign-off from the operator in one CLI exchange (devaudit-installer#1200). Never fill it in yourself.
+
 **Step 2 — Tag for upload.** The CI's `compliance-evidence.yml` uploads this file as `evidence_type=srs_alignment` (added to META-COMPLY's `EVIDENCE_TYPE_REGISTRY` in the paired sub-PR). The framework-coverage matrix then closes `ISO29119.3.4` (Test Plan — requirements traceability) and `SOC2.CC2.1` (Communication of policies — when paired with INSTRUCTIONS.md) for this REQ.
 
 **Step 3 — Return gap status to the running `sdlc-implementer` context (devaudit-installer#212 Gap 3).** In addition to producing the artefact, the skill returns a **gap status** to `sdlc-implementer`:

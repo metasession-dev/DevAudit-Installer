@@ -568,7 +568,7 @@ function buildE2eXmlResultUpload(cfg: SdlcConfig): string {
     '              if bash scripts/upload-evidence.sh \\',
     `                ${cfg.project_slug} "$REQ" e2e_result \\`,
     '                e2e-artifacts/e2e-regression-results.xml \\',
-    '                --category e2e_result ${FLAGS} --release "${DERIVED_RELEASE}" \\',
+    '                --category e2e_result ${FLAGS} --release "${REQ_RELEASE}" \\',
     '                "${LINEAGE_FLAGS[@]}" \\',
     '                --meta-key "tier=${TIER}"',
     '              then',

@@ -200,6 +200,27 @@ export const CHECK_EXPLANATIONS: Readonly<Record<string, GapExplanation>> = {
     why: 'GitHub reads a `secrets.X` or `vars.X` that does not exist, or that exists only inside an environment, as an empty string and does not fail. The generated workflows read repository-level values only (no job sets `environment:`), so a configuration value such as an `e2e_env` entry that points at one starts the app without it, and the first symptom is a wait that times out far from the cause.',
     guidance: 'Define the named secret or variable at repository level (`gh secret set NAME` or `gh variable set NAME`, you are prompted for the value), or correct the name in `sdlc-config.json`. Write `${{ secrets.NAME || \'\' }}` for a value that may be empty.',
   },
+  // DevAudit-Installer#1215, #1227
+  'stage3-evidence': {
+    title: 'A pending release is missing Stage 3 evidence its release PR needs',
+    why: "The release PR's Compliance Validation fails while a Stage 3 operator sign-off is pending or the human UAT pack is missing, so the first sign of either would otherwise be a red release PR, after the evidence has been uploaded.",
+    guidance: 'Resume the REQ with the sdlc-implementer skill: Phase 3 step 5d collects the sign-offs in one reply, and step 3c writes the UAT pack. `bash scripts/check-operator-signoffs.sh REQ-XXX` lists pending sign-offs; `devaudit configure set uat.human_pack <risk|always|never>` sets when the pack is required.',
+  },
+  'stage3-evidence:signoff-pending': {
+    title: 'A Stage 3 sign-off is still pending',
+    why: "An `## Operator sign-off` block in the REQ's evidence has an unanswered box or a missing reviewer or date. The block is the operator's attestation of the finished evidence; the release PR fails while it is pending.",
+    guidance: 'Resume the REQ with the sdlc-implementer skill and reply `approved`, `updated and approved`, or the changes needed (Phase 3 step 5d); or tick the boxes that apply, mark one that does not apply `- [~]`, and fill Reviewer and Date.',
+  },
+  'stage3-evidence:uat-pack-missing': {
+    title: 'The human UAT pack is missing',
+    why: 'A UAT tester who does not know the system needs a briefing and a step-by-step procedure, and the completed execution record is ISO 29119-3 evidence. `uat.human_pack` requires the pack for this REQ, and the release PR fails without it.',
+    guidance: 'Resume the REQ with the sdlc-implementer skill (Phase 3 step 3c writes the pack from its templates), or `devaudit configure set uat.human_pack never` if the project does not need one.',
+  },
+  'stage3-evidence:uat.human_pack': {
+    title: 'uat.human_pack has a value DevAudit does not know',
+    why: 'Only risk, always and never are understood; anything else is read as risk, so a hand edit meant to turn the pack off or on silently does neither.',
+    guidance: 'Set it with `devaudit configure set uat.human_pack <risk|always|never>`.',
+  },
   'test-data': {
     title: 'The test data is not fully declared',
     why: 'Tests that write data need a place to write it that cannot hurt anyone, a way to put it back, and a seed the tests can rely on. When any of that is missing or contradictory, a run can collide with people, leave data behind, or pass while hiding tests that skipped for lack of data.',
@@ -281,7 +302,13 @@ export function gapsFromCheck(check: CheckResult): Gap[] {
   if (check.findings && check.findings.length > 0) {
     return check.findings.map((finding) => {
       // A finding may carry its own explanation, keyed `<check>:<subject>` (the test-data findings do).
-      const gap = findingToGap(check.name, finding, CHECK_EXPLANATIONS[`${check.name}:${finding.subject}`] ?? explanation);
+      // A per-REQ subject (`REQ-120: signoff-pending`) is looked up without its REQ prefix (#1227).
+      const bare = /^REQ-[A-Za-z0-9-]+: /.test(finding.subject) ? finding.subject.slice(finding.subject.indexOf(': ') + 2) : finding.subject;
+      const gap = findingToGap(
+        check.name,
+        finding,
+        CHECK_EXPLANATIONS[`${check.name}:${finding.subject}`] ?? CHECK_EXPLANATIONS[`${check.name}:${bare}`] ?? explanation,
+      );
       if (!finding.alternatives || finding.alternatives.length === 0) return gap;
       const extra = finding.alternatives.map((alt) => findingToGap(check.name, { ...finding, remediation: alt }, explanation).options[0]!);
       return { ...gap, options: [...gap.options, ...extra] };

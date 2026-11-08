@@ -518,6 +518,14 @@ else
       #       E2E gate (impact assessment, decision-maker, review date,
       #       tracking issue). DevAudit-Installer#1016.
       #
+      #   - uat-briefing.md, uat-test-procedure.md → test_cases
+      #       ISO 29119-3 test plan context and test case/procedure
+      #       specification for the human UAT pack. DevAudit-Installer#1198.
+      #
+      #   - uat-execution-record.md → test_report
+      #       ISO 29119-3 test execution log, incident report and completion
+      #       report for the human UAT run. DevAudit-Installer#1198.
+      #
       #   - test-scope.md → test_scope
       #       ISO 29119 §3.3 (Test scope).
       #
@@ -554,6 +562,10 @@ else
           EVTYPE=e2e_scope_decision; EVCAT=planning ;;
         accepted-e2e-failure-*.md)
           EVTYPE=accepted_e2e_failure; EVCAT=planning ;;
+        uat-briefing.md|uat-test-procedure.md)
+          EVTYPE=test_cases; EVCAT=planning ;;
+        uat-execution-record.md)
+          EVTYPE=test_report; EVCAT=test_report ;;
         test-scope.md)
           EVTYPE=test_scope; EVCAT=planning ;;
         test-plan.md)

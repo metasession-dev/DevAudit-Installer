@@ -198,11 +198,17 @@ Prefer the first-class release-journey / execution API when the portal exposes i
 
 ```bash
 # Example:
-curl -s -H "Authorization: Bearer ${DEVAUDIT_API_KEY}" \
+curl -sf -H "Authorization: Bearer ${DEVAUDIT_API_KEY}" \
   "${DEVAUDIT_BASE_URL%/}/api/projects/<slug>/releases/REQ-XXX/journey" \
-  > /tmp/release-journey.json
-bash scripts/render-test-executions.sh /tmp/release-journey.json
+  > /tmp/release-journey.json \
+  && bash scripts/render-test-executions.sh /tmp/release-journey.json
+
+# or, with your viewer key, the CLI's own read (DevAudit-Installer#1199):
+devaudit release status REQ-XXX --json > /tmp/release-status.json \
+  && bash scripts/render-test-executions.sh /tmp/release-status.json
 ```
+
+If the read fails, stop and report it instead of rendering: a table rendered from a failed read says "No first-class test execution records", which is not true (DevAudit-Installer#1214).
 
 The helper renders a first-class table when `.testExecutions[]` is present, preceded by a `<!-- generated-by: render-test-executions.sh ... -->` marker. It must not infer executions from legacy artifact grouping. **Paste the helper's output as-is - never type rows by hand.** It lists every CI execution per attempt (run id and attempt), so a failed attempt 1 that a passing attempt 2 superseded stays visible. A summary carrying a `CI as of:` stamp without the marker fails validation (devaudit-installer#1016); record local runs with their real counts (`3 failed`), never plain `passed` when failures occurred.
 
@@ -542,6 +548,10 @@ Create `compliance/pending-releases/RELEASE-TICKET-REQ-XXX.md`:
 
 ---
 
+## UAT pack
+
+When the UAT pack applies (`uat.human_pack`; default: MEDIUM or higher): briefing `compliance/evidence/REQ-XXX/uat-briefing.md`, procedure `compliance/evidence/REQ-XXX/uat-test-procedure.md`, record `compliance/evidence/REQ-XXX/uat-execution-record.md`. Write "Not required (LOW risk)" otherwise.
+
 ## Summary
 [1-3 sentences]
 
@@ -645,6 +655,16 @@ Required when `compliance/pending-releases/BUNDLED-CHANGES-REQ-XXX.md` exists or
 | [date] | Submitted for review | [who] | PR #[number] |
 ```
 
+### Step 8b: Collect the Stage 3 Operator Sign-offs (DevAudit-Installer#1200)
+
+`srs-alignment.md`, `architecture-decision.md`, `risk-assessment.md` and `e2e-scope-decision.md` each end in an `## Operator sign-off` block (unticked `- [ ]` boxes, `**Reviewer:**`, `**Date:**`). They attest to the finished evidence, so the plan approval does not cover them. Check what is pending:
+
+```bash
+bash scripts/check-operator-signoffs.sh REQ-XXX
+```
+
+The operator reviews each file, ticks the boxes that apply, marks a conditional box that does not apply `- [~]`, and fills Reviewer (their name) and Date (YYYY-MM-DD). With `sdlc-implementer` this is one reply in the session: `approved`, `updated and approved`, or a list of changes. An agent records the reviewer from the operator's reply, never as itself. Collect them before the compliance commit (Step 9), so the evidence CI uploads is already signed (DevAudit-Installer#1212). The check must exit 0 before Stage 4; `Compliance Validation` fails the release PR while any block is pending.
+
 ### Step 9: Commit Compliance Docs and Push
 
 Commit compliance documents and push immediately. Heavy CI gates (E2E, TypeScript, build) skip markdown-only pushes via `paths-ignore`, so this push is cheap — but the Compliance Evidence Upload workflow fires and pushes the new artefacts to DevAudit. Pushing immediately means destination breakage (dead alias URL, revoked API key, schema drift) surfaces in seconds, not at the end of the stage.
@@ -710,6 +730,10 @@ gh run watch --workflow "Compliance Evidence Upload"
 ```
 
 If it fails — typically a stale `devaudit.base_url`, a revoked `DEVAUDIT_API_KEY`, or schema drift — fix the configuration and re-push. Resolving this here is fast and recoverable; the same failure caught at the end of the stage would mean a long detour through UAT verification before discovering the upload never happened.
+
+### Step 9b: Human UAT Pack (DevAudit-Installer#1198)
+
+When `uat.human_pack` in `sdlc-config.json` (`risk`, the default: MEDIUM risk and above; `always`; `never`) requires it, write the pack a UAT tester needs, under `compliance/evidence/REQ-XXX/`: `uat-briefing.md` (context for someone who does not know the system), `uat-test-procedure.md` (numbered steps, each with AC, precondition, exact action, exact expected result, evidence file name; a positive and a negative step per AC; ACs a human cannot test listed with a reason) and `uat-execution-record.md` (the tester's log, defect log and sign-off). The templates are in the `sdlc-implementer` skill's `references/`. `validate-compliance-artifacts.sh` fails the release PR while the briefing or procedure is missing, still has `REPLACE` markers, or leaves an AC unaccounted for; it warns when the RTM has no Risk value for the REQ. `devaudit doctor` (`stage3-evidence`) reports a missing pack earlier. The tester completes the record during UAT and it is committed before the merge.
 
 ### Step 10: UAT-Environment Verification (CONDITIONAL)
 

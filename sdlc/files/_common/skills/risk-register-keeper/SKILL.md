@@ -161,6 +161,8 @@ I have reviewed the risk register entries above and confirm:
 **Date:** <YYYY-MM-DD>
 ```
 
+Leave the boxes and the `<operator-name>` / `<YYYY-MM-DD>` placeholders as they are: `sdlc-implementer` Phase 3 step 5d collects this sign-off from the operator in one CLI exchange (devaudit-installer#1200). Never fill it in yourself.
+
 **Step 2 — Tag for upload.** The CI's `compliance-evidence.yml` uploads this file as `evidence_type=risk_assessment` (added to META-COMPLY's `EVIDENCE_TYPE_REGISTRY` in the paired sub-PR). The framework-coverage matrix attribution depends on `framework-registry-auditor`'s review — see the META-COMPLY-side PR for final clause closures.
 
 **Step 3 — Return to the running `sdlc-implementer` context.** The skill's job ends at the artefact + the operator sign-off. The orchestrator immediately continues with the rest of Stage 3 inline — no pause, no operator nudge needed. (Skills run in the same invocation context; control returns synchronously when this skill exits. See `sdlc-implementer/SKILL.md` § *Sub-skill return semantics*.)

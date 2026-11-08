@@ -641,6 +641,199 @@ assert_grep "no mismatch warning when ticket declares intent" 'WARNING: RTM stat
 assert_exit "validator exits 0 with DEFERRED RTM row and pending ticket" 0
 cd "$WORKDIR"
 
+# uat_fixture <dir> <req> <risk> — a REQ with full base evidence, an AC table in srs-alignment.md
+# (AC1, AC2) and no UAT files yet.
+uat_fixture() {
+  local dir="$1" req="$2" risk="$3"
+  make_fixture "$dir" "Ref: $req"
+  {
+    echo '# RTM'
+    echo
+    echo '| ID | Description | Risk | Status |'
+    echo '| --- | --- | --- | --- |'
+    echo "| $req | UAT pack check | $risk | TESTED - PENDING SIGN-OFF |"
+  } > compliance/RTM.md
+  mkdir -p "compliance/evidence/$req"
+  echo "scope" > "compliance/evidence/$req/test-scope.md"
+  echo "plan" > "compliance/evidence/$req/test-plan.md"
+  echo "summary" > "compliance/evidence/$req/test-execution-summary.md"
+  echo "impl" > "compliance/evidence/$req/implementation-plan.md"
+  printf '%s\n' '| AC | SRS item | Status |' '| --- | --- | --- |' '| AC1 | REQ-A-001 | unchanged |' '| AC2 | REQ-A-002 | unchanged |' > "compliance/evidence/$req/srs-alignment.md"
+  touch "compliance/pending-releases/RELEASE-TICKET-$req.md"
+}
+
+echo "Case UAT-1: a MEDIUM REQ without a UAT pack fails (#1198)"
+uat_fixture "$WORKDIR/caseuat1" REQ-050 MEDIUM
+git add . && git commit -q --amend --no-edit
+run_validator
+assert_grep "briefing reported missing" 'ERROR: UAT pack incomplete: .*uat-briefing.md is missing' 1
+assert_grep "procedure reported missing" 'ERROR: UAT pack incomplete: .*uat-test-procedure.md is missing' 1
+assert_exit "validator exits 1" 1
+cd "$WORKDIR"
+
+echo "Case UAT-2: a LOW REQ needs no UAT pack (#1198)"
+uat_fixture "$WORKDIR/caseuat2" REQ-051 LOW
+git add . && git commit -q --amend --no-edit
+run_validator
+assert_grep "no UAT pack error" 'UAT pack incomplete' 0
+assert_exit "validator exits 0" 0
+cd "$WORKDIR"
+
+echo "Case UAT-3: a pack with REPLACE markers, or missing an AC, fails (#1198)"
+uat_fixture "$WORKDIR/caseuat3" REQ-052 HIGH
+printf '%s\n' '# Briefing' 'Background: REPLACE' > compliance/evidence/REQ-052/uat-briefing.md
+printf '%s\n' '| Step | AC |' '| --- | --- |' '| 1 | AC1 |' > compliance/evidence/REQ-052/uat-test-procedure.md
+git add . && git commit -q --amend --no-edit
+run_validator
+assert_grep "REPLACE markers reported" 'uat-briefing.md still has REPLACE markers' 1
+assert_grep "AC2 reported as missing" 'no step or not-testable row for: AC2' 1
+assert_grep "AC1 is accounted for, not reported" 'for:.*AC1' 0
+assert_exit "validator exits 1" 1
+cd "$WORKDIR"
+
+echo "Case UAT-4: a complete pack passes, and uat.human_pack: always requires it on a LOW REQ (#1198, #1215)"
+uat_fixture "$WORKDIR/caseuat4" REQ-053 LOW
+printf '{"uat":{"human_pack":"always"}}\n' > sdlc-config.json
+printf '%s\n' '# Briefing' 'Background: a shop.' > compliance/evidence/REQ-053/uat-briefing.md
+printf '%s\n' '| Step | AC |' '| --- | --- |' '| 1 | AC1 |' '' '| AC | Reason |' '| --- | --- |' '| AC2 | automated only |' > compliance/evidence/REQ-053/uat-test-procedure.md
+git add . && git commit -q --amend --no-edit
+run_validator
+assert_grep "pack accepted" 'OK: uat-test-procedure.md accounts for every AC' 1
+assert_grep "no UAT error" 'ERROR: .*UAT|REPLACE markers' 0
+assert_exit "validator exits 0" 0
+cd "$WORKDIR"
+
+echo "Case UAT-6: uat.human_pack: always fails a LOW REQ without a pack (#1215)"
+uat_fixture "$WORKDIR/caseuat6" REQ-054 LOW
+printf '{"uat":{"human_pack":"always"}}\n' > sdlc-config.json
+git add . && git commit -q --amend --no-edit
+run_validator
+assert_grep "pack required by always" 'UAT pack incomplete' 1
+assert_exit "validator exits 1" 1
+cd "$WORKDIR"
+
+echo "Case UAT-7: uat.human_pack: never does not require a pack on a HIGH REQ (#1215)"
+uat_fixture "$WORKDIR/caseuat7" REQ-055 HIGH
+printf '{"uat":{"human_pack":"never"}}\n' > sdlc-config.json
+git add . && git commit -q --amend --no-edit
+run_validator
+assert_grep "no pack required by never" 'UAT pack incomplete' 0
+assert_exit "validator exits 0" 0
+cd "$WORKDIR"
+
+echo "Case UAT-8: no Risk value warns that the requirement was not evaluated (#1215)"
+uat_fixture "$WORKDIR/caseuat8" REQ-056 ""
+git add . && git commit -q --amend --no-edit
+run_validator
+assert_grep "missing Risk warns" 'WARNING: no Risk value for REQ-056 in compliance/RTM.md; UAT pack requirement not evaluated' 1
+assert_grep "no pack error" 'UAT pack incomplete' 0
+cd "$WORKDIR"
+
+# uat_bundle <dir> <checked REQ> — REQ-070 (core, MEDIUM) and REQ-071 (co_tracked member, MEDIUM), no packs
+uat_bundle() {
+  local dir="$1" req="$2"
+  make_fixture "$dir" "Ref: $req"
+  {
+    echo '# RTM'
+    echo
+    echo '| ID | Description | Risk | Status |'
+    echo '| --- | --- | --- | --- |'
+    echo '| REQ-070 | Bundle core | MEDIUM | TESTED - PENDING SIGN-OFF |'
+    echo '| REQ-071 | Bundle member | MEDIUM | TESTED - PENDING SIGN-OFF |'
+  } > compliance/RTM.md
+  for r in REQ-070 REQ-071; do
+    mkdir -p "compliance/evidence/$r"
+    echo "scope" > "compliance/evidence/$r/test-scope.md"
+    echo "plan" > "compliance/evidence/$r/test-plan.md"
+    echo "summary" > "compliance/evidence/$r/test-execution-summary.md"
+    echo "impl" > "compliance/evidence/$r/implementation-plan.md"
+    touch "compliance/pending-releases/RELEASE-TICKET-$r.md"
+  done
+  printf '%s\n' '### Co-Tracked Bundle Members' '- `REQ-071` (co-tracked/bundled)' > compliance/pending-releases/BUNDLED-CHANGES-REQ-070.md
+  printf '%s' '{"members":[{"version":"REQ-071","role":"co_tracked"}]}' > compliance/pending-releases/BUNDLED-CHANGES-REQ-070.json
+  git add . && git commit -q --amend --no-edit
+}
+
+echo "Case UAT-9: a co_tracked member of a live bundle needs no UAT pack of its own (#1226)"
+uat_bundle "$WORKDIR/caseuat9" REQ-071
+run_validator
+assert_grep "member reported as covered by the core" 'INFO: REQ-071 is a co_tracked member of REQ-070; its UAT pack is the bundle' 1
+assert_grep "no pack error for the member" 'UAT pack incomplete: compliance/evidence/REQ-071' 0
+cd "$WORKDIR"
+
+echo "Case UAT-10: the bundle core still needs the pack (#1226)"
+uat_bundle "$WORKDIR/caseuat10" REQ-070
+run_validator
+assert_grep "pack required on the core" 'UAT pack incomplete: compliance/evidence/REQ-070/uat-briefing.md is missing' 1
+assert_exit "validator exits 1" 1
+cd "$WORKDIR"
+
+echo "Case UAT-11: an invalid uat.human_pack warns and falls back to risk (#1227)"
+uat_fixture "$WORKDIR/caseuat11" REQ-057 HIGH
+printf '{"uat":{"human_pack":"Always"}}\n' > sdlc-config.json
+git add . && git commit -q --amend --no-edit
+run_validator
+assert_grep "invalid value warned" 'WARNING: uat.human_pack is "Always"; expected risk, always or never' 1
+assert_grep "risk rule applied (HIGH needs the pack)" 'UAT pack incomplete' 1
+cd "$WORKDIR"
+
+echo "Case UAT-5: the UAT filenames and accepted-e2e-failure records are known artifacts (#1198)"
+cd "$WORKDIR/caseuat4"
+run_validator
+assert_grep "the pack files are present in this fixture" 'OK: uat-briefing.md written' 1
+assert_grep "no unrecognised-artifact warning for the pack" 'Unrecognized artifact filename: .*uat-' 0
+cd "$WORKDIR"
+
+echo "Case TERM-1: a RELEASED MEDIUM REQ with no pack and an unsigned block is not checked (#1210)"
+uat_fixture "$WORKDIR/caseterm1" REQ-060 MEDIUM
+sed -i 's/TESTED - PENDING SIGN-OFF/RELEASED/' compliance/RTM.md
+printf '%s\n' '## Operator sign-off' '- [ ] a' '**Reviewer:** <operator-name>' '**Date:** <YYYY-MM-DD>' > compliance/evidence/REQ-060/architecture-decision.md
+git add . && git commit -q --amend --no-edit
+run_validator
+assert_grep "released REQ reported as not checked" 'INFO: REQ-060 is released/superseded' 1
+assert_grep "no UAT pack error" 'UAT pack incomplete' 0
+assert_grep "no sign-off error" 'Operator sign-off pending' 0
+assert_exit "validator exits 0 for a released REQ re-checked through a close-out commit" 0
+cd "$WORKDIR"
+
+echo "Case TERM-2: a ticket in approved-releases/ is terminal even before the RTM row changes (#1210)"
+uat_fixture "$WORKDIR/caseterm2" REQ-061 HIGH
+git mv -q compliance/pending-releases/RELEASE-TICKET-REQ-061.md compliance/approved-releases/RELEASE-TICKET-REQ-061.md 2>/dev/null \
+  || mv compliance/pending-releases/RELEASE-TICKET-REQ-061.md compliance/approved-releases/RELEASE-TICKET-REQ-061.md
+printf '%s\n' '## Operator sign-off' '- [ ] a' '**Reviewer:** <operator-name>' '**Date:** <YYYY-MM-DD>' > compliance/evidence/REQ-061/risk-assessment.md
+git add -A && git commit -q --amend --no-edit
+run_validator
+assert_grep "approved-releases ticket reported as not checked" 'INFO: REQ-061 is released/superseded' 1
+assert_grep "no UAT pack error" 'UAT pack incomplete' 0
+assert_grep "no sign-off error" 'Operator sign-off pending' 0
+assert_exit "validator exits 0" 0
+cd "$WORKDIR"
+
+echo "Case TERM-3: an in-flight REQ is still checked (#1210)"
+uat_fixture "$WORKDIR/caseterm3" REQ-062 MEDIUM
+git add . && git commit -q --amend --no-edit
+run_validator
+assert_grep "in-flight REQ not reported as released" 'INFO: REQ-062 is released/superseded' 0
+assert_grep "pack still required" 'UAT pack incomplete' 1
+assert_exit "validator exits 1" 1
+cd "$WORKDIR"
+
+echo "Case SIGNOFF-RC: a sign-off check that cannot run is an ERROR, not a silent pass (#1211)"
+uat_fixture "$WORKDIR/casesignrc" REQ-063 LOW
+git add . && git commit -q --amend --no-edit
+# A copy of the validator next to a sign-off script that fails to run.
+mkdir -p "$WORKDIR/casesignrc-scripts"
+cp "$VALIDATOR" "$SCRIPT_DIR/markdown-table.sh" "$WORKDIR/casesignrc-scripts/"
+printf '%s\n' '#!/usr/bin/env bash' 'echo "simulated failure" >&2' 'exit 3' > "$WORKDIR/casesignrc-scripts/check-operator-signoffs.sh"
+set +e
+OUT_FILE=$(mktemp)
+bash "$WORKDIR/casesignrc-scripts/validate-compliance-artifacts.sh" base > "$OUT_FILE" 2>&1
+LAST_EXIT=$?
+set -e
+assert_grep "the failed run is reported" 'ERROR: Stage 3 operator sign-off check could not run \(exit 3\)' 1
+assert_exit "validator exits 1" 1
+cd "$WORKDIR"
+
 echo "Case 20: DEFERRED RTM row without ticket intent warns but does not fail"
 make_fixture "$WORKDIR/case20" "Ref: REQ-041"
 {
@@ -659,6 +852,50 @@ git add . && git commit -q --amend --no-edit
 run_validator
 assert_grep "mismatch warning" 'WARNING: RTM status is DEFERRED but' 1
 assert_exit "validator exits 0" 0
+cd "$WORKDIR"
+
+echo "Case 21: a pending Stage 3 operator sign-off fails the validator (#1200)"
+make_fixture "$WORKDIR/case21" "Ref: REQ-042"
+{
+  echo '# RTM'
+  echo
+  echo '| ID | Description | Status |'
+  echo '| --- | --- | --- |'
+  echo '| REQ-042 | Sign-off check | TESTED - PENDING SIGN-OFF |'
+} > compliance/RTM.md
+mkdir -p compliance/evidence/REQ-042
+echo "scope" > compliance/evidence/REQ-042/test-scope.md
+echo "plan" > compliance/evidence/REQ-042/test-plan.md
+echo "summary" > compliance/evidence/REQ-042/test-execution-summary.md
+printf '%s\n' '## Operator sign-off' '' '- [ ] The verdict matches.' '' '**Reviewer:** <operator-name>' '**Date:** <YYYY-MM-DD>' > compliance/evidence/REQ-042/architecture-decision.md
+touch compliance/pending-releases/RELEASE-TICKET-REQ-042.md
+git add . && git commit -q --amend --no-edit
+run_validator
+assert_grep "pending sign-off ERROR names the file" 'ERROR: Operator sign-off pending' 1
+assert_grep "the pending file is listed" 'architecture-decision.md: 1 unticked box' 1
+assert_exit "validator exits 1 with a pending sign-off" 1
+cd "$WORKDIR"
+
+echo "Case 22: a completed Stage 3 operator sign-off passes the validator (#1200)"
+make_fixture "$WORKDIR/case22" "Ref: REQ-043"
+{
+  echo '# RTM'
+  echo
+  echo '| ID | Description | Status |'
+  echo '| --- | --- | --- |'
+  echo '| REQ-043 | Sign-off check | TESTED - PENDING SIGN-OFF |'
+} > compliance/RTM.md
+mkdir -p compliance/evidence/REQ-043
+echo "scope" > compliance/evidence/REQ-043/test-scope.md
+echo "plan" > compliance/evidence/REQ-043/test-plan.md
+echo "summary" > compliance/evidence/REQ-043/test-execution-summary.md
+printf '%s\n' '## Operator sign-off' '' '- [x] The verdict matches.' '' '**Reviewer:** alice' '**Date:** 2026-11-08' > compliance/evidence/REQ-043/architecture-decision.md
+touch compliance/pending-releases/RELEASE-TICKET-REQ-043.md
+git add . && git commit -q --amend --no-edit
+run_validator
+assert_grep "no pending sign-off ERROR" 'ERROR: Operator sign-off pending' 0
+assert_grep "sign-offs reported complete" 'OK: Stage 3 operator sign-offs complete' 1
+assert_exit "validator exits 0 with a completed sign-off" 0
 cd "$WORKDIR"
 
 echo

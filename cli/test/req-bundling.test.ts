@@ -175,6 +175,30 @@ describe('declared bundle = one portal release (#955)', () => {
     expect(submit).toContain('sha256sum');
   });
 
+  it('scopes REQs recovered from the E2E artifact to the release before upload (#1201)', () => {
+    const evidenceTemplate = read('sdlc/files/ci/compliance-evidence.yml.template');
+    const scope = readCommon('scripts/scope-e2e-reqs-to-release.sh');
+    // #1214: the artifact scan warns instead of silently finding nothing when its script is missing
+    expect(evidenceTemplate).toContain('[ ! -f scripts/extract-e2e-reqs.sh ]; then');
+    expect(evidenceTemplate).toContain('REQ recovery from the artifact skipped (#1214)');
+    // #1213: one resolver for REQs from tickets and from the artifact; a member gets the JSON only when tagged
+    expect(evidenceTemplate).toContain('bash scripts/resolve-e2e-upload-targets.sh ${SOURCE_FLAG[@]+"${SOURCE_FLAG[@]}"} "${DERIVED_RELEASE}" e2e-artifacts/e2e-regression-results.json "${REQS[@]}"');
+    expect(evidenceTemplate).not.toContain('REQ_SOURCE');
+    // #1225: per-REQ release in the loop, a resolver failure stops the step, artifact REQs get no release of their own
+    expect(evidenceTemplate).toContain('REQ_RELEASE="${REQ_RELEASE_OF[$REQ]:-$DERIVED_RELEASE}"');
+    expect(evidenceTemplate).toContain('not uploading E2E evidence under a guessed release');
+    expect(evidenceTemplate).toContain('SOURCE_FLAG=(--artifact-reqs)');
+    expect(evidenceTemplate).not.toContain('--release "${DERIVED_RELEASE}"');
+    expect(evidenceTemplate).toContain('[ "${REQ_JSON_OF[$REQ]:-yes}" = "yes" ]');
+    // the bare-date override runs before the resolver, which runs before any upload
+    expect(evidenceTemplate.indexOf('overriding bare-date release')).toBeLessThan(evidenceTemplate.indexOf('resolve-e2e-upload-targets.sh'));
+    expect(evidenceTemplate.indexOf('resolve-e2e-upload-targets.sh')).toBeLessThan(
+      evidenceTemplate.indexOf('report-test-execution.sh start'),
+    );
+    expect(scope).toContain('select(.role == "co_tracked")');
+    expect(scope).toContain('compliance/approved-releases/BUNDLED-CHANGES-${RELEASE}.json');
+  });
+
   it('closes declared-bundle members out with the core', () => {
     expect(closeOut).toContain('mark_ticket_released_with_bundle');
     expect(closeOut).toContain('select((.role // "") == "co_tracked")');

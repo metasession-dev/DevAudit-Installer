@@ -25,7 +25,7 @@ Reproduced from Phase 0 of the `sdlc-implementer` skill, which holds the canonic
 | Upload evidence (Phase 3) | CI: `Compliance Evidence Upload` on the compliance commit |
 | Read portal state; check readiness (Phases 3-5) | Agent, with the viewer key: `devaudit release status`, `devaudit release check` |
 | Submit for UAT review; record UAT; approve or request changes (Phase 4) | A person, in the portal UI under their own login |
-| Resolve a failed test execution (Phases 4-5) | A project admin, in the portal UI (pending metasession-dev/devaudit#918) |
+| Resolve a failed test execution (Phases 4-5) | A project admin, in the portal UI |
 | Report test executions; reconcile the deployment (Phase 5) | CI |
 | Approve Production; Mark as Released (Phase 5) | A person, in the portal UI |
 | Close-out PR (Phase 5) | CI opens it; reviewed and merged as Phase 5 says |
