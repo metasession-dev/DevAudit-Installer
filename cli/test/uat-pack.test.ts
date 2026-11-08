@@ -53,10 +53,11 @@ describe('the pack is wired into the orchestrator, validator and uploader (#1198
     expect(skill.indexOf('UAT execution record check')).toBeLessThan(skill.indexOf('`gh pr merge <M> --merge`'));
   });
 
-  it('the validator requires the pack for MEDIUM+ or uat.enabled and checks AC coverage', async () => {
+  it('the validator requires the pack per uat.human_pack (default MEDIUM+) and checks AC coverage', async () => {
     const validator = await read('sdlc/files/_common/scripts/validate-compliance-artifacts.sh');
     expect(validator).toContain("'MEDIUM|HIGH|CRITICAL'");
-    expect(validator).toContain('.uat.enabled // false');
+    expect(validator).toContain(".uat.human_pack // \"risk\"");
+    expect(validator).not.toContain('.uat.enabled');
     expect(validator).toContain('still has REPLACE markers');
     expect(validator).toContain('has no step or not-testable row for');
     for (const known of ['uat-briefing.md', 'uat-test-procedure.md', 'uat-execution-record.md', 'e2e-scope-decision.md']) {

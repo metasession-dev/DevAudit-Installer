@@ -550,7 +550,7 @@ Create `compliance/pending-releases/RELEASE-TICKET-REQ-XXX.md`:
 
 ## UAT pack
 
-MEDIUM or higher, or `uat.enabled`: briefing `compliance/evidence/REQ-XXX/uat-briefing.md`, procedure `compliance/evidence/REQ-XXX/uat-test-procedure.md`, record `compliance/evidence/REQ-XXX/uat-execution-record.md`. Write "Not required (LOW risk)" otherwise.
+When the UAT pack applies (`uat.human_pack`; default: MEDIUM or higher): briefing `compliance/evidence/REQ-XXX/uat-briefing.md`, procedure `compliance/evidence/REQ-XXX/uat-test-procedure.md`, record `compliance/evidence/REQ-XXX/uat-execution-record.md`. Write "Not required (LOW risk)" otherwise.
 
 ## Summary
 [1-3 sentences]
@@ -733,7 +733,7 @@ If it fails — typically a stale `devaudit.base_url`, a revoked `DEVAUDIT_API_K
 
 ### Step 9b: Human UAT Pack (DevAudit-Installer#1198)
 
-For a MEDIUM or higher REQ, or when `sdlc-config.json` has `uat.enabled: true`, write the pack a UAT tester needs, under `compliance/evidence/REQ-XXX/`: `uat-briefing.md` (context for someone who does not know the system), `uat-test-procedure.md` (numbered steps, each with AC, precondition, exact action, exact expected result, evidence file name; a positive and a negative step per AC; ACs a human cannot test listed with a reason) and `uat-execution-record.md` (the tester's log, defect log and sign-off). The templates are in the `sdlc-implementer` skill's `references/`. `validate-compliance-artifacts.sh` fails the release PR while the briefing or procedure is missing, still has `REPLACE` markers, or leaves an AC unaccounted for. The tester completes the record during UAT and it is committed before the merge.
+When `uat.human_pack` in `sdlc-config.json` (`risk`, the default: MEDIUM risk and above; `always`; `never`) requires it, write the pack a UAT tester needs, under `compliance/evidence/REQ-XXX/`: `uat-briefing.md` (context for someone who does not know the system), `uat-test-procedure.md` (numbered steps, each with AC, precondition, exact action, exact expected result, evidence file name; a positive and a negative step per AC; ACs a human cannot test listed with a reason) and `uat-execution-record.md` (the tester's log, defect log and sign-off). The templates are in the `sdlc-implementer` skill's `references/`. `validate-compliance-artifacts.sh` fails the release PR while the briefing or procedure is missing, still has `REPLACE` markers, or leaves an AC unaccounted for; it warns when the RTM has no Risk value for the REQ. `devaudit doctor` (`stage3-evidence`) reports a missing pack earlier. The tester completes the record during UAT and it is committed before the merge.
 
 ### Step 10: UAT-Environment Verification (CONDITIONAL)
 

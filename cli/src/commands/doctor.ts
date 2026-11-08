@@ -26,6 +26,7 @@ import { FIX_EXIT_UNAPPLIED, runFix, type FixDeps, type FixReport } from './doct
 import { onboardingChecksFor, type OnboardingCheckDeps } from './doctor-onboarding.js';
 import { testDataCheck, type TestDataDeps } from './doctor-testdata.js';
 import { ciValuesCheck, type CiValuesDeps } from './doctor-values.js';
+import { stage3EvidenceCheck } from './doctor-stage3.js';
 import type { Gap } from '@metasession.co/devaudit-core';
 import { commitsInRange, refExists, reqHasCommits } from '../lib/req-commits.js';
 
@@ -853,6 +854,8 @@ export async function collectDoctorState(options: DoctorOptions = {}, scope: { r
         await timed('test-data', () => testDataCheck(consumer, onboardingBase, options.testDataDeps)),
         // DevAudit-Installer#1160: every secret/variable the configuration references exists where the workflows can read it.
         await timed('ci-values', () => ciValuesCheck(consumer, options.ciValuesDeps)),
+        // DevAudit-Installer#1215: pending Stage 3 sign-offs and a missing UAT pack, before the release PR fails on them.
+        await timed('stage3-evidence', () => stage3EvidenceCheck(consumer)),
       ]
     : onboardingBase;
   // Release-deferral diagnosis (#956 phase 3a-2): read-only, non-gating, and
