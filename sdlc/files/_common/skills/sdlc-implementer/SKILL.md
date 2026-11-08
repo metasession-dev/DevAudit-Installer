@@ -683,11 +683,25 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
 6. **Evidence reaches the portal through CI, not from this session (devaudit-installer#1099).** The artefacts above are committed under `compliance/evidence/REQ-XXX/`; when the compliance commit reaches `$INTEGRATION_BRANCH`, the `Compliance Evidence Upload` workflow uploads them. Evidence types CI uploads include `screenshot`, `e2e_result`, `test_report`, `audit_log`, `compliance_document`, `manual_upload`, `srs_alignment` (from step 1), `architecture_decision` (from step 2), `risk_assessment` (from step 3), `e2e_scope_decision` (verified in step 3b). Find the run for that commit with `gh run list --workflow "Compliance Evidence Upload" --commit <sha>`, wait for it to finish (`gh run watch <run-id>`), and report the result. **If the run failed, report its URL to the operator and stop; do not retry from the session.**
 7. **Verify the uploads landed.** Once the run succeeded, run `devaudit release status --json` (viewer key) and check the release shows the expected evidence. A missing artefact means CI skipped or failed it: report it to the operator; never upload by hand.
 8. **Update `compliance/RTM.md`** with the portal link for each evidence row CI uploaded. A row whose upload did not land stays unverified: do not mark it verified. On `resume REQ-XXX`, re-check the `Compliance Evidence Upload` run for the latest compliance commit before proceeding to Phase 4.
-9. **Update SDLC status sticky** before exiting Phase 3: `bash scripts/update-sdlc-status.sh "$ISSUE_NUM" "Phase 3 complete — evidence committed and CI upload confirmed; SRS-alignment + ADR + risk-assessment artefacts attached" "Phase 4 — sdlc-implementer auto-continuing (open release PR)"`.
+8b. **Collect the Stage 3 operator sign-offs in one exchange (devaudit-installer#1200).** `srs-alignment.md`, `architecture-decision.md`, `risk-assessment.md` and `e2e-scope-decision.md` each end in an `## Operator sign-off` block (unticked `- [ ]` boxes, `**Reviewer:** <operator-name>`, `**Date:** <YYYY-MM-DD>`). They attest to the finished evidence, so the Phase 1 plan approval does not cover them, and they are not collected by editing four markdown files by hand. Run:
+
+   ```bash
+   bash scripts/check-operator-signoffs.sh REQ-XXX --json
+   ```
+
+   If it exits 0, continue. Otherwise print, for each file in the result: its path; its unticked boxes, verbatim; and a one-line summary of what to check, written by you from the artefact (for example "ADR-009 status is Accepted", "SRS items for AC1-AC4 are present", "residual risk ratings", "e2e scope matches the diff"). Then ask once, for all files: **"Reply `approved`, `updated and approved` (you edited the files yourself), or list the changes needed."**
+   - **`approved`**: tick every box in each pending block, set `**Reviewer:**` to the GitHub login of the human running the session plus their git name (`gh api user --jq .login`, `git config user.name`; never the agent) and `**Date:**` to today, and add under the block `_Approved by <login> (<name>) in the Claude Code session on <YYYY-MM-DD>; recorded by the agent from the operator's explicit reply._`
+   - **`updated and approved`**: re-read the files first and keep the operator's edits; then do the same.
+   - **a list of changes**: edit the artefacts, show what changed, and ask again.
+
+   Never tick a box or fill Reviewer without that explicit reply in this session; the Phase 1 PROCEED is not one. This holds under `approval.mode: dual_actor` as well: the agent only records the operator's reply. Commit the signed files with `Ref: REQ-XXX`, then re-run the check; it must exit 0 before Phase 4. `Compliance Validation` fails the release PR while any block is pending (`validate-compliance-artifacts.sh`).
+9. **Update SDLC status sticky** before exiting Phase 3: `bash scripts/update-sdlc-status.sh "$ISSUE_NUM" "Phase 3 complete — evidence committed and CI upload confirmed; SRS-alignment + ADR + risk-assessment artefacts attached" "Phase 4 — sdlc-implementer auto-continuing (open release PR)"`. While step 8b has pending sign-offs the NEXT text is instead `"Operator action — reply approved / updated and approved / changes for N pending Stage 3 sign-off(s): <files>"`.
 
 ### Phase 4 — Submit for UAT review (SDLC stage 4)
 
 1. **Prepare the truthful release PR** — the PR that carries the UAT approval approval gate (`check-release-approval.yml`), always into `$RELEASE_BRANCH` from `$INTEGRATION_BRANCH` (e.g. `develop → main`). The implementation already landed on `$INTEGRATION_BRANCH` in Phase 2; this promotes it. (Note: if other work is also waiting on `$INTEGRATION_BRANCH`, this is a bundled release — every in-scope REQ keeps its own release record and Production approval.)
+
+   **Sign-off guard (devaudit-installer#1200).** Before preparing the PR, run `bash scripts/check-operator-signoffs.sh REQ-XXX`. If it exits 1, halt: "Stage 3 sign-offs pending: <list>. Reply approved / updated and approved / changes to resume." and go back to Phase 3 step 8b. Do not open or refresh the release PR with an unsigned block.
 
    Before creating a PR manually, run the synced helper:
 

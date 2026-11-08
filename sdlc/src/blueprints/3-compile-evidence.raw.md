@@ -645,6 +645,16 @@ Required when `compliance/pending-releases/BUNDLED-CHANGES-REQ-XXX.md` exists or
 | [date] | Submitted for review | [who] | PR #[number] |
 ```
 
+### Step 8b: Collect the Stage 3 Operator Sign-offs (DevAudit-Installer#1200)
+
+`srs-alignment.md`, `architecture-decision.md`, `risk-assessment.md` and `e2e-scope-decision.md` each end in an `## Operator sign-off` block (unticked `- [ ]` boxes, `**Reviewer:**`, `**Date:**`). They attest to the finished evidence, so the plan approval does not cover them. Check what is pending:
+
+```bash
+bash scripts/check-operator-signoffs.sh REQ-XXX
+```
+
+The operator reviews each file, ticks the boxes and fills Reviewer (their name) and Date (YYYY-MM-DD). With `sdlc-implementer` this is one reply in the session: `approved`, `updated and approved`, or a list of changes. An agent records the reviewer from the operator's reply, never as itself. The check must exit 0 before Stage 4; `Compliance Validation` fails the release PR while any block is pending.
+
 ### Step 9: Commit Compliance Docs and Push
 
 Commit compliance documents and push immediately. Heavy CI gates (E2E, TypeScript, build) skip markdown-only pushes via `paths-ignore`, so this push is cheap — but the Compliance Evidence Upload workflow fires and pushes the new artefacts to DevAudit. Pushing immediately means destination breakage (dead alias URL, revoked API key, schema drift) surfaces in seconds, not at the end of the stage.
