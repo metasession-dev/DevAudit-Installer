@@ -55,6 +55,15 @@
 #                               Requires `--evidence-scope execution`.
 #                               Forwarded to the portal transport as
 #                               `testCycleRecordId`.
+#   --declare-requirements <REQ-A,REQ-B,...>
+#                               Declare the release's requirement scope:
+#                               sent as metadata.declaredRequirementIds (a JSON
+#                               array). The portal REPLACES the release's scope
+#                               with it and keeps out-of-scope evidence out of
+#                               the matrix (devaudit#962). Send the complete list
+#                               (scripts/release-declared-requirements.sh), and only
+#                               from the integration-branch registration
+#                               (devaudit-installer#1209). Empty adds nothing.
 #
 # Required environment variables:
 #   DEVAUDIT_BASE_URL  e.g. https://devaudit.example.com
@@ -120,6 +129,7 @@ COMMIT_TIMESTAMP=""
 # upload loop to pass `origin=feature|regression` from the per-PNG
 # sidecar JSON written by the evidenceShot helper.
 META_KEYS=()
+DECLARED_REQUIREMENTS=""
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -145,6 +155,7 @@ while [ "$#" -gt 0 ]; do
     --test-execution) TEST_CYCLE="$2"; shift 2 ;;
     --evidence-scope) EVIDENCE_SCOPE="$2"; shift 2 ;;
     --test-execution-record-id) TEST_CYCLE_RECORD_ID="$2"; shift 2 ;;
+    --declare-requirements) DECLARED_REQUIREMENTS="$2"; shift 2 ;;
     # --meta-key key=value (repeatable). Merged into the metadata JSON
     # before posting. Validates the `key=value` shape; rejects bare
     # keys without `=`.
@@ -191,6 +202,18 @@ fi
 if [ -n "$TEST_CYCLE_RECORD_ID" ] && [ "$EVIDENCE_SCOPE" != "execution" ]; then
   echo "Error: --test-execution-record-id requires --evidence-scope execution"
   exit 1
+fi
+# devaudit-installer#1209: validate before any network call; the portal 400s a malformed id.
+DECLARED_JSON=""
+if [ -n "$DECLARED_REQUIREMENTS" ]; then
+  IFS=',' read -r -a DECLARED_IDS <<< "$DECLARED_REQUIREMENTS"
+  for DECLARED_ID in "${DECLARED_IDS[@]}"; do
+    if ! [[ "$DECLARED_ID" =~ ^REQ-[A-Za-z0-9-]+$ ]]; then
+      echo "Error: --declare-requirements takes comma-separated REQ-XXX ids (got: $DECLARED_ID)"
+      exit 1
+    fi
+    DECLARED_JSON="${DECLARED_JSON:+${DECLARED_JSON},}\"${DECLARED_ID}\""
+  done
 fi
 TRANSPORT_EVIDENCE_SCOPE="$EVIDENCE_SCOPE"
 if [ "$TRANSPORT_EVIDENCE_SCOPE" = "execution" ]; then
@@ -356,6 +379,7 @@ for KV in "${META_KEYS[@]}"; do
   VAL="${KV#*=}"
   META_ENTRIES+=("\"$(json_escape "$KEY")\":\"$(json_escape "$VAL")\"")
 done
+[ -n "$DECLARED_JSON" ] && META_ENTRIES+=("\"declaredRequirementIds\":[${DECLARED_JSON}]")
 if [ "${#META_ENTRIES[@]}" -gt 0 ]; then
   IFS=','
   METADATA="{${META_ENTRIES[*]}}"

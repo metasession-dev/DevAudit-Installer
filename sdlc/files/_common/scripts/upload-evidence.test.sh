@@ -464,6 +464,37 @@ make_trailer_history "$D15" 'INVOKED' 0
 run_sentinel_upload "$D15" REQ-091
 assert_not_contains "the legacy plain INVOKED marker is not flagged" '::warning::sentinel' "$D15/stdout.log"
 
+# --- devaudit-installer#1209: --declare-requirements sends a JSON array ---
+run_declare_upload() { # <dir> [extra args...]; prints the exit code
+  local dir="$1" rc
+  shift
+  make_fixture "$dir"
+  : > "$dir/upload.log"
+  set +e
+  (cd "$dir" && PATH="$dir/bin:$PATH" UPLOAD_TEST_LOG="$dir/upload.log" \
+    bash "$HELPER" fixture-project _compliance-docs release_registration evidence.txt \
+      --release REQ-200 --create-release-if-missing --environment uat --category planning "$@" \
+      > "$dir/stdout.log" 2>&1)
+  rc=$?
+  set -e
+  printf '%s' "$rc"
+}
+
+D16="$WORK/case16-declare"
+RC16="$(run_declare_upload "$D16" --declare-requirements REQ-200,REQ-201)"
+[ "$RC16" = "0" ] && { echo "  PASS: a declaring upload succeeds"; PASS=$((PASS + 1)); } || { echo "  FAIL: a declaring upload exited $RC16"; FAIL=$((FAIL + 1)); }
+assert_contains "the declaration is a JSON array in the metadata" '"declaredRequirementIds":["REQ-200","REQ-201"]' "$D16/upload.log"
+
+D17="$WORK/case17-declare-invalid"
+RC17="$(run_declare_upload "$D17" --declare-requirements 'REQ-200,_compliance-docs')"
+[ "$RC17" = "1" ] && { echo "  PASS: a malformed declared id is a usage error"; PASS=$((PASS + 1)); } || { echo "  FAIL: a malformed declared id exited $RC17"; FAIL=$((FAIL + 1)); }
+assert_not_contains "a malformed declaration makes no network call" 'URL:' "$D17/upload.log"
+
+D18="$WORK/case18-declare-empty"
+RC18="$(run_declare_upload "$D18" --declare-requirements '')"
+[ "$RC18" = "0" ] && { echo "  PASS: an empty declaration still uploads"; PASS=$((PASS + 1)); } || { echo "  FAIL: an empty declaration exited $RC18"; FAIL=$((FAIL + 1)); }
+assert_not_contains "an empty declaration adds no field" 'declaredRequirementIds' "$D18/upload.log"
+
 echo ""
 echo "=== upload-evidence.test.sh: $PASS passed, $FAIL failed ==="
 if [ "$FAIL" -gt 0 ]; then
