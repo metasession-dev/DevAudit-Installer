@@ -1,0 +1,32 @@
+<!--
+  UAT test procedure for REQ-XXX. Satisfies ISO/IEC/IEEE 29119-3 test case
+  and test procedure specification: each step has a precondition, an exact
+  action and an exact expected result, and traces to an acceptance criterion.
+  Rules:
+  - Every AC of this REQ (the AC ids in srs-alignment.md) appears either in
+    the step table or in the "not testable by a human" table with a reason.
+  - At least one positive and one negative step per testable AC.
+  - Actions are click-by-click. Expected results are exact text, values or
+    states, never "works" or "looks right".
+  - Screenshot names follow REQ-XXX-AC<n>-<slug>.png.
+  Replace every REPLACE marker; CI rejects the file while any remains.
+-->
+# UAT Test Procedure — REQ-XXX: REPLACE title
+
+**Briefing:** `uat-briefing.md` (read it first)
+**Record results in:** `uat-execution-record.md`
+
+## Steps
+
+| Step | AC | SRS item | Account | Precondition | Action (click by click) | Expected result (exact) | Evidence file | Stop if fails |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | REPLACE (for example AC1) | REPLACE | REPLACE | REPLACE | REPLACE | REPLACE | REQ-XXX-AC1-REPLACE.png | N |
+| 2 | REPLACE (negative case for the same AC) | REPLACE | REPLACE | REPLACE | REPLACE | REPLACE | REQ-XXX-AC1-REPLACE.png | N |
+
+## ACs not testable by a human
+
+An AC covered only by automated tests or inspection is listed here with the reason, never left out.
+
+| AC | Reason it cannot be tested by a person | Where it is covered instead |
+| --- | --- | --- |
+| REPLACE (or write "None") | REPLACE | REPLACE |
