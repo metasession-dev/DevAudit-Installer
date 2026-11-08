@@ -308,7 +308,10 @@ and above), the tester reads `compliance/evidence/REQ-XXX/uat-briefing.md`, foll
 operator lands the completed record through a PR into the integration branch and
 waits for its evidence upload before the reviewer approves, so the record is on the
 portal at approval time (devaudit-installer#1198, #1212). The templates are in the
-`sdlc-implementer` skill's `references/`.
+`sdlc-implementer` skill's `references/`. Landing the record moves the release PR's
+head (it is the integration branch), so every required check on the release PR runs
+again, the release-gate E2E tier included: land it as soon as UAT is done. A declared
+bundle has one pack, on its core (devaudit-installer#1226).
 
 When full regression is triggered by a successful production
 `deployment_status`, its evidence importer must record it as Stage 5 production

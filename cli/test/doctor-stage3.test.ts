@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pendingSignoffIn, rtmRisk, stage3EvidenceCheck } from '../src/commands/doctor-stage3.js';
 import { findConfigKey, validateConfigKeyValue } from '../src/lib/repo-config-keys.js';
+import { CHECK_EXPLANATIONS, gapsFromCheck } from '../src/lib/doctor-explain.js';
 
 // DevAudit-Installer#1215 — `devaudit doctor` stage3-evidence and the uat.human_pack key.
 
@@ -87,6 +88,52 @@ describe('stage3EvidenceCheck (#1215)', () => {
     const dir = await repo({ rtmRisk: 'HIGH', evidence: { 'srs-alignment.md': PENDING } });
     const r = await stage3EvidenceCheck({ repoRoot: dir, cfg: {} });
     for (const f of r.findings ?? []) expect(f.remediation?.tier).toBe('C');
+  });
+});
+
+describe('stage3EvidenceCheck follow-ups (#1226, #1227)', () => {
+  it('reports an invalid uat.human_pack with a tier A fix, and reads it as risk', async () => {
+    const dir = await repo({ rtmRisk: 'HIGH' });
+    const r = await stage3EvidenceCheck({ repoRoot: dir, cfg: { uat: { human_pack: 'Always' } } });
+    const bad = r.findings?.find((f) => f.subject === 'uat.human_pack');
+    expect(bad?.detail).toContain('"Always"');
+    expect(bad?.remediation?.tier).toBe('A');
+    expect(bad?.remediation?.plan).toEqual(['devaudit configure set uat.human_pack risk']);
+    expect(r.findings?.map((f) => f.subject)).toContain('REQ-120: uat-pack-missing');
+  });
+
+  it('skips a stale pending copy of a released ticket (archived elsewhere, or RTM released)', async () => {
+    const archived = await repo({ rtmRisk: 'HIGH', evidence: { 'srs-alignment.md': PENDING } });
+    await fs.mkdir(join(archived, 'compliance', 'approved-releases'), { recursive: true });
+    await fs.writeFile(join(archived, 'compliance', 'approved-releases', 'RELEASE-TICKET-REQ-120.md'), '# done\n');
+    expect((await stage3EvidenceCheck({ repoRoot: archived, cfg: {} })).ok).toBe(true);
+
+    const released = await repo({ rtmRisk: 'HIGH', evidence: { 'srs-alignment.md': PENDING } });
+    const rtmPath = join(released, 'compliance', 'RTM.md');
+    await fs.writeFile(rtmPath, (await fs.readFile(rtmPath, 'utf-8')).replace('IN PROGRESS', 'RELEASED'));
+    expect((await stage3EvidenceCheck({ repoRoot: released, cfg: {} })).ok).toBe(true);
+  });
+
+  it('does not ask a co_tracked member of a live bundle for its own UAT pack, but still the core', async () => {
+    const dir = await repo({ rtmRisk: 'MEDIUM' });
+    // REQ-120 is a member of core REQ-119 (also pending, MEDIUM)
+    const pending = join(dir, 'compliance', 'pending-releases');
+    await fs.writeFile(join(pending, 'RELEASE-TICKET-REQ-119.md'), '# Release Ticket: REQ-119\n');
+    await fs.writeFile(join(pending, 'BUNDLED-CHANGES-REQ-119.json'), JSON.stringify({ members: [{ version: 'REQ-120', role: 'co_tracked' }] }));
+    const rtmPath = join(dir, 'compliance', 'RTM.md');
+    await fs.writeFile(rtmPath, `${await fs.readFile(rtmPath, 'utf-8')}| REQ-119 | core | MEDIUM | IN PROGRESS |\n`);
+    const subjects = (await stage3EvidenceCheck({ repoRoot: dir, cfg: {} })).findings?.map((f) => f.subject);
+    expect(subjects).toContain('REQ-119: uat-pack-missing');
+    expect(subjects).not.toContain('REQ-120: uat-pack-missing');
+  });
+
+  it('resolves the per-finding explanation for a REQ-prefixed subject', async () => {
+    expect(CHECK_EXPLANATIONS['stage3-evidence']).toBeDefined();
+    const dir = await repo({ rtmRisk: 'MEDIUM', evidence: { 'architecture-decision.md': PENDING } });
+    const gaps = gapsFromCheck(await stage3EvidenceCheck({ repoRoot: dir, cfg: {} }));
+    expect(gaps.length).toBe(2);
+    expect(JSON.stringify(gaps)).toContain(CHECK_EXPLANATIONS['stage3-evidence:signoff-pending']!.title);
+    expect(JSON.stringify(gaps)).toContain(CHECK_EXPLANATIONS['stage3-evidence:uat-pack-missing']!.title);
   });
 });
 
