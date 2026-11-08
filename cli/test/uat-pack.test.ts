@@ -45,7 +45,10 @@ describe('the pack is wired into the orchestrator, validator and uploader (#1198
   it('sdlc-implementer writes it in Phase 3 step 3c and checks the record before merging', async () => {
     const skill = await read('sdlc/files/_common/skills/sdlc-implementer/SKILL.md');
     expect(skill).toContain('3c. **Write the human UAT pack (devaudit-installer#1198).**');
-    expect(skill).toContain('**UAT execution record check (devaudit-installer#1198).**');
+    expect(skill).toContain('**UAT execution record check (devaudit-installer#1198, #1212).**');
+    // #1212: the record lands before approval; it is never committed at merge time
+    expect(skill).toContain('so the record is on the portal when the reviewer approves');
+    expect(skill).toContain('Never commit the record at merge time');
     expect(skill.indexOf('3c. **Write the human UAT pack')).toBeGreaterThan(skill.indexOf('3b. **Verify the per-REQ e2e-scope-decision'));
     expect(skill.indexOf('UAT execution record check')).toBeLessThan(skill.indexOf('`gh pr merge <M> --merge`'));
   });

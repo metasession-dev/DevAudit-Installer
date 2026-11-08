@@ -204,7 +204,7 @@ I have reviewed the ADR-worthiness verdict above and confirm:
 **Date:** <YYYY-MM-DD>
 ```
 
-Only one of the "If ADR:" / "If no-ADR:" boxes applies; the other is marked `- [~]` (not applicable) at sign-off, never ticked. Leave the boxes and the `<operator-name>` / `<YYYY-MM-DD>` placeholders as they are: `sdlc-implementer` Phase 3 step 8b collects this sign-off from the operator in one CLI exchange (devaudit-installer#1200). Never fill it in yourself.
+Only one of the "If ADR:" / "If no-ADR:" boxes applies; the other is marked `- [~]` (not applicable) at sign-off, never ticked. Leave the boxes and the `<operator-name>` / `<YYYY-MM-DD>` placeholders as they are: `sdlc-implementer` Phase 3 step 5d collects this sign-off from the operator in one CLI exchange (devaudit-installer#1200). Never fill it in yourself.
 
 **Step 2 — Tag for upload.** The CI's `compliance-evidence.yml` uploads this file as `evidence_type=architecture_decision` (added to META-COMPLY's `EVIDENCE_TYPE_REGISTRY` in the paired sub-PR). The framework-coverage matrix maps this to clauses per `framework-registry-auditor`'s review — see the META-COMPLY-side PR for the final clause attributions (v1 may ship orphan-by-design if the auditor rejects proposed mappings; see [`requirements-aligner`](../requirements-aligner/SKILL.md) for the precedent).
 

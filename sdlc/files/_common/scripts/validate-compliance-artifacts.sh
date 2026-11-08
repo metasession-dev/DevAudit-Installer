@@ -129,13 +129,13 @@ for REQ in $REQUIREMENTS; do
 
   # Stage 3 operator sign-offs (DevAudit-Installer#1200): the four per-REQ
   # artefacts end in an `## Operator sign-off` block that sdlc-implementer
-  # Phase 3 step 8b collects from the operator. A pending block fails the
+  # Phase 3 step 5d collects from the operator. A pending block fails the
   # release PR so it cannot ship unsigned.
   if [ "$REQ_TERMINAL" = "false" ] && [ -f "$SCRIPT_DIR/check-operator-signoffs.sh" ]; then
     SIGNOFF_RC=0
     SIGNOFF_OUT="$(bash "$SCRIPT_DIR/check-operator-signoffs.sh" "$REQ" 2>&1)" || SIGNOFF_RC=$?
     if [ "$SIGNOFF_RC" -eq 1 ]; then
-      echo "  ERROR: Operator sign-off pending (sdlc-implementer Phase 3 step 8b collects it):"
+      echo "  ERROR: Operator sign-off pending (sdlc-implementer Phase 3 step 5d collects it):"
       printf '%s\n' "$SIGNOFF_OUT" | sed 's/^/    /'
       EXIT_CODE=1
     elif [ "$SIGNOFF_RC" -eq 0 ]; then
