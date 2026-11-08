@@ -26,6 +26,14 @@ The generated framework requires the blocking E2E gate in `ci.yml`.
 
 The three-tier model is generated: `e2e-regression.yml` is produced from `sdlc-config.json` when `e2e_regression_enabled` is true (opt in with `devaudit update --enable-e2e-regression`), together with its tier commands, release gate, nightly run and post-deploy run. The reference copy in the `e2e-test-engineer` skill materials and [`docs/e2e-local-db-ci.md`](./e2e-local-db-ci.md) (safe local/disposable backends in CI) remain useful background.
 
+## UI-change regression sweep (devaudit-installer#1199)
+
+A gate tier (`smoke`, `critical`) runs only part of `e2e/`, so a changed label, selector or flow can break a spec that only the `regression` tier runs, and it ships stale. For a REQ whose diff touches UI-facing files, `sdlc-implementer` Phase 2 step 5c therefore:
+
+- greps **all** of `e2e/` for every user-visible label or text, `data-testid`, accessible role name or route the diff changes or removes, and updates or retires each affected spec through `e2e-test-engineer`;
+- runs the `regression` Playwright project once, in the same isolated stack the feature PR uses, before the release PR;
+- records the strings searched, the hits and the run result under `## UI regression sweep` in `test-execution-summary.md` (`not applicable (no UI-facing files changed)` otherwise).
+
 ## Test data (#1116)
 
 Where each tier gets its data is declared, not assumed. DevAudit owns the contract, the checks and the run record; the project owns the seed and reset code (the `e2e-test-data` skill helps write it).
