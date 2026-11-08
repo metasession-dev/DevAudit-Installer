@@ -94,6 +94,20 @@ OUT3="$(run "$D3" | plan_uploads)"
 assert_eq "no implementation_plan upload" "0" "$(printf '%s' "$OUT3" | grep -c implementation_plan || true)"
 assert_eq "the other evidence still uploads" "1" "$(run "$D3" | grep -c 'test_scope')"
 
+echo "the UAT pack is routed to test_cases / test_report (#1198)"
+D4="$WORK/c4"
+fixture "$D4" REQ-1 yes yes
+cd "$D4"
+for f in uat-briefing.md uat-test-procedure.md uat-execution-record.md; do printf '# %s\n' "$f" > "compliance/evidence/REQ-1/$f"; done
+git add -A && git commit -q -m "docs: [REQ-1] uat pack
+
+Ref: REQ-1"
+OUT4="$(run "$D4")"
+assert_eq "briefing uploaded as test_cases" "1" "$(printf '%s\n' "$OUT4" | grep -c 'fixture REQ-1 test_cases .*uat-briefing.md')"
+assert_eq "procedure uploaded as test_cases" "1" "$(printf '%s\n' "$OUT4" | grep -c 'fixture REQ-1 test_cases .*uat-test-procedure.md')"
+assert_eq "execution record uploaded as test_report" "1" "$(printf '%s\n' "$OUT4" | grep -c 'fixture REQ-1 test_report .*uat-execution-record.md')"
+assert_eq "none of the three is reported as unrecognised" "0" "$(grep -c 'Unrecognized artifact.*uat-' "$D4/out.log" || true)"
+
 echo "a plan for a requirement outside the release is never uploaded"
 assert_eq "REQ-999 plan not uploaded" "0" "$(run "$D1" | grep -c 'REQ-999')"
 

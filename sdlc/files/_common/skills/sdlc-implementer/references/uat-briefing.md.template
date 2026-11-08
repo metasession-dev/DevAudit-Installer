@@ -1,0 +1,73 @@
+<!--
+  UAT briefing for REQ-XXX. Satisfies ISO/IEC/IEEE 29119-3 test plan context
+  (what is tested, why, where, by whom, entry and exit criteria).
+  Written for a tester who does NOT know this system, the business or the
+  environments. Replace every REPLACE marker; CI rejects the file while any
+  remains. Never put credentials in this file: say how they are delivered.
+-->
+# UAT Briefing — REQ-XXX: REPLACE title
+
+**Release:** REQ-XXX
+**Risk:** REPLACE (LOW / MEDIUM / HIGH / CRITICAL)
+**Prepared:** REPLACE (YYYY-MM-DD)
+**Build under test:** REPLACE (git SHA, filled in when UAT starts)
+
+## 1. Background
+
+REPLACE — two or three plain sentences: what the product does, who uses it, and the business reason for this change. Assume the tester has never seen the system.
+
+## 2. What changed, and what did not
+
+**Changed:**
+
+- REPLACE — one line per user-visible change, in the user's words.
+
+**Did not change (do not report as defects):**
+
+- REPLACE — nearby behaviour that looks related but is out of scope.
+
+## 3. Scope
+
+| In scope | Out of scope |
+| --- | --- |
+| REPLACE | REPLACE |
+
+**Known limits:** REPLACE — known issues, features behind flags, data that is not realistic.
+
+## 4. Environment
+
+| Item | Value |
+| --- | --- |
+| URL | REPLACE |
+| Environment name | REPLACE (for example UAT) |
+| Browser / device | REPLACE |
+| Data state | REPLACE (what test data exists and what it is safe to change) |
+
+## 5. Accounts and prerequisites
+
+| Role | Account | What it can do | How credentials are delivered |
+| --- | --- | --- | --- |
+| REPLACE | REPLACE | REPLACE | REPLACE (out of band; never in this file) |
+
+**Prerequisites the operator completes first** (initial each in the execution record): REPLACE — migrations applied, accounts created, data loaded.
+
+## 6. Tester rules
+
+- Follow `uat-test-procedure.md` step by step. Do not improvise unless a step says to.
+- Record what actually happened, not what you expected. A step that does not behave exactly as written is a FAIL.
+- Take the screenshot named in the step. Use the file name given.
+- If a step marked "stop if fails" fails, stop and tell the operator.
+- Do not change data outside the accounts listed above.
+- The tester must not be the person who wrote the change (see the independence declaration in the execution record).
+
+## 7. Entry and exit criteria
+
+**Entry (all true before starting):** the build under test is deployed to the environment above; the operator preparation checklist in the execution record is initialled; the tester has the accounts above.
+
+**Exit:** every step has a recorded result; every FAIL or BLOCKED has a defect entry; the recommendation and both signatures in the execution record are filled in.
+
+## 8. Glossary
+
+| Term | Meaning |
+| --- | --- |
+| REPLACE | REPLACE |

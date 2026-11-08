@@ -115,7 +115,7 @@ Read `SDLC/3-compile-evidence.md` for full details, including release ticket tem
 6. Create `compliance/pending-releases/RELEASE-TICKET-REQ-XXX.md` (use template from workflow file). If the change requires post-deploy actions (data migrations, backfill scripts), document them in the release ticket's Post-Deploy Actions section with exact commands
 7. Commit compliance markdown locally (do NOT push yet — batch with UAT results)
 8. **WAIT CHECKPOINT:** Confirm CI + UAT deployment complete before UAT verification.
-9. **Verify on UAT** (if configured) — health check, smoke test, feature verification. Record in `security-summary.md`. Commit locally. Do NOT create a PR until UAT is green.
+9. **Verify on UAT** (if configured) — health check, smoke test, feature verification. Record in `security-summary.md`. Commit locally. Do NOT create a PR until UAT is green. For a MEDIUM or higher REQ (or `uat.enabled`), also write the human UAT pack in Stage 3 (`uat-briefing.md`, `uat-test-procedure.md`, `uat-execution-record.md`; `sdlc-implementer` Phase 3 step 3c) and have the UAT tester execute it.
 10. **Push all compliance commits** in a single push: `git push origin develop`
 11. **Verify release in DevAudit** — CI auto-creates releases and links evidence. Check that a release exists with the current version (date-based: `v{YYYY}.{MM}.{DD}` or `v{YYYY}.{MM}.{DD}.{N}` for multiple releases on the same day) and evidence is linked.
 

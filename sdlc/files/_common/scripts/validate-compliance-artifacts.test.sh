@@ -641,6 +641,72 @@ assert_grep "no mismatch warning when ticket declares intent" 'WARNING: RTM stat
 assert_exit "validator exits 0 with DEFERRED RTM row and pending ticket" 0
 cd "$WORKDIR"
 
+# uat_fixture <dir> <req> <risk> — a REQ with full base evidence, an AC table in srs-alignment.md
+# (AC1, AC2) and no UAT files yet.
+uat_fixture() {
+  local dir="$1" req="$2" risk="$3"
+  make_fixture "$dir" "Ref: $req"
+  {
+    echo '# RTM'
+    echo
+    echo '| ID | Description | Risk | Status |'
+    echo '| --- | --- | --- | --- |'
+    echo "| $req | UAT pack check | $risk | TESTED - PENDING SIGN-OFF |"
+  } > compliance/RTM.md
+  mkdir -p "compliance/evidence/$req"
+  echo "scope" > "compliance/evidence/$req/test-scope.md"
+  echo "plan" > "compliance/evidence/$req/test-plan.md"
+  echo "summary" > "compliance/evidence/$req/test-execution-summary.md"
+  echo "impl" > "compliance/evidence/$req/implementation-plan.md"
+  printf '%s\n' '| AC | SRS item | Status |' '| --- | --- | --- |' '| AC1 | REQ-A-001 | unchanged |' '| AC2 | REQ-A-002 | unchanged |' > "compliance/evidence/$req/srs-alignment.md"
+  touch "compliance/pending-releases/RELEASE-TICKET-$req.md"
+}
+
+echo "Case UAT-1: a MEDIUM REQ without a UAT pack fails (#1198)"
+uat_fixture "$WORKDIR/caseuat1" REQ-050 MEDIUM
+git add . && git commit -q --amend --no-edit
+run_validator
+assert_grep "briefing reported missing" 'ERROR: UAT pack incomplete: .*uat-briefing.md is missing' 1
+assert_grep "procedure reported missing" 'ERROR: UAT pack incomplete: .*uat-test-procedure.md is missing' 1
+assert_exit "validator exits 1" 1
+cd "$WORKDIR"
+
+echo "Case UAT-2: a LOW REQ needs no UAT pack (#1198)"
+uat_fixture "$WORKDIR/caseuat2" REQ-051 LOW
+git add . && git commit -q --amend --no-edit
+run_validator
+assert_grep "no UAT pack error" 'UAT pack incomplete' 0
+assert_exit "validator exits 0" 0
+cd "$WORKDIR"
+
+echo "Case UAT-3: a pack with REPLACE markers, or missing an AC, fails (#1198)"
+uat_fixture "$WORKDIR/caseuat3" REQ-052 HIGH
+printf '%s\n' '# Briefing' 'Background: REPLACE' > compliance/evidence/REQ-052/uat-briefing.md
+printf '%s\n' '| Step | AC |' '| --- | --- |' '| 1 | AC1 |' > compliance/evidence/REQ-052/uat-test-procedure.md
+git add . && git commit -q --amend --no-edit
+run_validator
+assert_grep "REPLACE markers reported" 'uat-briefing.md still has REPLACE markers' 1
+assert_grep "AC2 reported as missing" 'no step or not-testable row for: AC2' 1
+assert_grep "AC1 is accounted for, not reported" 'for:.*AC1' 0
+assert_exit "validator exits 1" 1
+cd "$WORKDIR"
+
+echo "Case UAT-4: a complete pack passes, and so does uat.enabled on a LOW REQ (#1198)"
+uat_fixture "$WORKDIR/caseuat4" REQ-053 LOW
+printf '{"uat":{"enabled":true}}\n' > sdlc-config.json
+printf '%s\n' '# Briefing' 'Background: a shop.' > compliance/evidence/REQ-053/uat-briefing.md
+printf '%s\n' '| Step | AC |' '| --- | --- |' '| 1 | AC1 |' '' '| AC | Reason |' '| --- | --- |' '| AC2 | automated only |' > compliance/evidence/REQ-053/uat-test-procedure.md
+git add . && git commit -q --amend --no-edit
+run_validator
+assert_grep "pack accepted" 'OK: uat-test-procedure.md accounts for every AC' 1
+assert_grep "no UAT error" 'ERROR: .*UAT|REPLACE markers' 0
+assert_exit "validator exits 0" 0
+cd "$WORKDIR"
+
+echo "Case UAT-5: the UAT filenames and accepted-e2e-failure records are known artifacts (#1198)"
+assert_grep "no unrecognised-artifact warning for the pack" 'Unrecognized artifact filename: .*uat-' 0
+cd "$WORKDIR"
+
 echo "Case 20: DEFERRED RTM row without ticket intent warns but does not fail"
 make_fixture "$WORKDIR/case20" "Ref: REQ-041"
 {
