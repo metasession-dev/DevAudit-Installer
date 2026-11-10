@@ -153,6 +153,7 @@ Before the broader thought-leadership and workflow series begins, the **first pu
 | 39                                          | MOFU   | CTO + Lead Developer        | Six Kinds of Tests, One Safety Net: What Runs When, and What Happens When the Last Gate Fails                     | Technical explainer (~1800w) + short-form|
 | 40                                          | MOFU   | Lead Developer              | The Advisory Nobody Asked For: Why a Failing Dependency Audit Mid-Feature Is the Process Working                  | Technical explainer (~1800w) + short-form |
 | 41                                          | MOFU   | CTO + Lead Developer        | Humans Decide, the Agent Does the Work: How DevAudit Splits an SDLC Between Developer, QA and a Coding Agent      | Workflow explainer (~2200w) + short-form  |
+| 42                                          | MOFU   | CTO + Lead Developer        | One Process, Many Shapes: How DevAudit's SDLC Bends to Your Team, and What It Refuses to Bend                     | Technical explainer (~2300w) + short-form |
 
 ---
 
@@ -893,6 +894,26 @@ This is a five-part series that follows a single feature from GitHub issue to pr
   **CTA:** "See the full lifecycle → [devaudit.ai/sdlc](https://devaudit.ai/sdlc)"
   **Cross-links:** [docs/credentials.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/credentials.md) · [docs/change-workflows.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/change-workflows.md) · [docs/skills.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/skills.md) · [Long-form](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/articles/developer-qa-agent-collaboration-long-form.md)
 
+#### Article 42: One Process, Many Shapes
+
+> **Publication note:** Added after launch (devaudit-installer#1238). Every behaviour below is read from the current CLI, `core` and the generated workflows, not from the docs. Only behaviour in a released version (1.13.0) is described. The stack and host limits are stated as they ship: Node and Python, Railway, Vercel and a custom deploy command.
+
+**Primary persona:** CTO + Lead Developer (the compliance officer gets a callout section, "What does not bend")
+**Goal:** Show that DevAudit's SDLC is configurable, what is configurable and why, how a team changes it safely, what stays fixed so the evidence stays comparable, and how a configuration is verified.
+**Key points:**
+
+- The problem: a solo developer and a team with a compliance lead need different processes; one fixed SDLC is skipped by one and fails the audit of the other (who approves, how fast feedback must be, where and how it deploys, which standards)
+- What is configurable: `sdlc-config.json`, committed with the code; 56 settings `devaudit configure` manages; six groups (who approves, what blocks, where it runs, how much ceremony per change, which standards, where tests get data); the risk class sets how much of the process applies
+- Presets A to D and `custom`: what each is for, who approves, what blocks; one suggestion rule shared by scan, install and doctor; D is never suggested; the five moments every preset answers
+- A weaker setting records itself: self-approval (A, B) is logged as a gap against SOC 2 CC8.1 and ISO 27001 A.8.32, and the agent requires a control-gap risk entry and a "solo, recorded gap" sign-off on the release ticket
+- The ladder for changing it: a preset, then `configure set` (validated, previewed, `--dry-run`, `--reason` when the repo's evidence contradicts), then a hand-edit that is never overwritten or a `.devaudit-patches/` bridge, then an extension (host adapters and the `custom` host, nine plugin lifecycle hooks, skills)
+- What does not bend: the approval gate on the release PR, smoke blocking at `Quality Gates`, production evidence, the quarterly review, and the shared evidence contract (37 evidence types, two release shapes, five standards' clause mapping); a failed gate is always a recorded decision
+- How it is verified, in five layers: eleven validators on write (and a test that every setting is asked or declared not asked); `devaudit doctor` (`preset-drift`, `standards-fit`, `approval-policy`, `test-tiers`, `stage3-evidence`); generated workflows parsed, size-limited, syntax-checked and exercised end to end; the pre-release gate against fixtures and read-only clones of real consumer repositories (the 1.13.0 run found a diagnostic report cut off at 64 KiB before release); a hash manifest that preserves local edits on every sync
+- Honest limits: DevAudit produces evidence, the auditor decides; configurable does not mean a standard's independence requirement can be configured away; adding a stack is adapter and template work, not a setting
+  **DevAudit hook:** `cli/src/lib/repo-config-keys.ts`, `core/src/presets.ts`, `core/src/validators.ts`, `devaudit doctor` (`preset-drift`, `standards-fit`, `approval-policy`), `scripts/release-validation.sh`, `docs/presets.md`, `docs/configure.md`.
+  **CTA:** "Try it on your own repository and pick a preset → [devaudit.ai/onboarding](https://devaudit.ai/onboarding)"
+  **Cross-links:** [docs/presets.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/presets.md) · [docs/configure.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/configure.md) · [docs/consuming-projects.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/consuming-projects.md) · [docs/doctor.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/doctor.md) · [Long-form](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/articles/configurable-sdlc-long-form.md)
+
 ---
 
 ## Publishing cadence
@@ -1266,6 +1287,16 @@ Each companion post follows this structure:
 **Proof point:** The line is built in: the agent is not given the uploader key (CI only) or the person's personal access token, reads release state with a read-only key, and the skill never records UAT on a reviewer's behalf.
 **CTA:** "Read the full article → devaudit.ai/blog/developer-qa-agent-collaboration"
 **Source draft:** [short-form](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/articles/developer-qa-agent-collaboration-short-form.md) · hero image `images/developer-qa-agent-collaboration-hero.png` (prompt: `images/developer-qa-agent-collaboration-hero-prompt.md`)
+
+#### #42s: One Process, Many Shapes
+
+**Long-form parent:** Article 42 — One Process, Many Shapes
+**Platform:** LinkedIn, Dev.to
+**Hook:** "A solo developer and a team with a compliance lead should not follow the same SDLC."
+**Insight:** Give them one process and the solo developer skips it or the team fails its audit. So the process is a set of settings in a file in the repository: who approves a release, what blocks it, where it runs, which standards you evidence, and whether a human UAT pack is written. You start from one of four presets or `custom`, and `devaudit configure set` validates a change and shows what the next update regenerates.
+**Proof point:** What does not change is the point: the approval gate on the release PR is always on, the evidence format and clause mapping are the same for every project, and a weaker choice records itself (self-approval is logged as a gap against SOC 2 CC8.1 and ISO 27001 A.8.32). Eleven validators refuse values that cannot work, `devaudit doctor` flags drift, and the 1.13.0 pre-release run against fixtures and read-only clones of real repositories caught a report cut off at 64 KiB before it shipped.
+**CTA:** "Read the full article → devaudit.ai/blog/configurable-sdlc"
+**Source draft:** [short-form](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/articles/configurable-sdlc-short-form.md) · hero image `images/configurable-sdlc-hero.png` (prompt: `images/configurable-sdlc-hero-prompt.md`)
 
 
 ---
