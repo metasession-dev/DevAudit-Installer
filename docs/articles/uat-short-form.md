@@ -15,6 +15,7 @@ Most audit trails hold one sentence about user acceptance testing: "UAT done." N
 - `approval.mode`: the person who accepts must differ from the author, or the gap is recorded
 
 **Written**
+Optional. Set it to `never` and no pack is written, which is the product owner's call and has a compliance cost: no documented human acceptance testing to show an auditor.
 For a qualifying change, the agent writes three documents from the acceptance criteria, for a tester who has never seen the system:
 - a briefing: what changed, what did not, environment, accounts
 - a procedure: click-by-click steps with exact expected results, at least one positive and one negative per criterion
