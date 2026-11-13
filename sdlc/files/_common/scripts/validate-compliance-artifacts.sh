@@ -52,6 +52,28 @@ fi
 echo "Requirements found in PR commits: $REQUIREMENTS"
 echo ""
 
+# Print a file without its HTML comments (<!-- ... -->), single- or multi-line
+# (DevAudit-Installer#1251): a template's own header comment may say "REPLACE" and
+# must not count as an unfinished marker.
+strip_html_comments() {
+  awk '
+    {
+      line = $0; out = ""
+      while (length(line) > 0) {
+        if (incomment) {
+          i = index(line, "-->")
+          if (i == 0) { line = ""; break }
+          line = substr(line, i + 3); incomment = 0
+        } else {
+          i = index(line, "<!--")
+          if (i == 0) { out = out line; line = "" }
+          else { out = out substr(line, 1, i - 1); line = substr(line, i + 4); incomment = 1 }
+        }
+      }
+      print out
+    }' "$1"
+}
+
 find_first_match() {
   local pattern="$1"
   local match=""
@@ -498,7 +520,7 @@ for REQ in $REQUIREMENTS; do
       if [ ! -f "compliance/evidence/$REQ/$UAT_FILE" ]; then
         echo "  ERROR: UAT pack incomplete: compliance/evidence/$REQ/$UAT_FILE is missing (templates in the sdlc-implementer skill's references/)"
         EXIT_CODE=1
-      elif grep -q 'REPLACE' "compliance/evidence/$REQ/$UAT_FILE"; then
+      elif strip_html_comments "compliance/evidence/$REQ/$UAT_FILE" | grep -q 'REPLACE'; then
         echo "  ERROR: compliance/evidence/$REQ/$UAT_FILE still has REPLACE markers"
         EXIT_CODE=1
       else

@@ -44,7 +44,8 @@ for deployment in deployments:
         continue
     if fallback is None:
         fallback = dep_id
-    if env in {"production", "prod"}:
+    # The rule of post-deploy-prod.yml: Vercel names its environment "Production – <project>" (#1245).
+    if env in {"production", "prod"} or env.startswith("production") or env.endswith("/ production") or env.endswith("/production"):
         preferred = dep_id
         break
 if preferred is not None:

@@ -20,6 +20,15 @@ describe('the UAT pack templates (#1198)', () => {
     }
   });
 
+  it('no template keeps the word REPLACE in its header comment, so a finished file is not rejected for it (#1251)', async () => {
+    for (const name of ['uat-briefing', 'uat-test-procedure', 'uat-execution-record']) {
+      const text = await read(`${REFS}/${name}.md.template`);
+      const start = text.indexOf('<!--');
+      const comment = text.slice(start, text.indexOf('-->', start));
+      expect(comment, name).not.toContain('REPLACE');
+    }
+  });
+
   it('the record template says who executed the run and lets a reviewer force a manual re-run (#1246)', async () => {
     const text = await read(`${REFS}/uat-execution-record.md.template`);
     for (const part of ['Execution mode', 'Executed by', 'Reviewed by', '## Actions taken by the agent', 'A manual re-run is required', 'compliance/evidence/REQ-XXX/uat/']) {
@@ -78,6 +87,18 @@ describe('the pack is wired into the orchestrator, validator and uploader (#1198
       expect(step).toContain(part);
     }
     expect(skill).toContain('never fill the reviewer\'s declaration, decision or sign-off');
+  });
+
+  it('Phase 4 step 4 has a manual and an auto issue comment, and the auto one does not ask the reviewer to execute UAT (#1253)', async () => {
+    const skill = await read('sdlc/files/_common/skills/sdlc-implementer/SKILL.md');
+    const start = skill.indexOf('4. **Comment on the issue.** Post the `manual` comment');
+    expect(start).toBeGreaterThan(-1);
+    const step = skill.slice(start, skill.indexOf('4a. **Agent-executed UAT'));
+    expect(step).toContain('**`manual`:**');
+    expect(step).toContain('perform UAT by executing');
+    const auto = step.slice(step.indexOf('**`auto`:**'));
+    expect(auto).toContain('The agent will now execute the UAT procedure');
+    expect(auto).not.toContain('perform UAT by executing');
   });
 
   it('Phase 1 step 11 shows the SDLC configuration and changes it only through configure set (#1247)', async () => {

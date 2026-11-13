@@ -90,6 +90,33 @@ assert_grep "success message emitted" 'terminal success' "$OUT"
 assert_grep "success result is structured" '^verification=success$' "$OUT.result"
 echo ""
 
+echo "--- Test 1b: a Vercel production environment is chosen over a preview one (#1252) ---"
+OUT="$WORK/test1b.out"
+if run_check "$WORK" "$OUT" env \
+  MOCK_DEPLOYMENTS_JSON='[{"id":1,"environment":"Preview – example-app"},{"id":2,"environment":"Production – example-app"}]' \
+  MOCK_STATUSES_JSON='[{"state":"success"}]'; then
+  CODE=0
+else
+  CODE=$?
+fi
+assert_exit "vercel production deployment passes" 0 "$CODE"
+assert_grep "the production deployment was verified" 'deployment_id=2 ' "$OUT"
+assert_grep "the preview deployment was not" 'GitHub deployment 2 for' "$OUT"
+echo ""
+
+echo "--- Test 1c: with no production-named deployment the first one is the fallback ---"
+OUT="$WORK/test1c.out"
+if run_check "$WORK" "$OUT" env \
+  MOCK_DEPLOYMENTS_JSON='[{"id":7,"environment":"Preview – example-app"},{"id":8,"environment":"Staging"}]' \
+  MOCK_STATUSES_JSON='[{"state":"success"}]'; then
+  CODE=0
+else
+  CODE=$?
+fi
+assert_exit "fallback deployment passes" 0 "$CODE"
+assert_grep "the first deployment was used" 'deployment_id=7 ' "$OUT"
+echo ""
+
 echo "--- Test 2: failure status fails ---"
 OUT="$WORK/test2.out"
 if run_check "$WORK" "$OUT" env \

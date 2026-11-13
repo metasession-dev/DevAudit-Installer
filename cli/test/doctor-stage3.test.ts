@@ -156,18 +156,30 @@ describe('uat.mode (#1246)', () => {
   it('is quiet for manual and for auto with a dual_actor approver', async () => {
     const dir = await repo({ rtmRisk: 'LOW' });
     expect((await stage3EvidenceCheck({ repoRoot: dir, cfg: { uat: { mode: 'manual' }, approval: { mode: 'solo_with_gap' } } })).ok).toBe(true);
-    expect((await stage3EvidenceCheck({ repoRoot: dir, cfg: { uat: { mode: 'auto' }, approval: { mode: 'dual_actor' } } })).ok).toBe(true);
+    expect((await stage3EvidenceCheck({ repoRoot: dir, cfg: { uat: { mode: 'auto', enabled: true }, approval: { mode: 'dual_actor' } } })).ok).toBe(true);
   });
 
   it('warns that auto with solo_with_gap has no independent reviewer, unless the pack is off', async () => {
     const dir = await repo({ rtmRisk: 'LOW' });
-    const r = await stage3EvidenceCheck({ repoRoot: dir, cfg: { uat: { mode: 'auto' }, approval: { mode: 'solo_with_gap' } } });
+    const r = await stage3EvidenceCheck({ repoRoot: dir, cfg: { uat: { mode: 'auto', enabled: true }, approval: { mode: 'solo_with_gap' } } });
     const finding = r.findings?.find((f) => f.subject === 'uat.mode-independence');
     expect(finding?.detail).toContain('no one independent of the change');
     expect(finding?.remediation).toBeUndefined();
     expect(JSON.stringify(gapsFromCheck(r))).toContain(CHECK_EXPLANATIONS['stage3-evidence:uat.mode-independence']!.title);
     const off = await stage3EvidenceCheck({ repoRoot: dir, cfg: { uat: { mode: 'auto', human_pack: 'never' }, approval: { mode: 'solo_with_gap' } } });
     expect(off.ok).toBe(true);
+  });
+
+  it('warns that auto has no UAT environment to run on unless uat.enabled is true or the pack is off (#1253)', async () => {
+    const dir = await repo({ rtmRisk: 'LOW' });
+    const r = await stage3EvidenceCheck({ repoRoot: dir, cfg: { uat: { mode: 'auto' } } });
+    const finding = r.findings?.find((f) => f.subject === 'uat.mode-no-environment');
+    expect(finding?.detail).toContain('needs a deployed UAT environment');
+    expect(finding?.remediation).toBeUndefined();
+    expect(JSON.stringify(gapsFromCheck(r))).toContain(CHECK_EXPLANATIONS['stage3-evidence:uat.mode-no-environment']!.title);
+    expect((await stage3EvidenceCheck({ repoRoot: dir, cfg: { uat: { mode: 'auto', enabled: true } } })).ok).toBe(true);
+    expect((await stage3EvidenceCheck({ repoRoot: dir, cfg: { uat: { mode: 'auto', human_pack: 'never' } } })).ok).toBe(true);
+    expect((await stage3EvidenceCheck({ repoRoot: dir, cfg: { uat: { mode: 'manual' } } })).ok).toBe(true);
   });
 });
 

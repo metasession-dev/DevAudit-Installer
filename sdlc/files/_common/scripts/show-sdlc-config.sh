@@ -48,10 +48,21 @@ get() {
 
 APPROVAL="$(get '.approval.mode' dual_actor)"
 REVIEWS="$(get '.release_branch_required_reviews' 1)"
-E2E_ON="$(get '.e2e_regression_enabled' true)"
+E2E_ON="$(get '.e2e_regression_enabled' false)"
 GATE="$(get '.release_gate_tier' critical)"
 POST_DEPLOY="$(get '.post_deploy_full_regression' true)"
 SCHEDULE="$(get '.scheduled_full_regression' '')"
+# The generator keeps a schedule only if it has five whitespace-separated fields and no quote
+# (scheduledRegressionCron in cli/src/update/ci-templates.ts); anything else means no schedule.
+SCHEDULE="$(printf '%s' "$SCHEDULE" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+SCHEDULE_DROPPED=""
+if [ -n "$SCHEDULE" ]; then
+  if ! printf '%s' "$SCHEDULE" | grep -qE "^[^'\"]+$" \
+     || ! printf '%s' "$SCHEDULE" | grep -qE '^[^[:space:]]+([[:space:]]+[^[:space:]]+){4}$'; then
+    SCHEDULE_DROPPED="$SCHEDULE"
+    SCHEDULE=""
+  fi
+fi
 TERMINAL="$(get '.production_review.terminal_status' prod_review)"
 UAT_ENV="$(get '.uat.enabled' false)"
 UAT_CLASSES="$(jq -r '(.uat.required_risk_classes // ["payment","destructive_migration","realtime","physical_ux"]) | join(", ")' "$CONFIG")"
@@ -82,21 +93,21 @@ echo
 
 echo "AT THE RELEASE PR (into $RELEASE_BRANCH)"
 if [ "$E2E_ON" = "false" ]; then
-  echo "- e2e_regression_enabled = false: no E2E regression workflow is generated, so release_gate_tier ($GATE) has no effect."
+  echo "- e2e_regression_enabled is off (unset or false): no E2E regression workflow exists, so no E2E tier blocks the release PR."
 else
   case "$GATE" in
     none)     echo "- release_gate_tier = none: no E2E tier blocks the release PR." ;;
     smoke)    echo "- release_gate_tier = smoke: the smoke tier must pass before the release PR can merge." ;;
     critical) echo "- release_gate_tier = critical: the critical tier must pass before the release PR can merge." ;;
     full)     echo "- release_gate_tier = full: the full E2E pack must pass before the release PR can merge." ;;
-    *)        echo "- release_gate_tier = $GATE: not a value DevAudit knows." ;;
+    *)        echo "- release_gate_tier = $GATE: not a value DevAudit knows; the critical tier is used." ;;
   esac
 fi
 echo
 
 echo "AFTER DEPLOY AND ON A SCHEDULE"
 if [ "$E2E_ON" = "false" ]; then
-  echo "- No E2E regression runs (e2e_regression_enabled = false)."
+  echo "- No E2E regression runs (e2e_regression_enabled is off: unset or false)."
 else
   if [ "$POST_DEPLOY" = "false" ]; then
     echo "- post_deploy_full_regression = false: the full regression is not run after a production deploy."
@@ -105,6 +116,8 @@ else
   fi
   if [ -n "$SCHEDULE" ]; then
     echo "- scheduled_full_regression = \"$SCHEDULE\": the full regression also runs on $INTEGRATION on that schedule (never release evidence, never blocks approval)."
+  elif [ -n "$SCHEDULE_DROPPED" ]; then
+    echo "- scheduled_full_regression = \"$SCHEDULE_DROPPED\": not a valid five-field cron expression, so no schedule runs."
   else
     echo "- scheduled_full_regression: none."
   fi
@@ -170,6 +183,9 @@ if [ "$REVIEWS" = "0" ]; then
 fi
 if [ "$UAT_MODE" = "auto" ] && [ "$APPROVAL" = "solo_with_gap" ] && [ "$PACK_APPLIES" = "yes" ]; then
   WARN="${WARN}- uat.mode = auto with approval.mode = solo_with_gap: the agent executes UAT and the author is the only reviewer, so no one independent of the change looks at it.\n"
+fi
+if [ "$UAT_MODE" = "auto" ] && [ "$PACK_APPLIES" = "yes" ] && [ "$UAT_ENV" != "true" ]; then
+  WARN="${WARN}- uat.mode = auto but uat.enabled is not true: agent-executed UAT needs a deployed UAT environment.\n"
 fi
 if [ "$PACK" = "never" ] && printf '%s' "$FRAMEWORKS" | grep -q 'iso-29119'; then
   WARN="${WARN}- uat.human_pack = never with iso-29119 declared: there is no documented human acceptance testing to show for this change.\n"

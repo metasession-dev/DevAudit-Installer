@@ -9,7 +9,7 @@
   - Actions are click-by-click. Expected results are exact text, values or
     states, never "works" or "looks right".
   - Screenshot names follow REQ-XXX-AC<n>-<slug>.png.
-  Replace every REPLACE marker; CI rejects the file while any remains.
+  Fill in every placeholder; CI rejects the file while one remains.
 -->
 # UAT Test Procedure — REQ-XXX: REPLACE title
 
