@@ -87,6 +87,7 @@ function skipSplitGroup(group: string): string {
     "!(github.event.deployment_status.state == 'success' && " +
     "(github.event.deployment.environment == 'production' || " +
     "github.event.deployment.environment == 'prod' || " +
+    "startsWith(github.event.deployment.environment, 'production') || " +
     "endsWith(github.event.deployment.environment, '/ production')))) " +
     `&& format('${group}-skipped-{0}', github.run_id) || '${group}' }}`
   );
@@ -132,7 +133,7 @@ describe('e2e-regression.yml concurrency (#969)', { timeout: 120_000 }, () => {
     const jobIf = (doc.jobs['e2e-regression']!.if ?? '').replace(/\s+/g, ' ');
     // The skip condition is the job's own run condition, negated: same environment clause.
     const envClause =
-      "(github.event.deployment.environment == 'production' || github.event.deployment.environment == 'prod' || endsWith(github.event.deployment.environment, '/ production'))";
+      "(github.event.deployment.environment == 'production' || github.event.deployment.environment == 'prod' || startsWith(github.event.deployment.environment, 'production') || endsWith(github.event.deployment.environment, '/ production'))";
     expect(jobIf).toContain(envClause);
     expect(concurrencyOf(yaml).group).toContain(envClause);
     expect(concurrencyOf(yaml).group).toContain("format('uat-e2e-data-skipped-{0}', github.run_id) || 'uat-e2e-data'");

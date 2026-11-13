@@ -747,6 +747,7 @@ function buildE2eRegressionConcurrency(cfg: SdlcConfig): string {
     "    !(github.event.deployment_status.state == 'success' &&",
     "    (github.event.deployment.environment == 'production' ||",
     "    github.event.deployment.environment == 'prod' ||",
+    "    startsWith(github.event.deployment.environment, 'production') ||",
     "    endsWith(github.event.deployment.environment, '/ production'))))",
     `    && format(${skippedLiteral}, github.run_id) || ${literal} }}`,
     cancel,

@@ -4,6 +4,10 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+### Fixed
+
+- **Post-deploy evidence now runs for Vercel production deployments, and the incident label step no longer fails** (#1245): Vercel's GitHub app names the environment `Production – <project>`, which none of the `deployment_status` conditions matched, so every run ended skipped and the post-deploy evidence, smoke probe and `prod_review` promotion never happened automatically. `post-deploy-prod.yml`, `e2e-regression.yml` (Node and pytest) and the E2E concurrency group now also match an environment that starts with `production`, in any case. The `incident` and `test-bug` labels are created with `gh label create --force` instead of checking `gh label list`, which returns only 30 labels, so a repository that already had the label failed the step and no incident issue was filed. Your next sync diff rewrites those workflows.
+
 ## [1.13.0] — 2026-11-08
 
 ### Added
