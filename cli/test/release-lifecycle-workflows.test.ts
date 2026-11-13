@@ -17,6 +17,14 @@ const reference = (name: string) =>
     '\n',
   );
 
+/** Every `gh label create …` command in a workflow, up to the end of its (possibly continued) command (#1252). */
+function labelCreateCommands(source: string): string[] {
+  return source
+    .split('gh label create ')
+    .slice(1)
+    .map((rest) => rest.split(/\n\s*\n/)[0]!.split(/\n(?=\s*(?:gh |FLAKE_COUNT|[A-Z_]+=))/)[0]!);
+}
+
 type WorkflowStep = { name?: string; run?: string; 'working-directory'?: string };
 type WorkflowJob = {
   if?: string;
@@ -486,7 +494,27 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     expect(source).toContain("github.event.deployment_status.state == 'success'");
     expect(source).toContain("endsWith(github.event.deployment.environment, '/ production')");
     expect(source).toContain("endsWith(github.event.deployment.environment, '/production')");
+    // A Vercel production deployment is named "Production – <project>" (#1245).
+    expect(source).toContain("startsWith(github.event.deployment.environment, 'production')");
+    // Idempotent label creation: no dependence on `gh label list`, which shows only 30 labels (#1245).
+    const labels = labelCreateCommands(source);
+    expect(labels.map((c) => c.split(' ')[0])).toEqual(['incident']);
+    for (const command of labels) expect(command).toContain('--force');
+    expect(source).not.toContain('gh label list');
     expect(source).toContain('GIT_SHA: ${{ github.event.deployment.sha || github.event.inputs.deployed_sha || github.sha }}');
+  });
+
+  it('creates the incident and test-bug labels with --force, never from a 30-label listing (#1245, #1252)', () => {
+    const source = template('compliance-evidence.yml.template');
+    const labels = labelCreateCommands(source);
+    expect(labels.map((c) => c.split(' ')[0])).toEqual(['incident', 'test-bug']);
+    for (const command of labels) expect(command).toContain('--force');
+    expect(source).not.toContain('gh label list');
+  });
+
+  it('the pytest e2e-regression template accepts a Vercel "Production – <project>" environment (#1245, #1252)', () => {
+    const source = readFileSync(resolve(root, 'sdlc/files/ci/runners/pytest/e2e-regression.yml.template'), 'utf8');
+    expect(source).toContain("startsWith(github.event.deployment.environment, 'production')");
   });
 
   it('only fans out E2E JSON to requirements whose tests executed in that result', () => {
@@ -616,6 +644,7 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     expect(source).toContain("github.event_name == 'deployment_status'");
     expect(source).toContain("endsWith(github.event.deployment.environment, '/ production')");
     expect(source).toContain("endsWith(github.event.deployment.environment, '/production')");
+    expect(source).toContain("startsWith(github.event.deployment.environment, 'production')");
   });
 
   it('runs self-hosted runner prerequisite preflight before quality gates', () => {

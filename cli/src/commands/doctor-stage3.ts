@@ -13,9 +13,10 @@ import { archivedTicketDir, readBundleManifests, readPendingTickets } from '../l
  * gating: it is an onboarding-style check whose findings are guidance.
  */
 
-export const STAGE3_EVIDENCE_FINDINGS = ['signoff-pending', 'uat-pack-missing', 'uat.human_pack'] as const;
+export const STAGE3_EVIDENCE_FINDINGS = ['signoff-pending', 'uat-pack-missing', 'uat.human_pack', 'uat.mode', 'uat.mode-independence', 'uat.mode-no-environment'] as const;
 
 const HUMAN_PACK_MODES = ['risk', 'always', 'never'] as const;
+const UAT_MODES = ['manual', 'auto'] as const;
 /** An RTM status that means the REQ is done (the validator's #1210 rule). */
 const TERMINAL_STATUS = /APPROVED|RELEASED|SUPERSEDED|ABANDONED/;
 
@@ -103,7 +104,7 @@ export async function stage3EvidenceCheck(consumer: { readonly repoRoot: string;
     if (TERMINAL_STATUS.test(rtmCell(rtm, t.version, 'status'))) continue;
     tickets.push(t);
   }
-  const uat = (consumer.cfg['uat'] ?? {}) as { human_pack?: unknown };
+  const uat = (consumer.cfg['uat'] ?? {}) as { human_pack?: unknown; mode?: unknown; enabled?: unknown };
   const findings: Finding[] = [];
   // #1227: a hand-edited value the validator would read as `risk`.
   const rawMode = uat.human_pack;
@@ -120,6 +121,38 @@ export async function stage3EvidenceCheck(consumer: { readonly repoRoot: string;
         needsPortal: false,
         data: { key: 'uat.human_pack', value: 'risk' },
       },
+    });
+  }
+  // #1246: `uat.mode` is manual or auto; anything else is read as manual.
+  if (uat.mode !== undefined && !(UAT_MODES as readonly unknown[]).includes(uat.mode)) {
+    findings.push({
+      subject: 'uat.mode',
+      detail: `uat.mode is ${JSON.stringify(uat.mode)} in sdlc-config.json; expected manual or auto. It is read as manual.`,
+      remediation: {
+        id: 'set-config',
+        tier: 'A',
+        summary: 'Set uat.mode to manual (the default)',
+        plan: ['devaudit configure set uat.mode manual'],
+        needsPortal: false,
+        data: { key: 'uat.mode', value: 'manual' },
+      },
+    });
+  }
+  // #1246: agent-executed UAT leans on an independent human reviewer; with solo_with_gap there is none.
+  const approvalMode = ((consumer.cfg['approval'] ?? {}) as { mode?: unknown }).mode;
+  if (uat.mode === 'auto' && mode !== 'never' && approvalMode === 'solo_with_gap') {
+    findings.push({
+      subject: 'uat.mode-independence',
+      detail:
+        'uat.mode is auto and approval.mode is solo_with_gap: the agent executes the UAT procedure and the author is the only reviewer, so no one independent of the change has looked at it. The gap is recorded (control-gap risk entry and the solo sign-off on the release ticket); it is not removed.',
+    });
+  }
+  // #1253: agent-executed UAT runs against a deployed UAT environment; `uat.enabled` says the project has one.
+  if (uat.mode === 'auto' && mode !== 'never' && uat.enabled !== true) {
+    findings.push({
+      subject: 'uat.mode-no-environment',
+      detail:
+        'uat.mode is auto but uat.enabled is not true: agent-executed UAT needs a deployed UAT environment, and this project declares none. Set uat.enabled and uat.url, or set uat.mode manual.',
     });
   }
   if (tickets.length === 0 && findings.length === 0) {

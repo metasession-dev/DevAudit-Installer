@@ -304,7 +304,7 @@ allowed only after UAT has been recorded for the release under review.
 For a REQ that needs the human UAT pack (`uat.human_pack`; by default MEDIUM risk
 and above), the tester reads `compliance/evidence/REQ-XXX/uat-briefing.md`, follows
 `uat-test-procedure.md` step by step, and completes `uat-execution-record.md`
-(results per step, defects, recommendation, tester and operator signatures). The
+(results per step, defects, recommendation, tester and operator signatures). With `uat.mode: auto` the agent executes the procedure on the UAT environment and fills the record (front matter `execution_mode: agent_executed`), and a named human who did not write the change reviews and signs it instead of the tester. The
 operator lands the completed record through a PR into the integration branch and
 waits for its evidence upload before the reviewer approves, so the record is on the
 portal at approval time (devaudit-installer#1198, #1212). The templates are in the

@@ -66,7 +66,7 @@ Before the evidence commit, sign the Stage 3 artefacts: `sdlc-implementer` colle
 every pending `## Operator sign-off` block in one reply (Phase 3 step 5d), and
 `Compliance Validation` fails the release PR while one is pending. A HIGH REQ also
 needs the human UAT pack (`uat-briefing.md`, `uat-test-procedure.md`, and the
-`uat-execution-record.md` the tester completes), unless `uat.human_pack` is `never`.
+`uat-execution-record.md` the tester completes), unless `uat.human_pack` is `never`. With `uat.mode: auto` the agent executes the procedure and fills the record and a named human reviews and signs; `auto` is allowed for HIGH and CRITICAL because that review is always required.
 
 Submit the release for UAT review after evidence is complete.
 
@@ -86,7 +86,7 @@ login with the tested SHA/build, checklist/evidence references, and a truthful
 outcome (`devaudit release check` confirms readiness before you submit). A failed
 UAT needs a remediation reference and returns to the change-request loop. A
 recorded passing UAT is required before UAT approval. With the UAT pack, the
-tester's completed `uat-execution-record.md` must have landed on the integration
+completed `uat-execution-record.md` (the tester's, or the agent's with the reviewer's sign-off) must have landed on the integration
 branch and been uploaded before the approval. Landing it moves the release PR's head,
 so all of the required checks above run again; land it as soon as UAT is done.
 

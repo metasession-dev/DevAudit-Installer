@@ -153,6 +153,8 @@ Before the broader thought-leadership and workflow series begins, the **first pu
 | 39                                          | MOFU   | CTO + Lead Developer        | Six Kinds of Tests, One Safety Net: What Runs When, and What Happens When the Last Gate Fails                     | Technical explainer (~1800w) + short-form|
 | 40                                          | MOFU   | Lead Developer              | The Advisory Nobody Asked For: Why a Failing Dependency Audit Mid-Feature Is the Process Working                  | Technical explainer (~1800w) + short-form |
 | 41                                          | MOFU   | CTO + Lead Developer        | Humans Decide, the Agent Does the Work: How DevAudit Splits an SDLC Between Developer, QA and a Coding Agent      | Workflow explainer (~2200w) + short-form  |
+| 42                                          | MOFU   | CTO + Lead Developer        | One Process, Many Shapes: How DevAudit's SDLC Bends to Your Team, and What It Refuses to Bend                     | Technical explainer (~2300w) + short-form |
+| 43                                          | MOFU   | CTO + Lead Developer        | A Person Tried It and Wrote Down What Happened: How DevAudit Configures, Runs and Records UAT                     | Workflow explainer (~2200w) + short-form  |
 
 ---
 
@@ -893,6 +895,46 @@ This is a five-part series that follows a single feature from GitHub issue to pr
   **CTA:** "See the full lifecycle → [devaudit.ai/sdlc](https://devaudit.ai/sdlc)"
   **Cross-links:** [docs/credentials.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/credentials.md) · [docs/change-workflows.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/change-workflows.md) · [docs/skills.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/skills.md) · [Long-form](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/articles/developer-qa-agent-collaboration-long-form.md)
 
+#### Article 42: One Process, Many Shapes
+
+> **Publication note:** Added after launch (devaudit-installer#1238). Every behaviour below is read from the current CLI, `core` and the generated workflows, not from the docs. Only behaviour in a released version (1.13.0) is described. The stack and host limits are stated as they ship: Node and Python, Railway, Vercel and a custom deploy command.
+
+**Primary persona:** CTO + Lead Developer (the compliance officer gets a callout section, "What does not bend")
+**Goal:** Show that DevAudit's SDLC is configurable, what is configurable and why, how a team changes it safely, what stays fixed so the evidence stays comparable, and how a configuration is verified.
+**Key points:**
+
+- The problem: a solo developer and a team with a compliance lead need different processes; one fixed SDLC is skipped by one and fails the audit of the other (who approves, how fast feedback must be, where and how it deploys, which standards)
+- What is configurable: `sdlc-config.json`, committed with the code; 56 settings `devaudit configure` manages; six groups (who approves, what blocks, where it runs, how much ceremony per change, which standards, where tests get data); the risk class sets how much of the process applies
+- Presets A to D and `custom`: what each is for, who approves, what blocks; one suggestion rule shared by scan, install and doctor; D is never suggested; the five moments every preset answers
+- A weaker setting records itself: self-approval (A, B) is logged as a gap against SOC 2 CC8.1 and ISO 27001 A.8.32, and the agent requires a control-gap risk entry and a "solo, recorded gap" sign-off on the release ticket
+- The ladder for changing it: a preset, then `configure set` (validated, previewed, `--dry-run`, `--reason` when the repo's evidence contradicts), then a hand-edit that is never overwritten or a `.devaudit-patches/` bridge, then an extension (host adapters and the `custom` host, nine plugin lifecycle hooks, skills)
+- What does not bend: the approval gate on the release PR, smoke blocking at `Quality Gates`, production evidence, the quarterly review, and the shared evidence contract (37 evidence types, two release shapes, five standards' clause mapping); a failed gate is always a recorded decision
+- How it is verified, in five layers: eleven validators on write (and a test that every setting is asked or declared not asked); `devaudit doctor` (`preset-drift`, `standards-fit`, `approval-policy`, `test-tiers`, `stage3-evidence`); generated workflows parsed, size-limited, syntax-checked and exercised end to end; the pre-release gate against fixtures and read-only clones of real consumer repositories (the 1.13.0 run found a diagnostic report cut off at 64 KiB before release); a hash manifest that preserves local edits on every sync
+- Honest limits: DevAudit produces evidence, the auditor decides; configurable does not mean a standard's independence requirement can be configured away; adding a stack is adapter and template work, not a setting
+  **DevAudit hook:** `cli/src/lib/repo-config-keys.ts`, `core/src/presets.ts`, `core/src/validators.ts`, `devaudit doctor` (`preset-drift`, `standards-fit`, `approval-policy`), `scripts/release-validation.sh`, `docs/presets.md`, `docs/configure.md`.
+  **CTA:** "Try it on your own repository and pick a preset → [devaudit.ai/onboarding](https://devaudit.ai/onboarding)"
+  **Cross-links:** [docs/presets.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/presets.md) · [docs/configure.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/configure.md) · [docs/consuming-projects.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/consuming-projects.md) · [docs/doctor.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/doctor.md) · [Long-form](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/articles/configurable-sdlc-long-form.md)
+
+#### Article 43: A Person Tried It and Wrote Down What Happened
+
+> **Publication note:** Added after launch (devaudit-installer#1240). Every behaviour below is read from the installer templates and validator and from the portal's UAT route and readiness code, not from the docs. Only behaviour in a released version (1.13.0) is described.
+
+**Primary persona:** CTO + Lead Developer (the compliance officer gets a callout section, "Where the record ends up")
+**Goal:** Show how UAT is configured, written, executed, recorded and saved, what the portal checks before it moves a release on, and where the limits are.
+**Key points:**
+
+- "UAT" means three things kept apart: verification in a UAT environment (Stage 3 Step 10, `uat.enabled`, `uat.required_risk_classes`, guidance for the agent, not validator-enforced), the human UAT pack (`uat.human_pack`: `risk`, `always`, `never`), and the portal's UAT review
+- The pack: briefing, procedure and execution record, written by the agent from the acceptance criteria for a tester who does not know the system; CI fails while a placeholder remains or an acceptance criterion appears in no step; released, superseded and abandoned requirements are exempt; a bundle's pack lives on its core
+- Optional, and what that costs: `uat.human_pack: never` is the product owner's call; it removes the pack and its test documentation (a compliance cost), but not the portal's `uat_cycle_missing` check, which does not read the setting
+- Who runs it: a person, not the agent and not the author; a tester independence declaration under `dual_actor`; a recorded gap and a "solo, recorded gap" sign-off under `solo_with_gap`; the skill never records or submits UAT
+- Recording: the completed record is committed to the integration branch by PR before approval; in the portal, a signed-in admin or uploader records Passed or Failed UAT during `uat_review` against a tested SHA or build version, with references and attached evidence; a CI key cannot
+- Saved: git, the evidence store (`test_cases`, `test_report`), a "Manual UAT execution" test cycle, and the audit event `test_cycle.uat_execution_recorded`
+- Gated: `uat_cycle_missing` blocks approval until a successful stage 4 cycle exists; the `independent` policy refuses self-approval; each approval is logged as independent or self
+- Honest limits: the record shows a person said they tested; the independence declaration is a declaration; the portal does not refuse a failed UAT without a remediation reference; the validator checks coverage, not quality
+  **DevAudit hook:** `sdlc/files/_common/skills/sdlc-implementer/references/uat-*.md.template`, `validate-compliance-artifacts.sh`, `devaudit configure set uat.human_pack`, `devaudit release check`.
+  **CTA:** "Try it on your own repository and set how much UAT each change gets → [devaudit.ai/onboarding](https://devaudit.ai/onboarding)"
+  **Cross-links:** [docs/presets.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/presets.md) · [docs/configure.md](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/configure.md) · [Long-form](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/articles/uat-long-form.md)
+
 ---
 
 ## Publishing cadence
@@ -1266,6 +1308,26 @@ Each companion post follows this structure:
 **Proof point:** The line is built in: the agent is not given the uploader key (CI only) or the person's personal access token, reads release state with a read-only key, and the skill never records UAT on a reviewer's behalf.
 **CTA:** "Read the full article → devaudit.ai/blog/developer-qa-agent-collaboration"
 **Source draft:** [short-form](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/articles/developer-qa-agent-collaboration-short-form.md) · hero image `images/developer-qa-agent-collaboration-hero.png` (prompt: `images/developer-qa-agent-collaboration-hero-prompt.md`)
+
+#### #42s: One Process, Many Shapes
+
+**Long-form parent:** Article 42 — One Process, Many Shapes
+**Platform:** LinkedIn, Dev.to
+**Hook:** "A solo developer and a team with a compliance lead should not follow the same SDLC."
+**Insight:** Give them one process and the solo developer skips it or the team fails its audit. So the process is a set of settings in a file in the repository: who approves a release, what blocks it, where it runs, which standards you evidence, and whether a human UAT pack is written. You start from one of four presets or `custom`, and `devaudit configure set` validates a change and shows what the next update regenerates.
+**Proof point:** What does not change is the point: the approval gate on the release PR is always on, the evidence format and clause mapping are the same for every project, and a weaker choice records itself (self-approval is logged as a gap against SOC 2 CC8.1 and ISO 27001 A.8.32). Eleven validators refuse values that cannot work, `devaudit doctor` flags drift, and the 1.13.0 pre-release run against fixtures and read-only clones of real repositories caught a report cut off at 64 KiB before it shipped.
+**CTA:** "Read the full article → devaudit.ai/blog/configurable-sdlc"
+**Source draft:** [short-form](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/articles/configurable-sdlc-short-form.md) · hero image `images/configurable-sdlc-hero.png` (prompt: `images/configurable-sdlc-hero-prompt.md`)
+
+#### #43s: A Person Tried It and Wrote Down What Happened
+
+**Long-form parent:** Article 43 — A Person Tried It and Wrote Down What Happened
+**Platform:** LinkedIn, Dev.to
+**Hook:** "Most audit trails hold one sentence about UAT: 'UAT done.'"
+**Insight:** No one can say who tested, which build, or what happened at step 4. DevAudit writes a briefing, a click-by-click procedure and a blank execution record from the acceptance criteria, for a tester who has never seen the system, and CI fails while a placeholder remains or a criterion is in no step.
+**Proof point:** A person runs it and records the outcome in the portal against a SHA or build, with evidence; the portal refuses that from a CI key. No successful UAT cycle, no approval, and each approval is logged as independent or self.
+**CTA:** "Read the full article → devaudit.ai/blog/uat"
+**Source draft:** [short-form](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/articles/uat-short-form.md) · hero image `images/uat-hero.png` (prompt: `images/uat-hero-prompt.md`)
 
 
 ---

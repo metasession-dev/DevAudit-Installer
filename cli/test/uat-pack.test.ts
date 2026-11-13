@@ -13,8 +13,26 @@ describe('the UAT pack templates (#1198)', () => {
   it('ship three templates that open with the 29119-3 document they satisfy', async () => {
     for (const name of ['uat-briefing', 'uat-test-procedure', 'uat-execution-record']) {
       const text = await read(`${REFS}/${name}.md.template`);
-      expect(text.startsWith('<!--'), name).toBe(true);
+      // The record opens with front matter the portal reads (#1246); its comment follows it.
+      const opening = name === 'uat-execution-record' ? '---\nexecution_mode: manual\nexecuted_by: REPLACE\ntested_sha: REPLACE\n---\n<!--' : '<!--';
+      expect(text.startsWith(opening), name).toBe(true);
       expect(text, name).toContain('29119-3');
+    }
+  });
+
+  it('no template keeps the word REPLACE in its header comment, so a finished file is not rejected for it (#1251)', async () => {
+    for (const name of ['uat-briefing', 'uat-test-procedure', 'uat-execution-record']) {
+      const text = await read(`${REFS}/${name}.md.template`);
+      const start = text.indexOf('<!--');
+      const comment = text.slice(start, text.indexOf('-->', start));
+      expect(comment, name).not.toContain('REPLACE');
+    }
+  });
+
+  it('the record template says who executed the run and lets a reviewer force a manual re-run (#1246)', async () => {
+    const text = await read(`${REFS}/uat-execution-record.md.template`);
+    for (const part of ['Execution mode', 'Executed by', 'Reviewed by', '## Actions taken by the agent', 'A manual re-run is required', 'compliance/evidence/REQ-XXX/uat/']) {
+      expect(text).toContain(part);
     }
   });
 
@@ -29,7 +47,7 @@ describe('the UAT pack templates (#1198)', () => {
 
   it('the execution record template has preparation, results, defects, independence and sign-off', async () => {
     const text = await read(`${REFS}/uat-execution-record.md.template`);
-    for (const section of ['Tester independence declaration', '## Operator preparation', '## Results', '## Defect log', '## Sign-off']) {
+    for (const section of ['Independence declaration', '## Operator preparation', '## Results', '## Defect log', '## Sign-off']) {
       expect(text).toContain(section);
     }
   });
@@ -51,6 +69,54 @@ describe('the pack is wired into the orchestrator, validator and uploader (#1198
     expect(skill).toContain('Never commit the record at merge time');
     expect(skill.indexOf('3c. **Write the human UAT pack')).toBeGreaterThan(skill.indexOf('3b. **Verify the per-REQ e2e-scope-decision'));
     expect(skill.indexOf('UAT execution record check')).toBeLessThan(skill.indexOf('`gh pr merge <M> --merge`'));
+  });
+
+  it('Phase 4 step 4a lets the agent execute UAT under uat.mode auto, never signing or recording it (#1246)', async () => {
+    const skill = await read('sdlc/files/_common/skills/sdlc-implementer/SKILL.md');
+    const step = skill.slice(skill.indexOf('4a. **Agent-executed UAT, only when `uat.mode` is `auto`'), skill.indexOf('5. **Inspect PR blockers before handoff'));
+    expect(step.length).toBeGreaterThan(500);
+    for (const part of [
+      'compliance/evidence/REQ-XXX/uat/',
+      '`execution_mode: agent_executed`',
+      'operator action',
+      'never records or submits UAT in the portal, and never signs',
+      'allowed for every risk class, HIGH and CRITICAL included',
+      'manual re-run',
+      '`BLOCKED`, not guessed',
+    ]) {
+      expect(step).toContain(part);
+    }
+    expect(skill).toContain('never fill the reviewer\'s declaration, decision or sign-off');
+  });
+
+  it('Phase 4 step 4 has a manual and an auto issue comment, and the auto one does not ask the reviewer to execute UAT (#1253)', async () => {
+    const skill = await read('sdlc/files/_common/skills/sdlc-implementer/SKILL.md');
+    const start = skill.indexOf('4. **Comment on the issue.** Post the `manual` comment');
+    expect(start).toBeGreaterThan(-1);
+    const step = skill.slice(start, skill.indexOf('4a. **Agent-executed UAT'));
+    expect(step).toContain('**`manual`:**');
+    expect(step).toContain('perform UAT by executing');
+    const auto = step.slice(step.indexOf('**`auto`:**'));
+    expect(auto).toContain('The agent will now execute the UAT procedure');
+    expect(auto).not.toContain('perform UAT by executing');
+  });
+
+  it('Phase 1 step 11 shows the SDLC configuration and changes it only through configure set (#1247)', async () => {
+    const skill = await read('sdlc/files/_common/skills/sdlc-implementer/SKILL.md');
+    const step = skill.slice(skill.indexOf('11. **Show the SDLC configuration, then checkpoint'), skill.indexOf('12. **Update SDLC status sticky**'));
+    expect(step.length).toBeGreaterThan(500);
+    for (const part of ['bash scripts/show-sdlc-config.sh <RISK>', '--confirm-config', 'DEVAUDIT_CONFIRM_CONFIG=1', 'devaudit configure set <key> <value> --dry-run', 'Never edit `sdlc-config.json` by hand', '`approval.mode` is the one key']) {
+      expect(step).toContain(part);
+    }
+    const blueprint = await read('sdlc/src/blueprints/1-plan-requirement.raw.md');
+    expect(blueprint).toContain('### Step 10b: Review the SDLC Configuration');
+  });
+
+  it('the validator reads the record front matter and uat.mode (#1246)', async () => {
+    const validator = await read('sdlc/files/_common/scripts/validate-compliance-artifacts.sh');
+    for (const part of ["jq -r '.uat.mode // \"manual\"'", 'execution_mode', 'agent_executed', 'compliance/evidence/$REQ/uat/']) {
+      expect(validator).toContain(part);
+    }
   });
 
   it('the validator requires the pack per uat.human_pack (default MEDIUM+) and checks AC coverage', async () => {

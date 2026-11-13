@@ -603,12 +603,10 @@ jobs:
           fi
 
           # Ensure the incident + test-bug labels exist (idempotent).
-          gh label list --json name --jq '.[].name' | grep -qx incident || \
-            gh label create incident --color 'B60205' \
-              --description 'Operational, test, or compliance incident; close to auto-archive as portal evidence'
-          gh label list --json name --jq '.[].name' | grep -qx test-bug || \
-            gh label create test-bug --color 'FBCA04' \
-              --description 'Test bug or seed-data gap — not an application defect'
+          gh label create incident --color 'B60205' \
+            --description 'Operational, test, or compliance incident; close to auto-archive as portal evidence' --force
+          gh label create test-bug --color 'FBCA04' \
+            --description 'Test bug or seed-data gap — not an application defect' --force
 
           FLAKE_COUNT=0
           TEST_BUG_COUNT=0

@@ -4,6 +4,37 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+## [1.14.0] — 2026-11-13
+
+### Added
+
+- **`uat.mode`: the agent can execute UAT, and a human reviews it** (#1246): `devaudit configure set uat.mode <manual|auto>`. `manual` (the default) is today's behaviour. With `auto`, once the build is on the UAT environment, `sdlc-implementer` (Phase 4 step 4a) executes `uat-test-procedure.md` step by step with the briefing's UAT accounts, stores a screenshot (or page text) per step under `compliance/evidence/REQ-XXX/uat/`, and fills `uat-execution-record.md`; a named human who is independent of the author reviews it, signs, and can require a manual re-run. The agent never performs operator actions (settings, data), never signs, and never records UAT in the portal. `auto` is allowed for HIGH and CRITICAL. `uat-execution-record.md` now opens with front matter (`execution_mode: manual|agent_executed`, `executed_by`, `tested_sha`) that says which kind of run happened; the portal (devaudit#966) reads it. `Compliance Validation` checks it: an unknown mode or an agent-executed record without `executed_by` or with a named evidence file missing from `uat/` fails; a record without front matter reads as manual. `uat.mode` only matters while the UAT pack applies. `devaudit doctor` (`stage3-evidence`) reports an unknown value and warns that `auto` with `approval.mode: solo_with_gap` has no independent reviewer. Your next sync diff updates the record template, the validator and the skill.
+
+- **The plan approval shows the SDLC configuration** (#1247): at Phase 1 step 11, before any code is written, `sdlc-implementer` runs the new `scripts/show-sdlc-config.sh <RISK>` and prints what happens when, from `sdlc-config.json`: who approves, what blocks the release PR, what runs after deploy and on a schedule, whether the UAT-environment check and the human UAT pack apply and who runs the pack, where it deploys, which standards. It is printed for every risk class; it pauses for HIGH and CRITICAL (or `--require-plan-approval`), and `--confirm-config` (or `DEVAUDIT_CONFIRM_CONFIG=1`) makes it a pause for every class. The operator can answer `change <key> to <value>`; the skill runs `devaudit configure set` (previewed with `--dry-run`) and prints the block again. Nothing here changes the portal's own gates; `approval.mode` is the one key `configure` also writes to the portal.
+
+- **`devaudit doctor` and the configuration display warn about agent-executed UAT with no UAT environment** (#1253): `uat.mode: auto` with `uat.enabled` not true (and the pack not turned off) is reported by `stage3-evidence` as its own finding and in the "worth a look" part of the plan-approval block, because the agent has nowhere to run the steps.
+
+### Fixed
+
+- **The plan-approval configuration block no longer claims gates that do not exist** (#1250): `scripts/show-sdlc-config.sh` read an unset `e2e_regression_enabled` as on, so on a project without the E2E regression workflow it said a release gate and a post-deploy regression would run. It now reads unset as off, as the generator does, shows a `scheduled_full_regression` that is not a five-field cron expression as "no schedule", and says an unknown `release_gate_tier` uses the critical tier.
+
+- **A finished UAT pack is no longer rejected for the word in its own template comment** (#1251): `Compliance Validation` looked for `REPLACE` anywhere in `uat-briefing.md` and `uat-test-procedure.md`, including the template's header comment ("Replace every REPLACE marker"), so a pack with every placeholder filled still failed. The validator now ignores HTML comments, and the three UAT templates no longer use the word in their comments.
+
+- **`check-host-deployment.sh` picks a Vercel production deployment** (#1252): it preferred only an environment named exactly `production` or `prod`, so for Vercel's `Production – <project>` it verified the first deployment listed for the commit, which could be a preview. It now uses the same rule as the workflows (#1245).
+
+- **With `uat.mode: auto` the issue comment no longer asks the reviewer to execute UAT** (#1253): Phase 4 step 4 of `sdlc-implementer` has a `manual` and an `auto` comment; the `auto` one says the agent runs the procedure and the reviewer reviews and signs.
+
+- **Post-deploy evidence now runs for Vercel production deployments, and the incident label step no longer fails** (#1245): Vercel's GitHub app names the environment `Production – <project>`, which none of the `deployment_status` conditions matched, so every run ended skipped and the post-deploy evidence, smoke probe and `prod_review` promotion never happened automatically. `post-deploy-prod.yml`, `e2e-regression.yml` (Node and pytest) and the E2E concurrency group now also match an environment that starts with `production`, in any case. The `incident` and `test-bug` labels are created with `gh label create --force` instead of checking `gh label list`, which returns only 30 labels, so a repository that already had the label failed the step and no incident issue was filed. Your next sync diff rewrites those workflows.
+
+### Upgrade notes
+
+- **Workflows you receive:** your next sync diff rewrites `post-deploy-prod.yml`, `e2e-regression.yml` (including its concurrency group) and `compliance-evidence.yml`. The production jobs now also run for an environment whose name starts with `production` (Vercel's `Production – <project>`), and the `incident` and `test-bug` labels are created with `--force`.
+- **New and changed scripts in `scripts/`:** new `show-sdlc-config.sh`; changed `validate-compliance-artifacts.sh` (reads the UAT record's front matter, ignores HTML comments when looking for `REPLACE`) and `check-host-deployment.sh` (picks a Vercel production deployment).
+- **The UAT record template changed:** `uat-execution-record.md.template` now opens with front matter (`execution_mode`, `executed_by`, `tested_sha`), and the three UAT templates no longer contain the word `REPLACE` in their header comments. A record you already wrote has no front matter and is read as a manual run; nothing to change.
+- **`Compliance Validation`:** a finished UAT pack that used to fail because of the word in a template comment now passes. The record's front matter is checked only when it is present: an unknown `execution_mode`, an `agent_executed` record without `executed_by`, or an evidence file named in an agent-executed record that is not under `compliance/evidence/REQ-XXX/uat/` fails.
+- **`uat.mode`** is a new setting (`manual`, the default, or `auto`); no action is needed to keep today's behaviour. `devaudit doctor` (`stage3-evidence`) reports an unknown value and two warnings for `auto`: with `approval.mode: solo_with_gap` (no independent reviewer) and with `uat.enabled` not true (no UAT environment).
+- **`sdlc-implementer`** prints the SDLC configuration at the Phase 1 plan approval; pass `--confirm-config` (or set `DEVAUDIT_CONFIRM_CONFIG=1`) to make it a pause for every risk class.
+
 ## [1.13.0] — 2026-11-08
 
 ### Added
