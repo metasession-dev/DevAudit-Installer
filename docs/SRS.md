@@ -1199,6 +1199,16 @@ Black-box SRS for `devaudit install [path]` (the full interactive onboarding flo
 
 ---
 
+#### REQ-FRAMEWORK-ADAPTER-020 — Production deployment environments are matched by name prefix, and CI labels are created idempotently (#1245)
+
+- **Priority:** Should — on Vercel the post-deploy evidence, smoke probe and `prod_review` promotion never ran from the `deployment_status` event, and a failed E2E regression filed no incident issue on a repository that already had the label.
+- **Source:** `sdlc/files/ci/post-deploy-prod.yml.template`, `e2e-regression.yml.template` (and the pytest variant), the `buildE2eRegressionConcurrency` group in `cli/src/update/ci-templates.ts`, `sdlc/files/ci/compliance-evidence.yml.template`.
+- **Given** a successful `deployment_status` whose environment is `production`, `prod`, starts with `production` in any case (Vercel names it `Production – <project>`), or ends with `/ production` or `/production` **Then** the production jobs run. **Given** any other environment **Then** they are skipped, and the E2E regression concurrency group splits those skipped events from the runs that execute, using the same condition.
+- **Given** the incident or `test-bug` label already exists, however many labels the repository has **Then** the workflow step does not fail: it runs `gh label create <name> … --force` and does not depend on `gh label list`, which returns only 30 labels.
+- **Fixtures/env:** `cli/test/release-lifecycle-workflows.test.ts`, `cli/test/e2e-concurrency.test.ts`.
+
+---
+
 #### REQ-FRAMEWORK-ADAPTER-019 — The `custom` host: a self-run deploy the production gate can see (#1022)
 
 - **Priority:** Should — AWS, self-hosted and script deploys post no GitHub `deployment_status`, so the post-deploy gate could never pass for them.
