@@ -525,6 +525,60 @@ for REQ in $REQUIREMENTS; do
     fi
   fi
 
+  # UAT execution record front matter (DevAudit-Installer#1246). The record
+  # opens with YAML front matter that says who executed the run:
+  # `execution_mode` manual (a tester) or agent_executed (the agent, reviewed
+  # by a human; `uat.mode: auto`), `executed_by`, `tested_sha`. The portal
+  # reads it from the first bytes of the file. It describes the run that
+  # happened, so it is not compared with the `uat.mode` setting, which can
+  # change after a run. A record without it (written before #1246) reads as
+  # manual. For an agent-executed run, `executed_by` must name the agent and
+  # every evidence file the record names must exist under
+  # compliance/evidence/$REQ/uat/.
+  UAT_MODE_CFG=manual
+  if [ -f sdlc-config.json ] && command -v jq >/dev/null 2>&1; then
+    UAT_MODE_CFG="$(jq -r '.uat.mode // "manual"' sdlc-config.json 2>/dev/null || echo manual)"
+  fi
+  case "$UAT_MODE_CFG" in
+    manual|auto) ;;
+    *) echo "  WARNING: uat.mode is \"$UAT_MODE_CFG\"; expected manual or auto — using manual (DevAudit-Installer#1246)" ;;
+  esac
+  UAT_RECORD="compliance/evidence/$REQ/uat-execution-record.md"
+  if [ -f "$UAT_RECORD" ] && [ "$REQ_TERMINAL" != "true" ]; then
+    if [ "$(head -n 1 "$UAT_RECORD" | tr -d '\r')" = "---" ]; then
+      UAT_FM="$(sed -n '2,/^---[[:space:]]*$/p' "$UAT_RECORD" | tr -d '\r')"
+      UAT_EXEC_MODE="$(printf '%s\n' "$UAT_FM" | sed -n 's/^execution_mode:[[:space:]]*//p' | head -n 1 | sed 's/[[:space:]]*$//')"
+      UAT_EXEC_BY="$(printf '%s\n' "$UAT_FM" | sed -n 's/^executed_by:[[:space:]]*//p' | head -n 1 | sed 's/[[:space:]]*$//')"
+      case "$UAT_EXEC_MODE" in
+        manual)
+          echo "  OK: uat-execution-record.md execution_mode: manual"
+          ;;
+        agent_executed)
+          if [ -z "$UAT_EXEC_BY" ] || [ "$UAT_EXEC_BY" = "REPLACE" ]; then
+            echo "  ERROR: uat-execution-record.md is agent_executed but executed_by does not name the agent and its version"
+            EXIT_CODE=1
+          else
+            echo "  OK: uat-execution-record.md execution_mode: agent_executed by $UAT_EXEC_BY"
+          fi
+          UAT_EV_MISSING=""
+          for UAT_EV in $(grep -oE 'REQ-[A-Za-z0-9-]*AC[0-9]+-[A-Za-z0-9._-]+\.(png|jpe?g|webp|txt|html)' "$UAT_RECORD" | sort -u); do
+            [ -f "compliance/evidence/$REQ/uat/$UAT_EV" ] || UAT_EV_MISSING="$UAT_EV_MISSING $UAT_EV"
+          done
+          if [ -n "$UAT_EV_MISSING" ]; then
+            echo "  ERROR: uat-execution-record.md names evidence files that are not in compliance/evidence/$REQ/uat/:${UAT_EV_MISSING}"
+            EXIT_CODE=1
+          fi
+          ;;
+        *)
+          echo "  ERROR: uat-execution-record.md front matter execution_mode is \"$UAT_EXEC_MODE\"; expected manual or agent_executed"
+          EXIT_CODE=1
+          ;;
+      esac
+    else
+      echo "  INFO: uat-execution-record.md has no front matter; read as a manual run"
+    fi
+  fi
+
   # Check ai-use-note.md is machine-parseable by the portal's AI Contributors
   # panel (devaudit#799) — the panel expects YAML frontmatter (an
   # `ai_contributors:` key), a legacy `AI Tool Used: <tool>` line, or a
