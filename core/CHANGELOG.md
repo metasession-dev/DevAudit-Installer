@@ -6,6 +6,8 @@ All notable changes to `@metasession.co/devaudit-core` are documented here. The 
 
 ### Added
 
+- **`NOT_ASKED` lists `uat.mode`** (DevAudit-Installer#1246): the new setting for who executes the UAT procedure (manual or auto) is set with `configure set`, not asked during onboarding.
+
 - **`NOT_ASKED` lists `uat.human_pack`** (DevAudit-Installer#1215): the new setting for when the human UAT pack is required is set with `configure set`, not asked during onboarding.
 
 - **Presets, the question registry and the validators** (DevAudit-Installer#1116, WP5): `PRESETS` (A, B, C, D: configuration, what runs at the five moments, evidence, gap, clauses with a recorded gap, requirements), `offerPresets` and `suggestPreset` (one rule for scan, install and doctor; never suggests D), `QUESTIONS` Q0a to Q21 with `questionsToAsk` and `conditionHolds`, `NOT_ASKED`, the eleven validators (`validate`, `validateAll`) and `renderPresetsMarkdown` (the source of `docs/presets.md`).

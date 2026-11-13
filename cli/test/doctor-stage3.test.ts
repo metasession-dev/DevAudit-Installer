@@ -137,6 +137,40 @@ describe('stage3EvidenceCheck follow-ups (#1226, #1227)', () => {
   });
 });
 
+describe('uat.mode (#1246)', () => {
+  it('is settable with manual or auto', () => {
+    expect(findConfigKey('uat.mode')?.enum).toEqual(['manual', 'auto']);
+    expect(validateConfigKeyValue('uat.mode', 'auto').error).toBeUndefined();
+    expect(validateConfigKeyValue('uat.mode', 'robot').error).toBeDefined();
+  });
+
+  it('reports an invalid value with a tier A fix', async () => {
+    const dir = await repo({ rtmRisk: 'LOW' });
+    const r = await stage3EvidenceCheck({ repoRoot: dir, cfg: { uat: { mode: 'Auto' } } });
+    const bad = r.findings?.find((f) => f.subject === 'uat.mode');
+    expect(bad?.detail).toContain('"Auto"');
+    expect(bad?.remediation?.tier).toBe('A');
+    expect(bad?.remediation?.plan).toEqual(['devaudit configure set uat.mode manual']);
+  });
+
+  it('is quiet for manual and for auto with a dual_actor approver', async () => {
+    const dir = await repo({ rtmRisk: 'LOW' });
+    expect((await stage3EvidenceCheck({ repoRoot: dir, cfg: { uat: { mode: 'manual' }, approval: { mode: 'solo_with_gap' } } })).ok).toBe(true);
+    expect((await stage3EvidenceCheck({ repoRoot: dir, cfg: { uat: { mode: 'auto' }, approval: { mode: 'dual_actor' } } })).ok).toBe(true);
+  });
+
+  it('warns that auto with solo_with_gap has no independent reviewer, unless the pack is off', async () => {
+    const dir = await repo({ rtmRisk: 'LOW' });
+    const r = await stage3EvidenceCheck({ repoRoot: dir, cfg: { uat: { mode: 'auto' }, approval: { mode: 'solo_with_gap' } } });
+    const finding = r.findings?.find((f) => f.subject === 'uat.mode-independence');
+    expect(finding?.detail).toContain('no one independent of the change');
+    expect(finding?.remediation).toBeUndefined();
+    expect(JSON.stringify(gapsFromCheck(r))).toContain(CHECK_EXPLANATIONS['stage3-evidence:uat.mode-independence']!.title);
+    const off = await stage3EvidenceCheck({ repoRoot: dir, cfg: { uat: { mode: 'auto', human_pack: 'never' }, approval: { mode: 'solo_with_gap' } } });
+    expect(off.ok).toBe(true);
+  });
+});
+
 describe('uat.human_pack config key (#1215)', () => {
   it('is settable with risk, always or never', () => {
     expect(findConfigKey('uat.human_pack')?.enum).toEqual(['risk', 'always', 'never']);

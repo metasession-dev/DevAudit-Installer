@@ -442,6 +442,16 @@ EOF
 
 For Low risk, the `Co-Authored-By` commit tag is sufficient.
 
+### Step 10b: Review the SDLC Configuration
+
+Before implementation starts, look at what the configuration will do for this change, so nothing about when activities happen is a surprise:
+
+```bash
+bash scripts/show-sdlc-config.sh <LOW|MEDIUM|HIGH|CRITICAL>
+```
+
+It prints, from `sdlc-config.json`, who approves, what blocks the release PR, what runs after deploy and on a schedule, whether the UAT-environment check and the human UAT pack apply to this change and who runs the pack (`uat.mode`), where it deploys and which standards are evidenced. Change a setting with `devaudit configure set <key> <value>` (add `--dry-run` to preview). Nothing you change here alters the portal's own gates; `approval.mode` is the one key `configure` also writes to the portal's approval policy, with a project-admin credential.
+
 ### Step 11: Commit
 
 ```bash
