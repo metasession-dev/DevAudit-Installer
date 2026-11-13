@@ -221,6 +221,16 @@ export const CHECK_EXPLANATIONS: Readonly<Record<string, GapExplanation>> = {
     why: 'Only risk, always and never are understood; anything else is read as risk, so a hand edit meant to turn the pack off or on silently does neither.',
     guidance: 'Set it with `devaudit configure set uat.human_pack <risk|always|never>`.',
   },
+  'stage3-evidence:uat.mode': {
+    title: 'uat.mode has a value DevAudit does not know',
+    why: 'Only manual and auto are understood; anything else is read as manual, so a hand edit meant to turn agent-executed UAT on does nothing.',
+    guidance: 'Set it with `devaudit configure set uat.mode <manual|auto>`.',
+  },
+  'stage3-evidence:uat.mode-independence': {
+    title: 'Agent-executed UAT with a solo approver has no independent reviewer',
+    why: 'With uat.mode auto the agent executes the UAT procedure and a human reviews and signs off. With approval.mode solo_with_gap the reviewer is the author, so nobody independent of the change has looked at the result. The recorded control gap covers this; it does not remove it.',
+    guidance: 'Ask a second person to review the UAT record, or accept the recorded gap (the control-gap risk entry and the solo sign-off on the release ticket), or set `devaudit configure set uat.mode manual`.',
+  },
   'test-data': {
     title: 'The test data is not fully declared',
     why: 'Tests that write data need a place to write it that cannot hurt anyone, a way to put it back, and a seed the tests can rely on. When any of that is missing or contradictory, a run can collide with people, leave data behind, or pass while hiding tests that skipped for lack of data.',

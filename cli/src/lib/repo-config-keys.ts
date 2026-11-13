@@ -300,6 +300,14 @@ export const CONFIG_KEYS: readonly ConfigKeySpec[] = [
     affects: [],
   },
   {
+    key: 'uat.mode',
+    type: 'string',
+    description:
+      'Who executes the human UAT procedure when the pack applies: manual (the default; a tester runs uat-test-procedure.md by hand) or auto (the sdlc-implementer agent executes it step by step against the UAT environment, pre-fills uat-execution-record.md with the results and per-step evidence, and a named independent human reviews and signs off). The record states which happened in its front matter (execution_mode). Read by the sdlc-implementer skill and devaudit doctor (stage3-evidence); it only matters while uat.human_pack applies.',
+    enum: ['manual', 'auto'],
+    affects: [],
+  },
+  {
     key: 'production_review.terminal_status',
     type: 'string',
     description:
