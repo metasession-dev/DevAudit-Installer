@@ -486,6 +486,12 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     expect(source).toContain("github.event.deployment_status.state == 'success'");
     expect(source).toContain("endsWith(github.event.deployment.environment, '/ production')");
     expect(source).toContain("endsWith(github.event.deployment.environment, '/production')");
+    // A Vercel production deployment is named "Production – <project>" (#1245).
+    expect(source).toContain("startsWith(github.event.deployment.environment, 'production')");
+    // Idempotent label creation: no dependence on `gh label list`, which shows only 30 labels (#1245).
+    expect(source).toContain('gh label create incident');
+    expect(source).toContain('--force');
+    expect(source).not.toContain('gh label list');
     expect(source).toContain('GIT_SHA: ${{ github.event.deployment.sha || github.event.inputs.deployed_sha || github.sha }}');
   });
 
@@ -616,6 +622,7 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     expect(source).toContain("github.event_name == 'deployment_status'");
     expect(source).toContain("endsWith(github.event.deployment.environment, '/ production')");
     expect(source).toContain("endsWith(github.event.deployment.environment, '/production')");
+    expect(source).toContain("startsWith(github.event.deployment.environment, 'production')");
   });
 
   it('runs self-hosted runner prerequisite preflight before quality gates', () => {

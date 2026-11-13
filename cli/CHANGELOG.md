@@ -4,6 +4,16 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+### Added
+
+- **`uat.mode`: the agent can execute UAT, and a human reviews it** (#1246): `devaudit configure set uat.mode <manual|auto>`. `manual` (the default) is today's behaviour. With `auto`, once the build is on the UAT environment, `sdlc-implementer` (Phase 4 step 4a) executes `uat-test-procedure.md` step by step with the briefing's UAT accounts, stores a screenshot (or page text) per step under `compliance/evidence/REQ-XXX/uat/`, and fills `uat-execution-record.md`; a named human who is independent of the author reviews it, signs, and can require a manual re-run. The agent never performs operator actions (settings, data), never signs, and never records UAT in the portal. `auto` is allowed for HIGH and CRITICAL. `uat-execution-record.md` now opens with front matter (`execution_mode: manual|agent_executed`, `executed_by`, `tested_sha`) that says which kind of run happened; the portal (devaudit#966) reads it. `Compliance Validation` checks it: an unknown mode or an agent-executed record without `executed_by` or with a named evidence file missing from `uat/` fails; a record without front matter reads as manual. `uat.mode` only matters while the UAT pack applies. `devaudit doctor` (`stage3-evidence`) reports an unknown value and warns that `auto` with `approval.mode: solo_with_gap` has no independent reviewer. Your next sync diff updates the record template, the validator and the skill.
+
+- **The plan approval shows the SDLC configuration** (#1247): at Phase 1 step 11, before any code is written, `sdlc-implementer` runs the new `scripts/show-sdlc-config.sh <RISK>` and prints what happens when, from `sdlc-config.json`: who approves, what blocks the release PR, what runs after deploy and on a schedule, whether the UAT-environment check and the human UAT pack apply and who runs the pack, where it deploys, which standards. It is printed for every risk class; it pauses for HIGH and CRITICAL (or `--require-plan-approval`), and `--confirm-config` (or `DEVAUDIT_CONFIRM_CONFIG=1`) makes it a pause for every class. The operator can answer `change <key> to <value>`; the skill runs `devaudit configure set` (previewed with `--dry-run`) and prints the block again. Nothing here changes the portal's own gates; `approval.mode` is the one key `configure` also writes to the portal.
+
+### Fixed
+
+- **Post-deploy evidence now runs for Vercel production deployments, and the incident label step no longer fails** (#1245): Vercel's GitHub app names the environment `Production – <project>`, which none of the `deployment_status` conditions matched, so every run ended skipped and the post-deploy evidence, smoke probe and `prod_review` promotion never happened automatically. `post-deploy-prod.yml`, `e2e-regression.yml` (Node and pytest) and the E2E concurrency group now also match an environment that starts with `production`, in any case. The `incident` and `test-bug` labels are created with `gh label create --force` instead of checking `gh label list`, which returns only 30 labels, so a repository that already had the label failed the step and no incident issue was filed. Your next sync diff rewrites those workflows.
+
 ## [1.13.0] — 2026-11-08
 
 ### Added
