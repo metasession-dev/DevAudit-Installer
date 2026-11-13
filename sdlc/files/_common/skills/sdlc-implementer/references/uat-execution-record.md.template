@@ -17,7 +17,7 @@ tested_sha: REPLACE
     executed_by:    the tester's name, or the agent and its version
     tested_sha:     the git SHA of the build under test
   Write the mode of the run that actually happened, not the value of
-  uat.mode. Replace every REPLACE when UAT starts.
+  uat.mode. Fill in every placeholder when UAT starts.
 -->
 # UAT Execution Record — REQ-XXX: REPLACE title
 

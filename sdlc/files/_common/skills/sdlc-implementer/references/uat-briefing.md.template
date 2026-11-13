@@ -2,7 +2,7 @@
   UAT briefing for REQ-XXX. Satisfies ISO/IEC/IEEE 29119-3 test plan context
   (what is tested, why, where, by whom, entry and exit criteria).
   Written for a tester who does NOT know this system, the business or the
-  environments. Replace every REPLACE marker; CI rejects the file while any
+  environments. Fill in every placeholder; CI rejects the file while one
   remains. Never put credentials in this file: say how they are delivered.
 -->
 # UAT Briefing — REQ-XXX: REPLACE title

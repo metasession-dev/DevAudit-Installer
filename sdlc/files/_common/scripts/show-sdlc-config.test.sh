@@ -29,10 +29,11 @@ echo "Case 1: an empty config shows the documented defaults"
 show MEDIUM '{}'
 [ "$RC" = "0" ] && ok "exits 0" || bad "exits 0 (got $RC)"
 has "default approval" 'approval.mode = dual_actor'
-has "default gate" 'release_gate_tier = critical'
+has "no E2E gate without e2e_regression_enabled" 'e2e_regression_enabled is off (unset or false)'
+hasnt "no gate is claimed" 'the critical tier must pass'
 has "pack written at MEDIUM" 'WILL be written for this change'
 has "manual by default" 'uat.mode = manual'
-has "post-deploy default" 'post_deploy_full_regression = true'
+hasnt "no post-deploy regression is claimed" 'the full regression runs after a successful production deploy'
 hasnt "no warnings" 'WORTH A LOOK'
 
 echo "Case 2: LOW risk does not get the pack under risk, but does under always"
@@ -55,18 +56,39 @@ has "standards warning" 'those standards expect an approver other than the autho
 has "auto and solo warning" 'no one independent of the change looks at it'
 has "points to doctor" 'devaudit doctor'
 
+echo "Case 4b: auto needs a UAT environment (#1253)"
+show MEDIUM '{"uat":{"mode":"auto"}}'
+has "no-environment warning" 'uat.mode = auto but uat.enabled is not true'
+show MEDIUM '{"uat":{"mode":"auto","enabled":true}}'
+hasnt "no warning with an environment" 'uat.mode = auto but uat.enabled is not true'
+show MEDIUM '{"uat":{"mode":"auto","human_pack":"never"}}'
+hasnt "no warning when the pack is off" 'uat.mode = auto but uat.enabled is not true'
+
 echo "Case 5: false is a value, not an unset key"
 show MEDIUM '{"e2e_regression_enabled":false,"post_deploy_full_regression":false}'
-has "regression off" 'no E2E regression workflow is generated'
+has "regression off" 'e2e_regression_enabled is off (unset or false)'
 has "no regression after deploy" 'No E2E regression runs'
 
 echo "Case 6: tiers, schedule, terminal status and the custom host"
-show MEDIUM '{"release_gate_tier":"smoke","scheduled_full_regression":"0 3 * * *","production_review.terminal_status":"released","production_review":{"terminal_status":"released"},"host":"custom","deploy_trigger":"git_tag","release_branch_required_reviews":0}'
+show MEDIUM '{"e2e_regression_enabled":true,"release_gate_tier":"smoke","scheduled_full_regression":"0 3 * * *","production_review.terminal_status":"released","production_review":{"terminal_status":"released"},"host":"custom","deploy_trigger":"git_tag","release_branch_required_reviews":0}'
 has "smoke tier" 'the smoke tier must pass'
 has "schedule shown" 'scheduled_full_regression = "0 3 * * *"'
 has "terminal status" 'the release completes automatically'
 has "custom deploy trigger" 'deploy_trigger = git_tag'
 has "zero reviews warned" 'release_branch_required_reviews = 0: the author can merge'
+
+echo "Case 6b: with the regression workflow on, the documented defaults show"
+show MEDIUM '{"e2e_regression_enabled":true}'
+has "default gate" 'release_gate_tier = critical: the critical tier must pass'
+has "post-deploy default" 'post_deploy_full_regression = true'
+has "no schedule" 'scheduled_full_regression: none'
+
+echo "Case 6c: an invalid cron expression and an unknown tier are reported as the generator reads them"
+show MEDIUM '{"e2e_regression_enabled":true,"scheduled_full_regression":"every day"}'
+has "invalid cron" 'not a valid five-field cron expression, so no schedule runs'
+hasnt "no schedule is claimed" 'also runs on develop on that schedule'
+show MEDIUM '{"e2e_regression_enabled":true,"release_gate_tier":"strict"}'
+has "unknown tier falls back" 'the critical tier is used'
 
 echo "Case 7: UAT environment check"
 show MEDIUM '{"uat":{"enabled":true,"required_risk_classes":["payment"]}}'

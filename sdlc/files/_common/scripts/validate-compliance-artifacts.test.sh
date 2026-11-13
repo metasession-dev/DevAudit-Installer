@@ -842,6 +842,45 @@ assert_grep "invalid mode warned" 'WARNING: uat.mode is "Auto"; expected manual 
 assert_exit "validator exits 0" 0
 cd "$WORKDIR"
 
+UAT_TEMPLATES="$SCRIPT_DIR/../skills/sdlc-implementer/references"
+
+echo "Case UAT-18: a pack built from the real templates, with every body marker filled, passes (#1251)"
+uat_fixture "$WORKDIR/caseuat18" REQ-086 MEDIUM
+sed '/-->/,$ s/REPLACE/filled/g' "$UAT_TEMPLATES/uat-briefing.md.template" > compliance/evidence/REQ-086/uat-briefing.md
+sed '/-->/,$ s/REPLACE/filled/g' "$UAT_TEMPLATES/uat-test-procedure.md.template" > compliance/evidence/REQ-086/uat-test-procedure.md
+printf '%s\n' '| 3 | AC2 | x | x |' >> compliance/evidence/REQ-086/uat-test-procedure.md
+git add . && git commit -q --amend --no-edit
+run_validator
+assert_grep "the comment does not count as a marker" 'still has REPLACE markers' 0
+assert_grep "pack accepted" 'OK: uat-briefing.md written' 1
+assert_exit "validator exits 0" 0
+cd "$WORKDIR"
+
+echo "Case UAT-19: a marker left in the body is still reported (#1251)"
+uat_fixture "$WORKDIR/caseuat19" REQ-087 MEDIUM
+sed '/-->/,$ s/REPLACE/filled/g' "$UAT_TEMPLATES/uat-briefing.md.template" > compliance/evidence/REQ-087/uat-briefing.md
+sed '/-->/,$ s/REPLACE/filled/g' "$UAT_TEMPLATES/uat-test-procedure.md.template" > compliance/evidence/REQ-087/uat-test-procedure.md
+printf '%s\n' 'Background: REPLACE' >> compliance/evidence/REQ-087/uat-briefing.md
+git add . && git commit -q --amend --no-edit
+run_validator
+assert_grep "body marker reported" 'uat-briefing.md still has REPLACE markers' 1
+assert_exit "validator exits 1" 1
+cd "$WORKDIR"
+
+echo "Case UAT-20: a single-line comment is stripped and the lines after it are still checked (#1251)"
+uat_fixture "$WORKDIR/caseuat20" REQ-088 MEDIUM
+printf '%s\n' '<!-- REPLACE -->' '# Briefing' 'Background: a shop.' > compliance/evidence/REQ-088/uat-briefing.md
+printf '%s\n' '<!-- REPLACE -->' '| Step | AC |' '| 1 | AC1 |' '| AC2 | automated only |' > compliance/evidence/REQ-088/uat-test-procedure.md
+git add . && git commit -q --amend --no-edit
+run_validator
+assert_grep "single-line comments are ignored" 'still has REPLACE markers' 0
+assert_exit "validator exits 0" 0
+printf '%s\n' '<!-- note -->' 'REPLACE' > compliance/evidence/REQ-088/uat-briefing.md
+git add . && git commit -q --amend --no-edit
+run_validator
+assert_grep "a marker after a one-line comment is found" 'uat-briefing.md still has REPLACE markers' 1
+cd "$WORKDIR"
+
 echo "Case UAT-5: the UAT filenames and accepted-e2e-failure records are known artifacts (#1198)"
 cd "$WORKDIR/caseuat4"
 run_validator

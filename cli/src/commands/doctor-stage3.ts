@@ -13,7 +13,7 @@ import { archivedTicketDir, readBundleManifests, readPendingTickets } from '../l
  * gating: it is an onboarding-style check whose findings are guidance.
  */
 
-export const STAGE3_EVIDENCE_FINDINGS = ['signoff-pending', 'uat-pack-missing', 'uat.human_pack', 'uat.mode', 'uat.mode-independence'] as const;
+export const STAGE3_EVIDENCE_FINDINGS = ['signoff-pending', 'uat-pack-missing', 'uat.human_pack', 'uat.mode', 'uat.mode-independence', 'uat.mode-no-environment'] as const;
 
 const HUMAN_PACK_MODES = ['risk', 'always', 'never'] as const;
 const UAT_MODES = ['manual', 'auto'] as const;
@@ -104,7 +104,7 @@ export async function stage3EvidenceCheck(consumer: { readonly repoRoot: string;
     if (TERMINAL_STATUS.test(rtmCell(rtm, t.version, 'status'))) continue;
     tickets.push(t);
   }
-  const uat = (consumer.cfg['uat'] ?? {}) as { human_pack?: unknown; mode?: unknown };
+  const uat = (consumer.cfg['uat'] ?? {}) as { human_pack?: unknown; mode?: unknown; enabled?: unknown };
   const findings: Finding[] = [];
   // #1227: a hand-edited value the validator would read as `risk`.
   const rawMode = uat.human_pack;
@@ -145,6 +145,14 @@ export async function stage3EvidenceCheck(consumer: { readonly repoRoot: string;
       subject: 'uat.mode-independence',
       detail:
         'uat.mode is auto and approval.mode is solo_with_gap: the agent executes the UAT procedure and the author is the only reviewer, so no one independent of the change has looked at it. The gap is recorded (control-gap risk entry and the solo sign-off on the release ticket); it is not removed.',
+    });
+  }
+  // #1253: agent-executed UAT runs against a deployed UAT environment; `uat.enabled` says the project has one.
+  if (uat.mode === 'auto' && mode !== 'never' && uat.enabled !== true) {
+    findings.push({
+      subject: 'uat.mode-no-environment',
+      detail:
+        'uat.mode is auto but uat.enabled is not true: agent-executed UAT needs a deployed UAT environment, and this project declares none. Set uat.enabled and uat.url, or set uat.mode manual.',
     });
   }
   if (tickets.length === 0 && findings.length === 0) {

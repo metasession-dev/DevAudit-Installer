@@ -231,6 +231,11 @@ export const CHECK_EXPLANATIONS: Readonly<Record<string, GapExplanation>> = {
     why: 'With uat.mode auto the agent executes the UAT procedure and a human reviews and signs off. With approval.mode solo_with_gap the reviewer is the author, so nobody independent of the change has looked at the result. The recorded control gap covers this; it does not remove it.',
     guidance: 'Ask a second person to review the UAT record, or accept the recorded gap (the control-gap risk entry and the solo sign-off on the release ticket), or set `devaudit configure set uat.mode manual`.',
   },
+  'stage3-evidence:uat.mode-no-environment': {
+    title: 'Agent-executed UAT with no UAT environment declared',
+    why: 'With uat.mode auto the agent executes the UAT procedure on a deployed UAT environment. uat.enabled is how the project says it has one; while it is not true the agent has nowhere to run the steps.',
+    guidance: 'Set `uat.enabled` and `uat.url` in sdlc-config.json once a UAT environment exists, or `devaudit configure set uat.mode manual` to have a tester run the procedure by hand.',
+  },
   'test-data': {
     title: 'The test data is not fully declared',
     why: 'Tests that write data need a place to write it that cannot hurt anyone, a way to put it back, and a seed the tests can rely on. When any of that is missing or contradictory, a run can collide with people, leave data behind, or pass while hiding tests that skipped for lack of data.',
