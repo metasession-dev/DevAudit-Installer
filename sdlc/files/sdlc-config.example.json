@@ -105,7 +105,7 @@
     "api_key_secret": "DEVAUDIT_API_KEY"
   },
 
-  "_comment_uat": "UAT-environment verification (Stage 3 Step 10). Opt-in: enabled=false skips Step 10 entirely. When enabled, only requirements whose risk class is listed in required_risk_classes go through UAT-env verification; use [\"*\"] to require it for every requirement (projects that UAT every release).",
+  "_comment_uat": "UAT-environment verification (Stage 3 Step 10). Opt-in: enabled=false skips Step 10 entirely. When enabled, only requirements whose risk class is listed in required_risk_classes go through UAT-env verification; use [\"*\"] to require it for every requirement (projects that UAT every release). human_pack (risk, always or never) sets when the human UAT pack (briefing, procedure, execution record) is written; the default risk means MEDIUM risk and above, never skips it at a compliance cost the product owner owns. mode (manual or auto) sets who executes the pack's procedure: manual = a tester by hand, auto = the agent executes it against the UAT environment and a named independent human reviews and signs off. Neither is enforced by Step 10's required_risk_classes; both are changed with `devaudit configure set`.",
   "uat": {
     "enabled": false,
     "url": "",
@@ -114,7 +114,9 @@
       "destructive_migration",
       "realtime",
       "physical_ux"
-    ]
+    ],
+    "human_pack": "risk",
+    "mode": "manual"
   },
 
   "_comment_approval": "Release approval policy (Stage 3 Step 11). dual_actor (default) = the approver must differ from the release creator. solo_with_gap = the author may approve their own release; DevAudit records a control gap in compliance/risk-register.md. Nothing approves automatically: an \"auto_low_risk\" mode is not implemented, so it is not offered, and auto_low_risk_threshold below is unused. Change it with `devaudit configure set approval.mode <value>`; the portal has its own approval policy, which `devaudit doctor` compares with this one.",
