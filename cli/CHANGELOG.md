@@ -4,6 +4,10 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+### Added
+
+- **`docs/onboarding-checklist.md`** (#1262): a short operator checklist for verifying an onboarded project with `doctor`, reviewing the `sdlc-config.json` keys, making the SDLC implement an issue as intended, and maintaining the SRS and the E2E tests. Linked from `docs/onboarding.md`. Documentation only.
+
 ## [1.14.0] — 2026-11-13
 
 ### Added
