@@ -382,6 +382,7 @@ That's a warning, not a tool-gate failure (exit code stays `0` unless a *require
 
 ## See also
 
+- [`docs/onboarding-checklist.md`](./onboarding-checklist.md) — a short checklist for verifying and configuring an onboarded project, and maintaining its SRS and tests.
 - [`docs/doctor.md`](./doctor.md) — the full `devaudit doctor` contract used in "Verify the install" above.
 - [STACK_ADAPTER.md](../sdlc/STACK_ADAPTER.md) — the stack-adapter contract.
 - [HOST_ADAPTER.md](../sdlc/HOST_ADAPTER.md) — the host-adapter contract.
