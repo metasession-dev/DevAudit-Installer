@@ -6,6 +6,10 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ### Changed
 
+- **`docs/onboarding-checklist.md` explains the production-check setup** (#1268): what `post-deploy-prod.yml` verifies after a deploy, how to configure `railway`, `vercel` and `custom` (production URL secret, recovery tokens, `deploy_secrets`), the `DEVAUDIT_PROBE_HEADER` secret for access-gated production, and which `doctor` checks verify each part. Documentation only.
+
+### Changed
+
 - **`docs/onboarding-checklist.md` starts with the latest-version check** (#1265): when to use `npx @metasession.co/devaudit-cli@latest` (`doctor`, `configure`, `install`, `update`) and why; a section on running each test tier once to prove the setup; and a section on asking an AI agent, with sample prompts, to keep the SRS and the E2E tests up to date. Documentation only. The `doctor` version check itself is tracked in #1265.
 
 ### Added

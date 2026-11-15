@@ -79,6 +79,29 @@ Use `devaudit configure list`, `get <key>` and `set <key> <value> --dry-run`. Th
 
 Set secrets with `devaudit configure secret <NAME>`; the value never passes through devaudit.
 
+### Production checks and the deploy host
+
+After a production deploy, `post-deploy-prod.yml` does three things, and all three depend on the `host` and production settings above:
+
+1. **Verifies the deploy with the host.** It waits for the GitHub deployment the host records and checks it succeeded.
+2. **Probes production health independently.** It requests `<production URL>/` up to 30 times, ten seconds apart, and needs a 2xx or 3xx answer. The URL comes from the repo secret named by `production_url_secret`.
+3. **Runs the production smoke checks and records the evidence** in the portal. They run only when both the host verification and the health probe succeeded; the release then moves to production review (or straight to released, per `production_review.terminal_status`).
+
+Set up each host as follows, then run `devaudit update && devaudit doctor`. Use `--dry-run` first to see which workflows change.
+
+| Host | Configure | Secrets | Notes |
+| --- | --- | --- | --- |
+| `railway` (the default) | `devaudit configure set production_url_secret <NAME>` | the production URL secret; `RAILWAY_TOKEN` (advisory) | Railway's own deploy triggers on push to the release branch. `RAILWAY_TOKEN` and the `railway` CLI are used only by the manual recovery workflow `reconcile-deployment.yml`, for when Railway's `deployment_status` event never reaches GitHub. |
+| `vercel` | `devaudit configure set host vercel`, then `production_url_secret` | the production URL secret; `VERCEL_TOKEN` (advisory, plus `VERCEL_TEAM_ID` for a team project) | Vercel's Git integration deploys on push. The token is used only by the recovery workflow. If production sits behind Deployment Protection, also set `DEVAUDIT_PROBE_HEADER` (below). |
+| `custom` (AWS, self-hosted, Fly.io, Kubernetes) | `host custom`, `deploy_command`, `deploy_secrets`, `deployed_sha_url`, `deployed_sha_jq`, `deploy_trigger`, `production_url_secret` | every name listed in `deploy_secrets`; the production URL secret | Your deploy runs in the generated `deploy-custom.yml`, which records the GitHub deployment the gate waits for. `deployed_sha_url` (https) with `deployed_sha_jq` lets the check confirm the deployed commit; without them the deploy is verified by the health check only. |
+
+- **The production URL secret.** Pick the name, set the value with `devaudit configure secret <NAME>`, and record the name with `devaudit configure set production_url_secret <NAME>`. `doctor` (`production-url`) checks that the name is set and the secret exists. It never reads the value.
+- **Production behind an access gate** (Vercel Deployment Protection, basic auth, an IP allow-list). An unauthenticated probe sees 401, 403 or 407 and the check fails. Set the optional secret `DEVAUDIT_PROBE_HEADER` to one full header line, for example `x-vercel-protection-bypass: <token>`. The probe and the smoke checks send it. Unset means unauthenticated probes. `doctor` warns when production answers 401, 403 or 407 and the header is missing.
+- **Wrong host recorded.** Projects onboarded before 1.9.0 have `host: railway` whatever they use. `doctor` (`deploy-host`) compares the recorded host with who actually creates the production deployments and the committed host files, and `devaudit doctor --fix` corrects it. Changing a host the evidence contradicts needs a reason.
+- **Runner.** `runner: self-hosted` reads the `CI_RUNNER_LABEL` variable at run time. `doctor` (`ci-runner`) checks a runner with that label is registered.
+- **Recipes.** Full command sequences for Vercel, `custom`, the runner and the release gate are in [`configure.md`](./configure.md#recipes), and the per-host prerequisites in [`onboarding.md`](./onboarding.md#host-adapter-prerequisites). In Claude Code, the `devaudit-configure` skill walks through it ("we deploy on Vercel", "our production is behind Vercel protection").
+- **Verify.** `doctor` checks `deploy-host`, `production-url`, `custom-deploy` (host `custom` only), `ci-runner` and `secrets`. The first real proof is the first production deploy, so watch that `post-deploy-prod.yml` run reach the smoke checks.
+
 ## 4. Make the SDLC implement an issue as intended
 
 - Give each issue a risk class, acceptance criteria (ACs) and a requirement id. The `sdlc-implementer` skill triages it into tracked work or the lightweight (housekeeping) path.
