@@ -4,6 +4,10 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+### Changed
+
+- **`docs/onboarding-checklist.md` starts with the latest-version check** (#1265): when to use `npx @metasession.co/devaudit-cli@latest` (`doctor`, `configure`, `install`, `update`) and why; a section on running each test tier once to prove the setup; and a section on asking an AI agent, with sample prompts, to keep the SRS and the E2E tests up to date. Documentation only. The `doctor` version check itself is tracked in #1265.
+
 ### Added
 
 - **`docs/onboarding-checklist.md`** (#1262): a short operator checklist for verifying an onboarded project with `doctor`, reviewing the `sdlc-config.json` keys, making the SDLC implement an issue as intended, and maintaining the SRS and the E2E tests. Linked from `docs/onboarding.md`. Documentation only.
