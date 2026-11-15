@@ -36,16 +36,46 @@ Node 22 or later is required either way. For daily use, a global install is fast
 
 Use `devaudit configure list`, `get <key>` and `set <key> <value> --dry-run`. The dry run names the generated workflows the next `devaudit update` rewrites. `devaudit configure` with no arguments asks the guided questions with the current values as defaults ([`configure.md`](./configure.md)).
 
-| Area | Keys | What they decide |
-| --- | --- | --- |
-| Branches and deploy | `integration_branch`, `release_branch`, `host`, `production_url_secret`, `runner`; for `custom`: `deploy_command`, `deploy_secrets`, `deploy_trigger` | Where PRs land and where production deploys. A wrong `host` generates the wrong workflows. |
-| Preset | `onboarding_preset`, `compliance_frameworks` | The bundle of gate strictness and approver ([`presets.md`](./presets.md)). |
-| Approval | `approval.mode`, `release_branch_required_reviews`, `production_review.terminal_status` | Who may approve a release. Solo approval records a control gap. |
-| Test tiers | `test_runner`, `test_tier_smoke`, `test_tier_critical`, `test_tier_full`, `test_feature_command` (needs `{REQ}`), `e2e_project`, `e2e_projects` | What smoke, critical and full run ([`e2e-test-tiers.md`](./e2e-test-tiers.md)). |
-| Release gate | `e2e_regression_enabled` (change it with `devaudit update --enable-e2e-regression` or `--disable-e2e-regression`), `release_gate_tier`, `post_deploy_full_regression`, `scheduled_full_regression` | What blocks the PR into the release branch, and what runs after the deploy and on a schedule. |
-| Test data | `e2e_data_isolation`, `e2e_seed_paths`, `e2e_reset_command`, `e2e_seed_command`, `e2e_preflight_command`, `e2e_leak_check_command`, `e2e_max_skipped`, `e2e_setup_command`, `e2e_env` | Where the tests get their data, so unattended runs never touch production. |
-| UAT | `uat.enabled`, `uat.url`, `uat.required_risk_classes`, `uat.human_pack`, `uat.mode` | Whether UAT runs, when the human pack is written and who executes it. `auto` needs an independent human reviewer. |
-| Build | `source_dirs`, `node_version`, `install_flags`, `app_env`, `build_env`, `database_*`, `sast_baseline`, `accepted_dep_risks` | Whether CI is green. Workflows read repository-level secrets only. |
+| Area | Key | Values you can apply | What it decides |
+| --- | --- | --- | --- |
+| Branches and deploy | `integration_branch` | any branch name (default `develop`) | Where implementation PRs land and where gate evidence is uploaded. |
+| | `release_branch` | any branch name (default `main`) | The protected production branch the integration branch is promoted to. |
+| | `host` | `railway`, `vercel`, `custom` | Which host adapter generates the deploy and reconcile workflows. A wrong value generates the wrong workflows. |
+| | `production_url_secret` | a repo secret name: upper case letters, digits and `_`, starting with a letter | The secret holding the production URL used by the post-deploy probe. |
+| | `runner` | `self-hosted` (the runner is read at run time from the `CI_RUNNER_LABEL` variable; the value `github-ci` there means `ubuntu-latest`), or any fixed `runs-on` label such as `ubuntu-latest` | Which machine runs CI. Cannot be empty. |
+| | `deploy_command`, `deploy_secrets`, `deployed_sha_url`, `deployed_sha_jq`, `deploy_trigger` | a one-line command; a list of secret names; an `https://` URL; a `jq` expression; `push_to_main`, `git_tag` or `manual` | Only for `host: custom`: how the deploy runs and how the deployed commit is read back. Setting them on another host is a warning. |
+| Preset | `onboarding_preset` | `A`, `B`, `C`, `D`, `custom` (missing means `custom`) | The recorded bundle of gate strictness and approver (see [`presets.md`](./presets.md)). A solo and fast; B critical tests block, full pack after deploy; C a second approver and the full tests block; D as C, with the full pack run once, before merge. |
+| | `compliance_frameworks` | a list of `soc-2`, `iso-27001`, `iso-29119`, `gdpr`, `eu-ai-act`, or empty | The standards the project needs evidence for. The portal's claimed standards win when they differ. |
+| Approval | `approval.mode` | `dual_actor` (default: the approver differs from the author), `solo_with_gap` (the author approves, with a recorded control gap) | Who may approve a release. |
+| | `release_branch_required_reviews` | `0`, `1` (default), `2` | Approving reviews GitHub requires on the release branch. `0` lets the author merge their own release PR. Lowering an existing branch asks for confirmation. |
+| | `production_review.terminal_status` | `prod_review` (default: a person confirms production), `released` (completes automatically) | Where `post-deploy-prod.yml` leaves a release. |
+| Test tiers | `test_runner` | `playwright` (default), `pytest` | Which runner's defaults the tiers use. |
+| | `test_tier_smoke`, `test_tier_critical`, `test_tier_full` | a single-line shell command, at most 500 characters; unset keeps the runner default (Playwright: the `smoke`, `critical` and `regression` projects) | What each tier runs. A custom pytest command must write JUnit XML to `$TEST_JUNIT_XML`. |
+| | `test_feature_command` | a single-line command containing `{REQ}`; unset keeps the default (`--grep` for the id) | What the feature-scope run executes for a branch's requirement. |
+| | `e2e_project` | a Playwright project name | The project of the blocking smoke gate. |
+| | `e2e_projects` | a list of Playwright project names, or empty | Projects that need a logged-in session (report-only gate). |
+| Release gate | `e2e_regression_enabled` | `true`, `false` (set with `devaudit update --enable-e2e-regression` or `--disable-e2e-regression`, not `configure set`) | Whether the three-tier workflow `e2e-regression.yml` exists. The other release-gate keys need it on. |
+| | `release_gate_tier` | `none`, `smoke`, `critical`, `full` (unset means `critical`) | The tier that must pass on the PR into the release branch. `full` can take about an hour. |
+| | `post_deploy_full_regression` | `true` (default), `false` | Whether the full pack runs after a production deploy. Set `false` when `release_gate_tier` is `full`, so the same commit is not tested twice. |
+| | `scheduled_full_regression` | a five-field cron expression such as `0 3 * * *`, or empty for no schedule | A timed full run on the integration branch. It is not release evidence and never blocks approval. |
+| | `e2e_regression_timeout_minutes` | a whole number above 0 (default 55) | Job timeout of the regression workflow. |
+| | `e2e_concurrency_group`, `e2e_concurrency_cancel_in_progress` | a group name or empty; `true`, `false` (default) | Queue runs instead of overlapping them when the tests change a shared backend. |
+| Test data | `e2e_data_isolation` | `none`, `ephemeral` (a fresh database per run), `shared_serialised` (a shared environment only these tests use, one run at a time), `shared` (others use it too); unset keeps today's behaviour | Where the tests get their data. Anything other than `none` makes the workflow run the reset, seed and preflight steps around the tests. |
+| | `e2e_seed_paths` | a list of files or folders held in version control | Where the seed lives. |
+| | `e2e_reset_command`, `e2e_preflight_command`, `e2e_leak_check_command` | a single-line shell command, or empty to unset | Reset the data; fail the run when the seed fixtures are absent; print the rows left behind. |
+| | `e2e_seed_command`, `e2e_setup_command` | a shell command, or empty | Seed fixtures before the run; stand up a disposable local database before the dev server. |
+| | `e2e_max_skipped` | a whole number, 0 or more | The most skipped tests a run may have. |
+| | `feature_e2e_projects` | a list of Playwright project names (unset runs all) | Which projects the feature-PR run uses. |
+| | `e2e_env`, `e2e_start_command`, `e2e_port` | an object of env values (may reference `${{ secrets.NAME }}`); a command; a port above 0 (default 3000) | The environment, dev-server start and port for the E2E steps. Override every remote key to keep production severed. |
+| UAT | `uat.enabled` | `true`, `false` (default `false`) | Whether the UAT-environment verification step (Stage 3 Step 10) applies at all. Edit in `sdlc-config.json`; `configure set` does not manage it. |
+| | `uat.url`, `uat.required_risk_classes` | a URL; a list of `payment`, `destructive_migration`, `realtime`, `physical_ux`, or `["*"]` for every requirement | The UAT environment, and which requirements must be verified on it. Edit in the file. |
+| | `uat.human_pack` | `risk` (default: MEDIUM risk and above), `always`, `never` | When the human UAT pack (briefing, procedure, execution record) is written. `never` is a compliance cost the product owner owns. |
+| | `uat.mode` | `manual` (default: a tester runs the procedure), `auto` (the agent runs it, a named independent human reviews and signs) | Who executes the pack. `doctor` warns when `auto` is combined with `solo_with_gap`, or when `uat.enabled` is not `true`. |
+| Build | `node_version`, `python_version`, `working_directory` | a version string; a version string; a directory relative to the repo root | The CI toolchain and where the app lives. |
+| | `source_dirs`, `sast_baseline`, `accepted_dep_risks` | space-separated directories; a whole number, 0 or more; text | What SAST scans, the number of accepted pre-existing findings, and accepted dependency risks. |
+| | `install_flags`, `typescript_check_env` | for example `--legacy-peer-deps`; an object such as `{ "NODE_OPTIONS": "--max-old-space-size=4096" }` | Flags appended to `npm ci`; env for the TypeScript check step only. |
+| | `database_service`, `database_image`, `database_port`, `database_env`, `app_env`, `build_env` | for example `postgres` or `mongodb`, an image name, a port, and objects of env values; empty for no database | The CI database service and the env for the app, tests and build. |
+| | `paths_ignore` | a list of globs | Paths that do not trigger CI on push. |
 
 Set secrets with `devaudit configure secret <NAME>`; the value never passes through devaudit.
 
