@@ -151,7 +151,7 @@ describe('install --yes --compliance regulated --delivery on a fresh repository'
       expect(stepOf(report, '7b/')?.status).toBe('ok');
       const cfg = JSON.parse(await fs.readFile(join(dir, 'sdlc-config.json'), 'utf8')) as Record<string, any>;
       expect(cfg['onboarding_preset']).toBe('C');
-      expect(cfg['delivery']).toEqual({ enabled: true, max_turns: 200, max_minutes: 90 });
+      expect(cfg['delivery']).toEqual({ enabled: true, max_turns: 200, max_minutes: 90, github_token_source: 'app' });
       // the sync step, run last, generated the workflow and the prompt from that config
       const workflow = await fs.readFile(join(dir, '.github', 'workflows', 'devaudit-delivery.yml'), 'utf8');
       expect(workflow).toContain('repository_dispatch');
@@ -167,6 +167,23 @@ describe('install --yes --compliance regulated --delivery on a fresh repository'
       expect(byName.get('DEVAUDIT_AGENT_PORTAL_KEY')).toBe('plain_delivery-agent');
       expect(byName.get('DEVAUDIT_AGENT_API_KEY')).toBe('sk-agent-session');
       expect(byName.has('DEVAUDIT_AGENT_GITHUB_TOKEN')).toBe(false);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  }, 120_000);
+
+  it("with a machine user's token in the environment stores it and records the secret as the token source (#1286)", async () => {
+    const dir = await fixture(FULL);
+    try {
+      const report = await install(dir, { env: { ...ENV, DEVAUDIT_AGENT_GITHUB_TOKEN: 'github_pat_machine' } });
+      expect(stepOf(report, '7b/')?.message).toContain("machine user's token");
+      const cfg = JSON.parse(await fs.readFile(join(dir, 'sdlc-config.json'), 'utf8')) as Record<string, any>;
+      expect(cfg['delivery'].github_token_source).toBe('secret');
+      const byName = new Map(providerCalls.filter((c) => c.method === 'setSecret').map((c) => [c.args[0] as string, c.args[1] as string]));
+      expect(byName.get('DEVAUDIT_AGENT_GITHUB_TOKEN')).toBe('github_pat_machine');
+      // the generated workflow reads it as an optional value and never falls back to the default token
+      const workflow = await fs.readFile(join(dir, '.github', 'workflows', 'devaudit-delivery.yml'), 'utf8');
+      expect(workflow).not.toMatch(/\|\|\s*github\.token/);
     } finally {
       await fs.rm(dir, { recursive: true, force: true });
     }

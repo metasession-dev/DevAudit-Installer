@@ -161,11 +161,15 @@ export async function writeSdlcConfig(ctx: InstallContext, plan: InstallPlan): P
   // DevAudit Delivery (DevAudit-Installer#1272): `install --delivery` records that the repository accepts delivery
   // runs; limits already set (`configure set delivery.max_turns`) are kept.
   if (ctx.delivery) {
-    const current = (config['delivery'] ?? {}) as { max_turns?: number; max_minutes?: number };
+    const current = (config['delivery'] ?? {}) as { max_turns?: number; max_minutes?: number; github_token_source?: string; agent_git_name?: string };
+    // #1286: a machine user's token in the environment means the pilot path; otherwise the portal's GitHub App (kept when already chosen).
+    const source = ctx.deliveryAgentGithubToken ? 'secret' : (current.github_token_source ?? 'app');
     config['delivery'] = {
+      ...current,
       enabled: true,
       max_turns: current.max_turns ?? DELIVERY_DEFAULT_MAX_TURNS,
       max_minutes: current.max_minutes ?? DELIVERY_DEFAULT_MAX_MINUTES,
+      github_token_source: source,
     };
   }
   if (isNewTarget && ctx.addTarget) {

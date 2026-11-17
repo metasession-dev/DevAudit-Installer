@@ -162,17 +162,29 @@ describe('sdlc-config.json (#1272)', () => {
     apiKeySecretName: 'DEVAUDIT_API_KEY',
   });
 
-  it('records delivery.enabled with the default limits', async () => {
+  it('records delivery.enabled with the default limits and the portal App as the token source', async () => {
     const dir = await repo({ config: null, playwright: null });
     await writeSdlcConfig(ctxFor(dir, { delivery: true }), basePlan());
     const cfg = JSON.parse(await fs.readFile(join(dir, 'sdlc-config.json'), 'utf8')) as { delivery: unknown };
-    expect(cfg.delivery).toEqual({ enabled: true, max_turns: 200, max_minutes: 90 });
+    expect(cfg.delivery).toEqual({ enabled: true, max_turns: 200, max_minutes: 90, github_token_source: 'app' });
+  });
+
+  it('records the secret as the token source when the environment has a token of its own (#1286)', async () => {
+    const dir = await repo({ config: null, playwright: null });
+    await writeSdlcConfig(ctxFor(dir, { delivery: true, deliveryAgentGithubToken: 'github_pat_machine' }), basePlan());
+    expect(JSON.parse(await fs.readFile(join(dir, 'sdlc-config.json'), 'utf8')).delivery.github_token_source).toBe('secret');
+  });
+
+  it('keeps a token source and an author name that were already chosen when the environment has no token', async () => {
+    const dir = await repo({ config: { project_slug: 'fixture-app', stack: 'node', delivery: { github_token_source: 'secret', agent_git_name: 'Acme Bot' } }, playwright: null });
+    await writeSdlcConfig(ctxFor(dir, { delivery: true }), basePlan());
+    expect(JSON.parse(await fs.readFile(join(dir, 'sdlc-config.json'), 'utf8')).delivery).toMatchObject({ enabled: true, github_token_source: 'secret', agent_git_name: 'Acme Bot' });
   });
 
   it('keeps limits that were already set, and writes no delivery key without --delivery', async () => {
     const dir = await repo({ config: { project_slug: 'fixture-app', stack: 'node', delivery: { enabled: false, max_turns: 50, max_minutes: 30 } }, playwright: null });
     await writeSdlcConfig(ctxFor(dir, { delivery: true }), basePlan());
-    expect(JSON.parse(await fs.readFile(join(dir, 'sdlc-config.json'), 'utf8')).delivery).toEqual({ enabled: true, max_turns: 50, max_minutes: 30 });
+    expect(JSON.parse(await fs.readFile(join(dir, 'sdlc-config.json'), 'utf8')).delivery).toEqual({ enabled: true, max_turns: 50, max_minutes: 30, github_token_source: 'app' });
     const plain = await repo({ config: null, playwright: null });
     await writeSdlcConfig(ctxFor(plain), basePlan());
     expect(JSON.parse(await fs.readFile(join(plain, 'sdlc-config.json'), 'utf8')).delivery).toBeUndefined();
@@ -232,6 +244,15 @@ describe('the delivery-agent key and the repository secrets (#1272, #1274)', () 
     const { provider, secrets } = fakeProvider();
     await setupDelivery(ctx({ deliveryAgentGithubToken: 'ghp_agent' }), makePlan(), provider, { client });
     expect(secrets.map(([n]) => n)).toEqual(['DEVAUDIT_AGENT_API_KEY', 'DEVAUDIT_AGENT_PORTAL_KEY', 'DEVAUDIT_AGENT_GITHUB_TOKEN']);
+  });
+
+  it("says the portal's GitHub App must be installed when there is no token of its own, and names the pilot path when there is (#1286)", async () => {
+    const without = await setupDelivery(ctx(), makePlan(), fakeProvider().provider, { client: fakeClient([]).client });
+    expect(without.message).toContain('DevAudit Agent GitHub App');
+    expect(without.message).toContain('must be installed on this repository');
+    const withToken = await setupDelivery(ctx({ deliveryAgentGithubToken: 'ghp_agent' }), makePlan(), fakeProvider().provider, { client: fakeClient([]).client });
+    expect(withToken.message).toContain("machine user's token");
+    expect(withToken.message).not.toContain('ghp_agent');
   });
 
   it('reuses a live delivery-agent key instead of failing on the duplicate name, and leaves its secret alone', async () => {

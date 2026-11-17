@@ -6,6 +6,7 @@ All notable changes to `@metasession.co/devaudit-core` are documented here. The 
 
 ### Added
 
+- **`NOT_ASKED` lists `delivery.github_token_source` and `delivery.agent_git_name`** (DevAudit-Installer#1286): where a delivery run gets its GitHub token, and the name of its git author, are set with `install --delivery` or `configure set`, not asked.
 - **`presetForComplianceMode`, `COMPLIANCE_MODES`, `isComplianceMode`** (DevAudit-Installer#1272): the compliance mode of a headless install names a preset (`none` A, `light` B, `regulated` C); when it cannot be offered the next one down is used, with a one-line note, and D is never chosen. `docs/presets.md` (generated) gains a "Compliance modes" section and a delivery-run paragraph.
 - **`NOT_ASKED` lists `delivery.enabled`, `delivery.max_turns` and `delivery.max_minutes`** (DevAudit-Installer#1272): a DevAudit Delivery run is a deliberate opt-in set with `install --delivery` or `configure set`, not asked.
 - **`NOT_ASKED` lists `e2e_report_include_traces`** (DevAudit-Installer#1275): keeping traces and videos in the Playwright report zip is set with `configure set`, not asked.

@@ -101,6 +101,10 @@ export interface SdlcConfig {
     readonly enabled?: boolean;
     readonly max_turns?: number;
     readonly max_minutes?: number;
+    /** `secret` or `app` (DevAudit-Installer#1286): where the agent's GitHub token comes from. */
+    readonly github_token_source?: string;
+    /** The name of the agent's git author (default `DevAudit Agent`). */
+    readonly agent_git_name?: string;
   };
   readonly devaudit?: {
     readonly base_url?: string;

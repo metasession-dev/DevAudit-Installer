@@ -10,8 +10,6 @@ import {
   DELIVERY_CLAUDE_CODE_VERSION,
   DELIVERY_DEFAULT_MAX_MINUTES,
   DELIVERY_DEFAULT_MAX_TURNS,
-  DELIVERY_GIT_AUTHOR_EMAIL,
-  DELIVERY_GIT_AUTHOR_NAME,
   DELIVERY_PROMPT_FILE,
   DELIVERY_PROMPT_TEMPLATE,
 } from '../lib/delivery.js';
@@ -1389,8 +1387,6 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
       DELIVERY_MAX_TURNS: String(cfg.delivery?.max_turns ?? DELIVERY_DEFAULT_MAX_TURNS),
       DELIVERY_CLAUDE_CODE_VERSION,
       DELIVERY_CLI_VERSION: CLI_VERSION,
-      DELIVERY_GIT_AUTHOR_NAME,
-      DELIVERY_GIT_AUTHOR_EMAIL,
       DELIVERY_PROMPT_FILE,
       // Leading space so `npm ci{{NPM_CI_FLAGS}}` renders as plain `npm ci`
       // when unset (space-then-nothing trims to nothing) and `npm ci

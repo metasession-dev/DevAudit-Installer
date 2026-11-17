@@ -17,17 +17,39 @@ devaudit install --yes --compliance regulated --delivery
 1. records `delivery.enabled: true`, `delivery.max_turns` (200) and `delivery.max_minutes` (90) in `sdlc-config.json`; change the limits with `devaudit configure set delivery.max_turns <10-1000>` and `delivery.max_minutes <10-360>`;
 2. issues a **second** portal key named `delivery-agent` (role `uploader`, the lowest that can register a release and upload evidence), reusing a live one on a rerun;
 3. stores the repository secrets `DEVAUDIT_AGENT_PORTAL_KEY` (that key) and `DEVAUDIT_AGENT_API_KEY` (from the environment), and `DEVAUDIT_AGENT_GITHUB_TOKEN` when the environment has one;
-4. through the normal sync, generates `.github/workflows/devaudit-delivery.yml` and `.devaudit/delivery-prompt.md`.
+4. records `delivery.github_token_source`: `secret` when the environment has `DEVAUDIT_AGENT_GITHUB_TOKEN`, else `app` (see [The agent's GitHub token](#the-agents-github-token));
+5. through the normal sync, generates `.github/workflows/devaudit-delivery.yml` and `.devaudit/delivery-prompt.md`.
 
-A GitHub repository runs a `repository_dispatch` workflow from its **default branch**, so the generated workflow must be merged and released to `main` before the portal can start a run. A push or pull request made with the default `GITHUB_TOKEN` starts no workflow, so the release's own CI would not run; give the agent a token that can with `DEVAUDIT_AGENT_GITHUB_TOKEN` (a fine-grained token with Contents and Pull requests read/write). Without it the workflow falls back to the default token, and `devaudit doctor` does not know the difference.
+A GitHub repository runs a `repository_dispatch` workflow from its **default branch**, so the generated workflow must be merged and released to `main` before the portal can start a run.
 
-`devaudit doctor` reports a `delivery-workflow` check while `delivery.enabled` is true: the workflow and prompt exist, both secrets are set, and the Claude Code version in the workflow is the one this CLI generates.
+`devaudit doctor` reports a `delivery-workflow` check while `delivery.enabled` is true: the workflow and prompt exist, both secrets are set, the Claude Code version in the workflow is the one this CLI generates, and the agent's GitHub token source can be met (see below). A gap fails the check.
+
+## The agent's GitHub token
+
+A push or pull request made with the workflow's own `GITHUB_TOKEN` starts no other workflow, so the release's checks (quality gates, compliance validation, release approval) would never run, no evidence would reach the portal, and the run would stall in `awaiting_approval`. The agent therefore works with a GitHub token of its own, and there is **no fall back** to the default token. The workflow resolves one before any agent work, in this order:
+
+1. **The repository secret `DEVAUDIT_AGENT_GITHUB_TOKEN`**, when it is set. This is the pilot path: a fine-grained token of a dedicated machine user who is a collaborator with write access, limited to this repository, with Contents and Pull requests read/write and Issues read. Record when it expires (at most a year) and who rotates it. The commit author is that user's noreply address, `<id>+<login>@users.noreply.github.com`, read from the token with `GET /user`.
+2. **A token the portal mints** from the DevAudit Agent GitHub App installed on the repository (the product path): `POST <portal>/api/ci/delivery-runs/<runId>/github-token` with the `delivery-agent` key and no body, answered `{ token, expiresAt, author: { name, email } }`. The token lasts about an hour and is limited to this one repository; the App has no Workflows permission. The author is the App's bot noreply address. A 409 `not_installed` carries the install link, a 503 `not_configured` means the portal has no App.
+3. **Otherwise the job fails**, before the agent starts, with a message naming both options.
+
+The token is masked in the workflow log the moment it is read. It lasts about an hour and a run can last `delivery.max_minutes` (90 by default), so it is not fetched once: git and `gh` ask for a current one every time.
+
+- `devaudit delivery github-token` prints the token (`--json` adds the expiry and the author; `--run` defaults to `RUN_ID`). A portal token is cached in a mode 600 file under `RUNNER_TEMP` until ten minutes before it expires, so the many `gh` calls of a session stay far under the portal's limit of about 20 tokens per run per hour. Exit codes: `0` a token, `1` none could be had (the reason is on stderr, with the install link for a 409), `2` a usage error.
+- The workflow sets `git config credential.helper '!devaudit delivery github-token --credential'`, so every `git push` is answered with a current token (it answers only for GitHub over https and nothing else). The checkout leaves no credential behind (`persist-credentials: false`).
+- A `gh` shim, `scripts/delivery-gh.sh`, is placed ahead of the real `gh` on `PATH`; it sets `GH_TOKEN` from the helper for each call and runs nothing when there is no token.
+
+The commit author is `DevAudit Agent <the token's noreply address>`. The name is `delivery.agent_git_name` when set (default `DevAudit Agent`); the address is never configured and never invented: when the token's GitHub user cannot be read the job fails.
+
+`delivery.github_token_source` (`secret` or `app`) records the intent. `devaudit doctor` fails `delivery-workflow` when it is missing or invalid, when it is `secret` and the repository secret is not set, and when the workflow was generated before this handling (it falls back to the default token). With `app` it passes: the portal checks that the App is installed when it starts a run, and refuses to start it otherwise.
+
+A push the App's token cannot make, because the change edits `.github/workflows` (the App has no Workflows permission), is rejected; the skill then reports the run `failed` with that reason and stops.
 
 ## The run
 
 ```text
 portal ── repository_dispatch (devaudit-delivery, runId, issueNumber) ──► devaudit-delivery.yml
-workflow: check payload and secrets → checkout develop → install pinned Claude Code and CLI
+workflow: check payload and secrets → checkout develop (read-only) → install pinned Claude Code and CLI
+          → resolve and mask the agent's GitHub token (fails the job without one) → git and gh identity
           → report running → claude -p (sdlc-implementer, headless rules) → report end of run
 skill:    triage (tracked only) → plan → implement → evidence → push to develop (CI registers the release)
           → report running --release → release PR + UAT request → report awaiting_approval → exit 0
@@ -69,4 +91,4 @@ The `sdlc-implementer` skill applies its "Headless (delivery run) rules" when th
 
 ## Who did what
 
-The agent works under its own portal key and git author (`DevAudit Agent <agent@devaudit.app>`; the address is to be confirmed by the product owner), so the release it registers names the agent as creator and submitter, and the client's admin who approves is independent of both. Under presets C and D that evidences `SOC2.CC8.1` and `ISO27001.A.8.32` without a second human developer in the organisation. The gates keep using `DEVAUDIT_API_KEY`; no other generated workflow reads `DEVAUDIT_AGENT_PORTAL_KEY`.
+The agent works under its own portal key and its own GitHub identity (the App's bot, or the machine user, as the git author; see [The agent's GitHub token](#the-agents-github-token)), so the release it registers names the agent as creator and submitter, and the client's admin who approves is independent of both. Under presets C and D that evidences `SOC2.CC8.1` and `ISO27001.A.8.32` without a second human developer in the organisation. The gates keep using `DEVAUDIT_API_KEY`; no other generated workflow reads `DEVAUDIT_AGENT_PORTAL_KEY`.

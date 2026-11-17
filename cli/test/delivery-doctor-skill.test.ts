@@ -57,14 +57,27 @@ describe('the delivery configuration keys (#1272)', () => {
     }
   });
 
+  it('delivery.github_token_source is secret or app (#1286)', () => {
+    expect(validateConfigKeyValue('delivery.github_token_source', 'secret')).toEqual({ value: 'secret' });
+    expect(validateConfigKeyValue('delivery.github_token_source', 'app')).toEqual({ value: 'app' });
+    for (const bad of ['github-token', 'none', '']) expect(validateConfigKeyValue('delivery.github_token_source', bad).error, bad).toBeDefined();
+  });
+
+  it('delivery.agent_git_name is a one-line name without angle brackets (#1286)', () => {
+    expect(validateConfigKeyValue('delivery.agent_git_name', 'Acme Delivery Bot')).toEqual({ value: 'Acme Delivery Bot' });
+    for (const bad of ['', '   ', 'a <b@c>', 'x'.repeat(101)]) expect(validateConfigKeyValue('delivery.agent_git_name', bad).error, bad).toBeDefined();
+    expect(findConfigKey('delivery.agent_git_name')?.description).toContain('never configured');
+  });
+
   it('onboarding does not ask them: each is listed as not asked', () => {
-    for (const key of ['delivery.enabled', 'delivery.max_turns', 'delivery.max_minutes']) expect(NOT_ASKED[key], key).toBeDefined();
+    for (const key of ['delivery.enabled', 'delivery.max_turns', 'delivery.max_minutes', 'delivery.github_token_source', 'delivery.agent_git_name']) expect(NOT_ASKED[key], key).toBeDefined();
   });
 });
 
 describe('the delivery-workflow doctor check (#1272)', () => {
   const okGh = (names: string[]) => async () => ({ exitCode: 0, stdout: JSON.stringify(names.map((name) => ({ name }))), stderr: '' });
-  const goodWorkflow = `steps:\n  - run: npm install -g @anthropic-ai/claude-code@${DELIVERY_CLAUDE_CODE_VERSION} @metasession.co/devaudit-cli@1.0.0\n`;
+  const goodWorkflow = `steps:\n  - run: npm install -g @anthropic-ai/claude-code@${DELIVERY_CLAUDE_CODE_VERSION} @metasession.co/devaudit-cli@1.0.0\n  - run: devaudit delivery github-token --run "$RUN_ID" --mask --github-env\n`;
+  const DEFAULT_CFG = { delivery: { enabled: true, github_token_source: 'app' } };
 
   async function repoWith(opts: { workflow?: string | null; prompt?: boolean; cfg?: Record<string, unknown> }) {
     const dir = await tmp();
@@ -74,8 +87,9 @@ describe('the delivery-workflow doctor check (#1272)', () => {
       await fs.mkdir(join(dir, '.devaudit'), { recursive: true });
       await fs.writeFile(join(dir, '.devaudit', 'delivery-prompt.md'), 'prompt');
     }
-    return { repoRoot: dir, cfg: opts.cfg ?? { delivery: { enabled: true } } };
+    return { repoRoot: dir, cfg: opts.cfg ?? DEFAULT_CFG };
   }
+  const allSecrets = ['DEVAUDIT_AGENT_API_KEY', 'DEVAUDIT_AGENT_PORTAL_KEY'];
 
   it('is absent unless delivery.enabled is true', async () => {
     for (const cfg of [{}, { delivery: { enabled: false } }, { delivery: {} }]) {
@@ -104,13 +118,61 @@ describe('the delivery-workflow doctor check (#1272)', () => {
     expect(r?.findings?.map((f) => f.subject)).toEqual(['claude-code-version']);
     expect(r?.findings?.[0]?.detail).toContain('1.0.0');
     const none = await deliveryWorkflowCheck(await repoWith({ workflow: 'steps: []\n' }), { gh: okGh(['DEVAUDIT_AGENT_API_KEY', 'DEVAUDIT_AGENT_PORTAL_KEY']) });
-    expect(none?.findings?.[0]?.detail).toContain('no pinned version');
+    expect(none?.findings?.find((f) => f.subject === 'claude-code-version')?.detail).toContain('no pinned version');
   });
 
   it('skips the secrets, and says so, when the GitHub CLI cannot list them; it does not fail', async () => {
     const r = await deliveryWorkflowCheck(await repoWith({}), { gh: async () => ({ exitCode: 1, stdout: '', stderr: 'not logged in' }) });
     expect(r?.ok).toBe(true);
     expect(r?.detail).toContain('secrets were not checked');
+  });
+
+  describe('the agent GitHub token source (#1286)', () => {
+    const subjects = async (cfg: Record<string, unknown>, names: string[], workflow?: string) =>
+      (await deliveryWorkflowCheck(await repoWith({ cfg, ...(workflow !== undefined ? { workflow } : {}) }), { gh: okGh(names) }))?.findings?.map((f) => f.subject) ?? [];
+
+    it('fails when the token source is not set, or is not secret or app', async () => {
+      for (const delivery of [{ enabled: true }, { enabled: true, github_token_source: 'pat' }, { enabled: true, github_token_source: '' }]) {
+        const r = await deliveryWorkflowCheck(await repoWith({ cfg: { delivery } }), { gh: okGh(allSecrets) });
+        expect(r?.ok, JSON.stringify(delivery)).toBe(false);
+        expect(r?.findings?.map((f) => f.subject)).toEqual(['token-source']);
+        expect(r?.findings?.[0]?.remediation?.plan.join('\n')).toContain('delivery.github_token_source app');
+        expect(r?.findings?.[0]?.remediation?.plan.join('\n')).toContain('delivery.github_token_source secret');
+      }
+    });
+
+    it('with app it passes, saying the portal mints the token and checks the installation at run time', async () => {
+      const r = await deliveryWorkflowCheck(await repoWith({}), { gh: okGh(allSecrets) });
+      expect(r?.ok).toBe(true);
+      expect(r?.detail).toContain("minted by the portal's GitHub App");
+    });
+
+    it('with secret it passes when DEVAUDIT_AGENT_GITHUB_TOKEN is set and fails when it is not', async () => {
+      const cfg = { delivery: { enabled: true, github_token_source: 'secret' } };
+      expect(await subjects(cfg, [...allSecrets, 'DEVAUDIT_AGENT_GITHUB_TOKEN'])).toEqual([]);
+      const missing = await deliveryWorkflowCheck(await repoWith({ cfg }), { gh: okGh(allSecrets) });
+      expect(missing?.ok).toBe(false);
+      expect(missing?.findings?.map((f) => f.subject)).toEqual(['token-secret-missing']);
+      expect(missing?.findings?.[0]?.remediation?.plan.join('\n')).toContain('gh secret set DEVAUDIT_AGENT_GITHUB_TOKEN');
+    });
+
+    it('does not guess about the secret when the GitHub CLI cannot list secrets', async () => {
+      const cfg = { delivery: { enabled: true, github_token_source: 'secret' } };
+      const r = await deliveryWorkflowCheck(await repoWith({ cfg }), { gh: async () => ({ exitCode: 1, stdout: '', stderr: 'no' }) });
+      expect(r?.ok).toBe(true);
+    });
+
+    it('fails for a workflow generated before the token handling: it falls back to the default token, or never resolves one', async () => {
+      const cfg = DEFAULT_CFG;
+      expect(await subjects(cfg, allSecrets, `${goodWorkflow}  - env:\n      GH_TOKEN: \${{ secrets.DEVAUDIT_AGENT_GITHUB_TOKEN || github.token }}\n`)).toEqual(['workflow-token-stale']);
+      expect(await subjects(cfg, allSecrets, `steps:\n  - run: npm install -g @anthropic-ai/claude-code@${DELIVERY_CLAUDE_CODE_VERSION}\n`)).toEqual(['workflow-token-stale']);
+    });
+
+    it('each new finding has an explanation and a gap', async () => {
+      for (const key of ['token-source', 'token-secret-missing', 'workflow-token-stale']) expect(CHECK_EXPLANATIONS[`delivery-workflow:${key}`], key).toBeDefined();
+      const r = await deliveryWorkflowCheck(await repoWith({ cfg: { delivery: { enabled: true } } }), { gh: okGh(allSecrets) });
+      expect(gapsFromCheck(r!)).toHaveLength(1);
+    });
   });
 
   it('every finding is guidance (tier C) and has an explanation', async () => {
@@ -157,6 +219,14 @@ describe('the sdlc-implementer headless rules (#1273)', () => {
     expect(text).toContain('devaudit configure --preset <X> --yes');
     expect(text).toContain('first commit of the run');
     expect(text).toContain('Co-Authored-By:'); // 7
+  });
+
+  it('ends the run with a reason when a push is rejected for editing workflow files, and never works around it (#1286)', () => {
+    const text = section();
+    expect(text).toContain('.github/workflows');
+    expect(text).toContain('the agent has no permission to push workflow files');
+    expect(text).toContain('do not retry and do not work around it');
+    expect(text).toContain('--phase failed --reason');
   });
 
   it('the command it tells the agent to run exists', async () => {

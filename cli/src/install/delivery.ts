@@ -83,5 +83,11 @@ export async function setupDelivery(
     set.push(DELIVERY_AGENT_GITHUB_SECRET);
   }
   messages.push(`set ${set.join(', ')}`);
+  // #1286: with no token of its own the agent gets one from the portal's GitHub App, which the client installs.
+  messages.push(
+    ctx.deliveryAgentGithubToken
+      ? `the agent pushes with the machine user's token in ${DELIVERY_AGENT_GITHUB_SECRET} (the pilot path)`
+      : `no ${DELIVERY_AGENT_GITHUB_SECRET} in the environment: the agent's GitHub token will be minted by the portal's DevAudit Agent GitHub App, which must be installed on this repository (the product path); to use a machine user's token instead, set ${DELIVERY_AGENT_GITHUB_SECRET} and run this again`,
+  );
   return { step: STEP, status: 'ok', message: messages.join('; ') };
 }

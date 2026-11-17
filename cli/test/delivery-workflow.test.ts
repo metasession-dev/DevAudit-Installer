@@ -8,8 +8,6 @@ import { syncProject } from '../src/update/index.js';
 import { CLI_VERSION } from '../src/lib/version.js';
 import {
   DELIVERY_CLAUDE_CODE_VERSION,
-  DELIVERY_GIT_AUTHOR_EMAIL,
-  DELIVERY_GIT_AUTHOR_NAME,
   DELIVERY_PROMPT_FILE,
   DELIVERY_PROMPT_TEMPLATE,
 } from '../src/lib/delivery.js';
@@ -144,10 +142,11 @@ describe('devaudit-delivery.yml generation (#1272)', () => {
     expect(text).toContain(`@metasession.co/devaudit-cli@${CLI_VERSION}`);
   });
 
-  it('sets the agent as the git author, never the client', async () => {
+  it('sets the agent as the git author from the resolved token identity, never a fixed address', async () => {
     const text = await rendered({});
-    expect(text).toContain(`git config user.name "${DELIVERY_GIT_AUTHOR_NAME}"`);
-    expect(text).toContain(`git config user.email "${DELIVERY_GIT_AUTHOR_EMAIL}"`);
+    expect(text).toContain('git config user.name "$DEVAUDIT_AGENT_GIT_NAME"');
+    expect(text).toContain('git config user.email "$DEVAUDIT_AGENT_GIT_EMAIL"');
+    expect(text).not.toContain('agent@devaudit.app');
   });
 
   it('reports running first and the end of the run in a step that always runs, with the cost file and the CI seconds', async () => {
@@ -183,6 +182,82 @@ describe('devaudit-delivery.yml generation (#1272)', () => {
 
   it('resolves the runner like the other workflows', async () => {
     expect(await rendered({ runner: 'self-hosted' })).toContain("(inputs.runner_label || vars.CI_RUNNER_LABEL || 'github-ci')");
+  });
+});
+
+describe('the agent GitHub token (#1286)', () => {
+  const stepsOf = async (config: Record<string, unknown> = {}) => {
+    const doc = yamlLoad(await rendered(config)) as Record<string, any>;
+    return doc['jobs']['delivery']['steps'] as Array<Record<string, any>>;
+  };
+  const indexOfRun = (steps: Array<Record<string, any>>, needle: string) => steps.findIndex((s) => String(s['run'] ?? '').includes(needle));
+
+  it('never falls back to the default token for the agent: no `|| github.token` anywhere', async () => {
+    const text = await rendered({});
+    expect(text).not.toMatch(/\|\|\s*(github\.token|secrets\.GITHUB_TOKEN)/);
+    expect(text).not.toMatch(/GH_TOKEN:\s*\$\{\{/);
+  });
+
+  it('reads the pilot secret as an optional value, and the default token is read-only', async () => {
+    const text = await rendered({});
+    expect(text).toContain("DEVAUDIT_AGENT_GITHUB_TOKEN: ${{ secrets.DEVAUDIT_AGENT_GITHUB_TOKEN || '' }}");
+    const doc = yamlLoad(text) as Record<string, any>;
+    expect(doc['permissions']).toEqual({ contents: 'read' });
+  });
+
+  it('checks out without leaving a credential, with the default token', async () => {
+    const steps = await stepsOf();
+    const checkout = steps.find((s) => String(s['uses'] ?? '').startsWith('actions/checkout'))!;
+    expect(checkout['with']['persist-credentials']).toBe(false);
+    expect(checkout['with']['token']).toBe('${{ github.token }}');
+  });
+
+  it('resolves and masks the token before any other agent step, and fails the job when there is none', async () => {
+    const steps = await stepsOf();
+    const resolve = indexOfRun(steps, 'devaudit delivery github-token');
+    expect(resolve).toBeGreaterThan(-1);
+    expect(String(steps[resolve]!['run'])).toContain('--mask');
+    expect(String(steps[resolve]!['run'])).toContain('--github-env');
+    expect(steps[resolve]!['continue-on-error']).toBeUndefined();
+    expect(resolve).toBeLessThan(indexOfRun(steps, '--phase running'));
+    expect(resolve).toBeLessThan(steps.findIndex((s) => s['id'] === 'agent'));
+    // the CLI that resolves it is installed first
+    expect(indexOfRun(steps, 'npm install -g @anthropic-ai/claude-code')).toBeLessThan(resolve);
+  });
+
+  it('sets a credential helper and a gh shim so every push and call gets a current token', async () => {
+    const steps = await stepsOf();
+    const i = indexOfRun(steps, 'credential.helper');
+    const run = String(steps[i]!['run']);
+    expect(run).toContain("git config credential.helper ''");
+    expect(run).toContain("git config --add credential.helper '!devaudit delivery github-token --credential'");
+    expect(run).toContain('scripts/delivery-gh.sh');
+    expect(run).toContain('DEVAUDIT_REAL_GH');
+    expect(run).toContain('$GITHUB_PATH');
+    expect(i).toBeGreaterThan(indexOfRun(steps, 'devaudit delivery github-token --run'));
+    expect(i).toBeLessThan(steps.findIndex((s) => s['id'] === 'agent'));
+  });
+
+  it('never asks a person for a git credential', async () => {
+    expect(await rendered({})).toContain("GIT_TERMINAL_PROMPT: '0'");
+  });
+
+  it('reports a job that stopped before the agent as failed with that reason', async () => {
+    const steps = await stepsOf();
+    const end = steps.find((s) => String(s['run'] ?? '').includes('--cost-file'))!;
+    expect(String(end['run'])).toContain('the job stopped before the agent started');
+    expect(String(end['run'])).toContain('command -v devaudit');
+  });
+
+  it('the old fixed address is nowhere in the repository sources', async () => {
+    const hits: string[] = [];
+    for (const dir of ['sdlc', 'cli/src', 'core/src', 'docs']) {
+      for (const entry of await fs.readdir(join(INSTALLER_ROOT, dir), { recursive: true, withFileTypes: true })) {
+        if (!entry.isFile() || /(^|[\\/])(node_modules|issues|articles)([\\/]|$)/.test(entry.parentPath)) continue;
+        if ((await fs.readFile(join(entry.parentPath, entry.name), 'utf8').catch(() => '')).includes('agent@devaudit.app')) hits.push(join(entry.parentPath, entry.name));
+      }
+    }
+    expect(hits).toEqual([]);
   });
 });
 

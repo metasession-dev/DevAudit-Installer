@@ -22,9 +22,19 @@ export const DELIVERY_AGENT_GITHUB_SECRET = 'DEVAUDIT_AGENT_GITHUB_TOKEN';
 /** Name of the portal API key the agent works under; the portal refuses a second active key of one name. */
 export const DELIVERY_AGENT_KEY_NAME = 'delivery-agent';
 
-/** The git author of every commit in a delivery run (#1274). The address is to be confirmed by the product owner. */
-export const DELIVERY_GIT_AUTHOR_NAME = 'DevAudit Agent';
-export const DELIVERY_GIT_AUTHOR_EMAIL = 'agent@devaudit.app';
+/**
+ * The default name of the git author of every commit in a delivery run (#1274, #1286); `delivery.agent_git_name`
+ * overrides it. There is no default address: it comes from the token's own GitHub identity (the App's bot noreply
+ * address from the portal, or the machine user's `<id>+<login>@users.noreply.github.com`), never an invented one.
+ */
+export const DELIVERY_GIT_NAME_DEFAULT = 'DevAudit Agent';
+
+/** Where the agent's GitHub token comes from (`delivery.github_token_source`, #1286): the repository secret, or the portal's GitHub App. */
+export const DELIVERY_GITHUB_TOKEN_SOURCES = ['secret', 'app'] as const;
+export type DeliveryGithubTokenSource = (typeof DELIVERY_GITHUB_TOKEN_SOURCES)[number];
+
+/** A portal-issued GitHub token is reused until this long before it expires; one lasts about an hour. */
+export const DELIVERY_TOKEN_REFRESH_MARGIN_MS = 10 * 60 * 1000;
 
 /** The Claude Code CLI version the delivery workflow installs. Bump it deliberately; `doctor` compares it. */
 export const DELIVERY_CLAUDE_CODE_VERSION = '2.1.322';
