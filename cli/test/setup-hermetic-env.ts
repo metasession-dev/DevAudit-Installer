@@ -45,6 +45,10 @@ for (const name of ['DEVAUDIT_CONFIG_DIR', 'DEVAUDIT_CACHE_DIR', 'DEVAUDIT_CLAUD
   if (!process.env[name]) process.env[name] = mkdtempSync(join(tmpdir(), `devaudit-test-${name.toLowerCase()}-`));
 }
 
+// DevAudit-Installer#1265: `doctor` reads the latest published CLI version from the npm registry. No test
+// does (child processes inherit this); the check's own tests pass their reader and their environment.
+process.env['DEVAUDIT_SKIP_VERSION_CHECK'] = '1';
+
 for (const name of [
   'GH_TOKEN',
   'GITHUB_TOKEN',

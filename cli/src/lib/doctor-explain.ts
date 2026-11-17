@@ -236,6 +236,22 @@ export const CHECK_EXPLANATIONS: Readonly<Record<string, GapExplanation>> = {
     why: 'With uat.mode auto the agent executes the UAT procedure on a deployed UAT environment. uat.enabled is how the project says it has one; while it is not true the agent has nowhere to run the steps.',
     guidance: 'Set `uat.enabled` and `uat.url` in sdlc-config.json once a UAT environment exists, or `devaudit configure set uat.mode manual` to have a tester run the procedure by hand.',
   },
+  // DevAudit-Installer#1265
+  'cli-version': {
+    title: 'The devaudit CLI or this project\'s last sync is behind the latest published version',
+    why: 'Templates, scripts, skills and generated workflows come from the CLI that runs `update`. A stale global install passes every other check and quietly syncs outdated files, so the project drifts from what the framework now ships.',
+    guidance: 'Run `npx @metasession.co/devaudit-cli@latest update` on a fix branch (it runs the latest without installing it), or `npm install -g @metasession.co/devaudit-cli@latest` first. Set `DEVAUDIT_SKIP_VERSION_CHECK=1` to turn the registry read off.',
+  },
+  'cli-version:installed-cli': {
+    title: 'This devaudit CLI is older than the latest published one',
+    why: '`devaudit update` copies the templates it ships. An older CLI copies older templates over the project, and nothing else reports it.',
+    guidance: 'Use the latest without installing it: `npx @metasession.co/devaudit-cli@latest update`. Or upgrade the global install: `npm install -g @metasession.co/devaudit-cli@latest`.',
+  },
+  'cli-version:synced-version': {
+    title: 'The templates in this project were synced by an older version',
+    why: '`devaudit_synced_version` in sdlc-config.json records the CLI that last ran `update`. A newer one is published, so the project does not have its fixes.',
+    guidance: 'Run `devaudit update` (from the latest CLI) on a fix branch and review the diff.',
+  },
   // DevAudit-Installer#1272
   'delivery-workflow': {
     title: 'A DevAudit Delivery run would stop before the agent starts',
