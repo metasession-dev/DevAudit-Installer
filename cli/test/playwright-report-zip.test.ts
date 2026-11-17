@@ -8,7 +8,8 @@ import { findConfigKey, validateConfigKeyValue } from '../src/lib/repo-config-ke
 // failed upload of the report does not fail the CI Pipeline evidence job.
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
-const read = (rel: string) => fs.readFile(join(ROOT, rel), 'utf-8');
+// Windows checkouts may use CRLF; compare on LF.
+const read = async (rel: string) => (await fs.readFile(join(ROOT, rel), 'utf-8')).replace(/\r\n/g, '\n');
 
 describe('Playwright report zip (#1275)', () => {
   it('every workflow builds the zip through the helper, never an inline zip of the report', async () => {
@@ -65,6 +66,6 @@ describe('CI Pipeline report upload is non-blocking when the results file exists
     const text = await read('sdlc/files/ci/ci.yml.template');
     const idx = text.indexOf('if [ -f ci-evidence/playwright-report.zip ]');
     const block = text.slice(idx, idx + 1400);
-    expect(block).toContain('else\n                upload playwright-report.zip');
+    expect(block).toMatch(/else\s+upload playwright-report\.zip/);
   });
 });
