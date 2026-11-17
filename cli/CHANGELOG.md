@@ -4,6 +4,11 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+### Fixed
+
+- **Evidence upload honours the portal's presign refusals and no longer falls back to multipart above 25 MB** (#1275, #1271): `scripts/upload-evidence.sh` and the CLI's uploader fail a file above 25 MB at once when the presign answers without a URL, printing the answer. HTTP 413 `file_too_large` prints `report is <n> bytes, portal cap is <maxBytes> bytes` and is not retried or sent multipart. HTTP 501 `presign_unavailable` is not retried; a file within 25 MB still goes multipart. A 429 and other 5xx are still retried. The CI Pipeline evidence job treats a failed upload of `playwright-report.zip` as a warning when `e2e-results.json` exists, so a convenience copy no longer blocks the UAT deploy. The multipart threshold default is unchanged: the portal's real multipart body limit is not known, and a file the portal refuses at its body parser already moves to the presigned flow.
+- **The Playwright report zip leaves out traces and videos** (#1275): `playwright-report/trace/`, `playwright-report/data/*.zip` and `*.webm` are excluded from the evidence zip in the CI Pipeline, E2E Regression and feature E2E uploads, so a report stays under the portal cap. New key `e2e_report_include_traces` (default false; `devaudit configure set e2e_report_include_traces true` keeps them).
+
 ### Changed
 
 - **`docs/onboarding-checklist.md` explains the production-check setup** (#1268): what `post-deploy-prod.yml` verifies after a deploy, how to configure `railway`, `vercel` and `custom` (production URL secret, recovery tokens, `deploy_secrets`), the `DEVAUDIT_PROBE_HEADER` secret for access-gated production, and which `doctor` checks verify each part. Documentation only.

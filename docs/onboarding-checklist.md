@@ -66,6 +66,7 @@ Use `devaudit configure list`, `get <key>` and `set <key> <value> --dry-run`. Th
 | | `e2e_seed_command`, `e2e_setup_command` | a shell command, or empty | Seed fixtures before the run; stand up a disposable local database before the dev server. |
 | | `e2e_max_skipped` | a whole number, 0 or more | The most skipped tests a run may have. |
 | | `feature_e2e_projects` | a list of Playwright project names (unset runs all) | Which projects the feature-PR run uses. |
+| | `e2e_report_include_traces` | `true`, `false` (default) | Keep traces and videos in the Playwright report zip uploaded as evidence. Off keeps the zip under the portal's upload cap. |
 | | `e2e_env`, `e2e_start_command`, `e2e_port` | an object of env values (may reference `${{ secrets.NAME }}`); a command; a port above 0 (default 3000) | The environment, dev-server start and port for the E2E steps. Override every remote key to keep production severed. |
 | UAT | `uat.enabled` | `true`, `false` (default `false`) | Whether the UAT-environment verification step (Stage 3 Step 10) applies at all. Edit in `sdlc-config.json`; `configure set` does not manage it. |
 | | `uat.url`, `uat.required_risk_classes` | a URL; a list of `payment`, `destructive_migration`, `realtime`, `physical_ux`, or `["*"]` for every requirement | The UAT environment, and which requirements must be verified on it. Edit in the file. |

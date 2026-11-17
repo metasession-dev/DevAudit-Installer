@@ -86,6 +86,16 @@ The `Quality Gates` dependency audit fails on any unaccepted `high`/`critical` a
 
 The tracking issue carries the label `accepted-dependency-risk` and `Review by: YYYY-MM-DD` in its body. `devaudit doctor` (`accepted-exceptions`) flags exceptions expiring within 14 days or already expired, and labelled issues past their review date. Records upload as evidence type `accepted_dependency_risk`. The Python template's `pip-audit` step has no allowlist yet (parity is tracked with #995).
 
+## Evidence upload limits and refusals (devaudit-installer#1271, #1275)
+
+The portal takes a file by multipart POST up to 25 MB (26,214,400 bytes). A larger file goes through the presigned flow (`upload-url`, a PUT to storage, `upload-complete`). `scripts/upload-evidence.sh` and the CLI's uploader behave the same way:
+
+- **No fallback above 25 MB.** If the portal answers a presign request without a URL for a file above 25 MB, the file fails with the first 500 characters of the answer and a hint to check that `DEVAUDIT_BASE_URL` answers JSON. A multipart POST of that file could only end in HTTP 413. Within 25 MB the multipart POST is still the fallback.
+- **`file_too_large`.** The portal answers HTTP 413 `{ code: "file_too_large", maxBytes }` when the file is over its cap. The upload is not retried and does not fall back; the log says `report is <n> bytes, portal cap is <maxBytes> bytes`. Trim the Playwright report (the default zip already leaves out traces and videos, see `e2e_report_include_traces` in [configure.md](configure.md)) or split the file.
+- **`presign_unavailable`.** The portal answers HTTP 501 `{ code: "presign_unavailable" }` when storage cannot presign. It is not retried. A file within 25 MB goes multipart instead; a larger file fails with the portal's reason.
+- **429 and other 5xx** are still retried with backoff.
+- **The Playwright HTML report is not a gate.** In the CI Pipeline evidence job, a failed upload of `playwright-report.zip` is a warning when `e2e-results.json` exists, because the results file is the evidence the gate reads. A failed upload of any other file still fails the job.
+
 ## Evidence attribution: documentation-only PRs (devaudit-installer#1019)
 
 A PR that changes only documentation or compliance records is not the release's own work, so CI does not attach its test executions, head SHA or branch to the REQ named in its commits. The mechanism and the `Compliance-Record: REQ-XXX` trailer are described in [release-lineage-producer-contract.md](release-lineage-producer-contract.md#which-pull-requests-may-produce-a-release-scoped-execution-devaudit-installer1019).

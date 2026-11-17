@@ -852,12 +852,25 @@ jobs:
           # a test completion report). Uses evidence_type=e2e_report so
           # the portal can distinguish it from per-REQ test-execution-
           # summary.md (DevAudit-Installer#207).
+          #
+          # DevAudit-Installer#1271/#1275 — the HTML report is a convenience
+          # copy of e2e-results.json, so a failed upload of it is a warning,
+          # not a failed gate, whenever the results file exists. Traces and
+          # videos are left out of the zip (e2e_report_include_traces).
           if [ -d ci-evidence/playwright-report ]; then
-            (cd ci-evidence && zip -qr playwright-report.zip playwright-report/) 2>/dev/null || true
+            bash scripts/playwright-report-evidence.sh zip ci-evidence _compliance-docs 2>&1 || true
             if [ -f ci-evidence/playwright-report.zip ]; then
-              upload playwright-report.zip \
-                {{PROJECT_SLUG}} _compliance-docs e2e_report ci-evidence/playwright-report.zip \
-                --category e2e_report ${FLAGS} "${PRIMARY_LINEAGE_FLAGS[@]}"
+              if [ -f ci-evidence/e2e-results.json ]; then
+                echo "Uploading: playwright-report.zip"
+                bash scripts/upload-evidence.sh \
+                  {{PROJECT_SLUG}} _compliance-docs e2e_report ci-evidence/playwright-report.zip \
+                  --category e2e_report ${FLAGS} "${PRIMARY_LINEAGE_FLAGS[@]}" \
+                  || echo "::warning::Playwright HTML report upload failed (non-blocking: e2e-results.json is the gate evidence)"
+              else
+                upload playwright-report.zip \
+                  {{PROJECT_SLUG}} _compliance-docs e2e_report ci-evidence/playwright-report.zip \
+                  --category e2e_report ${FLAGS} "${PRIMARY_LINEAGE_FLAGS[@]}"
+              fi
             fi
           fi
 

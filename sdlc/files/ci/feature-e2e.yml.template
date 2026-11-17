@@ -289,7 +289,8 @@ jobs:
           fi
           export DEVAUDIT_BASE_URL="${BASE%/}"
           if [ -d playwright-report ]; then
-            zip -qr playwright-report.zip playwright-report/ 2>/dev/null || true
+            # Traces and videos are left out (e2e_report_include_traces).
+            bash "$GITHUB_WORKSPACE/scripts/playwright-report-evidence.sh" zip . feature-e2e 2>&1 || true
           fi
           LINEAGE_FLAGS=(--test-execution "${{ github.run_id }}")
           if [ "${{ steps.exec.outputs.execution_supported }}" = "true" ] && [ -n "${{ steps.exec.outputs.execution_record_id }}" ]; then

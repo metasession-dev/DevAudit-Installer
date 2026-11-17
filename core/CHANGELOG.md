@@ -6,6 +6,8 @@ All notable changes to `@metasession.co/devaudit-core` are documented here. The 
 
 ### Added
 
+- **`NOT_ASKED` lists `e2e_report_include_traces`** (DevAudit-Installer#1275): keeping traces and videos in the Playwright report zip is set with `configure set`, not asked.
+
 - **`NOT_ASKED` lists `uat.mode`** (DevAudit-Installer#1246): the new setting for who executes the UAT procedure (manual or auto) is set with `configure set`, not asked during onboarding.
 
 - **`NOT_ASKED` lists `uat.human_pack`** (DevAudit-Installer#1215): the new setting for when the human UAT pack is required is set with `configure set`, not asked during onboarding.
