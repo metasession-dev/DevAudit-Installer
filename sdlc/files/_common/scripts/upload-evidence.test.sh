@@ -326,6 +326,111 @@ else
   echo "  FAIL: total failure exits non-zero"; FAIL=$((FAIL + 1))
 fi
 
+# --- DevAudit-Installer#1275: presign refusals, no multipart above 25 MB ---
+# The mock curl answers the presign (upload-url) with MOCK_PRESIGN_CODE and
+# MOCK_PRESIGN_BODY, and the multipart upload with 200; every URL is logged.
+make_fixture_presign() { # <dir> <bytes>
+  local dir="$1" bytes="$2"
+  rm -rf "$dir"
+  mkdir -p "$dir/bin"
+  cd "$dir"
+  git init -q --initial-branch=main
+  git config user.email "test@example.com"
+  git config user.name "test"
+  echo "x" > seed.txt
+  git add seed.txt
+  git commit -q -m "fix: presign fixture"
+  head -c "$bytes" /dev/zero | tr '\0' 'a' > report.zip
+  cat > bin/curl <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+LOG_FILE="${UPLOAD_TEST_LOG:?}"
+URL=""; OUT_FILE=""; HDR_FILE=""; WRITE_OUT=""
+ARGS=("$@")
+for ((i=0; i<${#ARGS[@]}; i++)); do
+  arg="${ARGS[$i]}"
+  case "$arg" in
+    -o) OUT_FILE="${ARGS[$((i+1))]}" ;;
+    -D) HDR_FILE="${ARGS[$((i+1))]}" ;;
+    -w) WRITE_OUT="${ARGS[$((i+1))]}" ;;
+    http://*|https://*) URL="$arg" ;;
+  esac
+done
+echo "URL:${URL}" >> "$LOG_FILE"
+CODE=200
+BODY='{"ok":true}'
+case "$URL" in
+  */api/evidence/upload-url) EMPTY='{}'; CODE="${MOCK_PRESIGN_CODE:-200}"; BODY="${MOCK_PRESIGN_BODY:-$EMPTY}" ;;
+esac
+[ -n "$OUT_FILE" ] && printf '%s' "$BODY" > "$OUT_FILE"
+[ -n "$HDR_FILE" ] && : > "$HDR_FILE"
+[ -n "$WRITE_OUT" ] && printf '%s' "$CODE"
+exit 0
+EOF
+  chmod +x bin/curl
+}
+
+run_presign_case() { # <name> <bytes> <code> <body> [env assignment]
+  local name="$1" bytes="$2" code="$3" body="$4"
+  PD="$WORK/$name"
+  make_fixture_presign "$PD" "$bytes"
+  PLOG="$PD/upload.log"
+  touch "$PLOG"
+  export PATH="$PD/bin:$PATH"
+  export UPLOAD_TEST_LOG="$PLOG"
+  export MOCK_PRESIGN_CODE="$code" MOCK_PRESIGN_BODY="$body"
+  PRC=0
+  env ${5:+"$5"} bash "$HELPER" fixture-project REQ-091 e2e_report report.zip \
+    --release v2026.07.13 --category e2e_report > "$PD/stdout.log" 2>&1 || PRC=$?
+}
+multipart_posted() { grep -Fxq 'URL:https://devaudit.example.test/api/evidence/upload' "$1"; }
+
+# 27 MB, presign answers 2xx with no URL: failure, answer shown, no multipart.
+run_presign_case case6-no-url-large 27000000 200 '{"unexpected":"html-or-json"}'
+assert_contains "above 25 MB, a presign answer without a URL says the file cannot go multipart" \
+  'that cannot go multipart; check DEVAUDIT_BASE_URL answers JSON' "$PD/stdout.log"
+assert_contains "the presign answer is printed" 'unexpected' "$PD/stdout.log"
+if multipart_posted "$PLOG"; then
+  echo "  FAIL: above 25 MB no multipart POST is made"; FAIL=$((FAIL + 1))
+else
+  echo "  PASS: above 25 MB no multipart POST is made"; PASS=$((PASS + 1))
+fi
+if [ "$PRC" -ne 0 ]; then echo "  PASS: that failure exits non-zero"; PASS=$((PASS + 1)); else echo "  FAIL: that failure exits non-zero"; FAIL=$((FAIL + 1)); fi
+
+# 27 MB, 413 file_too_large: cap printed, one presign request, no retry, no multipart.
+run_presign_case case7-too-large 27000000 413 '{"error":"too big","code":"file_too_large","maxBytes":26214400}'
+assert_contains "413 file_too_large prints the size, the cap and the trim hint" \
+  'report is 27000000 bytes, portal cap is 26214400 bytes; trim the Playwright report' "$PD/stdout.log"
+if [ "$(grep -Fxc 'URL:https://devaudit.example.test/api/evidence/upload-url' "$PLOG")" = "1" ]; then
+  echo "  PASS: 413 file_too_large is not retried"; PASS=$((PASS + 1))
+else
+  echo "  FAIL: 413 file_too_large is not retried"; FAIL=$((FAIL + 1)); cat "$PLOG"
+fi
+if multipart_posted "$PLOG"; then
+  echo "  FAIL: 413 file_too_large makes no multipart POST"; FAIL=$((FAIL + 1))
+else
+  echo "  PASS: 413 file_too_large makes no multipart POST"; PASS=$((PASS + 1))
+fi
+if [ "$PRC" -ne 0 ]; then echo "  PASS: 413 file_too_large exits non-zero"; PASS=$((PASS + 1)); else echo "  FAIL: 413 file_too_large exits non-zero"; FAIL=$((FAIL + 1)); fi
+
+# 27 MB, 501 presign_unavailable: not retried, no multipart (the file is too large for it).
+run_presign_case case8-unavailable-large 27000000 501 '{"error":"no storage","code":"presign_unavailable"}'
+assert_contains "501 presign_unavailable prints the portal answer" 'presign_unavailable' "$PD/stdout.log"
+if [ "$(grep -Fxc 'URL:https://devaudit.example.test/api/evidence/upload-url' "$PLOG")" = "1" ] && ! multipart_posted "$PLOG"; then
+  echo "  PASS: 501 above 25 MB is not retried and not sent multipart"; PASS=$((PASS + 1))
+else
+  echo "  FAIL: 501 above 25 MB is not retried and not sent multipart"; FAIL=$((FAIL + 1)); cat "$PLOG"
+fi
+
+# 2 KB with the threshold lowered to 1 KB, 501 presign_unavailable: small enough for multipart.
+run_presign_case case9-unavailable-small 2048 501 '{"error":"no storage","code":"presign_unavailable"}' PRESIGNED_THRESHOLD=1024
+if multipart_posted "$PLOG" && [ "$PRC" -eq 0 ]; then
+  echo "  PASS: 501 for a file within 25 MB falls back to multipart and succeeds"; PASS=$((PASS + 1))
+else
+  echo "  FAIL: 501 for a file within 25 MB falls back to multipart and succeeds (rc=$PRC)"; FAIL=$((FAIL + 1)); cat "$PLOG"
+fi
+unset MOCK_PRESIGN_CODE MOCK_PRESIGN_BODY
+
 # --- devaudit-installer#1019: a PR that changes no code must not bind SHA/branch ---
 make_pr_fixture() { # <dir> <doc|code>
   local dir="$1" kind="$2"

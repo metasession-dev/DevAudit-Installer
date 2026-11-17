@@ -385,6 +385,12 @@ export const CONFIG_KEYS: readonly ConfigKeySpec[] = [
     affects: [],
   },
   {
+    key: 'e2e_report_include_traces',
+    type: 'boolean',
+    description: 'Keep traces and videos in the Playwright report zip uploaded as evidence; false (default) leaves them out so the zip stays under the portal upload cap.',
+    affects: [],
+  },
+  {
     key: 'feature_e2e_projects',
     type: 'string[]',
     description: 'Playwright projects the feature end-to-end run uses; empty or unset runs every project (today\'s behaviour).',

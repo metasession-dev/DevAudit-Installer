@@ -58,6 +58,8 @@ A key with a dot lives inside a section of `sdlc-config.json`: `approval.mode` i
 | `uat.mode` | `manual` (default), `auto` | Who executes the pack's procedure. `manual`: a tester runs it by hand. `auto`: the `sdlc-implementer` agent executes it step by step on the UAT environment, stores per-step evidence under `compliance/evidence/REQ-XXX/uat/` and fills `uat-execution-record.md` (front matter `execution_mode: agent_executed`); a named human who is independent of the author then reviews and signs, and can require a manual re-run. Only matters while the pack applies. `devaudit doctor` warns when `auto` is combined with `approval.mode: solo_with_gap` (no independent reviewer) or when `uat.enabled` is not true (no UAT environment to run on). |
 | `e2e_seed_paths`, `e2e_reset_command`, `e2e_preflight_command`, `e2e_leak_check_command`, `e2e_max_skipped`, `feature_e2e_projects` | lists, one-line commands, a number | Test-data settings the project owns. They are defined now and take effect with the test-data work of DevAudit-Installer#1116 (work package WP15); no generated file reads them yet. |
 
+| `e2e_report_include_traces` | `true`, `false` (default) | Whether the Playwright report zip uploaded as evidence keeps traces and videos. `false` leaves out `playwright-report/trace/`, the trace zips under `playwright-report/data/` and `*.webm`, so the zip stays under the portal's upload cap (DevAudit-Installer#1275). Read at run time by `scripts/playwright-report-evidence.sh`. |
+
 None of these regenerates a workflow, so `configure set` for them prints no list of files. `release_branch_required_reviews` takes effect at the next `devaudit update`.
 
 ## `configure secret`

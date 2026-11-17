@@ -200,3 +200,81 @@ describe('#298 — presigned upload error surfacing', () => {
     });
   });
 });
+
+describe('#1275 — presign refusals and no multipart above 25 MB', () => {
+  let tempFile: string;
+
+  beforeEach(async () => {
+    tempFile = join(tmpdir(), `devaudit-test-1275-${Date.now()}.zip`);
+    await fs.writeFile(tempFile, Buffer.alloc(26 * 1024 * 1024, 0));
+  });
+
+  afterEach(async () => {
+    global.fetch = originalFetch;
+    await fs.unlink(tempFile).catch(() => undefined);
+  });
+
+  const upload = async () => {
+    const { uploadEvidence } = await import('../src/lib/ci-upload.js');
+    return uploadEvidence({
+      projectSlug: 'test-project',
+      requirementId: 'REQ-001',
+      evidenceType: 'e2e_report',
+      filePath: tempFile,
+      apiKey: 'mc_test_key',
+      baseUrl: 'https://portal.test',
+    });
+  };
+
+  const urlsOf = (fn: ReturnType<typeof vi.fn>): string[] => fn.mock.calls.map((c) => String(c[0]));
+
+  it('413 file_too_large fails at once with the size and the cap, no retry, no multipart', async () => {
+    const mockFetch = vi.fn().mockResolvedValue(
+      makeMockResponse(413, JSON.stringify({ error: 'too big', code: 'file_too_large', maxBytes: 26214400 })),
+    );
+    global.fetch = mockFetch as unknown as typeof global.fetch;
+    const [result] = await upload();
+    expect(result!.ok).toBe(false);
+    expect(result!.status).toBe(413);
+    expect(result!.error).toContain(`report is ${26 * 1024 * 1024} bytes, portal cap is 26214400 bytes`);
+    expect(result!.error).toContain('trim the Playwright report');
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(urlsOf(mockFetch).every((u) => u.endsWith('/api/evidence/upload-url'))).toBe(true);
+  });
+
+  it('501 presign_unavailable is not retried and not sent multipart', async () => {
+    const mockFetch = vi.fn().mockResolvedValue(
+      makeMockResponse(501, JSON.stringify({ error: 'no storage', code: 'presign_unavailable' })),
+    );
+    global.fetch = mockFetch as unknown as typeof global.fetch;
+    const [result] = await upload();
+    expect(result!.ok).toBe(false);
+    expect(result!.status).toBe(501);
+    expect(result!.error).toContain('presign_unavailable');
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('a 2xx presign answer without a URL fails instead of falling back to multipart', async () => {
+    const mockFetch = vi.fn().mockResolvedValue(makeMockResponse(200, JSON.stringify({ unexpected: true })));
+    global.fetch = mockFetch as unknown as typeof global.fetch;
+    const [result] = await upload();
+    expect(result!.ok).toBe(false);
+    expect(result!.error).toContain('cannot go multipart');
+    expect(result!.error).toContain('DEVAUDIT_BASE_URL');
+    expect(result!.error).toContain('unexpected');
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(urlsOf(mockFetch).some((u) => u.endsWith('/api/evidence/upload'))).toBe(false);
+  });
+
+  it('a 429 on the presign is still retried', async () => {
+    // The first retry waits the real 1 s backoff.
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(makeMockResponse(429, '{}'))
+      .mockResolvedValue(makeMockResponse(413, JSON.stringify({ code: 'file_too_large', maxBytes: 1 })));
+    global.fetch = mockFetch as unknown as typeof global.fetch;
+    const [result] = await upload();
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(result!.status).toBe(413);
+  });
+});
