@@ -576,6 +576,9 @@ export const NOT_ASKED: Readonly<Record<string, string>> = {
   'uat.human_pack': 'set by `configure set`; the default (risk: MEDIUM and above) fits most projects, so onboarding does not ask (DevAudit-Installer#1215)',
   'uat.mode': 'set by `configure set`; manual UAT is the default and agent-executed UAT is a deliberate opt-in, so onboarding does not ask (DevAudit-Installer#1246)',
   feature_e2e_projects: 'set by `configure set`; advanced',
+  'delivery.enabled': 'set by `devaudit install --delivery` or `configure set`; a DevAudit Delivery run is a deliberate opt-in, so onboarding does not ask (DevAudit-Installer#1272)',
+  'delivery.max_turns': 'set by `configure set`; advanced; the default (200) fits most projects (DevAudit-Installer#1272)',
+  'delivery.max_minutes': 'set by `configure set`; advanced; the default (90) fits most projects (DevAudit-Installer#1272)',
   e2e_report_include_traces: 'set by `configure set`; advanced; the default (false) keeps the evidence zip under the portal upload cap (DevAudit-Installer#1275)',
 };
 

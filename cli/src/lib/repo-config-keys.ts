@@ -8,7 +8,14 @@
  * changes, so `configure set --dry-run` can say what the change will touch.
  */
 
-export type ConfigKeyType = 'string' | 'integer' | 'boolean' | 'string[]' | 'object';
+import {
+  DELIVERY_DEFAULT_MAX_MINUTES,
+  DELIVERY_DEFAULT_MAX_TURNS,
+  DELIVERY_MAX_MINUTES_RANGE,
+  DELIVERY_MAX_TURNS_RANGE,
+} from './delivery.js';
+
+export type ConfigKeyType ='string' | 'integer' | 'boolean' | 'string[]' | 'object';
 
 export interface ConfigKeySpec {
   readonly key: string;
@@ -80,6 +87,11 @@ const frameworkCodes = (value: unknown): string | null =>
 
 const reviewCount = (value: unknown): string | null =>
   typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 2 ? null : 'must be 0, 1 or 2';
+
+const wholeNumberBetween =
+  (min: number, max: number) =>
+  (value: unknown): string | null =>
+    typeof value === 'number' && Number.isInteger(value) && value >= min && value <= max ? null : `must be a whole number from ${min} to ${max}`;
 
 const featureCommand = (value: unknown): string | null =>
   shellCommand(value) ?? (String(value).includes('{REQ}') ? null : 'must contain the {REQ} placeholder');
@@ -306,6 +318,28 @@ export const CONFIG_KEYS: readonly ConfigKeySpec[] = [
       'Who executes the human UAT procedure when the pack applies: manual (the default; a tester runs uat-test-procedure.md by hand) or auto (the sdlc-implementer agent executes it step by step against the UAT environment, pre-fills uat-execution-record.md with the results and per-step evidence, and a named independent human reviews and signs off). The record states which happened in its front matter (execution_mode). Read by the sdlc-implementer skill and devaudit doctor (stage3-evidence); it only matters while uat.human_pack applies.',
     enum: ['manual', 'auto'],
     affects: [],
+  },
+  // DevAudit-Installer#1272 — a DevAudit Delivery run: the portal dispatches an agent session in this repository.
+  {
+    key: 'delivery.enabled',
+    type: 'boolean',
+    description:
+      'Whether the repository accepts DevAudit Delivery runs: true generates .github/workflows/devaudit-delivery.yml, the workflow the portal dispatches a headless sdlc-implementer session through; false (the default) removes it. Set by devaudit install --delivery. Read by devaudit update and devaudit doctor (delivery-workflow).',
+    affects: ['.github/workflows/devaudit-delivery.yml', '.devaudit/delivery-prompt.md'],
+  },
+  {
+    key: 'delivery.max_turns',
+    type: 'integer',
+    description: `Most agent turns one delivery run may take (passed to the headless session as --max-turns); a whole number from ${DELIVERY_MAX_TURNS_RANGE.min} to ${DELIVERY_MAX_TURNS_RANGE.max}, ${DELIVERY_DEFAULT_MAX_TURNS} when unset.`,
+    validate: wholeNumberBetween(DELIVERY_MAX_TURNS_RANGE.min, DELIVERY_MAX_TURNS_RANGE.max),
+    affects: ['.github/workflows/devaudit-delivery.yml'],
+  },
+  {
+    key: 'delivery.max_minutes',
+    type: 'integer',
+    description: `Longest one delivery run may take, as the job's timeout-minutes; a whole number from ${DELIVERY_MAX_MINUTES_RANGE.min} to ${DELIVERY_MAX_MINUTES_RANGE.max}, ${DELIVERY_DEFAULT_MAX_MINUTES} when unset.`,
+    validate: wholeNumberBetween(DELIVERY_MAX_MINUTES_RANGE.min, DELIVERY_MAX_MINUTES_RANGE.max),
+    affects: ['.github/workflows/devaudit-delivery.yml'],
   },
   {
     key: 'production_review.terminal_status',

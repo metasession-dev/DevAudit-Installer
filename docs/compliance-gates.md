@@ -23,6 +23,7 @@ Tracked releases and standalone housekeeping releases both rely on the same core
 | `compliance-validation.yml` | PRs to `main` | PR-time validation of artifact presence, commit rules, and release truthfulness | Blocks merge when the evidence pack or commit contract is incomplete |
 | `check-release-approval.yml` | PRs to `main` and reruns after portal approval | Reads portal approval state | Links the PR to the release (so the portal shows `pr_url` while still draft), then enforces the UAT approval gate before merge (the approver is a different person under `approval.mode: dual_actor`; under `solo_with_gap` the author's approval is a recorded gap) |
 | `post-deploy-prod.yml` | After merge to `main` | Production smoke, production evidence upload, incident creation on smoke failure | Advances the release into production review/released and records post-deploy proof |
+| `devaudit-delivery.yml` | A `repository_dispatch` event of type `devaudit-delivery` from the portal; only while `delivery.enabled` is true | Runs a headless `sdlc-implementer` session on one issue, under the `delivery-agent` portal key and git author, up to "awaiting approval"; reports each phase to the portal | Produces no gate evidence of its own: the release it opens goes through every gate above, and a person approves it. See [`delivery-runs.md`](./delivery-runs.md) |
 
 ## What reviewers should expect
 
