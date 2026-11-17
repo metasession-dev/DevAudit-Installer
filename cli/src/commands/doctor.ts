@@ -28,6 +28,7 @@ import { testDataCheck, type TestDataDeps } from './doctor-testdata.js';
 import { ciValuesCheck, type CiValuesDeps } from './doctor-values.js';
 import { stage3EvidenceCheck } from './doctor-stage3.js';
 import { deliveryWorkflowCheck, type DeliveryWorkflowDeps } from './doctor-delivery.js';
+import { cliVersionCheck, type CliVersionDeps } from './doctor-version.js';
 import type { Gap } from '@metasession.co/devaudit-core';
 import { commitsInRange, refExists, reqHasCommits } from '../lib/req-commits.js';
 
@@ -57,6 +58,8 @@ export interface DoctorOptions {
   readonly ciValuesDeps?: CiValuesDeps;
   /** Test seam for the #1272 `delivery-workflow` check (gh runner). */
   readonly deliveryDeps?: DeliveryWorkflowDeps;
+  /** Test seam for the #1265 `cli-version` check (the registry read). */
+  readonly versionDeps?: CliVersionDeps;
 }
 
 /**
@@ -849,6 +852,8 @@ export async function collectDoctorState(options: DoctorOptions = {}, scope: { r
     await timed('agent-permissions', () => checkAgentPermissions(options.agentPermissionsDeps)),
     // DevAudit-Installer#1116 WP8: preset drift, standards fit, approval policy, run times.
     ...(consumer ? await timed('onboarding-1116', () => onboardingChecksFor(consumer, options.onboardingDeps, scope)) : []),
+    // DevAudit-Installer#1265: this CLI and the last sync against the latest published version; non-gating, skipped offline.
+    await timed('cli-version', () => cliVersionCheck(consumer, options.versionDeps)),
   ];
   // DevAudit-Installer#1116 WP15: runs after test-tiers and preset-drift and reads their result.
   const onboardingChecks: readonly CheckResult[] = consumer

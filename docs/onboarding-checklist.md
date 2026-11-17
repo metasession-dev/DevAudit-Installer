@@ -4,7 +4,7 @@ A short checklist for an operator who has run `devaudit install` and wants the S
 
 ## 1. Start with the latest version of devaudit
 
-`devaudit doctor` does not tell you the CLI is out of date (tracked in #1265), and the files `install` and `update` write come from the templates bundled in the CLI you run. An old CLI syncs old workflows and scripts, and `doctor` still passes. So check first:
+`devaudit doctor` warns when the CLI, or the CLI that last synced the project, is behind the published version (the `cli-version` check; it is skipped offline), and the files `install` and `update` write come from the templates bundled in the CLI you run. An old CLI syncs old workflows and scripts, and `doctor` still passes. So check first:
 
 ```bash
 devaudit --version                                   # what you have
