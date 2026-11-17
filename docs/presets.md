@@ -25,6 +25,16 @@ A preset is a ready-made answer to the onboarding questions. `devaudit install` 
 
 True for every preset: smoke runs at moments 1 and 2 and blocks (Quality Gates is the required check); feature tests run at moment 1 only, when the branch names a requirement and a test is tagged for it, and do not block; the approval gate at moment 3 is always on; production evidence is collected at moment 4; the quarterly review runs at moment 5. With `e2e_regression_enabled: false` there is no `e2e-regression.yml`, so the critical and full groups never run automatically.
 
+## Compliance modes
+
+`devaudit install --compliance <none|light|regulated>` chooses the preset without a question, for a setup that has no one at a terminal (the DevAudit Delivery offer). The mode names a preset; when that preset cannot be offered for the repository, the next one down (C, B, A) that can is used and install prints one line saying so. Preset D is never chosen by a mode. `--compliance` and `--preset` together are refused (exit code 2).
+
+| Mode | Preset | Falls back to |
+| --- | --- | --- |
+| `none` | **A** Solo, fast feedback | (nothing lower) |
+| `light` | **B** Safety net | A |
+| `regulated` | **C** Team with a compliance lead | B, then A |
+
 ## Which preset is suggested
 
 Scan, install and doctor use one rule. Only a preset that fits your repository can be suggested; when the rule names one that cannot be offered, the next one down (C, B, A) that can is suggested, and when none can, `custom`. Preset D is never suggested: it is chosen on purpose.
@@ -194,6 +204,8 @@ The same team as C, with the full pack run once, before merge, and not again aft
 ## What a recorded gap means
 
 Once the portal's approval policy exists, `SOC2.CC8.1` and `ISO27001.A.8.32` are evidenced only by an approval made by someone other than the release's creator or submitter (the portal compares the approver with the release's creator and submitter, not with whoever wrote the code). Under presets A and B (policy `self_allowed_with_gap`) they show as a gap in the evidence after a self-approved release; under presets C and D (policy `independent`) they show as evidenced. Reports measure evidence readiness; they never say a project is compliant.
+
+In a delivery run (DevAudit-Installer#1274) the agent is the release's creator and submitter, because it works with its own portal key (`delivery-agent`) and its own git author, and the approving person is the client's admin. Presets C and D therefore evidence `SOC2.CC8.1` and `ISO27001.A.8.32` without a second human developer in the organisation.
 
 ## Changing later
 

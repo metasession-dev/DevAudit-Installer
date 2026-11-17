@@ -6,6 +6,16 @@ import { resolveTargets, type Target } from '../lib/sdlc-config.js';
 import { loadHostAdapter } from '../lib/adapter.js';
 import { preflightArg, preflightValues, type EnvMap } from '../lib/config-values.js';
 import { writeManaged, removeManaged } from './write-managed.js';
+import {
+  DELIVERY_CLAUDE_CODE_VERSION,
+  DELIVERY_DEFAULT_MAX_MINUTES,
+  DELIVERY_DEFAULT_MAX_TURNS,
+  DELIVERY_GIT_AUTHOR_EMAIL,
+  DELIVERY_GIT_AUTHOR_NAME,
+  DELIVERY_PROMPT_FILE,
+  DELIVERY_PROMPT_TEMPLATE,
+} from '../lib/delivery.js';
+import { CLI_VERSION } from '../lib/version.js';
 import type { SyncContext, SectionResult } from './types.js';
 
 /** Templates that have a `test_runner: pytest` variant under sdlc/files/ci/runners/pytest/ (#1060). */
@@ -34,6 +44,9 @@ const CI_TEMPLATES = [
   // gating. Conditionally generated only when e2e_regression_enabled —
   // see the syncCiTemplates loop below.
   'e2e-regression.yml.template',
+  // DevAudit-Installer#1272: the workflow the portal dispatches a headless delivery run through.
+  // Conditionally generated only when `delivery.enabled` (first target only) — see the loop below.
+  'devaudit-delivery.yml.template',
   'close-out-release.yml.template',
   'close-out-completion.yml.template',
   // devaudit-installer#786: scheduled safety net — catches a release
@@ -126,6 +139,9 @@ interface SdlcConfig {
   // CI_TEMPLATES entry this one is conditionally generated.
   // DevAudit-Installer#821.
   readonly e2e_regression_enabled?: boolean;
+  // DevAudit-Installer#1272: DevAudit Delivery. Generates devaudit-delivery.yml (and
+  // .devaudit/delivery-prompt.md) when `delivery.enabled`; removed otherwise.
+  readonly delivery?: { readonly enabled?: boolean; readonly max_turns?: number; readonly max_minutes?: number };
   // Job-level timeout-minutes for e2e-regression.yml. Defaults to 55 when
   // absent. Generic operational budget, not sharding-specific tuning — the
   // GitHub Actions job timeout is evaluated before any step (including a
@@ -818,6 +834,26 @@ function buildFeatureE2eTestStep(cfg: SdlcConfig): string {
  * captured via `.devaudit-patches/`); promoted here so it's no longer a
  * fork any resync can wipe out.
  */
+/**
+ * The runtime setup steps of devaudit-delivery.yml (DevAudit-Installer#1272): the project's own stack, so the
+ * agent can run its tests, and Node for the Claude Code and DevAudit CLIs. A Node project's version serves both.
+ */
+function buildDeliverySetupSteps(cfg: SdlcConfig, stack: string): string {
+  const node = String(cfg.node_version ?? '').trim();
+  if (stack === 'python') {
+    const py = String(cfg.python_version ?? '').trim();
+    return [
+      '      - uses: actions/setup-node@v6',
+      '        with:',
+      "          node-version: '22'",
+      '      - uses: actions/setup-python@v6',
+      '        with:',
+      `          python-version: '${py || '3.x'}'`,
+    ].join('\n');
+  }
+  return ['      - uses: actions/setup-node@v6', '        with:', `          node-version: '${node || '22'}'`].join('\n');
+}
+
 function buildTypeCheckRun(scoped: boolean, sourceDirs: string): string {
   if (!scoped) return `        run: mypy ${sourceDirs}`;
   return [
@@ -1210,6 +1246,19 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
     }
   }
 
+  // DevAudit-Installer#1272 — devaudit-delivery.yml (and its prompt file) exist only while
+  // `delivery.enabled` is true; turning it off removes a previously generated copy.
+  const deliveryEnabled = cfg.delivery?.enabled === true;
+  if (!deliveryEnabled) {
+    for (const existing of await fs.readdir(workflowsDir).catch(() => [] as string[])) {
+      if (/^devaudit-delivery(-.+)?\.yml$/.test(existing)) {
+        recordRemoval(await removeManaged(ctx.managed!, join(workflowsDir, existing), { section: '2f' }));
+      }
+    }
+    const promptPath = join(ctx.repoRoot, DELIVERY_PROMPT_FILE);
+    if (await exists(promptPath)) recordRemoval(await removeManaged(ctx.managed!, promptPath, { section: '2f' }));
+  }
+
   // devaudit-installer#841/#1022 — reconcile-deployment.yml is the webhook-loss
   // recovery path for hosts whose adapter declares a `reconcile` capability
   // (a provider lookup script, an optional CLI, the secrets the lookup needs).
@@ -1336,6 +1385,13 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
       RELEASE_GATE_PATCH_FIELD: buildReleaseGatePatchField(cfg),
       E2E_START_COMMAND: cfg.e2e_start_command,
       E2E_REGRESSION_TIMEOUT_MINUTES: String(cfg.e2e_regression_timeout_minutes ?? 55),
+      DELIVERY_MAX_MINUTES: String(cfg.delivery?.max_minutes ?? DELIVERY_DEFAULT_MAX_MINUTES),
+      DELIVERY_MAX_TURNS: String(cfg.delivery?.max_turns ?? DELIVERY_DEFAULT_MAX_TURNS),
+      DELIVERY_CLAUDE_CODE_VERSION,
+      DELIVERY_CLI_VERSION: CLI_VERSION,
+      DELIVERY_GIT_AUTHOR_NAME,
+      DELIVERY_GIT_AUTHOR_EMAIL,
+      DELIVERY_PROMPT_FILE,
       // Leading space so `npm ci{{NPM_CI_FLAGS}}` renders as plain `npm ci`
       // when unset (space-then-nothing trims to nothing) and `npm ci
       // --legacy-peer-deps` when set — never a token literally substituted
@@ -1426,10 +1482,13 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
       E2E_REGRESSION_TIER_ARG: buildE2eRegressionTierArg(cfg),
       E2E_REGRESSION_SCHEDULE_ISSUE_STEP: buildE2eRegressionScheduleIssueStep(cfg),
       E2E_XML_RESULT_UPLOAD: buildE2eXmlResultUpload(cfg),
+      DELIVERY_SETUP_STEPS: buildDeliverySetupSteps(cfg, stack),
     };
 
     for (const tmpl of CI_TEMPLATES) {
       if (tmpl === 'e2e-regression.yml.template' && !cfg.e2e_regression_enabled) continue;
+      // One delivery workflow per repository: a second target's copy would answer the same dispatch.
+      if (tmpl === 'devaudit-delivery.yml.template' && (!deliveryEnabled || targetIdx > 0)) continue;
       if (tmpl === 'reconcile-deployment.yml.template' && !reconcile) continue;
       if (tmpl === 'deploy-custom.yml.template' && deployWorkflow !== tmpl) continue;
       const stackTmpl = join(ctx.installerRoot, 'sdlc', 'files', 'ci', stack, tmpl);
@@ -1468,6 +1527,13 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
       filePaths.push(outputPath);
       if (outcome !== 'conflict') count += 1;
     }
+  }
+  // The prompt the delivery workflow hands the headless session (placeholders filled at run time).
+  if (deliveryEnabled) {
+    const promptPath = join(ctx.repoRoot, DELIVERY_PROMPT_FILE);
+    const outcome = await writeManaged(ctx.managed!, promptPath, DELIVERY_PROMPT_TEMPLATE, { section: '2f' });
+    filePaths.push(promptPath);
+    if (outcome !== 'conflict') count += 1;
   }
   const staleNote =
     removedStaleCount > 0 || keptStaleConflictCount > 0

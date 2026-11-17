@@ -2,6 +2,7 @@ import { promises as fs } from 'node:fs';
 import { join } from 'node:path';
 import { readSdlcConfig, resolveTargets, type Target } from '../lib/sdlc-config.js';
 import { deleteConfigPath, setConfigPath } from '../lib/config-path.js';
+import { DELIVERY_DEFAULT_MAX_MINUTES, DELIVERY_DEFAULT_MAX_TURNS } from '../lib/delivery.js';
 import type { InstallContext, InstallPlan, StepResult } from './types.js';
 
 const NODE_PATHS_IGNORE: readonly string[] = [
@@ -156,6 +157,16 @@ export async function writeSdlcConfig(ctx: InstallContext, plan: InstallPlan): P
   if (plan.onboarding) {
     for (const key of plan.onboarding.removeKeys) config = deleteConfigPath(config, key);
     for (const [key, value] of Object.entries(plan.onboarding.config)) config = setConfigPath(config, key, value);
+  }
+  // DevAudit Delivery (DevAudit-Installer#1272): `install --delivery` records that the repository accepts delivery
+  // runs; limits already set (`configure set delivery.max_turns`) are kept.
+  if (ctx.delivery) {
+    const current = (config['delivery'] ?? {}) as { max_turns?: number; max_minutes?: number };
+    config['delivery'] = {
+      enabled: true,
+      max_turns: current.max_turns ?? DELIVERY_DEFAULT_MAX_TURNS,
+      max_minutes: current.max_minutes ?? DELIVERY_DEFAULT_MAX_MINUTES,
+    };
   }
   if (isNewTarget && ctx.addTarget) {
     // Keep the other target(s) intact under `targets`; the flat top-level

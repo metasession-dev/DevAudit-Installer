@@ -92,6 +92,16 @@ export interface SdlcConfig {
    * back to the default and are noted by doctor).
    */
   readonly deferral_max_age_days?: number;
+  /**
+   * DevAudit Delivery (DevAudit-Installer#1272): the portal dispatches a headless agent session in this
+   * repository through `.github/workflows/devaudit-delivery.yml`. Absent or `enabled: false` generates
+   * no workflow, and a previously generated one is removed on the next sync.
+   */
+  readonly delivery?: {
+    readonly enabled?: boolean;
+    readonly max_turns?: number;
+    readonly max_minutes?: number;
+  };
   readonly devaudit?: {
     readonly base_url?: string;
     readonly project_slug?: string;

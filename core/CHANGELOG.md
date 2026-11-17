@@ -6,6 +6,8 @@ All notable changes to `@metasession.co/devaudit-core` are documented here. The 
 
 ### Added
 
+- **`presetForComplianceMode`, `COMPLIANCE_MODES`, `isComplianceMode`** (DevAudit-Installer#1272): the compliance mode of a headless install names a preset (`none` A, `light` B, `regulated` C); when it cannot be offered the next one down is used, with a one-line note, and D is never chosen. `docs/presets.md` (generated) gains a "Compliance modes" section and a delivery-run paragraph.
+- **`NOT_ASKED` lists `delivery.enabled`, `delivery.max_turns` and `delivery.max_minutes`** (DevAudit-Installer#1272): a DevAudit Delivery run is a deliberate opt-in set with `install --delivery` or `configure set`, not asked.
 - **`NOT_ASKED` lists `e2e_report_include_traces`** (DevAudit-Installer#1275): keeping traces and videos in the Playwright report zip is set with `configure set`, not asked.
 
 - **`NOT_ASKED` lists `uat.mode`** (DevAudit-Installer#1246): the new setting for who executes the UAT procedure (manual or auto) is set with `configure set`, not asked during onboarding.

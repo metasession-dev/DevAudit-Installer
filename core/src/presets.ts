@@ -235,6 +235,52 @@ export function offerPresets(input: OfferInput): PresetOffers {
   };
 }
 
+// ---- compliance modes (headless install) ------------------------------------------------------------------
+
+/**
+ * How much compliance evidence a delivery run is held to (DevAudit-Installer#1272): `none` takes preset A,
+ * `light` preset B, `regulated` preset C. Preset D is never chosen by a mode.
+ */
+export type ComplianceMode = 'none' | 'light' | 'regulated';
+
+export const COMPLIANCE_MODES: readonly ComplianceMode[] = ['none', 'light', 'regulated'];
+
+const MODE_PRESET: Readonly<Record<ComplianceMode, PresetId>> = { none: 'A', light: 'B', regulated: 'C' };
+const MODE_LADDER: readonly PresetId[] = ['C', 'B', 'A'];
+
+export interface ComplianceModePreset {
+  /** The preset the mode names. */
+  readonly requested: PresetId;
+  /** The preset to use: the requested one, or the next one down (C, B, A) that can be offered; null when none can. */
+  readonly preset: PresetId | null;
+  /** One line saying why the requested preset was not used; absent when it was. */
+  readonly fallbackNote?: string;
+}
+
+export function isComplianceMode(value: string): value is ComplianceMode {
+  return (COMPLIANCE_MODES as readonly string[]).includes(value);
+}
+
+/**
+ * The preset for a compliance mode. When the preset the mode names cannot be offered for the repository
+ * (`offered`, from `offerPresets`: for example `regulated` with no full test pack), the next one down the
+ * ladder C, B, A that can be offered is used and `fallbackNote` says so. D is never picked.
+ */
+export function presetForComplianceMode(mode: ComplianceMode, offered: PresetOffers): ComplianceModePreset {
+  const requested = MODE_PRESET[mode];
+  const chosen = MODE_LADDER.slice(MODE_LADDER.indexOf(requested)).find((id) => offered[id].offered) ?? null;
+  if (chosen === requested) return { requested, preset: chosen };
+  const why = offered[requested].reason ?? 'it cannot be offered here';
+  return {
+    requested,
+    preset: chosen,
+    fallbackNote:
+      chosen === null
+        ? `Compliance mode ${mode} names preset ${requested}, but ${why}, and no lower preset can be offered either.`
+        : `Compliance mode ${mode} names preset ${requested}, but ${why}; using preset ${chosen} instead.`,
+  };
+}
+
 // ---- the suggestion rule ---------------------------------------------------------------------------------
 
 export interface PresetSuggestion {

@@ -26,6 +26,9 @@ import { writeSdlcConfig } from './write-config.js';
 import { findOrCreateProject } from './project.js';
 import { issueApiKey, issueViewerApiKey } from './api-key.js';
 import { setGithubSecrets } from './github.js';
+import { setupDelivery } from './delivery.js';
+import { isComplianceMode } from '@metasession.co/devaudit-core';
+import { DELIVERY_AGENT_API_SECRET, DELIVERY_AGENT_GITHUB_SECRET } from '../lib/delivery.js';
 import { bootstrapHooks } from './hooks-bootstrap.js';
 import { configureBranchProtection } from './branch-protection.js';
 import { configureDefaultBranch } from './default-branch.js';
@@ -76,6 +79,12 @@ export interface RunInstallOptions {
   readonly fromScan?: string;
   /** Test seam: the fetch used to read a saved scan report from the portal. */
   readonly scanFetch?: FetchLike;
+  /** `--compliance <none|light|regulated>`: the preset by compliance mode (DevAudit-Installer#1272). */
+  readonly compliance?: string;
+  /** `--delivery`: set the repository up for DevAudit Delivery runs (DevAudit-Installer#1272, #1274). */
+  readonly delivery?: boolean;
+  /** Test seam: the environment `--delivery` reads `DEVAUDIT_AGENT_API_KEY` from. */
+  readonly env?: NodeJS.ProcessEnv;
 }
 
 export interface InstallReport {
@@ -97,6 +106,29 @@ export async function runInstall(options: RunInstallOptions): Promise<InstallRep
   if (flagProblems.length > 0) throw new Error(flagProblems.join('\n'));
   if (options.preset !== undefined && parsePresetFlag(options.preset) === null) {
     throw new InstallRefusal(`Unknown preset "${options.preset}". Use A, B, C, D or custom.`);
+  }
+  // Refused (exit 2) before anything is touched: an unknown compliance mode, a mode together with a preset
+  // (the mode chooses the preset), and a delivery setup with nothing to authenticate the agent with.
+  if (options.compliance !== undefined) {
+    if (!isComplianceMode(options.compliance)) {
+      throw new InstallRefusal(`Unknown compliance mode "${options.compliance}". Use none, light or regulated.`);
+    }
+    if (options.preset !== undefined) {
+      throw new InstallRefusal('--compliance and --preset cannot be used together: the compliance mode chooses the preset. Use one of them.');
+    }
+  }
+  const env = options.env ?? process.env;
+  const deliveryAgentApiKey = env[DELIVERY_AGENT_API_SECRET]?.trim() ?? '';
+  const deliveryAgentGithubToken = env[DELIVERY_AGENT_GITHUB_SECRET]?.trim() ?? '';
+  if (options.delivery) {
+    if (options.addTarget) {
+      throw new InstallRefusal('--delivery cannot be combined with --add-target: a repository has one delivery workflow.');
+    }
+    if (deliveryAgentApiKey === '') {
+      throw new InstallRefusal(
+        `--delivery needs the ${DELIVERY_AGENT_API_SECRET} environment variable: the key the headless agent session authenticates with, which install stores as the repository secret of the same name. Set it and run again.`,
+      );
+    }
   }
   // A file is read and refused (exit 2) before anything else; a saved report is read from the portal once the address is known.
   const fromPortal = options.fromScan !== undefined && (await isPortalReportRef(options.fromScan));
@@ -135,6 +167,10 @@ export async function runInstall(options: RunInstallOptions): Promise<InstallRep
     ...(options.testOptions !== undefined ? { testOptions: options.testOptions } : {}),
     ...(options.preset !== undefined ? { preset: options.preset } : {}),
     ...(options.fromScan !== undefined ? { fromScan: options.fromScan } : {}),
+    ...(options.compliance !== undefined && isComplianceMode(options.compliance) ? { compliance: options.compliance } : {}),
+    delivery: Boolean(options.delivery),
+    ...(options.delivery ? { deliveryAgentApiKey } : {}),
+    ...(options.delivery && deliveryAgentGithubToken !== '' ? { deliveryAgentGithubToken } : {}),
     ...(scanHints !== undefined ? { scanHints } : {}),
     ...(options.mode === 'developer' ? { joining: true } : {}),
   };
@@ -177,6 +213,7 @@ export async function runInstall(options: RunInstallOptions): Promise<InstallRep
     steps.push(skipped);
     log.warn(`[${skipped.step}] SKIPPED ${skipped.message}`);
   }
+  if (ctx.delivery) steps.push(await record(log, setupDelivery(ctx, plan, providerResolution.provider)));
   steps.push(await record(log, bootstrapHooks(ctx, plan)));
   if (providerResolution.provider) {
     steps.push(await record(log, configureDefaultBranch(ctx, providerResolution.provider)));

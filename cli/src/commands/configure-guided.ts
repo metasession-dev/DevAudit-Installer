@@ -17,7 +17,8 @@ import {
 import { collaboratorCount } from '../lib/collaborators.js';
 import * as prompts from '../lib/prompt.js';
 import { clackGuidedAsker } from '../install/prompts.js';
-import { runGuided, type GuidedAsker, type GuidedBasics, type GuidedResult } from '../install/guided.js';
+import { parsePresetFlag, runGuided, type GuidedAsker, type GuidedBasics, type GuidedResult } from '../install/guided.js';
+import { InstallRefusal } from '../install/refusal.js';
 import { listHosts } from '../lib/adapter.js';
 import { loadConfigContext, CONFIGURE_EXIT_UNAPPLIED } from './configure.js';
 
@@ -86,10 +87,35 @@ export function turnsOnUnattendedRun(cfg: Record<string, unknown>, changes: read
   );
 }
 
-export async function runConfigureGuided(opts: { readonly json: boolean }, deps: ConfigureGuidedDeps = {}): Promise<number> {
+/**
+ * Answers every question with the value it starts from (the current configuration), so `configure --preset <id> --yes`
+ * changes only what the preset changes (DevAudit-Installer#1273: the delivery run applies the preset its issue names).
+ */
+const defaultsAsker: GuidedAsker = {
+  select: async (_message, _options, initial) => initial,
+  text: async (_message, initial) => initial,
+  confirm: async (_message, initial) => initial,
+  multiselect: async (_message, _options, initial) => [...initial],
+};
+
+export async function runConfigureGuided(
+  opts: { readonly json: boolean; readonly preset?: string; readonly yes?: boolean },
+  deps: ConfigureGuidedDeps = {},
+): Promise<number> {
   const log = logger();
   const say = deps.say ?? ((line: string) => log.log(line));
-  const problem = deps.terminalProblem !== undefined ? deps.terminalProblem : prompts.nonInteractiveReason(opts.json);
+  const presetFlag = opts.preset === undefined ? undefined : parsePresetFlag(opts.preset);
+  if (presetFlag === null) {
+    log.error(`Unknown preset "${opts.preset}". Use A, B, C, D or custom.`);
+    return 2;
+  }
+  if (opts.yes && presetFlag === undefined) {
+    log.error('--yes needs --preset: it answers every question with the current value and applies the preset you name.');
+    return 2;
+  }
+  const unattended = opts.yes === true;
+  const asker: GuidedAsker = unattended ? defaultsAsker : (deps.ask ?? clackGuidedAsker);
+  const problem = unattended ? null : deps.terminalProblem !== undefined ? deps.terminalProblem : prompts.nonInteractiveReason(opts.json);
   if (problem) {
     log.error(NO_TERMINAL_MESSAGE);
     return CONFIGURE_EXIT_UNAPPLIED;
@@ -120,19 +146,30 @@ export async function runConfigureGuided(opts: { readonly json: boolean }, deps:
     prodUrlSecretName: typeof cfg['production_url_secret'] === 'string' ? (cfg['production_url_secret'] as string) : 'PROD_URL',
     prodUrlValue: '',
   };
-  const result = await runGuided({
-    basics,
-    stack,
-    existing: cfg,
-    flagConfig: {},
-    hosts: await listHosts(ctx.installerRoot),
-    reader: fsRepoReader(ctx.repoRoot),
-    policy,
-    standards,
-    ask: deps.ask ?? clackGuidedAsker,
-    say,
-    collaborators: deps.collaborators ?? (() => collaboratorCount(ctx.repoRoot)),
-  });
+  let result: GuidedResult;
+  try {
+    result = await runGuided({
+      basics,
+      stack,
+      existing: cfg,
+      flagConfig: {},
+      hosts: await listHosts(ctx.installerRoot),
+      reader: fsRepoReader(ctx.repoRoot),
+      policy,
+      standards,
+      ask: asker,
+      say,
+      ...(presetFlag !== undefined ? { presetFlag } : {}),
+      collaborators: deps.collaborators ?? (() => collaboratorCount(ctx.repoRoot)),
+    });
+  } catch (err) {
+    // A preset this repository cannot be offered is refused, not applied.
+    if (err instanceof InstallRefusal) {
+      log.error(err.message);
+      return err.exitCode;
+    }
+    throw err;
+  }
 
   // The project's name identifies it on the portal and is not changed here.
   const { changes, removals } = diffGuided(cfg, { ...result, basics: { ...result.basics, projectSlug: slug } }, stack);
@@ -162,7 +199,7 @@ export async function runConfigureGuided(opts: { readonly json: boolean }, deps:
     say('The next `devaudit update` regenerates:');
     for (const f of affected) say(`  - ${f}`);
   }
-  if (!(await (deps.ask ?? clackGuidedAsker).confirm('Apply these changes?', true))) {
+  if (!unattended && !(await asker.confirm('Apply these changes?', true))) {
     log.warn('not applied');
     return CONFIGURE_EXIT_UNAPPLIED;
   }
