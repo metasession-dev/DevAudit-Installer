@@ -195,6 +195,11 @@ jobs:
           bash sdlc/files/_common/scripts/upload-evidence-core.test.sh
           bash sdlc/files/_common/scripts/playwright-report-evidence.test.sh
 
+      - name: Run delivery gh shim tests (devaudit-installer#1286)
+        run: |
+          chmod +x sdlc/files/_common/scripts/delivery-gh.sh
+          bash sdlc/files/_common/scripts/delivery-gh.test.sh
+
       - name: Run compliance document upload tests (devaudit-installer#1080)
         run: |
           chmod +x sdlc/files/_common/scripts/upload-compliance-documents.sh

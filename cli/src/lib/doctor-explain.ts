@@ -273,6 +273,21 @@ export const CHECK_EXPLANATIONS: Readonly<Record<string, GapExplanation>> = {
     why: 'The workflow reads the headless session prompt from .devaudit/delivery-prompt.md; without it the agent step fails before the session starts.',
     guidance: 'Run `devaudit update` on a fix branch to regenerate it.',
   },
+  'delivery-workflow:token-source': {
+    title: 'It is not set where the delivery agent gets its GitHub token',
+    why: "A push or pull request made with the workflow's own token starts no other workflow, so the release's checks never run and the run stalls holding its quota. The agent needs a token of its own: a machine user's fine-grained token in a repository secret (pilot), or a short-lived one the portal mints from the DevAudit Agent GitHub App installed on the repository (product). `delivery.github_token_source` records which.",
+    guidance: 'Run `devaudit configure set delivery.github_token_source app` and install the DevAudit Agent GitHub App on the repository, or `devaudit configure set delivery.github_token_source secret` and set the repository secret DEVAUDIT_AGENT_GITHUB_TOKEN.',
+  },
+  'delivery-workflow:token-secret-missing': {
+    title: "The delivery agent's GitHub token secret is not set",
+    why: 'The repository chose its own token for the agent (delivery.github_token_source: secret) but DEVAUDIT_AGENT_GITHUB_TOKEN does not exist. The workflow then asks the portal for an App token instead, which fails when the App is not installed, so the run stops before the agent starts.',
+    guidance: "Set it with `gh secret set DEVAUDIT_AGENT_GITHUB_TOKEN` (a machine user's fine-grained token with Contents and Pull requests read/write and Issues read on this repository), or switch to the portal's App with `devaudit configure set delivery.github_token_source app`.",
+  },
+  'delivery-workflow:workflow-token-stale': {
+    title: "The delivery workflow does not resolve the agent's GitHub token the current way",
+    why: "A workflow generated before the token handling changed falls back to the default token, with which a push starts no CI, or never asks for a token at all. The run would then open a release whose checks never run.",
+    guidance: 'Run `devaudit update` on a fix branch to regenerate the workflow, and merge it so it reaches the default branch.',
+  },
   'delivery-workflow:secret-missing': {
     title: 'A repository secret a delivery run reads is not set',
     why: 'The first step of a delivery run checks DEVAUDIT_AGENT_API_KEY (what the headless session authenticates with) and DEVAUDIT_AGENT_PORTAL_KEY (the delivery-agent portal key, which makes the agent the creator of the release); with either missing the run fails at once.',

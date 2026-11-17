@@ -11,6 +11,8 @@
 import {
   DELIVERY_DEFAULT_MAX_MINUTES,
   DELIVERY_DEFAULT_MAX_TURNS,
+  DELIVERY_GIT_NAME_DEFAULT,
+  DELIVERY_GITHUB_TOKEN_SOURCES,
   DELIVERY_MAX_MINUTES_RANGE,
   DELIVERY_MAX_TURNS_RANGE,
 } from './delivery.js';
@@ -87,6 +89,13 @@ const frameworkCodes = (value: unknown): string | null =>
 
 const reviewCount = (value: unknown): string | null =>
   typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 2 ? null : 'must be 0, 1 or 2';
+
+/** A git author name: one line, at most 100 characters, no angle brackets (they delimit the address in a commit). */
+const authorName = (value: unknown): string | null => {
+  if (typeof value !== 'string' || value.trim() === '') return 'must not be empty';
+  if (/[\r\n<>]/.test(value)) return 'must be a single line without < or >';
+  return value.length <= 100 ? null : 'must be at most 100 characters';
+};
 
 const wholeNumberBetween =
   (min: number, max: number) =>
@@ -340,6 +349,22 @@ export const CONFIG_KEYS: readonly ConfigKeySpec[] = [
     description: `Longest one delivery run may take, as the job's timeout-minutes; a whole number from ${DELIVERY_MAX_MINUTES_RANGE.min} to ${DELIVERY_MAX_MINUTES_RANGE.max}, ${DELIVERY_DEFAULT_MAX_MINUTES} when unset.`,
     validate: wholeNumberBetween(DELIVERY_MAX_MINUTES_RANGE.min, DELIVERY_MAX_MINUTES_RANGE.max),
     affects: ['.github/workflows/devaudit-delivery.yml'],
+  },
+  {
+    key: 'delivery.github_token_source',
+    type: 'string',
+    description:
+      'Where a delivery run gets the GitHub token it pushes and opens its pull request with (DevAudit-Installer#1286): secret (the repository secret DEVAUDIT_AGENT_GITHUB_TOKEN, a machine user\'s fine-grained token: the pilot path) or app (a short-lived token the portal mints from the DevAudit Agent GitHub App installed on the repository: the product path). The workflow itself uses the secret when it is set and asks the portal otherwise; this records the intent so devaudit doctor can fail when it cannot be met. Set by devaudit install --delivery.',
+    enum: [...DELIVERY_GITHUB_TOKEN_SOURCES],
+    affects: [],
+  },
+  {
+    key: 'delivery.agent_git_name',
+    type: 'string',
+    description:
+      `The name of the git author of a delivery run's commits (default ${DELIVERY_GIT_NAME_DEFAULT}). The address is never configured: it is the GitHub noreply address of the token's own identity (the GitHub App's bot, or the machine user). Read by devaudit delivery github-token.`,
+    validate: authorName,
+    affects: [],
   },
   {
     key: 'production_review.terminal_status',

@@ -16,6 +16,7 @@ import { runStatus } from './commands/status.js';
 import { runPush } from './commands/push.js';
 import { runInstallCommand } from './commands/install.js';
 import { runDeliveryReport } from './commands/delivery.js';
+import { runDeliveryGithubToken } from './commands/delivery-github-token.js';
 import { runUninstallCommand } from './commands/uninstall.js';
 import { runJoinCommand } from './commands/join.js';
 import { runUpdate } from './commands/update.js';
@@ -495,6 +496,17 @@ export async function main(argv: readonly string[]): Promise<void> {
     .option('--ci-seconds <n>', 'seconds of CI time the run used (the workflow sends $SECONDS)')
     .action(async (cmdOpts: { run: string; phase: string; reason?: string; release?: string; costFile?: string; ciSeconds?: string }) => {
       process.exit(await runDeliveryReport(cmdOpts));
+    });
+  deliveryCmd
+    .command('github-token [operation]')
+    .description('The GitHub token a delivery run pushes and opens its pull request with: the repository secret DEVAUDIT_AGENT_GITHUB_TOKEN when set, else a token the portal mints from the DevAudit Agent GitHub App (cached until 10 minutes before it expires), else it fails naming both options. Never the default GITHUB_TOKEN. Prints the token. --credential answers as a git credential helper (git passes get, store or erase), --json adds the expiry and the commit author, --mask prints the ::add-mask:: command, --github-env writes the author to GITHUB_ENV without printing the token. Exits 0 with a token, 1 without one, 2 for a usage error. See docs/delivery-runs.md.')
+    .option('--run <id>', 'the delivery run id (default: RUN_ID in the environment)')
+    .option('--json', 'print { token, expiresAt, source, author } as JSON')
+    .option('--credential', 'answer as a git credential helper')
+    .option('--mask', 'print the ::add-mask:: command for the token (for the workflow log)')
+    .option('--github-env', 'append DEVAUDIT_AGENT_GIT_NAME and DEVAUDIT_AGENT_GIT_EMAIL to the file named by GITHUB_ENV, and print no token')
+    .action(async (operation: string | undefined, cmdOpts: { run?: string; json?: boolean; credential?: boolean; mask?: boolean; githubEnv?: boolean }) => {
+      process.exit(await runDeliveryGithubToken({ ...cmdOpts, ...(operation !== undefined ? { operation } : {}) }));
     });
   const configureCmd = program
     .command('configure')
