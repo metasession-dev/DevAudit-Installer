@@ -88,6 +88,17 @@ The `Quality Gates` dependency audit fails on any unaccepted `high`/`critical` a
 
 The tracking issue carries the label `accepted-dependency-risk` and `Review by: YYYY-MM-DD` in its body. `devaudit doctor` (`accepted-exceptions`) flags exceptions expiring within 14 days or already expired, and labelled issues past their review date. Records upload as evidence type `accepted_dependency_risk`. The Python template's `pip-audit` step has no allowlist yet (parity is tracked with #995).
 
+## Docs-only pull requests (#1290)
+
+By default every pull request into the integration branch runs the full `Quality Gates`, including one that changes only evidence and docs (`paths_ignore`: `compliance/**`, `*.md`, ...). Evidence pull requests are frequent (every REQ opens several), so on a shared runner the cost repeats. `paths_ignore_pull_request: true` (`devaudit configure set paths_ignore_pull_request true`, then `devaudit update`) applies the same list to the `pull_request` trigger:
+
+- `ci.yml` does not start for a pull request that changes only ignored paths (and `sdlc-config.json`). A pull request with any other file runs everything.
+- `ci-status-fallback.yml` starts for a pull request that changes any ignored path, lists the pull request's files (read-only) and classifies them with the same glob rules as the release-PR provenance check. Its `Quality Gates` job is **named** from the answer: `Quality Gates` when every file is ignored, another name when any is not. A pull request with code therefore never carries a second check named `Quality Gates`, and cannot be satisfied by it before the real gates finish.
+- If the file list cannot be read, the fallback fails and reports no status: the pull request waits, it never passes on a guess.
+- The release PR into the release branch is unchanged: `quality-gates-provenance.yml` still requires a real `ci.yml` `Quality Gates` success on the latest code-bearing commit, and the fallback's status never counts for it (#971). The compliance validators run in `compliance-validation.yml`, not inside `Quality Gates`, so a docs-only pull request loses none of them.
+
+It is off by default. The "Authenticated E2E (report-only)" step that runs on every pull request is not changed by this setting.
+
 ## Evidence upload limits and refusals (devaudit-installer#1271, #1275)
 
 The portal takes a file by multipart POST up to 25 MB (26,214,400 bytes). A larger file goes through the presigned flow (`upload-url`, a PUT to storage, `upload-complete`). `scripts/upload-evidence.sh` and the CLI's uploader behave the same way:
