@@ -3,6 +3,7 @@ import { promises as fs } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { execa } from 'execa';
 import { load as yamlLoad } from 'js-yaml';
 import { syncProject } from '../src/update/index.js';
 import { CLI_VERSION } from '../src/lib/version.js';
@@ -160,7 +161,55 @@ describe('devaudit-delivery.yml generation (#1272)', () => {
     expect(end).toBeGreaterThan(agent);
     expect(steps[end]!['if']).toBe('always()');
     expect(steps[agent]!['continue-on-error']).toBe(true);
-    expect(String(steps[end]!['run'])).toContain('--ci-seconds "$SECONDS"');
+    // #1291: the CLI adds the CI seconds of the whole job (from DEVAUDIT_JOB_STARTED); a step's $SECONDS is that step only
+    expect(String(steps[end]!['run'])).not.toContain('SECONDS');
+    expect(String(steps[end]!['run'])).not.toContain('--ci-seconds');
+  });
+
+  it('records the start of the job in its first step, so every event carries the time of the whole job (#1291)', async () => {
+    const doc = yamlLoad(await rendered({})) as Record<string, any>;
+    const steps = doc['jobs']['delivery']['steps'] as Array<Record<string, any>>;
+    expect(String(steps[0]!['run'])).toContain('DEVAUDIT_JOB_STARTED=$(date +%s)');
+    expect(String(steps[0]!['run'])).toContain('$GITHUB_ENV');
+  });
+
+  it('reports failed when awaiting_approval cannot be reported, so the run does not wait forever (#1291)', async () => {
+    const doc = yamlLoad(await rendered({})) as Record<string, any>;
+    const steps = doc['jobs']['delivery']['steps'] as Array<Record<string, any>>;
+    const run = String(steps.find((s) => String(s['run'] ?? '').includes('--cost-file'))!['run']);
+    expect(run).toMatch(/if ! devaudit delivery report "\$\{ARGS\[@\]\}" && \[ "\$PHASE" = awaiting_approval \]/);
+    expect(run).toContain('--phase failed --reason');
+    expect(run).toContain('no portal release was registered for it');
+  });
+
+  it('runs the closing step logic: a refused awaiting_approval is followed by a failed report (a fake devaudit)', async () => {
+    const doc = yamlLoad(await rendered({})) as Record<string, any>;
+    const steps = doc['jobs']['delivery']['steps'] as Array<Record<string, any>>;
+    const script = String(steps.find((s) => String(s['run'] ?? '').includes('--cost-file'))!['run']);
+    const dir = await fs.mkdtemp(join(tmpdir(), 'cli-delivery-close-'));
+    try {
+      await fs.mkdir(join(dir, 'bin'));
+      const calls = join(dir, 'calls.log');
+      // A devaudit that refuses awaiting_approval (exit 1) and accepts anything else.
+      await fs.writeFile(join(dir, 'bin', 'devaudit'), `#!/usr/bin/env bash\necho "$*" >> "${calls}"\ncase "$*" in *awaiting_approval*) exit 1;; esac\nexit 0\n`, { mode: 0o755 });
+      await fs.writeFile(join(dir, 'close.sh'), script);
+      const run = (outcome: string) => execa('bash', [join(dir, 'close.sh')], { cwd: dir, reject: false, env: { PATH: `${join(dir, 'bin')}:${process.env['PATH']}`, RUN_ID: 'run_1', AGENT_OUTCOME: outcome } });
+      await run('success');
+      const first = (await fs.readFile(calls, 'utf8')).trim().split('\n');
+      expect(first).toHaveLength(2);
+      expect(first[0]).toContain('--phase awaiting_approval');
+      expect(first[1]).toContain('--phase failed');
+      await fs.rm(calls);
+      await run('failure');
+      const second = (await fs.readFile(calls, 'utf8')).trim().split('\n');
+      expect(second).toHaveLength(1);
+      expect(second[0]).toContain('--phase failed');
+      await fs.rm(calls);
+      await run('skipped');
+      expect((await fs.readFile(calls, 'utf8'))).toContain('the job stopped before the agent started');
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
   });
 
   it('uses the Node setup of a Node project, and Node plus Python for a Python project', async () => {

@@ -84,8 +84,8 @@ describe('the cost file', () => {
     const d = await deps(ENV);
     const file = join(await tmp(), 'out.json');
     await fs.writeFile(file, claudeJson);
-    await runDeliveryReport({ run: 'r1', phase: 'awaiting_approval', costFile: file, ciSeconds: '754' }, d);
-    expect(d.sent[0]!.body).toEqual({ phase: 'awaiting_approval', usage: { inputTokens: 115, outputTokens: 40, ciSeconds: 754 } });
+    await runDeliveryReport({ run: 'r1', phase: 'awaiting_approval', release: 'rel-1', costFile: file, ciSeconds: '754' }, d);
+    expect(d.sent[0]!.body).toEqual({ phase: 'awaiting_approval', releaseId: 'rel-1', usage: { inputTokens: 115, outputTokens: 40, ciSeconds: 754 } });
   });
 
   it('tolerates a missing cost file: the event is sent without totals', async () => {
@@ -163,14 +163,176 @@ describe('a failed run stays failed', () => {
   it('does not carry a failure to another run', async () => {
     const d = await deps(ENV);
     await runDeliveryReport({ run: 'r1', phase: 'failed', reason: 'x' }, d);
-    await runDeliveryReport({ run: 'r2', phase: 'awaiting_approval' }, d);
-    expect(d.sent[1]!.body).toEqual({ phase: 'awaiting_approval' });
+    await runDeliveryReport({ run: 'r2', phase: 'awaiting_approval', release: 'rel-2' }, d);
+    expect(d.sent[1]!.body).toEqual({ phase: 'awaiting_approval', releaseId: 'rel-2' });
   });
 
   it('does not record a phase the portal refused', async () => {
     const d = await deps(ENV, portal([{ status: 500 }, { status: 500 }, { status: 500 }, { status: 200, body: '{}' }]));
     await runDeliveryReport({ run: 'r1', phase: 'failed', reason: 'x' }, d);
-    await runDeliveryReport({ run: 'r1', phase: 'awaiting_approval' }, d);
-    expect(d.sent[3]!.body).toEqual({ phase: 'awaiting_approval' });
+    await runDeliveryReport({ run: 'r1', phase: 'awaiting_approval', release: 'rel-3' }, d);
+    expect(d.sent[3]!.body).toEqual({ phase: 'awaiting_approval', releaseId: 'rel-3' });
+  });
+});
+
+// DevAudit-Installer#1291 — the release id, and the CI seconds of the whole job.
+describe('the release id', () => {
+  const found = (id: string | null): DeliveryReportDeps['lookupRelease'] => async () =>
+    id === null ? { kind: 'not-found' } : { kind: 'found', release: { status: 'draft', id, version: 'REQ-121', deferredAt: null, deferredReason: null, deferredUntil: null, deferredToVersion: null } };
+
+  async function withConfig(env: Record<string, string>, extra: Partial<DeliveryReportDeps> = {}) {
+    const d = await deps(env);
+    await fs.mkdir(join(d.cwd!, '.git'));
+    await fs.writeFile(join(d.cwd!, 'sdlc-config.json'), JSON.stringify({ devaudit: { project_slug: 'example-app', base_url: 'https://portal.example.test' } }));
+    return Object.assign(d, extra);
+  }
+
+  it('--release-for resolves the release with the agent key and sends its id', async () => {
+    const seen: Array<{ projectSlug: string; apiKey: string; prefix: string }> = [];
+    const d = await withConfig({ DEVAUDIT_AGENT_PORTAL_KEY: 'mc_agent' }, {
+      lookupRelease: async (ctx, prefix) => ((seen.push({ projectSlug: ctx.projectSlug, apiKey: ctx.apiKey, prefix })), found('rel-uuid-1')!(ctx, prefix)),
+    });
+    expect(await runDeliveryReport({ run: 'r1', phase: 'running', releaseFor: 'REQ-121' }, d)).toBe(0);
+    expect(seen).toEqual([{ projectSlug: 'example-app', apiKey: 'mc_agent', prefix: 'REQ-121' }]);
+    expect(d.sent[0]!.body).toEqual({ phase: 'running', releaseId: 'rel-uuid-1' });
+  });
+
+  it('waits for CI to register the release: asks every 15 seconds until it appears', async () => {
+    const sleeps: number[] = [];
+    let asked = 0;
+    const d = await withConfig(ENV, {
+      sleep: async (ms) => void sleeps.push(ms),
+      lookupRelease: async (ctx, prefix) => ((asked += 1), found(asked >= 3 ? 'rel-late' : null)!(ctx, prefix)),
+    });
+    expect(await runDeliveryReport({ run: 'r1', phase: 'running', releaseFor: 'REQ-121' }, d)).toBe(0);
+    expect(asked).toBe(3);
+    expect(sleeps).toEqual([15000, 15000]);
+    expect(d.sent[0]!.body['releaseId']).toBe('rel-late');
+  });
+
+  it('a release that never appears is a warning for running: the event is sent without an id, and the wait is bounded', async () => {
+    const warn = vi.spyOn(logger(), 'warn');
+    const sleeps: number[] = [];
+    let asked = 0;
+    const d = await withConfig(ENV, { sleep: async (ms) => void sleeps.push(ms), lookupRelease: async (ctx, prefix) => ((asked += 1), found(null)!(ctx, prefix)) });
+    expect(await runDeliveryReport({ run: 'r1', phase: 'running', releaseFor: 'REQ-121', releaseWait: '30' }, d)).toBe(0);
+    expect(asked).toBe(3); // at 0, 15 and 30 seconds
+    expect(sleeps).toEqual([15000, 15000]);
+    expect(d.sent[0]!.body).toEqual({ phase: 'running' });
+    expect(warn.mock.calls.map((c) => String(c[0])).join('\n')).toContain('no release for REQ-121 yet');
+  });
+
+  it('--release-wait 0 asks once', async () => {
+    let asked = 0;
+    const d = await withConfig(ENV, { lookupRelease: async (ctx, prefix) => ((asked += 1), found(null)!(ctx, prefix)) });
+    await runDeliveryReport({ run: 'r1', phase: 'running', releaseFor: 'REQ-121', releaseWait: '0' }, d);
+    expect(asked).toBe(1);
+  });
+
+  it('an unreachable portal is retried like a missing release and named in the warning', async () => {
+    const warn = vi.spyOn(logger(), 'warn');
+    const d = await withConfig(ENV, { lookupRelease: async () => ({ kind: 'unavailable', reason: 'portal returned 503' }) });
+    await runDeliveryReport({ run: 'r1', phase: 'running', releaseFor: 'REQ-121', releaseWait: '0' }, d);
+    expect(warn.mock.calls.map((c) => String(c[0])).join('\n')).toContain('portal returned 503');
+  });
+
+  it('records the id and reuses it for a later event that names none', async () => {
+    const d = await withConfig(ENV, { lookupRelease: found('rel-rec') });
+    await runDeliveryReport({ run: 'r1', phase: 'running', releaseFor: 'REQ-121' }, d);
+    expect(await runDeliveryReport({ run: 'r1', phase: 'awaiting_approval' }, d)).toBe(0);
+    expect(d.sent[1]!.body).toEqual({ phase: 'awaiting_approval', releaseId: 'rel-rec' });
+  });
+
+  it('an explicit --release wins over the recorded one, and over a lookup', async () => {
+    const d = await withConfig(ENV, { lookupRelease: found('rel-looked-up') });
+    await runDeliveryReport({ run: 'r1', phase: 'running', releaseFor: 'REQ-121' }, d);
+    await runDeliveryReport({ run: 'r1', phase: 'running', release: 'rel-explicit' }, d);
+    expect(d.sent[1]!.body['releaseId']).toBe('rel-explicit');
+  });
+
+  it('does not carry the release of one run to another', async () => {
+    const d = await withConfig(ENV, { lookupRelease: found('rel-a') });
+    await runDeliveryReport({ run: 'r1', phase: 'running', releaseFor: 'REQ-121' }, d);
+    expect(await runDeliveryReport({ run: 'r2', phase: 'awaiting_approval' }, d)).toBe(1);
+  });
+
+  it('refuses awaiting_approval without any release id: exit 1 and nothing sent', async () => {
+    const error = vi.spyOn(logger(), 'error');
+    const d = await withConfig(ENV, { lookupRelease: found(null) });
+    expect(await runDeliveryReport({ run: 'r1', phase: 'awaiting_approval', releaseFor: 'REQ-121', releaseWait: '0' }, d)).toBe(1);
+    expect(d.sent).toEqual([]);
+    expect(error.mock.calls.map((c) => String(c[0])).join('\n')).toContain('would wait forever');
+  });
+
+  it('a failed event needs no release id, and a run that already failed is not refused', async () => {
+    const d = await withConfig(ENV);
+    expect(await runDeliveryReport({ run: 'r1', phase: 'failed', reason: 'spec too large' }, d)).toBe(0);
+    expect(await runDeliveryReport({ run: 'r1', phase: 'awaiting_approval' }, d)).toBe(0);
+    expect(d.sent[1]!.body['phase']).toBe('failed');
+  });
+
+  it('a succeeded event is sent with a warning that the portal ignores it', async () => {
+    const warn = vi.spyOn(logger(), 'warn');
+    const d = await deps(ENV);
+    expect(await runDeliveryReport({ run: 'r1', phase: 'succeeded' }, d)).toBe(0);
+    expect(warn.mock.calls.map((c) => String(c[0])).join('\n')).toContain('ignores a succeeded event');
+  });
+
+  it('--release together with --release-for, or a bad --release-wait, is a usage error', async () => {
+    const d = await deps(ENV);
+    expect(await runDeliveryReport({ run: 'r1', phase: 'running', release: 'a', releaseFor: 'REQ-1' }, d)).toBe(2);
+    expect(await runDeliveryReport({ run: 'r1', phase: 'running', releaseFor: 'REQ-1', releaseWait: '-1' }, d)).toBe(2);
+    expect(await runDeliveryReport({ run: 'r1', phase: 'running', releaseFor: 'REQ-1', releaseWait: 'soon' }, d)).toBe(2);
+    expect(d.sent).toEqual([]);
+  });
+
+  it('no project slug in sdlc-config.json: a warning, and the event is sent without an id', async () => {
+    const warn = vi.spyOn(logger(), 'warn');
+    const d = await deps(ENV);
+    expect(await runDeliveryReport({ run: 'r1', phase: 'running', releaseFor: 'REQ-121' }, d)).toBe(0);
+    expect(d.sent[0]!.body).toEqual({ phase: 'running' });
+    expect(warn.mock.calls.map((c) => String(c[0])).join('\n')).toContain('devaudit.project_slug');
+  });
+});
+
+describe('the CI seconds of the whole job', () => {
+  const T0 = 1_800_000_000; // epoch seconds of the job start
+  const at = (secondsAfter: number) => () => (T0 + secondsAfter) * 1000;
+
+  it('is the time since DEVAUDIT_JOB_STARTED, on every event, as a cumulative total', async () => {
+    const d = await deps({ ...ENV, DEVAUDIT_JOB_STARTED: String(T0) });
+    await runDeliveryReport({ run: 'r1', phase: 'running' }, { ...d, now: at(40) });
+    await runDeliveryReport({ run: 'r1', phase: 'running', release: 'rel-1' }, { ...d, now: at(900) });
+    await runDeliveryReport({ run: 'r1', phase: 'awaiting_approval' }, { ...d, now: at(1500) });
+    expect(d.sent.map((s) => (s.body['usage'] as { ciSeconds: number }).ciSeconds)).toEqual([40, 900, 1500]);
+  });
+
+  it('--ci-seconds wins over the job start', async () => {
+    const d = await deps({ ...ENV, DEVAUDIT_JOB_STARTED: String(T0) });
+    await runDeliveryReport({ run: 'r1', phase: 'running', ciSeconds: '7' }, { ...d, now: at(500) });
+    expect(d.sent[0]!.body['usage']).toEqual({ ciSeconds: 7 });
+  });
+
+  it('is absent when neither is set, or the start is not a time', async () => {
+    const d = await deps(ENV);
+    await runDeliveryReport({ run: 'r1', phase: 'running' }, d);
+    expect(d.sent[0]!.body).toEqual({ phase: 'running' });
+    const bad = await deps({ ...ENV, DEVAUDIT_JOB_STARTED: 'yesterday' });
+    await runDeliveryReport({ run: 'r1', phase: 'running' }, bad);
+    expect(bad.sent[0]!.body).toEqual({ phase: 'running' });
+  });
+
+  it('is never negative when the clock is behind the recorded start', async () => {
+    const d = await deps({ ...ENV, DEVAUDIT_JOB_STARTED: String(T0) });
+    await runDeliveryReport({ run: 'r1', phase: 'running' }, { ...d, now: at(-30) });
+    expect((d.sent[0]!.body['usage'] as { ciSeconds: number }).ciSeconds).toBe(0);
+  });
+
+  it('adds the token totals of the cost file to it', async () => {
+    const d = await deps({ ...ENV, DEVAUDIT_JOB_STARTED: String(T0) });
+    const file = join(await tmp(), 'out.json');
+    await fs.writeFile(file, JSON.stringify({ usage: { input_tokens: 10, output_tokens: 5 } }));
+    await runDeliveryReport({ run: 'r1', phase: 'failed', costFile: file }, { ...d, now: at(60) });
+    expect(d.sent[0]!.body['usage']).toEqual({ inputTokens: 10, outputTokens: 5, ciSeconds: 60 });
   });
 });

@@ -221,6 +221,17 @@ describe('the sdlc-implementer headless rules (#1273)', () => {
     expect(text).toContain('Co-Authored-By:'); // 7
   });
 
+  it('reports the portal release with the agent key, not a viewer key, and never declares the run waiting without one (#1291)', () => {
+    const text = section();
+    expect(text).toContain('--phase running --release-for REQ-XXX');
+    expect(text).toContain('--phase awaiting_approval --release-for REQ-XXX');
+    expect(text).toContain("agent's own key");
+    expect(text).toContain('do not use `devaudit release status`'); // it needs a viewer key, which a delivery run does not have
+    expect(text).not.toContain('release status REQ-XXX --json');
+    expect(text).toContain('no release was registered for this run');
+    expect(text).toContain('completes a run only when the release the run reported is released');
+  });
+
   it('ends the run with a reason when a push is rejected for editing workflow files, and never works around it (#1286)', () => {
     const text = section();
     expect(text).toContain('.github/workflows');

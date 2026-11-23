@@ -52,7 +52,7 @@ workflow: check payload and secrets → checkout develop (read-only) → install
           → resolve and mask the agent's GitHub token (fails the job without one) → git and gh identity
           → report running → claude -p (sdlc-implementer, headless rules) → report end of run
 skill:    triage (tracked only) → plan → implement → evidence → push to develop (CI registers the release)
-          → report running --release → release PR + UAT request → report awaiting_approval → exit 0
+          → report running --release-for REQ → release PR + UAT request → report awaiting_approval → exit 0
 human:    approves the release in the portal (the approver is not the agent)
 gates:    merge, deploy, post-deploy, finalisation (the existing workflows)
 portal:   marks the run succeeded from the release finalisation
@@ -68,22 +68,28 @@ The workflow runs one delivery per repository at a time (`concurrency: delivery-
 POST <portal>/api/ci/delivery-runs/<runId>/events
 { "phase": "running | awaiting_approval | succeeded | failed",
   "reason": "<text, with failed>",
-  "releaseId": "<portal release id, with running>",
+  "releaseId": "<portal release id; required by the time of awaiting_approval>",
   "usage": { "inputTokens": 0, "outputTokens": 0, "ciSeconds": 0 } }
 ```
 
 | Phase | Sent by | When |
 | --- | --- | --- |
-| `running` | the workflow, then the skill | the workflow when the job starts; the skill again, with `--release`, as soon as CI has registered the release |
-| `awaiting_approval` | the skill; the workflow's closing step repeats it with the usage | the release PR is open and UAT is requested |
+| `running` | the workflow, then the skill | the workflow when the job starts; the skill again, with `--release-for <REQ>`, once CI has registered the release |
+| `awaiting_approval` | the skill; the workflow's closing step repeats it with the usage | the release PR is open and UAT is requested; refused (exit 1) without a release id |
 | `failed` | the skill, or the workflow's closing step | the issue is not tracked work, the spec is too large, or the session ended unsuccessfully |
-| `succeeded` | the portal, from the release finalisation | never the agent |
+| `succeeded` | the portal, from the release finalisation | never the agent: the portal acknowledges and ignores an agent-sent `succeeded` |
 
 The portal must accept a repeated phase (the closing step sends `awaiting_approval` or `failed` again with the usage) and never move a run backwards. On the agent's machine a run that already reported `failed` stays failed: a later `awaiting_approval` is sent as `failed` with the recorded reason, and a `failed` with no reason reuses it.
 
-`--cost-file` takes the JSON the headless session wrote (`claude -p --output-format json`): `inputTokens` is `input_tokens` plus the cache creation and cache read tokens, `outputTokens` is `output_tokens`; a missing or unreadable file is a warning, never a failure. `--ci-seconds` is `$SECONDS` of the workflow job.
+`--cost-file` takes the JSON the headless session wrote (`claude -p --output-format json`): `inputTokens` is `input_tokens` plus the cache creation and cache read tokens, `outputTokens` is `output_tokens`; a missing or unreadable file is a warning, never a failure. The CI time is cumulative: every event carries `usage.ciSeconds`, the seconds since `DEVAUDIT_JOB_STARTED` (an epoch time the workflow records in its first step, because the `$SECONDS` of a step counts only that step's own shell), so a job that is killed or times out still leaves a number; `--ci-seconds` overrides it. The portal keeps the largest total it has seen.
 
-Exit codes of `devaudit delivery report`: `0` the portal accepted the event, `1` it did not (the answer is printed; a 429 or 5xx is retried three times first), `2` a usage error (a bad run id or phase, a bad number, no portal key).
+Exit codes of `devaudit delivery report`: `0` the portal accepted the event, `1` it did not (the answer is printed; a 429 or 5xx is retried three times first), or `awaiting_approval` has no release id, `2` a usage error (a bad run id or phase, a bad number, no portal key).
+
+## The release id
+
+The portal completes a run only when the release the run reported (`releaseId`) is released; a run that never reported one can never complete. A delivery run has only the agent's uploader key, so `devaudit release status` (which needs a viewer key) does not work in it. `devaudit delivery report --release-for <REQ>` looks the release up with the agent's own key (`GET /api/ci/releases/resolve`, which accepts the uploader role), using the project slug and portal address of `sdlc-config.json`. CI registers the release a few minutes after the first push to the integration branch, so it asks every 15 seconds for up to `--release-wait` seconds (default 300); a release that is still missing is a warning and a `running` event is sent without an id. The id is remembered in the run's state file (`RUNNER_TEMP`) and reused by every later event, including the workflow's closing step, which needs no REQ.
+
+`awaiting_approval` with no release id is refused (exit 1): the portal would accept it and the run would wait forever. The skill then reports `failed` ("no release was registered for this run"), and when the closing step's `awaiting_approval` is refused it reports `failed` as well, which releases the run's quota.
 
 ## The headless rules
 
