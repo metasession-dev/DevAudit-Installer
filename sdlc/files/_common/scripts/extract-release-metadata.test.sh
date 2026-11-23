@@ -397,5 +397,113 @@ Bundled release context: see \`compliance/pending-releases/BUNDLED-CHANGES-REQ-0
 echo ""
 
 echo ""
+
+# --- DevAudit-Installer#1283: a declared bundle names its co-tracked REQs ---
+write_bundle() { # <req> <members json array body>
+  mkdir -p compliance/pending-releases
+  cat > "compliance/pending-releases/RELEASE-TICKET-$1.md" <<TICKET
+# Release Ticket — $1
+
+**Requirement:** $1 — Core feature
+
+## Summary
+Core summary.
+TICKET
+  printf '# Bundled Changes — %s\n' "$1" > "compliance/pending-releases/BUNDLED-CHANGES-$1.md"
+  printf '{"manifestHash":"sha256:abc","members":[%s]}\n' "$2" > "compliance/pending-releases/BUNDLED-CHANGES-$1.json"
+}
+
+echo "--- Test 14: co-tracked members are listed in the variable and in a Co-tracked line of the summary ---"
+make_fixture "$WORK/test14"
+write_bundle "REQ-121" '{"version":"REQ-122","role":"co_tracked"},{"version":"REQ-123","role":"co_tracked"},{"version":"REQ-050","role":"predecessor"}'
+source "$HELPER"
+extract_release_metadata "REQ-121"
+assert_eq "RELEASE_COTRACKED lists the co-tracked members in manifest order, not predecessors" "REQ-122 REQ-123" "$RELEASE_COTRACKED"
+assert_eq "the manifest is named" "compliance/pending-releases/BUNDLED-CHANGES-REQ-121.json" "$RELEASE_BUNDLE_MANIFEST"
+case "$RELEASE_SUMMARY" in *"Co-tracked: REQ-122, REQ-123"*) echo "  PASS: summary has a Co-tracked line"; PASS=$((PASS + 1));; *) echo "  FAIL: summary has a Co-tracked line: $RELEASE_SUMMARY"; FAIL=$((FAIL + 1));; esac
+case "$RELEASE_SUMMARY" in *"Bundled release context:"*) echo "  PASS: the bundled marker is still there (the drift check keeps working)"; PASS=$((PASS + 1));; *) echo "  FAIL: bundled marker"; FAIL=$((FAIL + 1));; esac
+case "$RELEASE_SUMMARY" in *"REQ-050"*) echo "  FAIL: a predecessor is not co-tracked"; FAIL=$((FAIL + 1));; *) echo "  PASS: a predecessor is not listed as co-tracked"; PASS=$((PASS + 1));; esac
+echo ""
+
+echo "--- Test 15: no co-tracked members, no Co-tracked line; a second extraction does not repeat it ---"
+make_fixture "$WORK/test15"
+write_bundle "REQ-130" '{"version":"REQ-050","role":"predecessor"}'
+source "$HELPER"
+extract_release_metadata "REQ-130"
+assert_empty "no co-tracked members" "$RELEASE_COTRACKED"
+case "$RELEASE_SUMMARY" in *"Co-tracked:"*) echo "  FAIL: no Co-tracked line without members"; FAIL=$((FAIL + 1));; *) echo "  PASS: no Co-tracked line without members"; PASS=$((PASS + 1));; esac
+make_fixture "$WORK/test15b"
+write_bundle "REQ-131" '{"version":"REQ-132","role":"co_tracked"}'
+source "$HELPER"
+extract_release_metadata "REQ-131"
+FIRST="$RELEASE_SUMMARY"
+assert_eq "one Co-tracked line" "1" "$(printf '%s\n' "$FIRST" | grep -c '^Co-tracked:')"
+echo ""
+
+echo "--- Test 16: a release with no bundle has neither variable ---"
+make_fixture "$WORK/test16"
+cat > compliance/pending-releases/RELEASE-TICKET-REQ-140.md <<'TICKET'
+# Release Ticket — REQ-140
+
+**Requirement:** REQ-140 — Plain
+
+## Summary
+Plain summary.
+TICKET
+source "$HELPER"
+extract_release_metadata "REQ-140"
+assert_empty "no co-tracked" "$RELEASE_COTRACKED"
+assert_empty "no manifest" "$RELEASE_BUNDLE_MANIFEST"
+assert_eq "summary unchanged" "Plain summary." "$RELEASE_SUMMARY"
+echo ""
+
+# --- DevAudit-Installer#1288: check_bundle_manifest_current ---
+echo "--- Test 17: check_bundle_manifest_current needs the generator and refuses to guess ---"
+make_fixture "$WORK/test17"
+write_bundle "REQ-150" '{"version":"REQ-151","role":"co_tracked"}'
+source "$HELPER"
+RC=0; check_bundle_manifest_current "REQ-150" "HEAD" 2>"$WORK/t17.err" || RC=$?
+assert_eq "no generator script in the clone: not checked, not blocked" "0" "$RC"
+grep -q "not checked" "$WORK/t17.err" && { echo "  PASS: says it was not checked"; PASS=$((PASS + 1)); } || { echo "  FAIL: says it was not checked"; FAIL=$((FAIL + 1)); }
+RC=0; check_bundle_manifest_current "REQ-999" "HEAD" 2>/dev/null || RC=$?
+assert_eq "no manifest: nothing to check" "0" "$RC"
+mkdir -p compliance/approved-releases && cp compliance/pending-releases/BUNDLED-CHANGES-REQ-150.json compliance/approved-releases/BUNDLED-CHANGES-REQ-160.json
+rm compliance/pending-releases/BUNDLED-CHANGES-REQ-150.json
+RC=0; check_bundle_manifest_current "REQ-160" "HEAD" 2>/dev/null || RC=$?
+assert_eq "an approved manifest is history: not checked" "0" "$RC"
+echo ""
+
+echo "--- Test 18: check_bundle_manifest_current with the real generator: stale returns 3, current returns 0 ---"
+make_fixture "$WORK/test18"
+mkdir -p scripts compliance/pending-releases
+cp "$SCRIPT_DIR/generate-bundled-changes.sh" scripts/
+git init -q --initial-branch=main
+git config user.email t@example.com; git config user.name t
+git add -A; git commit -q -m "docs: scaffold [REQ-170]"
+SINCE_T18="$(git rev-list --max-parents=0 HEAD)"
+cat > compliance/pending-releases/RELEASE-TICKET-REQ-170.md <<'TICKET'
+# Release Ticket — REQ-170
+
+**Requirement:** REQ-170 — Core
+
+## Summary
+S.
+
+- **Absorbed predecessor releases:** None
+TICKET
+git add -A; git commit -q -m "docs: ticket [REQ-170]"
+git commit -q --allow-empty -m "chore: first chore"
+bash scripts/generate-bundled-changes.sh "$SINCE_T18" REQ-170 --declared-bundle REQ-171 --json-out compliance/pending-releases/BUNDLED-CHANGES-REQ-170.json >/dev/null 2>&1
+printf '# Bundled Changes — REQ-170\n' > compliance/pending-releases/BUNDLED-CHANGES-REQ-170.md
+source "$HELPER"
+RC=0; check_bundle_manifest_current "REQ-170" "$SINCE_T18" 2>/dev/null || RC=$?
+assert_eq "just generated: current" "0" "$RC"
+git commit -q --allow-empty -m "chore: a later chore"
+RC=0; check_bundle_manifest_current "REQ-170" "$SINCE_T18" 2>"$WORK/t18.err" || RC=$?
+assert_eq "a later chore: stale" "3" "$RC"
+grep -q "a later chore" "$WORK/t18.err" && { echo "  PASS: names the later chore"; PASS=$((PASS + 1)); } || { echo "  FAIL: names the later chore"; FAIL=$((FAIL + 1)); }
+echo ""
+
+echo ""
 echo "=== Results: $PASS passed, $FAIL failed ==="
 exit $FAIL

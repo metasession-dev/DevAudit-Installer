@@ -741,6 +741,8 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
    ./scripts/prepare-release-pr.sh --apply --mode=update
    ```
 
+   For a declared bundle the helper names every co-tracked REQ in the PR title (`+ REQ-122`) and summary (`Co-tracked:`), and it **refuses** (exit 1) when the bundle manifest omits commits merged to `$INTEGRATION_BRANCH` after it was generated (devaudit-installer#1283, #1288): run the `Regenerate it:` command it prints, commit the regenerated `BUNDLED-CHANGES-<core>.md` and `.json` through a compliance PR, then run the helper again. The develop-to-main PR fails Release Scope Integrity for the same reason.
+
    This is mandatory for devaudit-installer#312. It detects an existing open `$INTEGRATION_BRANCH → $RELEASE_BRANCH` PR, derives the current governing release from the current head, and ensures there is exactly one truthful release PR. If the existing PR is stale, the default `update` mode rewrites the title/body and comments with the refresh. Use `--mode=recreate` only when the operator explicitly wants the older PR closed and a new PR opened.
 
    If the helper reports multiple open release PRs, halt with: "Multiple open release PRs for `$INTEGRATION_BRANCH → $RELEASE_BRANCH`; operator action — close duplicates or choose the authoritative PR, then resume REQ-XXX." Do not open another PR.
