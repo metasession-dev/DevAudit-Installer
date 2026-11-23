@@ -577,6 +577,7 @@ export const NOT_ASKED: Readonly<Record<string, string>> = {
   'uat.mode': 'set by `configure set`; manual UAT is the default and agent-executed UAT is a deliberate opt-in, so onboarding does not ask (DevAudit-Installer#1246)',
   feature_e2e_projects: 'set by `configure set`; advanced',
   'delivery.enabled': 'set by `devaudit install --delivery` or `configure set`; a DevAudit Delivery run is a deliberate opt-in, so onboarding does not ask (DevAudit-Installer#1272)',
+  paths_ignore_pull_request: 'set by `configure set`; advanced; off by default, so every pull request keeps the full gates (DevAudit-Installer#1290)',
   'delivery.github_token_source': 'set by `devaudit install --delivery` or `configure set`; where a delivery run gets its GitHub token (the secret or the portal\'s GitHub App) is a deployment choice, so onboarding does not ask (DevAudit-Installer#1286)',
   'delivery.agent_git_name': 'set by `configure set`; advanced; the default name is "DevAudit Agent" (DevAudit-Installer#1286)',
   'delivery.max_turns': 'set by `configure set`; advanced; the default (200) fits most projects (DevAudit-Installer#1272)',

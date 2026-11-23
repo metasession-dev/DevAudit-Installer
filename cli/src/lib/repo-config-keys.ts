@@ -299,7 +299,14 @@ export const CONFIG_KEYS: readonly ConfigKeySpec[] = [
     validate: cronOrEmpty,
     affects: ['.github/workflows/e2e-regression.yml'],
   },
-  { key: 'paths_ignore', type: 'string[]', description: 'Paths that do not trigger CI on push.', affects: CI },
+  { key: 'paths_ignore', type: 'string[]', description: 'Paths that do not trigger CI on push (and, with paths_ignore_pull_request, on pull requests).', affects: [...CI, '.github/workflows/ci-status-fallback.yml'] },
+  {
+    key: 'paths_ignore_pull_request',
+    type: 'boolean',
+    description:
+      'Also apply paths_ignore to pull requests (DevAudit-Installer#1290). false (the default): every pull request into the integration branch runs the full Quality Gates, as before. true: a pull request that changes only paths_ignore paths (and sdlc-config.json) does not start ci.yml, and ci-status-fallback.yml reports the required Quality Gates status for it; a pull request with any other file runs the full gates and gets no fallback status. Saves the whole gate run on the frequent evidence and docs pull requests.',
+    affects: [...CI, '.github/workflows/ci-status-fallback.yml'],
+  },
 
   // ---- DevAudit-Installer#1116 WP2: approval, production review, standards and the onboarding preset ----
   // `approval.mode` and `production_review.terminal_status` are dotted keys: they live inside the

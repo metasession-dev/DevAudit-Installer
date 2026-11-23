@@ -28,6 +28,7 @@ on:
     branches: [{{INTEGRATION_BRANCH}}]
     paths:
 {{PATHS_IGNORE}}      - 'sdlc-config.json'
+{{FALLBACK_PR_TRIGGER}}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -36,14 +37,6 @@ concurrency:
 permissions:
   contents: read
   statuses: write
+{{FALLBACK_PR_PERMISSION}}
 
-jobs:
-  quality-gates:
-    name: Quality Gates
-    runs-on: {{RUNNER}}
-    steps:
-      - name: Acknowledge docs/compliance-only commit
-        run: |
-          echo "Commit ${{ github.sha }} only touches docs/compliance paths."
-          echo "Heavy quality-gates workflow (ci.yml) was correctly skipped."
-          echo "This fallback emits the 'Quality Gates' status so branch protection is satisfied."
+{{FALLBACK_JOBS}}

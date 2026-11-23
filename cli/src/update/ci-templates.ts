@@ -170,6 +170,12 @@ interface SdlcConfig {
   readonly post_deploy_full_regression?: boolean;
   readonly scheduled_full_regression?: string;
   readonly paths_ignore?: readonly string[];
+  /**
+   * DevAudit-Installer#1290 — also apply `paths_ignore` to the `pull_request` trigger of ci.yml, and give the
+   * docs-only pull request the passing `Quality Gates` status from ci-status-fallback.yml. Absent or false keeps
+   * today's behaviour: a pull request always runs the full gates.
+   */
+  readonly paths_ignore_pull_request?: boolean;
   /** See #689/#690 — when present, sync runs once per target instead of once for the flat config. */
   readonly targets?: readonly Target[];
 }
@@ -833,6 +839,88 @@ function buildFeatureE2eTestStep(cfg: SdlcConfig): string {
  * fork any resync can wipe out.
  */
 /**
+ * DevAudit-Installer#1290 — the `pull_request` trigger of ci-status-fallback.yml, present only with
+ * `paths_ignore_pull_request`: it fires on exactly the paths ci.yml's pull_request filter ignores, so a pull
+ * request that changes only those paths gets a passing `Quality Gates` status. Empty (the line is dropped) otherwise.
+ */
+function buildFallbackPullRequestTrigger(cfg: SdlcConfig, patterns: readonly string[]): string {
+  if (cfg.paths_ignore_pull_request !== true) return '';
+  return [
+    '  pull_request:',
+    `    branches: [${cfg.integration_branch ?? 'develop'}]`,
+    '    paths:',
+    ...patterns.map((p) => `      - '${p}'`),
+  ].join('\n');
+}
+
+/**
+ * The jobs of ci-status-fallback.yml. Without `paths_ignore_pull_request` the one job it always had, byte for byte.
+ *
+ * With it the workflow also runs for pull requests, and the check named `Quality Gates` must come from this workflow
+ * only when the pull request is docs and compliance only. A pull request with code runs ci.yml's real gates, and a
+ * second check of the same name, even a skipped one, could be read as satisfying the required status before they
+ * finish. So a first job classifies the changed files (the same path matching as the provenance check, see
+ * scripts/provenance-gated-commit.sh) and the second job is NAMED from the answer: `Quality Gates` for a docs-only
+ * change, another name, which no branch protection requires, otherwise. A push or a manual run keeps today's
+ * unconditional `Quality Gates`. If the files cannot be listed the classify job fails and no status is reported:
+ * the pull request waits, it never passes on a guess.
+ */
+function buildFallbackJobs(cfg: SdlcConfig, patterns: readonly string[]): string {
+  const runner = resolveRunner(cfg);
+  const acknowledge = [
+    '      - name: Acknowledge docs/compliance-only commit',
+    '        run: |',
+    '          echo "Commit ${{ github.sha }} only touches docs/compliance paths."',
+    '          echo "Heavy quality-gates workflow (ci.yml) was correctly skipped."',
+    '          echo "This fallback emits the \'Quality Gates\' status so branch protection is satisfied."',
+  ];
+  if (cfg.paths_ignore_pull_request !== true) {
+    return ['jobs:', '  quality-gates:', '    name: Quality Gates', `    runs-on: ${runner}`, '    steps:', ...acknowledge].join('\n');
+  }
+  return [
+    'jobs:',
+    '  classify:',
+    '    name: Classify the change',
+    `    runs-on: ${runner}`,
+    '    outputs:',
+    '      gate_name: ${{ steps.classify.outputs.gate_name }}',
+    '    steps:',
+    '      - uses: actions/checkout@v6',
+    '        with:',
+    '          sparse-checkout: scripts',
+    '      - name: Is this change docs and compliance only?',
+    '        id: classify',
+    '        env:',
+    '          GH_TOKEN: ${{ github.token }}',
+    '          EVENT_NAME: ${{ github.event_name }}',
+    '          REPOSITORY: ${{ github.repository }}',
+    '          PR_NUMBER: ${{ github.event.pull_request.number }}',
+    '          # Same patterns as the triggers above and ci.yml\'s paths-ignore.',
+    '          PATHS_IGNORE: |',
+    ...patterns.map((p) => `            - '${p}'`),
+    '        run: |',
+    '          set -euo pipefail',
+    '          GATE_NAME="Quality Gates"',
+    '          if [ "$EVENT_NAME" = "pull_request" ]; then',
+    '            # An unreadable file list fails this job, so no status is reported: the pull request waits.',
+    '            KIND=$(gh api --paginate "repos/${REPOSITORY}/pulls/${PR_NUMBER}/files" --jq \'.[].filename\' | bash scripts/provenance-gated-commit.sh pr-docs-only)',
+    '            echo "Changed files: ${KIND}"',
+    '            if [ "$KIND" != "docs-only" ]; then',
+    '              GATE_NAME="Quality Gates not reported here (this change has code: CI Pipeline reports it)"',
+    '            fi',
+    '          fi',
+    '          echo "gate_name=${GATE_NAME}" >> "$GITHUB_OUTPUT"',
+    '',
+    '  quality-gates:',
+    '    name: ${{ needs.classify.outputs.gate_name }}',
+    '    needs: classify',
+    `    runs-on: ${runner}`,
+    '    steps:',
+    ...acknowledge,
+  ].join('\n');
+}
+
+/**
  * The runtime setup steps of devaudit-delivery.yml (DevAudit-Installer#1272): the project's own stack, so the
  * agent can run its tests, and Node for the Claude Code and DevAudit CLIs. A Node project's version serves both.
  */
@@ -1409,8 +1497,15 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
     // when this target actually has other targets' subtrees to scope away
     // from, so single-target repos (and multi-target repos where every other
     // target has already been filtered out above) regenerate byte-identical.
-    const prPathsIgnoreBlock =
-      otherTargetDirs.length > 0 ? `    paths-ignore:\n${otherTargetDirs.map((p) => `      - '${p}'`).join('\n')}` : '';
+    // DevAudit-Installer#1290 — with `paths_ignore_pull_request`, a pull request that changes only ignored paths
+    // (and `sdlc-config.json`, as the push filter) does not start ci.yml either; ci-status-fallback.yml then reports
+    // its `Quality Gates` status. Off (the default) keeps the block above byte for byte.
+    const prIgnorePatterns = [...new Set([...(cfg.paths_ignore ?? []), ...otherTargetDirs, 'sdlc-config.json'])];
+    const prPathsIgnoreBlock = cfg.paths_ignore_pull_request === true
+      ? `    paths-ignore:\n${prIgnorePatterns.map((p) => `      - '${p}'`).join('\n')}`
+      : otherTargetDirs.length > 0
+        ? `    paths-ignore:\n${otherTargetDirs.map((p) => `      - '${p}'`).join('\n')}`
+        : '';
     // Same patterns as PATHS_IGNORE, indented to sit under a `run:`/env block
     // scalar in quality-gates-provenance.yml (#971) — one source of truth, so
     // provenance classifies "docs-only" exactly as ci.yml's push filter does.
@@ -1423,6 +1518,9 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
       PATHS_IGNORE: pathsIgnoreBlock,
       PATHS_IGNORE_LIST: pathsIgnoreListBlock,
       PR_PATHS_IGNORE: prPathsIgnoreBlock,
+      FALLBACK_PR_TRIGGER: buildFallbackPullRequestTrigger(cfg, prIgnorePatterns),
+      FALLBACK_PR_PERMISSION: cfg.paths_ignore_pull_request === true ? '  pull-requests: read' : '',
+      FALLBACK_JOBS: buildFallbackJobs(cfg, prIgnorePatterns),
       // Collapsed into one merged token (devaudit-installer#928): previously
       // separate DATABASE_ENV/APP_ENV block tokens combined by string
       // concatenation with no dedup, so a key set in both sources (e.g.

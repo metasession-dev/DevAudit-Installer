@@ -141,5 +141,25 @@ STUBEOF
 fi
 
 echo
+echo "provenance-gated-commit.sh: pr-docs-only (DevAudit-Installer#1290)"
+
+classify() { # file list on standard input
+  PATHS_IGNORE="$IGNORE" bash "$HELPER" pr-docs-only
+}
+
+check "only ignored paths: docs-only" "docs-only" "$(printf 'compliance/RTM.md\nSDLC/1-plan.md\nsdlc-config.json\nREADME.md\n' | classify)"
+check "one code file among docs: code" "code" "$(printf 'compliance/RTM.md\nsrc/app.ts\n' | classify)"
+check "a nested .md is not covered by *.md (a root-only glob)" "code" "$(printf 'docs/guide.md\n' | classify)"
+check "a ** pattern with a suffix matches nested files" "docs-only" "$(printf 'docs/a/b/notes.txt\n' | classify)"
+check "an empty list fails safe: code" "code" "$(printf '' | classify)"
+check "a single file: docs-only" "docs-only" "$(printf 'compliance/x.json\n' | classify)"
+check "a negated pattern re-includes a path" "code" "$(printf 'compliance/keep.json\n' | PATHS_IGNORE="      - 'compliance/**'
+      - '!compliance/keep.json'" bash "$HELPER" pr-docs-only)"
+check "the files API limit (3000) fails safe: code" "code" "$(for i in $(seq 1 3000); do echo "compliance/f$i.md"; done | classify)"
+check "just under the limit is classified normally" "docs-only" "$(for i in $(seq 1 2999); do echo "compliance/f$i.md"; done | classify)"
+check "an empty PATHS_IGNORE ignores nothing: code" "code" "$(printf 'compliance/x.json\n' | PATHS_IGNORE='' bash "$HELPER" pr-docs-only)"
+check "extra arguments are a usage error" "2" "$(printf 'a\n' | bash "$HELPER" pr-docs-only extra >/dev/null 2>&1; echo $?)"
+
+echo
 echo "Passed: $PASS  Failed: $FAIL"
 [ "$FAIL" -eq 0 ]

@@ -4,6 +4,10 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+### Added
+
+- **`paths_ignore_pull_request`: docs-only pull requests skip the full Quality Gates** (#1290): opt-in (`devaudit configure set paths_ignore_pull_request true`, then `devaudit update`; off by default, so nothing changes unless it is set). `paths_ignore` then also applies to `ci.yml`'s `pull_request` trigger, and `ci-status-fallback.yml` starts for a pull request that changes any of those paths, lists its files (`pull-requests: read`) and names its `quality-gates` job from the answer: `Quality Gates` for a docs-only pull request, another name for one with code, so a code pull request never carries a second check of the required name. If the files cannot be listed it fails and reports no status. The release PR into `main` is unchanged (#971). New `provenance-gated-commit.sh pr-docs-only` classifies a file list (an empty list or 3000 files is code).
+
 ### Fixed
 
 - **A stale declared-bundle manifest is caught** (#1288): after chores merged to the integration branch, `prepare-release-pr.sh` still reported the release PR current and `BUNDLED-CHANGES-<core>.md/.json` omitted them, so the approver signed off a scope that did not list everything in the diff. New `generate-bundled-changes.sh ... --check <manifest>` (writes nothing; exit 0 when current, 3 when stale, naming the missing commits and the regeneration command). `prepare-release-pr.sh` refuses a stale manifest, dry run or `--apply`, before touching any PR, and the develop-to-main PR now fails `Release Scope Integrity`. A commit that touches only bundle manifests is the manifest's own regeneration and is no longer listed as absorbed work, so a regenerated manifest is current as soon as it is committed. A clone without `origin/<release>`, or a generator failure for another reason, is a warning, never a block.
