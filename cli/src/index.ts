@@ -491,10 +491,12 @@ export async function main(argv: readonly string[]): Promise<void> {
     .requiredOption('--run <id>', 'the delivery run id')
     .requiredOption('--phase <phase>', 'running, awaiting_approval, succeeded or failed')
     .option('--reason <text>', 'why (used with failed)')
-    .option('--release <releaseId>', 'the portal release this run created, so the portal can link run and release')
+    .option('--release <releaseId>', "the portal release id of this run (a later event reuses it); the portal completes a run only when this release is released")
+    .option('--release-for <version>', "look the portal release of this version (the REQ, the core REQ of a bundle) up with the agent's own key and send its id; waits for CI to register it (see --release-wait). awaiting_approval is refused (exit 1) without a release id")
+    .option('--release-wait <seconds>', 'with --release-for: how long to wait for CI to register the release, asking every 15 seconds (default 300)')
     .option('--cost-file <path>', 'the JSON output file of the headless session; token totals are read from its usage')
-    .option('--ci-seconds <n>', 'seconds of CI time the run used (the workflow sends $SECONDS)')
-    .action(async (cmdOpts: { run: string; phase: string; reason?: string; release?: string; costFile?: string; ciSeconds?: string }) => {
+    .option('--ci-seconds <n>', 'seconds of CI time the run has used in total (default: since DEVAUDIT_JOB_STARTED, which the workflow records, when set)')
+    .action(async (cmdOpts: { run: string; phase: string; reason?: string; release?: string; releaseFor?: string; releaseWait?: string; costFile?: string; ciSeconds?: string }) => {
       process.exit(await runDeliveryReport(cmdOpts));
     });
   deliveryCmd

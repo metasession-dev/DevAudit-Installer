@@ -4,6 +4,11 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+### Fixed
+
+- **A delivery run can complete: the release id is reported with the agent's own key** (#1291): the portal completes a run only when the release the run reported is released, and the skill read the id with `devaudit release status`, which needs a viewer key a delivery run does not have. `devaudit delivery report` gets `--release-for <REQ>` (looks the release up with the agent key, waits up to `--release-wait` seconds, default 300, for CI to register it, and remembers the id for the rest of the run) and refuses `awaiting_approval` without a release id (exit 1; the workflow's closing step then reports `failed`). The skill's headless rules 4 and 5 use it.
+- **The CI time of a delivery run is the whole job** (#1291): the closing step sent `$SECONDS`, which counts only that step. The workflow records the job start in its first step, and every event carries `usage.ciSeconds` since then (cumulative, so a killed job still leaves a number).
+
 ### Added
 
 - **`devaudit delivery github-token`: the delivery agent's GitHub token, fresh for every push** (#1286): resolves the repository secret `DEVAUDIT_AGENT_GITHUB_TOKEN` (the pilot path), else a short-lived token the portal mints from the DevAudit Agent GitHub App (`POST /api/ci/delivery-runs/<runId>/github-token` with the `delivery-agent` key), else exits 1 naming both options and, for a 409 `not_installed`, the install link. A portal token is cached in a mode 600 file under `RUNNER_TEMP` until ten minutes before it expires. `--credential` answers git's credential-helper protocol (GitHub over https only), `--json` adds the expiry and the author, `--mask` prints `::add-mask::`, `--github-env` writes the author to `GITHUB_ENV`. New `scripts/delivery-gh.sh`, a `gh` shim that gives each call a current token and runs nothing without one.

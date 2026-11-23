@@ -58,6 +58,11 @@ jobs:
       # A git command that cannot get a token must fail, never wait for a person.
       GIT_TERMINAL_PROMPT: '0'
     steps:
+      # Every event of the run carries the CI time of the whole job (`devaudit delivery report` reads this).
+      # `$SECONDS` would not do: each step starts a new shell.
+      - name: Record the start of the job
+        run: echo "DEVAUDIT_JOB_STARTED=$(date +%s)" >> "$GITHUB_ENV"
+
       - name: Check the dispatch payload and secrets
         run: |
           set -euo pipefail
@@ -128,7 +133,14 @@ jobs:
             PHASE=failed
             REASON="the agent session ended with outcome ${AGENT_OUTCOME:-unknown}"
           fi
-          ARGS=(--run "$RUN_ID" --phase "$PHASE" --ci-seconds "$SECONDS")
+          # The CI seconds of the job and the release id (recorded by the skill's earlier events) are added by the CLI.
+          ARGS=(--run "$RUN_ID" --phase "$PHASE")
           [ -n "$REASON" ] && ARGS+=(--reason "$REASON")
           [ -f delivery-output.json ] && ARGS+=(--cost-file delivery-output.json)
-          devaudit delivery report "${ARGS[@]}"
+          if ! devaudit delivery report "${ARGS[@]}" && [ "$PHASE" = awaiting_approval ]; then
+            # The run cannot be reported as waiting for approval (no release id is known, or the portal refused
+            # it): reporting failed releases its quota instead of leaving it waiting forever.
+            FAILED_ARGS=(--run "$RUN_ID" --phase failed --reason "the run could not be reported as awaiting approval: no portal release was registered for it, or the portal refused the event (see the job log)")
+            [ -f delivery-output.json ] && FAILED_ARGS+=(--cost-file delivery-output.json)
+            devaudit delivery report "${FAILED_ARGS[@]}"
+          fi
