@@ -116,6 +116,18 @@ if [[ "$CURRENT_RELEASE" =~ ^REQ-[0-9]+$ ]]; then
       exit 1
     fi
   fi
+  # DevAudit-Installer#1288 — the promotion PR's bundle manifest must list what is in the release range. A chore
+  # merged after the manifest was generated is in the diff but not in the scope the approver signs off.
+  if [ "$ALLOW_PENDING_TICKET_FALLBACK" = "1" ] && [ -n "${RELEASE_BUNDLE_MANIFEST:-}" ]; then
+    MANIFEST_RC=0
+    check_bundle_manifest_current "$CURRENT_RELEASE" "origin/${RELEASE_BRANCH}" || MANIFEST_RC=$?
+    if [ "$MANIFEST_RC" -eq 3 ]; then
+      echo "::error::Release Scope Integrity: the bundle manifest ${RELEASE_BUNDLE_MANIFEST} is stale."
+      echo "::error::It does not list everything in origin/${RELEASE_BRANCH}..HEAD (reasons and the regeneration command are in the log above)."
+      echo "::error::Regenerate BUNDLED-CHANGES-${CURRENT_RELEASE}.md/.json, merge them through a compliance PR, then run scripts/prepare-release-pr.sh --apply."
+      exit 1
+    fi
+  fi
 fi
 
 # devaudit-installer#956 — promotion gate: a develop -> main PR must not carry

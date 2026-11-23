@@ -143,6 +143,8 @@ says `None` but that pending REQ's `[REQ-x]` / `Ref: REQ-x` commits are already 
 otherwise ship under another release's approval with no lineage and its ticket would
 stay pending forever.
 
+**A declared bundle's release PR names every REQ it carries** (#1283): the title is `Release: <core> — <title> + REQ-122` and the summary has a `Co-tracked: REQ-122` line, which also reaches the portal release row. **Its manifest must be current** (#1288): `generate-bundled-changes.sh <since> <core> --declared-bundle <members> --check <manifest>` exits 3 when the pending `BUNDLED-CHANGES-<core>.json` omits commits merged after it was generated. `prepare-release-pr.sh` then refuses (it cannot fix a stale manifest by editing the PR), and the promotion PR fails Release Scope Integrity. Regenerate the manifest and its `.md` with the command the message prints, merge them through a compliance PR, and run `prepare-release-pr.sh --apply`.
+
 The develop-to-main **promotion gate** enforces the same rule at the PR:
 `check-deferred-reqs-in-range.sh`, a failing step of `check-release-pr-scope.sh` inside
 the existing Release Scope Integrity job (not a new required check), fails when a

@@ -438,5 +438,93 @@ set -e
 assert_eq "declared member skipped by the guards" "0" "$RC"
 echo
 
+# --- DevAudit-Installer#1288: --check compares a manifest with what would be generated now ---
+manifest_fixture() { # <dir>: a declared bundle REQ-042 + REQ-043 with one chore, its manifest generated
+  local dir="$1"
+  make_fixture "$dir"
+  SINCE="$(git rev-list --max-parents=0 HEAD)"
+  write_release_ticket "REQ-042" "REQ-042 - Current" "Current." "None"
+  git add compliance && git commit -q -m "docs: release ticket [REQ-042]"
+  add_commit "chore: first housekeeping"
+  mkdir -p compliance/pending-releases
+  MANIFEST="compliance/pending-releases/BUNDLED-CHANGES-REQ-042.json"
+  bash "$HELPER" "$SINCE" "REQ-042" --declared-bundle REQ-043 --json-out "$MANIFEST" >/dev/null 2>&1
+}
+run_check() { # <manifest> [extra args]: sets CHECK_RC and CHECK_OUT (stdout and stderr)
+  local manifest="$1"; shift
+  set +e
+  CHECK_OUT=$(bash "$HELPER" "$SINCE" "REQ-042" --declared-bundle REQ-043 --check "$manifest" "$@" 2>&1)
+  CHECK_RC=$?
+  set -e
+}
+
+echo "Test 15: --check passes on a manifest that was just generated, writes nothing and prints no report"
+manifest_fixture "$TMPDIR_BASE/test15"
+BEFORE="$(cat "$MANIFEST")"
+run_check "$MANIFEST"
+assert_eq "check exits 0" "0" "$CHECK_RC"
+assert_contains "check says the manifest is current" "is current for REQ-042" "$CHECK_OUT"
+assert_not_contains "check prints no markdown report" "## Bundled Changes" "$CHECK_OUT"
+assert_eq "check leaves the manifest untouched" "$BEFORE" "$(cat "$MANIFEST")"
+echo
+
+echo "Test 16: a chore merged after the manifest was generated makes it stale (exit 3), naming the commit and the fix"
+manifest_fixture "$TMPDIR_BASE/test16"
+add_commit "chore: e2e shard count and job ceiling"
+LATE_SHA="$(git rev-parse --short HEAD)"
+run_check "$MANIFEST"
+assert_eq "check exits 3" "3" "$CHECK_RC"
+assert_contains "names the missing commit" "$LATE_SHA" "$CHECK_OUT"
+assert_contains "names its subject" "chore: e2e shard count and job ceiling" "$CHECK_OUT"
+assert_contains "says it is stale" "is stale for REQ-042" "$CHECK_OUT"
+assert_contains "gives the regeneration command" "Regenerate it: bash scripts/generate-bundled-changes.sh $SINCE REQ-042 --declared-bundle REQ-043 --json-out $MANIFEST" "$CHECK_OUT"
+bash "$HELPER" "$SINCE" "REQ-042" --declared-bundle REQ-043 --json-out "$MANIFEST" >/dev/null 2>&1
+run_check "$MANIFEST"
+assert_eq "regenerating makes it current again" "0" "$CHECK_RC"
+echo
+
+echo "Test 17: a REQ-tagged commit and a compliance-only commit that carries a REQ ref do not make it stale"
+manifest_fixture "$TMPDIR_BASE/test17"
+add_commit "feat: more member work [REQ-043]"
+add_commit "docs(compliance): sign-off Ref: REQ-042"
+run_check "$MANIFEST"
+assert_eq "still current" "0" "$CHECK_RC"
+echo
+
+echo "Test 18: the commit that regenerates the manifest is not absorbed by it, even with no REQ ref"
+manifest_fixture "$TMPDIR_BASE/test18"
+add_commit "chore: second housekeeping"
+bash "$HELPER" "$SINCE" "REQ-042" --declared-bundle REQ-043 --json-out "$MANIFEST" >/dev/null 2>&1
+git add "$MANIFEST" && git commit -q -m "docs: regenerate the bundle manifest"
+run_check "$MANIFEST"
+assert_eq "current after committing the regenerated manifest" "0" "$CHECK_RC"
+assert_eq "the manifest does not list its own commit" "0" "$(jq -r '[.nonReleaseWorkItems[] | select(.title == "docs: regenerate the bundle manifest")] | length' "$MANIFEST")"
+assert_eq "it still lists the real chores" "2" "$(jq -r '.nonReleaseWorkItems | length' "$MANIFEST")"
+echo
+
+echo "Test 19: different members are stale; a shorter abbreviated hash still matches; a commit gone from the range is stale"
+manifest_fixture "$TMPDIR_BASE/test19"
+set +e
+OUTPUT=$(bash "$HELPER" "$SINCE" "REQ-042" --declared-bundle REQ-044 --check "$MANIFEST" 2>&1)
+RC=$?
+set -e
+assert_eq "other declared members: exit 3" "3" "$RC"
+assert_contains "says the members differ" "members differ" "$OUTPUT"
+SHORT="$(jq -c '.nonReleaseWorkItems[0].reference |= .[0:5]' "$MANIFEST")"
+printf '%s\n' "$(jq -c --argjson i "$SHORT" '.nonReleaseWorkItems = $i.nonReleaseWorkItems' "$MANIFEST")" > "$MANIFEST"
+run_check "$MANIFEST"
+assert_eq "a 5-character abbreviation of the same commit matches" "0" "$CHECK_RC"
+jq -c '.nonReleaseWorkItems += [{kind: "housekeeping_commit", title: "gone", reference: "deadbee"}]' "$MANIFEST" > "$MANIFEST.tmp" && mv "$MANIFEST.tmp" "$MANIFEST"
+run_check "$MANIFEST"
+assert_eq "a listed commit that is not in the range: exit 3" "3" "$CHECK_RC"
+assert_contains "names it" "no longer in" "$CHECK_OUT"
+echo
+
+echo "Test 20: --check on a missing file is an error, not a pass"
+manifest_fixture "$TMPDIR_BASE/test20"
+run_check "compliance/pending-releases/NOPE.json"
+assert_eq "exit 1" "1" "$CHECK_RC"
+echo
+
 echo "=== Summary: ${PASS} pass / ${FAIL} fail ==="
 [ "$FAIL" -eq 0 ]

@@ -38,16 +38,35 @@ fi
 
 RELEASE_TITLE=""
 RELEASE_SUMMARY=""
+RELEASE_COTRACKED=""
 if [[ "$CURRENT_RELEASE" =~ ^REQ-[0-9]+$ ]] && [ -f scripts/extract-release-metadata.sh ]; then
   # shellcheck disable=SC1091
   source scripts/extract-release-metadata.sh
   extract_release_metadata "$CURRENT_RELEASE"
+
+  # DevAudit-Installer#1288 — a declared-bundle manifest generated before later chores merged omits them,
+  # and the PR would be judged current and carry a hash that no longer describes the range. Refuse, naming
+  # what is missing and how to regenerate it: editing the PR body cannot fix a stale manifest.
+  if [ -n "$RELEASE_BUNDLE_MANIFEST" ]; then
+    git fetch origin "$RELEASE_BRANCH" >/dev/null 2>&1 || true
+    MANIFEST_RC=0
+    check_bundle_manifest_current "$CURRENT_RELEASE" "origin/${RELEASE_BRANCH}" || MANIFEST_RC=$?
+    if [ "$MANIFEST_RC" -eq 3 ]; then
+      echo "ERROR: the bundle manifest ${RELEASE_BUNDLE_MANIFEST} is stale, so a release PR for ${CURRENT_RELEASE} would show a scope that omits commits in the release range." >&2
+      exit 1
+    fi
+  fi
 fi
 
 TITLE="Release: ${CURRENT_RELEASE}"
 if [ -n "$RELEASE_TITLE" ]; then
   TITLE="${TITLE} — ${RELEASE_TITLE}"
 fi
+# DevAudit-Installer#1283 — a declared bundle carries more than one REQ, each with its own release record and
+# approval: name them where a reader of the PR list sees them.
+for COTRACKED_REQ in $RELEASE_COTRACKED; do
+  TITLE="${TITLE} + ${COTRACKED_REQ}"
+done
 
 BODY=$(cat <<EOF
 ## Release
@@ -106,9 +125,14 @@ PR_IS_CURRENT=true
 if ! printf '%s\n%s\n' "$PR_TITLE" "$PR_BODY" | grep -q "$CURRENT_RELEASE"; then
   PR_IS_CURRENT=false
 fi
-if [ -n "$RELEASE_TITLE" ] && [ "$PR_TITLE" != "$TITLE" ]; then
+if { [ -n "$RELEASE_TITLE" ] || [ -n "$RELEASE_COTRACKED" ]; } && [ "$PR_TITLE" != "$TITLE" ]; then
   PR_IS_CURRENT=false
 fi
+for COTRACKED_REQ in $RELEASE_COTRACKED; do
+  if ! printf '%s\n%s\n' "$PR_TITLE" "$PR_BODY" | grep -q "$COTRACKED_REQ"; then
+    PR_IS_CURRENT=false
+  fi
+done
 if printf '%s' "$RELEASE_SUMMARY" | grep -q 'Bundled release context:'; then
   if ! printf '%s\n%s\n' "$PR_TITLE" "$PR_BODY" | grep -q "BUNDLED-CHANGES-${CURRENT_RELEASE}.md"; then
     PR_IS_CURRENT=false

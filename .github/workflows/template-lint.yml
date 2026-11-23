@@ -128,6 +128,8 @@ jobs:
           chmod +x sdlc/files/_common/scripts/check-operator-signoffs.sh
           chmod +x sdlc/files/_common/scripts/show-sdlc-config.sh
           bash sdlc/files/_common/scripts/generate-bundled-changes.test.sh
+          chmod +x sdlc/files/_common/scripts/prepare-release-pr.sh sdlc/files/_common/scripts/derive-release-version.sh
+          bash sdlc/files/_common/scripts/prepare-release-pr.test.sh
           bash sdlc/files/_common/scripts/check-operator-signoffs.test.sh
           bash sdlc/files/_common/scripts/show-sdlc-config.test.sh
           bash sdlc/files/_common/scripts/validate-compliance-artifacts.test.sh
