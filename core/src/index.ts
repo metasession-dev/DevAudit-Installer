@@ -37,6 +37,7 @@ export {
 } from './gap.js';
 
 export {
+  COMPLIANCE_MODES,
   CUSTOM_PRESET,
   MOMENTS,
   PRESETS,
@@ -45,8 +46,12 @@ export {
   SECOND_ADMIN_NOTE,
   SELF_APPROVAL_CLAUSES,
   SOLO_APPROVER_NOTE,
+  isComplianceMode,
   offerPresets,
+  presetForComplianceMode,
   suggestPreset,
+  type ComplianceMode,
+  type ComplianceModePreset,
   type ConfigValue,
   type OfferInput,
   type PortalApprovalPolicy,

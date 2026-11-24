@@ -323,14 +323,21 @@ check_doctor() { # <target> <dir>
 # read-only script smoke on the real history
 # ---------------------------------------------------------------------------
 check_scripts_on_history() { # <target> <dir> <release_branch>
-  local target="$1" dir="$2" rb="$3" out rc
+  local target="$1" dir="$2" rb="$3" out rc promoted=""
   out=$(isolated "$dir" bash scripts/derive-release-version.sh 2>&1); rc=$?
   if [ $rc -eq 0 ] && [ -n "$out" ]; then
     record "$target" derive-release-version PASS "$(printf '%s' "$out" | tail -1)"
   else
     record "$target" derive-release-version FAIL "exit $rc: $(printf '%s' "$out" | tail -2 | tr '\n' ' ')"
   fi
-  out=$(isolated "$dir" env CURRENT_RELEASE= SINCE_REF="origin/$rb" bash scripts/check-deferred-reqs-in-range.sh 2>&1); rc=$?
+  # DevAudit-Installer#1315, #1318 — name the release this clone would promote, so a deferred REQ that its ticket
+  # lists as an absorbed predecessor passes. The helper runs with the environment of the real `Register Release` step
+  # (integration housekeeping off, the pending-ticket fallback on): the plain helper would return a date-based
+  # housekeeping version whenever the clone's HEAD is the harness's own untagged local commit. With no derivable
+  # release the value stays empty, as before, and every deferred REQ in range counts as unlisted.
+  promoted=$(isolated "$dir" env DEVAUDIT_SKIP_INTEGRATION_HOUSEKEEPING=1 DEVAUDIT_ALLOW_PENDING_TICKET_FALLBACK=1 \
+    bash scripts/derive-release-version.sh 2>/dev/null | tail -1)
+  out=$(isolated "$dir" env CURRENT_RELEASE="$promoted" SINCE_REF="origin/$rb" bash scripts/check-deferred-reqs-in-range.sh 2>&1); rc=$?
   if [ $rc -eq 0 ]; then
     record "$target" deferral-gate-real PASS "$(printf '%s' "$out" | tail -1)"
   else
@@ -390,8 +397,10 @@ EOF"
   else
     record "$target" scenario-derive-skips FAIL "derived the deferred $D"
   fi
-  # 3. promotion gate fails while the deferred REQ ships unlisted
-  out=$(isolated "$dir" env CURRENT_RELEASE="$N" SINCE_REF="origin/$rb" bash scripts/check-deferred-reqs-in-range.sh 2>&1); rc=$?
+  # 3. promotion gate fails while the deferred REQ ships unlisted. The range starts at the clone's own HEAD from
+  # before the scenario (DevAudit-Installer#1315): a deferred REQ the consumer really has ahead of the release branch
+  # is not part of this scenario and must not decide it.
+  out=$(isolated "$dir" env CURRENT_RELEASE="$N" SINCE_REF="$base" bash scripts/check-deferred-reqs-in-range.sh 2>&1); rc=$?
   if [ $rc -ne 0 ] && printf '%s' "$out" | grep -q "$D is deferred"; then
     record "$target" scenario-gate-blocks PASS "gate fails: $D deferred and unlisted"
   else
@@ -399,7 +408,7 @@ EOF"
   fi
   # 4. ... and passes once the successor lists it as an absorbed predecessor
   isolated "$dir" sed -i "s/^- \*\*Absorbed predecessor releases:\*\* None/- **Absorbed predecessor releases:** $D/" "$P/RELEASE-TICKET-$N.md"
-  out=$(isolated "$dir" env CURRENT_RELEASE="$N" SINCE_REF="origin/$rb" bash scripts/check-deferred-reqs-in-range.sh 2>&1); rc=$?
+  out=$(isolated "$dir" env CURRENT_RELEASE="$N" SINCE_REF="$base" bash scripts/check-deferred-reqs-in-range.sh 2>&1); rc=$?
   if [ $rc -eq 0 ]; then
     record "$target" scenario-gate-allows PASS "gate passes once $N lists $D"
   else

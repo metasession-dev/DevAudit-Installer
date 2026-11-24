@@ -433,6 +433,12 @@ UPLOAD_MAX_TIME_SECONDS=${UPLOAD_MAX_TIME_SECONDS:-120}
 # the multipart POST. Avoids the portal's FormData body parser limit.
 # 25MB = 26214400 bytes.
 PRESIGNED_THRESHOLD_BYTES=${PRESIGNED_THRESHOLD:-26214400}
+# DevAudit-Installer#1275 — the portal's multipart upload accepts at most
+# 25 MB (its evidence validator). A file above this can only go through the
+# presigned flow, so a presign answer without a URL for such a file is a hard
+# failure, never a fallback to a multipart POST that can only end in a 413.
+# Fixed on purpose: PRESIGNED_THRESHOLD may be lowered, this may not.
+MULTIPART_MAX_BYTES=26214400
 PRESIGNED_MAX_ATTEMPTS=${PRESIGNED_MAX_ATTEMPTS:-3}
 PRESIGNED_UPLOAD_MAX_TIME_SECONDS=${PRESIGNED_UPLOAD_MAX_TIME_SECONDS:-300}
 
@@ -511,14 +517,49 @@ upload_presigned() {
     if [ "$curl_exit" -eq 0 ] && [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
       upload_url=$(jq -r '.uploadUrl // empty' "$resp_body" 2>/dev/null || true)
       evidence_id=$(jq -r '.evidenceId // empty' "$resp_body" 2>/dev/null || true)
-      rm -f "$resp_body"
       if [ -n "$upload_url" ] && [ -n "$evidence_id" ] && [ "$upload_url" != "null" ] && [ "$evidence_id" != "null" ]; then
+        rm -f "$resp_body"
         break
       fi
-      # Portal responded 2xx but didn't return presigned URL fields —
-      # presigned URL flow not configured. Fall back to multipart.
-      echo -n "(portal did not return presigned URL, falling back to multipart) "
+      # Portal responded 2xx but didn't return presigned URL fields. Show
+      # what it did answer (#1271: the response was never printed, so the
+      # cause could not be told from the log).
+      local no_url_excerpt=""
+      [ -s "$resp_body" ] && no_url_excerpt=$(head -c 500 "$resp_body")
+      rm -f "$resp_body"
+      # DevAudit-Installer#1275 — above the multipart limit there is nothing
+      # to fall back to: a multipart POST can only end in a 413.
+      if [ "$file_size" -gt "$MULTIPART_MAX_BYTES" ]; then
+        echo -n "(portal returned no presigned URL for a ${file_size}-byte file that cannot go multipart; check DEVAUDIT_BASE_URL answers JSON. Response: ${no_url_excerpt}) "
+        return 1
+      fi
+      # Presigned flow not available for this file: fall back to multipart.
+      echo -n "(portal did not return presigned URL, falling back to multipart. Response: ${no_url_excerpt}) "
       return 255
+    fi
+    # DevAudit-Installer#1275 — the portal refuses a presign with a code.
+    # 413 file_too_large (carries maxBytes) and 501 presign_unavailable are
+    # never retriable.
+    if [ "$curl_exit" -eq 0 ] && { [ "$http_code" = "413" ] || [ "$http_code" = "501" ]; }; then
+      local refusal_code refusal_max refusal_text
+      refusal_code=$(jq -r '.code // empty' "$resp_body" 2>/dev/null || true)
+      refusal_max=$(jq -r '.maxBytes // empty' "$resp_body" 2>/dev/null || true)
+      refusal_text=$(head -c 500 "$resp_body" 2>/dev/null || true)
+      rm -f "$resp_body"
+      if [ "$http_code" = "413" ] && [ "$refusal_code" = "file_too_large" ]; then
+        echo -n "(report is ${file_size} bytes, portal cap is ${refusal_max:-unknown} bytes; trim the Playwright report (drop traces/videos, keep report.json) or split it) "
+        return 2
+      fi
+      if [ "$http_code" = "501" ]; then
+        echo -n "(step 1: HTTP 501 presign_unavailable — ${refusal_text}) "
+        # A file the multipart path can still carry may use it.
+        if [ "$file_size" -le "$MULTIPART_MAX_BYTES" ]; then
+          return 255
+        fi
+        return 2
+      fi
+      echo -n "(step 1 failed: HTTP ${http_code} — ${refusal_text}) "
+      return 2
     fi
     if [ "$curl_exit" -ne 0 ] || [ "$http_code" = "429" ] || { [ "$http_code" -ge 500 ] && [ "$http_code" -lt 600 ]; }; then
       if [ "$attempt" -lt "$PRESIGNED_MAX_ATTEMPTS" ]; then
@@ -632,13 +673,20 @@ for FILE in "${FILES[@]}"; do
       SUCCEEDED=$((SUCCEEDED + 1))
       TOTAL_SIZE=$((TOTAL_SIZE + FILE_SIZE))
       continue
+    elif [ "$PRESIGNED_RESULT" -eq 2 ]; then
+      # DevAudit-Installer#1275 — the portal refused this file (file_too_large,
+      # or presign unavailable for a file multipart cannot carry). The reason
+      # is printed above; do not retry and do not try multipart.
+      echo "FAILED (refused by the portal; not retried)"
+      FAILED=$((FAILED + 1))
+      continue
     elif [ "$PRESIGNED_RESULT" -ne 255 ]; then
       echo "FAILED (presigned upload after ${PRESIGNED_MAX_ATTEMPTS} attempts)"
       FAILED=$((FAILED + 1))
       continue
     fi
-    # Result 255 — portal doesn't support presigned URLs, fall through
-    # to the existing multipart flow.
+    # Result 255 — the portal did not presign and the file is within the
+    # multipart limit, so fall through to the multipart flow.
   fi
 
   # `-L` follows 3xx redirects (devaudit-installer#143). The portal host

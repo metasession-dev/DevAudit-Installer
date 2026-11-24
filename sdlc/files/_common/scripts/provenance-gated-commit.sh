@@ -12,24 +12,35 @@
 #       uses), or "<head_sha> docs-only" when every commit is docs-only.
 #       PATHS_IGNORE: newline-separated list; lines may be YAML list items
 #       (`- 'docs/**'`) as rendered from the {{PATHS_IGNORE_LIST}} token.
+#   pr-docs-only   (changed files on standard input, one per line)
+#       Print "docs-only" when every file is covered by PATHS_IGNORE, else "code"
+#       (an empty list, or one of 3000 files or more, is "code"). Used by
+#       ci-status-fallback.yml for pull requests (DevAudit-Installer#1290).
 #   real-ci-success <sha> <current_run_id>
 #       Exit 0 only if <sha> has a completed+successful check-run named
 #       $QG_NAME (default "Quality Gates") whose workflow run path is
 #       $CI_WORKFLOW_PATH (default .github/workflows/ci.yml), ignoring the
 #       current run. Requires GITHUB_REPOSITORY (or REPO) and the gh CLI.
+#       When $QG_REUSED_NAME is set (ci.yml reuses a pull request run's result,
+#       DevAudit-Installer#1298), a success of the check with that name counts
+#       too: on such a merge the heavy Quality Gates job is skipped and a light job
+#       with that name reports the result.
 #   any-success <sha> <current_run_id>
 #       Like real-ci-success but accepts any workflow (all-docs ranges).
 set -euo pipefail
 
 QG_NAME="${QG_NAME:-Quality Gates}"
+QG_REUSED_NAME="${QG_REUSED_NAME:-}"
 CI_WORKFLOW_PATH="${CI_WORKFLOW_PATH:-.github/workflows/ci.yml}"
 REPO="${REPO:-${GITHUB_REPOSITORY:-}}"
 
-# Does PATH $1 match any ignore pattern? Semantics follow GitHub paths-ignore:
+# Are ALL the given paths covered by PATHS_IGNORE? Semantics follow GitHub paths-ignore:
 # `*` = any chars except `/`, `**` = any chars incl. `/`, `?` = one non-`/`
-# char, `[...]` character class, leading `!` re-includes.
-path_ignored() {
-  PATHS_IGNORE="${PATHS_IGNORE:-}" python3 -I - "$1" <<'PY'
+# char, `[...]` character class, leading `!` re-includes. Exit 0 when every
+# path is ignored, 1 when at least one is not. One path as an argument, or `-`
+# to read newline-separated paths from standard input (one process for a whole
+# pull request instead of one per file, DevAudit-Installer#1290).
+read -r -d '' IGNORE_PY <<'PY' || true
 import os, re, sys
 
 def to_regex(glob):
@@ -49,8 +60,7 @@ def to_regex(glob):
         else: out += re.escape(c); i += 1
     return re.compile("^" + out + "$")
 
-path = sys.argv[1]
-ignored = False
+rules = []
 for line in os.environ["PATHS_IGNORE"].splitlines():
     p = line.strip()
     if p.startswith("- "): p = p[2:].strip()
@@ -58,10 +68,23 @@ for line in os.environ["PATHS_IGNORE"].splitlines():
     if not p or p.startswith("#"): continue
     neg = p.startswith("!")
     if neg: p = p[1:]
-    if to_regex(p).match(path):
-        ignored = not neg
-sys.exit(0 if ignored else 1)
+    rules.append((neg, to_regex(p)))
+
+args = sys.argv[1:]
+paths = [l.rstrip("\n") for l in sys.stdin] if args == ["-"] else args
+for path in paths:
+    if not path: continue
+    ignored = False
+    for neg, rx in rules:
+        if rx.match(path):
+            ignored = not neg
+    if not ignored:
+        sys.exit(1)
+sys.exit(0)
 PY
+
+path_ignored() {
+  PATHS_IGNORE="${PATHS_IGNORE:-}" python3 -I -c "$IGNORE_PY" "$1"
 }
 
 commit_has_code() {
@@ -89,10 +112,17 @@ cmd_gated_commit() {
 # Print details_url of each completed+successful $QG_NAME check-run on $1,
 # excluding the current run.
 successful_check_urls() {
-  local sha="$1" current="$2"
-  gh api "/repos/${REPO}/commits/${sha}/check-runs?name=$(python3 -I -c 'import sys,urllib.parse;print(urllib.parse.quote(sys.argv[1]))' "$QG_NAME")&per_page=100" \
+  local sha="$1" current="$2" names_filter query
+  names_filter=".name == \"${QG_NAME}\""
+  query="name=$(python3 -I -c 'import sys,urllib.parse;print(urllib.parse.quote(sys.argv[1]))' "$QG_NAME")&per_page=100"
+  if [ -n "$QG_REUSED_NAME" ]; then
+    # Two names count, so the single-name query filter would hide the second.
+    names_filter="(${names_filter} or .name == \"${QG_REUSED_NAME}\")"
+    query="per_page=100"
+  fi
+  gh api "/repos/${REPO}/commits/${sha}/check-runs?${query}" \
     --jq ".check_runs[]
-      | select(.name == \"${QG_NAME}\" and .status == \"completed\" and .conclusion == \"success\")
+      | select(${names_filter} and .status == \"completed\" and .conclusion == \"success\")
       | select((.details_url // \"\") | contains(\"/actions/runs/${current}/\") or endswith(\"/actions/runs/${current}\") | not)
       | (.details_url // \"\")"
 }
@@ -118,9 +148,35 @@ cmd_success() {
   return 1
 }
 
+# DevAudit-Installer#1290 — classify a pull request from the list of its changed files (newline-separated on
+# standard input, as `gh api repos/<repo>/pulls/<n>/files --paginate --jq '.[].filename'` prints them): print
+# `docs-only` when every file is covered by PATHS_IGNORE, else `code`. It fails safe: an empty list, or one at the
+# 3000-file limit of the files API (the list may be cut short), is `code`, so nothing is skipped on a guess.
+cmd_pr_docs_only() {
+  local files count
+  files="$(cat)"
+  count="$(printf '%s' "$files" | grep -c . || true)"
+  if [ "$count" -eq 0 ] || [ "$count" -ge 3000 ]; then
+    echo code
+    return 0
+  fi
+  # DevAudit-Installer#1299 — a pull request that edits a workflow always runs the gates, whatever PATHS_IGNORE says.
+  # Only here: the push-side `gated-commit` keeps its rules, because ci.yml's push filter is unchanged.
+  if printf '%s\n' "$files" | grep -q '^\.github/workflows/'; then
+    echo code
+    return 0
+  fi
+  if printf '%s\n' "$files" | PATHS_IGNORE="${PATHS_IGNORE:-}" python3 -I -c "$IGNORE_PY" -; then
+    echo docs-only
+  else
+    echo code
+  fi
+}
+
 case "${1:-}" in
+  pr-docs-only) [ $# -eq 1 ] || { echo "usage: <file list> | $0 pr-docs-only" >&2; exit 2; }; cmd_pr_docs_only ;;
   gated-commit) [ $# -eq 3 ] || { echo "usage: $0 gated-commit <base_ref> <head_sha>" >&2; exit 2; }; cmd_gated_commit "$2" "$3" ;;
   real-ci-success) [ $# -eq 3 ] || { echo "usage: $0 real-ci-success <sha> <current_run_id>" >&2; exit 2; }; cmd_success real "$2" "$3" ;;
   any-success) [ $# -eq 3 ] || { echo "usage: $0 any-success <sha> <current_run_id>" >&2; exit 2; }; cmd_success any "$2" "$3" ;;
-  *) echo "usage: $0 {gated-commit|real-ci-success|any-success} ..." >&2; exit 2 ;;
+  *) echo "usage: $0 {gated-commit|real-ci-success|any-success|pr-docs-only} ..." >&2; exit 2 ;;
 esac

@@ -2,12 +2,28 @@ import { promises as fs } from 'node:fs';
 import { join } from 'node:path';
 import { readSdlcConfig, resolveTargets, type Target } from '../lib/sdlc-config.js';
 import { deleteConfigPath, setConfigPath } from '../lib/config-path.js';
+import { DELIVERY_DEFAULT_MAX_MINUTES, DELIVERY_DEFAULT_MAX_TURNS } from '../lib/delivery.js';
 import type { InstallContext, InstallPlan, StepResult } from './types.js';
 
-const NODE_PATHS_IGNORE: readonly string[] = [
+/**
+ * Paths that are documentation or compliance records, for a new project (DevAudit-Installer#1297): the same
+ * set `scripts/classify-pr-attribution.sh` treats as documentation, so the CI filter and the attribution
+ * classifier agree. A bare star-dot-md pattern matches only the repository root in a GitHub path filter, so
+ * nested markdown needs the double-star form too. A test (`cli/test/default-paths-ignore.test.ts`) keeps the
+ * two lists in step.
+ */
+const DOC_PATHS_IGNORE: readonly string[] = [
   'SDLC/**',
   'compliance/**',
+  'docs/**',
+  '.devaudit/**',
+  '.github/ISSUE_TEMPLATE/**',
   '*.md',
+  '**/*.md',
+];
+
+const NODE_PATHS_IGNORE: readonly string[] = [
+  ...DOC_PATHS_IGNORE,
   '.cursorrules',
   '.windsurfrules',
   'sdlc-config.json',
@@ -18,9 +34,7 @@ const NODE_PATHS_IGNORE: readonly string[] = [
 ];
 
 const PYTHON_PATHS_IGNORE: readonly string[] = [
-  'SDLC/**',
-  'compliance/**',
-  '*.md',
+  ...DOC_PATHS_IGNORE,
   '.cursorrules',
   '.windsurfrules',
   'sdlc-config.json',
@@ -113,6 +127,10 @@ export async function writeSdlcConfig(ctx: InstallContext, plan: InstallPlan): P
     e2e_projects: [],
     e2e_env: {},
     paths_ignore: pathsIgnore,
+    // DevAudit-Installer#1297 — a NEW project skips the full gates for a pull request that changes only the
+    // paths above (ci-status-fallback.yml reports the required status). Written only when there is no
+    // configuration yet: a project already onboarded keeps its behaviour until it opts in.
+    ...(existing ? {} : { paths_ignore_pull_request: true }),
     uat: { enabled: false, url: '', required_risk_classes: ['payment', 'destructive_migration', 'realtime'] },
     approval: { mode: 'dual_actor', auto_low_risk_threshold: 'LOW' },
     production_review: { enabled: true, terminal_status: 'prod_review' },
@@ -156,6 +174,20 @@ export async function writeSdlcConfig(ctx: InstallContext, plan: InstallPlan): P
   if (plan.onboarding) {
     for (const key of plan.onboarding.removeKeys) config = deleteConfigPath(config, key);
     for (const [key, value] of Object.entries(plan.onboarding.config)) config = setConfigPath(config, key, value);
+  }
+  // DevAudit Delivery (DevAudit-Installer#1272): `install --delivery` records that the repository accepts delivery
+  // runs; limits already set (`configure set delivery.max_turns`) are kept.
+  if (ctx.delivery) {
+    const current = (config['delivery'] ?? {}) as { max_turns?: number; max_minutes?: number; github_token_source?: string; agent_git_name?: string };
+    // #1286: a machine user's token in the environment means the pilot path; otherwise the portal's GitHub App (kept when already chosen).
+    const source = ctx.deliveryAgentGithubToken ? 'secret' : (current.github_token_source ?? 'app');
+    config['delivery'] = {
+      ...current,
+      enabled: true,
+      max_turns: current.max_turns ?? DELIVERY_DEFAULT_MAX_TURNS,
+      max_minutes: current.max_minutes ?? DELIVERY_DEFAULT_MAX_MINUTES,
+      github_token_source: source,
+    };
   }
   if (isNewTarget && ctx.addTarget) {
     // Keep the other target(s) intact under `targets`; the flat top-level

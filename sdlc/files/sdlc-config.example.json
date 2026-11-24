@@ -65,6 +65,10 @@
 
   "_comment_e2e_concurrency_cancel_in_progress": "Optional. Only used when e2e_concurrency_group is set; default false. Set true to restore cancel-in-progress with the fixed group (cancels the running run when a newer one starts - risky mid-mutation on a shared backend).",
   "e2e_concurrency_cancel_in_progress": false,
+  "_comment_e2e_report_include_traces": "Optional (DevAudit-Installer#1275). The Playwright report zip uploaded as evidence leaves out traces and videos by default (false), so it stays under the portal's upload cap. Set true to keep them (the zip can then be hundreds of MB and the portal refuses an upload over its cap). Set it with `devaudit configure set e2e_report_include_traces true`.",
+  "e2e_report_include_traces": false,
+  "_comment_delivery": "Optional (DevAudit-Installer#1272). DevAudit Delivery: the portal dispatches a headless sdlc-implementer session through .github/workflows/devaudit-delivery.yml. enabled false (the default) generates nothing and removes a generated copy; true generates the workflow and .devaudit/delivery-prompt.md. max_turns (10-1000, default 200) is the session's --max-turns; max_minutes (10-360, default 90) is the job's timeout-minutes. Set up with `devaudit install --delivery`; change with `devaudit configure set delivery.max_turns 150`. See docs/delivery-runs.md.",
+  "delivery": { "enabled": false, "max_turns": 200, "max_minutes": 90 },
 
   "_comment_e2e_regression_timeout_minutes": "Optional. Job timeout in minutes for e2e-regression.yml (default 55). Raise it if the full regression legitimately takes longer; a hook script cannot raise the job-level ceiling.",
   "e2e_regression_timeout_minutes": 55,
@@ -84,11 +88,19 @@
 
   "_comment_e2e_data": "Optional (DevAudit-Installer#1116, test data). Where the end-to-end tests get their data, and how it is prepared. e2e_data_isolation: none, ephemeral (a fresh database per run), shared_serialised (a shared environment only these tests use, one run at a time) or shared (a shared environment others also use); unset keeps today's behaviour. e2e_seed_paths: files or folders that hold the seed. e2e_reset_command / e2e_preflight_command / e2e_leak_check_command: commands the project owns (reset the data, fail when the seed fixtures are absent, print the number of rows left behind). e2e_max_skipped: most skipped tests a run may have. feature_e2e_projects: Playwright projects the feature run uses (unset runs all). e2e_seed_command above keeps its meaning. These are defined now and given behaviour by a later work package; none is listed below. Set them with `devaudit configure set`.",
 
+  "_comment_ai_use_note": "Optional (DevAudit-Installer#1301). What validate-compliance-artifacts.sh does when a REQ has commits written by an AI agent (an Sdlc-Implementer-Sentinel trailer, or a Co-Authored-By trailer naming an AI tool) and no compliance/evidence/<REQ>/ai-use-note.md: warn (the default), required (fail Compliance Validation) or off. Set it with `devaudit configure set ai_use_note required`.",
+  "_comment_reuse_pull_request_gates": "Optional (DevAudit-Installer#1298, #1311). Off unless true (opt-in until the reuse has been seen working on GitHub). true: a merge into the integration branch reuses the pull request run's quality-gate result when the merged tree is the tree that run tested; any doubt runs the gates in full. false or absent: the gates run on the pull request and again on the merge, as before. Set it with `devaudit configure set reuse_pull_request_gates true`, then `devaudit update`. See docs/compliance-gates.md.",
+  "_comment_paths_ignore_pull_request": "Optional (DevAudit-Installer#1290, #1297). A new install writes true; an onboarded project keeps false until it opts in. false: every pull request into the integration branch runs the full Quality Gates. true: paths_ignore also applies to pull requests; a pull request that changes only those paths (and sdlc-config.json) does not start ci.yml, and ci-status-fallback.yml reports the required Quality Gates status for it, under that name only for such a pull request. Set it with `devaudit configure set paths_ignore_pull_request true`, then `devaudit update`. See docs/compliance-gates.md.",
+  "paths_ignore_pull_request": false,
   "paths_ignore": [
     ".github/workflows/**",
     "SDLC/**",
     "compliance/**",
+    "docs/**",
+    ".devaudit/**",
+    ".github/ISSUE_TEMPLATE/**",
     "*.md",
+    "**/*.md",
     ".cursorrules",
     ".windsurfrules",
     "sdlc-config.json",

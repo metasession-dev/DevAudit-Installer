@@ -1002,6 +1002,134 @@ assert_grep "sign-offs reported complete" 'OK: Stage 3 operator sign-offs comple
 assert_exit "validator exits 0 with a completed sign-off" 0
 cd "$WORKDIR"
 
+# --- cases 14-: ai-use-note.md must exist when an AI agent wrote the REQ's commits (DevAudit-Installer#1301) ---
+
+# A fixture whose feature commit is written by an agent, with REQ $1 tracked in the RTM and no ai-use-note.md.
+make_ai_fixture() {
+  local dir="$1" req="$2" trailers="$3"
+  make_fixture "$dir" "Ref: $req
+$trailers"
+  {
+    echo '# RTM'
+    echo
+    echo '| ID | Description | Status |'
+    echo '| --- | --- | --- |'
+    echo "| $req | AI authored | TESTED - PENDING SIGN-OFF |"
+  } > compliance/RTM.md
+  mkdir -p "compliance/evidence/$req"
+  git add . && git commit -q --amend --no-edit
+}
+SENTINEL='Sdlc-Implementer-Sentinel: {"phase":2}'
+CLAUDE_TRAILER='Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>'
+NOTE_WARNING='REQ-360 has commits written by an AI agent .*ai-use-note.md is missing'
+
+echo "Case 14: agent commits with no ai-use-note.md: a warning by default, not an error"
+make_ai_fixture "$WORKDIR/case14" REQ-360 "$SENTINEL"
+run_validator
+assert_grep "sentinel commit without a note is warned about" "WARNING: $NOTE_WARNING" 1
+assert_grep "the warning is not an error" "ERROR: REQ-360 has commits written by an AI agent" 0
+cd "$WORKDIR"
+
+echo "Case 15: a Co-Authored-By AI trailer is the same signal"
+make_ai_fixture "$WORKDIR/case15" REQ-360 "$CLAUDE_TRAILER"
+run_validator
+assert_grep "AI co-author trailer without a note is warned about" "WARNING: $NOTE_WARNING" 1
+cd "$WORKDIR"
+
+echo "Case 16: ai_use_note required makes the missing note an error"
+make_ai_fixture "$WORKDIR/case16" REQ-360 "$SENTINEL"
+echo '{"ai_use_note":"required"}' > sdlc-config.json
+git add . && git commit -q --amend --no-edit
+run_validator
+assert_grep "required: the missing note is an ERROR" "ERROR: REQ-360 has commits written by an AI agent .*ai-use-note.md is missing \(ai_use_note: required\)" 1
+assert_exit "required: the validator exits 1" 1
+cd "$WORKDIR"
+
+echo "Case 17: the note present: nothing is said"
+make_ai_fixture "$WORKDIR/case17" REQ-360 "$SENTINEL"
+echo '{"ai_use_note":"required"}' > sdlc-config.json
+printf '# REQ-360 AI use note\n\n**Tool:** Claude Code\n' > compliance/evidence/REQ-360/ai-use-note.md
+git add . && git commit -q --amend --no-edit
+run_validator
+assert_grep "a present note is not reported missing" "ai-use-note.md is missing" 0
+cd "$WORKDIR"
+
+echo "Case 18: no AI signal: nothing is said, even when required"
+make_ai_fixture "$WORKDIR/case18" REQ-360 "Co-Authored-By: Alice Example <alice@example.com>"
+echo '{"ai_use_note":"required"}' > sdlc-config.json
+git add . && git commit -q --amend --no-edit
+run_validator
+assert_grep "a human co-author is not an AI signal" "ai-use-note.md is missing" 0
+cd "$WORKDIR"
+
+echo "Case 19: ai_use_note off skips the check; an unknown value falls back to warn"
+make_ai_fixture "$WORKDIR/case19" REQ-360 "$SENTINEL"
+echo '{"ai_use_note":"off"}' > sdlc-config.json
+git add . && git commit -q --amend --no-edit
+run_validator
+assert_grep "off: no warning" "ai-use-note.md is missing" 0
+echo '{"ai_use_note":"loudly"}' > sdlc-config.json
+git add . && git commit -q --amend --no-edit
+run_validator
+assert_grep "an unknown value is treated as warn" "WARNING: $NOTE_WARNING" 1
+cd "$WORKDIR"
+
+echo "Case 20: the signal must be on a commit of this REQ"
+make_ai_fixture "$WORKDIR/case20" REQ-361 "$SENTINEL"
+git checkout -q base
+git checkout -q feature
+echo "other" > other.txt
+git add other.txt && git commit -q -m "chore: human work
+
+Ref: REQ-362"
+{
+  echo '# RTM'
+  echo
+  echo '| ID | Description | Status |'
+  echo '| --- | --- | --- |'
+  echo '| REQ-361 | AI authored | TESTED - PENDING SIGN-OFF |'
+  echo '| REQ-362 | Human authored | TESTED - PENDING SIGN-OFF |'
+} > compliance/RTM.md
+mkdir -p compliance/evidence/REQ-362
+git add . && git commit -q -m "docs: rtm"
+run_validator
+assert_grep "the agent's REQ is warned about" "WARNING: REQ-361 has commits written by an AI agent" 1
+assert_grep "the human's REQ is not" "WARNING: REQ-362 has commits written by an AI agent" 0
+cd "$WORKDIR"
+
+echo "Case 21: REQ-36 is not matched by commits of REQ-360 (whole id only)"
+make_ai_fixture "$WORKDIR/case21" REQ-360 "$SENTINEL"
+{
+  echo '# RTM'
+  echo
+  echo '| ID | Description | Status |'
+  echo '| --- | --- | --- |'
+  echo '| REQ-360 | AI authored | TESTED - PENDING SIGN-OFF |'
+  echo '| REQ-361 | Human, ref in subject only | TESTED - PENDING SIGN-OFF |'
+} > compliance/RTM.md
+mkdir -p compliance/evidence/REQ-361
+git add . && git commit -q -m "docs: rtm
+
+Ref: REQ-361"
+run_validator
+assert_grep "the id match is exact" "WARNING: REQ-361 has commits written by an AI agent" 0
+cd "$WORKDIR"
+
+echo "Case 22: a released REQ is not re-checked"
+make_ai_fixture "$WORKDIR/case22" REQ-360 "$SENTINEL"
+{
+  echo '# RTM'
+  echo
+  echo '| ID | Description | Status |'
+  echo '| --- | --- | --- |'
+  echo '| REQ-360 | AI authored | APPROVED - DEPLOYED |'
+} > compliance/RTM.md
+echo '{"ai_use_note":"required"}' > sdlc-config.json
+git add . && git commit -q --amend --no-edit
+run_validator
+assert_grep "a released REQ is not asked for a note" "ai-use-note.md is missing" 0
+cd "$WORKDIR"
+
 echo
 echo "=== validate-compliance-artifacts.test.sh: $PASS passed, $FAIL failed ==="
 [ "$FAIL" -eq 0 ]

@@ -6,6 +6,14 @@ import { resolveTargets, type Target } from '../lib/sdlc-config.js';
 import { loadHostAdapter } from '../lib/adapter.js';
 import { preflightArg, preflightValues, type EnvMap } from '../lib/config-values.js';
 import { writeManaged, removeManaged } from './write-managed.js';
+import {
+  DELIVERY_CLAUDE_CODE_VERSION,
+  DELIVERY_DEFAULT_MAX_MINUTES,
+  DELIVERY_DEFAULT_MAX_TURNS,
+  DELIVERY_PROMPT_FILE,
+  DELIVERY_PROMPT_TEMPLATE,
+} from '../lib/delivery.js';
+import { CLI_VERSION } from '../lib/version.js';
 import type { SyncContext, SectionResult } from './types.js';
 
 /** Templates that have a `test_runner: pytest` variant under sdlc/files/ci/runners/pytest/ (#1060). */
@@ -34,6 +42,9 @@ const CI_TEMPLATES = [
   // gating. Conditionally generated only when e2e_regression_enabled —
   // see the syncCiTemplates loop below.
   'e2e-regression.yml.template',
+  // DevAudit-Installer#1272: the workflow the portal dispatches a headless delivery run through.
+  // Conditionally generated only when `delivery.enabled` (first target only) — see the loop below.
+  'devaudit-delivery.yml.template',
   'close-out-release.yml.template',
   'close-out-completion.yml.template',
   // devaudit-installer#786: scheduled safety net — catches a release
@@ -126,6 +137,9 @@ interface SdlcConfig {
   // CI_TEMPLATES entry this one is conditionally generated.
   // DevAudit-Installer#821.
   readonly e2e_regression_enabled?: boolean;
+  // DevAudit-Installer#1272: DevAudit Delivery. Generates devaudit-delivery.yml (and
+  // .devaudit/delivery-prompt.md) when `delivery.enabled`; removed otherwise.
+  readonly delivery?: { readonly enabled?: boolean; readonly max_turns?: number; readonly max_minutes?: number };
   // Job-level timeout-minutes for e2e-regression.yml. Defaults to 55 when
   // absent. Generic operational budget, not sharding-specific tuning — the
   // GitHub Actions job timeout is evaluated before any step (including a
@@ -156,6 +170,26 @@ interface SdlcConfig {
   readonly post_deploy_full_regression?: boolean;
   readonly scheduled_full_regression?: string;
   readonly paths_ignore?: readonly string[];
+  /**
+   * DevAudit-Installer#1290 — also apply `paths_ignore` to the `pull_request` trigger of ci.yml, and give the
+   * docs-only pull request the passing `Quality Gates` status from ci-status-fallback.yml. Absent or false keeps
+   * today's behaviour: a pull request always runs the full gates.
+   */
+  readonly paths_ignore_pull_request?: boolean;
+  /**
+   * DevAudit-Installer#1297 — the report-only authenticated E2E step of ci.yml (the seed step and the step that
+   * runs `e2e_projects`). `false` removes both; absent or true keeps them (they still render only when
+   * `e2e_projects` or `e2e_seed_command` is set).
+   */
+  readonly report_only_e2e_enabled?: boolean;
+  /**
+   * DevAudit-Installer#1298 — reuse the pull request run's quality-gate result on the merge when the merged tree is
+   * the tree that run tested. Opt-in (DevAudit-Installer#1311): on only when `true`; absent or `false` generates exactly
+   * the workflows of before.
+   */
+  readonly reuse_pull_request_gates?: boolean;
+  /** Playwright projects the report-only step runs; absent means `e2e_projects`. An empty list runs none. */
+  readonly report_only_e2e_projects?: readonly string[];
   /** See #689/#690 — when present, sync runs once per target instead of once for the flat config. */
   readonly targets?: readonly Target[];
 }
@@ -196,9 +230,12 @@ function namespaceForTarget(outputName: string, content: string, target: Target,
   namespacedContent = namespacedContent.replace(/^name: (.+)$/m, (m: string, title: string) =>
     alreadySuffixed(title) ? m : `name: ${title}${suffix}`,
   );
-  // Job-level `name:` (4-space indent, not a `- name:` step entry).
+  // Job-level `name:` (4-space indent, not a `- name:` step entry). A name that is an expression
+  // (`${{ needs.classify.outputs.gate_name }}` in ci-status-fallback.yml) is left alone: its value is a
+  // string of this file, already namespaced above, and a second suffix would make it miss the required
+  // check name (DevAudit-Installer#1299).
   namespacedContent = namespacedContent.replace(/^ {4}name: (.+)$/gm, (m: string, title: string) =>
-    alreadySuffixed(title) ? m : `    name: ${title}${suffix}`,
+    alreadySuffixed(title) || title.includes('${{') ? m : `    name: ${title}${suffix}`,
   );
   return { outputName: namespacedName, content: namespacedContent };
 }
@@ -619,7 +656,12 @@ function buildE2eTestStep(cfg: SdlcConfig): string {
  * e2e_seed_command — so existing projects regenerate to an identical ci.yml.
  */
 function buildAuthenticatedE2eStep(cfg: SdlcConfig): string {
-  const projects = cfg.e2e_projects ?? [];
+  // DevAudit-Installer#1297 — the step can be turned off without losing `e2e_projects`, and can run fewer
+  // projects than the list the rest of the configuration uses. It runs on every pull request and every merge
+  // (one run per event, never only one of them), so the reuse of a pull request's gate result on a merge
+  // (#1298) always finds its results.
+  if (cfg.report_only_e2e_enabled === false) return '';
+  const projects = cfg.report_only_e2e_projects ?? cfg.e2e_projects ?? [];
   const seed = (cfg.e2e_seed_command ?? '').trim();
   if (projects.length === 0 && !seed) return '';
   const env = stepEnv(cfg, cfg.e2e_env ?? {});
@@ -818,6 +860,358 @@ function buildFeatureE2eTestStep(cfg: SdlcConfig): string {
  * captured via `.devaudit-patches/`); promoted here so it's no longer a
  * fork any resync can wipe out.
  */
+/**
+ * DevAudit-Installer#1290 — the `pull_request` trigger of ci-status-fallback.yml, present only with
+ * `paths_ignore_pull_request`: it fires on exactly the paths ci.yml's pull_request filter ignores, so a pull
+ * request that changes only those paths gets a passing `Quality Gates` status. Empty (the line is dropped) otherwise.
+ */
+function buildFallbackPullRequestTrigger(cfg: SdlcConfig, patterns: readonly string[], dropped: readonly string[] = []): string {
+  if (cfg.paths_ignore_pull_request !== true) return '';
+  return [
+    '  pull_request:',
+    `    branches: [${cfg.integration_branch ?? 'develop'}]`,
+    ...(dropped.length > 0 ? [`    # Not applied to pull requests, because they match workflow files (#1299): ${dropped.map((p) => `'${p}'`).join(', ')}`] : []),
+    '    paths:',
+    ...patterns.map((p) => `      - '${p}'`),
+  ].join('\n');
+}
+
+/** The jobs and steps of ci.yml that let a merge reuse a pull request run's result (DevAudit-Installer#1298). */
+export interface ReuseTokens {
+  readonly inline: Record<string, string>;
+  readonly blocks: Record<string, string>;
+}
+
+const EMPTY_REUSE_TOKENS: ReuseTokens = {
+  inline: {
+    REUSE_FIND_NEEDS: '',
+    REUSE_GATES_IF: '',
+    REUSE_EVIDENCE_NEEDS: '',
+    REUSE_GATES_RESULT: 'needs.quality-gates.result',
+    REUSE_DETAILS: '',
+  },
+  blocks: {
+    REUSE_RECORD_STEPS: '',
+    REUSE_JOBS: '',
+    REUSE_EVIDENCE_PERMISSIONS: '',
+    REUSE_DOWNLOAD_STEPS: '',
+    REUSE_DOWNLOAD_IF: '',
+    REUSE_PY_GATES_HEAD: '',
+    REUSE_PROVENANCE_ENV: '',
+  },
+};
+
+/**
+ * `reuse_pull_request_gates` (opt-in: on only when exactly `true`, DevAudit-Installer#1311): on a push to the integration branch, `find-tested-run` decides
+ * whether the merged commit's tree is the tree a successful pull request run tested. If so a light job named
+ * `Reused Quality Gates` reports the check the release provenance needs, the heavy job is skipped, and `upload-evidence`
+ * takes the pull request run's `ci-results`. Otherwise every job runs as before. Absent or false, every token is empty
+ * and the workflow is byte for byte what it was. It is opt-in until the reuse has been seen working on GitHub.
+ */
+export function buildReuseTokens(cfg: SdlcConfig, stack: string, workingDirPrefix: string): ReuseTokens {
+  if (cfg.reuse_pull_request_gates !== true) return EMPTY_REUSE_TOKENS;
+  const python = stack === 'python';
+  const branch = cfg.integration_branch ?? 'develop';
+  const runner = resolveRunner(cfg);
+  // Where the evidence job finds gate-outcomes.json after the download (as its own upload step reads it).
+  const outcomes = python ? `${workingDirPrefix}ci-evidence/gate-outcomes.json` : 'ci-evidence/gate-outcomes.json';
+  const downloadPath = python ? '.' : 'ci-evidence/';
+
+  const recordSteps = [
+    '',
+    '      # A merge of this pull request reuses this run\'s result when the merged tree equals the tree tested here',
+    '      # (find-tested-run.sh, DevAudit-Installer#1298).',
+    '      - name: Record the tested tree',
+    "        if: always() && github.event_name == 'pull_request'",
+    '        continue-on-error: true',
+    '        run: |',
+    '          mkdir -p "$GITHUB_WORKSPACE/reuse-record"',
+    "          git rev-parse 'HEAD^{tree}' > \"$GITHUB_WORKSPACE/reuse-record/tested-tree.txt\"",
+    python
+      ? '          cp ci-evidence/gate-outcomes.json "$GITHUB_WORKSPACE/reuse-record/gate-outcomes.json"'
+      : '          cp gate-outcomes.json "$GITHUB_WORKSPACE/reuse-record/gate-outcomes.json"',
+    '      - uses: actions/upload-artifact@v7',
+    "        if: always() && github.event_name == 'pull_request'",
+    '        continue-on-error: true',
+    '        with:',
+    '          name: tested-tree',
+    '          path: reuse-record/',
+    '          retention-days: 90',
+  ].join('\n');
+
+  const jobs = [
+    '',
+    '  # ──────────────────────────────────────────────',
+    '  # Reuse the pull request run\'s result when the merged tree is the tree it tested (DevAudit-Installer#1298).',
+    '  # Any doubt means reuse=false and every job below runs as before.',
+    '  # ──────────────────────────────────────────────',
+    '  find-tested-run:',
+    '    name: Find tested run',
+    `    runs-on: ${runner}`,
+    `    if: \${{ github.event_name == 'push' && github.ref_name == '${branch}' }}`,
+    '    permissions:',
+    '      contents: read',
+    '      pull-requests: read',
+    '      actions: read',
+    '    outputs:',
+    '      reuse: ${{ steps.find.outputs.reuse }}',
+    '      reason: ${{ steps.find.outputs.reason }}',
+    '      source_run_id: ${{ steps.find.outputs.source_run_id }}',
+    '      source_pr: ${{ steps.find.outputs.source_pr }}',
+    '      tested_tree: ${{ steps.find.outputs.tested_tree }}',
+    '    steps:',
+    '      - uses: actions/checkout@v6',
+    '        with:',
+    '          sparse-checkout: scripts',
+    '      - name: Find a pull request run to reuse',
+    '        id: find',
+    '        continue-on-error: true',
+    '        env:',
+    '          GH_TOKEN: ${{ github.token }}',
+    '          REPOSITORY: ${{ github.repository }}',
+    '          SHA: ${{ github.sha }}',
+    `          INTEGRATION_BRANCH: ${branch}`,
+    '          CURRENT_RUN_ID: ${{ github.run_id }}',
+    '        run: bash scripts/find-tested-run.sh',
+    '',
+    '  # The check the release provenance needs on a reused merge: a real `ci.yml` success. It has its own name, not',
+    '  # `Quality Gates`, so a pull request run never carries a second (skipped) check with the required name; the',
+    '  # provenance check accepts this name too (QG_REUSED_NAME). The heavy job is skipped in this case.',
+    '  quality-gates-reused:',
+    '    name: Reused Quality Gates',
+    `    needs: [${python ? '' : 'register-release, '}find-tested-run]`,
+    `    if: \${{ always() && needs.find-tested-run.outputs.reuse == 'true'${python ? '' : " && needs.register-release.result == 'success'"} }}`,
+    `    runs-on: ${runner}`,
+    '    steps:',
+    "      - name: Reuse the pull request run's result",
+    '        env:',
+    '          SOURCE_RUN: ${{ needs.find-tested-run.outputs.source_run_id }}',
+    '          SOURCE_PR: ${{ needs.find-tested-run.outputs.source_pr }}',
+    '          TESTED_TREE: ${{ needs.find-tested-run.outputs.tested_tree }}',
+    '        run: |',
+    '          {',
+    '            echo "### Quality Gates reused"',
+    '            echo',
+    '            echo "The merged tree ${TESTED_TREE} is the tree that pull request #${SOURCE_PR} tested in run ${SOURCE_RUN}, which passed."',
+    '            echo "The gates were not run again; the evidence of that run is uploaded for this commit."',
+    '          } >> "$GITHUB_STEP_SUMMARY"',
+  ].join('\n');
+
+  const downloadSteps = [
+    '      - name: Download the CI gate artifacts of the pull request run (reused)',
+    "        if: needs.find-tested-run.outputs.reuse == 'true'",
+    '        uses: actions/download-artifact@v8',
+    '        with:',
+    '          name: ci-results',
+    `          path: ${downloadPath}`,
+    '          run-id: ${{ needs.find-tested-run.outputs.source_run_id }}',
+    '          github-token: ${{ github.token }}',
+    '',
+    '      - name: Note the reuse in the gate outcomes',
+    "        if: needs.find-tested-run.outputs.reuse == 'true'",
+    '        env:',
+    '          SOURCE_RUN: ${{ needs.find-tested-run.outputs.source_run_id }}',
+    '          SOURCE_PR: ${{ needs.find-tested-run.outputs.source_pr }}',
+    '          TESTED_TREE: ${{ needs.find-tested-run.outputs.tested_tree }}',
+    '        run: |',
+    `          F="${outcomes}"`,
+    '          jq --arg run "$SOURCE_RUN" --arg pr "$SOURCE_PR" --arg tree "$TESTED_TREE" \\',
+    "            '. + {reused_from_run: $run, reused_from_pr: $pr, reused_tested_tree: $tree}' \"$F\" > \"$F.tmp\"",
+    '          mv "$F.tmp" "$F"',
+    '          cat "$F"',
+    '',
+  ].join('\n');
+
+  return {
+    inline: {
+      REUSE_FIND_NEEDS: ', find-tested-run',
+      REUSE_GATES_IF: " && needs.find-tested-run.outputs.reuse != 'true'",
+      REUSE_EVIDENCE_NEEDS: ', quality-gates-reused, find-tested-run',
+      REUSE_GATES_RESULT: "needs.quality-gates-reused.result == 'success' && 'success' || needs.quality-gates.result",
+      REUSE_DETAILS:
+        ',"reusedFromRun":"${{ needs.find-tested-run.outputs.source_run_id }}","reusedFromPr":"${{ needs.find-tested-run.outputs.source_pr }}"',
+    },
+    blocks: {
+      REUSE_RECORD_STEPS: recordSteps,
+      REUSE_JOBS: jobs,
+      REUSE_EVIDENCE_PERMISSIONS: ['    permissions:', '      contents: read', '      actions: read'].join('\n'),
+      REUSE_DOWNLOAD_STEPS: downloadSteps,
+      REUSE_DOWNLOAD_IF: "        if: needs.find-tested-run.outputs.reuse != 'true'",
+      REUSE_PROVENANCE_ENV: '          QG_REUSED_NAME: Reused Quality Gates',
+      REUSE_PY_GATES_HEAD: [
+        '    needs: [find-tested-run]',
+        "    if: ${{ always() && needs.find-tested-run.outputs.reuse != 'true' }}",
+      ].join('\n'),
+    },
+  };
+}
+
+/**
+ * A GitHub path-filter glob as a regular expression, with the semantics of `paths` / `paths-ignore` (and of
+ * scripts/provenance-gated-commit.sh): `*` any characters but `/`, `**` any characters including `/`, `?` one
+ * character but `/`, `[...]` a class.
+ */
+export function globToRegex(glob: string): RegExp {
+  let out = '';
+  let i = 0;
+  while (i < glob.length) {
+    const c = glob[i]!;
+    if (glob.startsWith('**', i)) {
+      out += '.*';
+      i += 2;
+      if (glob[i] === '/') {
+        out = `${out.slice(0, -2)}(?:.*/)?`;
+        i += 1;
+      }
+    } else if (c === '*') {
+      out += '[^/]*';
+      i += 1;
+    } else if (c === '?') {
+      out += '[^/]';
+      i += 1;
+    } else if (c === '[') {
+      const j = glob.indexOf(']', i + 1);
+      if (j === -1) {
+        out += '\\[';
+        i += 1;
+      } else {
+        out += glob.slice(i, j + 1);
+        i = j + 1;
+      }
+    } else {
+      out += c.replace(/[.+^${}()|\\]/g, '\\$&');
+      i += 1;
+    }
+  }
+  return new RegExp(`^${out}$`);
+}
+
+/** Paths a workflow file can have, for telling whether a pattern would skip one. */
+const WORKFLOW_FILE_SAMPLES = ['.github/workflows/ci.yml', '.github/workflows/ci.yaml', '.github/workflows/nested/deploy.yml'];
+
+/**
+ * DevAudit-Installer#1299 — the patterns of `paths_ignore` that may be applied to a pull request: every one that
+ * does not match a workflow file. A pull request that edits a workflow must run the gates; the push filter keeps
+ * the whole list, as before. A negated pattern (`!...`) only re-includes paths and is always kept.
+ */
+export function pullRequestSafePatterns(patterns: readonly string[]): { kept: string[]; dropped: string[] } {
+  const kept: string[] = [];
+  const dropped: string[] = [];
+  for (const p of patterns) {
+    if (!p.startsWith('!') && WORKFLOW_FILE_SAMPLES.some((f) => globToRegex(p).test(f))) dropped.push(p);
+    else kept.push(p);
+  }
+  return { kept, dropped };
+}
+
+/**
+ * The jobs of ci-status-fallback.yml. Without `paths_ignore_pull_request` the one job it always had, byte for byte.
+ *
+ * With it the workflow also runs for pull requests, and the check named `Quality Gates` must come from this workflow
+ * only when the pull request is docs and compliance only. A pull request with code runs ci.yml's real gates, and a
+ * second check of the same name, even a skipped one, could be read as satisfying the required status before they
+ * finish. So a first job classifies the changed files (the same path matching as the provenance check, see
+ * scripts/provenance-gated-commit.sh) and the second job is NAMED from the answer: `Quality Gates` for a docs-only
+ * change, another name, which no branch protection requires, otherwise. A push or a manual run keeps today's
+ * unconditional `Quality Gates`. If the files cannot be listed the classify job fails and no status is reported:
+ * the pull request waits, it never passes on a guess.
+ */
+function buildFallbackJobs(cfg: SdlcConfig, patterns: readonly string[]): string {
+  const runner = resolveRunner(cfg);
+  const acknowledge = [
+    '      - name: Acknowledge docs/compliance-only commit',
+    '        run: |',
+    '          echo "Commit ${{ github.sha }} only touches docs/compliance paths."',
+    '          echo "Heavy quality-gates workflow (ci.yml) was correctly skipped."',
+    '          echo "This fallback emits the \'Quality Gates\' status so branch protection is satisfied."',
+  ];
+  if (cfg.paths_ignore_pull_request !== true) {
+    return ['jobs:', '  quality-gates:', '    name: Quality Gates', `    runs-on: ${runner}`, '    steps:', ...acknowledge].join('\n');
+  }
+  return [
+    'jobs:',
+    '  classify:',
+    '    name: Classify the change',
+    `    runs-on: ${runner}`,
+    '    outputs:',
+    '      gate_name: ${{ steps.classify.outputs.gate_name }}',
+    '    steps:',
+    '      - uses: actions/checkout@v6',
+    '        with:',
+    '          sparse-checkout: scripts',
+    '      - name: Is this change docs and compliance only?',
+    '        id: classify',
+    '        env:',
+    '          GH_TOKEN: ${{ github.token }}',
+    '          EVENT_NAME: ${{ github.event_name }}',
+    '          REPOSITORY: ${{ github.repository }}',
+    '          PR_NUMBER: ${{ github.event.pull_request.number }}',
+    '          # Same patterns as the triggers above and ci.yml\'s paths-ignore.',
+    '          PATHS_IGNORE: |',
+    ...patterns.map((p) => `            - '${p}'`),
+    '        run: |',
+    '          set -euo pipefail',
+    '          GATE_NAME="Quality Gates"',
+    '          if [ "$EVENT_NAME" = "pull_request" ]; then',
+    '            # An unreadable file list fails this job, so no status is reported: the pull request waits.',
+    '            FILES=$(gh api --paginate "repos/${REPOSITORY}/pulls/${PR_NUMBER}/files" --jq \'.[].filename\')',
+    '            KIND=$(printf \'%s\\n\' "$FILES" | bash scripts/provenance-gated-commit.sh pr-docs-only)',
+    '            COUNT=$(printf \'%s\\n\' "$FILES" | grep -c . || true)',
+    '            echo "Changed files: ${KIND} (${COUNT})"',
+    '            if [ "$KIND" != "docs-only" ]; then',
+    '              GATE_NAME="Quality Gates not reported here (this change has code: CI Pipeline reports it)"',
+    '              # GitHub path filters look at the first 300 changed files only. When those are all ignored',
+    '              # paths, ci.yml is not started for a pull request that also has code, and nothing reports',
+    '              # Quality Gates (DevAudit-Installer#1297).',
+    '              if [ "$COUNT" -gt 300 ]; then',
+    '                echo "::warning::This pull request changes ${COUNT} files and has code, but GitHub path filters look at the first 300 only. If no Quality Gates status appears, run the CI Pipeline workflow on this branch by hand (Actions, CI Pipeline, Run workflow): it reports the status for the head commit."',
+    '              fi',
+    '            fi',
+    '          fi',
+    '          echo "gate_name=${GATE_NAME}" >> "$GITHUB_OUTPUT"',
+    '',
+    '  quality-gates:',
+    '    name: ${{ needs.classify.outputs.gate_name }}',
+    '    needs: classify',
+    `    runs-on: ${runner}`,
+    '    steps:',
+    ...acknowledge,
+  ].join('\n');
+}
+
+/**
+ * Is `path` covered by `patterns` (a `paths_ignore` list), with GitHub's rules: every pattern is tried in order, a
+ * match sets "ignored", a negated pattern (`!...`) that matches clears it.
+ */
+export function pathsIgnoreCovers(patterns: readonly string[], path: string): boolean {
+  let ignored = false;
+  for (const raw of patterns) {
+    const negated = raw.startsWith('!');
+    if (globToRegex(negated ? raw.slice(1) : raw).test(path)) ignored = !negated;
+  }
+  return ignored;
+}
+
+/**
+ * The runtime setup steps of devaudit-delivery.yml (DevAudit-Installer#1272): the project's own stack, so the
+ * agent can run its tests, and Node for the Claude Code and DevAudit CLIs. A Node project's version serves both.
+ */
+function buildDeliverySetupSteps(cfg: SdlcConfig, stack: string): string {
+  const node = String(cfg.node_version ?? '').trim();
+  if (stack === 'python') {
+    const py = String(cfg.python_version ?? '').trim();
+    return [
+      '      - uses: actions/setup-node@v6',
+      '        with:',
+      "          node-version: '22'",
+      '      - uses: actions/setup-python@v6',
+      '        with:',
+      `          python-version: '${py || '3.x'}'`,
+    ].join('\n');
+  }
+  return ['      - uses: actions/setup-node@v6', '        with:', `          node-version: '${node || '22'}'`].join('\n');
+}
+
 function buildTypeCheckRun(scoped: boolean, sourceDirs: string): string {
   if (!scoped) return `        run: mypy ${sourceDirs}`;
   return [
@@ -1210,6 +1604,19 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
     }
   }
 
+  // DevAudit-Installer#1272 — devaudit-delivery.yml (and its prompt file) exist only while
+  // `delivery.enabled` is true; turning it off removes a previously generated copy.
+  const deliveryEnabled = cfg.delivery?.enabled === true;
+  if (!deliveryEnabled) {
+    for (const existing of await fs.readdir(workflowsDir).catch(() => [] as string[])) {
+      if (/^devaudit-delivery(-.+)?\.yml$/.test(existing)) {
+        recordRemoval(await removeManaged(ctx.managed!, join(workflowsDir, existing), { section: '2f' }));
+      }
+    }
+    const promptPath = join(ctx.repoRoot, DELIVERY_PROMPT_FILE);
+    if (await exists(promptPath)) recordRemoval(await removeManaged(ctx.managed!, promptPath, { section: '2f' }));
+  }
+
   // devaudit-installer#841/#1022 — reconcile-deployment.yml is the webhook-loss
   // recovery path for hosts whose adapter declares a `reconcile` capability
   // (a provider lookup script, an optional CLI, the secrets the lookup needs).
@@ -1294,6 +1701,7 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
     // example-monorepo-ui (port 3002) in a consumer.
     const e2ePort = String(target.e2e_port ?? cfg.e2e_port ?? 3000);
 
+    const reuse = buildReuseTokens(cfg, stack, workingDirPrefix);
     const tokens: Record<string, string> = {
       PROJECT_SLUG: projectSlug,
       HOST: ctx.host,
@@ -1317,6 +1725,7 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
       PYTEST_PYTHON_VERSION: String(cfg.python_version || '3.x'),
       WORKING_DIRECTORY: workingDirectory || '.',
       WORKING_DIR_PREFIX: workingDirPrefix,
+      ...reuse.inline,
       RUNNER: resolveRunner(cfg),
       CHECKOUT_CLEAN: resolveCheckoutClean(cfg),
       PLAYWRIGHT_WITH_DEPS_FLAG: resolvePlaywrightWithDeps(cfg),
@@ -1336,6 +1745,11 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
       RELEASE_GATE_PATCH_FIELD: buildReleaseGatePatchField(cfg),
       E2E_START_COMMAND: cfg.e2e_start_command,
       E2E_REGRESSION_TIMEOUT_MINUTES: String(cfg.e2e_regression_timeout_minutes ?? 55),
+      DELIVERY_MAX_MINUTES: String(cfg.delivery?.max_minutes ?? DELIVERY_DEFAULT_MAX_MINUTES),
+      DELIVERY_MAX_TURNS: String(cfg.delivery?.max_turns ?? DELIVERY_DEFAULT_MAX_TURNS),
+      DELIVERY_CLAUDE_CODE_VERSION,
+      DELIVERY_CLI_VERSION: CLI_VERSION,
+      DELIVERY_PROMPT_FILE,
       // Leading space so `npm ci{{NPM_CI_FLAGS}}` renders as plain `npm ci`
       // when unset (space-then-nothing trims to nothing) and `npm ci
       // --legacy-peer-deps` when set — never a token literally substituted
@@ -1357,8 +1771,22 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
     // when this target actually has other targets' subtrees to scope away
     // from, so single-target repos (and multi-target repos where every other
     // target has already been filtered out above) regenerate byte-identical.
-    const prPathsIgnoreBlock =
-      otherTargetDirs.length > 0 ? `    paths-ignore:\n${otherTargetDirs.map((p) => `      - '${p}'`).join('\n')}` : '';
+    // DevAudit-Installer#1290 — with `paths_ignore_pull_request`, a pull request that changes only ignored paths
+    // (and `sdlc-config.json`, as the push filter) does not start ci.yml either; ci-status-fallback.yml then reports
+    // its `Quality Gates` status. Off (the default) keeps the block above byte for byte.
+    // DevAudit-Installer#1299 — a pattern that matches a workflow file is never applied to a pull request: a pull
+    // request that edits workflows must run the gates. The push filter is unchanged.
+    const { kept: prIgnorePatterns, dropped: prDroppedPatterns } = pullRequestSafePatterns([
+      ...new Set([...(cfg.paths_ignore ?? []), ...otherTargetDirs, 'sdlc-config.json']),
+    ]);
+    const prDroppedNote = prDroppedPatterns.length > 0
+      ? `    # Not applied to pull requests, because they match workflow files (#1299): ${prDroppedPatterns.map((p) => `'${p}'`).join(', ')}\n`
+      : '';
+    const prPathsIgnoreBlock = cfg.paths_ignore_pull_request === true
+      ? `${prDroppedNote}    paths-ignore:\n${prIgnorePatterns.map((p) => `      - '${p}'`).join('\n')}`
+      : otherTargetDirs.length > 0
+        ? `    paths-ignore:\n${otherTargetDirs.map((p) => `      - '${p}'`).join('\n')}`
+        : '';
     // Same patterns as PATHS_IGNORE, indented to sit under a `run:`/env block
     // scalar in quality-gates-provenance.yml (#971) — one source of truth, so
     // provenance classifies "docs-only" exactly as ci.yml's push filter does.
@@ -1371,6 +1799,10 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
       PATHS_IGNORE: pathsIgnoreBlock,
       PATHS_IGNORE_LIST: pathsIgnoreListBlock,
       PR_PATHS_IGNORE: prPathsIgnoreBlock,
+      FALLBACK_PR_TRIGGER: buildFallbackPullRequestTrigger(cfg, prIgnorePatterns, prDroppedPatterns),
+      FALLBACK_PR_PERMISSION: cfg.paths_ignore_pull_request === true ? '  pull-requests: read' : '',
+      FALLBACK_JOBS: buildFallbackJobs(cfg, prIgnorePatterns),
+      ...reuse.blocks,
       // Collapsed into one merged token (devaudit-installer#928): previously
       // separate DATABASE_ENV/APP_ENV block tokens combined by string
       // concatenation with no dedup, so a key set in both sources (e.g.
@@ -1426,10 +1858,13 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
       E2E_REGRESSION_TIER_ARG: buildE2eRegressionTierArg(cfg),
       E2E_REGRESSION_SCHEDULE_ISSUE_STEP: buildE2eRegressionScheduleIssueStep(cfg),
       E2E_XML_RESULT_UPLOAD: buildE2eXmlResultUpload(cfg),
+      DELIVERY_SETUP_STEPS: buildDeliverySetupSteps(cfg, stack),
     };
 
     for (const tmpl of CI_TEMPLATES) {
       if (tmpl === 'e2e-regression.yml.template' && !cfg.e2e_regression_enabled) continue;
+      // One delivery workflow per repository: a second target's copy would answer the same dispatch.
+      if (tmpl === 'devaudit-delivery.yml.template' && (!deliveryEnabled || targetIdx > 0)) continue;
       if (tmpl === 'reconcile-deployment.yml.template' && !reconcile) continue;
       if (tmpl === 'deploy-custom.yml.template' && deployWorkflow !== tmpl) continue;
       const stackTmpl = join(ctx.installerRoot, 'sdlc', 'files', 'ci', stack, tmpl);
@@ -1468,6 +1903,13 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
       filePaths.push(outputPath);
       if (outcome !== 'conflict') count += 1;
     }
+  }
+  // The prompt the delivery workflow hands the headless session (placeholders filled at run time).
+  if (deliveryEnabled) {
+    const promptPath = join(ctx.repoRoot, DELIVERY_PROMPT_FILE);
+    const outcome = await writeManaged(ctx.managed!, promptPath, DELIVERY_PROMPT_TEMPLATE, { section: '2f' });
+    filePaths.push(promptPath);
+    if (outcome !== 'conflict') count += 1;
   }
   const staleNote =
     removedStaleCount > 0 || keptStaleConflictCount > 0

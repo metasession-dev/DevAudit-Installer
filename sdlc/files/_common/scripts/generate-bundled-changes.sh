@@ -11,6 +11,11 @@
 #
 # Usage:
 #   bash scripts/generate-bundled-changes.sh <since-ref> [<version>] [--json-out <path>]
+#       [--declared-bundle REQ-A,REQ-B] [--check <manifest.json>]
+#
+# --check <manifest.json> (DevAudit-Installer#1288) writes nothing: it exits 0 when the manifest lists
+# what this script would generate now, and 3 when it is stale (commits merged after it was generated,
+# or other members), naming each difference and the command that regenerates it.
 
 set -euo pipefail
 
@@ -25,6 +30,7 @@ fi
 
 JSON_OUT=""
 DECLARED_BUNDLE=""
+CHECK_FILE=""
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --json-out) JSON_OUT="$2"; shift 2 ;;
@@ -41,6 +47,12 @@ while [ "$#" -gt 0 ]; do
     # submit-bundle-manifest.sh does not send them to the portal, because a
     # declared bundle is one portal release (devaudit-installer#955).
     --declared-bundle) DECLARED_BUNDLE="$2"; shift 2 ;;
+    # DevAudit-Installer#1288 — compare an existing manifest with what this
+    # script would generate now (same range, same members) and write nothing:
+    # exit 0 when it is current, 3 when it is stale (the reasons on stderr),
+    # so a release PR can refuse to ride on a manifest that omits commits
+    # merged after it was generated.
+    --check) CHECK_FILE="$2"; shift 2 ;;
     *) echo "Unknown argument: $1" >&2; exit 2 ;;
   esac
 done
@@ -441,6 +453,13 @@ while IFS=$'\t' read -r sha subject; do
   if git log -1 --format='%s%n%b' "$sha" | grep -Eq '\[REQ-[0-9]+\]|Ref:[[:space:]]*REQ-[0-9]+'; then
     continue
   fi
+  # DevAudit-Installer#1288 — a commit that touches only bundle manifests is the
+  # manifest's own (re)generation, not work the manifest absorbs: listing it
+  # would make every regenerated manifest stale the moment it is committed.
+  changed_files="$(git show --name-only --format= "$sha" 2>/dev/null || true)"
+  if [ -n "$changed_files" ] && [ -z "$(printf '%s\n' "$changed_files" | grep -Ev '^compliance/[a-z-]+/BUNDLED-CHANGES-' || true)" ]; then
+    continue
+  fi
   BUNDLED+="${sha}"$'\t'"${subject}"$'\n'
 done <<<"$COMMITS"
 BUNDLED="${BUNDLED%$'\n'}"
@@ -462,6 +481,57 @@ if [ -n "$BUNDLED" ]; then
     )"
     NON_RELEASE_LINES+=("- \`${sha}\` ${subject}")
   done <<<"$BUNDLED"
+fi
+
+# DevAudit-Installer#1288 — --check: is the manifest on disk what would be generated now?
+# Members are compared by version and the absorbed non-release work by commit
+# (an abbreviated hash may be shorter on one machine than on another, so two
+# references match when one is a prefix of the other).
+if [ -n "$CHECK_FILE" ]; then
+  if [ ! -f "$CHECK_FILE" ]; then
+    echo "Error: --check manifest '$CHECK_FILE' not found." >&2
+    exit 1
+  fi
+  have_members="$(jq -r '[.members[]?.version] | sort | join(",")' "$CHECK_FILE" 2>/dev/null || true)"
+  want_members="$(jq -r '[.[].version] | sort | join(",")' <<<"$MEMBERS")"
+  have_refs="$(jq -r '.nonReleaseWorkItems[]?.reference' "$CHECK_FILE" 2>/dev/null || true)"
+  want_refs="$(jq -r '.[].reference' <<<"$NON_RELEASE_ITEMS")"
+  prefix_match() { # <needle> <haystack lines>: true when a line of the haystack is a prefix of the needle, or the reverse
+    local needle="$1" line
+    while IFS= read -r line; do
+      [ -n "$line" ] || continue
+      case "$needle" in "$line"*) return 0 ;; esac
+      case "$line" in "$needle"*) return 0 ;; esac
+    done <<<"$2"
+    return 1
+  }
+  STALE_REASONS=()
+  if [ "$have_members" != "$want_members" ]; then
+    STALE_REASONS+=("members differ: the manifest lists [${have_members}], the range now has [${want_members}]")
+  fi
+  while IFS= read -r ref; do
+    [ -n "$ref" ] || continue
+    if ! prefix_match "$ref" "$have_refs"; then
+      STALE_REASONS+=("not in the manifest: ${ref} $(jq -r --arg r "$ref" '.[] | select(.reference == $r) | .title' <<<"$NON_RELEASE_ITEMS")")
+    fi
+  done <<<"$want_refs"
+  while IFS= read -r ref; do
+    [ -n "$ref" ] || continue
+    if ! prefix_match "$ref" "$want_refs"; then
+      STALE_REASONS+=("in the manifest but no longer in ${SINCE_REF}..HEAD: ${ref}")
+    fi
+  done <<<"$have_refs"
+  if [ "${#STALE_REASONS[@]}" -gt 0 ]; then
+    echo "Bundle manifest ${CHECK_FILE} is stale for ${VERSION}: it does not list everything in ${SINCE_REF}..HEAD." >&2
+    printf '  - %s\n' "${STALE_REASONS[@]}" >&2
+    regen="bash scripts/generate-bundled-changes.sh ${SINCE_REF} ${VERSION}"
+    [ -n "$DECLARED_BUNDLE" ] && regen="${regen} --declared-bundle ${DECLARED_BUNDLE}"
+    echo "  Regenerate it: ${regen} --json-out ${CHECK_FILE}" >&2
+    echo "  and the paired BUNDLED-CHANGES-${VERSION}.md, merge both through a compliance PR, then run scripts/prepare-release-pr.sh --apply." >&2
+    exit 3
+  fi
+  echo "Bundle manifest ${CHECK_FILE} is current for ${VERSION}."
+  exit 0
 fi
 
 GENERATOR_VERSION="$(jq -r '.version' cli/package.json 2>/dev/null || echo '0.0.0')"

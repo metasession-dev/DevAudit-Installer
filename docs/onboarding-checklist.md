@@ -4,7 +4,7 @@ A short checklist for an operator who has run `devaudit install` and wants the S
 
 ## 1. Start with the latest version of devaudit
 
-`devaudit doctor` does not tell you the CLI is out of date (tracked in #1265), and the files `install` and `update` write come from the templates bundled in the CLI you run. An old CLI syncs old workflows and scripts, and `doctor` still passes. So check first:
+`devaudit doctor` warns when the CLI, or the CLI that last synced the project, is behind the published version (the `cli-version` check; it is skipped offline), and the files `install` and `update` write come from the templates bundled in the CLI you run. An old CLI syncs old workflows and scripts, and `doctor` still passes. So check first:
 
 ```bash
 devaudit --version                                   # what you have
@@ -66,6 +66,7 @@ Use `devaudit configure list`, `get <key>` and `set <key> <value> --dry-run`. Th
 | | `e2e_seed_command`, `e2e_setup_command` | a shell command, or empty | Seed fixtures before the run; stand up a disposable local database before the dev server. |
 | | `e2e_max_skipped` | a whole number, 0 or more | The most skipped tests a run may have. |
 | | `feature_e2e_projects` | a list of Playwright project names (unset runs all) | Which projects the feature-PR run uses. |
+| | `e2e_report_include_traces` | `true`, `false` (default) | Keep traces and videos in the Playwright report zip uploaded as evidence. Off keeps the zip under the portal's upload cap. |
 | | `e2e_env`, `e2e_start_command`, `e2e_port` | an object of env values (may reference `${{ secrets.NAME }}`); a command; a port above 0 (default 3000) | The environment, dev-server start and port for the E2E steps. Override every remote key to keep production severed. |
 | UAT | `uat.enabled` | `true`, `false` (default `false`) | Whether the UAT-environment verification step (Stage 3 Step 10) applies at all. Edit in `sdlc-config.json`; `configure set` does not manage it. |
 | | `uat.url`, `uat.required_risk_classes` | a URL; a list of `payment`, `destructive_migration`, `realtime`, `physical_ux`, or `["*"]` for every requirement | The UAT environment, and which requirements must be verified on it. Edit in the file. |
@@ -76,6 +77,8 @@ Use `devaudit configure list`, `get <key>` and `set <key> <value> --dry-run`. Th
 | | `install_flags`, `typescript_check_env` | for example `--legacy-peer-deps`; an object such as `{ "NODE_OPTIONS": "--max-old-space-size=4096" }` | Flags appended to `npm ci`; env for the TypeScript check step only. |
 | | `database_service`, `database_image`, `database_port`, `database_env`, `app_env`, `build_env` | for example `postgres` or `mongodb`, an image name, a port, and objects of env values; empty for no database | The CI database service and the env for the app, tests and build. |
 | | `paths_ignore` | a list of globs | Paths that do not trigger CI on push. |
+| | `reuse_pull_request_gates` | `false` (default, also when absent), `true` | A merge reuses the pull request run's gate result when the merged tree is the tree it tested; any doubt runs the gates in full. |
+| | `paths_ignore_pull_request` | `true` (new installs), `false` (earlier installs) | Also skip the full gates for a pull request that changes only those paths (a status fallback reports the required check). |
 
 Set secrets with `devaudit configure secret <NAME>`; the value never passes through devaudit.
 

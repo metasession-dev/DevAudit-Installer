@@ -245,6 +245,18 @@ Do **not** update on every internal step within a phase — that just spams the 
 
 **Sticky update failure (devaudit-installer#211 Gap 14).** Check the exit code of `update-sdlc-status.sh`. If it fails (gh auth expired, GitHub API rate-limited, network error), log a warning in the chat: "⚠️ SDLC status sticky update failed (gh CLI error). The LAST/NEXT pointer on issue #N may be stale. Operator — update manually if needed." Continue the workflow — the sticky is a navigation aid, not a control gate.
 
+## Headless (delivery run) rules
+
+A **DevAudit Delivery run** has no person in the session: the portal dispatches `devaudit-delivery.yml`, which starts this skill with `claude -p`. These rules apply **instead of** every instruction below that asks a person something, and only when the prompt says `This is DevAudit delivery run <id>` or the issue body carries a `DevAudit-Run: <id>` line (the spec-intake issue writes it). In any other session this section does not apply. Report to the portal only with `devaudit delivery report` (never by hand-written HTTP); it authenticates with the agent's own portal key. See [`docs/delivery-runs.md`](https://github.com/metasession-dev/DevAudit-Installer/blob/main/docs/delivery-runs.md).
+
+1. **Tracked work only.** Phase 0 must classify the issue as **tracked**. Any other class (housekeeping, trivial, compliance-doc-only) ends the run at once: `devaudit delivery report --run <id> --phase failed --reason "not a tracked change"`, then exit non-zero. A delivery run never does housekeeping, and spends no implementation work on one.
+2. **No splitting conversation.** Where Phase 1 step 4 would ask the user to split the issue, report `failed` with the reason `spec too large` and exit non-zero. Never guess a smaller scope, and never infer a bundle.
+3. **The issue body answers every question.** Any question this skill would put to a person (Phase 0 confirmation, the Phase 1 plan checkpoint, a clarification) is answered by the issue body. Where the body does not answer it, record the assumption in `compliance/plans/REQ-XXX/implementation-plan.md` under a heading `Assumptions (headless)` and carry on. The run never waits for input; the human approver reads the assumptions in the release PR.
+4. **Tell the portal which release this is.** The portal completes a run only when the release the run reported is released, so the id matters. After the Stage 2 push to `$INTEGRATION_BRANCH` (CI registers the release a few minutes later), run `devaudit delivery report --run <id> --phase running --release-for REQ-XXX` (the core REQ for a bundle). The command looks the release up with the agent's own key (a delivery run has no viewer key, so do not use `devaudit release status`), waits up to five minutes for CI to register it, sends the id and remembers it for the rest of the run. If it warns that the release is not there yet, carry on; rule 5 asks again.
+5. **Stop at the approval.** After opening the release PR and requesting UAT (Phase 4), run `devaudit delivery report --run <id> --phase awaiting_approval --release-for REQ-XXX` and **exit 0**. It refuses (exit 1) without a release id, and then the run must not be declared waiting: report `failed` with the reason "no release was registered for this run" and exit non-zero. Do not poll for approval and do not start Phase 5: merge, post-deploy verification and finalisation are driven by the existing gates after a person approves, and the portal marks the run `succeeded` from the release finalisation, not from the agent. If the run cannot finish for any other reason, report `failed` with a plain reason and exit non-zero.
+6. **Hard stops.** The agent's GitHub token has no permission to push workflow files: when a push is rejected because the change edits `.github/workflows`, do not retry and do not work around it (no other branch, no other token); run `devaudit delivery report --run <id> --phase failed --reason "the change edits .github/workflows; the agent has no permission to push workflow files"` and exit non-zero. Never force-push. Never edit branch protection. Never read, print, create or change a secret. Never approve or merge a pull request. Never run `devaudit configure` — with one exception: when the issue has a `Compliance mode:` line whose preset differs from `onboarding_preset` in `sdlc-config.json` (`none` is A, `light` is B, `regulated` is C), run `devaudit configure --preset <X> --yes` **as the first commit of the run** and say so in the PR body.
+7. **Attribute every commit.** Every commit carries the framework's `Co-Authored-By:` trailer and a `DevAudit-Run: <id>` trailer, so the portal's audit can tell the agent's work from a person's. The git author is already set by the workflow; do not change it.
+
 ## The workflow
 
 A triage step (Phase 0) routes the issue, then up to five phases for tracked work. Phase 0 plus Phases 1–4 run in one Claude Code session; Phase 5 is invoked separately by the user after UAT. The off-ramps from Phase 0 (housekeeping / trivial / doc-only) don't enter Phase 1 — they run the **Lightweight path** (below), which the skill drives to merge.
@@ -632,12 +644,23 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
 
    If the portal does not expose first-class test executions, do not infer executions from uploaded artefact groups. Record the gap in the summary and keep the release unresolved until the execution read model is available.
 
+5b2. **Write `compliance/evidence/REQ-XXX/ai-use-note.md` (devaudit-installer#1301).** You are an AI agent, so AI was used on this REQ: the answer to "if AI was used" is always yes for a run you drive, and the release page shows "No AI use note uploaded for this release" without it. Write it now, alongside the other per-REQ artefacts, with at least:
+
+   - `**Tool:** <the agent, for example Claude Code>` (the portal's AI Contributors panel parses this field; YAML frontmatter with `ai_contributors:` is also accepted)
+   - `**Model:** <model name and version, when known>` and `**Session:** <session id, when known>`
+   - `**Commits:**` the commits of this REQ that you wrote (the ones carrying the `Sdlc-Implementer-Sentinel:` trailer)
+   - `**Human reviewer:** <the operator who approves the release>`
+   - what the AI did, in a few lines; and `## Bundled Release Context` when the REQ is a bundle
+
+   CI warns, or fails when `ai_use_note` is `required` in `sdlc-config.json`, for a REQ with agent commits and no note.
+
 5c. **Run the Phase 3 completion guard before any PR/release-review step (devaudit-installer#341).** The tracked-release evidence pack is incomplete until the required Git artefacts exist. Before proceeding past Phase 3, verify:
 
    - `compliance/evidence/REQ-XXX/test-scope.md`
    - `compliance/evidence/REQ-XXX/test-plan.md`
    - `compliance/evidence/REQ-XXX/test-execution-summary.md`
    - `compliance/evidence/REQ-XXX/security-summary.md`
+   - `compliance/evidence/REQ-XXX/ai-use-note.md` (step 5b2: always, for a run you drive; #1301)
    - `compliance/pending-releases/RELEASE-TICKET-REQ-XXX.md`
    - `compliance/evidence/REQ-XXX/implementation-plan.md` (copied for every risk class: the portal's release checklist wants a plan for every requirement; CI also uploads `compliance/plans/REQ-XXX/implementation-plan.md` if no copy is there, #1080)
    - any already-mandatory AI artefacts required by the risk/usage rules
@@ -657,6 +680,7 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
      compliance/evidence/REQ-XXX/test-plan.md \
      compliance/evidence/REQ-XXX/test-execution-summary.md \
      compliance/evidence/REQ-XXX/security-summary.md \
+     compliance/evidence/REQ-XXX/ai-use-note.md \
      compliance/pending-releases/RELEASE-TICKET-REQ-XXX.md
    do
      [ -f "$f" ] || { echo "MISSING: $f"; MISSING=1; }
@@ -728,6 +752,8 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
    ```bash
    ./scripts/prepare-release-pr.sh --apply --mode=update
    ```
+
+   For a declared bundle the helper names every co-tracked REQ in the PR title (`+ REQ-122`) and summary (`Co-tracked:`), and it **refuses** (exit 1) when the bundle manifest omits commits merged to `$INTEGRATION_BRANCH` after it was generated (devaudit-installer#1283, #1288): run the `Regenerate it:` command it prints, commit the regenerated `BUNDLED-CHANGES-<core>.md` and `.json` through a compliance PR, then run the helper again. The develop-to-main PR fails Release Scope Integrity for the same reason.
 
    This is mandatory for devaudit-installer#312. It detects an existing open `$INTEGRATION_BRANCH → $RELEASE_BRANCH` PR, derives the current governing release from the current head, and ensures there is exactly one truthful release PR. If the existing PR is stale, the default `update` mode rewrites the title/body and comments with the refresh. Use `--mode=recreate` only when the operator explicitly wants the older PR closed and a new PR opened.
 

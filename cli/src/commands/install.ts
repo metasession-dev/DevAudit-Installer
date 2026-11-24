@@ -36,6 +36,10 @@ export interface InstallOptions {
   readonly preset?: string;
   /** `--from-scan <file|report-id>`. */
   readonly fromScan?: string;
+  /** `--compliance <none|light|regulated>`: the preset by compliance mode (DevAudit-Installer#1272). */
+  readonly compliance?: string;
+  /** `--delivery`: set the repository up for DevAudit Delivery runs (#1272, #1274). */
+  readonly delivery?: boolean;
 }
 
 export async function runInstallCommand(options: InstallOptions): Promise<void> {
@@ -57,10 +61,12 @@ export async function runInstallCommand(options: InstallOptions): Promise<void> 
       ...(options.testOptions !== undefined && Object.keys(options.testOptions).length > 0 ? { testOptions: options.testOptions } : {}),
       ...(options.preset !== undefined ? { preset: options.preset } : {}),
       ...(options.fromScan !== undefined ? { fromScan: options.fromScan } : {}),
+      ...(options.compliance !== undefined ? { compliance: options.compliance } : {}),
+      ...(options.delivery ? { delivery: true } : {}),
     });
     if (!options.dryRun) await printCredentialsBlock(options.path);
-    // DevAudit-Installer#1116 WP13: offered once, never forced.
-    await offerAgentPermissions({ ...(options.dryRun !== undefined ? { dryRun: options.dryRun } : {}), ...(options.path !== undefined ? { cwd: options.path } : {}) });
+    // DevAudit-Installer#1116 WP13: offered once, never forced. Never under --yes: that run must not prompt (#1272).
+    if (!options.yes) await offerAgentPermissions({ ...(options.dryRun !== undefined ? { dryRun: options.dryRun } : {}), ...(options.path !== undefined ? { cwd: options.path } : {}) });
   } catch (err) {
     log.error((err as Error).message);
     // A refused option (unknown --preset, a preset the portal cannot support, an unreadable scan file) exits 2.

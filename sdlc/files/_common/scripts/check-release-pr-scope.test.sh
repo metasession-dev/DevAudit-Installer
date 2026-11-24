@@ -268,5 +268,87 @@ assert_exit "malformed explicit scope fails" 1 "$CODE"
 assert_grep "malformed explicit scope has clear error" 'do not declare a release scope' "$OUT"
 echo ""
 
+# --- DevAudit-Installer#1288: a promotion PR's bundle manifest must list what is in the release range ---
+make_promotion_fixture() {
+  local dir="$1"
+  rm -rf "$dir" "$dir.git"
+  git init -q --bare --initial-branch=main "$dir.git"
+  mkdir -p "$dir/scripts" "$dir/compliance/pending-releases"
+  cp "$SCRIPT_DIR/derive-release-version.sh" "$SCRIPT_DIR/extract-release-metadata.sh" "$SCRIPT_DIR/generate-bundled-changes.sh" "$HELPER" "$dir/scripts/"
+  cp "$SCRIPT_DIR/check-deferred-reqs-in-range.sh" "$SCRIPT_DIR/list-reqs-in-range.sh" "$dir/scripts/"
+  cp "$SCRIPT_DIR/standalone-housekeeping-release.sh" "$dir/scripts/" 2>/dev/null || true
+  chmod +x "$dir/scripts/"*.sh
+  (
+    cd "$dir"
+    git init -q --initial-branch=main
+    git config user.email t@example.com
+    git config user.name t
+    git remote add origin "$dir.git"
+    git add -A && git commit -q -m "chore: scaffold"
+    git push -q origin main
+    git checkout -q -b develop
+    cat > compliance/pending-releases/RELEASE-TICKET-REQ-121.md <<'TICKET'
+# Release Ticket — REQ-121
+
+**Requirement:** REQ-121 — One-page checkout
+
+## Summary
+Customers check out on one page.
+
+- **Absorbed predecessor releases:** None
+TICKET
+    echo feature > feature.txt
+    git add -A && git commit -q -m "feat: one-page checkout [REQ-121]"
+    git commit -q --allow-empty -m "chore: first housekeeping"
+    bash scripts/generate-bundled-changes.sh origin/main REQ-121 --declared-bundle REQ-122 --json-out compliance/pending-releases/BUNDLED-CHANGES-REQ-121.json > compliance/pending-releases/BUNDLED-CHANGES-REQ-121.md 2>/dev/null
+    git add compliance && git commit -q -m "docs(compliance): bundle manifest [REQ-121]"
+    git push -q origin develop
+  )
+}
+PROMO_BODY=$'## Release\n- Release: REQ-121\n\nBundled release context: see compliance/pending-releases/BUNDLED-CHANGES-REQ-121.md\n'
+
+echo "--- Test 13: a promotion PR with a stale bundle manifest fails, naming what is missing ---"
+make_promotion_fixture "$WORK/test13"
+(cd "$WORK/test13" && git commit -q --allow-empty -m "chore: e2e shard count and job ceiling")
+OUT="$WORK/test13.out"
+if run_check "$WORK/test13" "$OUT" env PR_TITLE="Release: REQ-121 + REQ-122" PR_BODY="$PROMO_BODY" HEAD_REF=develop BASE_REF=main; then
+  CODE=0
+else
+  CODE=$?
+fi
+assert_exit "stale manifest fails" 1 "$CODE"
+assert_grep "the manifest is called stale" 'the bundle manifest compliance/pending-releases/BUNDLED-CHANGES-REQ-121.json is stale' "$OUT"
+assert_grep "the missing commit is named" 'chore: e2e shard count and job ceiling' "$OUT"
+assert_grep "the fix is named" 'Regenerate it: bash scripts/generate-bundled-changes.sh' "$OUT"
+echo ""
+
+echo "--- Test 14: the same PR passes once the manifest is regenerated ---"
+(
+  cd "$WORK/test13"
+  bash scripts/generate-bundled-changes.sh origin/main REQ-121 --declared-bundle REQ-122 --json-out compliance/pending-releases/BUNDLED-CHANGES-REQ-121.json > compliance/pending-releases/BUNDLED-CHANGES-REQ-121.md 2>/dev/null
+  git add compliance && git commit -q -m "docs: regenerate the bundle manifest"
+)
+OUT="$WORK/test14.out"
+if run_check "$WORK/test13" "$OUT" env PR_TITLE="Release: REQ-121 + REQ-122" PR_BODY="$PROMO_BODY" HEAD_REF=develop BASE_REF=main; then
+  CODE=0
+else
+  CODE=$?
+fi
+assert_exit "regenerated manifest passes" 0 "$CODE"
+assert_grep "success message emitted" 'Release Scope Integrity verified for REQ-121' "$OUT"
+echo ""
+
+echo "--- Test 15: a PR that is not the promotion (no BASE_REF main) does not check the manifest ---"
+make_promotion_fixture "$WORK/test15"
+(cd "$WORK/test15" && git commit -q --allow-empty -m "chore: late chore")
+OUT="$WORK/test15.out"
+if run_check "$WORK/test15" "$OUT" env PR_TITLE="Release: REQ-121" PR_BODY="$PROMO_BODY" HEAD_REF=feature/x BASE_REF=develop; then
+  CODE=0
+else
+  CODE=$?
+fi
+assert_exit "a feature PR is not blocked by the manifest" 0 "$CODE"
+echo ""
+
 echo "=== check-release-pr-scope.test.sh: $PASS passed, $FAIL failed ==="
 [ "$FAIL" -eq 0 ]

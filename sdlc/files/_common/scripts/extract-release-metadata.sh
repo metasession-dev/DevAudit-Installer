@@ -12,6 +12,9 @@
 # Sets the following shell variables:
 #   RELEASE_TITLE      — canonical human title (empty if none found)
 #   RELEASE_SUMMARY    — reviewer-facing summary from ## Summary section (empty if none)
+#   RELEASE_COTRACKED  — space-separated co-tracked REQ ids of a declared bundle (empty if none);
+#                        DevAudit-Installer#1283: the release PR title and the summary name them
+#   RELEASE_BUNDLE_MANIFEST — the bundle manifest JSON of the release (empty if none)
 #
 # Title fallback chain (normative per #285):
 #   1. **Requirement:** line in RELEASE-TICKET-REQ-XXX.md → human part after "REQ-XXX —"
@@ -60,6 +63,8 @@ extract_release_metadata() {
   local req_id="$1"
   RELEASE_TITLE=""
   RELEASE_SUMMARY=""
+  RELEASE_COTRACKED=""
+  RELEASE_BUNDLE_MANIFEST=""
 
   local ticket_file=""
   for FILE in \
@@ -158,8 +163,12 @@ extract_release_metadata() {
     local bundled_manifest=""
     local manifest_hash=""
     bundled_manifest=$(find_bundled_manifest_file "$req_id" 2>/dev/null || true)
+    RELEASE_BUNDLE_MANIFEST="$bundled_manifest"
     if [ -n "$bundled_manifest" ] && command -v jq >/dev/null 2>&1; then
       manifest_hash=$(jq -r '.manifestHash // empty' "$bundled_manifest" 2>/dev/null || true)
+      # DevAudit-Installer#1283 — the declared co-tracked members, in manifest order, so a reader of the
+      # PR list or the portal release row sees every REQ the release carries, not only the core one.
+      RELEASE_COTRACKED=$(jq -r '[.members[]? | select(.role == "co_tracked") | .version] | join(" ")' "$bundled_manifest" 2>/dev/null || true)
     fi
     bundled_note="Bundled release context: see \`${bundled_file}\`."
     if [ -n "$bundled_manifest" ]; then
@@ -180,5 +189,52 @@ ${bundled_note}"
     else
       RELEASE_SUMMARY="$bundled_note"
     fi
+    if [ -n "$RELEASE_COTRACKED" ]; then
+      case "$RELEASE_SUMMARY" in
+        *"Co-tracked:"*) ;;
+        *)
+          RELEASE_SUMMARY="${RELEASE_SUMMARY}
+
+Co-tracked: ${RELEASE_COTRACKED// /, }"
+          ;;
+      esac
+    fi
   fi
+}
+
+# DevAudit-Installer#1288 — is the bundle manifest of a release still what the generator would write now?
+# A chore merged after the manifest was generated is in the release range but not in the manifest, so the
+# reviewer would sign off a scope that omits it. Usage:
+#   check_bundle_manifest_current <req-id> <since-ref>
+# Returns 0 when there is no pending manifest, when it is current, or when it cannot be checked (the range
+# ref is missing, the generator is absent or fails for another reason: a warning, never a block); returns 3
+# with the reasons and the regeneration command on stderr when it is stale. Only a pending manifest is
+# checked: an approved or superseded one is history.
+check_bundle_manifest_current() {
+  local req_id="$1" since_ref="$2"
+  local manifest
+  manifest=$(find_bundled_manifest_file "$req_id" 2>/dev/null || true)
+  case "$manifest" in compliance/pending-releases/*) ;; *) return 0 ;; esac
+  if ! command -v jq >/dev/null 2>&1 || [ ! -f scripts/generate-bundled-changes.sh ]; then
+    echo "Bundle manifest freshness not checked: jq or scripts/generate-bundled-changes.sh is missing." >&2
+    return 0
+  fi
+  if ! git rev-parse --verify "$since_ref" >/dev/null 2>&1; then
+    echo "Bundle manifest freshness not checked: ${since_ref} is not in this clone (fetch it, or use a full clone)." >&2
+    return 0
+  fi
+  local members
+  members=$(jq -r '[.members[]? | select(.role == "co_tracked") | .version] | join(",")' "$manifest" 2>/dev/null || true)
+  local args=("$since_ref" "$req_id" --check "$manifest")
+  [ -n "$members" ] && args+=(--declared-bundle "$members")
+  local rc=0
+  bash scripts/generate-bundled-changes.sh "${args[@]}" >/dev/null || rc=$?
+  case "$rc" in
+    0) return 0 ;;
+    3) return 3 ;;
+    *)
+      echo "Bundle manifest freshness not checked: the generator exited ${rc} (see its message above)." >&2
+      return 0
+      ;;
+  esac
 }

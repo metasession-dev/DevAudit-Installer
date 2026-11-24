@@ -236,6 +236,79 @@ export const CHECK_EXPLANATIONS: Readonly<Record<string, GapExplanation>> = {
     why: 'With uat.mode auto the agent executes the UAT procedure on a deployed UAT environment. uat.enabled is how the project says it has one; while it is not true the agent has nowhere to run the steps.',
     guidance: 'Set `uat.enabled` and `uat.url` in sdlc-config.json once a UAT environment exists, or `devaudit configure set uat.mode manual` to have a tester run the procedure by hand.',
   },
+  // DevAudit-Installer#1297
+  'pull-request-gates': {
+    title: 'Documentation-only pull requests run the full quality gates',
+    why: 'Evidence and documentation pull requests are frequent (every requirement opens several), and by default each one runs the whole Quality Gates job although it changes no code. On a shared runner that is tens of minutes per pull request. The push filter already skips such changes; the pull request filter does not unless paths_ignore_pull_request is true.',
+    guidance: 'Run `devaudit configure set paths_ignore_pull_request true`, then `devaudit update` on a fix branch. A pull request with any code file still runs everything, and the release pull request is unchanged.',
+  },
+  'pull-request-gates:docs-only-skip-off': {
+    title: 'Every pull request runs the full gates, even one that changes only documentation',
+    why: 'paths_ignore_pull_request is not true, so the pull request trigger of ci.yml has no path filter. A project onboarded before the key existed keeps this behaviour until it opts in: `devaudit update` never changes it.',
+    guidance: 'Set it with `devaudit configure set paths_ignore_pull_request true` and regenerate with `devaudit update`. A pull request that edits a workflow file always runs the gates.',
+  },
+  'pull-request-gates:docs-not-ignored': {
+    title: 'paths_ignore leaves a documentation path out',
+    why: 'A change under a documentation path that paths_ignore does not cover starts ci.yml on push, and on a pull request when docs-only skipping is on. A bare *.md pattern matches only the repository root in a GitHub path filter, so markdown in a folder needs **/*.md as well.',
+    guidance: 'Add the patterns the finding names with `devaudit configure set paths_ignore <the whole list>` (it replaces the list), then run `devaudit update`.',
+  },
+  // DevAudit-Installer#1265
+  'cli-version': {
+    title: 'The devaudit CLI or this project\'s last sync is behind the latest published version',
+    why: 'Templates, scripts, skills and generated workflows come from the CLI that runs `update`. A stale global install passes every other check and quietly syncs outdated files, so the project drifts from what the framework now ships.',
+    guidance: 'Run `npx @metasession.co/devaudit-cli@latest update` on a fix branch (it runs the latest without installing it), or `npm install -g @metasession.co/devaudit-cli@latest` first. Set `DEVAUDIT_SKIP_VERSION_CHECK=1` to turn the registry read off.',
+  },
+  'cli-version:installed-cli': {
+    title: 'This devaudit CLI is older than the latest published one',
+    why: '`devaudit update` copies the templates it ships. An older CLI copies older templates over the project, and nothing else reports it.',
+    guidance: 'Use the latest without installing it: `npx @metasession.co/devaudit-cli@latest update`. Or upgrade the global install: `npm install -g @metasession.co/devaudit-cli@latest`.',
+  },
+  'cli-version:synced-version': {
+    title: 'The templates in this project were synced by an older version',
+    why: '`devaudit_synced_version` in sdlc-config.json records the CLI that last ran `update`. A newer one is published, so the project does not have its fixes.',
+    guidance: 'Run `devaudit update` (from the latest CLI) on a fix branch and review the diff.',
+  },
+  // DevAudit-Installer#1272
+  'delivery-workflow': {
+    title: 'A DevAudit Delivery run would stop before the agent starts',
+    why: "`delivery.enabled` says this repository accepts delivery runs: the portal dispatches `devaudit-delivery`, and the generated workflow starts a headless agent session. The run stops at once when the workflow or its prompt file is missing, when either repository secret it reads is not set, and it installs the Claude Code version this CLI generates, so a stale pin runs an unreviewed version.",
+    guidance: 'Run `devaudit update` on a fix branch to regenerate the workflow and the prompt, and merge it so it reaches the default branch (a repository_dispatch runs the workflow from there). `devaudit install --delivery` issues the delivery-agent portal key and stores both secrets; `gh secret set DEVAUDIT_AGENT_API_KEY` stores the agent session key.',
+  },
+  'delivery-workflow:workflow-missing': {
+    title: 'The delivery workflow is missing',
+    why: 'The portal starts a delivery run with a repository_dispatch event; without .github/workflows/devaudit-delivery.yml on the default branch nothing receives it and the run never starts.',
+    guidance: 'Run `devaudit update` on a fix branch, then merge it into the integration branch and release it so the file reaches the default branch.',
+  },
+  'delivery-workflow:claude-code-version': {
+    title: 'The delivery workflow installs a different Claude Code version',
+    why: 'The generated workflow pins the Claude Code CLI so a delivery run is repeatable and a new version is adopted on purpose. A different pin means the file was edited by hand or generated by another CLI version.',
+    guidance: 'Run `devaudit update` on a fix branch to regenerate the workflow with the version this CLI pins.',
+  },
+  'delivery-workflow:prompt-missing': {
+    title: 'The delivery prompt file is missing',
+    why: 'The workflow reads the headless session prompt from .devaudit/delivery-prompt.md; without it the agent step fails before the session starts.',
+    guidance: 'Run `devaudit update` on a fix branch to regenerate it.',
+  },
+  'delivery-workflow:token-source': {
+    title: 'It is not set where the delivery agent gets its GitHub token',
+    why: "A push or pull request made with the workflow's own token starts no other workflow, so the release's checks never run and the run stalls holding its quota. The agent needs a token of its own: a machine user's fine-grained token in a repository secret (pilot), or a short-lived one the portal mints from the DevAudit Agent GitHub App installed on the repository (product). `delivery.github_token_source` records which.",
+    guidance: 'Run `devaudit configure set delivery.github_token_source app` and install the DevAudit Agent GitHub App on the repository, or `devaudit configure set delivery.github_token_source secret` and set the repository secret DEVAUDIT_AGENT_GITHUB_TOKEN.',
+  },
+  'delivery-workflow:token-secret-missing': {
+    title: "The delivery agent's GitHub token secret is not set",
+    why: 'The repository chose its own token for the agent (delivery.github_token_source: secret) but DEVAUDIT_AGENT_GITHUB_TOKEN does not exist. The workflow then asks the portal for an App token instead, which fails when the App is not installed, so the run stops before the agent starts.',
+    guidance: "Set it with `gh secret set DEVAUDIT_AGENT_GITHUB_TOKEN` (a machine user's fine-grained token with Contents and Pull requests read/write and Issues read on this repository), or switch to the portal's App with `devaudit configure set delivery.github_token_source app`.",
+  },
+  'delivery-workflow:workflow-token-stale': {
+    title: "The delivery workflow does not resolve the agent's GitHub token the current way",
+    why: "A workflow generated before the token handling changed falls back to the default token, with which a push starts no CI, or never asks for a token at all. The run would then open a release whose checks never run.",
+    guidance: 'Run `devaudit update` on a fix branch to regenerate the workflow, and merge it so it reaches the default branch.',
+  },
+  'delivery-workflow:secret-missing': {
+    title: 'A repository secret a delivery run reads is not set',
+    why: 'The first step of a delivery run checks DEVAUDIT_AGENT_API_KEY (what the headless session authenticates with) and DEVAUDIT_AGENT_PORTAL_KEY (the delivery-agent portal key, which makes the agent the creator of the release); with either missing the run fails at once.',
+    guidance: 'Run `devaudit install --delivery` with DEVAUDIT_AGENT_API_KEY in the environment: it issues the delivery-agent portal key and stores both secrets. Or `gh secret set <NAME>` for the one that is missing.',
+  },
   'test-data': {
     title: 'The test data is not fully declared',
     why: 'Tests that write data need a place to write it that cannot hurt anyone, a way to put it back, and a seed the tests can rely on. When any of that is missing or contradictory, a run can collide with people, leave data behind, or pass while hiding tests that skipped for lack of data.',

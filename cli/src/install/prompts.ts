@@ -18,7 +18,7 @@ import {
   type StandardsRead,
 } from '../lib/onboarding-portal.js';
 import { collaboratorCount } from '../lib/collaborators.js';
-import { PRESETS, detectFacts, offerPresets } from '@metasession.co/devaudit-core';
+import { PRESETS, detectFacts, offerPresets, presetForComplianceMode, type SoloApprover } from '@metasession.co/devaudit-core';
 import { fsRepoReader } from '@metasession.co/devaudit-core/node';
 import { InstallRefusal } from './refusal.js';
 import {
@@ -136,7 +136,11 @@ export async function collectPlan(
   // ---- non-interactive (--yes) ----------------------------------------------------------------------------
   if (ctx.nonInteractive) {
     const plan = await planFromConfig(ctx, detected, defaults);
-    const applied = presetFlag === undefined ? undefined : await presetWithoutQuestions(ctx, plan, presetFlag, flags.config, existing, deps);
+    // `--compliance` is a headless request: the mode names the preset, and naming it is the consent a
+    // preset with self-approval would otherwise ask for (#1272).
+    const headlessPreset = ctx.compliance === undefined ? undefined : await presetFromCompliance(ctx, 'yes');
+    const chosenPreset = headlessPreset ?? presetFlag;
+    const applied = chosenPreset === undefined ? undefined : await presetWithoutQuestions(ctx, plan, chosenPreset, flags.config, existing, deps, headlessPreset !== undefined);
     const test = await resolveTestConfig({
       options: (ctx.testOptions ?? {}) as TestOptions,
       existing,
@@ -150,6 +154,7 @@ export async function collectPlan(
   const basics = await defaultBasics(ctx, detected, defaults, existing);
   const portal = await readPortal(ctx, basics.projectSlug, deps);
   const say = deps.say ?? ((line: string) => logger().log(line));
+  const complianceFlag = ctx.compliance === undefined ? undefined : await presetFromCompliance(ctx, soloApproverFrom(portal.policy));
   const guided = await runGuided({
     basics,
     stack: detected.stack,
@@ -157,7 +162,7 @@ export async function collectPlan(
     flagConfig: flags.config,
     hosts: await listHosts(ctx.installerRoot),
     hostFlag: ctx.host,
-    presetFlag,
+    presetFlag: complianceFlag ?? presetFlag,
     reader: fsRepoReader(ctx.repoRoot),
     policy: portal.policy,
     standards: portal.standards,
@@ -227,6 +232,18 @@ async function readPortal(ctx: InstallContext, slug: string, deps: CollectDeps):
  * approval policy to allow self-approval with a recorded gap, which is read with the viewer key and never
  * changed without a person confirming it, so a policy that does not allow it refuses (exit 2).
  */
+/**
+ * `--compliance` (DevAudit-Installer#1272): the preset the mode names, or the next one down that this repository can
+ * be offered (printed as one line). Never D. Refuses (exit 2) when no preset can be offered at all.
+ */
+async function presetFromCompliance(ctx: InstallContext, soloApprover: SoloApprover): Promise<PresetChoice> {
+  const facts = await detectFacts(fsRepoReader(ctx.repoRoot));
+  const result = presetForComplianceMode(ctx.compliance!, offerPresets({ testGroups: facts.testGroups, soloApprover }));
+  if (result.preset === null) throw new InstallRefusal(result.fallbackNote ?? `Compliance mode ${ctx.compliance} cannot be used here.`);
+  if (result.fallbackNote) logger().info(result.fallbackNote);
+  return result.preset;
+}
+
 async function presetWithoutQuestions(
   ctx: InstallContext,
   plan: InstallPlan,
@@ -234,6 +251,8 @@ async function presetWithoutQuestions(
   flagConfig: Readonly<Record<string, unknown>>,
   existing: Record<string, unknown> | null,
   deps: CollectDeps,
+  /** A headless request that names the preset (`--compliance`): self-approval needs no separate confirmation. */
+  selfApprovalConsented = false,
 ): Promise<{ onboarding: OnboardingPlan; notes: string[] }> {
   const notes: string[] = [];
   if (preset === 'custom') {
@@ -242,7 +261,12 @@ async function presetWithoutQuestions(
   const portal = await readPortal(ctx, plan.projectSlug, deps);
   const facts = await detectFacts(fsRepoReader(ctx.repoRoot));
   const solo = PRESETS[preset].portalPolicy === 'self_allowed_with_gap';
-  if (solo && !(portal.policy.status === 'ok' && portal.policy.policy === 'self_allowed_with_gap')) {
+  const policyAllowsSolo = portal.policy.status === 'ok' && portal.policy.policy === 'self_allowed_with_gap';
+  const setPolicy = solo && !policyAllowsSolo && selfApprovalConsented;
+  if (setPolicy) {
+    notes.push(`Preset ${preset} means the author approves their own releases: install sets the project's approval policy to "self-approval with a recorded gap" (it needs a project admin; the repository keeps "approved by a different person" if the portal refuses).`);
+  }
+  if (solo && !policyAllowsSolo && !setPolicy) {
     throw new InstallRefusal(
       `Preset ${preset} needs the project's approval policy to allow self-approval with a recorded gap. Run \`devaudit install\` in a terminal (it asks to set it), or set it in the portal's project settings, then run this again.`,
     );
@@ -259,7 +283,7 @@ async function presetWithoutQuestions(
       preset: recorded,
       config: recorded === preset ? config : { ...config, onboarding_preset: 'custom' },
       removeKeys: leftoverPresetKeys(config, existing),
-      policyToSet: null,
+      policyToSet: setPolicy ? 'self_allowed_with_gap' : null,
       frameworks: [],
       portalStandards: null,
     },
@@ -298,9 +322,10 @@ async function planFromConfig(
   // sdlc-config.json lives at the repo root (#689 follow-up), not this
   // target's own directory — see write-config.ts for why.
   const cfg = await readSdlcConfig(ctx.repoRoot);
-  if (!cfg && !ctx.dryRun) {
+  // A headless install (`--compliance`) starts from nothing: every question takes its documented default.
+  if (!cfg && !ctx.dryRun && ctx.compliance === undefined) {
     throw new Error(
-      '--yes requires an existing sdlc-config.json at the repository root. Run without --yes to create one interactively.',
+      '--yes requires an existing sdlc-config.json at the repository root. Run without --yes to create one interactively, or pass --compliance <none|light|regulated> to install with the defaults.',
     );
   }
   // --add-target (#689/#691): the existing config (if any) describes a

@@ -141,5 +141,74 @@ STUBEOF
 fi
 
 echo
+echo "provenance-gated-commit.sh: pr-docs-only (DevAudit-Installer#1290)"
+
+classify() { # file list on standard input
+  PATHS_IGNORE="$IGNORE" bash "$HELPER" pr-docs-only
+}
+
+check "only ignored paths: docs-only" "docs-only" "$(printf 'compliance/RTM.md\nSDLC/1-plan.md\nsdlc-config.json\nREADME.md\n' | classify)"
+check "one code file among docs: code" "code" "$(printf 'compliance/RTM.md\nsrc/app.ts\n' | classify)"
+check "a nested .md is not covered by *.md (a root-only glob)" "code" "$(printf 'docs/guide.md\n' | classify)"
+check "a ** pattern with a suffix matches nested files" "docs-only" "$(printf 'docs/a/b/notes.txt\n' | classify)"
+check "an empty list fails safe: code" "code" "$(printf '' | classify)"
+check "a single file: docs-only" "docs-only" "$(printf 'compliance/x.json\n' | classify)"
+check "a negated pattern re-includes a path" "code" "$(printf 'compliance/keep.json\n' | PATHS_IGNORE="      - 'compliance/**'
+      - '!compliance/keep.json'" bash "$HELPER" pr-docs-only)"
+check "the files API limit (3000) fails safe: code" "code" "$(for i in $(seq 1 3000); do echo "compliance/f$i.md"; done | classify)"
+check "just under the limit is classified normally" "docs-only" "$(for i in $(seq 1 2999); do echo "compliance/f$i.md"; done | classify)"
+check "an empty PATHS_IGNORE ignores nothing: code" "code" "$(printf 'compliance/x.json\n' | PATHS_IGNORE='' bash "$HELPER" pr-docs-only)"
+check "a workflow file is code even when a pattern covers it (#1299)" "code" "$(printf 'compliance/x.json\n.github/workflows/ci.yml\n' | PATHS_IGNORE="      - 'compliance/**'
+      - '.github/**'" bash "$HELPER" pr-docs-only)"
+check "a file elsewhere under .github is still classified by the patterns" "docs-only" "$(printf '.github/ISSUE_TEMPLATE/bug.md\n' | PATHS_IGNORE="      - '.github/**'" bash "$HELPER" pr-docs-only)"
+check "extra arguments are a usage error" "2" "$(printf 'a\n' | bash "$HELPER" pr-docs-only extra >/dev/null 2>&1; echo $?)"
+
+# DevAudit-Installer#1298 — a merge that reuses a pull request run's result: the heavy Quality Gates job is skipped and
+# a light job with another name reports success, so real-ci-success must accept that name when QG_REUSED_NAME is set.
+GHBIN="$WORK/ghbin"
+mkdir -p "$GHBIN"
+cat > "$GHBIN/gh" <<'GH'
+#!/usr/bin/env bash
+endpoint="$2"; shift 2
+jqexpr=""
+while [ $# -gt 0 ]; do [ "$1" = "--jq" ] && jqexpr="$2"; shift; done
+case "$endpoint" in
+  /repos/*/commits/*/check-runs*) jq -r "$jqexpr" "$CHECKS_JSON" ;;
+  /repos/*/actions/runs/*) echo ".github/workflows/${RUN_FILE:-ci.yml}" ;;
+  *) exit 2 ;;
+esac
+GH
+chmod +x "$GHBIN/gh"
+CHECKS="$WORK/checks.json"
+checks() { # name conclusion run_id ...
+  local out='{"check_runs":[' first=1
+  while [ $# -ge 3 ]; do
+    [ "$first" = 1 ] || out="$out,"
+    out="$out{\"name\":\"$1\",\"status\":\"completed\",\"conclusion\":\"$2\",\"details_url\":\"https://github.com/o/r/actions/runs/$3/job/1\"}"
+    first=0; shift 3
+  done
+  echo "$out]}" > "$CHECKS"
+}
+real_ci() { CHECKS_JSON="$CHECKS" PATH="$GHBIN:$PATH" GITHUB_REPOSITORY=o/r "$@" bash "$HELPER" real-ci-success abc123 999 >/dev/null 2>&1; echo $?; }
+
+checks "Quality Gates" success 10
+check "a Quality Gates success counts (as before)" "0" "$(real_ci env)"
+checks "Quality Gates" skipped 10 "Reused Quality Gates" success 10
+check "a skipped heavy job and a reuse success do not count without QG_REUSED_NAME" "1" "$(real_ci env)"
+check "the reuse success counts when QG_REUSED_NAME names it" "0" "$(real_ci env QG_REUSED_NAME='Reused Quality Gates')"
+checks "Quality Gates" skipped 10 "Reused Quality Gates" failure 10
+check "a failed reuse job does not count" "1" "$(real_ci env QG_REUSED_NAME='Reused Quality Gates')"
+checks "Quality Gates" skipped 10
+check "a skipped heavy job alone does not count" "1" "$(real_ci env QG_REUSED_NAME='Reused Quality Gates')"
+checks "Reused Quality Gates" success 999
+check "the current run is excluded" "1" "$(real_ci env QG_REUSED_NAME='Reused Quality Gates')"
+checks "Reused Quality Gates" success 10
+check "a reuse success from another workflow does not count" "1" "$(real_ci env RUN_FILE=other.yml QG_REUSED_NAME='Reused Quality Gates')"
+checks "Quality Gates (web)" success 10
+check "a namespaced name is selected by QG_NAME" "0" "$(real_ci env QG_NAME='Quality Gates (web)')"
+checks "Reused Quality Gates (web)" success 10
+check "a namespaced reuse name is selected by QG_REUSED_NAME" "0" "$(real_ci env QG_NAME='Quality Gates (web)' QG_REUSED_NAME='Reused Quality Gates (web)')"
+
+echo
 echo "Passed: $PASS  Failed: $FAIL"
 [ "$FAIL" -eq 0 ]

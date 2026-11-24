@@ -83,6 +83,14 @@ export interface InstallContext {
   readonly scanHints?: import('./scan-hints.js').ScanHints;
   /** `devaudit join`: no registry question is asked and no policy or preset is written. */
   readonly joining?: boolean;
+  /** `--compliance <none|light|regulated>` (DevAudit-Installer#1272): chooses the preset; validated before anything is touched. */
+  readonly compliance?: import('@metasession.co/devaudit-core').ComplianceMode;
+  /** `--delivery` (DevAudit-Installer#1272, #1274): set the repository up for DevAudit Delivery runs. */
+  readonly delivery?: boolean;
+  /** The value of the `DEVAUDIT_AGENT_API_KEY` environment variable; present whenever `delivery` is true. Never logged. */
+  readonly deliveryAgentApiKey?: string;
+  /** Optional value of `DEVAUDIT_AGENT_GITHUB_TOKEN`, stored as the secret of that name. Never logged. */
+  readonly deliveryAgentGithubToken?: string;
   /**
    * Set to `'developer'` only AFTER the orchestrator's mode-detection runs
    * (between step 6 and step 7); the steps that run before that point (1–6)
@@ -123,6 +131,8 @@ export interface InstallPlan {
    */
   viewerApiKeySecretName?: string;
   viewerApiKey?: string;
+  /** The `delivery-agent` portal key issued by `install --delivery` (#1274); absent when a live one was reused. */
+  agentPortalKey?: string;
   /**
    * Test tier / release gate keys to write (from flags or confirmed prompts).
    * Empty or absent means: leave the existing config and today's defaults alone.

@@ -259,6 +259,7 @@ describe('syncProject — native TS sync against a fixture', () => {
     // a consumer: PRs to develop must surface Quality Gates, while
     // release registration/evidence upload stay push/dispatch-only side effects.
     expect(ciYml).toContain('pull_request:\n    branches: [develop]');
+    // #1311: reuse of the pull request run's result is opt-in, so the default condition is the one from before #1298.
     expect(ciYml).toContain(
       "if: ${{ always() && (github.event_name != 'pull_request' || !startsWith(github.head_ref, 'chore/close-out-')) && (github.event_name == 'pull_request' || needs.register-release.result == 'success') }}",
     );

@@ -69,6 +69,10 @@ const INITIAL_BACKOFF_MS = 1000;
 // upload flow (3-step: request URL → PUT to R2 → notify portal) instead of
 // the multipart POST. Parity with scripts/upload-evidence.sh.
 const DEFAULT_PRESIGNED_THRESHOLD_BYTES = 26214400; // 25MB
+// DevAudit-Installer#1275 — the portal's multipart upload accepts at most 25 MB.
+// A larger file can only go through the presigned flow, so a presign answer
+// without a URL for it is a failure, never a fallback to a multipart POST.
+const MULTIPART_MAX_BYTES = 26214400;
 const DEFAULT_PRESIGNED_MAX_ATTEMPTS = 3;
 const DEFAULT_PRESIGNED_UPLOAD_MAX_TIME_SECONDS = 300;
 const STUB_PREFIX_BYTES = 4096;
@@ -410,9 +414,41 @@ async function uploadPresigned(
         evidenceId = body.evidenceId;
         break;
       }
-      // Portal responded 2xx but didn't return presigned URL fields —
-      // presigned URL flow not configured. Fall back to multipart.
+      // Portal responded 2xx but didn't return presigned URL fields.
+      if (source.size > MULTIPART_MAX_BYTES) {
+        return {
+          file,
+          ok: false,
+          status: res.status,
+          error: `presigned step 1: portal returned no presigned URL for a ${source.size}-byte file that cannot go multipart; check DEVAUDIT_BASE_URL answers JSON. Response: ${JSON.stringify(body).slice(0, 500)}`,
+        };
+      }
+      // Presigned flow not available for a file multipart can carry.
       return PRESIGNED_FALLBACK;
+    }
+    // DevAudit-Installer#1275 — the portal refuses a presign with a code:
+    // 413 file_too_large (with maxBytes) and 501 presign_unavailable. Neither
+    // is retried, and a refused file never falls back to multipart.
+    if (res.status === 413 || res.status === 501) {
+      const refusalText = await res.text().catch(() => '(no body)');
+      let refusal: { code?: string; maxBytes?: number } = {};
+      try {
+        refusal = JSON.parse(refusalText) as { code?: string; maxBytes?: number };
+      } catch {
+        // not JSON (for example a proxy page); fall through to the plain message
+      }
+      if (res.status === 413 && refusal.code === 'file_too_large') {
+        return {
+          file,
+          ok: false,
+          status: 413,
+          error: `presigned step 1: report is ${source.size} bytes, portal cap is ${refusal.maxBytes ?? 'unknown'} bytes; trim the Playwright report (drop traces/videos, keep report.json) or split it`,
+        };
+      }
+      if (res.status === 501 && source.size <= MULTIPART_MAX_BYTES) {
+        return PRESIGNED_FALLBACK;
+      }
+      return { file, ok: false, status: res.status, error: `presigned step 1: ${refusalText}` };
     }
     if (RETRYABLE_STATUSES.has(res.status) && attempt < maxAttemptsPresigned) {
       await delay(backoff);

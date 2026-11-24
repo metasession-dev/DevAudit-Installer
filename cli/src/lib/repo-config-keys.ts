@@ -8,7 +8,16 @@
  * changes, so `configure set --dry-run` can say what the change will touch.
  */
 
-export type ConfigKeyType = 'string' | 'integer' | 'boolean' | 'string[]' | 'object';
+import {
+  DELIVERY_DEFAULT_MAX_MINUTES,
+  DELIVERY_DEFAULT_MAX_TURNS,
+  DELIVERY_GIT_NAME_DEFAULT,
+  DELIVERY_GITHUB_TOKEN_SOURCES,
+  DELIVERY_MAX_MINUTES_RANGE,
+  DELIVERY_MAX_TURNS_RANGE,
+} from './delivery.js';
+
+export type ConfigKeyType ='string' | 'integer' | 'boolean' | 'string[]' | 'object';
 
 export interface ConfigKeySpec {
   readonly key: string;
@@ -80,6 +89,18 @@ const frameworkCodes = (value: unknown): string | null =>
 
 const reviewCount = (value: unknown): string | null =>
   typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 2 ? null : 'must be 0, 1 or 2';
+
+/** A git author name: one line, at most 100 characters, no angle brackets (they delimit the address in a commit). */
+const authorName = (value: unknown): string | null => {
+  if (typeof value !== 'string' || value.trim() === '') return 'must not be empty';
+  if (/[\r\n<>]/.test(value)) return 'must be a single line without < or >';
+  return value.length <= 100 ? null : 'must be at most 100 characters';
+};
+
+const wholeNumberBetween =
+  (min: number, max: number) =>
+  (value: unknown): string | null =>
+    typeof value === 'number' && Number.isInteger(value) && value >= min && value <= max ? null : `must be a whole number from ${min} to ${max}`;
 
 const featureCommand = (value: unknown): string | null =>
   shellCommand(value) ?? (String(value).includes('{REQ}') ? null : 'must contain the {REQ} placeholder');
@@ -278,7 +299,35 @@ export const CONFIG_KEYS: readonly ConfigKeySpec[] = [
     validate: cronOrEmpty,
     affects: ['.github/workflows/e2e-regression.yml'],
   },
-  { key: 'paths_ignore', type: 'string[]', description: 'Paths that do not trigger CI on push.', affects: CI },
+  {
+    key: 'reuse_pull_request_gates',
+    type: 'boolean',
+    description:
+      'Whether a merge into the integration branch reuses the pull request run\'s quality-gate result when the merged tree is the tree that run tested (DevAudit-Installer#1298). Off unless true (opt-in until the reuse has been seen working on GitHub, DevAudit-Installer#1311). A cheap find-tested-run job checks the pull request (one, merged, from this repository, not Dependabot), its latest successful ci.yml run, unexpired artifacts, every gate a success and an equal tree; any doubt runs the gates in full. Absent or false generates exactly the workflows of before: the gates run on the pull request and again on the merge.',
+    affects: CI,
+  },
+  {
+    key: 'report_only_e2e_enabled',
+    type: 'boolean',
+    description:
+      'Whether ci.yml runs the report-only authenticated E2E steps (DevAudit-Installer#1297): the seed step and the step that runs report_only_e2e_projects (default e2e_projects). true (the default) keeps them; false removes both, keeping e2e_projects. The step cannot fail the job and its results are not uploaded as evidence, but it is often the longest step of Quality Gates and runs on every pull request and every merge; the critical tier is already enforced on the release pull request.',
+    affects: CI,
+  },
+  {
+    key: 'report_only_e2e_projects',
+    type: 'string[]',
+    description:
+      'Playwright projects the report-only authenticated E2E step runs (DevAudit-Installer#1297), for example smoke only; unset means e2e_projects, so the gating step list is not shared with it. An empty list runs no project (the seed step still runs when e2e_seed_command is set).',
+    affects: CI,
+  },
+  { key: 'paths_ignore', type: 'string[]', description: 'Paths that do not trigger CI on push (and, with paths_ignore_pull_request, on pull requests).', affects: [...CI, '.github/workflows/ci-status-fallback.yml'] },
+  {
+    key: 'paths_ignore_pull_request',
+    type: 'boolean',
+    description:
+      'Also apply paths_ignore to pull requests (DevAudit-Installer#1290). false (the default): every pull request into the integration branch runs the full Quality Gates, as before. true: a pull request that changes only paths_ignore paths (and sdlc-config.json) does not start ci.yml, and ci-status-fallback.yml reports the required Quality Gates status for it; a pull request with any other file runs the full gates and gets no fallback status. Saves the whole gate run on the frequent evidence and docs pull requests.',
+    affects: [...CI, '.github/workflows/ci-status-fallback.yml'],
+  },
 
   // ---- DevAudit-Installer#1116 WP2: approval, production review, standards and the onboarding preset ----
   // `approval.mode` and `production_review.terminal_status` are dotted keys: they live inside the
@@ -289,6 +338,14 @@ export const CONFIG_KEYS: readonly ConfigKeySpec[] = [
     description:
       'Who may approve a release: dual_actor (the approver must differ from the author; the default) or solo_with_gap (the author approves their own release and DevAudit records the control gap). Read by the sdlc-implementer and risk-register-keeper skills; the portal has its own approval policy that doctor compares with this one.',
     enum: ['dual_actor', 'solo_with_gap'],
+    affects: [],
+  },
+  {
+    key: 'ai_use_note',
+    type: 'string',
+    description:
+      'What validate-compliance-artifacts.sh does when a REQ has commits written by an AI agent (an Sdlc-Implementer-Sentinel trailer, or a Co-Authored-By trailer naming an AI tool) and no compliance/evidence/<REQ>/ai-use-note.md (DevAudit-Installer#1301): warn (the default; a warning in the log), required (an error, so Compliance Validation fails on the release PR) or off. The AI Contributors panel of the release page reads the note.',
+    enum: ['warn', 'required', 'off'],
     affects: [],
   },
   {
@@ -305,6 +362,44 @@ export const CONFIG_KEYS: readonly ConfigKeySpec[] = [
     description:
       'Who executes the human UAT procedure when the pack applies: manual (the default; a tester runs uat-test-procedure.md by hand) or auto (the sdlc-implementer agent executes it step by step against the UAT environment, pre-fills uat-execution-record.md with the results and per-step evidence, and a named independent human reviews and signs off). The record states which happened in its front matter (execution_mode). Read by the sdlc-implementer skill and devaudit doctor (stage3-evidence); it only matters while uat.human_pack applies.',
     enum: ['manual', 'auto'],
+    affects: [],
+  },
+  // DevAudit-Installer#1272 — a DevAudit Delivery run: the portal dispatches an agent session in this repository.
+  {
+    key: 'delivery.enabled',
+    type: 'boolean',
+    description:
+      'Whether the repository accepts DevAudit Delivery runs: true generates .github/workflows/devaudit-delivery.yml, the workflow the portal dispatches a headless sdlc-implementer session through; false (the default) removes it. Set by devaudit install --delivery. Read by devaudit update and devaudit doctor (delivery-workflow).',
+    affects: ['.github/workflows/devaudit-delivery.yml', '.devaudit/delivery-prompt.md'],
+  },
+  {
+    key: 'delivery.max_turns',
+    type: 'integer',
+    description: `Most agent turns one delivery run may take (passed to the headless session as --max-turns); a whole number from ${DELIVERY_MAX_TURNS_RANGE.min} to ${DELIVERY_MAX_TURNS_RANGE.max}, ${DELIVERY_DEFAULT_MAX_TURNS} when unset.`,
+    validate: wholeNumberBetween(DELIVERY_MAX_TURNS_RANGE.min, DELIVERY_MAX_TURNS_RANGE.max),
+    affects: ['.github/workflows/devaudit-delivery.yml'],
+  },
+  {
+    key: 'delivery.max_minutes',
+    type: 'integer',
+    description: `Longest one delivery run may take, as the job's timeout-minutes; a whole number from ${DELIVERY_MAX_MINUTES_RANGE.min} to ${DELIVERY_MAX_MINUTES_RANGE.max}, ${DELIVERY_DEFAULT_MAX_MINUTES} when unset.`,
+    validate: wholeNumberBetween(DELIVERY_MAX_MINUTES_RANGE.min, DELIVERY_MAX_MINUTES_RANGE.max),
+    affects: ['.github/workflows/devaudit-delivery.yml'],
+  },
+  {
+    key: 'delivery.github_token_source',
+    type: 'string',
+    description:
+      'Where a delivery run gets the GitHub token it pushes and opens its pull request with (DevAudit-Installer#1286): secret (the repository secret DEVAUDIT_AGENT_GITHUB_TOKEN, a machine user\'s fine-grained token: the pilot path) or app (a short-lived token the portal mints from the DevAudit Agent GitHub App installed on the repository: the product path). The workflow itself uses the secret when it is set and asks the portal otherwise; this records the intent so devaudit doctor can fail when it cannot be met. Set by devaudit install --delivery.',
+    enum: [...DELIVERY_GITHUB_TOKEN_SOURCES],
+    affects: [],
+  },
+  {
+    key: 'delivery.agent_git_name',
+    type: 'string',
+    description:
+      `The name of the git author of a delivery run's commits (default ${DELIVERY_GIT_NAME_DEFAULT}). The address is never configured: it is the GitHub noreply address of the token's own identity (the GitHub App's bot, or the machine user). Read by devaudit delivery github-token.`,
+    validate: authorName,
     affects: [],
   },
   {
@@ -382,6 +477,12 @@ export const CONFIG_KEYS: readonly ConfigKeySpec[] = [
     type: 'integer',
     description: 'Most skipped tests a regression run may have before it fails; unset only reports the count.',
     validate: nonNegative,
+    affects: [],
+  },
+  {
+    key: 'e2e_report_include_traces',
+    type: 'boolean',
+    description: 'Keep traces and videos in the Playwright report zip uploaded as evidence; false (default) leaves them out so the zip stays under the portal upload cap.',
     affects: [],
   },
   {

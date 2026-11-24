@@ -8,6 +8,9 @@
 #                                      from <artifacts-dir>/playwright-report/.
 #                                      Zip errors are reported, never swallowed;
 #                                      a failed build leaves no archive behind.
+#                                      Traces and videos are left out unless
+#                                      e2e_report_include_traces is true
+#                                      (DevAudit-Installer#1275).
 #   missing <REQ> <run-conclusion>     Record that the report could not be
 #                                      uploaded. For a non-passing run this adds
 #                                      a job-summary note (reviewers need the
@@ -22,7 +25,17 @@ case "$cmd" in
     req="${3:-unknown}"
     rm -f "$dir/playwright-report.zip"
     [ -d "$dir/playwright-report" ] || exit 0
-    if ! (cd "$dir" && zip -qr playwright-report.zip playwright-report/); then
+    # DevAudit-Installer#1275 — a report with traces and videos can reach
+    # hundreds of MB and the portal caps an upload. Leave the trace viewer,
+    # the trace zips and the videos out unless e2e_report_include_traces is
+    # true in sdlc-config.json. The HTML report and the JSON results stay.
+    excludes=(-x 'playwright-report/trace/*' -x 'playwright-report/data/*.zip' -x '*.webm')
+    config="${SDLC_CONFIG:-${GITHUB_WORKSPACE:-.}/sdlc-config.json}"
+    if [ -f "$config" ] && [ "$(jq -r '.e2e_report_include_traces // false' "$config" 2>/dev/null)" = "true" ]; then
+      excludes=()
+      echo "e2e_report_include_traces is true: keeping traces and videos in playwright-report.zip"
+    fi
+    if ! (cd "$dir" && zip -qr playwright-report.zip playwright-report/ "${excludes[@]+"${excludes[@]}"}"); then
       echo "::warning::playwright-report.zip creation failed for ${req}; the HTML report will be missing from the portal"
       rm -f "$dir/playwright-report.zip"
       exit 0

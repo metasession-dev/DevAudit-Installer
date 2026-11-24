@@ -104,7 +104,7 @@ against the candidate CLI (`node cli/dist/index.js`, with
 | `doctor-json` | `doctor --json` exits 0 or 6 and carries `ok`, `tools`, `releaseCloseoutDrift`, `onboarding`, `deferral`, `proposals` | yes |
 | `doctor-fix-dry-run` | `doctor --fix --dry-run` changes nothing | yes |
 | `derive-release-version` | runs on the real history and prints a version | yes |
-| `deferral-gate-real` | `check-deferred-reqs-in-range.sh` passes on the real `origin/<release_branch>..HEAD` | yes |
+| `deferral-gate-real` | `check-deferred-reqs-in-range.sh` passes on the real `origin/<release_branch>..HEAD`, with the release this clone would promote named as `CURRENT_RELEASE` (the output of `derive-release-version.sh` run with the environment of the real `Register Release` step, `DEVAUDIT_SKIP_INTEGRATION_HOUSEKEEPING=1 DEVAUDIT_ALLOW_PENDING_TICKET_FALLBACK=1`, so the harness's own untagged local commit does not turn it into a date-based housekeeping version): a deferred REQ that its ticket lists under `Absorbed predecessor releases` passes, one it does not list fails. With no derivable release `CURRENT_RELEASE` is empty and every deferred REQ in range counts as unlisted (#1315) | yes |
 | `close-out-reconcile` | runs on the real `pending-releases/` | yes; the stale list is informational |
 
 **Deferral scenario** (local commits on the clone only, reset afterwards): a
@@ -115,7 +115,7 @@ and a successor ticket `REQ-9902`:
 | --- | --- |
 | `scenario-is-deferred` | `is-deferred-ticket.sh` recognises the deferred ticket and not the other |
 | `scenario-derive-skips` | `derive-release-version.sh` (pending-ticket fallback on) never derives `REQ-9901` |
-| `scenario-gate-blocks` | the promotion gate fails while `REQ-9901` ships unlisted |
+| `scenario-gate-blocks` | the promotion gate fails while `REQ-9901` ships unlisted (the range starts at the clone's own `HEAD` from before the scenario, so a deferred REQ the consumer really has ahead of the release branch does not decide it, #1315) |
 | `scenario-gate-allows` | the gate passes once `REQ-9902` lists `REQ-9901` under `Absorbed predecessor releases` |
 | `scenario-reconcile` | `close-out-reconcile.sh` does not report the deferred ticket as a missed close-out |
 

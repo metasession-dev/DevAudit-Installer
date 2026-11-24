@@ -573,9 +573,20 @@ export const NOT_ASKED: Readonly<Record<string, string>> = {
   e2e_preflight_command: 'set by `configure set`; advanced',
   e2e_leak_check_command: 'set by `configure set`; advanced',
   e2e_max_skipped: 'set by `configure set`; advanced',
+  ai_use_note: 'set by `configure set`; warn by default, required makes a missing ai-use-note.md fail Compliance Validation (DevAudit-Installer#1301)',
   'uat.human_pack': 'set by `configure set`; the default (risk: MEDIUM and above) fits most projects, so onboarding does not ask (DevAudit-Installer#1215)',
   'uat.mode': 'set by `configure set`; manual UAT is the default and agent-executed UAT is a deliberate opt-in, so onboarding does not ask (DevAudit-Installer#1246)',
   feature_e2e_projects: 'set by `configure set`; advanced',
+  'delivery.enabled': 'set by `devaudit install --delivery` or `configure set`; a DevAudit Delivery run is a deliberate opt-in, so onboarding does not ask (DevAudit-Installer#1272)',
+  reuse_pull_request_gates: 'set by `configure set`; advanced; off unless true, opt-in until the reuse is verified on GitHub (DevAudit-Installer#1298, #1311)',
+  report_only_e2e_enabled: 'set by `configure set`; advanced; on by default (DevAudit-Installer#1297)',
+  report_only_e2e_projects: 'set by `configure set`; advanced; unset means e2e_projects (DevAudit-Installer#1297)',
+  paths_ignore_pull_request: 'set by `configure set`; advanced; off by default, so every pull request keeps the full gates (DevAudit-Installer#1290)',
+  'delivery.github_token_source': 'set by `devaudit install --delivery` or `configure set`; where a delivery run gets its GitHub token (the secret or the portal\'s GitHub App) is a deployment choice, so onboarding does not ask (DevAudit-Installer#1286)',
+  'delivery.agent_git_name': 'set by `configure set`; advanced; the default name is "DevAudit Agent" (DevAudit-Installer#1286)',
+  'delivery.max_turns': 'set by `configure set`; advanced; the default (200) fits most projects (DevAudit-Installer#1272)',
+  'delivery.max_minutes': 'set by `configure set`; advanced; the default (90) fits most projects (DevAudit-Installer#1272)',
+  e2e_report_include_traces: 'set by `configure set`; advanced; the default (false) keeps the evidence zip under the portal upload cap (DevAudit-Installer#1275)',
 };
 
 export function questionById(id: string): Question | undefined {

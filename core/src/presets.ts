@@ -19,7 +19,7 @@ export type ConfigValue = string | number | boolean;
 /** The five moments of a change's life that every table describes (section 3). */
 export const MOMENTS = [
   { n: 1, name: 'Feature pull request opened', workflows: 'ci.yml Quality Gates (smoke is Gate 4); feature-e2e.yml' },
-  { n: 2, name: 'Merged to the integration branch', workflows: 'ci.yml (push): the gates again, registers the release, uploads evidence' },
+  { n: 2, name: 'Merged to the integration branch', workflows: 'ci.yml (push): the gates again (the opt-in `reuse_pull_request_gates` reuses the result of the pull request run when it tested the same tree), registers the release, uploads evidence' },
   { n: 3, name: 'Release pull request opened', workflows: 'check-release-approval.yml, compliance-validation.yml, e2e-regression.yml (pull_request)' },
   { n: 4, name: 'After approval and deploy', workflows: 'post-deploy-prod.yml; e2e-regression.yml (deployment_status); production review in the portal' },
   { n: 5, name: 'On a timer', workflows: 'e2e-regression.yml (schedule); periodic-review.yml (quarterly, always)' },
@@ -232,6 +232,52 @@ export function offerPresets(input: OfferInput): PresetOffers {
     ),
     C: make(fullPack, 'it needs a full test pack and none was found', SECOND_ADMIN_NOTE),
     D: make(fullPack, 'it needs a full test pack and none was found', SECOND_ADMIN_NOTE),
+  };
+}
+
+// ---- compliance modes (headless install) ------------------------------------------------------------------
+
+/**
+ * How much compliance evidence a delivery run is held to (DevAudit-Installer#1272): `none` takes preset A,
+ * `light` preset B, `regulated` preset C. Preset D is never chosen by a mode.
+ */
+export type ComplianceMode = 'none' | 'light' | 'regulated';
+
+export const COMPLIANCE_MODES: readonly ComplianceMode[] = ['none', 'light', 'regulated'];
+
+const MODE_PRESET: Readonly<Record<ComplianceMode, PresetId>> = { none: 'A', light: 'B', regulated: 'C' };
+const MODE_LADDER: readonly PresetId[] = ['C', 'B', 'A'];
+
+export interface ComplianceModePreset {
+  /** The preset the mode names. */
+  readonly requested: PresetId;
+  /** The preset to use: the requested one, or the next one down (C, B, A) that can be offered; null when none can. */
+  readonly preset: PresetId | null;
+  /** One line saying why the requested preset was not used; absent when it was. */
+  readonly fallbackNote?: string;
+}
+
+export function isComplianceMode(value: string): value is ComplianceMode {
+  return (COMPLIANCE_MODES as readonly string[]).includes(value);
+}
+
+/**
+ * The preset for a compliance mode. When the preset the mode names cannot be offered for the repository
+ * (`offered`, from `offerPresets`: for example `regulated` with no full test pack), the next one down the
+ * ladder C, B, A that can be offered is used and `fallbackNote` says so. D is never picked.
+ */
+export function presetForComplianceMode(mode: ComplianceMode, offered: PresetOffers): ComplianceModePreset {
+  const requested = MODE_PRESET[mode];
+  const chosen = MODE_LADDER.slice(MODE_LADDER.indexOf(requested)).find((id) => offered[id].offered) ?? null;
+  if (chosen === requested) return { requested, preset: chosen };
+  const why = offered[requested].reason ?? 'it cannot be offered here';
+  return {
+    requested,
+    preset: chosen,
+    fallbackNote:
+      chosen === null
+        ? `Compliance mode ${mode} names preset ${requested}, but ${why}, and no lower preset can be offered either.`
+        : `Compliance mode ${mode} names preset ${requested}, but ${why}; using preset ${chosen} instead.`,
   };
 }
 

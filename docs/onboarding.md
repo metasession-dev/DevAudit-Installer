@@ -88,9 +88,22 @@ A preset that means you approve your own releases (A, B, or answering "I approve
 | Flag | Meaning |
 | --- | --- |
 | `--preset <A\|B\|C\|D\|custom>` | Apply that preset without the preset question. With `--yes`, A and B read the approval policy from the portal and refuse (exit code 2) unless it already allows self-approval with a recorded gap; C, D and `custom` need no check. |
+| `--compliance <none\|light\|regulated>` | Choose the preset by compliance mode, with no question: `none` is A, `light` is B, `regulated` is C. When that preset cannot be offered for the repository the next one down is used and one line says so; D is never chosen. A and B set the portal approval policy to self-approval with a recorded gap (the mode is the consent; it needs a project admin, and the repository keeps "approved by a different person" if the portal refuses). Refused together with `--preset` (exit code 2). The mapping is in [`presets.md`](./presets.md#compliance-modes). |
+| `--delivery` | Set the repository up for [DevAudit Delivery runs](./delivery-runs.md): record `delivery.enabled`, generate `.github/workflows/devaudit-delivery.yml` and its prompt file, issue a second portal key named `delivery-agent` (a live one is reused) and store the repository secrets `DEVAUDIT_AGENT_PORTAL_KEY` and `DEVAUDIT_AGENT_API_KEY`. The value of `DEVAUDIT_AGENT_API_KEY` is read from the environment variable of that name; without it the run exits with code 2 before anything is touched. A machine user's GitHub token in `DEVAUDIT_AGENT_GITHUB_TOKEN` in the environment is stored too and recorded as `delivery.github_token_source: secret` (the pilot path); without it the agent's token comes from the portal's DevAudit Agent GitHub App, which must be installed on the repository. See [`delivery-runs.md`](./delivery-runs.md#the-agents-github-token). |
 | `--from-scan <file\|report-id>` | Take the suggested preset and the standards from a scan report: a file, or a saved report read from the portal (`GET /api/ci/projects/{slug}/scan-reports/{id}`) with your viewer key. A bare `<report-id>` uses the project named in `sdlc-config.json`; otherwise write `<project-slug>/<report-id>`. A report the portal does not have, a key that is not accepted, or no key (`devaudit join` issues one) exit with code 2 and name the file as the alternative. |
 
 Re-running `install` on a project that has a configuration but no `onboarding_preset` offers "Keep my current settings" first and applies no preset or policy unless you choose one. `devaudit join` asks nothing and writes no preset or policy; it prints the project's preset. `--yes` without `--preset` behaves as before.
+
+### Headless install (`--yes --compliance <mode>`)
+
+`devaudit install --yes --compliance <none|light|regulated> [--delivery]` sets a repository up with no one at a terminal: the DevAudit portal uses it to prepare a client repository for the Delivery offer. It completes with no prompt, even in a repository that has no `sdlc-config.json` yet: every question takes its documented default (the project slug from the folder name, the stack and working directory from detection, the host `railway` unless `--host` says otherwise). Authenticate with `--token` or `DEVAUDIT_USER_TOKEN`.
+
+The install steps were checked for anything that asks a question under `--yes`. Two things did, and are fixed:
+
+- Step 3 (Configure) refused `--yes` on a repository with no `sdlc-config.json`. `--compliance` now installs from the defaults; `--yes` alone still refuses, with a message that names `--compliance`.
+- The one-time offer of the agent protection rules after the install (`docs/agent-permissions.md`) asked on a terminal. It is not made under `--yes`.
+
+Every other step already skips its question under `--yes` (claiming standards on the portal, the approval policy of a preset, the branch protection). Step 7b, issuing the delivery-agent key and setting its secrets, runs only with `--delivery`.
 
 ### Starting with no tests
 

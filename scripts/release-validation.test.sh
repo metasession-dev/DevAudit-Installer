@@ -185,6 +185,54 @@ done
 got=$(surface_for_path sdlc/files/_common/github/ISSUE_TEMPLATE/bug.yml | sorted_words)
 if [ "$got" = "skills-docs" ]; then ok "2b: synced issue templates are skills-docs"; else no "2b: issue templates surfaces ($got)"; fi
 
+# 6. DevAudit-Installer#1315: a consumer's deferred REQ that its next release lists passes; one it does not list fails
+make_deferral_fixture() { # <dir> <yes|no>: does the next release's ticket list the deferred REQ?
+  local dir="$1" lists="$2" absorbed="None"
+  [ "$lists" = yes ] && absorbed="REQ-014"
+  rm -rf "$dir"; mkdir -p "$dir/scripts" "$dir/compliance/pending-releases"
+  cp "$ROOT"/sdlc/files/_common/scripts/*.sh "$dir/scripts/"
+  (
+    cd "$dir" && git init -q -b main && git config user.name t && git config user.email t@t
+    printf '# RTM\n\n| ID | Description | Status |\n| --- | --- | --- |\n' > compliance/RTM.md
+    echo base > app.txt && git add -A && git commit -q --no-verify -m "chore: base" && git tag base
+    git update-ref refs/remotes/origin/main HEAD
+    printf '# Release Ticket: REQ-014\n\n**Status:** TESTED - PENDING SIGN-OFF\n- **Release intent:** deferred-to-next — ships bundled in the next release\n' > compliance/pending-releases/RELEASE-TICKET-REQ-014.md
+    echo one > a.txt && git add -A && git commit -q --no-verify -m "feat: deferred work [REQ-014]"
+    printf '# Release Ticket: REQ-015\n\n**Status:** TESTED - PENDING SIGN-OFF\n- **Absorbed predecessor releases:** %s\n' "$absorbed" > compliance/pending-releases/RELEASE-TICKET-REQ-015.md
+    echo two > b.txt && git add -A && git commit -q --no-verify -m "feat: next release [REQ-015]"
+  )
+}
+row() { awk -F'\t' -v t="$1" -v c="$2" '$1==t && $2==c {print $3}' "$RESULTS"; }
+
+: > "$RESULTS"
+make_deferral_fixture "$TMP/defer-yes" yes
+check_scripts_on_history t1 "$TMP/defer-yes" main >/dev/null 2>&1
+check_deferral_scenario t1 "$TMP/defer-yes" main >/dev/null 2>&1
+if [ "$(row t1 deferral-gate-real)" = "PASS" ]; then ok "deferral-gate-real: a deferred REQ that the next release lists passes"; else no "deferral-gate-real with the REQ listed: $(grep -P '^t1\tdeferral-gate-real' "$RESULTS")"; fi
+for c in scenario-gate-blocks scenario-gate-allows scenario-is-deferred scenario-derive-skips scenario-reconcile; do
+  if [ "$(row t1 $c)" = "PASS" ]; then ok "scenario in a clone with a real deferred REQ: $c passes"; else no "scenario $c: $(grep -P "^t1\t$c" "$RESULTS")"; fi
+done
+
+: > "$RESULTS"
+make_deferral_fixture "$TMP/defer-no" no
+check_scripts_on_history t2 "$TMP/defer-no" main >/dev/null 2>&1
+check_deferral_scenario t2 "$TMP/defer-no" main >/dev/null 2>&1
+if [ "$(row t2 deferral-gate-real)" = "FAIL" ]; then ok "deferral-gate-real: a deferred REQ that the next release does not list still fails"; else no "deferral-gate-real with the REQ unlisted: $(grep -P '^t2\tdeferral-gate-real' "$RESULTS")"; fi
+if [ "$(row t2 scenario-gate-allows)" = "PASS" ] && [ "$(row t2 scenario-gate-blocks)" = "PASS" ]; then ok "the scenario still passes in a clone whose real deferral is unlisted"; else no "scenario in a clone with an unlisted deferral"; fi
+
+# 6b. DevAudit-Installer#1318: the harness leaves its own untagged commit on top of the clone; the release is still named
+: > "$RESULTS"
+make_deferral_fixture "$TMP/defer-top" yes
+(cd "$TMP/defer-top" && echo sync > sync.txt && git add -A && git commit -q --no-verify -m "chore: release-validation sync (local only)")
+check_scripts_on_history t4 "$TMP/defer-top" main >/dev/null 2>&1
+if [ "$(row t4 deferral-gate-real)" = "PASS" ]; then ok "deferral-gate-real: an untagged commit on top does not hide the release being promoted"; else no "untagged commit on top: $(grep -P '^t4\tderiv|^t4\tdeferral-gate-real' "$RESULTS")"; fi
+
+: > "$RESULTS"
+make_deferral_fixture "$TMP/defer-none" yes
+(cd "$TMP/defer-none" && rm -f compliance/pending-releases/RELEASE-TICKET-REQ-015.md && git add -A && git commit -q --no-verify -m "chore: untagged follow-up")
+check_scripts_on_history t3 "$TMP/defer-none" main >/dev/null 2>&1
+if [ "$(row t3 deferral-gate-real)" = "FAIL" ]; then ok "deferral-gate-real: with no derivable release the gate still fails on a deferred REQ in range"; else no "no derivable release: $(grep -P '^t3\tdeferral-gate-real' "$RESULTS")"; fi
+
 echo ""
 echo "release-validation.test.sh: ${PASS} passed, ${FAIL} failed"
 [ "$FAIL" -eq 0 ]

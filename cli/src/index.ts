@@ -15,6 +15,8 @@ import { runAuthStatus } from './commands/auth/status.js';
 import { runStatus } from './commands/status.js';
 import { runPush } from './commands/push.js';
 import { runInstallCommand } from './commands/install.js';
+import { runDeliveryReport } from './commands/delivery.js';
+import { runDeliveryGithubToken } from './commands/delivery-github-token.js';
 import { runUninstallCommand } from './commands/uninstall.js';
 import { runJoinCommand } from './commands/join.js';
 import { runUpdate } from './commands/update.js';
@@ -99,10 +101,20 @@ export async function main(argv: readonly string[]): Promise<void> {
       '--from-scan <file|report-id>',
       'Take the suggested preset and the standards from a scan report: a file, or a saved report read from the portal with your viewer key (<report-id>, or <project-slug>/<report-id> when this repository does not name the project).',
     )
+    .option(
+      '--compliance <none|light|regulated>',
+      'Choose the preset by compliance mode, with no question: none is preset A, light is B, regulated is C. When that preset cannot be offered for this repository the next one down is used and one line says so; D is never chosen. With --yes the run completes with no prompt, even in a repository with no sdlc-config.json. Refused together with --preset (exit code 2). See docs/presets.md.',
+    )
+    .option(
+      '--delivery',
+      'Set the repository up for DevAudit Delivery runs: generate .github/workflows/devaudit-delivery.yml, record delivery.enabled, issue the delivery-agent portal key and store the repository secrets DEVAUDIT_AGENT_API_KEY (read from the environment variable of that name; the run exits 2 without it) and DEVAUDIT_AGENT_PORTAL_KEY. See docs/delivery-runs.md.',
+    )
     .action(
       async (
         path: string | undefined,
         cmdOpts: {
+          compliance?: string;
+          delivery?: boolean;
           preset?: string;
           fromScan?: string;
           token?: string;
@@ -141,6 +153,8 @@ export async function main(argv: readonly string[]): Promise<void> {
           ...(cmdOpts.host !== undefined ? { host: cmdOpts.host } : {}),
           ...(cmdOpts.preset !== undefined ? { preset: cmdOpts.preset } : {}),
           ...(cmdOpts.fromScan !== undefined ? { fromScan: cmdOpts.fromScan } : {}),
+          ...(cmdOpts.compliance !== undefined ? { compliance: cmdOpts.compliance } : {}),
+          ...(cmdOpts.delivery ? { delivery: true } : {}),
           testOptions: {
             ...(cmdOpts.releaseGateTier !== undefined ? { release_gate_tier: cmdOpts.releaseGateTier } : {}),
             ...(cmdOpts.postDeployFullRegression !== undefined ? { post_deploy_full_regression: cmdOpts.postDeployFullRegression } : {}),
@@ -468,14 +482,52 @@ export async function main(argv: readonly string[]): Promise<void> {
       const globals = cmd.optsWithGlobals() as { json?: boolean };
       process.exit(await runReleaseStatus({ ...(version ? { version } : {}), json: Boolean(globals.json) }));
     });
+  const deliveryCmd = program
+    .command('delivery')
+    .description('DevAudit Delivery runs: events a headless sdlc-implementer session sends to the portal (docs/delivery-runs.md).');
+  deliveryCmd
+    .command('report')
+    .description('Send one event of a delivery run to the portal with the agent portal key: running, awaiting_approval, succeeded or failed. Exits 0 when the portal accepted it, 1 when it did not (the answer is printed), 2 for a usage error. See docs/delivery-runs.md.')
+    .requiredOption('--run <id>', 'the delivery run id')
+    .requiredOption('--phase <phase>', 'running, awaiting_approval, succeeded or failed')
+    .option('--reason <text>', 'why (used with failed)')
+    .option('--release <releaseId>', "the portal release id of this run (a later event reuses it); the portal completes a run only when this release is released")
+    .option('--release-for <version>', "look the portal release of this version (the REQ, the core REQ of a bundle) up with the agent's own key and send its id; waits for CI to register it (see --release-wait). awaiting_approval is refused (exit 1) without a release id")
+    .option('--release-wait <seconds>', 'with --release-for: how long to wait for CI to register the release, asking every 15 seconds (default 300)')
+    .option('--cost-file <path>', 'the JSON output file of the headless session; token totals are read from its usage')
+    .option('--ci-seconds <n>', 'seconds of CI time the run has used in total (default: since DEVAUDIT_JOB_STARTED, which the workflow records, when set)')
+    .action(async (cmdOpts: { run: string; phase: string; reason?: string; release?: string; releaseFor?: string; releaseWait?: string; costFile?: string; ciSeconds?: string }) => {
+      process.exit(await runDeliveryReport(cmdOpts));
+    });
+  deliveryCmd
+    .command('github-token [operation]')
+    .description('The GitHub token a delivery run pushes and opens its pull request with: the repository secret DEVAUDIT_AGENT_GITHUB_TOKEN when set, else a token the portal mints from the DevAudit Agent GitHub App (cached until 10 minutes before it expires), else it fails naming both options. Never the default GITHUB_TOKEN. Prints the token. --credential answers as a git credential helper (git passes get, store or erase), --json adds the expiry and the commit author, --mask prints the ::add-mask:: command, --github-env writes the author to GITHUB_ENV without printing the token. Exits 0 with a token, 1 without one, 2 for a usage error. See docs/delivery-runs.md.')
+    .option('--run <id>', 'the delivery run id (default: RUN_ID in the environment)')
+    .option('--json', 'print { token, expiresAt, source, author } as JSON')
+    .option('--credential', 'answer as a git credential helper')
+    .option('--mask', 'print the ::add-mask:: command for the token (for the workflow log)')
+    .option('--github-env', 'append DEVAUDIT_AGENT_GIT_NAME and DEVAUDIT_AGENT_GIT_EMAIL to the file named by GITHUB_ENV, and print no token')
+    .action(async (operation: string | undefined, cmdOpts: { run?: string; json?: boolean; credential?: boolean; mask?: boolean; githubEnv?: boolean }) => {
+      process.exit(await runDeliveryGithubToken({ ...cmdOpts, ...(operation !== undefined ? { operation } : {}) }));
+    });
   const configureCmd = program
     .command('configure')
     .description(
       "Read and change this repo's sdlc-config.json with validation (with no subcommand: the guided questions with your current values, a before/after summary and a write of only what changed): deploy host, production URL secret, custom deploy settings, runner and CI keys. Changes the repo's evidence contradicts need confirmation or --reason. See docs/configure.md.",
     );
-  configureCmd.action(async (_opts: unknown, cmd: Command) => {
-    const globals = cmd.optsWithGlobals() as { json?: boolean };
-    process.exit(await runConfigureGuided({ json: Boolean(globals.json) }));
+  configureCmd.option(
+    '--preset <id>',
+    'Apply a preset (A, B, C, D or custom) without the preset question. With the global --yes every other question keeps its current answer and nothing is asked, so a headless run (a DevAudit delivery run) can apply the preset its issue names. A preset that needs the self-approval policy sets it on the portal only with your personal token; without one the approval settings are left as they are.',
+  );
+  configureCmd.action(async (cmdOpts: { preset?: string }, cmd: Command) => {
+    const globals = cmd.optsWithGlobals() as { json?: boolean; yes?: boolean };
+    process.exit(
+      await runConfigureGuided({
+        json: Boolean(globals.json),
+        ...(cmdOpts.preset !== undefined ? { preset: cmdOpts.preset } : {}),
+        ...(globals.yes ? { yes: true } : {}),
+      }),
+    );
   });
   configureCmd
     .command('list')
