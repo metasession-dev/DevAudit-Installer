@@ -300,6 +300,13 @@ export const CONFIG_KEYS: readonly ConfigKeySpec[] = [
     affects: ['.github/workflows/e2e-regression.yml'],
   },
   {
+    key: 'reuse_pull_request_gates',
+    type: 'boolean',
+    description:
+      'Whether a merge into the integration branch reuses the pull request run\'s quality-gate result when the merged tree is the tree that run tested (DevAudit-Installer#1298). On unless false. A cheap find-tested-run job checks the pull request (one, merged, from this repository, not Dependabot), its latest successful ci.yml run, unexpired artifacts, every gate a success and an equal tree; any doubt runs the gates in full. false generates exactly the workflows of before: the gates run on the pull request and again on the merge.',
+    affects: CI,
+  },
+  {
     key: 'report_only_e2e_enabled',
     type: 'boolean',
     description:

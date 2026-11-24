@@ -18,7 +18,7 @@ A preset is a ready-made answer to the onboarding questions. `devaudit install` 
 | Moment | Workflows |
 | --- | --- |
 | 1. Feature pull request opened | ci.yml Quality Gates (smoke is Gate 4); feature-e2e.yml |
-| 2. Merged to the integration branch | ci.yml (push): the gates again, registers the release, uploads evidence |
+| 2. Merged to the integration branch | ci.yml (push): the gates again unless the pull request run tested the same tree (then it reuses that result), registers the release, uploads evidence |
 | 3. Release pull request opened | check-release-approval.yml, compliance-validation.yml, e2e-regression.yml (pull_request) |
 | 4. After approval and deploy | post-deploy-prod.yml; e2e-regression.yml (deployment_status); production review in the portal |
 | 5. On a timer | e2e-regression.yml (schedule); periodic-review.yml (quarterly, always) |

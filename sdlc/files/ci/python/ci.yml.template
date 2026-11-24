@@ -33,6 +33,7 @@ concurrency:
 jobs:
   quality-gates:
     name: Quality Gates
+{{REUSE_PY_GATES_HEAD}}
     runs-on: {{RUNNER}}
 
     # `working-directory` lets monorepo / subdir Python projects (e.g. a consumer
@@ -188,6 +189,8 @@ jobs:
             {{WORKING_DIR_PREFIX}}ci-evidence/gate-outcomes.json
             {{WORKING_DIR_PREFIX}}dist/
           retention-days: 90
+{{REUSE_RECORD_STEPS}}
+{{REUSE_JOBS}}
 
   register-release:
     name: Register Release
@@ -388,11 +391,12 @@ jobs:
   upload-evidence:
     name: Upload Evidence
     runs-on: {{RUNNER}}
-    needs: [quality-gates, register-release]
+    needs: [quality-gates, register-release{{REUSE_EVIDENCE_NEEDS}}]
     # Pull requests do not register or upload release evidence. Keeping this
     # intentionally inapplicable job out of `always()` avoids a cancelled
     # aggregate workflow when Register Release is correctly skipped (#500).
     if: ${{ !cancelled() && github.event_name != 'pull_request' && github.ref_name == '{{INTEGRATION_BRANCH}}' && needs.register-release.result == 'success' }}
+{{REUSE_EVIDENCE_PERMISSIONS}}
     env:
       DEVAUDIT_BASE_URL_VAR: ${{ vars.DEVAUDIT_BASE_URL }}
       DEVAUDIT_API_KEY: ${{ secrets.{{API_KEY_SECRET}} }}
@@ -424,8 +428,10 @@ jobs:
       # for a subdir project). Downloading with path: '.' restores files to
       # those exact paths so the upload-evidence.sh references below resolve
       # without nesting.
+{{REUSE_DOWNLOAD_STEPS}}
       - name: Download CI gate artifacts
         uses: actions/download-artifact@v8
+{{REUSE_DOWNLOAD_IF}}
         continue-on-error: true
         with:
           name: ci-results

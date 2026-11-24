@@ -21,11 +21,16 @@
 #       $QG_NAME (default "Quality Gates") whose workflow run path is
 #       $CI_WORKFLOW_PATH (default .github/workflows/ci.yml), ignoring the
 #       current run. Requires GITHUB_REPOSITORY (or REPO) and the gh CLI.
+#       When $QG_REUSED_NAME is set (ci.yml reuses a pull request run's result,
+#       DevAudit-Installer#1298), a success of the check with that name counts
+#       too: on such a merge the heavy Quality Gates job is skipped and a light job
+#       with that name reports the result.
 #   any-success <sha> <current_run_id>
 #       Like real-ci-success but accepts any workflow (all-docs ranges).
 set -euo pipefail
 
 QG_NAME="${QG_NAME:-Quality Gates}"
+QG_REUSED_NAME="${QG_REUSED_NAME:-}"
 CI_WORKFLOW_PATH="${CI_WORKFLOW_PATH:-.github/workflows/ci.yml}"
 REPO="${REPO:-${GITHUB_REPOSITORY:-}}"
 
@@ -107,10 +112,17 @@ cmd_gated_commit() {
 # Print details_url of each completed+successful $QG_NAME check-run on $1,
 # excluding the current run.
 successful_check_urls() {
-  local sha="$1" current="$2"
-  gh api "/repos/${REPO}/commits/${sha}/check-runs?name=$(python3 -I -c 'import sys,urllib.parse;print(urllib.parse.quote(sys.argv[1]))' "$QG_NAME")&per_page=100" \
+  local sha="$1" current="$2" names_filter query
+  names_filter=".name == \"${QG_NAME}\""
+  query="name=$(python3 -I -c 'import sys,urllib.parse;print(urllib.parse.quote(sys.argv[1]))' "$QG_NAME")&per_page=100"
+  if [ -n "$QG_REUSED_NAME" ]; then
+    # Two names count, so the single-name query filter would hide the second.
+    names_filter="(${names_filter} or .name == \"${QG_REUSED_NAME}\")"
+    query="per_page=100"
+  fi
+  gh api "/repos/${REPO}/commits/${sha}/check-runs?${query}" \
     --jq ".check_runs[]
-      | select(.name == \"${QG_NAME}\" and .status == \"completed\" and .conclusion == \"success\")
+      | select(${names_filter} and .status == \"completed\" and .conclusion == \"success\")
       | select((.details_url // \"\") | contains(\"/actions/runs/${current}/\") or endswith(\"/actions/runs/${current}\") | not)
       | (.details_url // \"\")"
 }
