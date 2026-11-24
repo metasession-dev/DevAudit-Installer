@@ -229,3 +229,104 @@ describe('the classify step, run for real against a fake gh', () => {
     expect(r.output).toBe('');
   });
 });
+
+// DevAudit-Installer#1299 — two defects found in review.
+async function renderAll(config: Record<string, unknown>): Promise<Record<string, string>> {
+  const dir = await fs.mkdtemp(join(tmpdir(), 'cli-pathsignore-all-'));
+  try {
+    await fs.writeFile(join(dir, 'sdlc-config.json'), JSON.stringify({ ...BASE, ...config }));
+    await fs.writeFile(
+      join(dir, 'package.json'),
+      JSON.stringify({ name: 'fixture-app', private: true, version: '0.0.0', devDependencies: { husky: '*', '@commitlint/cli': '*', '@commitlint/config-conventional': '*', 'lint-staged': '*', prettier: '*', eslint: '*', typescript: '*', '@playwright/test': '*' } }),
+    );
+    for (const d of ['.husky', 'scripts', '.github/workflows']) await fs.mkdir(join(dir, d), { recursive: true });
+    await syncProject(dir);
+    const out: Record<string, string> = {};
+    for (const f of await fs.readdir(join(dir, '.github', 'workflows'))) out[f] = (await fs.readFile(join(dir, '.github', 'workflows', f), 'utf8')).replace(/\r\n/g, '\n');
+    return out;
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+}
+
+describe('several targets: the docs-only check carries the target suffix once (#1299)', () => {
+  const target = { stack: 'node', working_directory: '.', source_dirs: 'app/ lib/', production_url_secret: 'FIXTURE_PROD_URL', devaudit: { project_slug: 'fixture-app' } };
+  const multi = {
+    paths_ignore_pull_request: true,
+    targets: [
+      { name: 'web', ...target },
+      { name: 'api', ...target, stack: 'python', working_directory: 'api', devaudit: { project_slug: 'fixture-api' } },
+    ],
+  };
+
+  it('leaves the expression job name alone and namespaces the value it resolves to', async () => {
+    const files = await renderAll(multi);
+    const fb = files['ci-status-fallback-web.yml'];
+    expect(fb).toBeDefined();
+    const doc = parse(fb!);
+    expect(doc['jobs']['quality-gates']['name']).toBe('${{ needs.classify.outputs.gate_name }}');
+    const run = String((doc['jobs']['classify']['steps'] as Array<Record<string, any>>).find((s) => s['id'] === 'classify')!['run']);
+    expect(run).toContain('GATE_NAME="Quality Gates (web)"');
+    expect(fb).not.toContain('(web) (web)');
+    expect(doc['jobs']['classify']['name']).toBe('Classify the change (web)');
+  });
+
+  it('the docs-only value is exactly the required check of that target', async () => {
+    const { namespacedRequiredChecks } = await import('../src/lib/branch-protection-checks.js');
+    const files = await renderAll(multi);
+    for (const t of ['web', 'api']) {
+      const run = String((parse(files[`ci-status-fallback-${t}.yml`]!)['jobs']['classify']['steps'] as Array<Record<string, any>>).find((s) => s['id'] === 'classify')!['run']);
+      const value = /GATE_NAME="([^"]+)"\n/.exec(run)![1];
+      expect(namespacedRequiredChecks(['Quality Gates'], t, true)).toContain(value);
+    }
+  });
+
+  it('a non-expression job name is still suffixed, as before', async () => {
+    const files = await renderAll(multi);
+    expect(parse(files['ci-web.yml']!)['jobs']['quality-gates']['name']).toBe('Quality Gates (web)');
+  });
+});
+
+describe('a pull request that edits a workflow file never skips the gates (#1299)', () => {
+  it('leaves patterns that match workflow files out of the three pull request lists, and names them', async () => {
+    const paths_ignore = ['.github/workflows/**', '.github/**', '**/*.yml', 'SDLC/**', 'compliance/**', '*.md', '*.yml', 'docs/**'];
+    const { ci, fallback } = await render({ paths_ignore_pull_request: true, paths_ignore });
+    const ciDoc = parse(ci);
+    const prIgnore = ciDoc['on']['pull_request']['paths-ignore'] as string[];
+    expect(prIgnore).toEqual(['SDLC/**', 'compliance/**', '*.md', '*.yml', 'docs/**', 'sdlc-config.json']);
+    const fb = parse(fallback);
+    expect(fb['on']['pull_request']['paths']).toEqual(prIgnore);
+    const step = (fb['jobs']['classify']['steps'] as Array<Record<string, any>>).find((s) => s['id'] === 'classify')!;
+    expect(String(step['env']['PATHS_IGNORE'])).not.toContain('.github');
+    for (const text of [ci, fallback]) expect(text).toContain("match workflow files (#1299): '.github/workflows/**', '.github/**', '**/*.yml'");
+    // the push filters keep every pattern
+    expect(ciDoc['on']['push']['paths-ignore']).toEqual(expect.arrayContaining(['.github/workflows/**', '.github/**', '**/*.yml']));
+    expect(fb['on']['push']['paths']).toEqual(expect.arrayContaining(['.github/workflows/**']));
+  });
+
+  it('a lone ** is dropped from the pull request lists too', async () => {
+    const { ci } = await render({ paths_ignore_pull_request: true, paths_ignore: ['**', 'compliance/**'] });
+    expect(parse(ci)['on']['pull_request']['paths-ignore']).toEqual(['compliance/**', 'sdlc-config.json']);
+  });
+
+  it('with no such pattern there is no comment', async () => {
+    const { ci, fallback } = await render({ paths_ignore_pull_request: true });
+    expect(ci).not.toContain('#1299');
+    expect(fallback).not.toContain('#1299');
+  });
+
+  it('with the key off the push filter still ignores workflow files, exactly as before', async () => {
+    const { ci } = await render({ paths_ignore: ['.github/workflows/**', 'compliance/**'] });
+    const doc = parse(ci);
+    expect(doc['on']['pull_request']).toEqual({ branches: ['develop'] });
+    expect(doc['on']['push']['paths-ignore']).toEqual(expect.arrayContaining(['.github/workflows/**', 'compliance/**']));
+  });
+
+  it('pullRequestSafePatterns keeps negations and patterns that cannot match a workflow file', async () => {
+    const { pullRequestSafePatterns } = await import('../src/update/ci-templates.js');
+    expect(pullRequestSafePatterns(['!.github/workflows/keep.yml', '.github/ISSUE_TEMPLATE/**', '.github/*.md', '*.yaml', '.github/workflows/*.yaml'])).toEqual({
+      kept: ['!.github/workflows/keep.yml', '.github/ISSUE_TEMPLATE/**', '.github/*.md', '*.yaml'],
+      dropped: ['.github/workflows/*.yaml'],
+    });
+  });
+});

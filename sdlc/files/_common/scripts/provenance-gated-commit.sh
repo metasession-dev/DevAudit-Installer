@@ -148,6 +148,12 @@ cmd_pr_docs_only() {
     echo code
     return 0
   fi
+  # DevAudit-Installer#1299 — a pull request that edits a workflow always runs the gates, whatever PATHS_IGNORE says.
+  # Only here: the push-side `gated-commit` keeps its rules, because ci.yml's push filter is unchanged.
+  if printf '%s\n' "$files" | grep -q '^\.github/workflows/'; then
+    echo code
+    return 0
+  fi
   if printf '%s\n' "$files" | PATHS_IGNORE="${PATHS_IGNORE:-}" python3 -I -c "$IGNORE_PY" -; then
     echo docs-only
   else

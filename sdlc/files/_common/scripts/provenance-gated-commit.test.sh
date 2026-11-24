@@ -158,6 +158,9 @@ check "a negated pattern re-includes a path" "code" "$(printf 'compliance/keep.j
 check "the files API limit (3000) fails safe: code" "code" "$(for i in $(seq 1 3000); do echo "compliance/f$i.md"; done | classify)"
 check "just under the limit is classified normally" "docs-only" "$(for i in $(seq 1 2999); do echo "compliance/f$i.md"; done | classify)"
 check "an empty PATHS_IGNORE ignores nothing: code" "code" "$(printf 'compliance/x.json\n' | PATHS_IGNORE='' bash "$HELPER" pr-docs-only)"
+check "a workflow file is code even when a pattern covers it (#1299)" "code" "$(printf 'compliance/x.json\n.github/workflows/ci.yml\n' | PATHS_IGNORE="      - 'compliance/**'
+      - '.github/**'" bash "$HELPER" pr-docs-only)"
+check "a file elsewhere under .github is still classified by the patterns" "docs-only" "$(printf '.github/ISSUE_TEMPLATE/bug.md\n' | PATHS_IGNORE="      - '.github/**'" bash "$HELPER" pr-docs-only)"
 check "extra arguments are a usage error" "2" "$(printf 'a\n' | bash "$HELPER" pr-docs-only extra >/dev/null 2>&1; echo $?)"
 
 echo
