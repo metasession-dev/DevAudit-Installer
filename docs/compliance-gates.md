@@ -112,6 +112,10 @@ The quality gates run on the pull request into the integration branch and again 
 - The integration branch moving between the pull request run and the merge changes the tree, so the gates run again. Turning on "Require branches to be up to date before merging" for the integration branch makes the pull request's last run test the tree the merge produces, so reuse becomes the common case.
 - A project onboarded before this feature gets it at its next `devaudit update` unless the key is `false`. Verify on a sandbox repository first: a reused merge, a merge after another merge, an expired artifact, a fork, a Dependabot pull request, and a release pull request after a reused merge.
 
+## AI use note (#1301)
+
+A REQ whose commits an AI agent wrote must carry `compliance/evidence/REQ-XXX/ai-use-note.md`; without it the release page shows "No AI use note uploaded for this release". The sdlc-implementer writes the note in Phase 3 (tool, model, session, commits, human reviewer, with the `**Tool:**` field the portal parses). `validate-compliance-artifacts.sh` checks it: a REQ counts as AI-authored when a commit that references it (a `[REQ-XXX]` subject tag or a `Ref:` line) carries an `Sdlc-Implementer-Sentinel:` trailer or a `Co-Authored-By:` trailer naming an AI tool. `ai_use_note` in `sdlc-config.json` sets the consequence: `warn` (the default, a warning in the log), `required` (an error, so Compliance Validation fails on the release PR) or `off`. A REQ that is already released is not re-checked.
+
 ## Evidence upload limits and refusals (devaudit-installer#1271, #1275)
 
 The portal takes a file by multipart POST up to 25 MB (26,214,400 bytes). A larger file goes through the presigned flow (`upload-url`, a PUT to storage, `upload-complete`). `scripts/upload-evidence.sh` and the CLI's uploader behave the same way:

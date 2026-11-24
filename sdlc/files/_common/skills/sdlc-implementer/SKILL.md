@@ -644,12 +644,23 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
 
    If the portal does not expose first-class test executions, do not infer executions from uploaded artefact groups. Record the gap in the summary and keep the release unresolved until the execution read model is available.
 
+5b2. **Write `compliance/evidence/REQ-XXX/ai-use-note.md` (devaudit-installer#1301).** You are an AI agent, so AI was used on this REQ: the answer to "if AI was used" is always yes for a run you drive, and the release page shows "No AI use note uploaded for this release" without it. Write it now, alongside the other per-REQ artefacts, with at least:
+
+   - `**Tool:** <the agent, for example Claude Code>` (the portal's AI Contributors panel parses this field; YAML frontmatter with `ai_contributors:` is also accepted)
+   - `**Model:** <model name and version, when known>` and `**Session:** <session id, when known>`
+   - `**Commits:**` the commits of this REQ that you wrote (the ones carrying the `Sdlc-Implementer-Sentinel:` trailer)
+   - `**Human reviewer:** <the operator who approves the release>`
+   - what the AI did, in a few lines; and `## Bundled Release Context` when the REQ is a bundle
+
+   CI warns, or fails when `ai_use_note` is `required` in `sdlc-config.json`, for a REQ with agent commits and no note.
+
 5c. **Run the Phase 3 completion guard before any PR/release-review step (devaudit-installer#341).** The tracked-release evidence pack is incomplete until the required Git artefacts exist. Before proceeding past Phase 3, verify:
 
    - `compliance/evidence/REQ-XXX/test-scope.md`
    - `compliance/evidence/REQ-XXX/test-plan.md`
    - `compliance/evidence/REQ-XXX/test-execution-summary.md`
    - `compliance/evidence/REQ-XXX/security-summary.md`
+   - `compliance/evidence/REQ-XXX/ai-use-note.md` (step 5b2: always, for a run you drive; #1301)
    - `compliance/pending-releases/RELEASE-TICKET-REQ-XXX.md`
    - `compliance/evidence/REQ-XXX/implementation-plan.md` (copied for every risk class: the portal's release checklist wants a plan for every requirement; CI also uploads `compliance/plans/REQ-XXX/implementation-plan.md` if no copy is there, #1080)
    - any already-mandatory AI artefacts required by the risk/usage rules
@@ -669,6 +680,7 @@ Reached only on the **tracked** route from Phase 0 (the issue is already fetched
      compliance/evidence/REQ-XXX/test-plan.md \
      compliance/evidence/REQ-XXX/test-execution-summary.md \
      compliance/evidence/REQ-XXX/security-summary.md \
+     compliance/evidence/REQ-XXX/ai-use-note.md \
      compliance/pending-releases/RELEASE-TICKET-REQ-XXX.md
    do
      [ -f "$f" ] || { echo "MISSING: $f"; MISSING=1; }

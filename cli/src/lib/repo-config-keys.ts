@@ -341,6 +341,14 @@ export const CONFIG_KEYS: readonly ConfigKeySpec[] = [
     affects: [],
   },
   {
+    key: 'ai_use_note',
+    type: 'string',
+    description:
+      'What validate-compliance-artifacts.sh does when a REQ has commits written by an AI agent (an Sdlc-Implementer-Sentinel trailer, or a Co-Authored-By trailer naming an AI tool) and no compliance/evidence/<REQ>/ai-use-note.md (DevAudit-Installer#1301): warn (the default; a warning in the log), required (an error, so Compliance Validation fails on the release PR) or off. The AI Contributors panel of the release page reads the note.',
+    enum: ['warn', 'required', 'off'],
+    affects: [],
+  },
+  {
     key: 'uat.human_pack',
     type: 'string',
     description:
