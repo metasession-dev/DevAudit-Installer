@@ -6,7 +6,7 @@ For article 42, `configurable-sdlc-long-form.md`. Give the prompt below to an im
 
 ## Style to match (the other DevAudit heroes)
 
-- 1200 x 630 px (1.91:1), flat vector look, no photography, no 3D, no glossy effects.
+- 1200 x 630 px (1.91:1), use photography, 3D is allowed, glossy effects allowed.
 - Background: deep navy gradient from `#0B1220` (top left) to `#141E33` (bottom right), with a faint square grid (`#1E293F`, 40 px cells, about 50% opacity).
 - Accent: a blue-to-teal gradient from `#5B8DEF` to `#7FD1C8`. A secondary amber `#F5B642` used once, for the recorded-gap marker.
 - Text: headline `#F5F7FA` bold sans-serif (Helvetica Neue / Arial look); subtitle `#94A3B8`; small labels `#CBD5E1`. Eyebrow in `#7FD1C8`, letter-spaced capitals.
