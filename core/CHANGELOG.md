@@ -6,6 +6,9 @@ All notable changes to `@metasession.co/devaudit-core` are documented here. The 
 
 ### Added
 
+- **`NOT_ASKED` lists `reuse_pull_request_gates`** (DevAudit-Installer#1298): reusing the pull request run's gate result on a merge is on by default; it is turned off with `configure set`, not asked.
+- **The five-moments text of the presets** (DevAudit-Installer#1298): the merge moment says the gates are not run again when the pull request run tested the same tree.
+
 - **`NOT_ASKED` lists `report_only_e2e_enabled` and `report_only_e2e_projects`** (DevAudit-Installer#1297): they are set with `configure set`, not asked.
 
 - **`NOT_ASKED` lists `paths_ignore_pull_request`** (DevAudit-Installer#1290): applying `paths_ignore` to pull requests is an opt-in set with `configure set`, not asked.

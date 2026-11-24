@@ -259,8 +259,9 @@ describe('syncProject — native TS sync against a fixture', () => {
     // a consumer: PRs to develop must surface Quality Gates, while
     // release registration/evidence upload stay push/dispatch-only side effects.
     expect(ciYml).toContain('pull_request:\n    branches: [develop]');
+    // #1298: with reuse on (the default) the condition also requires that the merge does not reuse the pull request run.
     expect(ciYml).toContain(
-      "if: ${{ always() && (github.event_name != 'pull_request' || !startsWith(github.head_ref, 'chore/close-out-')) && (github.event_name == 'pull_request' || needs.register-release.result == 'success') }}",
+      "if: ${{ always() && (github.event_name != 'pull_request' || !startsWith(github.head_ref, 'chore/close-out-')) && (github.event_name == 'pull_request' || needs.register-release.result == 'success') && needs.find-tested-run.outputs.reuse != 'true' }}",
     );
     expect(ciYml).toMatch(/register-release:[\s\S]*if: \$\{\{ github\.event_name != 'pull_request' && github\.ref_name == 'develop' \}\}/);
     expect(ciYml).toMatch(

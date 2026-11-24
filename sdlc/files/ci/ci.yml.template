@@ -37,8 +37,8 @@ jobs:
   # ──────────────────────────────────────────────
   quality-gates:
     name: Quality Gates
-    needs: [register-release]
-    if: ${{ always() && (github.event_name != 'pull_request' || !startsWith(github.head_ref, 'chore/close-out-')) && (github.event_name == 'pull_request' || needs.register-release.result == 'success') }}
+    needs: [register-release{{REUSE_FIND_NEEDS}}]
+    if: ${{ always() && (github.event_name != 'pull_request' || !startsWith(github.head_ref, 'chore/close-out-')) && (github.event_name == 'pull_request' || needs.register-release.result == 'success'){{REUSE_GATES_IF}} }}
     runs-on: {{RUNNER}}
 
     # `working-directory` lets monorepo / subdir Node projects (e.g. a consumer
@@ -329,6 +329,7 @@ jobs:
           }
           EOF
           cat gate-outcomes.json
+{{REUSE_RECORD_STEPS}}
 
       # ── Upload artifacts ──
 
@@ -353,6 +354,7 @@ jobs:
             {{WORKING_DIR_PREFIX}}compliance/evidence/*/screenshots/*.png
             {{WORKING_DIR_PREFIX}}compliance/evidence/*/screenshots/*.png.meta.json
           retention-days: 90
+{{REUSE_JOBS}}
 
   # ──────────────────────────────────────────────
   # Register release early (parallel with gates) so UAT gate can find it
@@ -628,7 +630,7 @@ jobs:
   upload-evidence:
     name: Upload Evidence
     runs-on: {{RUNNER}}
-    needs: [quality-gates, register-release]
+    needs: [quality-gates, register-release{{REUSE_EVIDENCE_NEEDS}}]
     # `!cancelled()` preserves failed-gate evidence on eligible integration
     # pushes, while a pull request remains an intentionally inapplicable,
     # cleanly skipped job. `always()` caused GitHub to mark this job cancelled
@@ -638,6 +640,7 @@ jobs:
     # nothing may be uploaded against one (it would create a release named
     # "skip" via --create-release-if-missing).
     if: ${{ !cancelled() && github.event_name != 'pull_request' && github.ref_name == '{{INTEGRATION_BRANCH}}' && needs.register-release.result == 'success' && needs.register-release.outputs.version != 'skip' }}
+{{REUSE_EVIDENCE_PERMISSIONS}}
     env:
       DEVAUDIT_BASE_URL_VAR: ${{ vars.DEVAUDIT_BASE_URL }}
       DEVAUDIT_API_KEY: ${{ secrets.{{API_KEY_SECRET}} }}
@@ -666,8 +669,10 @@ jobs:
           fi
           echo "DEVAUDIT_BASE_URL=${BASE%/}" >> "$GITHUB_ENV"
 
+{{REUSE_DOWNLOAD_STEPS}}
       - name: Download CI gate artifacts
         uses: actions/download-artifact@v8
+{{REUSE_DOWNLOAD_IF}}
         continue-on-error: true
         with:
           name: ci-results
@@ -1240,7 +1245,7 @@ jobs:
       - name: Complete primary quality-gate execution
         if: always() && env.DEVAUDIT_BASE_URL != ''
         run: |
-          case "${{ needs.quality-gates.result }}" in
+          case "${{ {{REUSE_GATES_RESULT}} }}" in
             success)   OUTCOME=passed ;;
             cancelled) OUTCOME=cancelled ;;
             *)         OUTCOME=failed ;;
@@ -1274,7 +1279,7 @@ jobs:
             --external-run-id "${{ github.run_id }}" \
             --external-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
             --commit-sha "${{ github.sha }}" --branch "${{ github.ref_name }}" \
-            --details-json '{"executionSource":"needs.quality-gates.result","evidenceUploadJob":"${{ job.status }}"}'
+            --details-json '{"executionSource":"needs.quality-gates.result","evidenceUploadJob":"${{ job.status }}"{{REUSE_DETAILS}}}'
 
       - name: Summary
         run: echo "Evidence uploaded for ${{ needs.register-release.outputs.version }} (UAT)"

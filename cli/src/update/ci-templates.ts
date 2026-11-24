@@ -182,6 +182,11 @@ interface SdlcConfig {
    * `e2e_projects` or `e2e_seed_command` is set).
    */
   readonly report_only_e2e_enabled?: boolean;
+  /**
+   * DevAudit-Installer#1298 — reuse the pull request run's quality-gate result on the merge when the merged tree is
+   * the tree that run tested. On unless explicitly `false`; `false` generates exactly the workflows of before.
+   */
+  readonly reuse_pull_request_gates?: boolean;
   /** Playwright projects the report-only step runs; absent means `e2e_projects`. An empty list runs none. */
   readonly report_only_e2e_projects?: readonly string[];
   /** See #689/#690 — when present, sync runs once per target instead of once for the flat config. */
@@ -870,6 +875,176 @@ function buildFallbackPullRequestTrigger(cfg: SdlcConfig, patterns: readonly str
   ].join('\n');
 }
 
+/** The jobs and steps of ci.yml that let a merge reuse a pull request run's result (DevAudit-Installer#1298). */
+export interface ReuseTokens {
+  readonly inline: Record<string, string>;
+  readonly blocks: Record<string, string>;
+}
+
+const EMPTY_REUSE_TOKENS: ReuseTokens = {
+  inline: {
+    REUSE_FIND_NEEDS: '',
+    REUSE_GATES_IF: '',
+    REUSE_EVIDENCE_NEEDS: '',
+    REUSE_GATES_RESULT: 'needs.quality-gates.result',
+    REUSE_DETAILS: '',
+  },
+  blocks: {
+    REUSE_RECORD_STEPS: '',
+    REUSE_JOBS: '',
+    REUSE_EVIDENCE_PERMISSIONS: '',
+    REUSE_DOWNLOAD_STEPS: '',
+    REUSE_DOWNLOAD_IF: '',
+    REUSE_PY_GATES_HEAD: '',
+    REUSE_PROVENANCE_ENV: '',
+  },
+};
+
+/**
+ * `reuse_pull_request_gates` (on unless `false`): on a push to the integration branch, `find-tested-run` decides
+ * whether the merged commit's tree is the tree a successful pull request run tested. If so a light job named
+ * `Quality Gates` reports the check the release provenance needs, the heavy job is skipped, and `upload-evidence`
+ * takes the pull request run's `ci-results`. Otherwise every job runs as before. Off, every token is empty and the
+ * workflow is byte for byte what it was.
+ */
+export function buildReuseTokens(cfg: SdlcConfig, stack: string, workingDirPrefix: string): ReuseTokens {
+  if (cfg.reuse_pull_request_gates === false) return EMPTY_REUSE_TOKENS;
+  const python = stack === 'python';
+  const branch = cfg.integration_branch ?? 'develop';
+  const runner = resolveRunner(cfg);
+  // Where the evidence job finds gate-outcomes.json after the download (as its own upload step reads it).
+  const outcomes = python ? `${workingDirPrefix}ci-evidence/gate-outcomes.json` : 'ci-evidence/gate-outcomes.json';
+  const downloadPath = python ? '.' : 'ci-evidence/';
+
+  const recordSteps = [
+    '',
+    '      # A merge of this pull request reuses this run\'s result when the merged tree equals the tree tested here',
+    '      # (find-tested-run.sh, DevAudit-Installer#1298).',
+    '      - name: Record the tested tree',
+    "        if: always() && github.event_name == 'pull_request'",
+    '        continue-on-error: true',
+    '        run: |',
+    '          mkdir -p "$GITHUB_WORKSPACE/reuse-record"',
+    "          git rev-parse 'HEAD^{tree}' > \"$GITHUB_WORKSPACE/reuse-record/tested-tree.txt\"",
+    python
+      ? '          cp ci-evidence/gate-outcomes.json "$GITHUB_WORKSPACE/reuse-record/gate-outcomes.json"'
+      : '          cp gate-outcomes.json "$GITHUB_WORKSPACE/reuse-record/gate-outcomes.json"',
+    '      - uses: actions/upload-artifact@v7',
+    "        if: always() && github.event_name == 'pull_request'",
+    '        continue-on-error: true',
+    '        with:',
+    '          name: tested-tree',
+    '          path: reuse-record/',
+    '          retention-days: 90',
+  ].join('\n');
+
+  const jobs = [
+    '',
+    '  # ──────────────────────────────────────────────',
+    '  # Reuse the pull request run\'s result when the merged tree is the tree it tested (DevAudit-Installer#1298).',
+    '  # Any doubt means reuse=false and every job below runs as before.',
+    '  # ──────────────────────────────────────────────',
+    '  find-tested-run:',
+    '    name: Find tested run',
+    `    runs-on: ${runner}`,
+    `    if: \${{ github.event_name == 'push' && github.ref_name == '${branch}' }}`,
+    '    permissions:',
+    '      contents: read',
+    '      pull-requests: read',
+    '      actions: read',
+    '    outputs:',
+    '      reuse: ${{ steps.find.outputs.reuse }}',
+    '      reason: ${{ steps.find.outputs.reason }}',
+    '      source_run_id: ${{ steps.find.outputs.source_run_id }}',
+    '      source_pr: ${{ steps.find.outputs.source_pr }}',
+    '      tested_tree: ${{ steps.find.outputs.tested_tree }}',
+    '    steps:',
+    '      - uses: actions/checkout@v6',
+    '        with:',
+    '          sparse-checkout: scripts',
+    '      - name: Find a pull request run to reuse',
+    '        id: find',
+    '        continue-on-error: true',
+    '        env:',
+    '          GH_TOKEN: ${{ github.token }}',
+    '          REPOSITORY: ${{ github.repository }}',
+    '          SHA: ${{ github.sha }}',
+    `          INTEGRATION_BRANCH: ${branch}`,
+    '          CURRENT_RUN_ID: ${{ github.run_id }}',
+    '        run: bash scripts/find-tested-run.sh',
+    '',
+    '  # The check the release provenance needs on a reused merge: a real `ci.yml` success. It has its own name, not',
+    '  # `Quality Gates`, so a pull request run never carries a second (skipped) check with the required name; the',
+    '  # provenance check accepts this name too (QG_REUSED_NAME). The heavy job is skipped in this case.',
+    '  quality-gates-reused:',
+    '    name: Reused Quality Gates',
+    `    needs: [${python ? '' : 'register-release, '}find-tested-run]`,
+    `    if: \${{ always() && needs.find-tested-run.outputs.reuse == 'true'${python ? '' : " && needs.register-release.result == 'success'"} }}`,
+    `    runs-on: ${runner}`,
+    '    steps:',
+    "      - name: Reuse the pull request run's result",
+    '        env:',
+    '          SOURCE_RUN: ${{ needs.find-tested-run.outputs.source_run_id }}',
+    '          SOURCE_PR: ${{ needs.find-tested-run.outputs.source_pr }}',
+    '          TESTED_TREE: ${{ needs.find-tested-run.outputs.tested_tree }}',
+    '        run: |',
+    '          {',
+    '            echo "### Quality Gates reused"',
+    '            echo',
+    '            echo "The merged tree ${TESTED_TREE} is the tree that pull request #${SOURCE_PR} tested in run ${SOURCE_RUN}, which passed."',
+    '            echo "The gates were not run again; the evidence of that run is uploaded for this commit."',
+    '          } >> "$GITHUB_STEP_SUMMARY"',
+  ].join('\n');
+
+  const downloadSteps = [
+    '      - name: Download the CI gate artifacts of the pull request run (reused)',
+    "        if: needs.find-tested-run.outputs.reuse == 'true'",
+    '        uses: actions/download-artifact@v8',
+    '        with:',
+    '          name: ci-results',
+    `          path: ${downloadPath}`,
+    '          run-id: ${{ needs.find-tested-run.outputs.source_run_id }}',
+    '          github-token: ${{ github.token }}',
+    '',
+    '      - name: Note the reuse in the gate outcomes',
+    "        if: needs.find-tested-run.outputs.reuse == 'true'",
+    '        env:',
+    '          SOURCE_RUN: ${{ needs.find-tested-run.outputs.source_run_id }}',
+    '          SOURCE_PR: ${{ needs.find-tested-run.outputs.source_pr }}',
+    '          TESTED_TREE: ${{ needs.find-tested-run.outputs.tested_tree }}',
+    '        run: |',
+    `          F="${outcomes}"`,
+    '          jq --arg run "$SOURCE_RUN" --arg pr "$SOURCE_PR" --arg tree "$TESTED_TREE" \\',
+    "            '. + {reused_from_run: $run, reused_from_pr: $pr, reused_tested_tree: $tree}' \"$F\" > \"$F.tmp\"",
+    '          mv "$F.tmp" "$F"',
+    '          cat "$F"',
+    '',
+  ].join('\n');
+
+  return {
+    inline: {
+      REUSE_FIND_NEEDS: ', find-tested-run',
+      REUSE_GATES_IF: " && needs.find-tested-run.outputs.reuse != 'true'",
+      REUSE_EVIDENCE_NEEDS: ', quality-gates-reused, find-tested-run',
+      REUSE_GATES_RESULT: "needs.quality-gates-reused.result == 'success' && 'success' || needs.quality-gates.result",
+      REUSE_DETAILS:
+        ',"reusedFromRun":"${{ needs.find-tested-run.outputs.source_run_id }}","reusedFromPr":"${{ needs.find-tested-run.outputs.source_pr }}"',
+    },
+    blocks: {
+      REUSE_RECORD_STEPS: recordSteps,
+      REUSE_JOBS: jobs,
+      REUSE_EVIDENCE_PERMISSIONS: ['    permissions:', '      contents: read', '      actions: read'].join('\n'),
+      REUSE_DOWNLOAD_STEPS: downloadSteps,
+      REUSE_DOWNLOAD_IF: "        if: needs.find-tested-run.outputs.reuse != 'true'",
+      REUSE_PROVENANCE_ENV: '          QG_REUSED_NAME: Reused Quality Gates',
+      REUSE_PY_GATES_HEAD: [
+        '    needs: [find-tested-run]',
+        "    if: ${{ always() && needs.find-tested-run.outputs.reuse != 'true' }}",
+      ].join('\n'),
+    },
+  };
+}
+
 /**
  * A GitHub path-filter glob as a regular expression, with the semantics of `paths` / `paths-ignore` (and of
  * scripts/provenance-gated-commit.sh): `*` any characters but `/`, `**` any characters including `/`, `?` one
@@ -1525,6 +1700,7 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
     // example-monorepo-ui (port 3002) in a consumer.
     const e2ePort = String(target.e2e_port ?? cfg.e2e_port ?? 3000);
 
+    const reuse = buildReuseTokens(cfg, stack, workingDirPrefix);
     const tokens: Record<string, string> = {
       PROJECT_SLUG: projectSlug,
       HOST: ctx.host,
@@ -1548,6 +1724,7 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
       PYTEST_PYTHON_VERSION: String(cfg.python_version || '3.x'),
       WORKING_DIRECTORY: workingDirectory || '.',
       WORKING_DIR_PREFIX: workingDirPrefix,
+      ...reuse.inline,
       RUNNER: resolveRunner(cfg),
       CHECKOUT_CLEAN: resolveCheckoutClean(cfg),
       PLAYWRIGHT_WITH_DEPS_FLAG: resolvePlaywrightWithDeps(cfg),
@@ -1624,6 +1801,7 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
       FALLBACK_PR_TRIGGER: buildFallbackPullRequestTrigger(cfg, prIgnorePatterns, prDroppedPatterns),
       FALLBACK_PR_PERMISSION: cfg.paths_ignore_pull_request === true ? '  pull-requests: read' : '',
       FALLBACK_JOBS: buildFallbackJobs(cfg, prIgnorePatterns),
+      ...reuse.blocks,
       // Collapsed into one merged token (devaudit-installer#928): previously
       // separate DATABASE_ENV/APP_ENV block tokens combined by string
       // concatenation with no dedup, so a key set in both sources (e.g.

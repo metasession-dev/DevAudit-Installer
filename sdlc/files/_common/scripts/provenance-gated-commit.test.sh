@@ -163,6 +163,52 @@ check "a workflow file is code even when a pattern covers it (#1299)" "code" "$(
 check "a file elsewhere under .github is still classified by the patterns" "docs-only" "$(printf '.github/ISSUE_TEMPLATE/bug.md\n' | PATHS_IGNORE="      - '.github/**'" bash "$HELPER" pr-docs-only)"
 check "extra arguments are a usage error" "2" "$(printf 'a\n' | bash "$HELPER" pr-docs-only extra >/dev/null 2>&1; echo $?)"
 
+# DevAudit-Installer#1298 — a merge that reuses a pull request run's result: the heavy Quality Gates job is skipped and
+# a light job with another name reports success, so real-ci-success must accept that name when QG_REUSED_NAME is set.
+GHBIN="$WORK/ghbin"
+mkdir -p "$GHBIN"
+cat > "$GHBIN/gh" <<'GH'
+#!/usr/bin/env bash
+endpoint="$2"; shift 2
+jqexpr=""
+while [ $# -gt 0 ]; do [ "$1" = "--jq" ] && jqexpr="$2"; shift; done
+case "$endpoint" in
+  /repos/*/commits/*/check-runs*) jq -r "$jqexpr" "$CHECKS_JSON" ;;
+  /repos/*/actions/runs/*) echo ".github/workflows/${RUN_FILE:-ci.yml}" ;;
+  *) exit 2 ;;
+esac
+GH
+chmod +x "$GHBIN/gh"
+CHECKS="$WORK/checks.json"
+checks() { # name conclusion run_id ...
+  local out='{"check_runs":[' first=1
+  while [ $# -ge 3 ]; do
+    [ "$first" = 1 ] || out="$out,"
+    out="$out{\"name\":\"$1\",\"status\":\"completed\",\"conclusion\":\"$2\",\"details_url\":\"https://github.com/o/r/actions/runs/$3/job/1\"}"
+    first=0; shift 3
+  done
+  echo "$out]}" > "$CHECKS"
+}
+real_ci() { CHECKS_JSON="$CHECKS" PATH="$GHBIN:$PATH" GITHUB_REPOSITORY=o/r "$@" bash "$HELPER" real-ci-success abc123 999 >/dev/null 2>&1; echo $?; }
+
+checks "Quality Gates" success 10
+check "a Quality Gates success counts (as before)" "0" "$(real_ci env)"
+checks "Quality Gates" skipped 10 "Reused Quality Gates" success 10
+check "a skipped heavy job and a reuse success do not count without QG_REUSED_NAME" "1" "$(real_ci env)"
+check "the reuse success counts when QG_REUSED_NAME names it" "0" "$(real_ci env QG_REUSED_NAME='Reused Quality Gates')"
+checks "Quality Gates" skipped 10 "Reused Quality Gates" failure 10
+check "a failed reuse job does not count" "1" "$(real_ci env QG_REUSED_NAME='Reused Quality Gates')"
+checks "Quality Gates" skipped 10
+check "a skipped heavy job alone does not count" "1" "$(real_ci env QG_REUSED_NAME='Reused Quality Gates')"
+checks "Reused Quality Gates" success 999
+check "the current run is excluded" "1" "$(real_ci env QG_REUSED_NAME='Reused Quality Gates')"
+checks "Reused Quality Gates" success 10
+check "a reuse success from another workflow does not count" "1" "$(real_ci env RUN_FILE=other.yml QG_REUSED_NAME='Reused Quality Gates')"
+checks "Quality Gates (web)" success 10
+check "a namespaced name is selected by QG_NAME" "0" "$(real_ci env QG_NAME='Quality Gates (web)')"
+checks "Reused Quality Gates (web)" success 10
+check "a namespaced reuse name is selected by QG_REUSED_NAME" "0" "$(real_ci env QG_NAME='Quality Gates (web)' QG_REUSED_NAME='Reused Quality Gates (web)')"
+
 echo
 echo "Passed: $PASS  Failed: $FAIL"
 [ "$FAIL" -eq 0 ]

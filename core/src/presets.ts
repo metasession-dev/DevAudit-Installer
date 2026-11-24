@@ -19,7 +19,7 @@ export type ConfigValue = string | number | boolean;
 /** The five moments of a change's life that every table describes (section 3). */
 export const MOMENTS = [
   { n: 1, name: 'Feature pull request opened', workflows: 'ci.yml Quality Gates (smoke is Gate 4); feature-e2e.yml' },
-  { n: 2, name: 'Merged to the integration branch', workflows: 'ci.yml (push): the gates again, registers the release, uploads evidence' },
+  { n: 2, name: 'Merged to the integration branch', workflows: 'ci.yml (push): the gates again unless the pull request run tested the same tree (then it reuses that result), registers the release, uploads evidence' },
   { n: 3, name: 'Release pull request opened', workflows: 'check-release-approval.yml, compliance-validation.yml, e2e-regression.yml (pull_request)' },
   { n: 4, name: 'After approval and deploy', workflows: 'post-deploy-prod.yml; e2e-regression.yml (deployment_status); production review in the portal' },
   { n: 5, name: 'On a timer', workflows: 'e2e-regression.yml (schedule); periodic-review.yml (quarterly, always)' },

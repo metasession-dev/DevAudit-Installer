@@ -287,11 +287,12 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
 
   it('records quality-gate lifecycle around execution and uses the upstream job result', () => {
     const source = template('ci.yml.template');
-    expect(source).toContain('quality-gates:\n    name: Quality Gates\n    needs: [register-release]');
+    // #1298: the needs list and the result expression carry tokens that render to the old text when reuse is off.
+    expect(source).toContain('quality-gates:\n    name: Quality Gates\n    needs: [register-release{{REUSE_FIND_NEEDS}}]');
     expect(source.indexOf('Start authoritative quality-gate execution')).toBeLessThan(
       source.indexOf('- name: TypeScript Check'),
     );
-    expect(source).toContain('case "${{ needs.quality-gates.result }}" in');
+    expect(source).toContain('case "${{ {{REUSE_GATES_RESULT}} }}" in');
     expect(source).toContain('--environment ci');
     expect(source).not.toContain('case "${{ job.status }}" in');
   });
