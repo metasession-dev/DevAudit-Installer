@@ -299,6 +299,20 @@ export const CONFIG_KEYS: readonly ConfigKeySpec[] = [
     validate: cronOrEmpty,
     affects: ['.github/workflows/e2e-regression.yml'],
   },
+  {
+    key: 'report_only_e2e_enabled',
+    type: 'boolean',
+    description:
+      'Whether ci.yml runs the report-only authenticated E2E steps (DevAudit-Installer#1297): the seed step and the step that runs report_only_e2e_projects (default e2e_projects). true (the default) keeps them; false removes both, keeping e2e_projects. The step cannot fail the job and its results are not uploaded as evidence, but it is often the longest step of Quality Gates and runs on every pull request and every merge; the critical tier is already enforced on the release pull request.',
+    affects: CI,
+  },
+  {
+    key: 'report_only_e2e_projects',
+    type: 'string[]',
+    description:
+      'Playwright projects the report-only authenticated E2E step runs (DevAudit-Installer#1297), for example smoke only; unset means e2e_projects, so the gating step list is not shared with it. An empty list runs no project (the seed step still runs when e2e_seed_command is set).',
+    affects: CI,
+  },
   { key: 'paths_ignore', type: 'string[]', description: 'Paths that do not trigger CI on push (and, with paths_ignore_pull_request, on pull requests).', affects: [...CI, '.github/workflows/ci-status-fallback.yml'] },
   {
     key: 'paths_ignore_pull_request',
