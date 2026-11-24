@@ -104,7 +104,7 @@ against the candidate CLI (`node cli/dist/index.js`, with
 | `doctor-json` | `doctor --json` exits 0 or 6 and carries `ok`, `tools`, `releaseCloseoutDrift`, `onboarding`, `deferral`, `proposals` | yes |
 | `doctor-fix-dry-run` | `doctor --fix --dry-run` changes nothing | yes |
 | `derive-release-version` | runs on the real history and prints a version | yes |
-| `deferral-gate-real` | `check-deferred-reqs-in-range.sh` passes on the real `origin/<release_branch>..HEAD`, with the release this clone would promote (the output of `derive-release-version.sh`, the helper the real workflows use) named as `CURRENT_RELEASE`: a deferred REQ that its ticket lists under `Absorbed predecessor releases` passes, one it does not list fails. With no derivable release `CURRENT_RELEASE` is empty and every deferred REQ in range counts as unlisted (#1315) | yes |
+| `deferral-gate-real` | `check-deferred-reqs-in-range.sh` passes on the real `origin/<release_branch>..HEAD`, with the release this clone would promote named as `CURRENT_RELEASE` (the output of `derive-release-version.sh` run with the environment of the real `Register Release` step, `DEVAUDIT_SKIP_INTEGRATION_HOUSEKEEPING=1 DEVAUDIT_ALLOW_PENDING_TICKET_FALLBACK=1`, so the harness's own untagged local commit does not turn it into a date-based housekeeping version): a deferred REQ that its ticket lists under `Absorbed predecessor releases` passes, one it does not list fails. With no derivable release `CURRENT_RELEASE` is empty and every deferred REQ in range counts as unlisted (#1315) | yes |
 | `close-out-reconcile` | runs on the real `pending-releases/` | yes; the stale list is informational |
 
 **Deferral scenario** (local commits on the clone only, reset afterwards): a

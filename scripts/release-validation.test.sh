@@ -220,6 +220,13 @@ check_deferral_scenario t2 "$TMP/defer-no" main >/dev/null 2>&1
 if [ "$(row t2 deferral-gate-real)" = "FAIL" ]; then ok "deferral-gate-real: a deferred REQ that the next release does not list still fails"; else no "deferral-gate-real with the REQ unlisted: $(grep -P '^t2\tdeferral-gate-real' "$RESULTS")"; fi
 if [ "$(row t2 scenario-gate-allows)" = "PASS" ] && [ "$(row t2 scenario-gate-blocks)" = "PASS" ]; then ok "the scenario still passes in a clone whose real deferral is unlisted"; else no "scenario in a clone with an unlisted deferral"; fi
 
+# 6b. DevAudit-Installer#1318: the harness leaves its own untagged commit on top of the clone; the release is still named
+: > "$RESULTS"
+make_deferral_fixture "$TMP/defer-top" yes
+(cd "$TMP/defer-top" && echo sync > sync.txt && git add -A && git commit -q --no-verify -m "chore: release-validation sync (local only)")
+check_scripts_on_history t4 "$TMP/defer-top" main >/dev/null 2>&1
+if [ "$(row t4 deferral-gate-real)" = "PASS" ]; then ok "deferral-gate-real: an untagged commit on top does not hide the release being promoted"; else no "untagged commit on top: $(grep -P '^t4\tderiv|^t4\tdeferral-gate-real' "$RESULTS")"; fi
+
 : > "$RESULTS"
 make_deferral_fixture "$TMP/defer-none" yes
 (cd "$TMP/defer-none" && rm -f compliance/pending-releases/RELEASE-TICKET-REQ-015.md && git add -A && git commit -q --no-verify -m "chore: untagged follow-up")

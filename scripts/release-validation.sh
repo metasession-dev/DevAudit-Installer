@@ -323,18 +323,21 @@ check_doctor() { # <target> <dir>
 # read-only script smoke on the real history
 # ---------------------------------------------------------------------------
 check_scripts_on_history() { # <target> <dir> <release_branch>
-  local target="$1" dir="$2" rb="$3" out rc derived=""
+  local target="$1" dir="$2" rb="$3" out rc promoted=""
   out=$(isolated "$dir" bash scripts/derive-release-version.sh 2>&1); rc=$?
   if [ $rc -eq 0 ] && [ -n "$out" ]; then
-    derived="$(printf '%s' "$out" | tail -1)"
-    record "$target" derive-release-version PASS "$derived"
+    record "$target" derive-release-version PASS "$(printf '%s' "$out" | tail -1)"
   else
     record "$target" derive-release-version FAIL "exit $rc: $(printf '%s' "$out" | tail -2 | tr '\n' ' ')"
   fi
-  # DevAudit-Installer#1315 — name the release this clone would promote (the helper the real workflows use), so a
-  # deferred REQ that its ticket lists as an absorbed predecessor passes. With no derivable release the value stays
-  # empty, as before, and every deferred REQ in range counts as unlisted.
-  out=$(isolated "$dir" env CURRENT_RELEASE="$derived" SINCE_REF="origin/$rb" bash scripts/check-deferred-reqs-in-range.sh 2>&1); rc=$?
+  # DevAudit-Installer#1315, #1318 — name the release this clone would promote, so a deferred REQ that its ticket
+  # lists as an absorbed predecessor passes. The helper runs with the environment of the real `Register Release` step
+  # (integration housekeeping off, the pending-ticket fallback on): the plain helper would return a date-based
+  # housekeeping version whenever the clone's HEAD is the harness's own untagged local commit. With no derivable
+  # release the value stays empty, as before, and every deferred REQ in range counts as unlisted.
+  promoted=$(isolated "$dir" env DEVAUDIT_SKIP_INTEGRATION_HOUSEKEEPING=1 DEVAUDIT_ALLOW_PENDING_TICKET_FALLBACK=1 \
+    bash scripts/derive-release-version.sh 2>/dev/null | tail -1)
+  out=$(isolated "$dir" env CURRENT_RELEASE="$promoted" SINCE_REF="origin/$rb" bash scripts/check-deferred-reqs-in-range.sh 2>&1); rc=$?
   if [ $rc -eq 0 ]; then
     record "$target" deferral-gate-real PASS "$(printf '%s' "$out" | tail -1)"
   else
