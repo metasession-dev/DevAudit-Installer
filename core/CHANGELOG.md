@@ -8,8 +8,8 @@ All notable changes to `@metasession.co/devaudit-core` are documented here. The 
 
 - **`NOT_ASKED` lists `ai_use_note`** (DevAudit-Installer#1301): whether a missing `ai-use-note.md` for an AI-authored REQ is a warning (the default), an error or ignored is set with `configure set`, not asked.
 
-- **`NOT_ASKED` lists `reuse_pull_request_gates`** (DevAudit-Installer#1298): reusing the pull request run's gate result on a merge is on by default; it is turned off with `configure set`, not asked.
-- **The five-moments text of the presets** (DevAudit-Installer#1298): the merge moment says the gates are not run again when the pull request run tested the same tree.
+- **`NOT_ASKED` lists `reuse_pull_request_gates`** (DevAudit-Installer#1298): reusing the pull request run's gate result on a merge is opt-in (off unless `true`, #1311); it is set with `configure set`, not asked.
+- **The five-moments text of the presets** (DevAudit-Installer#1298): the merge moment says the gates run again, and that the opt-in `reuse_pull_request_gates` reuses the pull request run's result when it tested the same tree.
 
 - **`NOT_ASKED` lists `report_only_e2e_enabled` and `report_only_e2e_projects`** (DevAudit-Installer#1297): they are set with `configure set`, not asked.
 
