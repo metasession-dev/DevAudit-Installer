@@ -176,6 +176,14 @@ interface SdlcConfig {
    * today's behaviour: a pull request always runs the full gates.
    */
   readonly paths_ignore_pull_request?: boolean;
+  /**
+   * DevAudit-Installer#1297 — the report-only authenticated E2E step of ci.yml (the seed step and the step that
+   * runs `e2e_projects`). `false` removes both; absent or true keeps them (they still render only when
+   * `e2e_projects` or `e2e_seed_command` is set).
+   */
+  readonly report_only_e2e_enabled?: boolean;
+  /** Playwright projects the report-only step runs; absent means `e2e_projects`. An empty list runs none. */
+  readonly report_only_e2e_projects?: readonly string[];
   /** See #689/#690 — when present, sync runs once per target instead of once for the flat config. */
   readonly targets?: readonly Target[];
 }
@@ -642,7 +650,12 @@ function buildE2eTestStep(cfg: SdlcConfig): string {
  * e2e_seed_command — so existing projects regenerate to an identical ci.yml.
  */
 function buildAuthenticatedE2eStep(cfg: SdlcConfig): string {
-  const projects = cfg.e2e_projects ?? [];
+  // DevAudit-Installer#1297 — the step can be turned off without losing `e2e_projects`, and can run fewer
+  // projects than the list the rest of the configuration uses. It runs on every pull request and every merge
+  // (one run per event, never only one of them), so the reuse of a pull request's gate result on a merge
+  // (#1298) always finds its results.
+  if (cfg.report_only_e2e_enabled === false) return '';
+  const projects = cfg.report_only_e2e_projects ?? cfg.e2e_projects ?? [];
   const seed = (cfg.e2e_seed_command ?? '').trim();
   if (projects.length === 0 && !seed) return '';
   const env = stepEnv(cfg, cfg.e2e_env ?? {});
@@ -862,7 +875,7 @@ function buildFallbackPullRequestTrigger(cfg: SdlcConfig, patterns: readonly str
  * scripts/provenance-gated-commit.sh): `*` any characters but `/`, `**` any characters including `/`, `?` one
  * character but `/`, `[...]` a class.
  */
-function globToRegex(glob: string): RegExp {
+export function globToRegex(glob: string): RegExp {
   let out = '';
   let i = 0;
   while (i < glob.length) {
@@ -965,10 +978,18 @@ function buildFallbackJobs(cfg: SdlcConfig, patterns: readonly string[]): string
     '          GATE_NAME="Quality Gates"',
     '          if [ "$EVENT_NAME" = "pull_request" ]; then',
     '            # An unreadable file list fails this job, so no status is reported: the pull request waits.',
-    '            KIND=$(gh api --paginate "repos/${REPOSITORY}/pulls/${PR_NUMBER}/files" --jq \'.[].filename\' | bash scripts/provenance-gated-commit.sh pr-docs-only)',
-    '            echo "Changed files: ${KIND}"',
+    '            FILES=$(gh api --paginate "repos/${REPOSITORY}/pulls/${PR_NUMBER}/files" --jq \'.[].filename\')',
+    '            KIND=$(printf \'%s\\n\' "$FILES" | bash scripts/provenance-gated-commit.sh pr-docs-only)',
+    '            COUNT=$(printf \'%s\\n\' "$FILES" | grep -c . || true)',
+    '            echo "Changed files: ${KIND} (${COUNT})"',
     '            if [ "$KIND" != "docs-only" ]; then',
     '              GATE_NAME="Quality Gates not reported here (this change has code: CI Pipeline reports it)"',
+    '              # GitHub path filters look at the first 300 changed files only. When those are all ignored',
+    '              # paths, ci.yml is not started for a pull request that also has code, and nothing reports',
+    '              # Quality Gates (DevAudit-Installer#1297).',
+    '              if [ "$COUNT" -gt 300 ]; then',
+    '                echo "::warning::This pull request changes ${COUNT} files and has code, but GitHub path filters look at the first 300 only. If no Quality Gates status appears, run the CI Pipeline workflow on this branch by hand (Actions, CI Pipeline, Run workflow): it reports the status for the head commit."',
+    '              fi',
     '            fi',
     '          fi',
     '          echo "gate_name=${GATE_NAME}" >> "$GITHUB_OUTPUT"',
@@ -980,6 +1001,19 @@ function buildFallbackJobs(cfg: SdlcConfig, patterns: readonly string[]): string
     '    steps:',
     ...acknowledge,
   ].join('\n');
+}
+
+/**
+ * Is `path` covered by `patterns` (a `paths_ignore` list), with GitHub's rules: every pattern is tried in order, a
+ * match sets "ignored", a negated pattern (`!...`) that matches clears it.
+ */
+export function pathsIgnoreCovers(patterns: readonly string[], path: string): boolean {
+  let ignored = false;
+  for (const raw of patterns) {
+    const negated = raw.startsWith('!');
+    if (globToRegex(negated ? raw.slice(1) : raw).test(path)) ignored = !negated;
+  }
+  return ignored;
 }
 
 /**

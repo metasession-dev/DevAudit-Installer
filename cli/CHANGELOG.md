@@ -4,11 +4,18 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+### Changed
+
+- **A new install skips the full gates for documentation-only pull requests** (#1297): `paths_ignore_pull_request: true` is written for a new `sdlc-config.json`, and the default `paths_ignore` also covers `docs/**`, `.devaudit/**`, `.github/ISSUE_TEMPLATE/**` and `**/*.md`, the locations the attribution classifier treats as documentation. An existing configuration is never changed. The classify step warns when a pull request of more than 300 files has code (GitHub path filters read 300 files).
+
 ### Fixed
 
 - **A delivery run reports the release of its own REQ** (#1295): the portal matches the version prefix with "starts with", newest first, so `devaudit delivery report --release-for REQ-12` could be handed the release of a newer `REQ-121` or `REQ-1210` and report it, and the run would complete when the wrong release was released. The release is now used only when its version is the requested one or its sequence form (`REQ-121.2`); anything else is treated as not found, the command keeps asking until `--release-wait` (the right release, once created, is the newest), and the warning names what the portal returned. An answer without a version is still accepted.
 
 ### Added
+
+- **`report_only_e2e_enabled` and `report_only_e2e_projects`** (#1297): turn off, or narrow, the report-only authenticated E2E steps of `ci.yml` without touching `e2e_projects`. Defaults keep today's output byte for byte.
+- **`devaudit doctor` `pull-request-gates`** (#1297): informational findings when docs-only skipping is off and when `paths_ignore` leaves a documentation path out, with the commands to fix them.
 
 - **`paths_ignore_pull_request`: docs-only pull requests skip the full Quality Gates** (#1290): opt-in (`devaudit configure set paths_ignore_pull_request true`, then `devaudit update`; off by default, so nothing changes unless it is set). `paths_ignore` then also applies to `ci.yml`'s `pull_request` trigger, and `ci-status-fallback.yml` starts for a pull request that changes any of those paths, lists its files (`pull-requests: read`) and names its `quality-gates` job from the answer: `Quality Gates` for a docs-only pull request, another name for one with code, so a code pull request never carries a second check of the required name. If the files cannot be listed it fails and reports no status. The release PR into `main` is unchanged (#971). New `provenance-gated-commit.sh pr-docs-only` classifies a file list (an empty list or 3000 files is code). A pull request that edits a workflow always runs the gates: a `paths_ignore` pattern that matches a file under `.github/workflows/` is not applied to pull requests (named in a comment in the generated files), and the classifier treats workflow files as code; the push filter is unchanged (#1299). In a repository with several targets the docs-only check is named `Quality Gates (<target>)`, not with the suffix twice (#1299).
 

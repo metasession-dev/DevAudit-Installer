@@ -236,6 +236,22 @@ export const CHECK_EXPLANATIONS: Readonly<Record<string, GapExplanation>> = {
     why: 'With uat.mode auto the agent executes the UAT procedure on a deployed UAT environment. uat.enabled is how the project says it has one; while it is not true the agent has nowhere to run the steps.',
     guidance: 'Set `uat.enabled` and `uat.url` in sdlc-config.json once a UAT environment exists, or `devaudit configure set uat.mode manual` to have a tester run the procedure by hand.',
   },
+  // DevAudit-Installer#1297
+  'pull-request-gates': {
+    title: 'Documentation-only pull requests run the full quality gates',
+    why: 'Evidence and documentation pull requests are frequent (every requirement opens several), and by default each one runs the whole Quality Gates job although it changes no code. On a shared runner that is tens of minutes per pull request. The push filter already skips such changes; the pull request filter does not unless paths_ignore_pull_request is true.',
+    guidance: 'Run `devaudit configure set paths_ignore_pull_request true`, then `devaudit update` on a fix branch. A pull request with any code file still runs everything, and the release pull request is unchanged.',
+  },
+  'pull-request-gates:docs-only-skip-off': {
+    title: 'Every pull request runs the full gates, even one that changes only documentation',
+    why: 'paths_ignore_pull_request is not true, so the pull request trigger of ci.yml has no path filter. A project onboarded before the key existed keeps this behaviour until it opts in: `devaudit update` never changes it.',
+    guidance: 'Set it with `devaudit configure set paths_ignore_pull_request true` and regenerate with `devaudit update`. A pull request that edits a workflow file always runs the gates.',
+  },
+  'pull-request-gates:docs-not-ignored': {
+    title: 'paths_ignore leaves a documentation path out',
+    why: 'A change under a documentation path that paths_ignore does not cover starts ci.yml on push, and on a pull request when docs-only skipping is on. A bare *.md pattern matches only the repository root in a GitHub path filter, so markdown in a folder needs **/*.md as well.',
+    guidance: 'Add the patterns the finding names with `devaudit configure set paths_ignore <the whole list>` (it replaces the list), then run `devaudit update`.',
+  },
   // DevAudit-Installer#1265
   'cli-version': {
     title: 'The devaudit CLI or this project\'s last sync is behind the latest published version',
