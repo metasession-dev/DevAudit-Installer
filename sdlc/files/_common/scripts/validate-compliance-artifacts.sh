@@ -74,6 +74,34 @@ strip_html_comments() {
     }' "$1"
 }
 
+# DevAudit-Installer#1301 — `ai_use_note` in sdlc-config.json: off, warn (the default) or required. It decides what
+# happens when a REQ's commits were written by an AI agent and its evidence directory has no ai-use-note.md.
+AI_USE_NOTE_MODE=warn
+if [ -f sdlc-config.json ] && command -v jq >/dev/null 2>&1; then
+  AI_USE_NOTE_MODE="$(jq -r '.ai_use_note // "warn"' sdlc-config.json 2>/dev/null || echo warn)"
+  case "$AI_USE_NOTE_MODE" in off|warn|required) ;; *) AI_USE_NOTE_MODE=warn ;; esac
+fi
+
+# Do the PR's commits that reference $1 (a `[REQ-XXX]` subject tag or a `Ref:` line) carry a sign of an AI agent: the
+# `Sdlc-Implementer-Sentinel:` trailer the sdlc-implementer stamps on every commit, or a `Co-Authored-By:` trailer naming
+# an AI tool? The list of tools is approximate; the sentinel is the reliable signal. Exit 0 when there is such a commit.
+req_has_ai_commits() {
+  git log "$BASE_BRANCH"..HEAD --format='%x1e%B' 2>/dev/null | awk -v req="$1" '
+    BEGIN { RS = "\036"; re = req "([^0-9]|$)" }
+    {
+      n = split($0, lines, "\n"); ref = 0; ai = 0
+      for (i = 1; i <= n; i++) {
+        l = lines[i]; low = tolower(l)
+        if (index(l, "[" req "]") > 0) ref = 1
+        if (low ~ /^[ \t]*ref:/ && l ~ re) ref = 1
+        if (l ~ /^Sdlc-Implementer-Sentinel:/) ai = 1
+        if (low ~ /^co-authored-by:/ && low ~ /(claude|anthropic|copilot|cursor|gemini|openai|chatgpt|codex|windsurf|devin-ai|aider)/) ai = 1
+      }
+      if (ref && ai) found = 1
+    }
+    END { exit (found ? 0 : 1) }'
+}
+
 find_first_match() {
   local pattern="$1"
   local match=""
@@ -615,6 +643,19 @@ for REQ in $REQUIREMENTS; do
   if [ -f "compliance/evidence/$REQ/ai-use-note.md" ] \
      && ! grep -qE '^ai_contributors:|AI Tool Used:|\*\*Tool:\*\*' "compliance/evidence/$REQ/ai-use-note.md"; then
     echo "  WARNING: ai-use-note.md has no YAML frontmatter (ai_contributors:), legacy 'AI Tool Used:' line, or '**Tool:**' field — the portal's AI Contributors panel will fail to parse it (devaudit#799)"
+  fi
+
+  # DevAudit-Installer#1301 — presence. An AI agent wrote this REQ's commits, so the AI Contributors panel of the
+  # release needs ai-use-note.md. "If AI was used" is not the author's call when the commits carry the agent's own
+  # sentinel or co-author trailer. A REQ already released is not re-checked (its evidence cannot change in this PR).
+  if [ "$AI_USE_NOTE_MODE" != off ] && [ "$REQ_TERMINAL" != true ] \
+     && [ ! -f "compliance/evidence/$REQ/ai-use-note.md" ] && req_has_ai_commits "$REQ"; then
+    if [ "$AI_USE_NOTE_MODE" = required ]; then
+      echo "  ERROR: $REQ has commits written by an AI agent (Sdlc-Implementer-Sentinel or an AI Co-Authored-By trailer) but compliance/evidence/$REQ/ai-use-note.md is missing (ai_use_note: required). Write it (tool, model, session, commits, human reviewer) before the release PR."
+      EXIT_CODE=1
+    else
+      echo "  WARNING: $REQ has commits written by an AI agent (Sdlc-Implementer-Sentinel or an AI Co-Authored-By trailer) but compliance/evidence/$REQ/ai-use-note.md is missing; the release page will show \"No AI use note uploaded\". Set ai_use_note to required in sdlc-config.json to fail instead."
+    fi
   fi
 
   # Check E2E coverage matches what implementation-plan.md scoped
