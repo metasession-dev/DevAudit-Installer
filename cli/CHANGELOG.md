@@ -4,6 +4,8 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+## [1.15.0] — 2026-11-24
+
 ### Changed
 
 - **A new install skips the full gates for documentation-only pull requests** (#1297): `paths_ignore_pull_request: true` is written for a new `sdlc-config.json`, and the default `paths_ignore` also covers `docs/**`, `.devaudit/**`, `.github/ISSUE_TEMPLATE/**` and `**/*.md`, the locations the attribution classifier treats as documentation. An existing configuration is never changed. The classify step warns when a pull request of more than 300 files has code (GitHub path filters read 300 files).
@@ -64,6 +66,15 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 ### Added
 
 - **`docs/onboarding-checklist.md`** (#1262): a short operator checklist for verifying an onboarded project with `doctor`, reviewing the `sdlc-config.json` keys, making the SDLC implement an issue as intended, and maintaining the SRS and the E2E tests. Linked from `docs/onboarding.md`. Documentation only.
+
+### Upgrade notes
+
+- **Workflows you receive:** for a default Node project your next sync diff rewrites `ci.yml` (the Playwright report evidence is now zipped by `scripts/playwright-report-evidence.sh`, and its upload is a warning, not a failed gate, whenever `e2e-results.json` exists) and `feature-e2e.yml` (the same change, Node and Python). A default Python project's `ci.yml` is unchanged. `ci-status-fallback.yml` and `quality-gates-provenance.yml` change only for a project that turns on `paths_ignore_pull_request` or `reuse_pull_request_gates`. A new workflow, `devaudit-delivery.yml`, is generated only for a project that turns DevAudit Delivery on.
+- **New and changed scripts in `scripts/`:** new `find-tested-run.sh` (used only when `reuse_pull_request_gates` is `true`); changed `check-release-pr-scope.sh`, `delivery-gh.sh`, `extract-release-metadata.sh`, `generate-bundled-changes.sh`, `playwright-report-evidence.sh`, `prepare-release-pr.sh`, `provenance-gated-commit.sh`, `upload-evidence.sh` and `validate-compliance-artifacts.sh`. A script you edited by hand is kept and the new one is written beside it as `*.devaudit-new`.
+- **`Compliance Validation` warns about a missing AI use note:** a REQ whose commits carry an `Sdlc-Implementer-Sentinel:` trailer or an AI `Co-Authored-By:` trailer and that has no `compliance/evidence/REQ-XXX/ai-use-note.md` now gets a warning. Set `ai_use_note` to `required` to make it fail, or `off` to skip it. The `sdlc-implementer` skill writes the note in Phase 3 step 5b2.
+- **New settings, none of which changes an onboarded project until you set it:** `paths_ignore_pull_request` (skip the full gates for pull requests that change only ignored paths; new installs get `true`), `report_only_e2e_enabled` and `report_only_e2e_projects` (turn off or narrow the report-only authenticated E2E step), `reuse_pull_request_gates` (**opt-in**: a merge reuses the pull request run's gate result when the merged tree is the tree that run tested; not yet seen working on a real repository, so leave it off for now) and `ai_use_note`.
+- **`devaudit doctor` has a new informational check, `pull-request-gates`:** it says when docs-only skipping is off and when `paths_ignore` leaves a documentation path out, with the commands to fix both. It never fails.
+- **A new install** writes `paths_ignore_pull_request: true` and a `paths_ignore` that also covers `docs/**`, `.devaudit/**`, `.github/ISSUE_TEMPLATE/**` and `**/*.md`. An existing `sdlc-config.json` is never changed by `install` or `update`.
 
 ## [1.14.0] — 2026-11-13
 
