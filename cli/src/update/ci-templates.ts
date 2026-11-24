@@ -184,7 +184,8 @@ interface SdlcConfig {
   readonly report_only_e2e_enabled?: boolean;
   /**
    * DevAudit-Installer#1298 — reuse the pull request run's quality-gate result on the merge when the merged tree is
-   * the tree that run tested. On unless explicitly `false`; `false` generates exactly the workflows of before.
+   * the tree that run tested. Opt-in (DevAudit-Installer#1311): on only when `true`; absent or `false` generates exactly
+   * the workflows of before.
    */
   readonly reuse_pull_request_gates?: boolean;
   /** Playwright projects the report-only step runs; absent means `e2e_projects`. An empty list runs none. */
@@ -901,14 +902,14 @@ const EMPTY_REUSE_TOKENS: ReuseTokens = {
 };
 
 /**
- * `reuse_pull_request_gates` (on unless `false`): on a push to the integration branch, `find-tested-run` decides
+ * `reuse_pull_request_gates` (opt-in: on only when exactly `true`, DevAudit-Installer#1311): on a push to the integration branch, `find-tested-run` decides
  * whether the merged commit's tree is the tree a successful pull request run tested. If so a light job named
- * `Quality Gates` reports the check the release provenance needs, the heavy job is skipped, and `upload-evidence`
- * takes the pull request run's `ci-results`. Otherwise every job runs as before. Off, every token is empty and the
- * workflow is byte for byte what it was.
+ * `Reused Quality Gates` reports the check the release provenance needs, the heavy job is skipped, and `upload-evidence`
+ * takes the pull request run's `ci-results`. Otherwise every job runs as before. Absent or false, every token is empty
+ * and the workflow is byte for byte what it was. It is opt-in until the reuse has been seen working on GitHub.
  */
 export function buildReuseTokens(cfg: SdlcConfig, stack: string, workingDirPrefix: string): ReuseTokens {
-  if (cfg.reuse_pull_request_gates === false) return EMPTY_REUSE_TOKENS;
+  if (cfg.reuse_pull_request_gates !== true) return EMPTY_REUSE_TOKENS;
   const python = stack === 'python';
   const branch = cfg.integration_branch ?? 'develop';
   const runner = resolveRunner(cfg);

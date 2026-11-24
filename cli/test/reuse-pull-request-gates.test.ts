@@ -10,7 +10,7 @@ import { findConfigKey, validateConfigKeyValue } from '../src/lib/repo-config-ke
 import { NOT_ASKED } from '@metasession.co/devaudit-core';
 
 // DevAudit-Installer#1298 — a merge reuses the pull request run's quality-gate result when the merged tree is the
-// tree that run tested. On unless `reuse_pull_request_gates` is false.
+// tree that run tested. Opt-in (#1311): on only when `reuse_pull_request_gates` is true.
 
 vi.setConfig({ testTimeout: 120_000 });
 
@@ -72,11 +72,11 @@ const needsOf = (job: Doc): string[] => (Array.isArray(job['needs']) ? job['need
 const stepNames = (job: Doc): string[] => (job['steps'] as Array<Record<string, any>>).map((s) => String(s['name'] ?? ''));
 
 for (const stack of ['node', 'python'] as const) {
-  describe(`${stack}: reuse on (the default)`, () => {
+  describe(`${stack}: reuse_pull_request_gates true`, () => {
     let ci: string;
     let jobs: Doc;
     beforeAll(async () => {
-      ci = (await render({ stack }))['ci.yml']!;
+      ci = (await render({ stack, reuse_pull_request_gates: true }))['ci.yml']!;
       jobs = parse(ci)['jobs'];
     }, 120_000);
 
@@ -147,50 +147,52 @@ for (const stack of ['node', 'python'] as const) {
     });
   });
 
-  describe(`${stack}: reuse_pull_request_gates false`, () => {
-    it('opts out: none of the new jobs, steps or conditions appear', async () => {
-      const ci = (await render({ stack, reuse_pull_request_gates: false }))['ci.yml']!;
-      for (const needle of ['find-tested-run', 'quality-gates-reused', 'Reused Quality Gates', 'tested-tree', 'reused_from', 'REUSE_']) expect(ci, needle).not.toContain(needle);
-      const jobs = parse(ci)['jobs'];
-      expect(Object.keys(jobs)).toEqual(['quality-gates', 'register-release', 'upload-evidence']);
-      expect(needsOf(jobs['upload-evidence'])).toEqual(['quality-gates', 'register-release']);
-      expect(jobs['upload-evidence']['permissions']).toBeUndefined();
+  for (const [label, extra] of [['absent (the default)', {}], ['false', { reuse_pull_request_gates: false }]] as const) {
+    describe(`${stack}: reuse_pull_request_gates ${label}`, () => {
+      it('none of the new jobs, steps or conditions appear', async () => {
+        const ci = (await render({ stack, ...extra }))['ci.yml']!;
+        for (const needle of ['find-tested-run', 'quality-gates-reused', 'Reused Quality Gates', 'tested-tree', 'reused_from', 'REUSE_']) expect(ci, needle).not.toContain(needle);
+        const jobs = parse(ci)['jobs'];
+        expect(Object.keys(jobs)).toEqual(['quality-gates', 'register-release', 'upload-evidence']);
+        expect(needsOf(jobs['upload-evidence'])).toEqual(['quality-gates', 'register-release']);
+        expect(jobs['upload-evidence']['permissions']).toBeUndefined();
+      });
     });
-  });
+  }
 }
 
-describe('node: the opt-out and the default keep the rest of the workflow', () => {
-  it('opt-out keeps today\'s gate result and condition lines', async () => {
-    const ci = (await render({ reuse_pull_request_gates: false }))['ci.yml']!;
+describe('node: the opt-in keeps the rest of the workflow', () => {
+  it('absent keeps today\'s gate result and condition lines', async () => {
+    const ci = (await render({}))['ci.yml']!;
     expect(ci).toContain('needs: [register-release]\n    if: ${{ always() && (github.event_name != \'pull_request\' || !startsWith(github.head_ref, \'chore/close-out-\')) && (github.event_name == \'pull_request\' || needs.register-release.result == \'success\') }}');
     expect(ci).toContain('case "${{ needs.quality-gates.result }}" in');
     expect(ci).toContain('--details-json \'{"executionSource":"needs.quality-gates.result","evidenceUploadJob":"${{ job.status }}"}\'');
   });
 
   it('on, the outcome and the release check read the light job when it ran', async () => {
-    const ci = (await render({}))['ci.yml']!;
+    const ci = (await render({ reuse_pull_request_gates: true }))['ci.yml']!;
     expect(ci).toContain("case \"${{ needs.quality-gates-reused.result == 'success' && 'success' || needs.quality-gates.result }}\" in");
     expect(ci).toContain('"reusedFromRun":"${{ needs.find-tested-run.outputs.source_run_id }}"');
   });
 
   it('a pull request run still has exactly the gates job: the finder and light jobs do not apply to it', async () => {
-    const jobs = parse((await render({}))['ci.yml']!)['jobs'];
+    const jobs = parse((await render({ reuse_pull_request_gates: true }))['ci.yml']!)['jobs'];
     expect(jobs['find-tested-run']['if']).toContain("'push'");
     expect(jobs['register-release']['if']).toContain("github.event_name != 'pull_request'");
     expect(jobs['quality-gates']['if']).toContain("github.event_name == 'pull_request'");
   });
 
   it('every step of the evidence and gates jobs still renders (no unreplaced token)', async () => {
-    for (const body of Object.values(await render({}))) expect(body).not.toMatch(/\{\{[A-Z_]+\}\}/);
+    for (const body of Object.values(await render({ reuse_pull_request_gates: true }))) expect(body).not.toMatch(/\{\{[A-Z_]+\}\}/);
   });
 });
 
 describe('the release pull request accepts the reuse job', () => {
-  it('on, the provenance workflow names the reuse check; off it does not', async () => {
-    const on = (await render({}))['quality-gates-provenance.yml']!;
+  it('true: the provenance workflow names the reuse check; absent it does not', async () => {
+    const on = (await render({ reuse_pull_request_gates: true }))['quality-gates-provenance.yml']!;
     expect(on).toContain('QG_REUSED_NAME: Reused Quality Gates');
     expect(on).toContain('QG_NAME: Quality Gates');
-    const off = (await render({ reuse_pull_request_gates: false }))['quality-gates-provenance.yml']!;
+    const off = (await render({}))['quality-gates-provenance.yml']!;
     expect(off).not.toContain('QG_REUSED_NAME');
     expect(off).not.toMatch(/\{\{[A-Z_]+\}\}/);
   });
@@ -200,6 +202,7 @@ describe('several targets', () => {
   const target = { stack: 'node', working_directory: '.', source_dirs: 'app/ lib/', production_url_secret: 'FIXTURE_PROD_URL', devaudit: { project_slug: 'fixture-app' } };
   it('namespaces the reuse job once, and the provenance workflow names the same check', async () => {
     const files = await render({
+      reuse_pull_request_gates: true,
       targets: [
         { name: 'web', ...target },
         { name: 'api', ...target, stack: 'python', working_directory: 'api', devaudit: { project_slug: 'fixture-api' } },
@@ -243,7 +246,7 @@ describe('the new run blocks, executed against fixtures', () => {
 
   for (const stack of ['node', 'python'] as const) {
     it(`${stack}: records the tested tree and the gate outcomes of a pull request run`, async () => {
-      const jobs = parse((await render({ stack }))['ci.yml']!)['jobs'];
+      const jobs = parse((await render({ stack, reuse_pull_request_gates: true }))['ci.yml']!)['jobs'];
       const dir = await fs.mkdtemp(join(tmpdir(), 'cli-reuse-record-'));
       try {
         await execa('git', ['init', '-q', '-b', 'main'], { cwd: dir });
@@ -262,7 +265,7 @@ describe('the new run blocks, executed against fixtures', () => {
     });
 
     it(`${stack}: notes the reuse in the downloaded gate outcomes and keeps the gates`, async () => {
-      const jobs = parse((await render({ stack }))['ci.yml']!)['jobs'];
+      const jobs = parse((await render({ stack, reuse_pull_request_gates: true }))['ci.yml']!)['jobs'];
       const dir = await fs.mkdtemp(join(tmpdir(), 'cli-reuse-note-'));
       try {
         await fs.mkdir(join(dir, 'ci-evidence'), { recursive: true });

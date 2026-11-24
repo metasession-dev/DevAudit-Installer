@@ -77,7 +77,7 @@ Use `devaudit configure list`, `get <key>` and `set <key> <value> --dry-run`. Th
 | | `install_flags`, `typescript_check_env` | for example `--legacy-peer-deps`; an object such as `{ "NODE_OPTIONS": "--max-old-space-size=4096" }` | Flags appended to `npm ci`; env for the TypeScript check step only. |
 | | `database_service`, `database_image`, `database_port`, `database_env`, `app_env`, `build_env` | for example `postgres` or `mongodb`, an image name, a port, and objects of env values; empty for no database | The CI database service and the env for the app, tests and build. |
 | | `paths_ignore` | a list of globs | Paths that do not trigger CI on push. |
-| | `reuse_pull_request_gates` | `true` (default), `false` | A merge reuses the pull request run's gate result when the merged tree is the tree it tested; any doubt runs the gates in full. |
+| | `reuse_pull_request_gates` | `false` (default, also when absent), `true` | A merge reuses the pull request run's gate result when the merged tree is the tree it tested; any doubt runs the gates in full. |
 | | `paths_ignore_pull_request` | `true` (new installs), `false` (earlier installs) | Also skip the full gates for a pull request that changes only those paths (a status fallback reports the required check). |
 
 Set secrets with `devaudit configure secret <NAME>`; the value never passes through devaudit.
