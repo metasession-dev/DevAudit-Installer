@@ -216,9 +216,12 @@ function namespaceForTarget(outputName: string, content: string, target: Target,
   namespacedContent = namespacedContent.replace(/^name: (.+)$/m, (m: string, title: string) =>
     alreadySuffixed(title) ? m : `name: ${title}${suffix}`,
   );
-  // Job-level `name:` (4-space indent, not a `- name:` step entry).
+  // Job-level `name:` (4-space indent, not a `- name:` step entry). A name that is an expression
+  // (`${{ needs.classify.outputs.gate_name }}` in ci-status-fallback.yml) is left alone: its value is a
+  // string of this file, already namespaced above, and a second suffix would make it miss the required
+  // check name (DevAudit-Installer#1299).
   namespacedContent = namespacedContent.replace(/^ {4}name: (.+)$/gm, (m: string, title: string) =>
-    alreadySuffixed(title) ? m : `    name: ${title}${suffix}`,
+    alreadySuffixed(title) || title.includes('${{') ? m : `    name: ${title}${suffix}`,
   );
   return { outputName: namespacedName, content: namespacedContent };
 }
@@ -843,14 +846,73 @@ function buildFeatureE2eTestStep(cfg: SdlcConfig): string {
  * `paths_ignore_pull_request`: it fires on exactly the paths ci.yml's pull_request filter ignores, so a pull
  * request that changes only those paths gets a passing `Quality Gates` status. Empty (the line is dropped) otherwise.
  */
-function buildFallbackPullRequestTrigger(cfg: SdlcConfig, patterns: readonly string[]): string {
+function buildFallbackPullRequestTrigger(cfg: SdlcConfig, patterns: readonly string[], dropped: readonly string[] = []): string {
   if (cfg.paths_ignore_pull_request !== true) return '';
   return [
     '  pull_request:',
     `    branches: [${cfg.integration_branch ?? 'develop'}]`,
+    ...(dropped.length > 0 ? [`    # Not applied to pull requests, because they match workflow files (#1299): ${dropped.map((p) => `'${p}'`).join(', ')}`] : []),
     '    paths:',
     ...patterns.map((p) => `      - '${p}'`),
   ].join('\n');
+}
+
+/**
+ * A GitHub path-filter glob as a regular expression, with the semantics of `paths` / `paths-ignore` (and of
+ * scripts/provenance-gated-commit.sh): `*` any characters but `/`, `**` any characters including `/`, `?` one
+ * character but `/`, `[...]` a class.
+ */
+function globToRegex(glob: string): RegExp {
+  let out = '';
+  let i = 0;
+  while (i < glob.length) {
+    const c = glob[i]!;
+    if (glob.startsWith('**', i)) {
+      out += '.*';
+      i += 2;
+      if (glob[i] === '/') {
+        out = `${out.slice(0, -2)}(?:.*/)?`;
+        i += 1;
+      }
+    } else if (c === '*') {
+      out += '[^/]*';
+      i += 1;
+    } else if (c === '?') {
+      out += '[^/]';
+      i += 1;
+    } else if (c === '[') {
+      const j = glob.indexOf(']', i + 1);
+      if (j === -1) {
+        out += '\\[';
+        i += 1;
+      } else {
+        out += glob.slice(i, j + 1);
+        i = j + 1;
+      }
+    } else {
+      out += c.replace(/[.+^${}()|\\]/g, '\\$&');
+      i += 1;
+    }
+  }
+  return new RegExp(`^${out}$`);
+}
+
+/** Paths a workflow file can have, for telling whether a pattern would skip one. */
+const WORKFLOW_FILE_SAMPLES = ['.github/workflows/ci.yml', '.github/workflows/ci.yaml', '.github/workflows/nested/deploy.yml'];
+
+/**
+ * DevAudit-Installer#1299 — the patterns of `paths_ignore` that may be applied to a pull request: every one that
+ * does not match a workflow file. A pull request that edits a workflow must run the gates; the push filter keeps
+ * the whole list, as before. A negated pattern (`!...`) only re-includes paths and is always kept.
+ */
+export function pullRequestSafePatterns(patterns: readonly string[]): { kept: string[]; dropped: string[] } {
+  const kept: string[] = [];
+  const dropped: string[] = [];
+  for (const p of patterns) {
+    if (!p.startsWith('!') && WORKFLOW_FILE_SAMPLES.some((f) => globToRegex(p).test(f))) dropped.push(p);
+    else kept.push(p);
+  }
+  return { kept, dropped };
 }
 
 /**
@@ -1500,9 +1562,16 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
     // DevAudit-Installer#1290 — with `paths_ignore_pull_request`, a pull request that changes only ignored paths
     // (and `sdlc-config.json`, as the push filter) does not start ci.yml either; ci-status-fallback.yml then reports
     // its `Quality Gates` status. Off (the default) keeps the block above byte for byte.
-    const prIgnorePatterns = [...new Set([...(cfg.paths_ignore ?? []), ...otherTargetDirs, 'sdlc-config.json'])];
+    // DevAudit-Installer#1299 — a pattern that matches a workflow file is never applied to a pull request: a pull
+    // request that edits workflows must run the gates. The push filter is unchanged.
+    const { kept: prIgnorePatterns, dropped: prDroppedPatterns } = pullRequestSafePatterns([
+      ...new Set([...(cfg.paths_ignore ?? []), ...otherTargetDirs, 'sdlc-config.json']),
+    ]);
+    const prDroppedNote = prDroppedPatterns.length > 0
+      ? `    # Not applied to pull requests, because they match workflow files (#1299): ${prDroppedPatterns.map((p) => `'${p}'`).join(', ')}\n`
+      : '';
     const prPathsIgnoreBlock = cfg.paths_ignore_pull_request === true
-      ? `    paths-ignore:\n${prIgnorePatterns.map((p) => `      - '${p}'`).join('\n')}`
+      ? `${prDroppedNote}    paths-ignore:\n${prIgnorePatterns.map((p) => `      - '${p}'`).join('\n')}`
       : otherTargetDirs.length > 0
         ? `    paths-ignore:\n${otherTargetDirs.map((p) => `      - '${p}'`).join('\n')}`
         : '';
@@ -1518,7 +1587,7 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
       PATHS_IGNORE: pathsIgnoreBlock,
       PATHS_IGNORE_LIST: pathsIgnoreListBlock,
       PR_PATHS_IGNORE: prPathsIgnoreBlock,
-      FALLBACK_PR_TRIGGER: buildFallbackPullRequestTrigger(cfg, prIgnorePatterns),
+      FALLBACK_PR_TRIGGER: buildFallbackPullRequestTrigger(cfg, prIgnorePatterns, prDroppedPatterns),
       FALLBACK_PR_PERMISSION: cfg.paths_ignore_pull_request === true ? '  pull-requests: read' : '',
       FALLBACK_JOBS: buildFallbackJobs(cfg, prIgnorePatterns),
       // Collapsed into one merged token (devaudit-installer#928): previously
