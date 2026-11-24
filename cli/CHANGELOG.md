@@ -4,6 +4,10 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+### Fixed
+
+- **A delivery run reports the release of its own REQ** (#1295): the portal matches the version prefix with "starts with", newest first, so `devaudit delivery report --release-for REQ-12` could be handed the release of a newer `REQ-121` or `REQ-1210` and report it, and the run would complete when the wrong release was released. The release is now used only when its version is the requested one or its sequence form (`REQ-121.2`); anything else is treated as not found, the command keeps asking until `--release-wait` (the right release, once created, is the newest), and the warning names what the portal returned. An answer without a version is still accepted.
+
 ### Added
 
 - **`paths_ignore_pull_request`: docs-only pull requests skip the full Quality Gates** (#1290): opt-in (`devaudit configure set paths_ignore_pull_request true`, then `devaudit update`; off by default, so nothing changes unless it is set). `paths_ignore` then also applies to `ci.yml`'s `pull_request` trigger, and `ci-status-fallback.yml` starts for a pull request that changes any of those paths, lists its files (`pull-requests: read`) and names its `quality-gates` job from the answer: `Quality Gates` for a docs-only pull request, another name for one with code, so a code pull request never carries a second check of the required name. If the files cannot be listed it fails and reports no status. The release PR into `main` is unchanged (#971). New `provenance-gated-commit.sh pr-docs-only` classifies a file list (an empty list or 3000 files is code).

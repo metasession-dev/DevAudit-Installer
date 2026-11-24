@@ -286,6 +286,67 @@ describe('the release id', () => {
     expect(d.sent).toEqual([]);
   });
 
+  // DevAudit-Installer#1295 — the portal matches the version prefix with "starts with", newest first.
+  const returns = (id: string, version?: string): DeliveryReportDeps['lookupRelease'] => async () => ({
+    kind: 'found',
+    release: { status: 'draft', id, ...(version !== undefined ? { version } : {}), deferredAt: null, deferredReason: null, deferredUntil: null, deferredToVersion: null },
+  });
+
+  it('does not use the release of a newer REQ the portal returns for a prefix match (REQ-1210 for REQ-121)', async () => {
+    const warn = vi.spyOn(logger(), 'warn');
+    const d = await withConfig(ENV, { lookupRelease: returns('rel-other', 'REQ-1210') });
+    expect(await runDeliveryReport({ run: 'r1', phase: 'running', releaseFor: 'REQ-121', releaseWait: '0' }, d)).toBe(0);
+    expect(d.sent[0]!.body).toEqual({ phase: 'running' });
+    const text = warn.mock.calls.map((c) => String(c[0])).join('\n');
+    expect(text).toContain('latest release matching REQ-121 is REQ-1210, not REQ-121');
+  });
+
+  it('awaiting_approval is still refused when the only release the portal returns is another REQ\'s', async () => {
+    const d = await withConfig(ENV, { lookupRelease: returns('rel-other', 'REQ-1210') });
+    expect(await runDeliveryReport({ run: 'r1', phase: 'awaiting_approval', releaseFor: 'REQ-121', releaseWait: '0' }, d)).toBe(1);
+    expect(d.sent).toEqual([]);
+  });
+
+  it('accepts the release of exactly the requested version, and its sequence form', async () => {
+    for (const version of ['REQ-121', 'REQ-121.2', 'REQ-121.10']) {
+      const d = await withConfig(ENV, { lookupRelease: returns('rel-ok', version) });
+      await runDeliveryReport({ run: 'r1', phase: 'running', releaseFor: 'REQ-121' }, d);
+      expect(d.sent[0]!.body['releaseId'], version).toBe('rel-ok');
+    }
+  });
+
+  it('rejects a longer REQ number and a different REQ whose number starts with the requested one', async () => {
+    for (const [asked, got] of [['REQ-12', 'REQ-121'], ['REQ-1', 'REQ-12'], ['REQ-121', 'REQ-1210'], ['REQ-121', 'REQ-12']] as const) {
+      const d = await withConfig(ENV, { lookupRelease: returns('rel-wrong', got) });
+      await runDeliveryReport({ run: 'r1', phase: 'running', releaseFor: asked, releaseWait: '0' }, d);
+      expect(d.sent[0]!.body['releaseId'], `${asked} vs ${got}`).toBeUndefined();
+    }
+  });
+
+  it('keeps asking after a wrong release: the right one, created meanwhile, becomes the newest', async () => {
+    const answers = [returns('rel-other', 'REQ-1210'), returns('rel-other', 'REQ-1210'), returns('rel-right', 'REQ-121')];
+    let i = 0;
+    const d = await withConfig(ENV, {
+      sleep: async () => undefined,
+      lookupRelease: async (ctx, prefix) => answers[Math.min(i++, answers.length - 1)]!(ctx, prefix),
+    });
+    await runDeliveryReport({ run: 'r1', phase: 'running', releaseFor: 'REQ-121' }, d);
+    expect(i).toBe(3);
+    expect(d.sent[0]!.body['releaseId']).toBe('rel-right');
+  });
+
+  it('accepts an answer that carries no version (an older portal)', async () => {
+    const d = await withConfig(ENV, { lookupRelease: returns('rel-nover') });
+    await runDeliveryReport({ run: 'r1', phase: 'running', releaseFor: 'REQ-121' }, d);
+    expect(d.sent[0]!.body['releaseId']).toBe('rel-nover');
+  });
+
+  it('--release names the id directly and is not checked against a version', async () => {
+    const d = await withConfig(ENV);
+    await runDeliveryReport({ run: 'r1', phase: 'running', release: 'rel-explicit' }, d);
+    expect(d.sent[0]!.body['releaseId']).toBe('rel-explicit');
+  });
+
   it('no project slug in sdlc-config.json: a warning, and the event is sent without an id', async () => {
     const warn = vi.spyOn(logger(), 'warn');
     const d = await deps(ENV);

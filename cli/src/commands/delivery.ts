@@ -162,10 +162,21 @@ async function lookUpRelease(
   for (let waited = 0; ; waited += RELEASE_POLL_SECONDS) {
     // eslint-disable-next-line no-await-in-loop
     const found = await lookup({ baseUrl, projectSlug, apiKey: key }, version);
-    if (found.kind === 'found' && found.release.id) return found.release.id;
+    // The portal matches `versionPrefix` with "starts with", newest first: `REQ-12` can come back as the release of
+    // a newer `REQ-121` or `REQ-1210`. Only the requested version itself, or its re-registered sequence form
+    // (`REQ-121.2`), is this run's release (DevAudit-Installer#1295).
+    const got = found.kind === 'found' ? found.release : undefined;
+    const isThisRelease = got !== undefined && got.id !== undefined && (got.version === undefined || got.version === version || got.version.startsWith(`${version}.`));
+    if (got?.id && isThisRelease) return got.id;
     if (waited + RELEASE_POLL_SECONDS > waitSeconds) {
+      const detail =
+        got?.id && !isThisRelease
+          ? ` (the portal's latest release matching ${version} is ${got.version}, not ${version})`
+          : found.kind === 'unavailable'
+            ? ` (${found.reason})`
+            : '';
       log.warn(
-        `The portal has no release for ${version} yet${found.kind === 'unavailable' ? ` (${found.reason})` : ''}; CI registers it after the first push to the integration branch. The event is sent without a release id.`,
+        `The portal has no release for ${version} yet${detail}; CI registers it after the first push to the integration branch. The event is sent without a release id.`,
       );
       return undefined;
     }
