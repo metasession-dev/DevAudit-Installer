@@ -290,7 +290,7 @@ Runs **first**, before any `REQ-XXX` is assigned. It decides which of the six ch
 
      | Step | Who does it |
      | --- | --- |
-     | Create the portal release (Phase 1) | CI: the first feature-PR E2E run (`feature-e2e.yml`), or the first push to the integration branch (`ci.yml` register-release) |
+     | Create the portal release (Phase 1) | CI: the first feature-PR E2E run (`feature-e2e.yml`), or the first push to the integration branch (`ci.yml` register-release). A co-tracked member of a declared bundle never gets a release of its own: its evidence is filed against the core's release (#955, #1323) |
      | Upload evidence (Phase 3) | CI: `Compliance Evidence Upload` on the compliance commit |
      | Read portal state; check readiness (Phases 3-5) | Agent, with the viewer key: `devaudit release status`, `devaudit release check` |
      | Submit for UAT review; record UAT; approve or request changes (Phase 4) | A person, in the portal UI under their own login |
