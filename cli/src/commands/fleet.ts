@@ -4,6 +4,7 @@ import { promises as fs } from 'node:fs';
 import { resolveToken } from '../lib/auth.js';
 import { DevAuditClient, DevAuditApiError, type DevAuditProject } from '../lib/devaudit-api.js';
 import { logger, isJsonMode, emitJsonResult } from '../lib/logger.js';
+import { FLEET_CHILD_ENV } from './doctor-delivery.js';
 
 /**
  * devaudit-installer#861 — generalizes the fleet sweep beyond Metasession's
@@ -95,9 +96,10 @@ async function localRemoteMatches(dir: string, repoUrl: string): Promise<boolean
   return normalizeRemote(remote) === normalizeRemote(repoUrl);
 }
 
-async function defaultRunDoctorJson(dir: string): Promise<{ exitCode: number; json: unknown }> {
+/** Exported for tests (#1321): each child doctor is told it runs under the sweep. */
+export async function defaultRunDoctorJson(dir: string): Promise<{ exitCode: number; json: unknown }> {
   const entry = process.argv[1] as string;
-  const proc = await execa(process.execPath, [entry, 'doctor', '--json'], { cwd: dir, reject: false, env: { DEVAUDIT_DOCTOR_SKIP_DELIVERY_PROBE: '1' } });
+  const proc = await execa(process.execPath, [entry, 'doctor', '--json'], { cwd: dir, reject: false, env: { [FLEET_CHILD_ENV]: '1' } });
   let json: unknown;
   try {
     json = JSON.parse(proc.stdout);

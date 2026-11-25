@@ -271,8 +271,8 @@ export const CHECK_EXPLANATIONS: Readonly<Record<string, GapExplanation>> = {
   // DevAudit-Installer#1272
   'delivery-workflow': {
     title: 'A DevAudit Delivery run would stop before the agent starts',
-    why: "`delivery.enabled` says this repository accepts delivery runs: the portal dispatches `devaudit-delivery`, and the generated workflow starts a headless agent session. The run stops at once when the workflow or its prompt file is missing, when either repository secret it reads is not set, and it installs the Claude Code version this CLI generates, so a stale pin runs an unreviewed version.",
-    guidance: 'Run `devaudit update` on a fix branch to regenerate the workflow and the prompt, and merge it so it reaches the default branch (a repository_dispatch runs the workflow from there). `devaudit install --delivery` issues the delivery-agent portal key and stores both secrets; `gh secret set DEVAUDIT_AGENT_API_KEY` stores the agent session key.',
+    why: "`delivery.enabled` says this repository accepts delivery runs: the portal dispatches `devaudit-delivery`, and the generated workflow starts a headless agent session. On the repository side the run stops at once when the workflow or its prompt file is missing or either repository secret it reads is not set, and the workflow must install the Claude Code version this CLI generates, so a stale pin runs an unreviewed version. On the portal side (#1321, read with your viewer key) the portal refuses to start a run when the DevAudit Agent GitHub App is not set up or not installed on the repository, when the project has no live delivery-agent key, or when the workflow is not on the default branch.",
+    guidance: 'Run `devaudit update` on a fix branch to regenerate the workflow and the prompt, and merge it so it reaches the default branch (a repository_dispatch runs the workflow from there). `devaudit install --delivery` issues the delivery-agent portal key and stores both secrets; `gh secret set DEVAUDIT_AGENT_API_KEY` stores the agent session key. A portal finding carries its own fix (for example the App install link).',
   },
   'delivery-workflow:workflow-missing': {
     title: 'The delivery workflow is missing',
@@ -312,18 +312,18 @@ export const CHECK_EXPLANATIONS: Readonly<Record<string, GapExplanation>> = {
   // DevAudit-Installer#1321: the portal side of Delivery, read from GET /api/ci/delivery-readiness.
   'delivery-workflow:portal-app-not-installed': {
     title: 'The DevAudit Agent GitHub App is not installed on this repository',
-    why: "With delivery.github_token_source app the portal mints the agent's GitHub token from the App's installation on this repository. Without the installation the portal refuses the run before it starts.",
-    guidance: 'Install the App on this repository using the link in the finding, then run `devaudit doctor` again.',
+    why: 'The portal uses its installation on the repository for every delivery run, whatever `delivery.github_token_source` says: it checks through it that the delivery workflow is on the default branch, and with `app` it also mints the agent token from it. Without the installation the portal refuses the run before it starts.',
+    guidance: 'Install the App on this repository with the link in the finding (a GitHub organisation owner may have to approve it), then run `devaudit doctor` again.',
   },
   'delivery-workflow:portal-app-not-configured': {
     title: 'The portal has no DevAudit Agent GitHub App configured',
-    why: 'The portal mints agent tokens from a GitHub App it is registered with. None is configured on this portal, so a run that needs an App token is refused. Registering the App is portal operator work and is never done from a repository.',
-    guidance: 'Ask the portal operator to register the App, or set delivery.github_token_source to secret and store DEVAUDIT_AGENT_GITHUB_TOKEN.',
+    why: 'The portal needs its DevAudit Agent GitHub App for every delivery run, whatever `delivery.github_token_source` says: it checks through it that the workflow is on the default branch. None is configured on this portal, so every run is refused. Registering the App is operator work on the portal and is never done from a repository.',
+    guidance: 'Ask the portal operator to register the App. Nothing in this repository fixes it, and switching the token source does not help.',
   },
   'delivery-workflow:portal-no-agent-key': {
-    title: 'The project has no usable delivery-agent key',
-    why: "The agent reports its run to the portal with the delivery-agent key. A revoked, expired or missing key (or a key in the environment that is not this project's) is refused, so the run cannot start or report.",
-    guidance: 'Run `devaudit install --delivery` to issue the delivery-agent key and store it as DEVAUDIT_AGENT_PORTAL_KEY; to run the probe, put that key in the environment.',
+    title: 'The project has no live delivery-agent key',
+    why: 'A delivery run registers its release and reports its progress with the delivery-agent key, so the portal refuses to start a run while the project has none, or only a revoked or expired one.',
+    guidance: 'Run `devaudit install --delivery`: it issues a new delivery-agent key and stores it as the repository secret DEVAUDIT_AGENT_PORTAL_KEY.',
   },
   'delivery-workflow:portal-workflow-missing': {
     title: 'The delivery workflow is not on the default branch',

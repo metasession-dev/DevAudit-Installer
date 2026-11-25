@@ -20,8 +20,8 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '..', '..');
 beforeAll(() => {
   process.env['DEVAUDIT_INSTALLER_ROOT'] = ROOT;
-  // #1321: the doctor check probes the portal when a key is in the environment; these tests never do.
-  for (const k of ['DEVAUDIT_AGENT_PORTAL_KEY', 'DEVAUDIT_API_KEY', 'DEVAUDIT_DOCTOR_SKIP_DELIVERY_PROBE']) vi.stubEnv(k, '');
+  // #1321: the doctor check probes the portal with a viewer key; these tests set no base_url and no key, so it never does.
+  for (const k of ['DEVAUDIT_VIEWER_API_KEY', 'DEVAUDIT_DOCTOR_FLEET_CHILD']) vi.stubEnv(k, '');
 });
 
 const dirs: string[] = [];
