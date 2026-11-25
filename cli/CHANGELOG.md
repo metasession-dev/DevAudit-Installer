@@ -4,6 +4,10 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+### Added
+
+- **`devaudit doctor` probes the portal side of Delivery** (#1321): while `delivery.enabled` is true, the `delivery-workflow` check reads `GET /api/ci/delivery-readiness` with your viewer key (like every doctor portal read) and reports each problem the portal would refuse a run for: `repository_unsupported`, `no_agent_key` (no live `delivery-agent` key), `app_not_configured`, `app_not_installed` with the install link (the portal needs the DevAudit Agent GitHub App for every run, whatever the token source), `workflow_missing` (not on the default branch) and `check_failed`, each with the portal's own message and a remediation line. Guidance only, never changes the exit code. No viewer key or `devaudit.base_url`, an unreachable portal, a rejected key (401/403), a portal that predates the endpoint (404) and the rate limit (429) each say the portal was not probed and why. Under `doctor --fleet` a viewer key stored per project still probes; `DEVAUDIT_VIEWER_API_KEY` is skipped. The key is never printed.
+
 ### Fixed
 
 - **The feature E2E workflow no longer creates an orphan portal release for a co-tracked bundle member** (#1323): `feature-e2e.yml` (Node and pytest) used the detected REQ as the release name, so a fix pull request for a member of a live declared bundle created a draft release named after the member that nothing submitted or approved. Every upload, registration and execution call now uses the release `resolve-bundle-release.sh` returns (the core), keeping the REQ as the requirement tag; a member of two live bundles fails the step with a named error before anything is uploaded. The `sdlc-implementer` skill and `docs/credentials.md` say a co-tracked member never gets a release of its own. Run `devaudit update` to regenerate the workflow.
