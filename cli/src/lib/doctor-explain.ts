@@ -271,8 +271,8 @@ export const CHECK_EXPLANATIONS: Readonly<Record<string, GapExplanation>> = {
   // DevAudit-Installer#1272
   'delivery-workflow': {
     title: 'A DevAudit Delivery run would stop before the agent starts',
-    why: "`delivery.enabled` says this repository accepts delivery runs: the portal dispatches `devaudit-delivery`, and the generated workflow starts a headless agent session. The run stops at once when the workflow or its prompt file is missing, when either repository secret it reads is not set, and it installs the Claude Code version this CLI generates, so a stale pin runs an unreviewed version.",
-    guidance: 'Run `devaudit update` on a fix branch to regenerate the workflow and the prompt, and merge it so it reaches the default branch (a repository_dispatch runs the workflow from there). `devaudit install --delivery` issues the delivery-agent portal key and stores both secrets; `gh secret set DEVAUDIT_AGENT_API_KEY` stores the agent session key.',
+    why: "`delivery.enabled` says this repository accepts delivery runs: the portal dispatches `devaudit-delivery`, and the generated workflow starts a headless agent session. On the repository side the run stops at once when the workflow or its prompt file is missing or either repository secret it reads is not set, and the workflow must install the Claude Code version this CLI generates, so a stale pin runs an unreviewed version. On the portal side (#1321, read with your viewer key) the portal refuses to start a run when the DevAudit Agent GitHub App is not set up or not installed on the repository, when the project has no live delivery-agent key, or when the workflow is not on the default branch.",
+    guidance: 'Run `devaudit update` on a fix branch to regenerate the workflow and the prompt, and merge it so it reaches the default branch (a repository_dispatch runs the workflow from there). `devaudit install --delivery` issues the delivery-agent portal key and stores both secrets; `gh secret set DEVAUDIT_AGENT_API_KEY` stores the agent session key. A portal finding carries its own fix (for example the App install link).',
   },
   'delivery-workflow:workflow-missing': {
     title: 'The delivery workflow is missing',
@@ -308,6 +308,42 @@ export const CHECK_EXPLANATIONS: Readonly<Record<string, GapExplanation>> = {
     title: 'A repository secret a delivery run reads is not set',
     why: 'The first step of a delivery run checks DEVAUDIT_AGENT_API_KEY (what the headless session authenticates with) and DEVAUDIT_AGENT_PORTAL_KEY (the delivery-agent portal key, which makes the agent the creator of the release); with either missing the run fails at once.',
     guidance: 'Run `devaudit install --delivery` with DEVAUDIT_AGENT_API_KEY in the environment: it issues the delivery-agent portal key and stores both secrets. Or `gh secret set <NAME>` for the one that is missing.',
+  },
+  // DevAudit-Installer#1321: the portal side of Delivery, read from GET /api/ci/delivery-readiness.
+  'delivery-workflow:portal-app-not-installed': {
+    title: 'The DevAudit Agent GitHub App is not installed on this repository',
+    why: 'The portal uses its installation on the repository for every delivery run, whatever `delivery.github_token_source` says: it checks through it that the delivery workflow is on the default branch, and with `app` it also mints the agent token from it. Without the installation the portal refuses the run before it starts.',
+    guidance: 'Install the App on this repository with the link in the finding (a GitHub organisation owner may have to approve it), then run `devaudit doctor` again.',
+  },
+  'delivery-workflow:portal-app-not-configured': {
+    title: 'The portal has no DevAudit Agent GitHub App configured',
+    why: 'The portal needs its DevAudit Agent GitHub App for every delivery run, whatever `delivery.github_token_source` says: it checks through it that the workflow is on the default branch. None is configured on this portal, so every run is refused. Registering the App is operator work on the portal and is never done from a repository.',
+    guidance: 'Ask the portal operator to register the App. Nothing in this repository fixes it, and switching the token source does not help.',
+  },
+  'delivery-workflow:portal-no-agent-key': {
+    title: 'The project has no live delivery-agent key',
+    why: 'A delivery run registers its release and reports its progress with the delivery-agent key, so the portal refuses to start a run while the project has none, or only a revoked or expired one.',
+    guidance: 'Run `devaudit install --delivery`: it issues a new delivery-agent key and stores it as the repository secret DEVAUDIT_AGENT_PORTAL_KEY.',
+  },
+  'delivery-workflow:portal-workflow-missing': {
+    title: 'The delivery workflow is not on the default branch',
+    why: 'A repository_dispatch runs the workflow from the default branch only. A copy on an unmerged fix branch passes the file check here and still starts nothing.',
+    guidance: 'Merge the branch that adds .github/workflows/devaudit-delivery.yml into the default branch (release it, under GitFlow).',
+  },
+  'delivery-workflow:portal-repository-unsupported': {
+    title: 'The project repository is not one Delivery can use',
+    why: 'Delivery runs only against a GitHub repository recorded on the project. The portal cannot dispatch to any other.',
+    guidance: 'Set the project repository (a github.com URL) on the portal.',
+  },
+  'delivery-workflow:portal-check-failed': {
+    title: 'The portal could not finish checking Delivery readiness',
+    why: "One of the portal's own checks (for example the call to GitHub) failed, so it could not say whether a run would start.",
+    guidance: 'Run `devaudit doctor` again in a few minutes.',
+  },
+  'delivery-workflow:portal-unknown': {
+    title: 'The portal reports a Delivery problem this CLI does not know',
+    why: "The portal is newer than this CLI and named a problem code it has no text for; the portal's message is shown as is.",
+    guidance: "Follow the portal's message, and update the CLI.",
   },
   'test-data': {
     title: 'The test data is not fully declared',

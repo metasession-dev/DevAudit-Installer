@@ -4,6 +4,10 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+### Added
+
+- **`devaudit doctor` probes the portal side of Delivery** (#1321): while `delivery.enabled` is true, the `delivery-workflow` check reads `GET /api/ci/delivery-readiness` with your viewer key (like every doctor portal read) and reports each problem the portal would refuse a run for: `repository_unsupported`, `no_agent_key` (no live `delivery-agent` key), `app_not_configured`, `app_not_installed` with the install link (the portal needs the DevAudit Agent GitHub App for every run, whatever the token source), `workflow_missing` (not on the default branch) and `check_failed`, each with the portal's own message and a remediation line. Guidance only, never changes the exit code. No viewer key or `devaudit.base_url`, an unreachable portal, a rejected key (401/403), a portal that predates the endpoint (404) and the rate limit (429) each say the portal was not probed and why. Under `doctor --fleet` a viewer key stored per project still probes; `DEVAUDIT_VIEWER_API_KEY` is skipped. The key is never printed.
+
 ## [1.15.0] — 2026-11-24
 
 ### Changed
