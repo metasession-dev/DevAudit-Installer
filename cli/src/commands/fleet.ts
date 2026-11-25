@@ -97,7 +97,7 @@ async function localRemoteMatches(dir: string, repoUrl: string): Promise<boolean
 
 async function defaultRunDoctorJson(dir: string): Promise<{ exitCode: number; json: unknown }> {
   const entry = process.argv[1] as string;
-  const proc = await execa(process.execPath, [entry, 'doctor', '--json'], { cwd: dir, reject: false });
+  const proc = await execa(process.execPath, [entry, 'doctor', '--json'], { cwd: dir, reject: false, env: { DEVAUDIT_DOCTOR_SKIP_DELIVERY_PROBE: '1' } });
   let json: unknown;
   try {
     json = JSON.parse(proc.stdout);

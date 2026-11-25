@@ -309,6 +309,42 @@ export const CHECK_EXPLANATIONS: Readonly<Record<string, GapExplanation>> = {
     why: 'The first step of a delivery run checks DEVAUDIT_AGENT_API_KEY (what the headless session authenticates with) and DEVAUDIT_AGENT_PORTAL_KEY (the delivery-agent portal key, which makes the agent the creator of the release); with either missing the run fails at once.',
     guidance: 'Run `devaudit install --delivery` with DEVAUDIT_AGENT_API_KEY in the environment: it issues the delivery-agent portal key and stores both secrets. Or `gh secret set <NAME>` for the one that is missing.',
   },
+  // DevAudit-Installer#1321: the portal side of Delivery, read from GET /api/ci/delivery-readiness.
+  'delivery-workflow:portal-app-not-installed': {
+    title: 'The DevAudit Agent GitHub App is not installed on this repository',
+    why: "With delivery.github_token_source app the portal mints the agent's GitHub token from the App's installation on this repository. Without the installation the portal refuses the run before it starts.",
+    guidance: 'Install the App on this repository using the link in the finding, then run `devaudit doctor` again.',
+  },
+  'delivery-workflow:portal-app-not-configured': {
+    title: 'The portal has no DevAudit Agent GitHub App configured',
+    why: 'The portal mints agent tokens from a GitHub App it is registered with. None is configured on this portal, so a run that needs an App token is refused. Registering the App is portal operator work and is never done from a repository.',
+    guidance: 'Ask the portal operator to register the App, or set delivery.github_token_source to secret and store DEVAUDIT_AGENT_GITHUB_TOKEN.',
+  },
+  'delivery-workflow:portal-no-agent-key': {
+    title: 'The project has no usable delivery-agent key',
+    why: "The agent reports its run to the portal with the delivery-agent key. A revoked, expired or missing key (or a key in the environment that is not this project's) is refused, so the run cannot start or report.",
+    guidance: 'Run `devaudit install --delivery` to issue the delivery-agent key and store it as DEVAUDIT_AGENT_PORTAL_KEY; to run the probe, put that key in the environment.',
+  },
+  'delivery-workflow:portal-workflow-missing': {
+    title: 'The delivery workflow is not on the default branch',
+    why: 'A repository_dispatch runs the workflow from the default branch only. A copy on an unmerged fix branch passes the file check here and still starts nothing.',
+    guidance: 'Merge the branch that adds .github/workflows/devaudit-delivery.yml into the default branch (release it, under GitFlow).',
+  },
+  'delivery-workflow:portal-repository-unsupported': {
+    title: 'The project repository is not one Delivery can use',
+    why: 'Delivery runs only against a GitHub repository recorded on the project. The portal cannot dispatch to any other.',
+    guidance: 'Set the project repository (a github.com URL) on the portal.',
+  },
+  'delivery-workflow:portal-check-failed': {
+    title: 'The portal could not finish checking Delivery readiness',
+    why: "One of the portal's own checks (for example the call to GitHub) failed, so it could not say whether a run would start.",
+    guidance: 'Run `devaudit doctor` again in a few minutes.',
+  },
+  'delivery-workflow:portal-unknown': {
+    title: 'The portal reports a Delivery problem this CLI does not know',
+    why: "The portal is newer than this CLI and named a problem code it has no text for; the portal's message is shown as is.",
+    guidance: "Follow the portal's message, and update the CLI.",
+  },
   'test-data': {
     title: 'The test data is not fully declared',
     why: 'Tests that write data need a place to write it that cannot hurt anyone, a way to put it back, and a seed the tests can rely on. When any of that is missing or contradictory, a run can collide with people, leave data behind, or pass while hiding tests that skipped for lack of data.',

@@ -40,7 +40,7 @@ The token is masked in the workflow log the moment it is read. It lasts about an
 
 The commit author is `DevAudit Agent <the token's noreply address>`. The name is `delivery.agent_git_name` when set (default `DevAudit Agent`); the address is never configured and never invented: when the token's GitHub user cannot be read the job fails.
 
-`delivery.github_token_source` (`secret` or `app`) records the intent. `devaudit doctor` fails `delivery-workflow` when it is missing or invalid, when it is `secret` and the repository secret is not set, and when the workflow was generated before this handling (it falls back to the default token). With `app` it passes: the portal checks that the App is installed when it starts a run, and refuses to start it otherwise.
+`delivery.github_token_source` (`secret` or `app`) records the intent. `devaudit doctor` fails `delivery-workflow` when it is missing or invalid, when it is `secret` and the repository secret is not set, and when the workflow was generated before this handling (it falls back to the default token). With `app` the repository side passes, and doctor asks the portal whether the App is installed, the delivery-agent key is live and the workflow is on the default branch (#1321, `GET /api/ci/delivery-readiness` with the project key from `DEVAUDIT_AGENT_PORTAL_KEY` or `DEVAUDIT_API_KEY`), listing what the portal would refuse a run for; it says so when it could not ask, and does not fail on that.
 
 A push the App's token cannot make, because the change edits `.github/workflows` (the App has no Workflows permission), is rejected; the skill then reports the run `failed` with that reason and stops.
 
