@@ -117,16 +117,16 @@ jobs:
           DEVAUDIT_API_KEY: ${{ secrets.{{API_KEY_SECRET}} }}
         run: |
           REQ_ID="${{ steps.detect.outputs.req_id }}"
-          # A co-tracked bundle member's evidence belongs to the core's portal release (#955); $REQ_ID stays the requirement tag (#1323).
-          RELEASE_ID=$(cd "$GITHUB_WORKSPACE" && bash scripts/resolve-bundle-release.sh "$REQ_ID") || {
-            echo "::error::Could not resolve the portal release for ${REQ_ID} (a co-tracked member of more than one live bundle?)"
-            exit 1
-          }
           ARTEFACT="compliance/evidence/${REQ_ID}/e2e-scope-decision.md"
           if [ ! -f "$ARTEFACT" ]; then
             echo "No $ARTEFACT on this branch — leaving the has_tests=false warning above as the only signal (ambiguous case, unchanged)."
             exit 0
           fi
+          # A co-tracked bundle member's evidence belongs to the core's portal release (#955); $REQ_ID stays the requirement tag (#1323).
+          RELEASE_ID=$(cd "$GITHUB_WORKSPACE" && bash scripts/resolve-bundle-release.sh "$REQ_ID") || {
+            echo "::error::Could not resolve the portal release for ${REQ_ID} (a co-tracked member of more than one live bundle?)"
+            exit 1
+          }
           CONFIG_URL=""
           if [ -f "$GITHUB_WORKSPACE/sdlc-config.json" ]; then
             CONFIG_URL=$(jq -r '.devaudit.base_url // empty' "$GITHUB_WORKSPACE/sdlc-config.json" 2>/dev/null || true)

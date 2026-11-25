@@ -6,7 +6,7 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ### Fixed
 
-- **The feature E2E workflow no longer creates an orphan portal release for a co-tracked bundle member** (#1323): `feature-e2e.yml` (Node and pytest) used the detected REQ as the release name, so a fix pull request for a member of a live declared bundle created a draft release named after the member that nothing submitted or approved. Every upload, registration and execution call now uses the release `resolve-bundle-release.sh` returns (the core), keeping the REQ as the requirement tag; a member of two live bundles fails the step with a named error. Run `devaudit update` to regenerate the workflow.
+- **The feature E2E workflow no longer creates an orphan portal release for a co-tracked bundle member** (#1323): `feature-e2e.yml` (Node and pytest) used the detected REQ as the release name, so a fix pull request for a member of a live declared bundle created a draft release named after the member that nothing submitted or approved. Every upload, registration and execution call now uses the release `resolve-bundle-release.sh` returns (the core), keeping the REQ as the requirement tag; a member of two live bundles fails the step with a named error before anything is uploaded. The `sdlc-implementer` skill and `docs/credentials.md` say a co-tracked member never gets a release of its own. Run `devaudit update` to regenerate the workflow.
 
 ## [1.15.0] — 2026-11-24
 
