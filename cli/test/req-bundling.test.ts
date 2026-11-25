@@ -162,6 +162,23 @@ describe('declared bundle = one portal release (#955)', () => {
     expect(ciTemplate).not.toContain('--category screenshot ${FLAGS} --release "$REQ" ');
   });
 
+  // #1323: feature-e2e.yml filed a co-tracked member's evidence and execution against a release named after the member.
+  for (const rel of ['sdlc/files/ci/feature-e2e.yml.template', 'sdlc/files/ci/runners/pytest/feature-e2e.yml.template']) {
+    it(`files every feature E2E call in ${rel} against the resolved release, keeping the REQ as the tag (#1323)`, () => {
+      const src = read(rel);
+      expect(src).toContain('RELEASE_ID=$(cd "$GITHUB_WORKSPACE" && bash scripts/resolve-bundle-release.sh "$REQ_ID")');
+      // a conflict (exit 3) fails the step with a named error
+      expect(src).toContain('(a co-tracked member of more than one live bundle?)');
+      const flags = src.match(/--release\s+"[^"]*"/g) ?? [];
+      expect(flags.length).toBeGreaterThanOrEqual(5);
+      for (const f of flags) expect(f, f).toBe('--release "$RELEASE_ID"');
+      // each step that uses RELEASE_ID resolves it first
+      expect((src.match(/RELEASE_ID=\$\(/g) ?? []).length).toBe(4);
+      // the requirement stays the tag of the evidence rows
+      expect(src).toContain('"$REQ_ID" e2e_result');
+    });
+  }
+
   it('files compliance documents against the resolved release and skips rather than mis-files on a conflict', () => {
     expect(uploadDocs).toContain('bash scripts/resolve-bundle-release.sh "$TICKET_REQ"');
     expect(uploadDocs).toContain('bash scripts/resolve-bundle-release.sh "$REQ_ID"');
