@@ -131,7 +131,9 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     // Hotfix dispatch path is unchanged.
     expect(source).toContain('gh workflow run ci.yml --ref "$HEAD_REF"');
     // The helper resolves each check-run's workflow run and compares .path.
-    expect(helper).toContain("--jq '.path'");
+    // #1335 — the run's path and event: only push and workflow_dispatch runs count.
+    expect(helper).toContain("--jq '[.path, .event] | @tsv'");
+    expect(helper).toContain('push|workflow_dispatch) ;;');
     expect(helper).toContain('/actions/runs/${run_id}');
     expect(helper).toContain('"${run_path%%@*}" = "$CI_WORKFLOW_PATH"');
     expect(helper).toContain('.conclusion == \\"success\\"');

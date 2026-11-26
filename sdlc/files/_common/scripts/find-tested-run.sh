@@ -7,7 +7,9 @@
 #
 #   - exactly one merged pull request has the pushed commit as its merge commit, into the integration branch, from this
 #     repository's own branch, opened by a person (not Dependabot, whose runs use other secrets);
-#   - the latest `pull_request` run of this workflow on that pull request's head commit completed with `success`;
+#   - the latest `pull_request` run of this workflow on that pull request's head commit completed, and its job named
+#     $REQUIRED_CHECK_NAME (default `Quality Gates`) concluded `success` (DevAudit-Installer#1335: the run's overall
+#     conclusion is not used, because a non-blocking job in the same run, such as the feature E2E, may fail);
 #   - that run's `ci-results` and `tested-tree` artifacts exist and have not expired;
 #   - the artifact's tested tree equals the tree of the pushed commit, and every gate in its gate-outcomes.json is
 #     `success`.
@@ -20,6 +22,7 @@
 #   SHA                   the pushed commit
 #   INTEGRATION_BRANCH    the branch the pushed commit is on
 #   CURRENT_RUN_ID        this workflow run (its workflow id selects the pull request runs of the same workflow)
+#   REQUIRED_CHECK_NAME   the job of the pull request run that must have succeeded (default `Quality Gates`)
 #   GH_TOKEN              token with contents, pull-requests and actions read
 #   GITHUB_OUTPUT         where outputs are written (standard output when unset)
 # Outputs: reuse (true|false), reason, and when true source_run_id, source_pr, tested_tree.
@@ -72,11 +75,21 @@ RUN="$(printf '%s' "$RUNS" | jq -c --arg r "$REPOSITORY" --arg h "$HEAD_SHA" \
 [ -n "$RUN" ] || no_reuse "pull request #${PR} has no run of this workflow on ${HEAD_SHA:0:7}"
 RUN_ID="$(printf '%s' "$RUN" | jq -r '.id // empty')"
 RUN_STATUS="$(printf '%s' "$RUN" | jq -r '.status // empty')"
-RUN_CONCLUSION="$(printf '%s' "$RUN" | jq -r '.conclusion // empty')"
 RUN_REPO="$(printf '%s' "$RUN" | jq -r '.head_repository.full_name // empty')"
 [ -n "$RUN_ID" ] || no_reuse "the pull request run has no id"
 [ "$RUN_REPO" = "$REPOSITORY" ] || no_reuse "run ${RUN_ID} is not from this repository"
-[ "$RUN_STATUS" = "completed" ] && [ "$RUN_CONCLUSION" = "success" ] || no_reuse "the latest pull request run ${RUN_ID} is ${RUN_STATUS:-unknown}/${RUN_CONCLUSION:-none}, not completed/success"
+[ "$RUN_STATUS" = "completed" ] || no_reuse "the latest pull request run ${RUN_ID} is ${RUN_STATUS:-unknown}, not completed"
+
+# DevAudit-Installer#1335 — the required check of that run, not the run's overall conclusion, decides.
+CHECK_NAME="${REQUIRED_CHECK_NAME:-Quality Gates}"
+JOBS="$(gh api "repos/${REPOSITORY}/actions/runs/${RUN_ID}/jobs?per_page=100" 2>/dev/null)" || no_reuse "the jobs of run ${RUN_ID} could not be read"
+JOB_CONCLUSION="$(printf '%s' "$JOBS" | jq -r --arg n "$CHECK_NAME" '[.jobs[]? | select(.name == $n)] | if length == 1 then .[0].conclusion // "none" else "count:\(length)" end' 2>/dev/null)" || no_reuse "the jobs of run ${RUN_ID} could not be parsed"
+case "$JOB_CONCLUSION" in
+  success) ;;
+  count:0) no_reuse "run ${RUN_ID} has no job named '${CHECK_NAME}'" ;;
+  count:*) no_reuse "run ${RUN_ID} has ${JOB_CONCLUSION#count:} jobs named '${CHECK_NAME}', not exactly one" ;;
+  *) no_reuse "the '${CHECK_NAME}' job of run ${RUN_ID} is ${JOB_CONCLUSION}, not success" ;;
+esac
 
 ARTIFACTS="$(gh api "repos/${REPOSITORY}/actions/runs/${RUN_ID}/artifacts?per_page=100" 2>/dev/null)" || no_reuse "the artifacts of run ${RUN_ID} could not be read"
 for name in ci-results tested-tree; do

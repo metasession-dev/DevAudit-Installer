@@ -4,6 +4,15 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+### Changed
+
+- **Release-PR provenance counts only integration-branch runs** (#1335): a `Quality Gates` success counts for the gated commit only when it comes from a `push` or `workflow_dispatch` run, never from a pull request run, and a commit that changes a `.github/workflows/` file is always code. The CI workflow's path can come from `WORKFLOW_REF` (`scripts/provenance-gated-commit.sh`). With merge commits nothing changes for a compliant project.
+- **Merge reuse is judged by the pull request run's `Quality Gates` job** (#1335): `scripts/find-tested-run.sh` no longer requires the whole pull request run to succeed, only its job named `Quality Gates` (`REQUIRED_CHECK_NAME`), so a failing non-blocking job in the same run does not disable reuse.
+
+### Added
+
+- **`scripts/ci-plan.sh` and `scripts/ci-required-check.sh`** (#1335): the decision and required-check scripts of the coming single CI pipeline. They are synced but not called by any generated workflow yet.
+
 ## [1.16.0] — 2026-11-25
 
 ### Added
