@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# provenance-gated-commit.sh — helpers for quality-gates-provenance.yml
-# (devaudit-installer#971). A release PR must not show Quality Gates green
+# provenance-gated-commit.sh — helpers for the release-PR provenance check
+# (devaudit-installer#971) and for the CI plan (DevAudit-Installer#1335). A release PR must not show Quality Gates green
 # for code that never ran the real gates: the docs-only `CI Status Fallback`
 # success on a trailing compliance commit says nothing about the code beneath.
 #
@@ -9,30 +9,48 @@
 #       Walk the first-parent commits in <base_ref>..<head_sha> and print
 #       "<sha> code" for the latest commit touching at least one path NOT
 #       covered by PATHS_IGNORE (the same patterns ci.yml's push paths-ignore
-#       uses), or "<head_sha> docs-only" when every commit is docs-only.
+#       uses), or "<head_sha> docs-only" when every commit is docs-only. A
+#       commit that changes any .github/workflows/ file is code, whatever
+#       PATHS_IGNORE says (the rule pr-docs-only applies, #1299, #1335).
 #       PATHS_IGNORE: newline-separated list; lines may be YAML list items
 #       (`- 'docs/**'`) as rendered from the {{PATHS_IGNORE_LIST}} token.
 #   pr-docs-only   (changed files on standard input, one per line)
 #       Print "docs-only" when every file is covered by PATHS_IGNORE, else "code"
 #       (an empty list, or one of 3000 files or more, is "code"). Used by
-#       ci-status-fallback.yml for pull requests (DevAudit-Installer#1290).
+#       ci-status-fallback.yml for pull requests (DevAudit-Installer#1290) and
+#       by scripts/ci-plan.sh (DevAudit-Installer#1335).
 #   real-ci-success <sha> <current_run_id>
 #       Exit 0 only if <sha> has a completed+successful check-run named
-#       $QG_NAME (default "Quality Gates") whose workflow run path is
-#       $CI_WORKFLOW_PATH (default .github/workflows/ci.yml), ignoring the
-#       current run. Requires GITHUB_REPOSITORY (or REPO) and the gh CLI.
-#       When $QG_REUSED_NAME is set (ci.yml reuses a pull request run's result,
-#       DevAudit-Installer#1298), a success of the check with that name counts
-#       too: on such a merge the heavy Quality Gates job is skipped and a light job
-#       with that name reports the result.
+#       $QG_NAME (default "Quality Gates") whose workflow run path is the CI
+#       workflow and whose event is push or workflow_dispatch, ignoring the
+#       current run. The CI workflow path is $CI_WORKFLOW_PATH when set, else it
+#       is derived from $WORKFLOW_REF (`owner/repo/.github/workflows/ci.yml@ref`),
+#       else .github/workflows/ci.yml. A pull_request run never counts
+#       (DevAudit-Installer#1335): a release-PR run's own check sits on the
+#       release PR's head and must not certify itself. Requires
+#       GITHUB_REPOSITORY (or REPO) and the gh CLI. When $QG_REUSED_NAME is
+#       set (an opt-in reused merge, #1298), a success of that check counts too.
 #   any-success <sha> <current_run_id>
-#       Like real-ci-success but accepts any workflow (all-docs ranges).
+#       Like real-ci-success but accepts any workflow path (all-docs ranges);
+#       the event rule still applies.
 set -euo pipefail
 
 QG_NAME="${QG_NAME:-Quality Gates}"
+# DevAudit-Installer#1298 — the light job of an opt-in reused merge. Still read until the generated workflows stop
+# sending it (DevAudit-Installer#1335 WP2 removes the second name).
 QG_REUSED_NAME="${QG_REUSED_NAME:-}"
-CI_WORKFLOW_PATH="${CI_WORKFLOW_PATH:-.github/workflows/ci.yml}"
 REPO="${REPO:-${GITHUB_REPOSITORY:-}}"
+# The CI workflow's path: an explicit override, else this workflow's own path from WORKFLOW_REF
+# (`owner/repo/.github/workflows/ci-api.yml@refs/...` -> `.github/workflows/ci-api.yml`), else ci.yml.
+if [ -z "${CI_WORKFLOW_PATH:-}" ]; then
+  CI_WORKFLOW_PATH=".github/workflows/ci.yml"
+  if [ -n "${WORKFLOW_REF:-}" ]; then
+    ref_path="${WORKFLOW_REF%%@*}"
+    case "$ref_path" in
+      */.github/workflows/*) CI_WORKFLOW_PATH=".github/workflows/${ref_path##*/.github/workflows/}" ;;
+    esac
+  fi
+fi
 
 # Are ALL the given paths covered by PATHS_IGNORE? Semantics follow GitHub paths-ignore:
 # `*` = any chars except `/`, `**` = any chars incl. `/`, `?` = one non-`/`
@@ -91,6 +109,8 @@ commit_has_code() {
   local sha="$1" file
   while IFS= read -r file; do
     [ -n "$file" ] || continue
+    # A workflow change is code, as in pr-docs-only (DevAudit-Installer#1335).
+    case "$file" in .github/workflows/*) return 0 ;; esac
     if ! path_ignored "$file"; then
       return 0
     fi
@@ -128,16 +148,27 @@ successful_check_urls() {
 }
 
 cmd_success() {
-  local mode="$1" sha="$2" current="$3" url run_id run_path
+  local mode="$1" sha="$2" current="$3" url run_id run_info run_path run_event
   while IFS= read -r url; do
     [ -n "$url" ] || continue
+    run_id=$(printf '%s' "$url" | sed -n 's#.*/actions/runs/\([0-9][0-9]*\).*#\1#p')
+    [ -n "$run_id" ] || continue
+    run_info=$(gh api "/repos/${REPO}/actions/runs/${run_id}" --jq '[.path, .event] | @tsv' 2>/dev/null || true)
+    run_path="${run_info%%$'\t'*}"
+    run_event="${run_info#*$'\t'}"
+    [ "$run_info" != "$run_path" ] || run_event=""
+    # DevAudit-Installer#1335 — only integration-branch runs (push, manual) count; a pull request run never does.
+    case "$run_event" in
+      push|workflow_dispatch) ;;
+      *)
+        echo "Ignoring Quality Gates success from a '${run_event:-unknown}' run (run ${run_id}); only push and workflow_dispatch runs count." >&2
+        continue
+        ;;
+    esac
     if [ "$mode" = any ]; then
       echo "Quality Gates success: $url"
       return 0
     fi
-    run_id=$(printf '%s' "$url" | sed -n 's#.*/actions/runs/\([0-9][0-9]*\).*#\1#p')
-    [ -n "$run_id" ] || continue
-    run_path=$(gh api "/repos/${REPO}/actions/runs/${run_id}" --jq '.path' 2>/dev/null || true)
     # `path` may carry an "@ref" suffix on some event types.
     if [ "${run_path%%@*}" = "$CI_WORKFLOW_PATH" ]; then
       echo "Real ${CI_WORKFLOW_PATH} Quality Gates success: $url"

@@ -90,6 +90,12 @@ echo y >> "$d/CHANGELOG.md"
 git -C "$d" add -A && git -C "$d" commit -q -m "docs plus changelog"
 check "commit with docs files only (compliance + root md) is not code-bearing" "$(git -C "$d" rev-parse HEAD~1) code" "$(gated "$d")"
 
+d=$(new_repo workflow)
+commit_file "$d" src/a.ts
+commit_file "$d" .github/workflows/ci.yml
+check "a workflow-only commit is code even when a pattern covers it (#1335)" "$(git -C "$d" rev-parse HEAD) code" "$(cd "$d" && PATHS_IGNORE="$IGNORE
+      - '.github/**'" bash "$HELPER" gated-commit main "$(git rev-parse HEAD)")"
+
 echo "provenance-gated-commit.sh: real-ci-success (stub gh)"
 
 STUB="$WORK/bin"; mkdir -p "$STUB"
@@ -113,9 +119,13 @@ STUBEOF
   cr() { # id url conclusion
     printf '{"name":"Quality Gates","status":"completed","conclusion":"%s","details_url":"https://github.com/o/r/actions/runs/%s/job/9"}' "$3" "$1"
   }
-  echo '{"path":".github/workflows/ci.yml"}' > "$fx/run-100.json"
-  echo '{"path":".github/workflows/ci-status-fallback.yml"}' > "$fx/run-200.json"
-  echo '{"path":".github/workflows/quality-gates-provenance.yml"}' > "$fx/run-300.json"
+  echo '{"path":".github/workflows/ci.yml","event":"push"}' > "$fx/run-100.json"
+  echo '{"path":".github/workflows/ci-status-fallback.yml","event":"push"}' > "$fx/run-200.json"
+  echo '{"path":".github/workflows/quality-gates-provenance.yml","event":"pull_request"}' > "$fx/run-300.json"
+  # DevAudit-Installer#1335 — a release-PR run of ci.yml itself, and a manual ci.yml run.
+  echo '{"path":".github/workflows/ci.yml","event":"pull_request"}' > "$fx/run-400.json"
+  echo '{"path":".github/workflows/ci.yml","event":"workflow_dispatch"}' > "$fx/run-500.json"
+  echo '{"path":".github/workflows/ci-api.yml","event":"push"}' > "$fx/run-600.json"
 
   echo "{\"check_runs\":[$(cr 100 x success)]}" > "$fx/check-runs.json"
   check "real ci.yml success counts" ok "$(run_helper real-ci-success abc 999)"
@@ -138,6 +148,21 @@ STUBEOF
 
   echo "{\"check_runs\":[$(cr 200 x success),$(cr 100 x success)]}" > "$fx/check-runs.json"
   check "fallback plus real ci.yml success passes" ok "$(run_helper real-ci-success abc 999)"
+
+  # DevAudit-Installer#1335 — only push and workflow_dispatch runs count, in both modes.
+  echo "{\"check_runs\":[$(cr 400 x success)]}" > "$fx/check-runs.json"
+  check "a pull_request run of ci.yml does not count (no self-certification)" fail "$(run_helper real-ci-success abc 999)"
+  check "any-success does not accept a pull_request run either" fail "$(run_helper any-success abc 999)"
+  echo "{\"check_runs\":[$(cr 500 x success)]}" > "$fx/check-runs.json"
+  check "a workflow_dispatch run of ci.yml counts" ok "$(run_helper real-ci-success abc 999)"
+  echo "{\"check_runs\":[$(cr 300 x success)]}" > "$fx/check-runs.json"
+  check "any-success does not accept the old provenance workflow's pull_request run" fail "$(run_helper any-success abc 999)"
+
+  # The CI workflow path comes from WORKFLOW_REF (multi-target ci-<target>.yml); CI_WORKFLOW_PATH overrides it.
+  echo "{\"check_runs\":[$(cr 600 x success)]}" > "$fx/check-runs.json"
+  check "the default path is ci.yml, so ci-api.yml does not count" fail "$(run_helper real-ci-success abc 999)"
+  check "WORKFLOW_REF selects ci-api.yml" ok "$(WORKFLOW_REF='o/r/.github/workflows/ci-api.yml@refs/pull/7/merge' run_helper real-ci-success abc 999)"
+  check "CI_WORKFLOW_PATH overrides WORKFLOW_REF" fail "$(CI_WORKFLOW_PATH=.github/workflows/ci.yml WORKFLOW_REF='o/r/.github/workflows/ci-api.yml@refs/heads/x' run_helper real-ci-success abc 999)"
 fi
 
 echo
@@ -163,8 +188,8 @@ check "a workflow file is code even when a pattern covers it (#1299)" "code" "$(
 check "a file elsewhere under .github is still classified by the patterns" "docs-only" "$(printf '.github/ISSUE_TEMPLATE/bug.md\n' | PATHS_IGNORE="      - '.github/**'" bash "$HELPER" pr-docs-only)"
 check "extra arguments are a usage error" "2" "$(printf 'a\n' | bash "$HELPER" pr-docs-only extra >/dev/null 2>&1; echo $?)"
 
-# DevAudit-Installer#1298 — a merge that reuses a pull request run's result: the heavy Quality Gates job is skipped and
-# a light job with another name reports success, so real-ci-success must accept that name when QG_REUSED_NAME is set.
+# DevAudit-Installer#1335 — the event and the path decide which `Quality Gates` successes count; the opt-in reuse name
+# (#1298) is still read until the generated workflows stop sending it.
 GHBIN="$WORK/ghbin"
 mkdir -p "$GHBIN"
 cat > "$GHBIN/gh" <<'GH'
@@ -174,7 +199,7 @@ jqexpr=""
 while [ $# -gt 0 ]; do [ "$1" = "--jq" ] && jqexpr="$2"; shift; done
 case "$endpoint" in
   /repos/*/commits/*/check-runs*) jq -r "$jqexpr" "$CHECKS_JSON" ;;
-  /repos/*/actions/runs/*) echo ".github/workflows/${RUN_FILE:-ci.yml}" ;;
+  /repos/*/actions/runs/*) printf '%s\t%s\n' ".github/workflows/${RUN_FILE:-ci.yml}" "${RUN_EVENT:-push}" ;;
   *) exit 2 ;;
 esac
 GH
@@ -193,21 +218,24 @@ real_ci() { CHECKS_JSON="$CHECKS" PATH="$GHBIN:$PATH" GITHUB_REPOSITORY=o/r "$@"
 
 checks "Quality Gates" success 10
 check "a Quality Gates success counts (as before)" "0" "$(real_ci env)"
+checks "Quality Gates" skipped 10
+check "a skipped Quality Gates does not count" "1" "$(real_ci env)"
+checks "Quality Gates" success 999
+check "the current run is excluded" "1" "$(real_ci env)"
+checks "Quality Gates" success 10
+check "a success from another workflow does not count" "1" "$(real_ci env RUN_FILE=other.yml)"
+check "a success from a pull_request run does not count" "1" "$(real_ci env RUN_EVENT=pull_request)"
+check "a success from a workflow_dispatch run counts" "0" "$(real_ci env RUN_EVENT=workflow_dispatch)"
 checks "Quality Gates" skipped 10 "Reused Quality Gates" success 10
 check "a skipped heavy job and a reuse success do not count without QG_REUSED_NAME" "1" "$(real_ci env)"
-check "the reuse success counts when QG_REUSED_NAME names it" "0" "$(real_ci env QG_REUSED_NAME='Reused Quality Gates')"
+check "the reuse success counts when QG_REUSED_NAME names it (#1298, until WP2)" "0" "$(real_ci env QG_REUSED_NAME='Reused Quality Gates')"
+check "a reuse success from a pull_request run does not count" "1" "$(real_ci env QG_REUSED_NAME='Reused Quality Gates' RUN_EVENT=pull_request)"
 checks "Quality Gates" skipped 10 "Reused Quality Gates" failure 10
 check "a failed reuse job does not count" "1" "$(real_ci env QG_REUSED_NAME='Reused Quality Gates')"
-checks "Quality Gates" skipped 10
-check "a skipped heavy job alone does not count" "1" "$(real_ci env QG_REUSED_NAME='Reused Quality Gates')"
-checks "Reused Quality Gates" success 999
-check "the current run is excluded" "1" "$(real_ci env QG_REUSED_NAME='Reused Quality Gates')"
-checks "Reused Quality Gates" success 10
-check "a reuse success from another workflow does not count" "1" "$(real_ci env RUN_FILE=other.yml QG_REUSED_NAME='Reused Quality Gates')"
-checks "Quality Gates (web)" success 10
-check "a namespaced name is selected by QG_NAME" "0" "$(real_ci env QG_NAME='Quality Gates (web)')"
 checks "Reused Quality Gates (web)" success 10
 check "a namespaced reuse name is selected by QG_REUSED_NAME" "0" "$(real_ci env QG_NAME='Quality Gates (web)' QG_REUSED_NAME='Reused Quality Gates (web)')"
+checks "Quality Gates (web)" success 10
+check "a namespaced name is selected by QG_NAME" "0" "$(real_ci env QG_NAME='Quality Gates (web)')"
 
 echo
 echo "Passed: $PASS  Failed: $FAIL"

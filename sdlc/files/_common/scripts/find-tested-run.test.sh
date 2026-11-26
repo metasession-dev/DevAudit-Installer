@@ -64,6 +64,7 @@ while [ $# -gt 0 ]; do [ "$1" = "--jq" ] && jqexpr="$2"; shift; done
 case "$endpoint" in
   repos/*/commits/*/pulls*) file="pulls" ;;
   repos/*/actions/runs/*/artifacts*) file="artifacts" ;;
+  repos/*/actions/runs/*/jobs*) file="jobs" ;;
   repos/*/actions/workflows/*/runs*) file="runs" ;;
   repos/*/actions/runs/*) file="run" ;;
   *) exit 2 ;;
@@ -92,6 +93,12 @@ JSON
   {"name":"ci-results","expired":false,"workflow_run":{"id":101}},
   {"name":"tested-tree","expired":false,"workflow_run":{"id":101}}]}
 JSON
+  cat > "$FAKE/jobs.json" <<'JSON'
+{"jobs":[
+  {"name":"Run quality gates","conclusion":"success"},
+  {"name":"Feature In-Scope E2E","conclusion":"failure"},
+  {"name":"Quality Gates","conclusion":"success"}]}
+JSON
   echo "$TREE" > "$FAKE/artifact/tested-tree.txt"
   echo '{"typescript":"success","sast":"success","dependency_audit":"success","build":"success"}' > "$FAKE/artifact/gate-outcomes.json"
 }
@@ -99,7 +106,7 @@ JSON
 run() {
   local out="$WORK/out"
   : > "$out"
-  (cd "$REPO_DIR" && FAKE="$FAKE" PATH="$BIN:$PATH" GITHUB_OUTPUT="$out" REPOSITORY=o/r SHA="$SHA" INTEGRATION_BRANCH=develop CURRENT_RUN_ID=999 bash "$HELPER" 2>/dev/null) || echo "exit:$?" >> "$out"
+  (cd "$REPO_DIR" && FAKE="$FAKE" PATH="$BIN:$PATH" GITHUB_OUTPUT="$out" REPOSITORY=o/r SHA="$SHA" INTEGRATION_BRANCH=develop CURRENT_RUN_ID=999 REQUIRED_CHECK_NAME="${CHECK_NAME_UNDER_TEST:-}" bash "$HELPER" 2>/dev/null) || echo "exit:$?" >> "$out"
   cat "$out"
 }
 field() { printf '%s\n' "$1" | sed -n "s/^$2=//p" | head -1; }
@@ -155,8 +162,33 @@ expect_no_reuse "another bot" "bot"
 good; sed -i 's/"merge_commit_sha":"[0-9a-f]*"/"merge_commit_sha":"deadbeef"/' "$FAKE/pulls.json"
 expect_no_reuse "a pull request whose merge commit is another commit" "0 pull requests"
 
+# DevAudit-Installer#1335 — the run's required check decides, not its overall conclusion: a non-blocking job of the
+# same run (the feature E2E) may fail without making the gates untrustworthy.
 good; sed -i 's/"id":101,\("event":"pull_request","head_sha":"headsha1","status":"completed",\)"conclusion":"success"/"id":101,\1"conclusion":"failure"/' "$FAKE/runs.json"
-expect_no_reuse "the latest run failed" "failure"
+OUT="$(run)"
+check "a run whose overall conclusion is failure but whose Quality Gates job succeeded is reused" "true" "$(field "$OUT" reuse)"
+
+good; sed -i 's/{"name":"Quality Gates","conclusion":"success"}/{"name":"Quality Gates","conclusion":"failure"}/' "$FAKE/jobs.json"
+expect_no_reuse "the Quality Gates job failed" "failure, not success"
+
+good; sed -i 's/{"name":"Quality Gates","conclusion":"success"}/{"name":"Quality Gates","conclusion":"cancelled"}/' "$FAKE/jobs.json"
+expect_no_reuse "the Quality Gates job was cancelled" "cancelled, not success"
+
+good; echo '{"jobs":[{"name":"Run quality gates","conclusion":"success"}]}' > "$FAKE/jobs.json"
+expect_no_reuse "no Quality Gates job" "no job named 'Quality Gates'"
+
+good; echo '{"jobs":[{"name":"Quality Gates","conclusion":"success"},{"name":"Quality Gates","conclusion":"success"}]}' > "$FAKE/jobs.json"
+expect_no_reuse "two Quality Gates jobs" "2 jobs named"
+
+good; touch "$FAKE/jobs.fail"
+expect_no_reuse "the jobs cannot be read" "jobs of run 101 could not be read"
+
+good; CHECK_NAME_UNDER_TEST="Quality Gates (api)"
+expect_no_reuse "a namespaced check name matches only that job" "no job named 'Quality Gates (api)'"
+echo '{"jobs":[{"name":"Quality Gates (api)","conclusion":"success"}]}' > "$FAKE/jobs.json"
+OUT="$(run)"
+check "a namespaced check name finds its own job" "true" "$(field "$OUT" reuse)"
+CHECK_NAME_UNDER_TEST=""
 
 good; sed -i 's/"status":"completed","conclusion":"success"/"status":"in_progress","conclusion":null/' "$FAKE/runs.json"
 expect_no_reuse "the latest run is still running" "in_progress"

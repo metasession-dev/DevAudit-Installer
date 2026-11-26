@@ -119,6 +119,8 @@ jobs:
           bash sdlc/files/_common/scripts/check-deferred-reqs-in-range.test.sh
           bash sdlc/files/_common/scripts/provenance-gated-commit.test.sh
           bash sdlc/files/_common/scripts/find-tested-run.test.sh
+          bash sdlc/files/_common/scripts/ci-plan.test.sh
+          bash sdlc/files/_common/scripts/ci-required-check.test.sh
           bash sdlc/files/_common/scripts/standalone-housekeeping-release.test.sh
           bash sdlc/files/_common/scripts/evaluate-npm-audit.test.sh
 
