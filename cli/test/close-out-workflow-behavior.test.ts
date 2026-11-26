@@ -385,6 +385,30 @@ describe('generated Release Close-out workflow, run against a mock portal (#941)
     }
   });
 
+  // DevAudit-Installer#1334 — the wait is short so the runner is free for the close-out PR's own checks.
+  it('stops after three minutes for a close-out PR that is still open, without reporting or failing', async () => {
+    reset();
+    const fx = await makeFixture();
+    try {
+      // `sleep` returns at once and records each wait, so the test does not take three minutes.
+      await fs.writeFile(join(fx.dir, 'bin', 'sleep'), `#!/usr/bin/env bash\necho "sleep $*" >> "${join(fx.aux, 'sleep.log')}"\n`, { mode: 0o755 });
+      const event = { release: REQ };
+      await runStep(fx, 'Resolve inputs', event);
+      await runStep(fx, 'Run close-out', event);
+      expect(await runStep(fx, 'Wait for close-out PR merge and report completion', event, { GH_PR_STATE: 'OPEN' })).toBe(0);
+      expect(closeOutPosts()).toEqual([]);
+      const waits = (await fs.readFile(join(fx.aux, 'sleep.log'), 'utf8')).trim().split('\n');
+      expect(waits).toHaveLength(6);
+      expect(waits.every((w) => w === 'sleep 30')).toBe(true);
+      expect(fx.transcript.text).toContain('did not merge within 3 minutes');
+      expect(fx.transcript.text).toContain('close-out-reconcile.yml');
+      expect(fx.transcript.text).not.toMatch(/::warning::/);
+    } finally {
+      await fs.rm(fx.dir, { recursive: true, force: true });
+      await fs.rm(fx.aux, { recursive: true, force: true });
+    }
+  });
+
   it('does not report completion for a close-out PR that was closed without merging', async () => {
     reset();
     const fx = await makeFixture();

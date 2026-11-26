@@ -296,12 +296,15 @@ jobs:
         # merge observed by both) is harmless — it POSTs the same
         # already-true status.
         #
-        # Best-effort and bounded: if the close-out PR's checks take longer
-        # than the poll window, this step logs a warning and gives up
-        # without failing the job. Re-run this workflow via
-        # `workflow_dispatch` (release=${REQ}, release_pr=<PR>) once it
-        # merges — see "Report verified manual close-out catch-up" above,
-        # which already handles exactly that case.
+        # Short and bounded (DevAudit-Installer#1334): it polls for three
+        # minutes at most, then exits without failing the job. Waiting longer
+        # held the runner that the close-out PR's own required check needs, so
+        # on a single self-hosted runner the PR could not merge until the wait
+        # gave up. A merge after the window is reported by
+        # close-out-completion.yml (when the merge starts a `pull_request:
+        # closed` run) or by the daily close-out-reconcile.yml
+        # (scripts/close-out-report-merged.sh), or by re-running this workflow
+        # via `workflow_dispatch` (release=${REQ}, release_pr=<PR>).
         if: steps.closeout.outputs.changed == 'true' || steps.merge.outputs.merged == 'true'
         continue-on-error: true
         run: |
@@ -315,7 +318,7 @@ jobs:
           source scripts/close-out-contract.sh 2>/dev/null || true
           BRANCH="${CLOSEOUT_BRANCH_PREFIX}${REQ}"
           [ -z "$BRANCH" ] && BRANCH="chore/close-out-${REQ}"
-          MAX_ATTEMPTS=40
+          MAX_ATTEMPTS=6
           SLEEP_SECONDS=30
           STATE=""
           PR_JSON=""
@@ -333,7 +336,7 @@ jobs:
             sleep "$SLEEP_SECONDS"
           done
           if [ "$STATE" != "MERGED" ]; then
-            echo "::warning::${BRANCH} did not merge within $((MAX_ATTEMPTS * SLEEP_SECONDS / 60)) minutes of polling; not reporting completion here. Re-run this workflow via workflow_dispatch (release=${REQ}, release_pr=<PR>) once it merges."
+            echo "::notice::${BRANCH} did not merge within $((MAX_ATTEMPTS * SLEEP_SECONDS / 60)) minutes; this run stops here so the runner is free for the pull request's checks. Its completion is reported when it merges, by close-out-completion.yml or the daily close-out-reconcile.yml (or re-run this workflow via workflow_dispatch with release=${REQ}, release_pr=<PR>)."
             exit 0
           fi
           NUMBER="$(jq -r '.number // empty' <<<"$PR_JSON" 2>/dev/null || true)"

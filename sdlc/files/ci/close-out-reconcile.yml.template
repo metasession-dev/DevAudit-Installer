@@ -42,6 +42,7 @@ permissions:
   contents: read
   issues: write
   actions: write # to trigger close-out-release.yml via `gh workflow run`
+  pull-requests: read # to list merged close-out pull requests (DevAudit-Installer#1334)
 
 jobs:
   reconcile:
@@ -115,6 +116,24 @@ jobs:
           done <<< "${{ steps.scan.outputs.stale }}"
           echo "TRIGGERED=${TRIGGERED}" >> "$GITHUB_ENV"
           echo "FAILED=${FAILED}" >> "$GITHUB_ENV"
+
+      # DevAudit-Installer#1334 — close-out-release.yml waits only a few minutes for its
+      # pull request, so a later merge made by GitHub auto-merge (which starts no
+      # `pull_request: closed` run) is reported here. Never fails this run.
+      - name: Report completion of recently merged close-out pull requests
+        continue-on-error: true
+        env:
+          DEVAUDIT_API_KEY: ${{ secrets.{{API_KEY_SECRET}} }}
+          DEVAUDIT_BASE_URL_VAR: ${{ vars.DEVAUDIT_BASE_URL }}
+          REPOSITORY: ${{ github.repository }}
+          INTEGRATION_BRANCH: {{INTEGRATION_BRANCH}}
+          PROJECT_SLUG: {{PROJECT_SLUG}}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+          WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          BASE_URL="$(jq -r '.devaudit.base_url // empty' sdlc-config.json 2>/dev/null || true)"
+          export BASE_URL="${BASE_URL:-$DEVAUDIT_BASE_URL_VAR}"
+          bash scripts/close-out-report-merged.sh
 
       - name: Open a tracking issue for auditability
         if: steps.scan.outputs.found == 'true'
