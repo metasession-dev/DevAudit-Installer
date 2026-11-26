@@ -22,7 +22,7 @@ devaudit install --yes --compliance regulated --delivery
 
 A GitHub repository runs a `repository_dispatch` workflow from its **default branch**, so the generated workflow must be merged and released to `main` before the portal can start a run.
 
-`devaudit doctor` reports a `delivery-workflow` check while `delivery.enabled` is true: the workflow and prompt exist, both secrets are set, the Claude Code version in the workflow is the one this CLI generates, and the agent's GitHub token source can be met (see below). A gap fails the check.
+`devaudit doctor` reports a `delivery-workflow` check while `delivery.enabled` is true: the workflow and prompt exist, both secrets are set, the Claude Code version in the workflow is the one this CLI generates, and the agent's GitHub token source can be met (see below). It also asks the portal what it would refuse a run for (#1321): the App, the `delivery-agent` key and the workflow on the default branch. A gap fails the check.
 
 ## The agent's GitHub token
 
@@ -40,7 +40,7 @@ The token is masked in the workflow log the moment it is read. It lasts about an
 
 The commit author is `DevAudit Agent <the token's noreply address>`. The name is `delivery.agent_git_name` when set (default `DevAudit Agent`); the address is never configured and never invented: when the token's GitHub user cannot be read the job fails.
 
-`delivery.github_token_source` (`secret` or `app`) records the intent. `devaudit doctor` fails `delivery-workflow` when it is missing or invalid, when it is `secret` and the repository secret is not set, and when the workflow was generated before this handling (it falls back to the default token). With `app` it passes: the portal checks that the App is installed when it starts a run, and refuses to start it otherwise.
+`delivery.github_token_source` (`secret` or `app`) records the intent. `devaudit doctor` fails `delivery-workflow` when it is missing or invalid, when it is `secret` and the repository secret is not set, and when the workflow was generated before this handling (it falls back to the default token). With `app` the repository side passes. Doctor also asks the portal (#1321, `GET /api/ci/delivery-readiness` with your viewer key) what it would refuse a run for: the DevAudit Agent GitHub App not set up on the portal or not installed on the repository (the portal needs the App for every run, whatever the token source, to check the workflow), no live `delivery-agent` key, the workflow not on the default branch, or a check that failed. Each is a finding with the portal's message and the App install link where there is one. When it cannot ask (no viewer key, no `devaudit.base_url`, the portal unreachable or too old, the key rejected, the rate limit) it says so and does not fail on that. See [`doctor.md`](./doctor.md).
 
 A push the App's token cannot make, because the change edits `.github/workflows` (the App has no Workflows permission), is rejected; the skill then reports the run `failed` with that reason and stops.
 

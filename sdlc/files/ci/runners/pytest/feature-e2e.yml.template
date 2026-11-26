@@ -122,6 +122,11 @@ jobs:
             echo "No $ARTEFACT on this branch — leaving the has_tests=false warning above as the only signal (ambiguous case, unchanged)."
             exit 0
           fi
+          # A co-tracked bundle member's evidence belongs to the core's portal release (#955); $REQ_ID stays the requirement tag (#1323).
+          RELEASE_ID=$(cd "$GITHUB_WORKSPACE" && bash scripts/resolve-bundle-release.sh "$REQ_ID") || {
+            echo "::error::Could not resolve the portal release for ${REQ_ID} (a co-tracked member of more than one live bundle?)"
+            exit 1
+          }
           CONFIG_URL=""
           if [ -f "$GITHUB_WORKSPACE/sdlc-config.json" ]; then
             CONFIG_URL=$(jq -r '.devaudit.base_url // empty' "$GITHUB_WORKSPACE/sdlc-config.json" 2>/dev/null || true)
@@ -135,7 +140,7 @@ jobs:
           chmod +x "$GITHUB_WORKSPACE/scripts/upload-evidence.sh" 2>/dev/null || true
           bash "$GITHUB_WORKSPACE/scripts/upload-evidence.sh" \
             {{PROJECT_SLUG}} "$REQ_ID" e2e_scope_decision "$ARTEFACT" \
-            --category planning --release "$REQ_ID" --create-release-if-missing \
+            --category planning --release "$RELEASE_ID" --create-release-if-missing \
             --environment uat --sdlc-stage 3 \
             --git-sha "${{ github.event.pull_request.head.sha }}" \
             --branch "${{ github.head_ref }}"
@@ -197,6 +202,11 @@ jobs:
         if: always()
         run: |
           REQ_ID="${{ needs.detect-req.outputs.req_id }}"
+          # A co-tracked bundle member's evidence belongs to the core's portal release (#955); $REQ_ID stays the requirement tag (#1323).
+          RELEASE_ID=$(cd "$GITHUB_WORKSPACE" && bash scripts/resolve-bundle-release.sh "$REQ_ID") || {
+            echo "::error::Could not resolve the portal release for ${REQ_ID} (a co-tracked member of more than one live bundle?)"
+            exit 1
+          }
           : > "$GITHUB_OUTPUT"
           CONFIG_URL=""
           # sdlc-config.json lives at the repo root (#689 follow-up), not this
@@ -214,13 +224,13 @@ jobs:
           chmod +x $GITHUB_WORKSPACE/scripts/upload-evidence.sh $GITHUB_WORKSPACE/scripts/report-test-execution.sh 2>/dev/null || true
           bash $GITHUB_WORKSPACE/scripts/upload-evidence.sh \
             {{PROJECT_SLUG}} _compliance-docs release_registration README.md \
-            --release "$REQ_ID" --create-release-if-missing \
+            --release "$RELEASE_ID" --create-release-if-missing \
             --environment uat --category planning \
             --git-sha "${{ github.event.pull_request.head.sha }}" \
             --branch "${{ github.head_ref }}" || true
           bash $GITHUB_WORKSPACE/scripts/report-test-execution.sh start \
             --project-slug {{PROJECT_SLUG}} \
-            --release "$REQ_ID" \
+            --release "$RELEASE_ID" \
             --sdlc-stage 2 \
             --environment uat \
             --suite-kind e2e \
@@ -239,6 +249,11 @@ jobs:
         if: always()
         run: |
           REQ_ID="${{ needs.detect-req.outputs.req_id }}"
+          # A co-tracked bundle member's evidence belongs to the core's portal release (#955); $REQ_ID stays the requirement tag (#1323).
+          RELEASE_ID=$(cd "$GITHUB_WORKSPACE" && bash scripts/resolve-bundle-release.sh "$REQ_ID") || {
+            echo "::error::Could not resolve the portal release for ${REQ_ID} (a co-tracked member of more than one live bundle?)"
+            exit 1
+          }
           CONFIG_URL=""
           # sdlc-config.json lives at the repo root (#689 follow-up), not this
           # job's working-directory (a target's own subdirectory).
@@ -264,7 +279,7 @@ jobs:
           fi
           bash $GITHUB_WORKSPACE/scripts/upload-evidence.sh \
             {{PROJECT_SLUG}} "$REQ_ID" e2e_result "$RESULTS" \
-            --category e2e_result --release "$REQ_ID" --create-release-if-missing \
+            --category e2e_result --release "$RELEASE_ID" --create-release-if-missing \
             --environment uat --sdlc-stage 2 \
             --git-sha "${{ github.event.pull_request.head.sha }}" \
             --ci-run-id "${{ github.run_id }}" --branch "${{ github.head_ref }}" \
@@ -298,11 +313,17 @@ jobs:
             cancelled) OUTCOME=cancelled ;;
             *)         OUTCOME=failed ;;
           esac
+          REQ_ID="${{ needs.detect-req.outputs.req_id }}"
+          # The execution lives on the bundle core's release, not one named after a co-tracked member (#1323).
+          RELEASE_ID=$(cd "$GITHUB_WORKSPACE" && bash scripts/resolve-bundle-release.sh "$REQ_ID") || {
+            echo "::error::Could not resolve the portal release for ${REQ_ID} (a co-tracked member of more than one live bundle?)"
+            exit 1
+          }
           export DEVAUDIT_BASE_URL="${BASE%/}"
           chmod +x $GITHUB_WORKSPACE/scripts/report-test-execution.sh 2>/dev/null || true
           bash $GITHUB_WORKSPACE/scripts/report-test-execution.sh complete \
             --project-slug {{PROJECT_SLUG}} \
-            --release "${{ needs.detect-req.outputs.req_id }}" \
+            --release "$RELEASE_ID" \
             --sdlc-stage 2 \
             --environment uat \
             --suite-kind e2e \

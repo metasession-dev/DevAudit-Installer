@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach, beforeAll } from 'vitest';
+import { describe, it, expect, afterEach, beforeAll, vi } from 'vitest';
 import { promises as fs } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
@@ -20,6 +20,8 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '..', '..');
 beforeAll(() => {
   process.env['DEVAUDIT_INSTALLER_ROOT'] = ROOT;
+  // #1321: the doctor check probes the portal with a viewer key; these tests set no base_url and no key, so it never does.
+  for (const k of ['DEVAUDIT_VIEWER_API_KEY', 'DEVAUDIT_DOCTOR_FLEET_CHILD']) vi.stubEnv(k, '');
 });
 
 const dirs: string[] = [];
