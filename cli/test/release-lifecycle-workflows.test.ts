@@ -233,6 +233,10 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     // instead of hanging the job or failing it outright.
     expect(step).toContain('did not merge within');
     expect(step).toContain('workflow_dispatch');
+    // #1334: three minutes at most, so the runner is free for the close-out PR's own checks.
+    expect(step).toContain('MAX_ATTEMPTS=6');
+    expect(step).toContain('SLEEP_SECONDS=30');
+    expect(step).not.toContain('MAX_ATTEMPTS=40');
 
     // Resolved values are guarded and logged the same way as the sibling
     // pr_opened step (devaudit-installer#601) — no silent jq/curl aborts.
@@ -920,6 +924,19 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     it('is registered in the CI template sync list', () => {
       const source = readFileSync(resolve(root, 'cli/src/update/ci-templates.ts'), 'utf8');
       expect(source).toContain("'close-out-reconcile.yml.template'");
+    });
+
+    // DevAudit-Installer#1334 — close-out-release.yml waits only three minutes, so the reconcile run reports the
+    // completion of close-out pull requests that merged later (by auto-merge, which starts no `closed` run).
+    it('reports the completion of recently merged close-out pull requests, without failing the run', () => {
+      const source = template('close-out-reconcile.yml.template');
+      const idx = source.indexOf('Report completion of recently merged close-out pull requests');
+      expect(idx).toBeGreaterThan(-1);
+      const step = source.slice(idx, source.indexOf('Open a tracking issue for auditability'));
+      expect(step).toContain('continue-on-error: true');
+      expect(step).toContain('bash scripts/close-out-report-merged.sh');
+      expect(step).toContain('DEVAUDIT_API_KEY: ${{ secrets.{{API_KEY_SECRET}} }}');
+      expect(source).toContain('pull-requests: read');
     });
 
     it('close-out-reconcile.sh detects a pending ticket whose REQ already shipped to origin/main', () => {

@@ -4,6 +4,10 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+### Fixed
+
+- **The close-out job no longer holds the runner while it waits for its own pull request** (#1334): `close-out-release.yml` waited up to 20 minutes for the close-out PR to merge, on the runner that the PR's required check needed, so on a single self-hosted runner nothing moved until the wait gave up. It now waits three minutes. A later merge is reported by `close-out-completion.yml`, or by the daily `close-out-reconcile.yml`, which now reports completion of close-out PRs merged in the last 3 days (`scripts/close-out-report-merged.sh`). On a GitHub-token auto-merge the portal's close-out status can lag the merge by up to a day; the release is not affected.
+
 ### Changed
 
 - **Release-PR provenance counts only integration-branch runs** (#1335): a `Quality Gates` success counts for the gated commit only when it comes from a `push` or `workflow_dispatch` run, never from a pull request run, and a commit that changes a `.github/workflows/` file is always code. The CI workflow's path can come from `WORKFLOW_REF` (`scripts/provenance-gated-commit.sh`). With merge commits nothing changes for a compliant project.
