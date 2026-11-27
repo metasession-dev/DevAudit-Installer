@@ -129,7 +129,16 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     expect(source).toContain('{{PATHS_IGNORE_LIST}}');
     expect(source).toContain('fetch-depth: 0');
     expect(source).toContain('does not count for code beneath it');
-    expect(source).toContain('MAX_ATTEMPTS=10');
+    // #1335 D16: one check, no wait; the passing integration run re-runs it.
+    expect(source).not.toContain('MAX_ATTEMPTS');
+    expect(source).not.toContain('sleep');
+    expect(source).toContain('this check is re-run automatically when it passes');
+    const required = template('fragments/required-check-job.yml.template');
+    expect(required).toContain('run: bash scripts/ci-rerun-release-checks.sh');
+    expect(required).toContain('continue-on-error: true');
+    expect(required).toContain("if: ${{ success() && github.event_name != 'pull_request' && github.ref_name == '{{INTEGRATION_BRANCH}}' }}");
+    expect(required).toContain('actions: write');
+    expect(required).toContain('pull-requests: read');
     // #1335: no dispatch-and-watch for hotfixes; the plan runs the gates in the hotfix pull request's own run.
     expect(source).not.toContain('gh workflow run ci.yml');
     expect(commonScript('ci-plan.sh')).toContain('hotfix/*|fix/hotfix-*) mode=hotfix ;;');

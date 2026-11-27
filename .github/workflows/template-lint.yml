@@ -123,6 +123,7 @@ jobs:
           bash sdlc/files/_common/scripts/ci-plan.test.sh
           bash sdlc/files/_common/scripts/ci-required-check.test.sh
           bash sdlc/files/_common/scripts/close-out-report-merged.test.sh
+          bash sdlc/files/_common/scripts/ci-rerun-release-checks.test.sh
           bash sdlc/files/_common/scripts/standalone-housekeeping-release.test.sh
           bash sdlc/files/_common/scripts/evaluate-npm-audit.test.sh
 
