@@ -198,7 +198,8 @@ jobs:
             {{WORKING_DIR_PREFIX}}ci-evidence/junit.xml
             {{WORKING_DIR_PREFIX}}ci-evidence/gate-outcomes.json
             {{WORKING_DIR_PREFIX}}dist/
-          retention-days: 90
+          # 7 days, so the reuse artifacts do not fill the artifact storage (DevAudit-Installer#1335 D17).
+          retention-days: 7
 
       # A merge of this pull request reuses this run's result when the merged tree equals the tree tested here
       # (find-tested-run.sh, DevAudit-Installer#1298, always on since #1335).
@@ -215,7 +216,8 @@ jobs:
         with:
           name: tested-tree
           path: reuse-record/
-          retention-days: 90
+          # 7 days, so the reuse artifacts do not fill the artifact storage (DevAudit-Installer#1335 D17).
+          retention-days: 7
 
   register-release:
     name: Register Release

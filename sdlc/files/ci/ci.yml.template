@@ -351,7 +351,8 @@ jobs:
         with:
           name: tested-tree
           path: reuse-record/
-          retention-days: 90
+          # 7 days, so the reuse artifacts do not fill the artifact storage (DevAudit-Installer#1335 D17).
+          retention-days: 7
 
       # ── Upload artifacts ──
 
@@ -375,7 +376,8 @@ jobs:
             {{WORKING_DIR_PREFIX}}gate-outcomes.json
             {{WORKING_DIR_PREFIX}}compliance/evidence/*/screenshots/*.png
             {{WORKING_DIR_PREFIX}}compliance/evidence/*/screenshots/*.png.meta.json
-          retention-days: 90
+          # 7 days, so the reuse artifacts do not fill the artifact storage (DevAudit-Installer#1335 D17).
+          retention-days: 7
 
   # ──────────────────────────────────────────────
   # Register release early (parallel with gates) so UAT gate can find it

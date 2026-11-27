@@ -12,7 +12,9 @@
     runs-on: {{RUNNER}}
     permissions:
       contents: read
-      actions: read
+      # actions: write and pull-requests: read only for re-running a release pull request's checks (D16).
+      actions: write
+      pull-requests: read
     steps:
       - uses: actions/checkout@v6
         with:
@@ -26,3 +28,16 @@
           RUN_ID: ${{ github.run_id }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
         run: bash scripts/ci-required-check.sh
+      # DevAudit-Installer#1335 D16: Release provenance does not wait for this run (on one runner it would hold the
+      # runner this run needs), so when the integration branch passes, re-run the failed checks of an open release
+      # pull request whose head is this commit. It never changes the result.
+      - name: Re-run the release pull request checks waiting for this commit
+        if: ${{ success() && github.event_name != 'pull_request' && github.ref_name == '{{INTEGRATION_BRANCH}}' }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          HEAD_SHA: ${{ github.sha }}
+          RELEASE_BRANCH: {{RELEASE_BRANCH}}
+          WORKFLOW_REF: ${{ github.workflow_ref }}
+        run: bash scripts/ci-rerun-release-checks.sh

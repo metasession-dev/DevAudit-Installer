@@ -236,7 +236,7 @@ check_synced_scripts() { # <target> <dir>
   local target="$1" dir="$2" missing=""
   for s in is-deferred-ticket.sh check-deferred-reqs-in-range.sh list-reqs-in-range.sh \
            provenance-gated-commit.sh derive-release-version.sh close-out-reconcile.sh \
-           ci-plan.sh ci-required-check.sh find-tested-run.sh classify-pr-attribution.sh; do
+           ci-plan.sh ci-required-check.sh ci-rerun-release-checks.sh find-tested-run.sh classify-pr-attribution.sh; do
     [ -x "$dir/scripts/$s" ] || missing="$missing $s"
   done
   if [ -z "$missing" ]; then

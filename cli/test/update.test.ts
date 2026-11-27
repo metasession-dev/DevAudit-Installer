@@ -338,8 +338,11 @@ describe('syncProject — native TS sync against a fixture', () => {
     // #1335: a hotfix pull request runs the gates in its own run; nothing dispatches and watches ci.yml any more.
     expect(ciYml).not.toContain('gh workflow run ci.yml');
     expect(ciYml).not.toContain('gh run watch');
-    expect(provenanceYml).toContain('MAX_ATTEMPTS=10');
-    expect(provenanceYml).toContain('Develop-side Quality Gates for SHA ${GATED_SHA} not successful yet');
+    expect(provenanceYml).not.toContain('MAX_ATTEMPTS');
+    expect(jobSection(ciYml, 'required-check')).toContain('bash scripts/ci-rerun-release-checks.sh');
+    expect(ciYml).toContain('retention-days: 7');
+    expect(ciYml).not.toContain('retention-days: 90');
+    expect(provenanceYml).toContain('has no successful Quality Gates from a push or manual run of this workflow yet');
     // #971 — gated-commit walk, ci.yml-only provenance, paths_ignore reuse.
     expect(provenanceYml).toContain('scripts/provenance-gated-commit.sh gated-commit');
     expect(provenanceYml).toContain('PATHS_IGNORE: |');
