@@ -85,7 +85,7 @@ A pull request from `hotfix/*` or `fix/hotfix-*` into the release branch runs th
 
 The next `devaudit update` rewrites `ci.yml` and removes `ci-status-fallback.yml`, `quality-gates-provenance.yml` and `feature-e2e.yml` (and their `-<target>` variants).
 
-- If you modified one of those three, `update` keeps it and warns: **delete it before merging the sync**, because it would report a second `Quality Gates` check. `devaudit doctor` (`ci-pipeline`) reports any that is left.
+- If you modified one of those three, or the sync manifest does not record it (a project with no `.devaudit/sync-manifest.json` and no `devaudit_synced_version`, where `update` deletes nothing), `update` keeps it and warns: **delete it before merging the sync**, because it would report a second `Quality Gates` check. `devaudit doctor` (`ci-pipeline`) reports any that is left.
 - `paths_ignore_pull_request` and `reuse_pull_request_gates` are retired: documentation-only skipping and merge reuse are always on. `devaudit configure set` refuses them; remove them from `sdlc-config.json` (`devaudit doctor` names them).
 - A Playwright config that tests `GITHUB_WORKFLOW === 'Feature In-Scope E2E'` must test `GITHUB_JOB === 'feature-e2e'` instead (`devaudit doctor` names the file).
 - A `.devaudit-patches/ci.yml.patch` made against the old `ci.yml` no longer applies: re-create it against the new file, or move the change into an `sdlc-config.json` key.

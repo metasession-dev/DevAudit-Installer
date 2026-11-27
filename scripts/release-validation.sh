@@ -250,16 +250,25 @@ check_synced_scripts() { # <target> <dir>
 # DevAudit-Installer#1335: one workflow reports Quality Gates, the replaced ones are gone
 # ---------------------------------------------------------------------------
 check_ci_pipeline() { # <target> <dir>
-  local target="$1" dir="$2" wf="$2/.github/workflows" left="" count=0 f
+  local target="$1" dir="$2" wf="$2/.github/workflows" left="" owned="" count=0 f
   for f in "$wf"/ci-status-fallback*.yml "$wf"/quality-gates-provenance*.yml "$wf"/feature-e2e*.yml; do
-    [ -e "$f" ] && left="$left ${f##*/}"
+    [ -e "$f" ] || continue
+    left="$left ${f##*/}"
+    # DevAudit's own unmodified copy should have been removed: a FAIL. A modified or untracked copy is kept
+    # (nothing is deleted without a manifest, #930) and named by update: the consumer's to resolve.
+    if python3 -I -c 'import json,sys; e=json.load(open(sys.argv[1]))["files"].get(sys.argv[2]); sys.exit(0 if e and not e.get("conflict") else 1)' \
+         "$dir/.devaudit/sync-manifest.json" ".github/workflows/${f##*/}" 2>/dev/null; then
+      owned="$owned ${f##*/}"
+    fi
   done
   for f in "$wf"/*.yml; do
     [ -e "$f" ] || continue
     count=$(( count + $(grep -cE '^    name: Quality Gates( \(.+\))?$' "$f" || true) ))
   done
-  if [ -n "$left" ]; then
-    record "$target" ci-pipeline FAIL "replaced workflows still present:$left"
+  if [ -n "$owned" ]; then
+    record "$target" ci-pipeline FAIL "unmodified replaced workflows not removed:$owned"
+  elif [ -n "$left" ]; then
+    record "$target" ci-pipeline WARN "replaced workflows kept (modified or untracked; update named them, the consumer's to delete):$left"
   elif [ "$count" -lt 1 ]; then
     record "$target" ci-pipeline FAIL "no job is named Quality Gates"
   else

@@ -1317,12 +1317,14 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
 
   // DevAudit-Installer#1335 — the workflows the single CI pipeline replaced. A kept (locally modified) copy would
   // report a second `Quality Gates` check, so it is named in a warning, not only counted.
-  const keptReplaced: string[] = [];
+  // An untracked copy (no manifest and no baseline, so update deletes nothing, #930) is named the same way.
+  const keptReplaced: Array<{ file: string; why: 'modified' | 'untracked' }> = [];
   for (const existing of await fs.readdir(workflowsDir).catch(() => [] as string[])) {
     if (!REPLACED_WORKFLOWS_PATTERN.test(existing)) continue;
     const outcome = await removeManaged(ctx.managed!, join(workflowsDir, existing), { section: '2f' });
     recordRemoval(outcome);
-    if (outcome === 'kept-conflict') keptReplaced.push(existing);
+    if (outcome === 'kept-conflict') keptReplaced.push({ file: existing, why: 'modified' });
+    else if (outcome === 'not-tracked') keptReplaced.push({ file: existing, why: 'untracked' });
   }
 
   // DevAudit-Installer#821 — e2e-regression.yml.template is the one
@@ -1619,7 +1621,7 @@ export async function syncCiTemplates(ctx: SyncContext): Promise<SectionResult> 
       ? `; removed ${removedStaleCount} stale workflow(s)${keptStaleConflictCount > 0 ? `, kept ${keptStaleConflictCount} locally-modified stale workflow(s) as conflict(s)` : ''}`
       : '';
   const keptReplacedWarning = keptReplaced
-    .map((f) => `.github/workflows/${f} was kept because it was modified, but nothing generates it any more and it reports a second "Quality Gates" check. Delete it before merging this sync.`)
+    .map(({ file, why }) => `.github/workflows/${file} was kept because ${why === 'modified' ? 'it was modified' : 'the sync manifest does not record it as DevAudit output'}, but nothing generates it any more and it reports a second "Quality Gates" check. Delete it before merging this sync.`)
     .join('\n');
   return {
     name: 'CI workflows',

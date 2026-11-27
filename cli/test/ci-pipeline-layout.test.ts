@@ -240,6 +240,22 @@ describe('update removes the replaced workflows (#1335)', { timeout: 300_000 }, 
     }
   });
 
+  it('keeps an untracked copy (no manifest, nothing is deleted, #930) and warns about it', async () => {
+    const dir = await fixture();
+    try {
+      for (const [f, content] of Object.entries(old)) await fs.writeFile(join(dir, '.github', 'workflows', f), content);
+      const report = await syncProject(dir);
+      const left = await fs.readdir(join(dir, '.github', 'workflows'));
+      const warning = report.warnings.join('\n');
+      for (const f of Object.keys(old)) {
+        expect(left, f).toContain(f);
+        expect(warning, f).toContain(`.github/workflows/${f} was kept because the sync manifest does not record it as DevAudit output`);
+      }
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it('a .devaudit-patches/ci.yml.patch made against the old ci.yml is reported and not half-applied', async () => {
     const dir = await fixture();
     try {

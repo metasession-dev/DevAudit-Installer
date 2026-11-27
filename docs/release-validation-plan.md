@@ -100,7 +100,7 @@ against the candidate CLI (`node cli/dist/index.js`, with
 | `gh-writes-blocked` | every `gh` write was refused; the list shows what `update` would have written to GitHub, including writes from the manifest bootstrap's baseline run (there should be none since #990) | informational: a `repo edit` entry means the consumer's default branch is not its `integration_branch`; an `api -X PUT …/protection` entry means the branch had no protection and `update` would apply the defaults |
 | `update-idempotent` | after committing the first sync locally, a second `update` changes nothing | yes |
 | `synced-scripts` | the deferral, provenance and CI plan scripts (`ci-plan.sh`, `ci-required-check.sh`, `find-tested-run.sh`, `classify-pr-attribution.sh`) are present and executable | yes |
-| `ci-pipeline` | `ci-status-fallback.yml`, `quality-gates-provenance.yml` and `feature-e2e.yml` are gone after the update, and a job is named `Quality Gates` (#1335, `docs/ci-pipeline.md`) | yes |
+| `ci-pipeline` | `ci-status-fallback.yml`, `quality-gates-provenance.yml` and `feature-e2e.yml` are gone after the update, and a job is named `Quality Gates` (#1335, `docs/ci-pipeline.md`). A copy DevAudit owned unmodified is a FAIL; a modified or untracked copy is kept and named by update, a WARN | yes |
 | `workflows-parse` | every `.github/workflows/*.yml` parses as YAML, has no unrendered `{{TOKEN}}`, and every bash `run:` passes `bash -n` | yes |
 | `doctor-json` | `doctor --json` exits 0 or 6 and carries `ok`, `tools`, `releaseCloseoutDrift`, `onboarding`, `deferral`, `proposals` | yes |
 | `doctor-fix-dry-run` | `doctor --fix --dry-run` changes nothing | yes |
