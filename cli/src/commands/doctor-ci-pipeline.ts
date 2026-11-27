@@ -1,5 +1,5 @@
 import { promises as fs } from 'node:fs';
-import { join } from 'node:path';
+import { join, relative, sep } from 'node:path';
 import type { Remediation } from '@metasession.co/devaudit-core';
 import type { CheckResult, Finding } from '../lib/doctor-types.js';
 import { RETIRED_CONFIG_KEYS } from '../lib/repo-config-keys.js';
@@ -55,7 +55,7 @@ export async function ciPipelineCheck(consumer: { readonly repoRoot: string; rea
   for (const dir of dirs) {
     for (const file of PLAYWRIGHT_CONFIGS) {
       const text = await fs.readFile(join(dir, file), 'utf-8').catch(() => null);
-      if (text !== null && text.includes('Feature In-Scope E2E')) guarded.push(join(dir, file).slice(consumer.repoRoot.length + 1) || file);
+      if (text !== null && text.includes('Feature In-Scope E2E')) guarded.push(relative(consumer.repoRoot, join(dir, file)).split(sep).join('/'));
     }
   }
   if (guarded.length > 0) {

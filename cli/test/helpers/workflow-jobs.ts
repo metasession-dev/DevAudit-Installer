@@ -4,7 +4,9 @@
  */
 
 /** The text of job `jobId` in a rendered workflow: from its `  <id>:` line to the next job (or the end). */
-export function jobSection(workflow: string, jobId: string): string {
+export function jobSection(text: string, jobId: string): string {
+  // A workflow rendered on Windows can have CRLF line endings.
+  const workflow = text.replace(/\r\n/g, '\n');
   const jobsAt = workflow.indexOf('\njobs:\n');
   if (jobsAt < 0) throw new Error('no jobs: block in the workflow');
   const body = workflow.slice(jobsAt + '\njobs:\n'.length);
