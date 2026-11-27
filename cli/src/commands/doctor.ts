@@ -30,6 +30,7 @@ import { stage3EvidenceCheck } from './doctor-stage3.js';
 import { deliveryWorkflowCheck, type DeliveryWorkflowDeps } from './doctor-delivery.js';
 import { cliVersionCheck, type CliVersionDeps } from './doctor-version.js';
 import { pullRequestGatesCheck } from './doctor-gates.js';
+import { ciPipelineCheck } from './doctor-ci-pipeline.js';
 import type { Gap } from '@metasession.co/devaudit-core';
 import { commitsInRange, refExists, reqHasCommits } from '../lib/req-commits.js';
 
@@ -857,6 +858,8 @@ export async function collectDoctorState(options: DoctorOptions = {}, scope: { r
     await timed('cli-version', () => cliVersionCheck(consumer, options.versionDeps)),
     // DevAudit-Installer#1297: what a pull request costs: docs-only skipping, and the documentation paths of paths_ignore.
     ...(consumer ? [await timed('pull-request-gates', async () => pullRequestGatesCheck(consumer))] : []),
+    // DevAudit-Installer#1335: what is left of the CI layout before the single pipeline; non-gating.
+    ...(consumer ? [await timed('ci-pipeline', () => ciPipelineCheck(consumer))] : []),
   ];
   // DevAudit-Installer#1116 WP15: runs after test-tiers and preset-drift and reads their result.
   const onboardingChecks: readonly CheckResult[] = consumer

@@ -1,3 +1,6 @@
+import { promises as fs } from 'node:fs';
+import { join } from 'node:path';
+
 /**
  * Token substitution for CI workflow templates. The bash version uses sed for
  * scalar tokens and awk for block tokens (multi-line replacements). We do both
@@ -5,6 +8,32 @@
  */
 
 export type TokenMap = Readonly<Record<string, string>>;
+
+/**
+ * DevAudit-Installer#1335 — replace each line whose only content is `{{INCLUDE:<name>}}` (leading and trailing
+ * spaces allowed) by the content of the fragment file `files[name]` in `dir`. It runs before `substituteTokens` and
+ * `substituteBlocks`, so the tokens inside a fragment are substituted like the rest of the file. A name that is not
+ * in `files` throws, and so does a fragment that itself contains an include line.
+ */
+export async function includeFragments(content: string, files: Readonly<Record<string, string>>, dir: string): Promise<string> {
+  const include = /^\s*\{\{INCLUDE:([A-Za-z0-9_-]+)\}\}\s*$/;
+  if (!content.split('\n').some((line) => include.test(line))) return content;
+  const out: string[] = [];
+  for (const line of content.split('\n')) {
+    const m = include.exec(line);
+    if (!m) {
+      out.push(line);
+      continue;
+    }
+    const name = m[1]!;
+    const file = files[name];
+    if (!file) throw new Error(`unknown fragment include '${name}' (known: ${Object.keys(files).join(', ')})`);
+    const fragment = (await fs.readFile(join(dir, file), 'utf-8')).replace(/\n$/, '');
+    if (fragment.split('\n').some((l) => include.test(l))) throw new Error(`fragment ${file} contains an include line`);
+    out.push(fragment);
+  }
+  return out.join('\n');
+}
 
 /**
  * Replace `{{TOKEN}}` occurrences with `tokens[TOKEN]`. Performs simple text

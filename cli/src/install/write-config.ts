@@ -127,10 +127,6 @@ export async function writeSdlcConfig(ctx: InstallContext, plan: InstallPlan): P
     e2e_projects: [],
     e2e_env: {},
     paths_ignore: pathsIgnore,
-    // DevAudit-Installer#1297 — a NEW project skips the full gates for a pull request that changes only the
-    // paths above (ci-status-fallback.yml reports the required status). Written only when there is no
-    // configuration yet: a project already onboarded keeps its behaviour until it opts in.
-    ...(existing ? {} : { paths_ignore_pull_request: true }),
     uat: { enabled: false, url: '', required_risk_classes: ['payment', 'destructive_migration', 'realtime'] },
     approval: { mode: 'dual_actor', auto_low_risk_threshold: 'LOW' },
     production_review: { enabled: true, terminal_status: 'prod_review' },

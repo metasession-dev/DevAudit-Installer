@@ -237,15 +237,31 @@ export const CHECK_EXPLANATIONS: Readonly<Record<string, GapExplanation>> = {
     guidance: 'Set `uat.enabled` and `uat.url` in sdlc-config.json once a UAT environment exists, or `devaudit configure set uat.mode manual` to have a tester run the procedure by hand.',
   },
   // DevAudit-Installer#1297
-  'pull-request-gates': {
-    title: 'Documentation-only pull requests run the full quality gates',
-    why: 'Evidence and documentation pull requests are frequent (every requirement opens several), and by default each one runs the whole Quality Gates job although it changes no code. On a shared runner that is tens of minutes per pull request. The push filter already skips such changes; the pull request filter does not unless paths_ignore_pull_request is true.',
-    guidance: 'Run `devaudit configure set paths_ignore_pull_request true`, then `devaudit update` on a fix branch. A pull request with any code file still runs everything, and the release pull request is unchanged.',
+  // DevAudit-Installer#1335
+  'ci-pipeline': {
+    title: 'Something from before the single CI pipeline is left',
+    why: 'Since DevAudit-Installer#1335 one workflow, ci.yml, reports the required check Quality Gates: a plan job decides what runs, the feature E2E and the release provenance are jobs of it, and two configuration keys were retired. A leftover from the earlier layout either does nothing or, for a kept workflow, reports a second Quality Gates check.',
+    guidance: 'Follow the finding: delete the leftover workflow, remove the retired key, or change the Playwright guard. See docs/ci-pipeline.md, section "Upgrading from the earlier layout".',
   },
-  'pull-request-gates:docs-only-skip-off': {
-    title: 'Every pull request runs the full gates, even one that changes only documentation',
-    why: 'paths_ignore_pull_request is not true, so the pull request trigger of ci.yml has no path filter. A project onboarded before the key existed keeps this behaviour until it opts in: `devaudit update` never changes it.',
-    guidance: 'Set it with `devaudit configure set paths_ignore_pull_request true` and regenerate with `devaudit update`. A pull request that edits a workflow file always runs the gates.',
+  'ci-pipeline:legacy-workflow': {
+    title: 'A workflow the single CI pipeline replaced is still there',
+    why: 'ci-status-fallback.yml, quality-gates-provenance.yml and feature-e2e.yml are no longer generated: ci.yml does their work. update removes an unmodified copy and keeps a modified one. A copy that is left reports a second check named Quality Gates, which can pass or fail independently of the real one.',
+    guidance: 'Delete it on a fix branch (git rm .github/workflows/<file>) after reading the .devaudit-new note if update kept it as a conflict, and move any customisation into sdlc-config.json.',
+  },
+  'ci-pipeline:retired-key': {
+    title: 'sdlc-config.json still has a retired key',
+    why: 'paths_ignore_pull_request and reuse_pull_request_gates were retired: documentation-only changes always skip the gates, and a merge always reuses the result of a pull request run that tested the same tree. The keys have no effect any more; configure set refuses them.',
+    guidance: 'Remove the key from sdlc-config.json.',
+  },
+  'ci-pipeline:feature-workflow-guard': {
+    title: 'A Playwright config guards on the old feature workflow name',
+    why: 'The feature E2E used to be its own workflow, Feature In-Scope E2E, and some configs left a project out of it by testing GITHUB_WORKFLOW. It is a job of ci.yml now, so GITHUB_WORKFLOW is CI Pipeline, the guard never matches, and the project it should skip (often a destructive regression project) runs in the feature E2E.',
+    guidance: "Test process.env.GITHUB_JOB === 'feature-e2e' instead (or process.env.DEVAUDIT_E2E_SCOPE === 'feature').",
+  },
+  'pull-request-gates': {
+    title: 'Documentation-only changes may still run the full quality gates',
+    why: 'The plan job of ci.yml skips the gates for a pull request or a push that changes only paths_ignore paths (DevAudit-Installer#1335). A documentation path that paths_ignore leaves out makes such a change run the whole Quality Gates job, tens of minutes on a shared runner.',
+    guidance: 'Add the documentation paths the finding names to paths_ignore with `devaudit configure set paths_ignore <the whole list>`, then `devaudit update` on a fix branch. A change to a workflow file always runs the gates.',
   },
   'pull-request-gates:docs-not-ignored': {
     title: 'paths_ignore leaves a documentation path out',

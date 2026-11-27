@@ -304,7 +304,7 @@ npx playwright install --dry-run 2>&1 | grep -q "is already installed" || npx pl
 
 If the install fails (e.g. missing system dependencies on Linux), run `npx playwright install --with-deps` (requires sudo on some systems — ask the operator). Do not defer E2E execution to CI because browsers are not installed. Installing browsers takes ~30 seconds; deferring breaks the evidence trail.
 
-The generated CI templates (`ci.yml`, `feature-e2e.yml`, `e2e-regression.yml`) already gate `--with-deps` on the runner type — it's only requested on the ephemeral `github-ci` path, since a non-root self-hosted runner can't `apt-get` and always fails it (devaudit-installer#868). That gating is CI-only; it doesn't change this local pre-flight step.
+The generated CI templates (`ci.yml`, including its feature E2E job, and `e2e-regression.yml`) already gate `--with-deps` on the runner type — it's only requested on the ephemeral `github-ci` path, since a non-root self-hosted runner can't `apt-get` and always fails it (devaudit-installer#868). That gating is CI-only; it doesn't change this local pre-flight step.
 
 **Do not defer E2E to CI (devaudit-installer#238).** If browsers are not installed, install them. If the dev server will not start, debug it. If the database is not running, start it. CI is a safety net, not a replacement for local E2E execution. The `.e2e-gate-passed` sentinel must be written by a local run — skipping it by deferring to CI breaks the evidence-completeness chain and causes the evidence-completeness gate (#237) to fire with false negatives.
 
@@ -644,7 +644,7 @@ Discipline for transport specs:
 - If a transport spec *can* be paired with a thin UI shim that screenshots the user-visible outcome (e.g. an admin dashboard surface that shows the rejected payment as "Failed — signature mismatch"), pair them — that buys back the screenshot evidence at the surface level. Otherwise: transport spec stands alone.
 - The portal's release-detail "screenshots" panel will show zero entries for purely-transport REQs; that's correct. Reviewers cross-reference `test-execution-summary.md` instead.
 
-This is **observation**, not gate-relaxation — these specs satisfy the SDLC evidence requirement; the screenshot mechanism doesn't apply. The generated `feature-e2e.yml` agrees: when a REQ has no screenshots it runs `scripts/is-transport-layer-req.sh`, and passes with a notice if every spec tagged `@requirement REQ-XXX` is transport-layer (none uses the `page` fixture). One tagged spec that uses `page` keeps the screenshot requirement for the whole REQ (devaudit-installer#1067).
+This is **observation**, not gate-relaxation — these specs satisfy the SDLC evidence requirement; the screenshot mechanism doesn't apply. The feature E2E job of the generated `ci.yml` agrees: when a REQ has no screenshots it runs `scripts/is-transport-layer-req.sh`, and passes with a notice if every spec tagged `@requirement REQ-XXX` is transport-layer (none uses the `page` fixture). One tagged spec that uses `page` keeps the screenshot requirement for the whole REQ (devaudit-installer#1067).
 
 A `evidenceTrace(reqId, ac, slug, payload)` helper that writes a JSON sidecar (request/response/ledger shape) was considered as a Phase B; deferred until the portal grows a non-PNG evidence type. Today the test-execution-summary already carries the equivalent information at the table level.
 

@@ -320,7 +320,7 @@ The source of truth for these documents remains in git. Developers continue to e
 
 ### CI Pipeline Changes
 
-The sync script generates CI workflows from templates. The main CI pipeline (`ci.yml`) registers the release in DevAudit in parallel with quality gates, then uploads evidence after gates pass (including Playwright HTML reports and Jest coverage). A separate `compliance-evidence.yml` handles compliance-only pushes (e.g. RTM updates, release tickets) without running the full quality gate suite.
+The sync script generates CI workflows from templates; customise them through `sdlc-config.json` keys, not by editing the files. The main CI pipeline (`ci.yml`) has a plan job that decides what each run does: for a change with code it runs the quality gates, registers the release in DevAudit on the integration branch and uploads evidence after the gates (including Playwright HTML reports and Jest coverage); a change to documentation only runs no gates. The one required check is `Quality Gates`. A separate `compliance-evidence.yml` uploads compliance documents (e.g. RTM updates, release tickets).
 
 For manual integration, add the DevAudit evidence upload step to your CI workflow, after tests pass. The upload script is available at `scripts/upload-evidence.sh`.
 

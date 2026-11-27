@@ -5,7 +5,7 @@ import { logger, isJsonMode, emitJsonResult } from '../lib/logger.js';
 import { resolveRepoRoot } from '../lib/git-root.js';
 import { resolveInstallerRoot } from '../lib/installer-root.js';
 import { listHosts, loadHostAdapter, type HostAdapter } from '../lib/adapter.js';
-import { CONFIG_KEYS, SECRET_NAME, findConfigKey, parseConfigValue, type ConfigKeySpec } from '../lib/repo-config-keys.js';
+import { CONFIG_KEYS, SECRET_NAME, findConfigKey, parseConfigValue, type ConfigKeySpec, RETIRED_CONFIG_KEYS } from '../lib/repo-config-keys.js';
 import { getConfigPath, setConfigPath } from '../lib/config-path.js';
 import { detectDeployHost, describeDetection, type DeployDetection, type GhRunner } from '../lib/deploy-detect.js';
 import * as prompts from '../lib/prompt.js';
@@ -111,7 +111,7 @@ export async function planConfigChange(
       key,
       before,
       after: undefined,
-      errors: [`unknown key \`${key}\`; \`devaudit configure list\` shows the keys it can change`],
+      errors: [RETIRED_CONFIG_KEYS[key] ?? `unknown key \`${key}\`; \`devaudit configure list\` shows the keys it can change`],
       warnings,
       contradiction,
       impact: [],

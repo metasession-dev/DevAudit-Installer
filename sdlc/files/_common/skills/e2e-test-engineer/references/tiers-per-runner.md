@@ -40,7 +40,7 @@ projects: [
 
 ## pytest (API, integration, contract and service tests)
 
-Set `test_runner` to `pytest`. `devaudit update` then generates pytest `feature-e2e.yml` and `e2e-regression.yml` workflows (JUnit XML is the `e2e_result`).
+Set `test_runner` to `pytest`. `devaudit update` then generates a pytest feature E2E job in `ci.yml` and a pytest `e2e-regression.yml` (JUnit XML is the `e2e_result`).
 
 ```toml
 # pyproject.toml: register the markers, or pytest warns (and --strict-markers fails)

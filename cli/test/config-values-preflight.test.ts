@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { load as yamlLoad } from 'js-yaml';
 import { syncProject } from '../src/update/index.js';
 import { isManagedName, preflightValues, referencedValues, workflowReferences } from '../src/lib/config-values.js';
+import { jobSection } from './helpers/workflow-jobs.js';
 
 // DevAudit-Installer#1160 — the generated workflows name configuration values that reached the job empty,
 // before the dev server starts. Only an entry that is exactly one `${{ secrets.X }}` / `${{ vars.X }}` counts.
@@ -28,6 +29,8 @@ interface Rendered {
   feature: string;
   regression: string;
   scripts: string[];
+  /** The whole ci.yml (DevAudit-Installer#1335: `ci` and `feature` are its two jobs). */
+  whole: string;
 }
 
 async function render(extra: Record<string, unknown>): Promise<Rendered> {
@@ -68,7 +71,9 @@ async function render(extra: Record<string, unknown>): Promise<Rendered> {
     for (const sub of ['.husky', 'scripts', '.github/workflows']) await fs.mkdir(join(dir, sub), { recursive: true });
     await syncProject(dir);
     const read = async (f: string): Promise<string> => (await fs.readFile(join(dir, '.github', 'workflows', f), 'utf8')).replace(/\r\n/g, '\n');
-    return { ci: await read('ci.yml'), feature: await read('feature-e2e.yml'), regression: await read('e2e-regression.yml'), scripts: await fs.readdir(join(dir, 'scripts')) };
+    // DevAudit-Installer#1335: the gates and the feature E2E are two jobs of ci.yml; each is checked on its own.
+    const ci = await read('ci.yml');
+    return { ci: `jobs:\n${jobSection(ci, 'quality-gates')}`, feature: `jobs:\n${jobSection(ci, 'feature-e2e')}`, regression: await read('e2e-regression.yml'), scripts: await fs.readdir(join(dir, 'scripts')), whole: ci };
   } finally {
     await fs.rm(dir, { recursive: true, force: true });
   }
@@ -191,7 +196,7 @@ describe('the generated workflows', () => {
       expect(preflights(r.ci)).toEqual([]);
       expect(preflights(r.feature)).toEqual([]);
       expect(preflights(r.regression)).toEqual([]);
-      expect(r.ci).not.toContain('check-config-values');
+      expect(r.whole).not.toContain('check-config-values');
     }
   }, 120_000);
 });

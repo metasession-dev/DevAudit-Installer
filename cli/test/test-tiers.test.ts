@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { load as yamlLoad } from 'js-yaml';
 import { renderAll } from './helpers/render-workflows.js';
 import { findConfigKey } from '../src/lib/repo-config-keys.js';
+import { featureJobs, jobSection } from './helpers/workflow-jobs.js';
 
 // devaudit-installer#1060 Phase A — test tier keys and scripts/run-test-tier.sh.
 // A config that sets none of the keys must render exactly the inline Playwright
@@ -16,12 +17,14 @@ beforeAll(() => {
 });
 
 const SCRIPT = 'bash "$GITHUB_WORKSPACE/scripts/run-test-tier.sh"';
+// DevAudit-Installer#1335: the feature E2E is two jobs of ci.yml (the scope decision and the feature run).
+const feat = (wf: Record<string, string>): string => featureJobs(wf['ci.yml']!);
 
 describe('test tiers: workflows with no tier key are unchanged', { timeout: 120_000 }, () => {
   it('keeps the inline Playwright commands and never references the tier script', async () => {
     const wf = await renderAll('node');
     expect(wf['ci.yml']).toContain('run: npx playwright test --project=chromium --reporter=json,html');
-    expect(wf['feature-e2e.yml']).toContain('npx playwright test --grep "$REQ_ID" --reporter=json,html');
+    expect(feat(wf)).toContain('npx playwright test --grep "$REQ_ID" --reporter=json,html');
     expect(wf['e2e-regression.yml']).toContain(
       '40m npx playwright test --project="$PROJECT" --reporter=json,html || STATUS=$?',
     );
@@ -36,12 +39,15 @@ describe('test tiers: workflows with no tier key are unchanged', { timeout: 120_
     for (const [name, content] of Object.entries(wf)) expect(content, name).not.toContain('run-test-tier.sh');
   });
 
-  it('feature-e2e.yml triggers on the integration branch (develop by default)', async () => {
-    expect((await renderAll('node'))['feature-e2e.yml']).toContain('pull_request:\n    branches: [develop]');
+  it('the feature E2E runs on pull requests into the integration branch (develop by default)', async () => {
+    // DevAudit-Installer#1335: ci.yml triggers on pull requests into the integration and release branches; the plan
+    // job runs the feature E2E only for a pull request into the integration branch.
+    expect((await renderAll('node'))['ci.yml']).toContain('pull_request:\n    branches: [develop, main]');
     const custom = await renderAll('node', { integration_branch: 'next' });
-    expect(custom['feature-e2e.yml']).toContain('pull_request:\n    branches: [next]');
-    expect(custom['feature-e2e.yml']).toContain("github.base_ref || 'next'");
-    expect(custom['feature-e2e.yml']).not.toContain('develop');
+    expect(custom['ci.yml']).toContain('pull_request:\n    branches: [next, main]');
+    expect(jobSection(custom['ci.yml']!, 'plan')).toContain('INTEGRATION_BRANCH: next');
+    expect(feat(custom)).toContain("github.base_ref || 'next'");
+    expect(feat(custom)).not.toContain('develop');
   });
 });
 
@@ -50,15 +56,15 @@ describe('test tiers: a key switches the matching step to the script', { timeout
     const wf = await renderAll('node', { test_tier_smoke: 'make smoke' });
     expect(wf['ci.yml']).toContain(`run: ${SCRIPT} smoke`);
     expect(wf['ci.yml']).not.toContain('run: npx playwright test --project=chromium');
-    expect(wf['feature-e2e.yml']).toContain('npx playwright test --grep "$REQ_ID"');
+    expect(feat(wf)).toContain('npx playwright test --grep "$REQ_ID"');
     expect(wf['e2e-regression.yml']).toContain('40m npx playwright test --project="$PROJECT"');
   });
 
   it('test_feature_command drives the in-scope step', async () => {
     const wf = await renderAll('node', { test_feature_command: 'jest -t {REQ}' });
-    expect(wf['feature-e2e.yml']).toContain(`${SCRIPT} feature "$REQ_ID"`);
-    expect(wf['feature-e2e.yml']).not.toContain('npx playwright test --grep');
-    expect(wf['ci.yml']).toContain('run: npx playwright test --project=chromium');
+    expect(feat(wf)).toContain(`${SCRIPT} feature "$REQ_ID"`);
+    expect(feat(wf)).not.toContain('npx playwright test --grep');
+    expect(jobSection(wf['ci.yml']!, 'quality-gates')).toContain('run: npx playwright test --project=chromium');
   });
 
   it('test_tier_full or test_tier_critical replace only the unscoped regression command', async () => {
@@ -91,7 +97,7 @@ describe('test tiers: a key switches the matching step to the script', { timeout
       test_tier_full: 'make full',
       test_feature_command: 'make feature REQ={REQ}',
     });
-    for (const name of ['ci.yml', 'feature-e2e.yml', 'e2e-regression.yml']) {
+    for (const name of ['ci.yml', 'e2e-regression.yml']) {
       expect(() => yamlLoad(wf[name]!), name).not.toThrow();
     }
   });
@@ -117,26 +123,26 @@ describe('test tier config keys', () => {
 
   it('test_runner allows playwright and pytest only, and the keys name the workflows they change', () => {
     expect(findConfigKey('test_runner')!.enum).toEqual(['playwright', 'pytest']);
-    expect(findConfigKey('test_feature_command')!.affects).toEqual(['.github/workflows/feature-e2e.yml']);
+    expect(findConfigKey('test_feature_command')!.affects).toEqual(['.github/workflows/ci.yml']);
     expect(findConfigKey('test_tier_full')!.affects).toContain('.github/workflows/e2e-regression.yml');
   });
 });
 
 describe('test_runner pytest selects the pytest tier workflows (#1060 Phase B)', { timeout: 180_000 }, () => {
   for (const stack of ['node', 'python'] as const) {
-    it(`${stack}: feature-e2e.yml and e2e-regression.yml run pytest through the tier script`, async () => {
+    it(`${stack}: the feature E2E job and e2e-regression.yml run pytest through the tier script`, async () => {
       const wf = await renderAll(stack, { test_runner: 'pytest', python_version: '3.12' });
-      for (const name of ['feature-e2e.yml', 'e2e-regression.yml']) {
-        const text = wf[name]!;
-        expect(() => yamlLoad(text), name).not.toThrow();
+      expect(() => yamlLoad(wf['ci.yml']!), 'ci.yml').not.toThrow();
+      for (const [name, text] of [['feature E2E job', jobSection(wf['ci.yml']!, 'feature-e2e')], ['e2e-regression.yml', wf['e2e-regression.yml']!]] as const) {
         expect(text, name).toContain("python-version: '3.12'");
         expect(text, name).toContain('run-test-tier.sh');
         expect(text, name).not.toMatch(/playwright|setup-node|npm ci/i);
         expect(text, name).not.toMatch(/\{\{[A-Z_]+\}\}/);
       }
-      expect(wf['feature-e2e.yml']).toContain(`${SCRIPT} feature "$REQ_ID"`);
-      expect(wf['feature-e2e.yml']).toContain('feature-e2e-results.xml');
-      expect(wf['feature-e2e.yml']).toContain('grep -rl "$REQ_ID"');
+      expect(feat(wf)).toContain(`${SCRIPT} feature "$REQ_ID"`);
+      expect(feat(wf)).toContain('feature-e2e-results.xml');
+      // The plan job (scripts/ci-plan.sh) looks for tests naming the REQ under tests/ for the pytest runner.
+      expect(jobSection(wf['ci.yml']!, 'plan')).toContain('TEST_RUNNER: pytest');
     });
 
     it(`${stack}: the regression workflow keeps the names compliance-evidence.yml depends on`, async () => {
@@ -164,15 +170,16 @@ describe('test_runner pytest selects the pytest tier workflows (#1060 Phase B)',
 
   it('a python project without test_runner keeps the Node tier workflows; playwright is the same as absent', async () => {
     const absent = await renderAll('python');
-    expect(absent['feature-e2e.yml']).toContain('setup-node');
-    expect(absent['feature-e2e.yml']).not.toContain('setup-python');
+    expect(feat(absent)).toContain('setup-node');
+    expect(feat(absent)).not.toContain('setup-python');
+    expect(jobSection(absent['ci.yml']!, 'plan')).toContain('TEST_RUNNER: playwright');
     expect(await renderAll('python', { test_runner: 'playwright' })).toEqual(absent);
   });
 });
 
-describe('feature-e2e.yml screenshot gate (#1067)', { timeout: 180_000 }, () => {
+describe('the feature E2E screenshot gate (#1067)', { timeout: 180_000 }, () => {
   it('asks is-transport-layer-req.sh before failing on a REQ with no screenshots', async () => {
-    const wf = (await renderAll('node'))['feature-e2e.yml']!;
+    const wf = feat(await renderAll('node'));
     const ask = wf.indexOf('scripts/is-transport-layer-req.sh" "$REQ_ID"');
     const fail = wf.indexOf('::error::No evidenceShot screenshots were captured for ${REQ_ID}.');
     expect(ask).toBeGreaterThan(-1);
@@ -181,7 +188,7 @@ describe('feature-e2e.yml screenshot gate (#1067)', { timeout: 180_000 }, () => 
   });
 
   it('leaves the pytest feature workflow without a screenshot gate', async () => {
-    const wf = (await renderAll('node', { test_runner: 'pytest' }))['feature-e2e.yml']!;
+    const wf = feat(await renderAll('node', { test_runner: 'pytest' }));
     expect(wf).not.toContain('evidenceShot');
     expect(wf).not.toContain('is-transport-layer-req');
   });

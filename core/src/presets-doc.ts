@@ -73,7 +73,7 @@ export function renderPresetsMarkdown(): string {
   for (const m of MOMENTS) lines.push(`| ${m.n}. ${m.name} | ${m.workflows} |`);
   lines.push(
     '',
-    'True for every preset: smoke runs at moments 1 and 2 and blocks (Quality Gates is the required check); feature tests run at moment 1 only, when the branch names a requirement and a test is tagged for it, and do not block; the approval gate at moment 3 is always on; production evidence is collected at moment 4; the quarterly review runs at moment 5. With `e2e_regression_enabled: false` there is no `e2e-regression.yml`, so the critical and full groups never run automatically.',
+    'True for every preset: smoke runs at moments 1 and 2 (at moment 2 only when the pull request result cannot be reused) and blocks (Quality Gates is the required check); a change to documentation only runs no gates; feature tests run at moment 1 only, when the branch names a requirement and a test is tagged for it, and do not block; the approval gate at moment 3 is always on; production evidence is collected at moment 4; the quarterly review runs at moment 5. With `e2e_regression_enabled: false` there is no `e2e-regression.yml`, so the critical and full groups never run automatically.',
     '',
     '## Compliance modes',
     '',

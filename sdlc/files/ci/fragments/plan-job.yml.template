@@ -1,0 +1,58 @@
+# Fragment of ci.yml (DevAudit-Installer#1335): the plan job. Inserted by the generator's include pass (includeFragments).
+  # ──────────────────────────────────────────────
+  # Plan (DevAudit-Installer#1335): the one place that decides what this run does, from the event and the
+  # changed files (scripts/ci-plan.sh). Every other job reads its outputs. There are no trigger path
+  # filters, so the workflow always starts and the required check `Quality Gates` is always reported.
+  # ──────────────────────────────────────────────
+  plan:
+    name: Plan
+    runs-on: {{RUNNER}}
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: read
+    outputs:
+      mode: ${{ steps.plan.outputs.mode }}
+      change: ${{ steps.plan.outputs.change }}
+      run_gates: ${{ steps.plan.outputs.run_gates }}
+      reuse: ${{ steps.plan.outputs.reuse }}
+      reuse_reason: ${{ steps.plan.outputs.reuse_reason }}
+      source_run_id: ${{ steps.plan.outputs.source_run_id }}
+      source_pr: ${{ steps.plan.outputs.source_pr }}
+      tested_tree: ${{ steps.plan.outputs.tested_tree }}
+      run_register: ${{ steps.plan.outputs.run_register }}
+      run_upload: ${{ steps.plan.outputs.run_upload }}
+      req_id: ${{ steps.plan.outputs.req_id }}
+      has_tests: ${{ steps.plan.outputs.has_tests }}
+      run_feature: ${{ steps.plan.outputs.run_feature }}
+      run_scope_decision: ${{ steps.plan.outputs.run_scope_decision }}
+      run_release_checks: ${{ steps.plan.outputs.run_release_checks }}
+      reason: ${{ steps.plan.outputs.reason }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          # See the quality-gates job's checkout step for why (devaudit-installer#676/#815).
+          clean: {{CHECKOUT_CLEAN}}
+      - name: Decide what this run does
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_REF: ${{ github.head_ref }}
+          REF_NAME: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+          BEFORE_SHA: ${{ github.event.before }}
+          REPOSITORY: ${{ github.repository }}
+          CURRENT_RUN_ID: ${{ github.run_id }}
+          INTEGRATION_BRANCH: {{INTEGRATION_BRANCH}}
+          RELEASE_BRANCH: {{RELEASE_BRANCH}}
+          # A literal, so multi-target namespacing suffixes it the same way as the job name.
+          REQUIRED_CHECK_NAME: Quality Gates
+          TEST_RUNNER: {{TEST_RUNNER_KIND}}
+          WORKING_DIR_PREFIX: {{WORKING_DIR_PREFIX}}
+          # Changes only to these paths never need the quality gates (paths_ignore, plus other targets' directories).
+          PATHS_IGNORE: |
+{{PATHS_IGNORE_LIST}}
+        run: bash scripts/ci-plan.sh

@@ -17,13 +17,13 @@ A preset is a ready-made answer to the onboarding questions. `devaudit install` 
 
 | Moment | Workflows |
 | --- | --- |
-| 1. Feature pull request opened | ci.yml Quality Gates (smoke is Gate 4); feature-e2e.yml |
-| 2. Merged to the integration branch | ci.yml (push): the gates again (the opt-in `reuse_pull_request_gates` reuses the result of the pull request run when it tested the same tree), registers the release, uploads evidence |
-| 3. Release pull request opened | check-release-approval.yml, compliance-validation.yml, e2e-regression.yml (pull_request) |
+| 1. Feature pull request opened | ci.yml: Plan, then for a change with code the gates (smoke is Gate 4) and the Feature In-Scope E2E job; Quality Gates is the required check |
+| 2. Merged to the integration branch | ci.yml (push): registers the release, reuses the result of the pull request run when it tested the same tree (else runs the gates again), uploads evidence |
+| 3. Release pull request opened | ci.yml (release scope and provenance), check-release-approval.yml, compliance-validation.yml, e2e-regression.yml (pull_request) |
 | 4. After approval and deploy | post-deploy-prod.yml; e2e-regression.yml (deployment_status); production review in the portal |
 | 5. On a timer | e2e-regression.yml (schedule); periodic-review.yml (quarterly, always) |
 
-True for every preset: smoke runs at moments 1 and 2 and blocks (Quality Gates is the required check); feature tests run at moment 1 only, when the branch names a requirement and a test is tagged for it, and do not block; the approval gate at moment 3 is always on; production evidence is collected at moment 4; the quarterly review runs at moment 5. With `e2e_regression_enabled: false` there is no `e2e-regression.yml`, so the critical and full groups never run automatically.
+True for every preset: smoke runs at moments 1 and 2 (at moment 2 only when the pull request result cannot be reused) and blocks (Quality Gates is the required check); a change to documentation only runs no gates; feature tests run at moment 1 only, when the branch names a requirement and a test is tagged for it, and do not block; the approval gate at moment 3 is always on; production evidence is collected at moment 4; the quarterly review runs at moment 5. With `e2e_regression_enabled: false` there is no `e2e-regression.yml`, so the critical and full groups never run automatically.
 
 ## Compliance modes
 

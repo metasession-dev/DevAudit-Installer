@@ -188,8 +188,7 @@ check "a workflow file is code even when a pattern covers it (#1299)" "code" "$(
 check "a file elsewhere under .github is still classified by the patterns" "docs-only" "$(printf '.github/ISSUE_TEMPLATE/bug.md\n' | PATHS_IGNORE="      - '.github/**'" bash "$HELPER" pr-docs-only)"
 check "extra arguments are a usage error" "2" "$(printf 'a\n' | bash "$HELPER" pr-docs-only extra >/dev/null 2>&1; echo $?)"
 
-# DevAudit-Installer#1335 — the event and the path decide which `Quality Gates` successes count; the opt-in reuse name
-# (#1298) is still read until the generated workflows stop sending it.
+# DevAudit-Installer#1335 — one check name (`Quality Gates`, namespaced per target); the event and the path decide.
 GHBIN="$WORK/ghbin"
 mkdir -p "$GHBIN"
 cat > "$GHBIN/gh" <<'GH'
@@ -227,13 +226,8 @@ check "a success from another workflow does not count" "1" "$(real_ci env RUN_FI
 check "a success from a pull_request run does not count" "1" "$(real_ci env RUN_EVENT=pull_request)"
 check "a success from a workflow_dispatch run counts" "0" "$(real_ci env RUN_EVENT=workflow_dispatch)"
 checks "Quality Gates" skipped 10 "Reused Quality Gates" success 10
-check "a skipped heavy job and a reuse success do not count without QG_REUSED_NAME" "1" "$(real_ci env)"
-check "the reuse success counts when QG_REUSED_NAME names it (#1298, until WP2)" "0" "$(real_ci env QG_REUSED_NAME='Reused Quality Gates')"
-check "a reuse success from a pull_request run does not count" "1" "$(real_ci env QG_REUSED_NAME='Reused Quality Gates' RUN_EVENT=pull_request)"
-checks "Quality Gates" skipped 10 "Reused Quality Gates" failure 10
-check "a failed reuse job does not count" "1" "$(real_ci env QG_REUSED_NAME='Reused Quality Gates')"
-checks "Reused Quality Gates (web)" success 10
-check "a namespaced reuse name is selected by QG_REUSED_NAME" "0" "$(real_ci env QG_NAME='Quality Gates (web)' QG_REUSED_NAME='Reused Quality Gates (web)')"
+check "the retired 'Reused Quality Gates' name does not count (#1335)" "1" "$(real_ci env)"
+check "QG_REUSED_NAME is no longer read" "1" "$(real_ci env QG_REUSED_NAME='Reused Quality Gates')"
 checks "Quality Gates (web)" success 10
 check "a namespaced name is selected by QG_NAME" "0" "$(real_ci env QG_NAME='Quality Gates (web)')"
 

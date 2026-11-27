@@ -592,7 +592,11 @@ function notifyRequiredGateFailure(repo, watch, pr, checks, options) {
 
 function performWatchAction(repo, watch, decision) {
     if (!decision.action) return;
-    runGh(['run', 'rerun', decision.action.runId, '--repo', repo]);
+    // DevAudit-Installer#1335 — a flaky check (for example the feature E2E) now shares a run with the quality gates:
+    // re-run only the failed jobs, so the gates are not repeated. The release gate keeps a full re-run.
+    runGh(decision.action.type === 'rerun-flaky'
+        ? ['run', 'rerun', decision.action.runId, '--failed', '--repo', repo]
+        : ['run', 'rerun', decision.action.runId, '--repo', repo]);
     if (decision.action.type === 'rerun-release-gate') {
         watch.releaseGateReruns = Number(watch.releaseGateReruns || 0) + 1;
     } else {

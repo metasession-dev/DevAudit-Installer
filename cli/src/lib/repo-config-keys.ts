@@ -114,8 +114,8 @@ const RELEASE_GATE = [
   '.github/workflows/check-release-approval.yml',
 ];
 const TIERS = [
+  // DevAudit-Installer#1335: the feature E2E is a job of ci.yml.
   '.github/workflows/ci.yml',
-  '.github/workflows/feature-e2e.yml',
   '.github/workflows/e2e-regression.yml',
 ];
 
@@ -270,7 +270,7 @@ export const CONFIG_KEYS: readonly ConfigKeySpec[] = [
     type: 'string',
     description: 'Command for the feature scope (tests tagged with the branch requirement); {REQ} is replaced with the id. Unset greps Playwright specs for the id.',
     validate: featureCommand,
-    affects: ['.github/workflows/feature-e2e.yml'],
+    affects: CI,
   },
   {
     key: 'test_runner',
@@ -300,13 +300,6 @@ export const CONFIG_KEYS: readonly ConfigKeySpec[] = [
     affects: ['.github/workflows/e2e-regression.yml'],
   },
   {
-    key: 'reuse_pull_request_gates',
-    type: 'boolean',
-    description:
-      'Whether a merge into the integration branch reuses the pull request run\'s quality-gate result when the merged tree is the tree that run tested (DevAudit-Installer#1298). Off unless true (opt-in until the reuse has been seen working on GitHub, DevAudit-Installer#1311). A cheap find-tested-run job checks the pull request (one, merged, from this repository, not Dependabot), its latest successful ci.yml run, unexpired artifacts, every gate a success and an equal tree; any doubt runs the gates in full. Absent or false generates exactly the workflows of before: the gates run on the pull request and again on the merge.',
-    affects: CI,
-  },
-  {
     key: 'report_only_e2e_enabled',
     type: 'boolean',
     description:
@@ -320,14 +313,7 @@ export const CONFIG_KEYS: readonly ConfigKeySpec[] = [
       'Playwright projects the report-only authenticated E2E step runs (DevAudit-Installer#1297), for example smoke only; unset means e2e_projects, so the gating step list is not shared with it. An empty list runs no project (the seed step still runs when e2e_seed_command is set).',
     affects: CI,
   },
-  { key: 'paths_ignore', type: 'string[]', description: 'Paths that do not trigger CI on push (and, with paths_ignore_pull_request, on pull requests).', affects: [...CI, '.github/workflows/ci-status-fallback.yml'] },
-  {
-    key: 'paths_ignore_pull_request',
-    type: 'boolean',
-    description:
-      'Also apply paths_ignore to pull requests (DevAudit-Installer#1290). false (the default): every pull request into the integration branch runs the full Quality Gates, as before. true: a pull request that changes only paths_ignore paths (and sdlc-config.json) does not start ci.yml, and ci-status-fallback.yml reports the required Quality Gates status for it; a pull request with any other file runs the full gates and gets no fallback status. Saves the whole gate run on the frequent evidence and docs pull requests.',
-    affects: [...CI, '.github/workflows/ci-status-fallback.yml'],
-  },
+  { key: 'paths_ignore', type: 'string[]', description: 'Paths whose changes alone never need the quality gates, on pushes and pull requests (the plan job of ci.yml decides, DevAudit-Installer#1335). A change to a .github/workflows/ file always runs them. sdlc-config.json is always included.', affects: CI },
 
   // ---- DevAudit-Installer#1116 WP2: approval, production review, standards and the onboarding preset ----
   // `approval.mode` and `production_review.terminal_status` are dotted keys: they live inside the
@@ -498,13 +484,24 @@ export function findConfigKey(key: string): ConfigKeySpec | undefined {
 }
 
 /**
+ * DevAudit-Installer#1335 — keys that no longer do anything, with the message `configure set` gives. An existing
+ * `sdlc-config.json` that still has one is not rewritten; `devaudit doctor` (ci-pipeline) says it can be removed.
+ */
+export const RETIRED_CONFIG_KEYS: Readonly<Record<string, string>> = {
+  paths_ignore_pull_request:
+    'paths_ignore_pull_request was retired in DevAudit-Installer#1335: a pull request that changes only paths_ignore paths always skips the quality gates now (the plan job of ci.yml decides). Remove the key from sdlc-config.json; see docs/ci-pipeline.md.',
+  reuse_pull_request_gates:
+    'reuse_pull_request_gates was retired in DevAudit-Installer#1335: a merge whose tree a passing pull request run tested always reuses that result now. Remove the key from sdlc-config.json; see docs/ci-pipeline.md.',
+};
+
+/**
  * Parse and validate a raw value for a key exactly as `devaudit configure set`
  * does (type, allowed values, per-key rules), without the repo-evidence checks.
  * Used by `devaudit install` flags.
  */
 export function validateConfigKeyValue(key: string, raw: string): { value?: unknown; error?: string } {
   const spec = findConfigKey(key);
-  if (!spec) return { error: `unknown key \`${key}\`` };
+  if (!spec) return { error: RETIRED_CONFIG_KEYS[key] ?? `unknown key \`${key}\`` };
   const parsed = parseConfigValue(spec, raw);
   if (parsed.error !== undefined) return { error: parsed.error };
   if (spec.enum && !spec.enum.includes(String(parsed.value))) return { error: `must be one of ${spec.enum.join(', ')}` };

@@ -592,7 +592,8 @@ describe('devaudit-sdlc CLI engine', () => {
       expect(res.exitCode).toBe(4);
       expect(res.stdout).toContain('Detected likely flaky failure');
       const ghLog = await fs.readFile(logFile, 'utf8');
-      expect(ghLog).toContain('run rerun 28951684677 --repo metasession-dev/example');
+      // DevAudit-Installer#1335: a flaky check re-runs only the failed jobs, so the gates of the same run are not repeated.
+      expect(ghLog).toContain('run rerun 28951684677 --failed --repo metasession-dev/example');
 
       const watchState = JSON.parse(await fs.readFile(join(sandbox, '.sdlc-pr-watch.json'), 'utf8')) as {
         watches: Record<string, { reruns: Record<string, number> }>;
@@ -649,6 +650,8 @@ describe('devaudit-sdlc CLI engine', () => {
         expect(res.stdout).toContain('Release approval is already uat_approved');
         const ghLog = await fs.readFile(logFile, 'utf8');
         expect(ghLog).toContain('run rerun 28951828749 --repo metasession-dev/example');
+        // the release gate keeps a full re-run
+        expect(ghLog).not.toContain('run rerun 28951828749 --failed');
 
         const watchState = JSON.parse(await fs.readFile(join(sandbox, '.sdlc-pr-watch.json'), 'utf8')) as {
           watches: Record<string, { releaseGateReruns: number; lastPortalStatus: string }>;

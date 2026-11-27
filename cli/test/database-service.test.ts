@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { load as yamlLoad } from 'js-yaml';
 import { syncProject } from '../src/update/index.js';
+import { jobSection } from './helpers/workflow-jobs.js';
 
 // devaudit-installer#963 — generated database service containers.
 
@@ -85,6 +86,10 @@ async function render(
     for (const f of await fs.readdir(join(dir, '.github', 'workflows'))) {
       out[f] = await fs.readFile(join(dir, '.github', 'workflows', f), 'utf8');
     }
+    // DevAudit-Installer#1335: the gates and the feature E2E are two jobs of ci.yml; each is also checked on its own.
+    if (out['ci.yml']) {
+      for (const job of ['quality-gates', 'feature-e2e']) out[`ci.yml#${job}`] = `jobs:\n${jobSection(out['ci.yml'], job)}`;
+    }
     return out;
   } finally {
     await fs.rm(dir, { recursive: true, force: true });
@@ -126,7 +131,7 @@ describe('database service container generation (#963)', { timeout: 120_000 }, (
 
   it('applies to every template that carries a services block', async () => {
     const files = await render('node', { ...ISSUE_CONFIG, e2e_regression_enabled: true });
-    for (const f of ['ci.yml', 'feature-e2e.yml', 'e2e-regression.yml']) {
+    for (const f of ['ci.yml#quality-gates', 'ci.yml#feature-e2e', 'e2e-regression.yml']) {
       const svc = servicesOf(files[f]!)['postgres']!;
       expect(svc, f).toBeDefined();
       expect(svc.env?.['POSTGRES_PASSWORD'], f).toBe('postgres');
@@ -189,7 +194,7 @@ describe('database service container generation (#963)', { timeout: 120_000 }, (
         e2e_env: { DATABASE_URL: url, E2E_FLAG: '1' },
         build_env: { DATABASE_URL: url },
       });
-      for (const name of ['ci.yml', 'feature-e2e.yml']) {
+      for (const name of ['ci.yml#quality-gates', 'ci.yml#feature-e2e']) {
         const body = files[name]!;
         expect(body).toContain('echo "DATABASE_URL=postgresql://postgres:postgres@localhost:${DB_PORT}/meta_agent" >> "$GITHUB_ENV"');
         // the only remaining copy of the fixed-port URL is job-level (6 spaces), which $GITHUB_ENV overrides
@@ -222,7 +227,7 @@ describe('database service container generation (#963)', { timeout: 120_000 }, (
       expect(wf).toContain('name: Kill stale dev server');
       expect(wf.indexOf('Set database URI from dynamic port')).toBeLessThan(wf.indexOf('name: Kill stale dev server'));
       expect(wf.indexOf('name: Kill stale dev server')).toBeLessThan(wf.indexOf('name: Start dev server'));
-      for (const f of ['ci.yml', 'feature-e2e.yml', 'e2e-regression.yml']) {
+      for (const f of ['ci.yml#quality-gates', 'ci.yml#feature-e2e', 'e2e-regression.yml']) {
         expect(files[f], f).toContain('Clean stale build and test output (self-hosted only)');
         expect(files[f], f).toMatch(/run: rm -rf \.next test-results playwright-report .*\.e2e-server\.pid/);
         // devaudit-installer#1088 — shard output a sharded regression leaves behind, by exact name:

@@ -1,0 +1,28 @@
+# Fragment of ci.yml (DevAudit-Installer#1335): the required check. Inserted by the generator's include pass (includeFragments).
+  # ──────────────────────────────────────────────
+  # The required check `Quality Gates` (DevAudit-Installer#1335): it always runs, after the jobs it judges, and
+  # passes only when every job the plan asked for succeeded (scripts/ci-required-check.sh). It is the only job
+  # with this name. The feature E2E, the scope decision, the evidence upload and the release scope check are
+  # not in its `needs`, so they never delay or decide it.
+  # ──────────────────────────────────────────────
+  required-check:
+    name: Quality Gates
+    needs: [plan, register-release, quality-gates, release-provenance]
+    if: always()
+    runs-on: {{RUNNER}}
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: scripts
+          clean: {{CHECKOUT_CLEAN}}
+      - name: Decide the required check
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: bash scripts/ci-required-check.sh

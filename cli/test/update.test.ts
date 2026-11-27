@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { jobSection } from './helpers/workflow-jobs.js';
 import { promises as fs } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -258,14 +259,15 @@ describe('syncProject — native TS sync against a fixture', () => {
     expect(projectSetup).toContain('false-positive MD056/MD060 lint errors');
     // a consumer: PRs to develop must surface Quality Gates, while
     // release registration/evidence upload stay push/dispatch-only side effects.
-    expect(ciYml).toContain('pull_request:\n    branches: [develop]');
-    // #1311: reuse of the pull request run's result is opt-in, so the default condition is the one from before #1298.
+    // DevAudit-Installer#1335: one workflow for PRs into develop and main; the plan job decides what runs.
+    expect(ciYml).toContain('pull_request:\n    branches: [develop, main]');
     expect(ciYml).toContain(
-      "if: ${{ always() && (github.event_name != 'pull_request' || !startsWith(github.head_ref, 'chore/close-out-')) && (github.event_name == 'pull_request' || needs.register-release.result == 'success') }}",
+      "if: ${{ always() && needs.plan.outputs.run_gates == 'true' && (needs.plan.outputs.run_register != 'true' || needs.register-release.result == 'success') }}",
     );
-    expect(ciYml).toMatch(/register-release:[\s\S]*if: \$\{\{ github\.event_name != 'pull_request' && github\.ref_name == 'develop' \}\}/);
-    expect(ciYml).toMatch(
-      /upload-evidence:[\s\S]*if: \$\{\{ !cancelled\(\) && github\.event_name != 'pull_request' && github\.ref_name == 'develop' && needs\.register-release\.result == 'success' && needs\.register-release\.outputs\.version != 'skip' \}\}/,
+    expect(ciYml).toContain("    needs: plan\n    if: needs.plan.outputs.run_register == 'true'");
+    expect(jobSection(ciYml, 'register-release')).toContain("if: needs.plan.outputs.run_register == 'true'");
+    expect(jobSection(ciYml, 'upload-evidence')).toContain(
+      "if: ${{ !cancelled() && needs.plan.outputs.run_upload == 'true' && needs.register-release.result == 'success' && needs.register-release.outputs.version != 'skip' }}",
     );
     expect(ciYml).toContain('scripts/report-test-execution.sh start');
     expect(ciYml).toContain('--evidence-scope execution --test-execution-record-id');
@@ -322,25 +324,20 @@ describe('syncProject — native TS sync against a fixture', () => {
     expect(complianceEvidenceYml).not.toContain('Walk suites/specs/tests/results recursively');
     expect(complianceEvidenceYml).not.toContain('**Spec file:** ${SPEC_FILE}');
     expect(complianceEvidenceYml).not.toContain('--title "[REGRESSION] ${SPEC_FILE} :: ${TEST_NAME}"');
-    const ciStatusFallbackYml = await fs.readFile(
-      join(fixtureDir, '.github', 'workflows', 'ci-status-fallback.yml'),
-      'utf-8',
-    );
-    expect(ciStatusFallbackYml).toContain('permissions:');
-    expect(ciStatusFallbackYml).toContain('contents: read');
-    expect(ciStatusFallbackYml).toContain('statuses: write');
-    const provenanceYml = await fs.readFile(
-      join(fixtureDir, '.github', 'workflows', 'quality-gates-provenance.yml'),
-      'utf-8',
-    );
+    // DevAudit-Installer#1335: the fallback, provenance and feature workflows are jobs of ci.yml now.
+    for (const gone of ['ci-status-fallback.yml', 'quality-gates-provenance.yml', 'feature-e2e.yml']) {
+      expect(await fs.access(join(fixtureDir, '.github', 'workflows', gone)).then(() => true, () => false), gone).toBe(false);
+    }
+    const provenanceYml = jobSection(ciYml, 'release-provenance');
     expect(provenanceYml).toContain('permissions:');
     expect(provenanceYml).toContain('checks: read');
-    expect(provenanceYml).toContain('actions: write');
-    expect(provenanceYml).toContain('name: Release Scope Integrity');
-    expect(provenanceYml).toContain("!startsWith(github.event.pull_request.head.ref, 'hotfix/')");
-    expect(provenanceYml).toContain('bash scripts/check-release-pr-scope.sh');
-    expect(provenanceYml).toContain('gh workflow run ci.yml --ref "$HEAD_REF"');
-    expect(provenanceYml).toContain('gh run watch "$RUN_ID" --exit-status');
+    expect(provenanceYml).toContain('actions: read');
+    expect(jobSection(ciYml, 'release-scope-integrity')).toContain('name: Release Scope Integrity');
+    expect(jobSection(ciYml, 'release-scope-integrity')).toContain("if: needs.plan.outputs.run_release_checks == 'true'");
+    expect(jobSection(ciYml, 'release-scope-integrity')).toContain('bash scripts/check-release-pr-scope.sh');
+    // #1335: a hotfix pull request runs the gates in its own run; nothing dispatches and watches ci.yml any more.
+    expect(ciYml).not.toContain('gh workflow run ci.yml');
+    expect(ciYml).not.toContain('gh run watch');
     expect(provenanceYml).toContain('MAX_ATTEMPTS=10');
     expect(provenanceYml).toContain('Develop-side Quality Gates for SHA ${GATED_SHA} not successful yet');
     // #971 — gated-commit walk, ci.yml-only provenance, paths_ignore reuse.
@@ -383,10 +380,7 @@ describe('syncProject — native TS sync against a fixture', () => {
     expect(ciYml).toContain('compliance/evidence/*/screenshots/*.png');
     expect(ciYml).toContain('Upload per-AC e2e evidence screenshots');
     expect(ciYml).toMatch(/"\$REQ" screenshot "\$NAMED"/);
-    const featureE2eYml = await fs.readFile(
-      join(fixtureDir, '.github', 'workflows', 'feature-e2e.yml'),
-      'utf-8',
-    );
+    const featureE2eYml = jobSection(ciYml, 'feature-e2e');
     expect(featureE2eYml).toContain('Register feature release and start feature E2E execution');
     expect(featureE2eYml).toContain('Complete feature E2E execution');
     expect(featureE2eYml).toContain('--evidence-scope execution --test-execution-record-id');
@@ -832,7 +826,7 @@ describe('syncProject — native TS sync against a fixture', () => {
     }
   }, 60_000);
 
-  it('scopes ci.yml triggers to each target\'s own working_directory when both targets are non-root (#693)', async () => {
+  it('scopes each target\'s plan to its own working_directory when both targets are non-root (#693, #1335)', async () => {
     const dir = await fs.mkdtemp(join(tmpdir(), 'cli-update-multitarget-paths-'));
     try {
       const baseTarget = {
@@ -875,22 +869,23 @@ describe('syncProject — native TS sync against a fixture', () => {
       const webCi = await fs.readFile(join(workflowsDir, 'ci-web.yml'), 'utf-8');
       const apiCi = await fs.readFile(join(workflowsDir, 'ci-api.yml'), 'utf-8');
 
-      // Each target's push trigger ignores the OTHER target's subtree...
+      // DevAudit-Installer#1335: no trigger path filters; each target's plan treats the OTHER target's subtree as
+      // documentation-only, so a change there runs no gates in this pipeline.
       // Quote style is the formatter's business: section 2l runs the
       // consumer's prettier when one is reachable (it rewrites 'x' to "x"), so
       // match either quote instead of depending on the machine's PATH.
       const ignores = (dir: string) => new RegExp(`- ['"]${dir}/\\*\\*['"]`);
-      expect(webCi).toMatch(ignores('example-web-api'));
-      expect(apiCi).toMatch(ignores('example-web'));
+      const planOf = (ci: string) => jobSection(ci, 'plan');
+      expect(planOf(webCi)).toMatch(ignores('example-web-api'));
+      expect(planOf(apiCi)).toMatch(ignores('example-web'));
       // ...but not its own.
-      expect(webCi).not.toMatch(ignores('example-web'));
-      expect(apiCi).not.toMatch(ignores('example-web-api'));
-
-      // pull_request gains a matching paths-ignore block (previously absent).
-      const prBlock = (dir: string) =>
-        new RegExp(`pull_request:\\s*\\n\\s*branches: \\[develop\\]\\s*\\n\\s*paths-ignore:\\s*\\n\\s*- ['"]${dir}/\\*\\*['"]`);
-      expect(webCi).toMatch(prBlock('example-web-api'));
-      expect(apiCi).toMatch(prBlock('example-web'));
+      expect(planOf(webCi)).not.toMatch(ignores('example-web'));
+      expect(planOf(apiCi)).not.toMatch(ignores('example-web-api'));
+      for (const ci of [webCi, apiCi]) expect(ci).not.toMatch(/^ {4}paths(-ignore)?:/m);
+      // The required check and the name the plan and provenance look for are namespaced per target.
+      expect(jobSection(webCi, 'required-check')).toContain('name: Quality Gates (web)');
+      expect(planOf(webCi)).toContain('REQUIRED_CHECK_NAME: Quality Gates (web)');
+      expect(jobSection(apiCi, 'release-provenance')).toContain('QG_NAME: Quality Gates (api)');
 
       await expectAllWorkflowsValidYaml(dir);
     } finally {
@@ -1009,7 +1004,8 @@ describe('syncProject — native TS sync against a fixture', () => {
       expect(rootWorkflows).toContain('ci.yml');
       const ciContent = await fs.readFile(join(repoRoot, '.github', 'workflows', 'ci.yml'), 'utf-8');
       expect(ciContent).toContain('working-directory: api');
-      expect(ciContent).not.toMatch(/npm ci\b/);
+      // The Python gates job installs no Node toolchain (the feature E2E job of ci.yml is Playwright unless test_runner is pytest).
+      expect(jobSection(ciContent, 'quality-gates')).not.toMatch(/npm ci\b/);
     } finally {
       await fs.rm(repoRoot, { recursive: true, force: true });
     }
@@ -1219,7 +1215,9 @@ describe('syncProject — native TS sync against a fixture', () => {
 
       const ci = await fs.readFile(join(dir, '.github', 'workflows', 'ci.yml'), 'utf-8');
       expect(ci).not.toMatch(/env:[ \t]*\n[ \t]*\n/);
-      const qgBlock = ci.slice(ci.indexOf('name: Quality Gates'), ci.indexOf('steps:'));
+      // DevAudit-Installer#1335: the gates job (id quality-gates, display name Run quality gates), up to its steps.
+      const gates = jobSection(ci, 'quality-gates');
+      const qgBlock = gates.slice(0, gates.indexOf('steps:'));
       expect(qgBlock).not.toMatch(/^\s*env:\s*$/m);
 
       await expectAllWorkflowsValidYaml(dir);
@@ -1255,7 +1253,9 @@ describe('syncProject — native TS sync against a fixture', () => {
       await syncProject(dir);
 
       const ci = await fs.readFile(join(dir, '.github', 'workflows', 'ci.yml'), 'utf-8');
-      const qgBlock = ci.slice(ci.indexOf('name: Quality Gates'), ci.indexOf('steps:'));
+      // DevAudit-Installer#1335: the gates job (id quality-gates, display name Run quality gates), up to its steps.
+      const gates = jobSection(ci, 'quality-gates');
+      const qgBlock = gates.slice(0, gates.indexOf('steps:'));
       expect(qgBlock).toContain('env:');
       expect(qgBlock).toContain('DATABASE_URL: postgresql://localhost/test');
       expect(qgBlock).toContain('FEATURE_FLAG_X: true');
@@ -1593,8 +1593,10 @@ describe('syncProject — native TS sync against a fixture', () => {
         await fs.readFile(join(dir, '.github', 'workflows', 'ci.yml'), 'utf-8'),
       );
       expect(ciYml).toContain('actions/setup-python@v6');
-      expect(ciYml).toContain('pull_request:\n    branches: [develop]');
-      expect(ciYml).toContain("github.event_name != 'pull_request' && github.ref_name == 'develop' }}");
+      // DevAudit-Installer#1335: PRs into develop and main; the plan job keeps registration and upload on code pushes.
+      expect(ciYml).toContain('pull_request:\n    branches: [develop, main]');
+      expect(jobSection(ciYml, 'register-release')).toContain("if: needs.plan.outputs.run_register == 'true'");
+      expect(jobSection(ciYml, 'upload-evidence')).toContain("needs.plan.outputs.run_upload == 'true'");
       // DevAudit-Installer#228 — validate all generated workflows are valid YAML.
       await expectAllWorkflowsValidYaml(dir);
     } finally {
@@ -1602,21 +1604,17 @@ describe('syncProject — native TS sync against a fixture', () => {
     }
   }, 60_000);
 
-  it('renders feature-e2e.yml with full E2E infrastructure and no residual tokens (#186)', async () => {
+  it('renders the feature E2E jobs of ci.yml with full E2E infrastructure and no residual tokens (#186, #1335)', async () => {
     // Use the same fixture from the first test (no DB configured) to assert
-    // that feature-e2e.yml is rendered, has no residual block tokens, and
+    // that the feature E2E is rendered, has no residual block tokens, and
     // has its services block stripped (no database_service).
-    const featureE2eYml = normalizeNewlines(
-      await fs.readFile(
-        join(fixtureDir, '.github', 'workflows', 'feature-e2e.yml'),
-        'utf-8',
-      ),
-    );
-    expect(featureE2eYml).toContain('Feature In-Scope E2E');
-    expect(featureE2eYml).toContain('pull_request:\n    branches: [develop]');
-    expect(featureE2eYml).toContain("if: ${{ !startsWith(github.head_ref, 'chore/close-out-') }}");
-    expect(featureE2eYml).toContain('detect-req');
-    expect(featureE2eYml).toContain('run-feature-e2e');
+    const ciYml = normalizeNewlines(await fs.readFile(join(fixtureDir, '.github', 'workflows', 'ci.yml'), 'utf-8'));
+    const featureE2eYml = `${jobSection(ciYml, 'e2e-scope-decision')}${jobSection(ciYml, 'feature-e2e')}`;
+    expect(featureE2eYml).toContain('name: Feature In-Scope E2E');
+    expect(featureE2eYml).toContain("if: needs.plan.outputs.run_feature == 'true'");
+    expect(featureE2eYml).toContain("if: needs.plan.outputs.run_scope_decision == 'true'");
+    expect(featureE2eYml).toContain('DEVAUDIT_E2E_SCOPE: feature');
+    expect(featureE2eYml).not.toContain('detect-req');
     // No residual block tokens
     expect(featureE2eYml).not.toContain('{{E2E_FEATURE_TEST_STEP}}');
     expect(featureE2eYml).not.toContain('{{E2E_SETUP_STEP}}');
@@ -1636,14 +1634,12 @@ describe('syncProject — native TS sync against a fixture', () => {
     expect(featureE2eYml).toMatch(/fixture-app "\$REQ_ID" screenshot "\$shot"/);
     // #737: the has_tests=false path uploads a committed e2e-scope-decision.md
     // as its own evidence type instead of leaving only the ::warning:: log line.
-    expect(featureE2eYml).toContain(
-      "if: steps.detect.outputs.has_tests == 'false' && steps.detect.outputs.req_id != 'none'",
-    );
+    expect(featureE2eYml).toContain('REQ_ID="${{ needs.plan.outputs.req_id }}"');
     expect(featureE2eYml).toContain('compliance/evidence/${REQ_ID}/e2e-scope-decision.md');
     expect(featureE2eYml).toMatch(/fixture-app "\$REQ_ID" e2e_scope_decision "\$ARTEFACT"/);
   }, 30_000);
 
-  it('renders feature-e2e.yml with services block when database_service is configured (#186)', async () => {
+  it('renders the feature E2E job with services block when database_service is configured (#186, #1335)', async () => {
     const dir = await fs.mkdtemp(join(tmpdir(), 'cli-update-fe2e-db-'));
     try {
       await fs.writeFile(
@@ -1693,8 +1689,9 @@ describe('syncProject — native TS sync against a fixture', () => {
       await fs.mkdir(join(dir, '.github', 'workflows'), { recursive: true });
       process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
       await syncProject(dir);
-      const featureE2eYml = normalizeNewlines(
-        await fs.readFile(join(dir, '.github', 'workflows', 'feature-e2e.yml'), 'utf-8'),
+      const featureE2eYml = jobSection(
+        normalizeNewlines(await fs.readFile(join(dir, '.github', 'workflows', 'ci.yml'), 'utf-8')),
+        'feature-e2e',
       );
       // Services block present with mongodb
       expect(featureE2eYml).toContain('services:');
@@ -1975,14 +1972,14 @@ describe('syncProject — native TS sync against a fixture', () => {
       );
 
       const cleanupIfExpr = "${{ (inputs.runner_label || vars.CI_RUNNER_LABEL || 'github-ci') != 'github-ci' }}";
-      const cleanupIfLines = ciYml.split('\n').filter((line) => /^\s*if: \$\{\{ \(inputs\.runner_label/.test(line));
+      const cleanupIfLines = jobSection(ciYml, 'quality-gates').split('\n').filter((line) => /^\s*if: \$\{\{ \(inputs\.runner_label/.test(line));
       expect(cleanupIfLines.length).toBe(1);
       expect(cleanupIfLines[0]?.trim()).toBe(`if: ${cleanupIfExpr}`);
       expect(ciYml).toContain('rm -rf .next');
 
       const maxAttemptsExpr =
         "${{ (inputs.runner_label || vars.CI_RUNNER_LABEL || 'github-ci') == 'github-ci' && '1' || '5' }}";
-      const maxAttemptsLines = ciYml.split('\n').filter((line) => /^\s*MAX_ATTEMPTS=/.test(line));
+      const maxAttemptsLines = jobSection(ciYml, 'quality-gates').split('\n').filter((line) => /^\s*MAX_ATTEMPTS=/.test(line));
       expect(maxAttemptsLines.length).toBe(1);
       expect(maxAttemptsLines[0]?.trim()).toBe(`MAX_ATTEMPTS=${maxAttemptsExpr}`);
 
@@ -2013,11 +2010,11 @@ describe('syncProject — native TS sync against a fixture', () => {
       );
 
       // The cleanup step's own `if:` line is the only bare `if: false` in ci.yml.
-      const bareIfFalse = ciYml.split('\n').filter((line) => line.trim() === 'if: false');
+      const bareIfFalse = jobSection(ciYml, 'quality-gates').split('\n').filter((line) => line.trim() === 'if: false');
       expect(bareIfFalse.length).toBe(1);
       expect(ciYml).toContain('rm -rf .next');
 
-      const maxAttemptsLines = ciYml.split('\n').filter((line) => /^\s*MAX_ATTEMPTS=/.test(line));
+      const maxAttemptsLines = jobSection(ciYml, 'quality-gates').split('\n').filter((line) => /^\s*MAX_ATTEMPTS=/.test(line));
       expect(maxAttemptsLines.length).toBe(1);
       expect(maxAttemptsLines[0]?.trim()).toBe('MAX_ATTEMPTS=1');
 
@@ -2152,9 +2149,10 @@ describe('syncProject — native TS sync against a fixture', () => {
       process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
 
       await syncProject(dir);
-      const content = normalizeNewlines(
+      // DevAudit-Installer#1335: ci.yml also holds the feature E2E job; count within the gates job.
+      const content = jobSection(normalizeNewlines(
         await fs.readFile(join(dir, '.github', 'workflows', 'ci.yml'), 'utf8'),
-      );
+      ), 'quality-gates');
       expect(content).not.toContain('{{DATABASE_AND_APP_ENV}}');
       const sharedOccurrences = content.match(/^\s*SHARED:/gm) ?? [];
       expect(sharedOccurrences).toHaveLength(1);
@@ -2166,7 +2164,7 @@ describe('syncProject — native TS sync against a fixture', () => {
     }
   }, 60_000);
 
-  it('dedupes an overlapping key across database_env/app_env in feature-e2e.yml with app_env winning (#928)', async () => {
+  it('dedupes an overlapping key across database_env/app_env in the feature E2E job of ci.yml with app_env winning (#928)', async () => {
     const dir = await buildFixture();
     try {
       const configPath = join(dir, 'sdlc-config.json');
@@ -2180,9 +2178,10 @@ describe('syncProject — native TS sync against a fixture', () => {
       process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
 
       await syncProject(dir);
-      const content = normalizeNewlines(
-        await fs.readFile(join(dir, '.github', 'workflows', 'feature-e2e.yml'), 'utf8'),
-      );
+      // DevAudit-Installer#1335: the feature E2E is a job of ci.yml.
+      const content = jobSection(normalizeNewlines(
+        await fs.readFile(join(dir, '.github', 'workflows', 'ci.yml'), 'utf8'),
+      ), 'feature-e2e');
       expect(content).not.toContain('{{DATABASE_AND_APP_ENV}}');
       const sharedOccurrences = content.match(/^\s*SHARED:/gm) ?? [];
       expect(sharedOccurrences).toHaveLength(1);
@@ -2210,9 +2209,10 @@ describe('syncProject — native TS sync against a fixture', () => {
       process.env['DEVAUDIT_INSTALLER_ROOT'] = INSTALLER_ROOT;
 
       await syncProject(dir);
-      const content = normalizeNewlines(
+      // DevAudit-Installer#1335: ci.yml also holds the feature E2E job; count within the gates job.
+      const content = jobSection(normalizeNewlines(
         await fs.readFile(join(dir, '.github', 'workflows', 'ci.yml'), 'utf8'),
-      );
+      ), 'quality-gates');
       const sharedOccurrences = content.match(/^\s*SHARED:/gm) ?? [];
       expect(sharedOccurrences).toHaveLength(1);
       expect(content).toContain('SHARED: from-app-env');

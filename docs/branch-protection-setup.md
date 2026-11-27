@@ -1,5 +1,7 @@
 # Branch Protection Setup
 
+`Quality Gates` comes from the `required-check` job of the generated `ci.yml` and never from another workflow ([ci-pipeline.md](./ci-pipeline.md)).
+
 This repo uses GitFlow branch protection enforced via GitHub branch rules. The `Enforce GitFlow` workflow (`.github/workflows/branch-protection.yml`) provides CI-level enforcement, but GitHub branch protection rules are the authoritative gate.
 
 ## Required GitHub branch protection rules

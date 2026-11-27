@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # provenance-gated-commit.sh — helpers for the release-PR provenance check
 # (devaudit-installer#971) and for the CI plan (DevAudit-Installer#1335). A release PR must not show Quality Gates green
-# for code that never ran the real gates: the docs-only `CI Status Fallback`
-# success on a trailing compliance commit says nothing about the code beneath.
+# for code that never ran the real gates: a docs-only success on a trailing
+# compliance commit says nothing about the code beneath.
 #
 # Subcommands:
 #   gated-commit <base_ref> <head_sha>
@@ -17,8 +17,7 @@
 #   pr-docs-only   (changed files on standard input, one per line)
 #       Print "docs-only" when every file is covered by PATHS_IGNORE, else "code"
 #       (an empty list, or one of 3000 files or more, is "code"). Used by
-#       ci-status-fallback.yml for pull requests (DevAudit-Installer#1290) and
-#       by scripts/ci-plan.sh (DevAudit-Installer#1335).
+#       scripts/ci-plan.sh (DevAudit-Installer#1335).
 #   real-ci-success <sha> <current_run_id>
 #       Exit 0 only if <sha> has a completed+successful check-run named
 #       $QG_NAME (default "Quality Gates") whose workflow run path is the CI
@@ -28,17 +27,14 @@
 #       else .github/workflows/ci.yml. A pull_request run never counts
 #       (DevAudit-Installer#1335): a release-PR run's own check sits on the
 #       release PR's head and must not certify itself. Requires
-#       GITHUB_REPOSITORY (or REPO) and the gh CLI. When $QG_REUSED_NAME is
-#       set (an opt-in reused merge, #1298), a success of that check counts too.
+#       GITHUB_REPOSITORY (or REPO) and the gh CLI. One check name only: a reused
+#       merge reports `Quality Gates` itself (DevAudit-Installer#1335).
 #   any-success <sha> <current_run_id>
 #       Like real-ci-success but accepts any workflow path (all-docs ranges);
 #       the event rule still applies.
 set -euo pipefail
 
 QG_NAME="${QG_NAME:-Quality Gates}"
-# DevAudit-Installer#1298 — the light job of an opt-in reused merge. Still read until the generated workflows stop
-# sending it (DevAudit-Installer#1335 WP2 removes the second name).
-QG_REUSED_NAME="${QG_REUSED_NAME:-}"
 REPO="${REPO:-${GITHUB_REPOSITORY:-}}"
 # The CI workflow's path: an explicit override, else this workflow's own path from WORKFLOW_REF
 # (`owner/repo/.github/workflows/ci-api.yml@refs/...` -> `.github/workflows/ci-api.yml`), else ci.yml.
@@ -135,11 +131,6 @@ successful_check_urls() {
   local sha="$1" current="$2" names_filter query
   names_filter=".name == \"${QG_NAME}\""
   query="name=$(python3 -I -c 'import sys,urllib.parse;print(urllib.parse.quote(sys.argv[1]))' "$QG_NAME")&per_page=100"
-  if [ -n "$QG_REUSED_NAME" ]; then
-    # Two names count, so the single-name query filter would hide the second.
-    names_filter="(${names_filter} or .name == \"${QG_REUSED_NAME}\")"
-    query="per_page=100"
-  fi
   gh api "/repos/${REPO}/commits/${sha}/check-runs?${query}" \
     --jq ".check_runs[]
       | select(${names_filter} and .status == \"completed\" and .conclusion == \"success\")

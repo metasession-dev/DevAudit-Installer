@@ -118,18 +118,21 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
   });
 
   it('provenance requires a real ci.yml Quality Gates success on the latest code-bearing commit (#971)', () => {
-    const source = template('quality-gates-provenance.yml.template');
+    // DevAudit-Installer#1335: the release provenance is a job of ci.yml (the release-checks fragment).
+    const source = template('fragments/release-checks-jobs.yml.template');
     const helper = commonScript('provenance-gated-commit.sh');
     expect(source).toContain('bash scripts/provenance-gated-commit.sh gated-commit');
     expect(source).toContain('"$VERIFY" "$GATED_SHA" "$CURRENT_RUN_ID"');
     expect(source).toContain('VERIFY=real-ci-success');
-    expect(source).toContain('CI_WORKFLOW_PATH: .github/workflows/ci.yml');
+    expect(source).toContain('WORKFLOW_REF: ${{ github.workflow_ref }}');
+    expect(source).not.toContain('CI_WORKFLOW_PATH');
     expect(source).toContain('{{PATHS_IGNORE_LIST}}');
     expect(source).toContain('fetch-depth: 0');
     expect(source).toContain('does not count for code beneath it');
     expect(source).toContain('MAX_ATTEMPTS=10');
-    // Hotfix dispatch path is unchanged.
-    expect(source).toContain('gh workflow run ci.yml --ref "$HEAD_REF"');
+    // #1335: no dispatch-and-watch for hotfixes; the plan runs the gates in the hotfix pull request's own run.
+    expect(source).not.toContain('gh workflow run ci.yml');
+    expect(commonScript('ci-plan.sh')).toContain('hotfix/*|fix/hotfix-*) mode=hotfix ;;');
     // The helper resolves each check-run's workflow run and compares .path.
     // #1335 — the run's path and event: only push and workflow_dispatch runs count.
     expect(helper).toContain("--jq '[.path, .event] | @tsv'");
@@ -293,12 +296,12 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
 
   it('records quality-gate lifecycle around execution and uses the upstream job result', () => {
     const source = template('ci.yml.template');
-    // #1298: the needs list and the result expression carry tokens that render to the old text when reuse is off.
-    expect(source).toContain('quality-gates:\n    name: Quality Gates\n    needs: [register-release{{REUSE_FIND_NEEDS}}]');
+    // #1335: the gate job keeps its id (evidence identity) under a new display name; the plan decides whether it runs.
+    expect(source).toContain('quality-gates:\n    name: Run quality gates\n    needs: [plan, register-release]');
     expect(source.indexOf('Start authoritative quality-gate execution')).toBeLessThan(
       source.indexOf('- name: TypeScript Check'),
     );
-    expect(source).toContain('case "${{ {{REUSE_GATES_RESULT}} }}" in');
+    expect(source).toContain("case \"${{ needs.plan.outputs.reuse == 'true' && 'success' || needs.quality-gates.result }}\" in");
     expect(source).toContain('--environment ci');
     expect(source).not.toContain('case "${{ job.status }}" in');
   });
@@ -572,7 +575,7 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
     );
   });
 
-  it.each(['ci.yml.template', 'feature-e2e.yml.template'])(
+  it.each(['ci.yml.template', 'fragments/feature-e2e-jobs.playwright.yml.template'])(
     'fails loudly instead of silently swallowing a stale E2E dev server on %s (#820)',
     (name) => {
       const source = template(name);
@@ -664,7 +667,7 @@ describe('authoritative release lifecycle workflow templates (#405)', () => {
   });
 
   it('hard-bounds generated dev-server readiness probes (#544)', () => {
-    for (const workflow of ['ci.yml.template', 'feature-e2e.yml.template']) {
+    for (const workflow of ['ci.yml.template', 'fragments/feature-e2e-jobs.playwright.yml.template']) {
       expect(template(workflow)).toContain(
         'timeout --signal=TERM --kill-after=15s 150s npx wait-on http://localhost:{{E2E_PORT}} --timeout 120000',
       );

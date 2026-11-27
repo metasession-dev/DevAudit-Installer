@@ -177,7 +177,7 @@ CI also uploads evidence automatically on `develop` push (via the `ci.yml.templa
 
 Goal: PR open against `main` with all gates green and the UAT approval requested.
 
-1. **Verify gates one more time** — `gh pr checks` once the PR is open. Required status checks (per branch protection): `Quality Gates`, `Compliance Validation`, `DevAudit Release Approval`. The release-approval check will be **pending** until UAT signs off on the portal; that's expected.
+1. **Verify gates one more time** — `gh pr checks` once the PR is open. The required status check the installer sets is `Quality Gates`; also read `Compliance Validation` and `DevAudit Release Approval` on the release PR. The release-approval check will be **pending** until UAT signs off on the portal; that's expected.
 2. **Open the PR** with `gh pr create --base main --head develop` (or feature → develop → main per the project's branching flow). PR body **must** include the SDLC-mandated fields — see [`pull_request_template.md`](../.github/pull_request_template.md) — pre-filled by GitHub when you open the PR via the UI:
    - Linked issue (`Closes #N`)
    - REQ-XXX

@@ -1,0 +1,92 @@
+# Fragment of ci.yml (DevAudit-Installer#1335): the release pull request checks, moved from
+# quality-gates-provenance.yml. Inserted by the generator's include pass (includeFragments).
+  # ──────────────────────────────────────────────
+  # Release pull request (<integration> -> <release>, not a hotfix): release scope and provenance.
+  # Provenance (devaudit-installer#971): the latest code-bearing commit in origin/<release>..head must have a
+  # successful `Quality Gates` from a push or manual run of this workflow; a pull request run never counts
+  # (DevAudit-Installer#1335). A hotfix pull request runs the gates in this workflow instead.
+  # ──────────────────────────────────────────────
+  release-scope-integrity:
+    name: Release Scope Integrity
+    needs: plan
+    if: needs.plan.outputs.run_release_checks == 'true'
+    runs-on: {{RUNNER}}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Check release PR metadata against derived scope
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          INTEGRATION_BRANCH: {{INTEGRATION_BRANCH}}
+          RELEASE_BRANCH: {{RELEASE_BRANCH}}
+        run: |
+          chmod +x scripts/check-release-pr-scope.sh 2>/dev/null || true
+          bash scripts/check-release-pr-scope.sh
+
+  release-provenance:
+    name: Release provenance
+    needs: plan
+    if: needs.plan.outputs.run_release_checks == 'true'
+    runs-on: {{RUNNER}}
+    permissions:
+      contents: read
+      checks: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Verify prior Quality Gates success on head SHA
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          CURRENT_RUN_ID: ${{ github.run_id }}
+          RELEASE_BRANCH: {{RELEASE_BRANCH}}
+          QG_NAME: Quality Gates
+          # The path of this workflow (ci.yml, or ci-<target>.yml for a multi-target repository).
+          WORKFLOW_REF: ${{ github.workflow_ref }}
+          # The same paths_ignore list the plan job uses (#971, #1335).
+          PATHS_IGNORE: |
+{{PATHS_IGNORE_LIST}}
+        run: |
+          git fetch --no-tags origin "${RELEASE_BRANCH}:refs/remotes/origin/${RELEASE_BRANCH}" 2>/dev/null || true
+          read -r GATED_SHA GATED_KIND < <(bash scripts/provenance-gated-commit.sh gated-commit "origin/${RELEASE_BRANCH}" "$HEAD_SHA")
+          if [ "$GATED_KIND" = "code" ]; then
+            VERIFY=real-ci-success
+            echo "Latest code-bearing commit in origin/${RELEASE_BRANCH}..${HEAD_SHA}: ${GATED_SHA}"
+            echo "Requiring a 'Quality Gates' success on it from a push or manual run of this workflow (a pull request run does not count)."
+          else
+            VERIFY=any-success
+            GATED_SHA="$HEAD_SHA"
+            echo "Every commit in origin/${RELEASE_BRANCH}..${HEAD_SHA} is docs-only; accepting a 'Quality Gates' success on the head from a push or manual run."
+          fi
+          echo "Excluding current workflow run: $CURRENT_RUN_ID"
+          MAX_ATTEMPTS=10
+          WAIT_SECONDS=30
+
+          for ATTEMPT in $(seq 1 $MAX_ATTEMPTS); do
+            if RESPONSE=$(bash scripts/provenance-gated-commit.sh "$VERIFY" "$GATED_SHA" "$CURRENT_RUN_ID"); then
+              echo "$RESPONSE"
+              echo ""
+              echo "Provenance verified — commit ${GATED_SHA} passed {{INTEGRATION_BRANCH}}-side Quality Gates."
+              exit 0
+            fi
+
+            if [ "$ATTEMPT" -lt "$MAX_ATTEMPTS" ]; then
+              echo "Develop-side Quality Gates for SHA ${GATED_SHA} not successful yet. Waiting ${WAIT_SECONDS}s (${ATTEMPT}/${MAX_ATTEMPTS})..."
+              sleep "$WAIT_SECONDS"
+            fi
+          done
+
+          echo "::error::Commit ${GATED_SHA} (latest code-bearing commit in this release PR; head is ${HEAD_SHA}) has no successful Quality Gates from a push or manual run of this workflow after waiting $((MAX_ATTEMPTS * WAIT_SECONDS / 60)) minutes."
+          echo "::error::A success on a later docs-only commit, or from a pull request run, does not count for code beneath it. Rerun CI on ${GATED_SHA} (or push it through the {{INTEGRATION_BRANCH}} flow so this workflow runs on it), then rerun this check."
+          exit 1
