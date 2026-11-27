@@ -7,7 +7,7 @@ import { execa } from 'execa';
 import { load as yamlLoad } from 'js-yaml';
 import { renderAll } from './helpers/render-workflows.js';
 
-// DevAudit-Installer#1323 — the generated feature-e2e.yml files a co-tracked bundle member's evidence and test
+// DevAudit-Installer#1323 — the generated feature E2E (since #1335 the e2e-scope-decision and feature-e2e jobs of ci.yml) files a co-tracked bundle member's evidence and test
 // execution against the bundle core's portal release, and never creates one named after the member. Each step that
 // passes --release is run for real (bash) against a repository with a live declared-bundle manifest; the upload and
 // execution scripts are stubs that record their arguments.
@@ -31,8 +31,9 @@ interface Step {
 }
 async function stepsOf(runner: 'playwright' | 'pytest'): Promise<Step[]> {
   const wf = await renderAll('node', runner === 'pytest' ? { test_runner: 'pytest' } : {});
-  const doc = yamlLoad(wf['feature-e2e.yml'] as string) as { jobs: Record<string, { steps: Step[] }> };
-  return Object.values(doc.jobs).flatMap((j) => j.steps);
+  const doc = yamlLoad(wf['ci.yml'] as string) as { jobs: Record<string, { steps: Step[] }> };
+  // DevAudit-Installer#1335: the feature E2E is two jobs of ci.yml.
+  return ['e2e-scope-decision', 'feature-e2e'].flatMap((id) => doc.jobs[id]!.steps);
 }
 
 const manifest = (core: string, members: string[]) => ({
@@ -71,8 +72,10 @@ async function workspace(bundles: Array<{ core: string; members: string[] }>): P
 /** Fill the GitHub expressions a step reads, the way a pull_request run for MEMBER would. */
 function expand(run: string): string {
   return run.replace(/\$\{\{\s*([^}]+?)\s*\}\}/g, (_m, expr: string) => {
-    if (/outputs\.req_id$/.test(expr)) return MEMBER;
-    if (/outputs\.has_tests$/.test(expr)) return 'true';
+    // #1335: the REQ comes from the plan job; any other job's outputs would be empty at run time.
+    if (expr === 'needs.plan.outputs.req_id') return MEMBER;
+    if (expr === 'needs.plan.outputs.has_tests') return 'true';
+    if (expr.startsWith('needs.') && !expr.startsWith('needs.plan.')) throw new Error(`the step reads another job's output: ${expr}`);
     if (/outputs\.execution_supported$/.test(expr)) return 'true';
     if (/outputs\.execution_record_id$/.test(expr)) return 'rec-1';
     if (expr === 'job.status') return 'success';
@@ -94,7 +97,7 @@ async function runStep(step: Step, ws: { dir: string }) {
 }
 
 for (const runner of ['playwright', 'pytest'] as const) {
-  describe(`feature-e2e.yml (${runner}) for a co-tracked bundle member (#1323)`, { timeout: 120_000 }, () => {
+  describe(`the feature E2E jobs of ci.yml (${runner}) for a co-tracked bundle member (#1323)`, { timeout: 120_000 }, () => {
     it('files every upload and execution call against the core release, with the member as the requirement', async () => {
       const steps = (await stepsOf(runner)).filter((s) => s.run?.includes('--release'));
       expect(steps.length).toBeGreaterThanOrEqual(4);

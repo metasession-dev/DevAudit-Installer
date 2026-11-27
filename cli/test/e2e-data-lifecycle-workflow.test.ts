@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { featureJobs } from './helpers/workflow-jobs.js';
 import { promises as fs } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -78,7 +79,8 @@ async function render(extra: Record<string, unknown>, pytest = false): Promise<R
     for (const sub of ['.husky', 'scripts', '.github/workflows']) await fs.mkdir(join(dir, sub), { recursive: true });
     await syncProject(dir);
     const read = async (f: string): Promise<string> => (await fs.readFile(join(dir, '.github', 'workflows', f), 'utf8')).replace(/\r\n/g, '\n');
-    return { regression: await read('e2e-regression.yml'), feature: await read('feature-e2e.yml'), scripts: await fs.readdir(join(dir, 'scripts')) };
+    // DevAudit-Installer#1335: the feature E2E is two jobs of ci.yml.
+    return { regression: await read('e2e-regression.yml'), feature: featureJobs(await read('ci.yml')), scripts: await fs.readdir(join(dir, 'scripts')) };
   } finally {
     await fs.rm(dir, { recursive: true, force: true });
   }

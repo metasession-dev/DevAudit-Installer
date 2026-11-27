@@ -4,7 +4,7 @@
 #
 # A transport-layer spec exercises a webhook, API or socket directly (Node
 # `fetch`, `request.post()`, a database client) and never uses Playwright's
-# `page`. There is nothing to screenshot, so feature-e2e.yml must not demand an
+# `page`. There is nothing to screenshot, so the feature E2E job of ci.yml must not demand an
 # evidenceShot for a REQ whose only coverage is of this kind. Its evidence is the
 # e2e JSON report and test-execution-summary.md (e2e-test-engineer skill,
 # "Specs with no page object").

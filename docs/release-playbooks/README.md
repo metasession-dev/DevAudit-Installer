@@ -194,6 +194,8 @@ configured required checks. The standard set is:
 - `DevAudit Release Approval`
 - `E2E Regression Suite` (the tier set by `release_gate_tier`: `critical` unless the project configured another; see [e2e-test-tiers.md](../e2e-test-tiers.md#choosing-the-release-gate-1059))
 
+`Quality Gates` comes from the `required-check` job of the generated `ci.yml` and never from another workflow ([ci-pipeline.md](../ci-pipeline.md)).
+
 Only `Quality Gates` is a GitHub-native, hard-blocking branch-protection
 required status check — deliberately, not by oversight. It is the only one of
 the five guaranteed to fire unconditionally on every `pull_request`/`push` to

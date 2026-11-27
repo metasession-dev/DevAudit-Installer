@@ -70,7 +70,7 @@ Each tier is a single-line shell command in `sdlc-config.json`, run from `workin
 | `test_tier_smoke` | the smoke gate in `ci.yml` | `npx playwright test --project=<e2e_project>` |
 | `test_tier_critical` | the critical tier in `e2e-regression.yml` | the `critical` Playwright project, or `smoke` when none is defined |
 | `test_tier_full` | the full tier in `e2e-regression.yml` | the `regression` Playwright project |
-| `test_feature_command` | the in-scope run in `feature-e2e.yml`; `{REQ}` is replaced with the id | `npx playwright test --grep <REQ>` |
+| `test_feature_command` | the in-scope run in the `feature-e2e` job of `ci.yml`; `{REQ}` is replaced with the id | `npx playwright test --grep <REQ>` |
 | `test_runner` | which defaults the script uses: `playwright` or `pytest` | `playwright` |
 
 With `test_runner: pytest` the script defaults to `pytest -m smoke`, `pytest -m "smoke or critical"` and `pytest`, each writing JUnit XML to `$TEST_JUNIT_XML` (default `junit.xml`). A tier key always wins over the runner default, so `test_tier_smoke: "npx vitest run --project smoke"` works for Jest or Vitest. For the pytest **feature scope** the script runs the test files under `tests/` that mention the requirement id anywhere (title, docstring, comment or marker), with an exact-id match (`REQ-11` does not select `REQ-111`); a requirement that no file mentions is an error, never a silent full run. It does not use `pytest -k`, which only sees test, class and marker names and can never match `REQ-042`.
@@ -79,7 +79,7 @@ Jest and Vitest have no built-in default. `devaudit install` proposes editable c
 
 ### pytest tier workflows (`test_runner: pytest`)
 
-Setting `test_runner` to `pytest` makes `devaudit update` generate pytest versions of `feature-e2e.yml` and (when `e2e_regression_enabled`) `e2e-regression.yml` instead of the Playwright ones, whatever the stack. They set up Python (`python_version`, else any 3.x), install the project (`pip install -e ".[dev]"` or `requirements.txt`, plus `pytest`), apply `database_*`, `e2e_env` and `e2e_setup_command` as before, and run the tier through `scripts/run-test-tier.sh`. The JUnit XML is the `e2e_result`; there is no dev server, screenshot or HTML report.
+Setting `test_runner` to `pytest` makes `devaudit update` generate pytest versions of the feature E2E job of `ci.yml` and (when `e2e_regression_enabled`) `e2e-regression.yml` instead of the Playwright ones, whatever the stack. They set up Python (`python_version`, else any 3.x), install the project (`pip install -e ".[dev]"` or `requirements.txt`, plus `pytest`), apply `database_*`, `e2e_env` and `e2e_setup_command` as before, and run the tier through `scripts/run-test-tier.sh`. The JUnit XML is the `e2e_result`; there is no dev server, screenshot or HTML report.
 
 - **Names and labels are unchanged.** The workflow is still `E2E Regression`, the job `E2E Regression Suite` and the artifact `e2e-regression-report`, so the portal shows the same `E2E Critical (pre-merge)` and `E2E Regression (post-deploy production)` checks and the same triage rules apply.
 - **Triggers:** the `release_gate_tier` tier (default critical) on a PR into the release branch, the full tier after a successful production deployment, on the `scheduled_full_regression` schedule or on manual dispatch (`specs` is passed to `pytest`); `feature-e2e.yml` runs the tests whose files under `tests/` mention the branch's `REQ-XXX`.
@@ -116,7 +116,7 @@ Set a fixed group in `sdlc-config.json` (devaudit-installer#969):
 - Events the job will skip never enter the group (#1183). A preview deployment sends a `deployment_status` event that starts a run the job's `if:` skips; the generated group gives those runs `<group>-skipped-<run_id>`, so they cannot displace a queued release-gate run. A group name holding `{` or `}` is used as written, without this split.
 - `e2e_concurrency_cancel_in_progress: true` restores cancellation with the fixed group, if you really want it.
 - Empty or absent (the default) leaves the generated workflow exactly as before.
-- `ci.yml` (smoke) and `feature-e2e.yml` get no group; they are expected not to mutate shared data.
+- `ci.yml` (smoke and the Feature In-Scope E2E job) has its own group per pull request, cancelled by a newer push, and is expected not to mutate shared data.
 
 **Caveat:** GitHub keeps at most **one running and one pending** run per group. A newer queued run replaces an older queued one, so a queued PR `critical` run can be silently superseded by a later dispatch even with `cancel-in-progress: false`. A fixed group reduces overlap; it does not guarantee every queued run executes. Re-run any run that shows as cancelled by replacement.
 
@@ -132,7 +132,7 @@ Read this before putting real credentials in `e2e_env` or turning on `e2e_regres
 | --- | --- | --- |
 | `e2e-regression.yml` | **Job-wide** (every step in the job) | Merged with `database_env` and `app_env` into the job's `env:` block (`buildE2eRegressionJobEnv`). Precedence on a duplicate key: `database_env` < `app_env` < `e2e_env`. |
 | `ci.yml` | **E2E steps only**: setup, dev-server start, the E2E test step and the authenticated/seed steps | `database_env` and `app_env` are still applied job-wide; `e2e_env` overrides them only on the E2E steps (`buildE2eSetupStep`, `buildE2eDevServerStep`, `buildE2eTestStep`, `buildAuthenticatedE2eStep`). |
-| `feature-e2e.yml` | **E2E steps only**: the same setup, dev-server and test steps | The test step is `buildFeatureE2eTestStep`. `database_env` and `app_env` are job-wide as in `ci.yml`. |
+| `ci.yml`, job `feature-e2e` | **E2E steps only**: the same setup, dev-server and test steps | The test step is `buildFeatureE2eTestStep`. `database_env` and `app_env` are job-wide as in the gates job. |
 
 So if `e2e_env` carries credentials for a shared or real backend, in `e2e-regression.yml` every step of the job sees them, not just the Playwright process.
 
@@ -144,7 +144,7 @@ When `e2e_env` carries real credentials, your Playwright `globalSetup` / `global
 
 The portal marks an acceptance criterion "tested" only from Playwright JSON results (`e2e_result` / `test_report`) whose test is tagged to that AC. Screenshots alone leave it "untested". Three runs upload results before a release is approved:
 
-1. **The feature-PR run** (`feature-e2e.yml`): `npx playwright test --grep "<REQ>"` with no `--project`, so every Playwright project runs, `regression` included; the title selects the test (next section). Results are uploaded as `e2e_result`.
+1. **The feature-PR run** (the `Feature In-Scope E2E` job of `ci.yml`): `npx playwright test --grep "<REQ>"` with no `--project`, so every Playwright project runs, `regression` included; the title selects the test (next section). Results are uploaded as `e2e_result`.
 2. **The smoke run on the integration-branch push** (`ci.yml`): the `e2e_project` only.
 3. **The release-PR gate tier** (`e2e-regression.yml`): `critical` by default, per `release_gate_tier`.
 
@@ -154,16 +154,16 @@ The portal marks an acceptance criterion "tested" only from Playwright JSON resu
 
 The feature-PR run selects tests with `--grep REQ-XXX`, which matches the **test title** (including enclosing `describe` titles), never an annotation. It selects by the numeric ticket id (`REQ-035`). A spec may also carry an SRS id (`REQ-AI-001`): `check-req-title-tags.sh` and doctor's tag check accept that form, but it does not select the test on a feature PR. So every Playwright test covering a requirement needs both: `[REQ-XXX]` (and `[ACn]` where it proves an AC) in the title or a describe, **and** `tagTest('REQ-XXX', n)` in the body (the portal's join key). A test with only the annotation is silently left out of the feature run. `scripts/check-req-title-tags.sh [--req REQ-XXX]` reports every `tagTest()` call whose test and describes lack the id (`file:line: ...`, exit 1); the `e2e-test-engineer` skill runs it in Phase 5½ and does not continue while it reports offenders. It parses titles statically, so titles built at run time are not supported, and `REQ-11` does not satisfy `REQ-111`. Running whole spec files instead is possible through `test_feature_command` and is not the default.
 
-### `feature-e2e.yml` runs every Playwright project
+### The feature E2E runs every Playwright project
 
-`feature-e2e.yml` runs `npx playwright test --grep "$REQ_ID"` with **no `--project` flag**, so every project defined in your `playwright.config.ts` runs there, not only the one named in `e2e_project`. (`ci.yml` passes `--project=<e2e_project>`; `e2e-regression.yml` passes the tier's project.) A project that must not run in that workflow, for example a destructive `regression` project or one that needs a backend the feature job does not have, needs a guard in the config. `GITHUB_WORKFLOW` holds the workflow's `name:`, which is `Feature In-Scope E2E` for this workflow:
+The `Feature In-Scope E2E` job of `ci.yml` runs `npx playwright test --grep "$REQ_ID"` with **no `--project` flag** (unless `feature_e2e_projects` is set), so every project defined in your `playwright.config.ts` runs there, not only the one named in `e2e_project`. (The gates job passes `--project=<e2e_project>`; `e2e-regression.yml` passes the tier's project.) A project that must not run in that job, for example a destructive `regression` project or one that needs a backend the feature job does not have, needs a guard in the config. `GITHUB_JOB` is `feature-e2e` in that job, and `DEVAUDIT_E2E_SCOPE` is `feature` (#1335; `GITHUB_WORKFLOW` is `CI Pipeline` now, so a guard on `GITHUB_WORKFLOW === 'Feature In-Scope E2E'` no longer matches, and `devaudit doctor` reports it):
 
 ```ts
-const inFeatureE2e = process.env.GITHUB_WORKFLOW === 'Feature In-Scope E2E';
+const inFeatureE2e = process.env.GITHUB_JOB === 'feature-e2e';
 
 projects: [
   { name: 'smoke', /* ... */ },
-  // Skip the heavy/destructive project when the feature workflow runs.
+  // Skip the heavy/destructive project when the feature E2E job runs.
   ...(inFeatureE2e ? [] : [{ name: 'regression', /* ... */ }]),
 ],
 ```

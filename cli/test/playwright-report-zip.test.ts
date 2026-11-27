@@ -15,7 +15,7 @@ describe('Playwright report zip (#1275)', () => {
   it('every workflow builds the zip through the helper, never an inline zip of the report', async () => {
     for (const rel of [
       'sdlc/files/ci/ci.yml.template',
-      'sdlc/files/ci/feature-e2e.yml.template',
+      'sdlc/files/ci/fragments/feature-e2e-jobs.playwright.yml.template',
       'sdlc/files/ci/compliance-evidence.yml.template',
     ]) {
       const text = await read(rel);

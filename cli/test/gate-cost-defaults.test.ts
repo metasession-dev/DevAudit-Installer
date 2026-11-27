@@ -72,7 +72,7 @@ async function renderCi(config: Record<string, unknown>): Promise<string> {
 
 const stepNames = (ci: string): string[] => ((parse(ci)['jobs']['quality-gates']['steps'] as Array<Record<string, any>>).map((s) => String(s['name'] ?? '')));
 
-describe('a new install: docs-only skipping on, and the documentation paths ignored', () => {
+describe('a new install: the documentation paths ignored', () => {
   const plan = (): InstallPlan => ({
     stack: 'node',
     host: 'railway',
@@ -91,13 +91,14 @@ describe('a new install: docs-only skipping on, and the documentation paths igno
   });
   const written = async (dir: string) => JSON.parse(await fs.readFile(join(dir, 'sdlc-config.json'), 'utf8')) as Record<string, any>;
 
-  it('writes paths_ignore_pull_request true and the documentation defaults for both stacks', async () => {
+  it('writes the documentation defaults for both stacks, and no retired key (#1335)', async () => {
     for (const stack of ['node', 'python'] as const) {
       const dir = await fs.mkdtemp(join(tmpdir(), 'cli-newinstall-'));
       try {
         await writeSdlcConfig(ctx(dir), { ...plan(), stack });
         const cfg = await written(dir);
-        expect(cfg['paths_ignore_pull_request'], stack).toBe(true);
+        expect(cfg['paths_ignore_pull_request'], stack).toBeUndefined();
+        expect(cfg['reuse_pull_request_gates'], stack).toBeUndefined();
         for (const p of ['docs/**', '.devaudit/**', '.github/ISSUE_TEMPLATE/**', '**/*.md', '*.md', 'SDLC/**', 'compliance/**', 'sdlc-config.json']) expect(cfg['paths_ignore'], `${stack} ${p}`).toContain(p);
       } finally {
         await fs.rm(dir, { recursive: true, force: true });
@@ -117,7 +118,7 @@ describe('a new install: docs-only skipping on, and the documentation paths igno
     }
   });
 
-  it('does not opt an onboarded project in when install runs again', async () => {
+  it('does not rewrite an onboarded project\'s configuration when install runs again', async () => {
     const dir = await fs.mkdtemp(join(tmpdir(), 'cli-reinstall-'));
     try {
       await fs.writeFile(join(dir, 'sdlc-config.json'), JSON.stringify({ project_slug: 'fixture-app', stack: 'node', host: 'railway', node_version: '20', paths_ignore: ['SDLC/**'] }));
@@ -130,8 +131,12 @@ describe('a new install: docs-only skipping on, and the documentation paths igno
     }
   });
 
-  it('an onboarded project that does not set the key still gets exactly today\'s ci.yml pull request trigger', async () => {
-    expect(parse(await renderCi({}))['on']['pull_request']).toEqual({ branches: ['develop'] });
+  it('ci.yml has no trigger path filter, with or without the retired key (#1335: the plan job decides)', async () => {
+    for (const extra of [{}, { paths_ignore_pull_request: true }, { paths_ignore_pull_request: false }]) {
+      const on = parse(await renderCi(extra))['on'];
+      expect(on['pull_request'], JSON.stringify(extra)).toEqual({ branches: ['develop', 'main'] });
+      expect(on['push'], JSON.stringify(extra)).toEqual({ branches: ['develop'] });
+    }
   });
 });
 
@@ -227,77 +232,42 @@ describe('the report-only authenticated E2E step (#1297)', () => {
   });
 });
 
-describe('the classify step warns about a large pull request (#1297)', () => {
-  async function classify(files: string[]) {
-    const dir = await fs.mkdtemp(join(tmpdir(), 'cli-classify300-'));
-    try {
-      await fs.writeFile(join(dir, 'sdlc-config.json'), JSON.stringify({ ...BASE, paths_ignore_pull_request: true }));
-      await fs.writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'f', private: true, version: '0.0.0', devDependencies: { husky: '*', '@commitlint/cli': '*', '@commitlint/config-conventional': '*', 'lint-staged': '*', prettier: '*', eslint: '*', typescript: '*', '@playwright/test': '*' } }));
-      for (const d of ['.husky', 'scripts', '.github/workflows']) await fs.mkdir(join(dir, d), { recursive: true });
-      await syncProject(dir);
-      const fb = parse(await fs.readFile(join(dir, '.github', 'workflows', 'ci-status-fallback.yml'), 'utf8'));
-      const step = (fb['jobs']['classify']['steps'] as Array<Record<string, any>>).find((s) => s['id'] === 'classify')!;
-      await fs.mkdir(join(dir, 'bin'));
-      await fs.copyFile(join(ROOT, 'sdlc', 'files', '_common', 'scripts', 'provenance-gated-commit.sh'), join(dir, 'scripts', 'provenance-gated-commit.sh'));
-      await fs.writeFile(join(dir, 'files.txt'), `${files.join('\n')}\n`);
-      await fs.writeFile(join(dir, 'bin', 'gh'), `#!/usr/bin/env bash\ncat "${join(dir, 'files.txt')}"\n`, { mode: 0o755 });
-      await fs.writeFile(join(dir, 'step.sh'), String(step['run']));
-      const out = join(dir, 'out');
-      await fs.writeFile(out, '');
-      const r = await execa('bash', [join(dir, 'step.sh')], {
-        cwd: dir,
-        reject: false,
-        env: { PATH: `${join(dir, 'bin')}:${process.env['PATH']}`, GITHUB_OUTPUT: out, EVENT_NAME: 'pull_request', REPOSITORY: 'o/r', PR_NUMBER: '1', GH_TOKEN: 't', PATHS_IGNORE: String(step['env']['PATHS_IGNORE']) },
-      });
-      return { code: r.exitCode, stdout: r.stdout, output: (await fs.readFile(out, 'utf8')).trim() };
-    } finally {
-      await fs.rm(dir, { recursive: true, force: true });
-    }
-  }
-  const many = (n: number, last: string) => [...Array.from({ length: n - 1 }, (_, i) => `compliance/f${i}.md`), last];
-
-  it('warns, and says how to get the status, for more than 300 files with code among them', async () => {
-    const r = await classify(many(301, 'src/app.ts'));
-    expect(r.code).toBe(0);
-    expect(r.stdout).toContain('::warning::This pull request changes 301 files');
-    expect(r.stdout).toContain('Run workflow');
-    expect(r.output).toContain('not reported here');
+describe('the plan and the release provenance classify with the same list (#1335)', () => {
+  it('both get paths_ignore plus sdlc-config.json, once', async () => {
+    const ci = parse(await renderCi({ paths_ignore: ['docs/**', 'compliance/**', 'sdlc-config.json'] }));
+    const plan = (ci['jobs']['plan']['steps'] as Array<Record<string, any>>).find((st) => st['id'] === 'plan')!['env']['PATHS_IGNORE'] as string;
+    const prov = (ci['jobs']['release-provenance']['steps'] as Array<Record<string, any>>).find((st) => st['name'] === 'Verify prior Quality Gates success on head SHA')!['env']['PATHS_IGNORE'] as string;
+    expect(plan).toBe(prov);
+    const items = plan.split('\n').map((l) => l.trim()).filter(Boolean);
+    expect(items).toEqual(["- 'docs/**'", "- 'compliance/**'", "- 'sdlc-config.json'"]);
   });
 
-  it('does not warn at 300 files or fewer, or when the large pull request is docs-only', async () => {
-    expect((await classify(many(300, 'src/app.ts'))).stdout).not.toContain('::warning::');
-    const docs = await classify(Array.from({ length: 400 }, (_, i) => `compliance/f${i}.md`));
-    expect(docs.stdout).not.toContain('::warning::');
-    expect(docs.output).toBe('gate_name=Quality Gates');
+  it('a configuration without sdlc-config.json in paths_ignore still gets it', async () => {
+    const ci = parse(await renderCi({ paths_ignore: ['docs/**'] }));
+    const plan = (ci['jobs']['plan']['steps'] as Array<Record<string, any>>).find((st) => st['id'] === 'plan')!['env']['PATHS_IGNORE'] as string;
+    expect(plan.split('\n').map((l) => l.trim()).filter(Boolean)).toEqual(["- 'docs/**'", "- 'sdlc-config.json'"]);
   });
 });
 
 describe('the pull-request-gates doctor check (#1297)', () => {
-  it('is quiet when docs-only skipping is on and the documentation paths are ignored', () => {
-    const r = pullRequestGatesCheck({ cfg: { paths_ignore_pull_request: true, paths_ignore: DOC_PATH_SAMPLES.map((s) => s.pattern) } });
+  it('is quiet when the documentation paths are ignored', () => {
+    const r = pullRequestGatesCheck({ cfg: { paths_ignore: DOC_PATH_SAMPLES.map((s) => s.pattern) } });
     expect(r).toMatchObject({ name: 'pull-request-gates', ok: true });
     expect(r.findings).toBeUndefined();
     expect(gapsFromCheck(r)).toEqual([]);
   });
 
-  it('says docs-only skipping is off for a project that has not opted in, with the commands, and never fails', () => {
-    const r = pullRequestGatesCheck({ cfg: { paths_ignore: DOC_PATH_SAMPLES.map((s) => s.pattern) } });
-    expect(r.ok).toBe(true);
-    expect(r.findings?.map((f) => f.subject)).toEqual(['docs-only-skip-off']);
-    const plan = r.findings![0]!.remediation!.plan.join('\n');
-    expect(plan).toContain('devaudit configure set paths_ignore_pull_request true');
-    expect(plan).toContain('devaudit update');
-    expect(r.findings![0]!.remediation!.tier).toBe('C');
-  });
-
-  it('a false value counts as off', () => {
-    const r = pullRequestGatesCheck({ cfg: { paths_ignore_pull_request: false, paths_ignore: DOC_PATH_SAMPLES.map((s) => s.pattern) } });
-    expect(r.findings?.map((f) => f.subject)).toEqual(['docs-only-skip-off']);
+  it('has no finding about the retired paths_ignore_pull_request, set or not (#1335)', () => {
+    for (const cfg of [{}, { paths_ignore_pull_request: false }, { paths_ignore_pull_request: true }]) {
+      const r = pullRequestGatesCheck({ cfg: { ...cfg, paths_ignore: DOC_PATH_SAMPLES.map((x) => x.pattern) } });
+      expect(r.findings, JSON.stringify(cfg)).toBeUndefined();
+    }
+    expect(CHECK_EXPLANATIONS['pull-request-gates:docs-only-skip-off']).toBeUndefined();
   });
 
   it('names the documentation paths an older paths_ignore leaves out, and the whole list to set', () => {
     const old = ['SDLC/**', 'compliance/**', '*.md', '.cursorrules'];
-    const r = pullRequestGatesCheck({ cfg: { paths_ignore_pull_request: true, paths_ignore: old } });
+    const r = pullRequestGatesCheck({ cfg: { paths_ignore: old } });
     expect(r.findings?.map((f) => f.subject)).toEqual(['docs-not-ignored']);
     const f = r.findings![0]!;
     expect(f.detail).toContain('docs/guide.txt');
@@ -307,14 +277,14 @@ describe('the pull-request-gates doctor check (#1297)', () => {
   });
 
   it('has nothing to say about paths_ignore when the project has none configured', () => {
-    const r = pullRequestGatesCheck({ cfg: { paths_ignore_pull_request: true } });
+    const r = pullRequestGatesCheck({ cfg: {} });
     expect(r.findings).toBeUndefined();
   });
 
   it('every finding has an explanation and a gap', () => {
     expect(CHECK_EXPLANATIONS['pull-request-gates']).toBeDefined();
-    for (const k of ['docs-only-skip-off', 'docs-not-ignored']) expect(CHECK_EXPLANATIONS[`pull-request-gates:${k}`], k).toBeDefined();
+    expect(CHECK_EXPLANATIONS['pull-request-gates:docs-not-ignored']).toBeDefined();
     const r = pullRequestGatesCheck({ cfg: { paths_ignore: ['*.md'] } });
-    expect(gapsFromCheck(r)).toHaveLength(2);
+    expect(gapsFromCheck(r)).toHaveLength(1);
   });
 });

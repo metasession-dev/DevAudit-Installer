@@ -4,6 +4,19 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ## [Unreleased]
 
+### Breaking
+
+- **One CI workflow reports the required check `Quality Gates`** (#1335, ADR-004, `docs/ci-pipeline.md`). `ci.yml` (or `ci-<target>.yml`) now has a `plan` job (`scripts/ci-plan.sh`) that decides what each run does, and a `required-check` job named `Quality Gates` (`scripts/ci-required-check.sh`) that passes only when every job the plan asked for succeeded. It triggers on pull requests into the integration and release branches and on pushes to the integration branch, with no path filters; a newer push cancels a pull request's older run, and pushes are never cancelled. The heavy job keeps the id `quality-gates` (the evidence identity is unchanged) and is displayed as `Run quality gates`. `ci-status-fallback.yml`, `quality-gates-provenance.yml` and `feature-e2e.yml` are removed: documentation-only changes skip the gates through the plan, the release checks (`Release Scope Integrity`, `Release provenance`) and the feature E2E (`Feature In-Scope E2E`, `E2E scope decision`) are jobs of `ci.yml`, a hotfix pull request runs the gates in its own run, and a merge reuses the pull request run's result when the tree is the one it tested. No job needs a GitHub-hosted runner.
+- **Retired configuration keys** (#1335): `paths_ignore_pull_request` and `reuse_pull_request_gates`. Their behaviour is now always on; `devaudit configure set` refuses them with a pointer to `docs/ci-pipeline.md`, and install no longer writes them. An existing key in `sdlc-config.json` is ignored and reported by `devaudit doctor` (`ci-pipeline`).
+
+### Upgrade notes
+
+- Run `devaudit update` and merge the sync pull request. It removes the three replaced workflows when they are unmodified; a modified copy is kept and named in a warning, and must be deleted before merging, because it reports a second `Quality Gates`.
+- Branch protection needs no change: the required check is still `Quality Gates` (or `Quality Gates (<target>)`). Checks named `CI Status Fallback`, `Reused Quality Gates` or `Release provenance` from the old workflows must not be required.
+- A Playwright config that selected the feature run with `process.env.GITHUB_WORKFLOW === 'Feature In-Scope E2E'` must use `process.env.GITHUB_JOB === 'feature-e2e'` (doctor `ci-pipeline` names it).
+- A `.devaudit-patches/ci.yml.patch` made against the old `ci.yml` no longer applies; it is reported and skipped. Re-roll it against the new file (`docs/consuming-projects.md`).
+- Remove `paths_ignore_pull_request` and `reuse_pull_request_gates` from `sdlc-config.json`.
+
 ### Fixed
 
 - **The close-out job no longer holds the runner while it waits for its own pull request** (#1334): `close-out-release.yml` waited up to 20 minutes for the close-out PR to merge, on the runner that the PR's required check needed, so on a single self-hosted runner nothing moved until the wait gave up. It now waits three minutes. A later merge is reported by `close-out-completion.yml`, or by the daily `close-out-reconcile.yml`, which now reports completion of close-out PRs merged in the last 3 days (`scripts/close-out-report-merged.sh`). On a GitHub-token auto-merge the portal's close-out status can lag the merge by up to a day; the release is not affected.
@@ -15,6 +28,7 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ### Added
 
+- **`devaudit doctor` `ci-pipeline` check** (#1335): names a replaced workflow left in `.github/workflows/`, a retired key in `sdlc-config.json`, and a Playwright config that tests the old feature workflow name. Informational; it never fails.
 - **`scripts/ci-plan.sh` and `scripts/ci-required-check.sh`** (#1335): the decision and required-check scripts of the coming single CI pipeline. They are synced but not called by any generated workflow yet.
 
 ## [1.16.0] — 2026-11-25

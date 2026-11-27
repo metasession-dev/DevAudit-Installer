@@ -18,9 +18,9 @@ export type ConfigValue = string | number | boolean;
 
 /** The five moments of a change's life that every table describes (section 3). */
 export const MOMENTS = [
-  { n: 1, name: 'Feature pull request opened', workflows: 'ci.yml Quality Gates (smoke is Gate 4); feature-e2e.yml' },
-  { n: 2, name: 'Merged to the integration branch', workflows: 'ci.yml (push): the gates again (the opt-in `reuse_pull_request_gates` reuses the result of the pull request run when it tested the same tree), registers the release, uploads evidence' },
-  { n: 3, name: 'Release pull request opened', workflows: 'check-release-approval.yml, compliance-validation.yml, e2e-regression.yml (pull_request)' },
+  { n: 1, name: 'Feature pull request opened', workflows: 'ci.yml: Plan, then for a change with code the gates (smoke is Gate 4) and the Feature In-Scope E2E job; Quality Gates is the required check' },
+  { n: 2, name: 'Merged to the integration branch', workflows: 'ci.yml (push): registers the release, reuses the result of the pull request run when it tested the same tree (else runs the gates again), uploads evidence' },
+  { n: 3, name: 'Release pull request opened', workflows: 'ci.yml (release scope and provenance), check-release-approval.yml, compliance-validation.yml, e2e-regression.yml (pull_request)' },
   { n: 4, name: 'After approval and deploy', workflows: 'post-deploy-prod.yml; e2e-regression.yml (deployment_status); production review in the portal' },
   { n: 5, name: 'On a timer', workflows: 'e2e-regression.yml (schedule); periodic-review.yml (quarterly, always)' },
 ] as const;

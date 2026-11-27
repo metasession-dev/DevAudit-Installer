@@ -96,7 +96,8 @@ jobs:
           # resolve against scripts/ (the post-install path), not
           # sdlc/files/ (the repo-relative template path).
           # DevAudit-Installer#571 — Gap 2 prevention.
-          if grep -r "source sdlc/files/" sdlc/files/ci/*.template; then
+          # Recursive (DevAudit-Installer#1335): python/, runners/ and fragments/ too.
+          if grep -rn --include='*.template' "source sdlc/files/" sdlc/files/ci/; then
             echo ""
             echo "FAIL: workflow templates must source from scripts/ not sdlc/files/"
             echo "These paths do not exist after installation into a consumer project."

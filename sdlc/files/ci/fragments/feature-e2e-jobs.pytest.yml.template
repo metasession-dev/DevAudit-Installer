@@ -1,0 +1,258 @@
+# Fragment of ci.yml (DevAudit-Installer#1335): the feature E2E jobs, pytest.
+# Inserted by the generator's include pass (includeFragments).
+  # ──────────────────────────────────────────────
+  # E2E scope decision (devaudit-installer#737): a REQ with no tagged test uploads its committed
+  # e2e-scope-decision.md. Non-blocking: not judged by the required check (DevAudit-Installer#1335).
+  # ──────────────────────────────────────────────
+  e2e-scope-decision:
+    name: E2E scope decision
+    needs: plan
+    if: needs.plan.outputs.run_scope_decision == 'true'
+    runs-on: {{RUNNER}}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          # See the quality-gates job's checkout step for why (devaudit-installer#676/#815).
+          clean: {{CHECKOUT_CLEAN}}
+      # devaudit-installer#737: has_tests=false is ambiguous by itself — it
+      # covers both "sdlc-implementer/e2e-test-engineer deliberately decided
+      # no e2e was needed" (a committed compliance/evidence/<REQ>/
+      # e2e-scope-decision.md proves it) and "a real coverage gap" (no such
+      # file). Upload the artefact when it exists so the deliberate case
+      # stops reading as silence beyond this workflow's log; leave the
+      # plan job's ::warning:: as the only signal for the genuinely-ambiguous
+      # case, per the issue's explicit out-of-scope note.
+      - name: Upload e2e-scope-decision evidence, if the deliberate-skip artefact was committed
+        env:
+          DEVAUDIT_BASE_URL_VAR: ${{ vars.DEVAUDIT_BASE_URL }}
+          DEVAUDIT_API_KEY: ${{ secrets.{{API_KEY_SECRET}} }}
+        run: |
+          REQ_ID="${{ needs.plan.outputs.req_id }}"
+          ARTEFACT="compliance/evidence/${REQ_ID}/e2e-scope-decision.md"
+          if [ ! -f "$ARTEFACT" ]; then
+            echo "No $ARTEFACT on this branch — leaving the has_tests=false warning above as the only signal (ambiguous case, unchanged)."
+            exit 0
+          fi
+          # A co-tracked bundle member's evidence belongs to the core's portal release (#955); $REQ_ID stays the requirement tag (#1323).
+          RELEASE_ID=$(cd "$GITHUB_WORKSPACE" && bash scripts/resolve-bundle-release.sh "$REQ_ID") || {
+            echo "::error::Could not resolve the portal release for ${REQ_ID} (a co-tracked member of more than one live bundle?)"
+            exit 1
+          }
+          CONFIG_URL=""
+          if [ -f "$GITHUB_WORKSPACE/sdlc-config.json" ]; then
+            CONFIG_URL=$(jq -r '.devaudit.base_url // empty' "$GITHUB_WORKSPACE/sdlc-config.json" 2>/dev/null || true)
+          fi
+          BASE="${CONFIG_URL:-$DEVAUDIT_BASE_URL_VAR}"
+          if [ -z "$BASE" ] || [ -z "$DEVAUDIT_API_KEY" ]; then
+            echo "::warning::DevAudit not configured — skipping e2e-scope-decision upload."
+            exit 0
+          fi
+          export DEVAUDIT_BASE_URL="${BASE%/}"
+          chmod +x "$GITHUB_WORKSPACE/scripts/upload-evidence.sh" 2>/dev/null || true
+          bash "$GITHUB_WORKSPACE/scripts/upload-evidence.sh" \
+            {{PROJECT_SLUG}} "$REQ_ID" e2e_scope_decision "$ARTEFACT" \
+            --category planning --release "$RELEASE_ID" --create-release-if-missing \
+            --environment uat --sdlc-stage 3 \
+            --git-sha "${{ github.event.pull_request.head.sha }}" \
+            --branch "${{ github.head_ref }}"
+
+  # ──────────────────────────────────────────────
+  # Feature In-Scope E2E (DEVAUDIT-003, issue #174): the specs tagged with the pull request's REQ,
+  # uploaded as stage-2, origin=feature evidence. A job of this workflow since DevAudit-Installer#1335,
+  # so it is cancelled with the run on a newer push. Non-blocking: not judged by the required check.
+  # Specs can tell this job apart with GITHUB_JOB=feature-e2e or DEVAUDIT_E2E_SCOPE=feature.
+  # ──────────────────────────────────────────────
+  feature-e2e:
+    name: Feature In-Scope E2E
+    needs: plan
+    if: needs.plan.outputs.run_feature == 'true'
+    runs-on: {{RUNNER}}
+
+    # See ci.yml.template's quality-gates job for why this exists (#689
+    # polyglot-monorepo subdir targets, e.g. a consumer's example-web/).
+    # scripts/ stays repo-root-relative below (via $GITHUB_WORKSPACE) since
+    # register-release-style tooling lives there regardless of target.
+    defaults:
+      run:
+        working-directory: {{WORKING_DIRECTORY}}
+
+    services:
+      {{DATABASE_SERVICE}}:
+        image: {{DATABASE_IMAGE}}
+{{DATABASE_SERVICE_ENV}}
+        ports:
+          - {{DATABASE_PORT}}
+{{DATABASE_SERVICE_OPTIONS}}
+
+    env:
+{{DATABASE_AND_APP_ENV}}
+      DEVAUDIT_E2E_SCOPE: feature
+      DEVAUDIT_BASE_URL_VAR: ${{ vars.DEVAUDIT_BASE_URL }}
+      DEVAUDIT_API_KEY: ${{ secrets.{{API_KEY_SECRET}} }}
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          # See ci.yml.template's checkout step for why (devaudit-installer#676/#815).
+          clean: {{CHECKOUT_CLEAN}}
+
+      - name: Clean stale test output (self-hosted only)
+        # See ci.yml.template's step of the same name (devaudit-installer#816/#1054).
+        if: {{STALE_NEXT_CLEANUP_IF}}
+        run: rm -rf "$GITHUB_WORKSPACE"/feature-e2e-results.xml .pytest_cache
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '{{PYTEST_PYTHON_VERSION}}'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f pyproject.toml ]; then pip install -e ".[dev]" || pip install -e .; fi
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install pytest
+
+{{DATABASE_URI_STEP}}
+{{E2E_SETUP_STEP}}
+      - name: Register feature release and start feature E2E execution
+        id: exec
+        if: always()
+        run: |
+          REQ_ID="${{ needs.plan.outputs.req_id }}"
+          # A co-tracked bundle member's evidence belongs to the core's portal release (#955); $REQ_ID stays the requirement tag (#1323).
+          RELEASE_ID=$(cd "$GITHUB_WORKSPACE" && bash scripts/resolve-bundle-release.sh "$REQ_ID") || {
+            echo "::error::Could not resolve the portal release for ${REQ_ID} (a co-tracked member of more than one live bundle?)"
+            exit 1
+          }
+          : > "$GITHUB_OUTPUT"
+          CONFIG_URL=""
+          # sdlc-config.json lives at the repo root (#689 follow-up), not this
+          # job's working-directory (a target's own subdirectory).
+          if [ -f "$GITHUB_WORKSPACE/sdlc-config.json" ]; then
+            CONFIG_URL=$(jq -r '.devaudit.base_url // empty' "$GITHUB_WORKSPACE/sdlc-config.json" 2>/dev/null || true)
+          fi
+          BASE="${CONFIG_URL:-$DEVAUDIT_BASE_URL_VAR}"
+          if [ -z "$BASE" ] || [ -z "$DEVAUDIT_API_KEY" ]; then
+            echo "::warning::DevAudit not configured — skipping feature E2E test execution lifecycle."
+            echo "execution_supported=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          export DEVAUDIT_BASE_URL="${BASE%/}"
+          chmod +x $GITHUB_WORKSPACE/scripts/upload-evidence.sh $GITHUB_WORKSPACE/scripts/report-test-execution.sh 2>/dev/null || true
+          bash $GITHUB_WORKSPACE/scripts/upload-evidence.sh \
+            {{PROJECT_SLUG}} _compliance-docs release_registration README.md \
+            --release "$RELEASE_ID" --create-release-if-missing \
+            --environment uat --category planning \
+            --git-sha "${{ github.event.pull_request.head.sha }}" \
+            --branch "${{ github.head_ref }}" || true
+          bash $GITHUB_WORKSPACE/scripts/report-test-execution.sh start \
+            --project-slug {{PROJECT_SLUG}} \
+            --release "$RELEASE_ID" \
+            --sdlc-stage 2 \
+            --environment uat \
+            --suite-kind e2e \
+            --provider github_actions \
+            --external-run-id "${{ github.run_id }}" \
+            --external-run-attempt "${{ github.run_attempt }}" \
+            --idempotency-key "github:${{ github.repository }}:feature-in-scope-e2e.e2e:${{ github.run_id }}:${{ github.run_attempt }}:2:${REQ_ID}" \
+            --commit-sha "${{ github.event.pull_request.head.sha }}" \
+            --branch "${{ github.head_ref }}" \
+            --workflow-name "Feature In-Scope E2E" \
+            --workflow-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --output-file "$GITHUB_OUTPUT"
+
+{{E2E_FEATURE_TEST_STEP}}
+      - name: Upload feature E2E evidence (stage 2, origin=feature)
+        if: always()
+        run: |
+          REQ_ID="${{ needs.plan.outputs.req_id }}"
+          # A co-tracked bundle member's evidence belongs to the core's portal release (#955); $REQ_ID stays the requirement tag (#1323).
+          RELEASE_ID=$(cd "$GITHUB_WORKSPACE" && bash scripts/resolve-bundle-release.sh "$REQ_ID") || {
+            echo "::error::Could not resolve the portal release for ${REQ_ID} (a co-tracked member of more than one live bundle?)"
+            exit 1
+          }
+          CONFIG_URL=""
+          # sdlc-config.json lives at the repo root (#689 follow-up), not this
+          # job's working-directory (a target's own subdirectory).
+          if [ -f "$GITHUB_WORKSPACE/sdlc-config.json" ]; then
+            CONFIG_URL=$(jq -r '.devaudit.base_url // empty' "$GITHUB_WORKSPACE/sdlc-config.json" 2>/dev/null || true)
+          fi
+          BASE="${CONFIG_URL:-$DEVAUDIT_BASE_URL_VAR}"
+          if [ -z "$BASE" ] || [ -z "$DEVAUDIT_API_KEY" ]; then
+            echo "::warning::DevAudit not configured — skipping feature E2E upload."
+            exit 0
+          fi
+          export DEVAUDIT_BASE_URL="${BASE%/}"
+          LINEAGE_FLAGS=(--test-execution "${{ github.run_id }}")
+          if [ "${{ steps.exec.outputs.execution_supported }}" = "true" ] && [ -n "${{ steps.exec.outputs.execution_record_id }}" ]; then
+            LINEAGE_FLAGS+=(--evidence-scope execution --test-execution-record-id "${{ steps.exec.outputs.execution_record_id }}")
+          fi
+          UPLOAD_FAILURES=0
+
+          RESULTS="$GITHUB_WORKSPACE/feature-e2e-results.xml"
+          if [ ! -f "$RESULTS" ]; then
+            echo "::error::Feature tests produced no feature-e2e-results.xml (a test_feature_command must write JUnit XML to \$TEST_JUNIT_XML)"
+            exit 1
+          fi
+          bash $GITHUB_WORKSPACE/scripts/upload-evidence.sh \
+            {{PROJECT_SLUG}} "$REQ_ID" e2e_result "$RESULTS" \
+            --category e2e_result --release "$RELEASE_ID" --create-release-if-missing \
+            --environment uat --sdlc-stage 2 \
+            --git-sha "${{ github.event.pull_request.head.sha }}" \
+            --ci-run-id "${{ github.run_id }}" --branch "${{ github.head_ref }}" \
+            "${LINEAGE_FLAGS[@]}" \
+            --meta-key "origin=feature" \
+            || UPLOAD_FAILURES=$((UPLOAD_FAILURES + 1))
+
+          if [ "$UPLOAD_FAILURES" -gt 0 ]; then
+            echo "::error::${UPLOAD_FAILURES} feature E2E evidence upload(s) failed"
+            exit 1
+          fi
+
+      - name: Complete feature E2E execution
+        if: always()
+        run: |
+          if [ "${{ steps.exec.outputs.execution_supported }}" != "true" ] || [ -z "${{ steps.exec.outputs.execution_record_id }}" ]; then
+            exit 0
+          fi
+          CONFIG_URL=""
+          # sdlc-config.json lives at the repo root (#689 follow-up), not this
+          # job's working-directory (a target's own subdirectory).
+          if [ -f "$GITHUB_WORKSPACE/sdlc-config.json" ]; then
+            CONFIG_URL=$(jq -r '.devaudit.base_url // empty' "$GITHUB_WORKSPACE/sdlc-config.json" 2>/dev/null || true)
+          fi
+          BASE="${CONFIG_URL:-$DEVAUDIT_BASE_URL_VAR}"
+          if [ -z "$BASE" ] || [ -z "$DEVAUDIT_API_KEY" ]; then
+            exit 0
+          fi
+          case "${{ job.status }}" in
+            success)   OUTCOME=passed ;;
+            cancelled) OUTCOME=cancelled ;;
+            *)         OUTCOME=failed ;;
+          esac
+          REQ_ID="${{ needs.plan.outputs.req_id }}"
+          # The execution lives on the bundle core's release, not one named after a co-tracked member (#1323).
+          RELEASE_ID=$(cd "$GITHUB_WORKSPACE" && bash scripts/resolve-bundle-release.sh "$REQ_ID") || {
+            echo "::error::Could not resolve the portal release for ${REQ_ID} (a co-tracked member of more than one live bundle?)"
+            exit 1
+          }
+          export DEVAUDIT_BASE_URL="${BASE%/}"
+          chmod +x $GITHUB_WORKSPACE/scripts/report-test-execution.sh 2>/dev/null || true
+          bash $GITHUB_WORKSPACE/scripts/report-test-execution.sh complete \
+            --project-slug {{PROJECT_SLUG}} \
+            --release "$RELEASE_ID" \
+            --sdlc-stage 2 \
+            --environment uat \
+            --suite-kind e2e \
+            --provider github_actions \
+            --external-run-id "${{ github.run_id }}" \
+            --external-run-attempt "${{ github.run_attempt }}" \
+            --idempotency-key "github:${{ github.repository }}:feature-in-scope-e2e.e2e:${{ github.run_id }}:${{ github.run_attempt }}:2:${{ needs.plan.outputs.req_id }}" \
+            --commit-sha "${{ github.event.pull_request.head.sha }}" \
+            --branch "${{ github.head_ref }}" \
+            --workflow-name "Feature In-Scope E2E" \
+            --workflow-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --started-at "${{ steps.exec.outputs.execution_started_at }}" \
+            --outcome "$OUTCOME"

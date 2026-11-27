@@ -35,16 +35,16 @@ sdlc/
 │   │       ├── derive-release-version.sh
 │   │       └── close-out-release.sh          # Reconcile ticket on release (#60)
 │   ├── ci/                                   # CI workflow templates
-│   │   ├── ci.yml.template                   # Default (Node) — quality-gates workflow
+│   │   ├── ci.yml.template                   # Default (Node) — the CI pipeline: plan, gates, required check (#1335)
 │   │   ├── python/                           # Stack-specific override
-│   │   │   └── ci.yml.template               # Python-flavoured quality-gates
+│   │   │   └── ci.yml.template               # Python-flavoured CI pipeline
+│   │   ├── fragments/                        # Jobs shared by every ci.yml: plan, feature E2E, release checks, required check
 │   │   ├── compliance-validation.yml.template # Stack-agnostic
 │   │   ├── check-release-approval.yml.template
 │   │   ├── compliance-evidence.yml.template
 │   │   ├── post-deploy-prod.yml.template
 │   │   ├── close-out-release.yml.template    # Auto-close ticket on release (#60)
-│   │   ├── close-out-reconcile.yml.template  # Daily catch-up: a missed dispatch (#786), completion of late close-out merges (#1334)
-│   │   └── ci-status-fallback.yml.template
+│   │   └── close-out-reconcile.yml.template  # Daily catch-up: a missed dispatch (#786), completion of late close-out merges (#1334)
 │   ├── stacks/                               # Per-language adapter directories
 │   │   ├── _schema/adapter.schema.json       # JSON Schema for stack adapter manifests
 │   │   ├── node/                             # husky + commitlint + eslint + Playwright

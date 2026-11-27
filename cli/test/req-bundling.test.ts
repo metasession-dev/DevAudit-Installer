@@ -162,8 +162,8 @@ describe('declared bundle = one portal release (#955)', () => {
     expect(ciTemplate).not.toContain('--category screenshot ${FLAGS} --release "$REQ" ');
   });
 
-  // #1323: feature-e2e.yml filed a co-tracked member's evidence and execution against a release named after the member.
-  for (const rel of ['sdlc/files/ci/feature-e2e.yml.template', 'sdlc/files/ci/runners/pytest/feature-e2e.yml.template']) {
+  // #1323: the feature E2E (feature-e2e.yml then, the feature jobs of ci.yml since #1335) filed a co-tracked member's evidence and execution against a release named after the member.
+  for (const rel of ['sdlc/files/ci/fragments/feature-e2e-jobs.playwright.yml.template', 'sdlc/files/ci/fragments/feature-e2e-jobs.pytest.yml.template']) {
     it(`files every feature E2E call in ${rel} against the resolved release, keeping the REQ as the tag (#1323)`, () => {
       const src = read(rel);
       expect(src).toContain('RELEASE_ID=$(cd "$GITHUB_WORKSPACE" && bash scripts/resolve-bundle-release.sh "$REQ_ID")');

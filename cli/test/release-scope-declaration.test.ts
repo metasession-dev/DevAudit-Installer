@@ -10,7 +10,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const read = (rel: string): Promise<string> => fs.readFile(join(ROOT, rel), 'utf-8').then((t) => t.replace(/\r\n/g, '\n'));
 
 const DECLARING = ['sdlc/files/ci/ci.yml.template', 'sdlc/files/ci/python/ci.yml.template'];
-const NEVER_DECLARING = ['sdlc/files/ci/feature-e2e.yml.template', 'sdlc/files/ci/compliance-evidence.yml.template', 'sdlc/files/ci/post-deploy-prod.yml.template'];
+const NEVER_DECLARING = ['sdlc/files/ci/fragments/feature-e2e-jobs.playwright.yml.template', 'sdlc/files/ci/compliance-evidence.yml.template', 'sdlc/files/ci/post-deploy-prod.yml.template'];
 
 describe('release scope declaration (#1209)', () => {
   it('upload-evidence.sh sends --declare-requirements as a JSON array and validates the ids', async () => {

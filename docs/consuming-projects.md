@@ -358,8 +358,7 @@ representative examples, beyond the E2E-specific ones covered in
 - `runner` — the `{{RUNNER}}` → `vars.CI_RUNNER_LABEL` indirection.
 - `typescript_check_env` — env on the TypeScript Check step.
 - `install_flags` — flags on `npm ci`.
-- `paths_ignore_pull_request` (`true` for a new install, `false` for a project onboarded earlier until it opts in) — also apply `paths_ignore` to pull requests: a pull request that changes only those paths does not start `ci.yml`, and `ci-status-fallback.yml` reports `Quality Gates` for it (only for such a pull request). See [`compliance-gates.md`](compliance-gates.md#docs-only-pull-requests-1290).
-- `paths_ignore` — file-path globs that don't trigger `ci.yml`'s push event (and are correspondingly included in `ci-status-fallback.yml`'s satisfy-branch-protection-on-docs-only-commits filter). Ships with a sensible default list in `sdlc-config.example.json`; extend it if your repo has its own docs-only or generated-file paths that shouldn't trigger a full CI run.
+- `paths_ignore` — file-path globs whose changes alone never need the quality gates, on pull requests and pushes alike: the plan job of `ci.yml` skips the gates and `Quality Gates` still reports (a change to `.github/workflows/` always runs them). Ships with a sensible default list in `sdlc-config.example.json`; extend it if your repo has its own docs-only or generated-file paths. See [`ci-pipeline.md`](ci-pipeline.md#documentation-only-changes). (`paths_ignore_pull_request` and `reuse_pull_request_gates` are retired, #1335.)
 - `release_branch` / `integration_branch` — override the assumed `main`/`develop` naming (see [`onboarding.md`](onboarding.md)).
 - `database_service` / `database_image` / `database_port` / `database_env` — a container-service database for CI (see [`e2e-local-db-ci.md`](e2e-local-db-ci.md)).
 
@@ -601,7 +600,7 @@ After making changes to the SDLC framework in DevAudit:
 
 ## Release-PR Quality Gates provenance
 
-`quality-gates-provenance.yml` runs on PRs to the release branch. For a release PR (`develop → main`) it does not accept just any `Quality Gates` success on the head SHA: it finds the latest commit in `origin/<release>..<head>` that touches a path outside `paths_ignore` and requires a real `ci.yml` `Quality Gates` success on that commit. The docs-only `CI Status Fallback` status (which `ci.yml` leaves in place on compliance/doc commits) does not count for code beneath it. If the code commit never got a real `ci.yml` run — for example the self-hosted runner was offline — the release PR stays red; rerun CI on the commit named in the error, or push it through the develop flow. Entirely docs-only ranges still pass on the fallback. Only successes from `push` and `workflow_dispatch` runs count, never one from a pull request run, and a commit that changes a `.github/workflows/` file is always code (#1335). Hotfix PRs are unchanged (they dispatch `ci.yml` directly). See REQ-FRAMEWORK-CIYML-023 in `docs/SRS.md`.
+On a release PR (`develop → main`), the `Release provenance` job of `ci.yml` requires a successful `Quality Gates` from a push or manual run on the latest code-bearing commit in the range; a pull request run never counts, and hotfix PRs run the gates themselves. See [`ci-pipeline.md`](ci-pipeline.md#release-pull-requests-provenance) and REQ-FRAMEWORK-CIYML-023 in `docs/SRS.md`.
 
 ## See also
 

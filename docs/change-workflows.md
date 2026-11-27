@@ -104,7 +104,7 @@ single core-REQ release (instead of the date release), generates and submits the
 bundle manifest, and files each member's artifacts against that release; without a
 declared bundle the Python date-based release model is unchanged. Re-run
 `devaudit update` first: a Python project synced before #995 has the old template.
-Also, `feature-e2e.yml` handles a single REQ per
+Also, the feature E2E (a job of `ci.yml`) handles a single REQ per
 run: when the commits name several REQs it uses the one in the branch name, and
 skips only when the branch names none. A co-tracked member found that way files its
 feature E2E evidence and test execution against the bundle core's release, never one

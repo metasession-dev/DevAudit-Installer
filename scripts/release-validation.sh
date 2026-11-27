@@ -235,13 +235,35 @@ PY
 check_synced_scripts() { # <target> <dir>
   local target="$1" dir="$2" missing=""
   for s in is-deferred-ticket.sh check-deferred-reqs-in-range.sh list-reqs-in-range.sh \
-           provenance-gated-commit.sh derive-release-version.sh close-out-reconcile.sh; do
+           provenance-gated-commit.sh derive-release-version.sh close-out-reconcile.sh \
+           ci-plan.sh ci-required-check.sh find-tested-run.sh classify-pr-attribution.sh; do
     [ -x "$dir/scripts/$s" ] || missing="$missing $s"
   done
   if [ -z "$missing" ]; then
-    record "$target" synced-scripts PASS "deferral/provenance scripts present and executable"
+    record "$target" synced-scripts PASS "deferral/provenance/CI plan scripts present and executable"
   else
     record "$target" synced-scripts FAIL "missing or not executable:$missing"
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# DevAudit-Installer#1335: one workflow reports Quality Gates, the replaced ones are gone
+# ---------------------------------------------------------------------------
+check_ci_pipeline() { # <target> <dir>
+  local target="$1" dir="$2" wf="$2/.github/workflows" left="" count=0 f
+  for f in "$wf"/ci-status-fallback*.yml "$wf"/quality-gates-provenance*.yml "$wf"/feature-e2e*.yml; do
+    [ -e "$f" ] && left="$left ${f##*/}"
+  done
+  for f in "$wf"/*.yml; do
+    [ -e "$f" ] || continue
+    count=$(( count + $(grep -cE '^    name: Quality Gates( \(.+\))?$' "$f" || true) ))
+  done
+  if [ -n "$left" ]; then
+    record "$target" ci-pipeline FAIL "replaced workflows still present:$left"
+  elif [ "$count" -lt 1 ]; then
+    record "$target" ci-pipeline FAIL "no job is named Quality Gates"
+  else
+    record "$target" ci-pipeline PASS "replaced workflows removed; $count Quality Gates job(s), one per CI workflow"
   fi
 }
 
@@ -434,6 +456,7 @@ validate_dir() { # <target> <dir>
   [ -n "$rb" ] && [ "$rb" != "null" ] || rb=main
   run_update_twice "$target" "$dir" || return 0
   check_synced_scripts "$target" "$dir"
+  check_ci_pipeline "$target" "$dir"
   check_workflows "$target" "$dir"
   check_doctor "$target" "$dir"
   if isolated "$dir" git rev-parse --verify -q "origin/$rb" >/dev/null; then

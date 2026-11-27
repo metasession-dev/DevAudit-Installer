@@ -50,7 +50,10 @@ describe('custom branch names reach every generated workflow (R20)', { timeout: 
     expect(wf['compliance-validation.yml']).toContain('validate-test-summary.sh origin/production');
     expect(wf['compliance-validation.yml']).toContain('validate-commits.sh origin/production');
     expect(wf['compliance-evidence.yml']).toContain('branches: [staging]');
-    expect(wf['ci-status-fallback.yml']).toContain('branches: [staging]');
+    // DevAudit-Installer#1335: the fallback is gone; ci.yml carries both branches.
+    expect(wf['ci.yml']).toContain('INTEGRATION_BRANCH: staging');
+    expect(wf['ci.yml']).toContain('pull_request:\n    branches: [staging, production]');
+    expect(wf['ci.yml']).toContain('RELEASE_BRANCH: production');
     expect(wf['close-out-completion.yml']).toContain('branches: [staging]');
   });
 
@@ -59,7 +62,7 @@ describe('custom branch names reach every generated workflow (R20)', { timeout: 
     expect(wf['compliance-validation.yml']).toContain('branches: [main]');
     expect(wf['compliance-validation.yml']).toContain('validate-commits.sh origin/main');
     expect(wf['compliance-evidence.yml']).toContain('branches: [develop]');
-    expect(wf['ci-status-fallback.yml']).toContain('branches: [develop]');
+    expect(wf['ci.yml']).toContain('INTEGRATION_BRANCH: develop');
     expect(wf['close-out-completion.yml']).toContain('branches: [develop]');
   });
 });

@@ -13,9 +13,15 @@ if [ "$housekeeping_line" -ge "$deployment_failure_line" ]; then
   exit 1
 fi
 
-expected="github.event_name != 'pull_request' && github.ref_name == '{{INTEGRATION_BRANCH}}' && needs.register-release.result == 'success'"
-grep -Fq "$expected" "$NODE_CI"
-grep -Fq "$expected" "$PYTHON_CI"
+# DevAudit-Installer#1335: the plan job decides; run_upload is true only for a push or a manual run on the
+# integration branch (scripts/ci-plan.sh), never for a pull request.
+expected="needs.plan.outputs.run_upload == 'true' && needs.register-release.result == 'success'"
+for ci in "$NODE_CI" "$PYTHON_CI"; do
+  if ! grep -A12 '^  upload-evidence:' "$ci" | grep -Fq "$expected"; then
+    echo "Upload Evidence in $ci must run only when the plan sets run_upload and the release registered." >&2
+    exit 1
+  fi
+done
 
 if grep -A12 '^  upload-evidence:' "$NODE_CI" | grep -Fq 'if: ${{ always()'; then
   echo "Node Upload Evidence must not use always() for inapplicable PR jobs." >&2

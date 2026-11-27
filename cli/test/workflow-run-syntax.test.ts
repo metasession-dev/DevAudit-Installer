@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { load as yamlLoad } from 'js-yaml';
 import { renderAll } from './helpers/render-workflows.js';
+import { jobSection } from './helpers/workflow-jobs.js';
 
 // devaudit-installer#987 — every bash `run:` step of every generated workflow
 // must pass `bash -n` with no warnings. An indented heredoc terminator inside a
@@ -66,7 +67,8 @@ describe('generated workflow run: steps pass bash -n (#987)', () => {
 
     it(`${stack} with test_runner pytest: every bash run step parses with no warnings (#1060)`, async () => {
       const workflows = await renderAll(stack, { test_runner: 'pytest' });
-      expect(workflows['feature-e2e.yml']).toContain('setup-python');
+      // DevAudit-Installer#1335: the feature E2E is a job of ci.yml.
+      expect(jobSection(workflows['ci.yml']!, 'feature-e2e')).toContain('setup-python');
       expect(workflows['e2e-regression.yml']).toContain('setup-python');
       expect(bashProblems(workflows)).toEqual([]);
     }, 120_000);

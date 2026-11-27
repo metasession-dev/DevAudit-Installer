@@ -82,7 +82,7 @@ Configure in GitHub → Settings → Branches → Branch protection rules:
 - [x] Require approvals: 1 (adjust if team size requires more)
 - [x] Require status checks to pass before merging
   - Add these required checks after CI is configured (Step 4):
-    - `Quality Gates` (the consolidated CI job from `ci.yml` — TypeScript, SAST, dependency audit, E2E, build)
+    - `Quality Gates` (the required-check job of `ci.yml`: it passes when the TypeScript, SAST, dependency audit, E2E and build gates passed, or when the change touches only documentation)
     - `DevAudit Release Approval` (from `check-release-approval.yml` — blocks merge until the release is approved in DevAudit. Re-run the workflow after approving in DevAudit to turn the check green)
 - [x] Require branches to be up to date before merging
 - [x] Do not allow bypassing the above settings
@@ -143,7 +143,7 @@ This is the **independent verification gate**. Tests run locally during developm
 | CI | Push to `develop` | TypeScript + SAST + dependency audit + E2E + build | Quality gates + independent verification |
 | Deploy | Merge to `main` | Auto-deploy to hosting platform | Production release |
 
-PRs to the integration branch run `Quality Gates` before merge. PRs to `main` do not trigger a duplicate quality-gates run; branch protection required status checks ensure the commit already passed Quality Gates on the integration branch.
+PRs to the integration branch run `Quality Gates` before merge. PRs to `main` do not run the gates again: the `Release provenance` job of `ci.yml` checks that the latest code-bearing commit already passed `Quality Gates` on the integration branch (a hotfix PR runs the gates itself).
 
 ### GitHub Actions Workflow File
 
@@ -151,9 +151,11 @@ PRs to the integration branch run `Quality Gates` before merge. PRs to `main` do
 > generate it from the canonical template; it is the load-bearing path for the
 > compliance gates and drifts the moment it's retyped.
 
-The generated `ci.yml` is a single `quality-gates` job (TypeScript + SAST +
-dependency audit + E2E + build, all on every push to `develop`) **plus two
-DevAudit jobs that are mandatory and easy to miss:**
+The generated `ci.yml` has a `plan` job that decides what each run does, a
+`quality-gates` job (TypeScript + SAST + dependency audit + E2E + build, on every
+pull request and push with code), the `Quality Gates` required check, the feature
+E2E and the release-PR checks, **plus two DevAudit jobs that are mandatory and easy
+to miss:**
 
 - **`register-release`** — registers the release in DevAudit and syncs known
   requirements from `RTM.md`, so the UAT gate can find the release.

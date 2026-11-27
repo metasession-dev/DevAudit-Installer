@@ -1065,9 +1065,9 @@ describe('devaudit doctor — D8 releases check + JSON surface (#956)', () => {
     // #1059/#1060 appended e2e-release-gate and test-tiers after them.
     // #1099 WP4 appended `credentials` (and `pat-env` only when DEVAUDIT_USER_TOKEN is set).
     // #1116 WP8 appended preset-drift, standards-fit, approval-policy and durations; WP15 appended test-data; #1160 appended ci-values.
-    // #1215 appended stage3-evidence. #1265 added cli-version after the preset checks (before test-data). #1297 added pull-request-gates after cli-version.
-    expect(json.onboarding).toHaveLength(28);
-    expect((json.onboarding as Array<{ name: string }>).slice(-16).map((c) => c.name)).toEqual([
+    // #1215 appended stage3-evidence. #1265 added cli-version after the preset checks (before test-data). #1297 added pull-request-gates after cli-version; #1335 added ci-pipeline after it.
+    expect(json.onboarding).toHaveLength(29);
+    expect((json.onboarding as Array<{ name: string }>).slice(-17).map((c) => c.name)).toEqual([
       'production-url',
       'custom-deploy',
       'ci-runner',
@@ -1081,6 +1081,7 @@ describe('devaudit doctor — D8 releases check + JSON surface (#956)', () => {
       'durations',
       'cli-version',
       'pull-request-gates',
+      'ci-pipeline',
       'test-data',
       'ci-values',
       'stage3-evidence',

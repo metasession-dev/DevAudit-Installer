@@ -4,6 +4,10 @@ All notable changes to `@metasession.co/devaudit-core` are documented here. The 
 
 ## [Unreleased]
 
+### Changed
+
+- **`reuse_pull_request_gates` and `paths_ignore_pull_request` are retired** (DevAudit-Installer#1335): they leave `NOT_ASKED`, and the five-moments text says a pull request that changes only documentation skips the gates and a merge reuses the pull request run's result when it tested the same tree, always.
+
 ### Added
 
 - **`NOT_ASKED` lists `ai_use_note`** (DevAudit-Installer#1301): whether a missing `ai-use-note.md` for an AI-authored REQ is a warning (the default), an error or ignored is set with `configure set`, not asked.

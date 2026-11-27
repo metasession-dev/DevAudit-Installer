@@ -114,7 +114,7 @@ For pre-commit-style frameworks: place `.pre-commit-config.yaml` (or your framew
 
 ## Step 5 — Author the per-stack `ci.yml.template`
 
-The default `ci/ci.yml.template` is Node-shaped. Your stack almost certainly needs its own override at `sdlc/files/ci/<name>/ci.yml.template`. Copy `ci/python/ci.yml.template` as a starting point.
+The default `ci/ci.yml.template` is Node-shaped. Your stack almost certainly needs its own override at `sdlc/files/ci/<name>/ci.yml.template`. Copy `ci/python/ci.yml.template` as a starting point. Keep its triggers and concurrency, the gate job's id `quality-gates` and its `needs.plan.outputs` conditions, and the four include lines of the shared jobs (`{{INCLUDE:plan-job}}`, `{{INCLUDE:feature-e2e-jobs}}`, `{{INCLUDE:release-checks-jobs}}`, `{{INCLUDE:required-check-job}}`, see [ci-pipeline.md](./ci-pipeline.md)).
 
 What to change:
 

@@ -1,5 +1,7 @@
 # ADR-001: Polyglot SDLC framework via stack + host adapters
 
+> Partly superseded by [ADR-004](./ADR-004-single-ci-pipeline.md) (single CI pipeline, DevAudit-Installer#1335): `ci-status-fallback` no longer exists, and `ci.yml` includes shared jobs from `sdlc/files/ci/fragments/`.
+
 | Field    | Value                                                                                                    |
 | -------- | -------------------------------------------------------------------------------------------------------- |
 | Status   | Accepted                                                                                                 |
