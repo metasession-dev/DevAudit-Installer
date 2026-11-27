@@ -11,7 +11,7 @@ All notable changes to `@metasession.co/devaudit-cli` are documented here. The C
 
 ### Upgrade notes
 
-- Run `devaudit update` and merge the sync pull request. It removes the three replaced workflows when they are unmodified; a modified copy is kept and named in a warning, and must be deleted before merging, because it reports a second `Quality Gates`.
+- Run `devaudit update` and merge the sync pull request. It removes the three replaced workflows when they are unmodified; a modified copy, or one the sync manifest does not record (a project with no manifest, where update deletes nothing), is kept and named in a warning, and must be deleted before merging, because it reports a second `Quality Gates`.
 - Branch protection needs no change: the required check is still `Quality Gates` (or `Quality Gates (<target>)`). Checks named `CI Status Fallback`, `Reused Quality Gates` or `Release provenance` from the old workflows must not be required.
 - A Playwright config that selected the feature run with `process.env.GITHUB_WORKFLOW === 'Feature In-Scope E2E'` must use `process.env.GITHUB_JOB === 'feature-e2e'` (doctor `ci-pipeline` names it).
 - A `.devaudit-patches/ci.yml.patch` made against the old `ci.yml` no longer applies; it is reported and skipped. Re-roll it against the new file (`docs/consuming-projects.md`).
